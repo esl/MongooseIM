@@ -47,20 +47,11 @@ rpc_call(M, F, A) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
-mam03_props() ->
-    [{final_message, true},             %% expect final message with <fin/> inside
-     {result_format, mess_fin},         %% RSM is inside final message
-     {mam_ns, mam_ns_binary_v03()}].    %% v0.3 namespace
-
 mam04_props() ->
-    [{final_message, false},
-     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
-     {mam_ns, mam_ns_binary_v04()}].
+    [{mam_ns, mam_ns_binary_v04()}].
 
 mam06_props() ->
-     [{final_message, false},
-      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
-     {mam_ns, mam_ns_binary_v06()}].
+    [{mam_ns, mam_ns_binary_v06()}].
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
@@ -73,32 +64,10 @@ respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
 
 get_prop(Key, undefined) ->
     get_prop(Key, []);
-get_prop(final_message, P) ->
-    proplists:get_value(final_message, P, true);
-get_prop(result_format, P) ->
-    proplists:get_value(result_format, P, mess_fin);
 get_prop(mam_ns, P) ->
-    proplists:get_value(mam_ns, P, mam_ns_binary_v03()).
+    proplists:get_value(mam_ns, P, mam_ns_binary_v04()).
 
-wait_archive_respond(P, User) ->
-    case get_prop(final_message, P) of
-        true ->
-            wait_archive_respond_fin(User);
-        false ->
-            wait_archive_respond_nofin(User)
-    end.
-
-wait_archive_respond_fin(User) ->
-    %% rot1
-    [IQ|MessagesAndFin] = wait_archive_respond_v03(User),
-    [Fin|Messages] = lists:reverse(MessagesAndFin),
-    #mam_archive_respond{
-       respond_iq=IQ,
-       respond_fin=Fin,
-       respond_messages=lists:reverse(Messages)}.
-
-wait_archive_respond_nofin(User) ->
-    %% rot1
+wait_archive_respond(User) ->
     [IQ|Messages] = lists:reverse(wait_archive_respond_v04plus(User)),
     #mam_archive_respond{
        respond_iq=IQ,
@@ -116,28 +85,6 @@ wait_archive_respond_v04plus(User) ->
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
         false -> [S|wait_archive_respond_v04plus(User)]
-    end.
-
-%% MAM v0.3 respond
-wait_archive_respond_v03(User) ->
-    IQ = escalus:wait_for_stanza(User, 5000),
-    case escalus_pred:is_iq_error(IQ) of
-        true ->
-            ct:pal("Stanza ~p", [IQ]),
-            ct:fail("Unexpected error IQ.", []);
-        false -> ok
-    end,
-    escalus:assert(is_iq_result, IQ),
-    [IQ|wait_archive_respond_v03_part2(User)].
-
-wait_archive_respond_v03_part2(User) ->
-    M = escalus:wait_for_stanza(User, 5000),
-    escalus:assert(is_message, M),
-    case is_final_message(M) of
-        true ->
-            [M];
-        false ->
-            [M|wait_archive_respond_v03_part2(User)]
     end.
 
 is_final_message(M) ->
@@ -163,8 +110,8 @@ assert_respond_query_id(_P, ExpectedQueryId, #result_iq{query_id=QueryId}) ->
 %% than ExpectedCompleteValue should be <<"false">>.
 wait_for_complete_archive_response(P, Alice, ExpectedCompleteValue)
       when is_binary(ExpectedCompleteValue) ->
-    Result = wait_archive_respond(P, Alice),
-    ParsedIQ = parse_result_iq(P, Result),
+    Result = wait_archive_respond(Alice),
+    ParsedIQ = parse_result_iq(Result),
     ?assert_equal_extra(ExpectedCompleteValue,
                         ParsedIQ#result_iq.complete,
                         #{mam_props => P, parsed_iq => ParsedIQ}).
@@ -204,8 +151,7 @@ nick(User) ->
     Name = escalus_utils:get_username(User),
     <<"unique_", Name/binary, "_nickname">>.
 
-mam_ns_binary() -> mam_ns_binary_v03().
-mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
+mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 namespaces() -> [mam_ns_binary(), mam_ns_binary_v04(), mam_ns_binary_v06()].
@@ -277,9 +223,6 @@ stanza_text_search_archive_request(P, QueryId, TextSearch) ->
                               undefined, undefined, TextSearch).
 
 stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
-    stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch).
-
-stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
@@ -551,25 +494,7 @@ message_id(Num, Config) ->
 %%                      [{xmlcdata,<<"103439">>}]},
 %%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
 %%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
-parse_result_iq(P, Result) ->
-    case get_prop(result_format, P) of
-        mess_fin ->
-            parse_fin_and_iq(Result);
-        iq_fin ->
-            parse_fin_iq(Result)
-    end.
-
-%% MAM v0.3
-parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
-    Fin = exml_query:subelement(FinMsg, <<"fin">>),
-    Set = exml_query:subelement(Fin, <<"set">>),
-    QueryId = exml_query:attr(Fin, <<"queryid">>),
-    %% MongooseIM does not add complete attribute, if complete is false
-    Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
-    parse_set_and_iq(IQ, Set, QueryId, Complete).
-
-%% MAM v0.4
-parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
+parse_result_iq(#mam_archive_respond{respond_iq = IQ, respond_fin = undefined}) ->
     Fin = exml_query:subelement(IQ, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
     %% MongooseIM does not add complete attribute, if complete is false
@@ -590,9 +515,7 @@ parse_set_and_iq(IQ, Set, QueryId, Complete) ->
         count       = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"count">>},
                                                                     cdata]))}.
 
-
 is_def(X) -> X =/= undefined.
-
 
 
 parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
@@ -715,7 +638,7 @@ send_muc_rsm_messages(Config) ->
         escalus:send(Alice,
             stanza_to_room(stanza_archive_request(P, <<"all_room_messages">>), Room)),
         AllMessages =
-            respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
+            respond_messages(assert_respond_size(15, wait_archive_respond(Alice))),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
         Pid ! {parsed_messages, ParsedMessages},
         ok
@@ -742,7 +665,7 @@ send_rsm_messages(Config) ->
                 %% Get whole history.
                 rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
                 AllMessages =
-                respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
+                respond_messages(assert_respond_size(15, wait_archive_respond(Alice))),
                 ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
                 Pid ! {parsed_messages, ParsedMessages},
                 ok
@@ -845,16 +768,16 @@ delete_offline_messages(Server, Username) ->
     catch rpc_apply(mod_offline, remove_user, [Username, Server]),
     ok.
 
-wait_message_range(P, Client, FromN, ToN) ->
-    wait_message_range(P, Client, 15, FromN-1, FromN, ToN).
+wait_message_range(Client, FromN, ToN) ->
+    wait_message_range(Client, 15, FromN-1, FromN, ToN).
 
-wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
-    Result = wait_archive_respond(P, Client),
+wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
+    Result = wait_archive_respond(Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
     Fin = respond_fin(Result),
     ParsedMessages = parse_messages(Messages),
-    ParsedIQ = parse_result_iq(P, Result),
+    ParsedIQ = parse_result_iq(Result),
     try
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
         ?assert_equal(Offset, ParsedIQ#result_iq.first_index),
@@ -873,11 +796,11 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     end.
 
 
-wait_empty_rset(P, Alice, TotalCount) ->
-    Result = wait_archive_respond(P, Alice),
+wait_empty_rset(Alice, TotalCount) ->
+    Result = wait_archive_respond(Alice),
     IQ = respond_iq(Result),
     ?assert_equal([], respond_messages(Result)),
-    ParsedIQ = parse_result_iq(P, Result),
+    ParsedIQ = parse_result_iq(Result),
     try
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
         ok
@@ -1243,7 +1166,7 @@ prefs_checks_descriptions() ->
 get_last_four_messages(P, Alice) ->
     RSM = #rsm_in{max=4, direction='before'},
     escalus:send(Alice, stanza_page_archive_request(P, <<"last4_rsm">>, RSM)),
-    respond_messages(wait_archive_respond(P, Alice)).
+    respond_messages(wait_archive_respond(Alice)).
 
 get_all_messages(P, Alice) ->
     get_all_messages(P, Alice, undefined).
@@ -1251,9 +1174,9 @@ get_all_messages(P, Alice) ->
 get_all_messages(P, Alice, Id) ->
     RSM = #rsm_in{max=50, direction='after', id=Id},
     escalus:send(Alice, stanza_page_archive_request(P, <<"page_rsm">>, RSM)),
-    Result = wait_archive_respond(P, Alice),
+    Result = wait_archive_respond(Alice),
     PageMessages = respond_messages(Result),
-    ParsedIQ = parse_result_iq(P, Result),
+    ParsedIQ = parse_result_iq(Result),
     #result_iq{last=LastId} = ParsedIQ,
     case PageMessages of
         [] ->

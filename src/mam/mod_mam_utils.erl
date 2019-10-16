@@ -38,7 +38,6 @@
          result_set/4,
          result_query/2,
          result_prefs/4,
-         make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
@@ -252,16 +251,8 @@ maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
         _ -> Packet
     end.
 
-maybe_log_deprecation(IQ) ->
-    case IQ#iq.xmlns of
-        ?NS_MAM_03 ->
-            Msg = "MongooseIM has received MAM 0.3 request. This version is deprecated and won't"
-                  " be supported by the next MongooseIM release."
-                  " Please update your client application.",
-            mongoose_deprecations:log(mam03, Msg, [{log_level, warning}]);
-        _ ->
-            ok
-    end.
+maybe_log_deprecation(_IQ) ->
+    ok. %% May be reused for future MAM versions.
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
@@ -353,13 +344,9 @@ get_one_of_path(_Elem, [], Def) ->
     Def.
 
 
-%% @doc Checks, that the stanza is a message with body.
-%%
-%% Servers SHOULD NOT archive messages that do not have a `<body/>' child tag.
-%% Servers SHOULD NOT delayed messages.
-%%
-%% From v0.3: it is expected that all messages that hold meaningful content,
-%% rather than state changes such as Chat State Notifications, would be archived.
+%% @doc In order to be archived, the message must be of type "normal", "chat" or "groupchat".
+%% It also must include a body or chat marker, as long as it doesn't include
+%% "result", "delay" or "no-store" elements.
 %% @end
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                             Packet :: exml:element(), boolean()) -> boolean().
@@ -527,23 +514,6 @@ encode_jids(JIDs) ->
      || JID <- JIDs].
 
 
-%% Make fin message introduced in MAM 0.3
--spec make_fin_message(binary(), boolean(), boolean(), exml:element(), binary()) -> exml:element().
-make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
-    #xmlel{
-       name = <<"message">>,
-       children = [make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
-
-%% MAM v0.3
-make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
-    #xmlel{
-       name = <<"fin">>,
-       attrs = [{<<"xmlns">>, MamNs}]
-        ++ [{<<"complete">>, <<"true">>} || IsComplete]
-        ++ [{<<"stable">>, <<"false">>} || not IsStable]
-        ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
-       children = [ResultSetEl]}.
-
 %% MAM v0.4.1 and above
 -spec make_fin_element(binary(), boolean(), boolean(), exml:element()) -> exml:element().
 make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
@@ -669,7 +639,6 @@ is_mam_result_message(_) ->
 maybe_get_result_namespace(Packet) ->
     exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
-is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
 is_mam_namespace(?NS_MAM_06) -> true;
 is_mam_namespace(_)          -> false.

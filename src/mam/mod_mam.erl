@@ -29,7 +29,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam).
 -behavior(gen_mod).
--xep([{xep, 313}, {version, "0.3"}]).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
 -xep([{xep, 313}, {version, "0.6"}]).
@@ -194,11 +193,8 @@ start(Host, Opts) ->
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, ?NS_MAM_03),
     mod_disco:register_feature(Host, ?NS_MAM_04),
     mod_disco:register_feature(Host, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_03,
-                                  ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
@@ -228,10 +224,8 @@ stop(Host) ->
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
-    mod_disco:unregister_feature(Host, ?NS_MAM_03),
     mod_disco:unregister_feature(Host, ?NS_MAM_04),
     mod_disco:unregister_feature(Host, ?NS_MAM_06),
     ok.
@@ -433,23 +427,6 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
-            ResIQ = IQ#iq{type = result, sub_el = []},
-            %% Server accepts the query
-            ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
-
-            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, true),
-
-            %% Make fin message
-            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
-            IsStable = true,
-            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            FinMsg = make_fin_message(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, QueryID),
-            ejabberd_sm:route(ArcJID, From, FinMsg),
-
-            %% IQ was sent above
-            ignore;
         {ok, {TotalCount, Offset, MessageRows}} ->
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,

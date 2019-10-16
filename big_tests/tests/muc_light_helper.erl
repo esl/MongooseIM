@@ -92,7 +92,7 @@ user_leave(Room, User, RemainingOccupants) ->
 
 then_archive_response_is(Receiver, Expected, Config) ->
     P = ?config(props, Config),
-    Response = mam_helper:wait_archive_respond(P, Receiver),
+    Response = mam_helper:wait_archive_respond(Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
     [ assert_archive_element(Element)
