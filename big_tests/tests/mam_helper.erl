@@ -15,8 +15,6 @@
 %%==============================================================================
 -module(mam_helper).
 
--compile(export_all).
-
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -32,6 +30,74 @@
          stanza_muc_enter_room/2,
          stanza_to_room/2,
          start_room/5]).
+
+-export([
+         rpc_apply/3,
+         get_prop/2,
+         is_riak_enabled/1,
+         is_cassandra_enabled/1,
+         is_elasticsearch_enabled/1,
+         is_mam_possible/1,
+         respond_iq/1,
+         print_configuration_not_supported/2,
+         start_alice_room/1,
+         destroy_room/1,
+         send_muc_rsm_messages/1,
+         send_rsm_messages/1,
+         clean_archives/1,
+         mam04_props/0,
+         mam06_props/0,
+         bootstrap_archive/1,
+         muc_bootstrap_archive/1,
+         start_alice_protected_room/1,
+         start_alice_anonymous_room/1,
+         maybe_wait_for_archive/1,
+         stanza_archive_request/2,
+         stanza_text_search_archive_request/3,
+         stanza_date_range_archive_request_not_empty/3,
+         wait_archive_respond/1,
+         wait_for_complete_archive_response/3,
+         assert_respond_size/2,
+         assert_respond_query_id/3,
+         parse_result_iq/1,
+         nick_to_jid/2,
+         stanza_filtered_by_jid_request/2,
+         nick/1,
+         respond_messages/1,
+         parse_forwarded_message/1,
+         login_send_presence/2,
+         assert_only_one_of_many_is_equal/2,
+         add_nostore_hint/1,
+         assert_not_stored/2,
+         has_x_user_element/1,
+         stanza_date_range_archive_request/1,
+         make_iso_time/1,
+         stanza_retrieve_form_fields/2,
+         stanza_limit_archive_request/1,
+         rsm_send/3,
+         stanza_page_archive_request/3,
+         wait_empty_rset/2,
+         wait_message_range/3,
+         message_id/2,
+         wait_message_range/5,
+         stanza_prefs_set_request/4,
+         stanza_prefs_get_request/1,
+         stanza_query_get_request/1,
+         parse_prefs_result_iq/1,
+         mam_ns_binary/0,
+         mam_ns_binary_v04/0,
+         make_alice_and_bob_friends/2,
+         run_prefs_case/6,
+         prefs_cases2/0,
+         default_policy/1,
+         get_all_messages/2,
+         parse_messages/1,
+         run_set_and_get_prefs_case/4,
+         muc_light_host/0,
+         host/0,
+         wait_for_archive_size/2,
+         verify_archived_muc_light_aff_msg/3
+        ]).
 
 rpc_apply(M, F, Args) ->
     case rpc_call(M, F, Args) of
@@ -86,9 +152,6 @@ wait_archive_respond_v04plus(User) ->
         true  -> [S];
         false -> [S|wait_archive_respond_v04plus(User)]
     end.
-
-is_final_message(M) ->
-    undefined =/= exml_query:subelement(M, <<"fin">>).
 
 assert_respond_size(Size, Respond=#mam_archive_respond{respond_messages=Messages})
       when length(Messages) =:= Size ->
@@ -154,8 +217,6 @@ nick(User) ->
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
-namespaces() -> [mam_ns_binary(), mam_ns_binary_v04(), mam_ns_binary_v06()].
-muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -167,20 +228,6 @@ maybe_attr(K, V) ->
 
 mam_ns_attr(P) ->
     [{<<"xmlns">>, get_prop(mam_ns, P)}].
-
-maybe_start_elem(undefined) ->
-    undefined;
-maybe_start_elem(BStart) ->
-    #xmlel{
-        name = <<"start">>,
-        children = [#xmlcdata{content = BStart}]}.
-
-maybe_end_elem(undefined) ->
-    undefined;
-maybe_end_elem(BEnd) ->
-    #xmlel{
-        name = <<"end">>,
-        children = [#xmlcdata{content = BEnd}]}.
 
 maybe_with_elem(undefined) ->
     undefined;
@@ -233,8 +280,6 @@ stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) -
     }]).
 
 
-form_x(BStart, BEnd, BWithJID, RSM) ->
-    form_x(BStart, BEnd, BWithJID, RSM, undefined).
 form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
@@ -261,9 +306,6 @@ form_border_fields(#rsm_in{
      form_field(<<"from_id">>, FromId),
      form_field(<<"to_id">>, ToId)].
 
-form_type_field(MamNs) ->
-    form_field(<<"FORM_TYPE">>, MamNs).
-
 form_field(_VarName, undefined) ->
     undefined;
 form_field(VarName, VarValue) ->
@@ -283,25 +325,6 @@ stanza_retrieve_form_fields(QueryId, NS) ->
         ++ maybe_attr(<<"queryid">>, QueryId),
         children = []
     }]).
-
-maybe_simple_elem(#rsm_in{simple=true}) ->
-    #xmlel{name = <<"simple">>};
-maybe_simple_elem(_) ->
-    undefined.
-
-maybe_opt_count_elem(#rsm_in{opt_count=true}) ->
-    #xmlel{name = <<"opt_count">>};
-maybe_opt_count_elem(_) ->
-    undefined.
-
-border_attributes(undefined) ->
-    [];
-border_attributes(#rsm_in{
-        before_id=BeforeId, after_id=AfterId, from_id=FromId, to_id=ToId}) ->
-    maybe_attr(<<"before_id">>, BeforeId)
-    ++ maybe_attr(<<"after_id">>, AfterId)
-    ++ maybe_attr(<<"from_id">>, FromId)
-    ++ maybe_attr(<<"to_id">>, ToId).
 
 maybe_rsm_elem(undefined) ->
     undefined;
@@ -544,47 +567,9 @@ parse_jids(Els) ->
     [escalus_utils:jid_to_lower(JID) %% MongooseIM normalizes JIDs
      || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
 
-%% <iq type='error' id='q29302'>
-%%   <error type='modify'>
-%%     <policy-violation xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
-%%     <text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>Too many results</text>
-%%   </error>
-%% </iq>
-parse_error_iq(#xmlel{name = <<"iq">>,
-                      attrs = Attrs, children = Children}) ->
-
-    IQ = #error_iq{
-        type = proplists:get_value(<<"type">>, Attrs),
-        id   = proplists:get_value(<<"id">>, Attrs)},
-    lists:foldl(fun parse_children_error_iq/2, IQ, Children).
-
-
-parse_children_error_iq(#xmlel{name = <<"error">>,
-                               attrs = Attrs, children = Children}, IQ) ->
-    IQ1 = IQ#error_iq{
-        error_type = proplists:get_value(<<"type">>, Attrs)},
-    lists:foldl(fun parse_children_error_iq_error/2, IQ1, Children);
-parse_children_error_iq(_, IQ) ->
-    IQ.
-
-parse_children_error_iq_error(#xmlel{name = <<"text">>,
-                                     children = [{xmlcdata, Text}]}, IQ) ->
-    IQ#error_iq{text = Text};
-parse_children_error_iq_error(#xmlel{name = Condition}, IQ) ->
-    IQ#error_iq{condition = Condition};
-parse_children_error_iq_error(_, IQ) ->
-    IQ.
-
 %%--------------------------------------------------------------------
 %% Helpers (muc)
 %%--------------------------------------------------------------------
-
-generate_rpc_jid({_, User}) ->
-    {username, Username} = lists:keyfind(username, 1, User),
-    {server, Server} = lists:keyfind(server, 1, User),
-    LUsername = escalus_utils:jid_to_lower(Username),
-    LServer = escalus_utils:jid_to_lower(Server),
-    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
 
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
@@ -677,13 +662,6 @@ send_rsm_messages(Config) ->
 
     escalus:end_per_testcase(pre_rsm, Config1),
     [{all_messages, ParsedMessages}|Config].
-
-append_subelem(Elem=#xmlel{children=Cs}, SubElem) ->
-    Elem#xmlel{children=Cs ++ [SubElem]}.
-
-archived_elem(By, Id) ->
-    #xmlel{name = <<"archived">>,
-           attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
 
 clean_archives(Config) ->
     SUs = serv_users(Config),
@@ -968,45 +946,6 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
--spec backend() -> rdbms | riak | cassandra | false.
-backend() ->
-    Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
-    determine_backend(host(), Funs).
-
-determine_backend(_, []) ->
-    disabled;
-determine_backend(Host, [F | Rest]) ->
-    case F(Host) of
-        false ->
-            determine_backend(Host, Rest);
-        Result ->
-            Result
-    end.
-
-maybe_rdbms(Host) ->
-    case mongoose_helper:is_rdbms_enabled(Host) of
-        true ->
-            rdbms;
-        _ ->
-            false
-    end.
-
-maybe_riak(Host) ->
-    case is_riak_enabled(Host) of
-        true ->
-            riak;
-        _ ->
-            false
-    end.
-
-maybe_cassandra(Host) ->
-    case is_cassandra_enabled(Host) of
-        true ->
-            cassandra;
-        _ ->
-            false
-    end.
-
 is_mam_possible(Host) ->
     mongoose_helper:is_rdbms_enabled(Host) orelse is_riak_enabled(Host) orelse
     is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
@@ -1034,9 +973,6 @@ is_elasticsearch_enabled(_Host) ->
         {error, _} ->
             false
     end.
-
-sql_transaction(Host, F) ->
-    rpc(mim(), mongoose_rdbms, sql_transaction, [Host, F]).
 
 login_send_presence(Config, User) ->
     Spec = escalus_users:get_userspec(Config, User),
@@ -1162,11 +1098,6 @@ prefs_checks_descriptions() ->
      "2. Alice sends a message to Bob",
      "3. Kate sends a message to Alice",
      "4. Alice sends a message to Kate"].
-
-get_last_four_messages(P, Alice) ->
-    RSM = #rsm_in{max=4, direction='before'},
-    escalus:send(Alice, stanza_page_archive_request(P, <<"last4_rsm">>, RSM)),
-    respond_messages(wait_archive_respond(Alice)).
 
 get_all_messages(P, Alice) ->
     get_all_messages(P, Alice, undefined).

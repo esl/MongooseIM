@@ -91,7 +91,6 @@ user_leave(Room, User, RemainingOccupants) ->
   escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 then_archive_response_is(Receiver, Expected, Config) ->
-    P = ?config(props, Config),
     Response = mam_helper:wait_archive_respond(Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
@@ -258,3 +257,4 @@ ver(Int) ->
 -spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
 set_mod_config(K, V, Host) ->
         true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
+
