@@ -123,6 +123,7 @@ cache:
                 - $HOME/.cache/mim_builds
                 - $HOME/.cache/mim_tests
                 - $HOME/.cache/mim_certs
+                - /tmp/go/bin
 
 
 # deploy:
