@@ -73,8 +73,6 @@ User Data:
 
 **Setup**
 
-**Warning: MongooseIM cannot connect to [MySQL over TLS with OTP 20.3](../operation-and-maintenance/known-issues.md).**
-
 The schema files can be found in the `priv` directory.
 The default schema is defined in the `mysql.sql` file.
 

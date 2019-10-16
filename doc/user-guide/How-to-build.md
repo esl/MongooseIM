@@ -21,7 +21,7 @@ To compile MongooseIM you need:
     * CentOS: `gcc`, `gcc-c++`
     * Ubuntu: `gcc`, `g++`
     * Mac: Xcode Command Line Tools
-*   Erlang/OTP 21.2 or higher; Versions 20.0-21.1 work as well but they are deprecated. The next MIM release won't support them.
+*   Erlang/OTP 21.2 or higher;
     * CentOS: `erlang` 
     * Ubuntu: `erlang`
     * Mac (Homebrew): `erlang`

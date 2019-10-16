@@ -4,7 +4,6 @@ The test runner script is used to compile MongooseIM and run tests.
 
 ## IMPORTANT!
 
-* Some examples in this guide use the MySQL database. Please keep in mind that MongooseIM cannot connect to [MySQL via TLS on OTP 20.3](../operation-and-maintenance/known-issues.md).
 * ODBC preset can only be tested [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
 * SELinux may prevent containers from accessing the disk. Please either disable it or add proper rules to the policy.
 

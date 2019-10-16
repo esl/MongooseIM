@@ -116,8 +116,6 @@ SSL configuration options for MySQL:
     * **Syntax:** `[Opt]`
     * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
 
-**Warning: MongooseIM cannot connect to [MySQL over TLS with OTP 20.3](../operation-and-maintenance/known-issues.md).**
-
 ###### Example configuration
 
 An example configuration can look as follows:
