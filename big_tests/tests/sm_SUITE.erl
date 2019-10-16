@@ -378,10 +378,12 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
     Config = escalus_users:update_userspec(ConfigIn, alice,
                                            stream_management, true),
     escalus:fresh_story(Config, [{alice,1}], fun(Alice) ->
+        C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
         escalus:send(Alice, AStanza),
         escalus:assert(is_stream_error,
                        [<<"policy-violation">>, <<>>],
                        escalus:wait_for_stanza(Alice)),
+        mongoose_helper:wait_for_pid_to_die(C2SPid),
         escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
         true = escalus_connection:wait_for_close(Alice,timer:seconds(5))
     end).
