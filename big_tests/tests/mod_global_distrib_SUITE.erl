@@ -414,8 +414,8 @@ test_two_way_pm(Alice, Eve) ->
     escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
     escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
-    FromAlice = escalus_client:wait_for_stanza(Eve),
-    FromEve = escalus_client:wait_for_stanza(Alice),
+    FromAlice = escalus_client:wait_for_stanza(Eve, timer:seconds(15)),
+    FromEve = escalus_client:wait_for_stanza(Alice, timer:seconds(15)),
 
     AliceJid = escalus_client:full_jid(Alice),
     EveJid = escalus_client:full_jid(Eve),
