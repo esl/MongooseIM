@@ -305,11 +305,6 @@ workflows:
           filters: *all_tags
       # ============= BASE BUILDS =============
       - mim/build:
-          name: otp_20_3
-          otp_package: 1:20.3.8.22-1
-          context: mongooseim-org
-          filters: *all_tags
-      - mim/build:
           name: otp_21_3
           otp_package: 1:21.3.8.6-1
           context: mongooseim-org
@@ -321,13 +316,6 @@ workflows:
           context: mongooseim-org
           filters: *all_tags
       # ============= SMALL TESTS =============
-      - mim/small_tests:
-          name: small_tests_20_3
-          otp_package: 1:20.3.8.22-1
-          context: mongooseim-org
-          requires:
-            - otp_20_3
-          filters: *all_tags
       - mim/small_tests:
           name: small_tests_21_3
           otp_package: 1:21.3.8.6-1
@@ -395,25 +383,24 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
-      # ============= 1 VERSION OLDER TESTS =============
       - mim/big_tests:
           name: pgsql_mnesia
-          otp_package: 1:21.3.8.6-1
+          otp_package: 1:22.0.7-1
           preset: pgsql_mnesia
           db: pgsql
           context: mongooseim-org
           requires:
-            - otp_21_3
+            - otp_22
           filters: *all_tags
-      # ============= 2 VERSIONS OLDER TESTS =============
+      # ============= 1 VERSION OLDER TESTS =============
       - mim/big_tests:
           name: ldap_mnesia
-          otp_package: 1:20.3.8.22-1
+          otp_package: 1:21.3.8.6-1
           preset: ldap_mnesia
           db: mnesia
           context: mongooseim-org
           requires:
-            - otp_20_3
+            - otp_21_3
           filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - mim/docker_image:
@@ -431,5 +418,4 @@ workflows:
             - dialyzer
             - small_tests_22
             - small_tests_21_3
-            - small_tests_20_3
           filters: *all_tags
