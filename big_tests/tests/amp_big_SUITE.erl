@@ -675,15 +675,15 @@ user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
     escalus_client:stop(FreshConfig, Client).
 
 client_has_no_mam_messages(User) ->
-    P = mam_helper:mam03_props(),
+    P = mam_helper:mam04_props(),
     escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
-    Res = mam_helper:wait_archive_respond(P, User),
+    Res = mam_helper:wait_archive_respond(User),
     mam_helper:assert_respond_size(0, Res).
 
 client_has_mam_message(User) ->
-    P = mam_helper:mam03_props(),
+    P = mam_helper:mam04_props(),
     escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
-    Res = mam_helper:wait_archive_respond(P, User),
+    Res = mam_helper:wait_archive_respond(User),
     mam_helper:assert_respond_size(1, Res).
 
 setup_rules(notify_deliver_none, Config) -> [{rules, [{deliver, none, notify}]} | Config];
