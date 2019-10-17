@@ -1282,6 +1282,7 @@ simple_text_search_request(Config) ->
                                                           "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
         mam_helper:wait_for_archive_size(Alice, 3),
+        maybe_wait_for_archive(Config), %% yz lag
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
@@ -1326,6 +1327,7 @@ long_text_search_request(Config) ->
 
         mam_helper:wait_for_archive_size(Bob, ExpectedLen),
         mam_helper:wait_for_archive_size(Alice, ExpectedLen),
+        maybe_wait_for_archive(Config), %% yz lag
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(Alice),
@@ -1384,6 +1386,12 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
                 mam_helper:wait_for_archive_size(Alice, 3),
+
+                %% Riak YZ is async.
+                %% It takes time to index docs  (usually 1 second).
+                %% https://docs.riak.com/riak/kv/latest/developing/usage/search/index.html#indexing-values
+                %% Each stanza_text_search_archive_request should call it regardless of wait_for_archive_size result.
+                maybe_wait_for_archive(Config),
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
