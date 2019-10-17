@@ -155,10 +155,9 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
 set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
-    catch Type:Error ->
-            Stacktrace = erlang:get_stacktrace(),
+    catch Type:Error:StackTrace ->
             ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
-                       [Type, Error, Stacktrace]),
+                       [Type, Error, StackTrace]),
             {error, Error}
     end.
 

@@ -518,12 +518,12 @@ route(From, To, Acc, Packet, []) ->
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
-        {'EXIT', Reason} ->
+        {'EXIT', {Reason, StackTrace}} ->
             ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
                          "packet=~ts~n~nstack_trace=~p~n",
                          [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                           M, Reason, exml:to_binary(OrigPacket),
-                          erlang:get_stacktrace()]),
+                          StackTrace]),
             mongoose_acc:append(router, result, {error, {M, Reason}}, Acc);
         drop ->
             ?DEBUG("filter dropped packet", []),
@@ -531,12 +531,12 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
-                {'EXIT', Reason} ->
+                {'EXIT', {Reason, StackTrace}} ->
                     ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
                                  "packet=~ts~n~nstack_trace=~p~n",
                                  [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                                   M, Reason, exml:to_binary(OrigPacketFiltered),
-                                  erlang:get_stacktrace()]),
+                                  StackTrace]),
                     mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc);
                 done ->
                     ?DEBUG("routing done", []),

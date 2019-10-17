@@ -403,16 +403,15 @@ try_reload_cluster(ReloadContext, Changes) ->
     try
         do_reload_cluster(Changes)
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?CRITICAL_MSG("issue=try_reload_cluster_failed "
                            "reason=~p:~p stacktrace=~1000p",
-                          [Class, Reason, Stacktrace]),
+                          [Class, Reason, StackTrace]),
             Filename = dump_reload_state(try_reload_cluster, ReloadContext),
             Reason2 = #{issue => try_reload_cluster_failed,
                         reason => Reason,
                         dump_filename => Filename},
-            erlang:raise(Class, Reason2, Stacktrace)
+            erlang:raise(Class, Reason2, StackTrace)
     end.
 
 do_reload_cluster(Changes) ->

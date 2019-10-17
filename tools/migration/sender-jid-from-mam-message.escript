@@ -1,10 +1,6 @@
 #!/usr/bin/env escript
 
 -mode(compile).
-%% I've added the directive below to avoid warnings about deprecated erlang:get_stacktrace/0
-%% on OTP 21 and above. It is printed on script startup on stdio, effectively messing with
-%% the tests and potential 3rd party code using this script.
--compile(nowarn_deprecated_function).
 
 -include_lib("xmerl/include/xmerl.hrl").
 
@@ -20,8 +16,8 @@ main([Type]) ->
         ok = io:setopts([binary]),
         loop(Type)
     catch
-        C:R ->
-            debug(C, R, erlang:get_stacktrace(), #{ type => unrecoverable_error })
+        C:R:S ->
+            debug(C, R, S, #{ type => unrecoverable_error })
     after
         file:close(get(debug_file))
     end;
@@ -98,13 +94,13 @@ safe_jid_extraction(JIDExtractorFun, Data) ->
             OutLenBin = integer_to_binary(OutLen),
             ok = file:write(standard_io, <<OutLenBin/binary, $\n, JID/binary>>)
     catch
-        throw:R ->
+        throw:R:S ->
             Extra = #{ type => invalid_message_type, data => Data },
-            debug(throw, R, erlang:get_stacktrace(), Extra),
+            debug(throw, R, S, Extra),
             ok = io:put_chars("-2\n");
-        C:R ->
+        C:R:S ->
             Extra = #{ type => cannot_extract_jid, data => Data },
-            debug(C, R, erlang:get_stacktrace(), Extra),
+            debug(C, R, S, Extra),
             ok = io:put_chars("-1\n")
     end.
 

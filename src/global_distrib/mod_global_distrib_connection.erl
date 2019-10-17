@@ -62,9 +62,9 @@ init([{Addr, Port}, Server]) ->
         {ok, #state{socket = Socket, host = MetricServer,
                     peer = mod_global_distrib_transport:peername(Socket)}}
     catch
-        error:{badmatch, Reason} ->
+        error:{badmatch, Reason}:StackTrace ->
             ?ERROR_MSG("Connection to ~p failed: ~p~n~p",
-                       [{Addr, Port}, Reason, erlang:get_stacktrace()]),
+                       [{Addr, Port}, Reason, StackTrace]),
             {stop, normal}
     end.
 

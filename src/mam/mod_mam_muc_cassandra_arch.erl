@@ -292,8 +292,7 @@ lookup_messages(_Result, Host,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
                          PageSize, IsSimple)
-    catch _Type:Reason ->
-            S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
             {error, {Reason, {stacktrace, S}}}
     end.
 

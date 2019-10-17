@@ -122,14 +122,14 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
     try
         check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
     catch
-        _:Reason ->
+        _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
                        inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
                        expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
                        query_params => QueryOpts,
                        check_params => CheckOpts,
                        error => Reason,
-                       stacktrace => erlang:get_stacktrace() })
+                       stacktrace => StackTrace })
     end.
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->

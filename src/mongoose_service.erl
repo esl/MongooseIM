@@ -126,19 +126,19 @@ run_start_service(Service, Opts0) ->
             _ -> {ok, Res}
         end
     catch
-        Class:Reason ->
+        Class:Reason:StackTrace ->
             ets:delete(?ETAB, Service),
             Template = "event=service_startup,status=error,service=~p,options=~p,class=~p,reason=~p~n~p",
             ErrorText = io_lib:format(Template,
-                                      [Service, Opts, Class, Reason, erlang:get_stacktrace()]),
+                                      [Service, Opts, Class, Reason, StackTrace]),
             ?CRITICAL_MSG(ErrorText, []),
             case is_app_running(mongooseim) of
                 true ->
-                    erlang:raise(Class, Reason, erlang:get_stacktrace());
+                    erlang:raise(Class, Reason, StackTrace);
                 false ->
                     ?CRITICAL_MSG("mongooseim initialization was aborted "
                     "because a service start failed.~n"
-                    "The trace is ~p.", [erlang:get_stacktrace()]),
+                    "The trace is ~p.", [StackTrace]),
                     timer:sleep(3000),
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                         1, 199))

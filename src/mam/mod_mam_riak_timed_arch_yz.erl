@@ -132,9 +132,9 @@ stop_muc_archive(Host) ->
 archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
         archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
             ?WARNING_MSG("Could not write message to archive, reason: ~p",
-                         [{Reason, erlang:get_stacktrace()}]),
+                         [{Reason, StackTrace}]),
             ejabberd_hooks:run(mam_drop_message, Host, [Host]),
             {error, Reason}
     end.
@@ -146,9 +146,9 @@ archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Di
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
         archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
-                     [{Reason, erlang:get_stacktrace()}]),
+                     [{Reason, StackTrace}]),
         ejabberd_hooks:run(mam_muc_drop_message, Host, [Host]),
         {error, Reason}
     end.
@@ -164,8 +164,7 @@ lookup_messages({error, _Reason} = Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params) ->
     try
         lookup_messages(Host, Params)
-    catch _Type:Reason ->
-              S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
               {error, {Reason, {stacktrace, S}}}
     end.
 

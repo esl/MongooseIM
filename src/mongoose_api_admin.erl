@@ -56,9 +56,9 @@ cowboy_router_paths(Base, Opts) ->
             Commands = mongoose_commands:list(admin),
             [handler_path(Base, Command, Opts) || Command <- Commands]
         catch
-            _:Err ->
+            _:Err:StackTrace ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n~p",
-                           [Err, erlang:get_stacktrace()]),
+                           [Err, StackTrace]),
                 []
         end.
 

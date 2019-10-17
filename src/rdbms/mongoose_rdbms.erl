@@ -542,18 +542,18 @@ inner_transaction(F, _State) ->
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
     put_state(State),
-    Result = try
-                 F()
-             catch
-                 throw:ThrowResult ->
-                     ThrowResult;
-                 Class:Other ->
-                     Stacktrace = erlang:get_stacktrace(),
-                     ?ERROR_MSG("issue=outer_transaction_failed "
-                                "reason=~p:~p stacktrace=~1000p",
-                                [Class, Other, Stacktrace]),
-                     {'EXIT', Other}
-          end,
+    {Result, StackTrace} =
+        try
+            {F(), []}
+        catch
+            throw:ThrowResult:S ->
+                {ThrowResult, S};
+            Class:Other:StackTrace ->
+                ?ERROR_MSG("issue=outer_transaction_failed "
+                           "reason=~p:~p stacktrace=~1000p",
+                           [Class, Other, StackTrace]),
+                {{'EXIT', Other},StackTrace}
+        end,
     NewState = erase_state(),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
@@ -571,7 +571,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         iolist_to_binary(SqlQuery),
-                        erlang:get_stacktrace(), NewState]),
+                        StackTrace, NewState]),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
@@ -582,7 +582,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "stacktrace=~1000p "
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
-                        erlang:get_stacktrace(), NewState]),
+                        StackTrace, NewState]),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {'EXIT', Reason} ->
@@ -619,13 +619,12 @@ sql_dirty_internal(F, State) ->
 sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
-          catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+          catch Class:Reason:StackTrace ->
             ?ERROR_MSG("event=sql_execute_failed "
                         "statement_name=~p reason=~p:~p "
                         "params=~1000p stacktrace=~1000p",
-                       [Name, Class, Reason, Params, Stacktrace]),
-            erlang:raise(Class, Reason, Stacktrace)
+                       [Name, Class, Reason, Params, StackTrace]),
+            erlang:raise(Class, Reason, StackTrace)
           end,
     {Res, NewState}.
 

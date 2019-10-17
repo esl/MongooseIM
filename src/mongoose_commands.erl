@@ -355,9 +355,9 @@ execute_command(Caller, Command, Args) ->
             {error, denied, <<"Command not available for this user">>};
         caller_jid_mismatch ->
             {error, denied, <<"Caller ids do not match">>};
-        X:E ->
+        X:E:S ->
             ?ERROR_MSG("Caught ~p:~p while executing ~p stacktrace=~p",
-                       [X, E, Command#mongoose_command.name, erlang:get_stacktrace()]),
+                       [X, E, Command#mongoose_command.name, S]),
             {error, internal, term_to_binary(E)}
     end.
 

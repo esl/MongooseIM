@@ -4529,10 +4529,9 @@ wait_room_range(Client, TotalCount, Offset, FromN, ToN) ->
         ?assert_equal(generate_room_name(ToN),   Out#rsm_out.last),
         ?assert_equal(generate_room_addrs(FromN, ToN), room_jids(Out)),
         ok
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
-        erlang:raise(Class, Reason, Stacktrace)
+        erlang:raise(Class, Reason, StackTrace)
     end.
 
 wait_empty_rset(Client, TotalCount) ->
@@ -4542,10 +4541,9 @@ wait_empty_rset(Client, TotalCount) ->
         ?assert_equal(i2b(TotalCount), Out#rsm_out.count),
         ?assert_equal([], room_jids(Out)),
         ok
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
-        erlang:raise(Class, Reason, Stacktrace)
+        erlang:raise(Class, Reason, StackTrace)
     end.
 
 room_jids(#rsm_out{items=Items}) ->

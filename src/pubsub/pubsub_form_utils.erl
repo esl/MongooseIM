@@ -188,8 +188,8 @@ convert_fields_from_binaries([{VarBin, Values} | RData], Acc, Schema) ->
                     NAcc = lists:keystore(Var, 1, Acc, {Var, Converted}),
                     convert_fields_from_binaries(RData, NAcc, Schema)
             catch
-                C:R ->
-                    {error, {conversion_failed, {Var, DataType, C, R, erlang:get_stacktrace()}}}
+                C:R:S ->
+                    {error, {conversion_failed, {Var, DataType, C, R, S}}}
             end;
         false ->
             {error, {unknown_option, VarBin}}

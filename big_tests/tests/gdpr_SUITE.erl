@@ -1588,11 +1588,11 @@ validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems, SortBy) -
     try validate_personal_maps(PersonalMaps, ExpectedItems) of
         _ -> ok
     catch
-        C:R ->
+        C:R:S ->
             ct:fail(#{
                         class => C,
                         reason => R,
-                        stacktrace => erlang:get_stacktrace(),
+                        stacktrace => S,
                         sorted_by => SortBy,
                         personal_maps => PersonalMaps,
                         expected_items => ExpectedItems
