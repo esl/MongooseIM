@@ -542,18 +542,7 @@ inner_transaction(F, _State) ->
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
     put_state(State),
-    {Result, StackTrace} =
-        try
-            {F(), []}
-        catch
-            throw:ThrowResult:S ->
-                {ThrowResult, S};
-            Class:Other:StackTrace ->
-                ?ERROR_MSG("issue=outer_transaction_failed "
-                           "reason=~p:~p stacktrace=~1000p",
-                           [Class, Other, StackTrace]),
-                {{'EXIT', Other},StackTrace}
-        end,
+    {Result, StackTrace} = apply_transaction_function(F),
     NewState = erase_state(),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
@@ -593,6 +582,20 @@ outer_transaction(F, NRestarts, _Reason, State) ->
             %% Commit successful outer txn
             sql_query_internal([<<"commit;">>], NewState),
             {{atomic, Res}, NewState}
+    end.
+
+-spec apply_transaction_function(F :: fun()) -> {any(), list()}.
+apply_transaction_function(F) ->
+    try
+        {F(), []}
+    catch
+        throw:ThrowResult:StackTrace ->
+            {ThrowResult, StackTrace};
+        Class:Other:StackTrace ->
+            ?ERROR_MSG("issue=outer_transaction_failed "
+                       "reason=~p:~p stacktrace=~1000p",
+                       [Class, Other, StackTrace]),
+            {{'EXIT', Other}, StackTrace}
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef}) ->
