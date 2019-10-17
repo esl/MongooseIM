@@ -175,7 +175,6 @@ elif [ "$db" = 'riak' ]; then
         $(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
         $(mount_ro_volume "$TOOLS/mam_search_schema.xml" "/mam_search_schema.xml") \
         $(mount_ro_volume "$TOOLS/vcard_search_schema.xml" "/vcard_search_schema.xml") \
-        $(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/riak) \
         --health-cmd='riak-admin status' \
         "michalwski/docker-riak:1.0.6" \
