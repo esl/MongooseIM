@@ -127,7 +127,8 @@ init([Server, Supervisor]) ->
     schedule_refresh(State2),
     schedule_gc(State2),
 
-    ?DEBUG("event=mgr_started,pid='~p',server='~p',supervisor='~p'", [self(), Server, Supervisor]),
+    ?INFO_MSG("event=mgr_started,pid='~p',server='~p',supervisor='~p',refresh_interval=~p",
+              [self(), Server, Supervisor, RefreshInterval]),
     {ok, State2}.
 
 handle_call(get_connection_pool, From, #state{ enabled = [],
@@ -156,6 +157,10 @@ handle_call(get_disabled_endpoints, _From, State) ->
 handle_call(ping_proc, _From, State) ->
     {reply, pong, State}.
 
+handle_cast({call_timeout, FromPid, Msg}, State) ->
+    ?WARNING_MSG("event=mgr_timeout, caller_pid=~p, caller_msg=~p state_info=~1000p",
+                 [FromPid, Msg, state_info(State)]),
+    {noreply, State};
 handle_cast(Msg, State) ->
     ?WARNING_MSG("event=unknown_msg,msg='~p'", [Msg]),
     {noreply, State}.
@@ -285,7 +290,12 @@ terminate(_Reason, _State) ->
 -spec do_call(Server :: jid:lserver(), Msg :: any()) -> any().
 do_call(Server, Msg) ->
     MgrName = mod_global_distrib_utils:server_to_mgr_name(Server),
-    gen_server:call(MgrName, Msg).
+    try
+        gen_server:call(MgrName, Msg)
+    catch exit:{timeout,_} = Reason:Stacktrace ->
+        catch gen_server:cast(MgrName, {call_timeout, self(), Msg}),
+        erlang:raise(exit, Reason, Stacktrace)
+    end.
 
 -spec schedule_refresh(State :: state()) -> state().
 schedule_refresh(#state{ refresh_interval = Interval } = State) ->
@@ -419,3 +429,21 @@ stop_disabled(Endpoint, State) ->
             ?ERROR_MSG("event=cannot_close_disabled_connection,endpoint='~p',error='~p'",
                        [Endpoint, Error])
     end.
+
+state_info(#state{
+          enabled = Enabled,
+          disabled = Disabled,
+          pending_endpoints = PendingEndpoints,
+          pending_gets = PendingGets,
+          refresh_interval = RefreshInterval,
+          gc_interval = GCInterval,
+          pending_endpoints_listeners = PendingEndpointsListeners
+         }) ->
+    [{enabled, Enabled},
+     {disabled, Disabled},
+     {pending_endpoints, PendingEndpoints},
+     {pending_gets, PendingGets},
+     {refresh_interval, RefreshInterval},
+     {gc_interval, GCInterval},
+     {pending_endpoints_listeners, PendingEndpointsListeners}].
+
