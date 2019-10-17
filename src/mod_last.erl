@@ -131,7 +131,7 @@ process_local_iq(_From, _To, Acc,
 get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
         {_, _, _} = StartNow ->
-            now_to_seconds(p1_time_compat:timestamp()) - now_to_seconds(StartNow);
+            erlang:monotonic_time(seconds) - now_to_seconds(StartNow);
         _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
@@ -185,7 +185,7 @@ make_response(IQ, SubEl, LUser, LServer, allow) ->
                     IQ#iq{type = error,
                         sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]};
                 {ok, TimeStamp, Status} ->
-                    TimeStamp2 = now_to_seconds(p1_time_compat:timestamp()),
+                    TimeStamp2 = erlang:monotonic_time(seconds),
                     Sec = TimeStamp2 - TimeStamp,
                     IQ#iq{type = result,
                         sub_el =
@@ -216,7 +216,7 @@ count_active_users(LServer, Timestamp) ->
 -spec on_presence_update(map(), jid:user(), jid:server(), jid:resource(),
                          Status :: binary()) -> map() | {error, term()}.
 on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
-    TimeStamp = now_to_seconds(p1_time_compat:timestamp()),
+    TimeStamp = erlang:monotonic_time(seconds),
     case store_last_info(LUser, LServer, TimeStamp, Status) of
         ok -> Acc;
         E -> E

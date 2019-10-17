@@ -39,7 +39,7 @@
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     ResendAfterMs = proplists:get_value(resend_after_ms, Opts0, 200),
-    ResendAfter = p1_time_compat:convert_time_unit(ResendAfterMs, milli_seconds, native),
+    ResendAfter = erlang:convert_time_unit(ResendAfterMs, milli_seconds, native),
     Opts = [{resend_after, ResendAfter}, {max_retries, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
@@ -61,7 +61,7 @@ init(_) ->
 
 handle_info(resend, State) ->
     erlang:send_after(100, self(), resend),
-    Now = p1_time_compat:monotonic_time(),
+    Now = erlang:monotonic_time(),
     resend_messages(Now),
     {noreply, State}.
 
@@ -103,10 +103,10 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             ?DEBUG("Storing global message id=~s from=~s to=~s to "
                    "resend after ~B ms (bounce_ttl=~B)",
                    [ID, jid:to_binary(From), jid:to_binary(To),
-                    p1_time_compat:convert_time_unit(opt(resend_after), native, milli_seconds),
+                    erlang:convert_time_unit(opt(resend_after), native, milli_seconds),
                     OldTTL]),
             Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),
-            ResendAt = p1_time_compat:monotonic_time() + opt(resend_after),
+            ResendAt = erlang:monotonic_time() + opt(resend_after),
             do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
             drop
     end.

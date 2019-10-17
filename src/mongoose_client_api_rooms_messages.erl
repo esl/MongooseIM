@@ -46,7 +46,7 @@ to_json(Req, #{role_in_room := none} = State) ->
 to_json(Req, #{jid := UserJID, room := Room} = State) ->
     RoomJID = maps:get(jid, Room),
     Server = UserJID#jid.server,
-    Now = p1_time_compat:os_system_time(micro_seconds),
+    Now = os:system_time(micro_seconds),
     ArchiveID = mod_mam_muc:archive_id_int(Server, RoomJID),
     QS = cowboy_req:parse_qs(Req),
     PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),

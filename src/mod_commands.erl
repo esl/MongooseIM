@@ -379,7 +379,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                rsm => #rsm_in{direction = before, id = undefined}, % last msgs
                start_ts => undefined,
                end_ts => Before * 1000000,
-               now => p1_time_compat:os_system_time(micro_seconds),
+               now => os:system_time(micro_seconds),
                with_jid => WithJID,
                search_text => undefined,
                page_size => Limit,

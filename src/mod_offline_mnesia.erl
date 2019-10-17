@@ -120,7 +120,7 @@ remove_user(LUser, LServer) ->
 -spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
-    TimeStamp = p1_time_compat:timestamp(),
+    TimeStamp = erlang:timestamp(),
     F = fun() ->
                 mnesia:write_lock_table(offline_msg),
                 mnesia:foldl(

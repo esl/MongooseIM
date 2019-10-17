@@ -262,7 +262,7 @@ get_hosts() ->
 -spec refresh_nodes() -> any().
 refresh_nodes() ->
     NodesKey = nodes_key(),
-    Now = p1_time_compat:system_time(seconds),
+    Now = erlang:system_time(seconds),
     case get_expired_nodes(Now) of
         [] -> ok;
         ExpiredNodes -> q([<<"HDEL">>, NodesKey | ExpiredNodes])
