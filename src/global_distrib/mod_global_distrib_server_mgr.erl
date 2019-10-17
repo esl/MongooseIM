@@ -52,7 +52,9 @@
           gc_interval :: pos_integer(),
           %% Used by force_refresh to block until refresh is fully done.
           %% Listeners are notified only once and then this list is cleared.
-          pending_endpoints_listeners = [] :: [pid()]
+          pending_endpoints_listeners = [] :: [pid()],
+          %% Containts last result of get_endpoints
+          last_endpoints :: [endpoint()] | undefined
          }).
 
 -type state() :: #state{}.
@@ -336,9 +338,17 @@ pick_connection_pool(Enabled) ->
     PoolRef.
 
 -spec refresh_connections(State :: state()) -> state().
-refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints } = State) ->
+refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints,
+                            last_endpoints = LastEndpoints } = State) ->
     ?DEBUG("event=refreshing_endpoints,server='~s'", [Server]),
     {ok, NewEndpoints} = get_endpoints(Server),
+    case NewEndpoints of
+        LastEndpoints ->
+            nothing_new;
+        _ ->
+            ?INFO_MSG("event=endpoints_change old_endpoints=~p new_endpoints=~p",
+                      [LastEndpoints, NewEndpoints])
+    end,
     ?DEBUG("event=fetched_endpoints,server='~s',result='~p'", [Server, NewEndpoints]),
 
     NPendingEndpoints = resolve_pending(NewEndpoints, State#state.enabled),
@@ -358,7 +368,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
             ?DEBUG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
                    [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)])
     end,
-    State#state{ pending_endpoints = FinalPendingEndpoints }.
+    State#state{ pending_endpoints = FinalPendingEndpoints, last_endpoints = NewEndpoints }.
 
 -spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Server) ->
@@ -431,19 +441,25 @@ stop_disabled(Endpoint, State) ->
     end.
 
 state_info(#state{
+          server = Server,
+          supervisor = Supervisor,
           enabled = Enabled,
           disabled = Disabled,
           pending_endpoints = PendingEndpoints,
           pending_gets = PendingGets,
           refresh_interval = RefreshInterval,
           gc_interval = GCInterval,
-          pending_endpoints_listeners = PendingEndpointsListeners
+          pending_endpoints_listeners = PendingEndpointsListeners,
+          last_endpoints = LastEndpoints
          }) ->
-    [{enabled, Enabled},
+    [{server, Server},
+     {supervisor, Supervisor},
+     {enabled, Enabled},
      {disabled, Disabled},
      {pending_endpoints, PendingEndpoints},
      {pending_gets, PendingGets},
      {refresh_interval, RefreshInterval},
      {gc_interval, GCInterval},
-     {pending_endpoints_listeners, PendingEndpointsListeners}].
+     {pending_endpoints_listeners, PendingEndpointsListeners},
+     {last_endpoints, LastEndpoints}].
 
