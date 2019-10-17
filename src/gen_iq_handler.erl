@@ -141,9 +141,9 @@ handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
                  IQ :: jlib:iq()) -> mongoose_acc:t().
 process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, Acc, IQ) of
-        {'EXIT', Reason} ->
+        {'EXIT', {Reason, StackTrace}} ->
             ?WARNING_MSG("event=process_iq_error,reason=~p,stack_trace=~p",
-                         [Reason, erlang:get_stacktrace()]),
+                         [Reason, StackTrace]),
             Acc;
         {Acc1, ignore} ->
             Acc1;

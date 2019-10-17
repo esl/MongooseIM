@@ -57,10 +57,9 @@ post_end_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
 
 handle_return(SuiteName, Place, Return, Config, State) ->
     try handle_return_unsafe(SuiteName, Place, Return, Config, State)
-    catch Class:Error ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Error:StackTrace ->
         ct:pal("issue=handle_return_unsafe_failed reason=~p:~p~n"
-               "stacktrace=~p", [Class, Error, Stacktrace]),
+               "stacktrace=~p", [Class, Error, StackTrace]),
         State
     end.
 

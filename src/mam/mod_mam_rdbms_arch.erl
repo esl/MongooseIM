@@ -156,11 +156,11 @@ archive_message(Result, Host, MessID, UserID,
     try
         do_archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, Dir, Packet)
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
                        "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
                        [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
-                        Reason, erlang:get_stacktrace()]),
+                        Reason, StackTrace]),
             {error, Reason}
     end.
 
@@ -211,8 +211,7 @@ lookup_messages(_Result, Host, Params) ->
                            mod_mam_utils:normalize_search_text(SearchText),
                            PageSize,
                            IsSimple, is_opt_count_supported_for(RSM))
-    catch _Type:Reason ->
-        S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
 

@@ -83,11 +83,10 @@ get_roster(LUser, LServer) ->
                                    Items),
             RItems;
         _ -> []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=get_roster_failed "
                    "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, Stacktrace]),
+                   [Class, Reason, LUser, StackTrace]),
         []
     end.
 
@@ -167,11 +166,10 @@ get_subscription_lists(_, LUser, LServer) ->
             ?ERROR_MSG("event=get_subscription_lists_failed "
                        "reason=~p user=~ts", [Other, LUser]),
             []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=get_subscription_lists_failed "
                    "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, Stacktrace]),
+                   [Class, Reason, LUser, StackTrace]),
         []
     end.
 

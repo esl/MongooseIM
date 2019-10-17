@@ -769,14 +769,13 @@ wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
         ?assert_equal([generate_message_text(N) || N <- lists:seq(FromN, ToN)],
                       [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         ok
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ct:pal("IQ: ~p~n"
                "Fin: ~p~n"
                "Messages: ~p~n"
                "Parsed messages: ~p~n",
                [IQ, Fin, Messages, ParsedMessages]),
-        erlang:raise(Class, Reason, Stacktrace)
+        erlang:raise(Class, Reason, StackTrace)
     end.
 
 
@@ -788,18 +787,16 @@ wait_empty_rset(Alice, TotalCount) ->
     try
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
         ok
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ct:pal("IQ: ~p~n", [IQ]),
-        erlang:raise(Class, Reason, Stacktrace)
+        erlang:raise(Class, Reason, StackTrace)
     end.
 
 parse_messages(Messages) ->
     try [parse_forwarded_message(M) || M <- Messages]
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ct:pal("Messages: ~p~n", [Messages]),
-        erlang:raise(Class, Reason, Stacktrace)
+        erlang:raise(Class, Reason, StackTrace)
     end.
 
 bootstrap_archive(Config) ->

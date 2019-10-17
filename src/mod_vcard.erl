@@ -314,8 +314,7 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                     IQ#iq{type = error,
                           sub_el = [VCARD, Reason]}
             catch
-                E:R ->
-                    Stack = erlang:get_stacktrace(),
+                E:R:Stack ->
                     ?ERROR_MSG("issue=process_sm_iq_set_failed "
                                 "reason=~p:~p "
                                 "stacktrace=~1000p "
@@ -341,8 +340,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
             IQ#iq{type = error, sub_el = [SubEl, Reason]}
-        catch E:R ->
-            Stack = erlang:get_stacktrace(),
+        catch E:R:Stack ->
             ?ERROR_MSG("issue=process_sm_iq_get_failed "
                         "reason=~p:~p "
                         "stacktrace=~1000p "

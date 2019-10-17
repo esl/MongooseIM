@@ -872,8 +872,7 @@ remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
     try
         plugin_call(Plugin, remove_user, [LUser, LServer])
     catch
-        Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?WARNING_MSG("event=cannot_delete_pubsub_user,"
                          "luser=~s,lserver=~s,class=~p,reason=~p,stacktrace=~p",
                          [LUser, LServer, Class, Reason, StackTrace])

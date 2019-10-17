@@ -210,11 +210,11 @@ extra_debug_fun(Fun) ->
             try Fun() of
                 Res -> Res
             catch
-                C:R ->
+                C:R:S ->
                     throw(#{
                       class => C,
                       reason => R,
-                      stacktrace => erlang:get_stacktrace()})
+                      stacktrace => S})
             end
     end.
 

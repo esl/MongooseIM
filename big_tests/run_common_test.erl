@@ -68,12 +68,11 @@ main(RawArgs) ->
                 io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
                 init:stop(ExitStatusByGroups)
         end
-    catch Type:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Type:Reason:StackTrace ->
         io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
-                               [Type, Reason, Stacktrace]),
+                               [Type, Reason, StackTrace]),
         error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
-                               [Type, Reason, Stacktrace]),
+                               [Type, Reason, StackTrace]),
         %% Waiting for messages to be flushed
         timer:sleep(5000),
         init:stop("run_common_test:main/1 crashed")

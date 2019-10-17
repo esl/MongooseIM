@@ -1668,10 +1668,9 @@ archived(Config) ->
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Id, ArcId),
         ok
-        catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        catch Class:Reason:StackTrace ->
             ct:pal("Msg ~p", [Msg]),
-            erlang:raise(Class, Reason, Stacktrace)
+            erlang:raise(Class, Reason, StackTrace)
         end
         end,
     %% Made fresh in init_per_testcase
@@ -2749,10 +2748,9 @@ mam_service_discovery(Config) ->
         escalus:assert(is_iq_result, Stanza),
         escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
         ok
-        catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        catch Class:Reason:StackTrace ->
             ct:pal("Stanza ~p.", [Stanza]),
-            erlang:raise(Class, Reason, Stacktrace)
+            erlang:raise(Class, Reason, StackTrace)
         end
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).

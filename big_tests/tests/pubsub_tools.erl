@@ -417,10 +417,9 @@ check_node_creation_notification(Response, NodeName) ->
 check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     try
         do_check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options)
-    catch Class:Reason ->
+    catch Class:Reason:StackTrace ->
               ct:pal("failed to check response=~p", [Response]),
-              Stacktrace = erlang:get_stacktrace(),
-              erlang:raise(Class, Reason, Stacktrace)
+              erlang:raise(Class, Reason, StackTrace)
     end,
     Response.
 

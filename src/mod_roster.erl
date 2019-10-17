@@ -880,8 +880,7 @@ try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
     try
         send_unsubscription_to_rosteritems(Acc, LUser, LServer)
     catch
-        E:R ->
-            S = erlang:get_stacktrace(),
+        E:R:S ->
             ?WARNING_MSG("event=cannot_send_unsubscription_to_rosteritems,"
                          "class=~p,reason=~p,stacktrace=~p", [E, R, S]),
             Acc
