@@ -252,18 +252,16 @@ wait_for_stream({xmlstreamstart, _Name, _} = StreamStart, StateData) ->
     handle_stream_start(StreamStart, StateData);
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
-%% TODO: this clause is most likely dead code - can't be triggered
-%%       with XMPP level tests;
-%%       see github.com/esl/ejabberd_tests/tree/element-before-stream-start
-wait_for_stream({xmlstreamelement, _}, StateData) ->
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
-wait_for_stream({xmlstreamend, _}, StateData) ->
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
-wait_for_stream({xmlstreamerror, _}, StateData) ->
-    send_header(StateData, ?MYNAME, << "1.0">>, <<"">>),
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream(closed, StateData) ->
-    {stop, normal, StateData}.
+    {stop, normal, StateData};
+wait_for_stream(_UnexpectedItem, #state{ server = Server } = StateData) ->
+    case ejabberd_config:get_local_option(hide_service_name, Server) of
+        true ->
+            {stop, normal, StateData};
+        _ ->
+            send_header(StateData, Server, << "1.0">>, <<"">>),
+            c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData)
+    end.
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),

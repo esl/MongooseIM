@@ -42,6 +42,8 @@
 all() ->
     [
      {group, session_replacement},
+     {group, security},
+     %% these groups must be last, as they really... complicate configuration
      {group, fast_tls},
      {group, just_tls}
     ].
@@ -75,7 +77,11 @@ groups() ->
                                      same_resource_replaces_session,
                                      clean_close_of_replaced_session,
                                      replaced_session_cannot_terminate
-                                    ]}
+                                    ]},
+          {security, [], [
+                          return_proper_stream_error_if_service_is_not_hidden,
+                          close_connection_if_service_type_is_hidden
+                         ]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -169,6 +175,10 @@ end_per_group(session_replacement, Config) ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
+    OptName = {hide_service_name, <<"localhost">>},
+    mongoose_helper:successful_rpc(ejabberd_config, add_local_option, [OptName, true]),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     S = escalus_users:get_server(Config, alice),
     OptKey = {replaced_wait_timeout, S},
@@ -177,6 +187,10 @@ init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
+    OptName = {hide_service_name, <<"localhost">>},
+    mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [OptName]),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     {_, OptKey} = lists:keyfind(opt_to_del, 1, Config),
     {atomic, _} = rpc(mim(), ejabberd_config, del_local_option, [OptKey]),
@@ -617,6 +631,38 @@ replaced_session_cannot_terminate(Config) ->
     lager_ct_backend:stop_capture(),
 
     escalus_connection:stop(Alice2).
+
+return_proper_stream_error_if_service_is_not_hidden(_Config) ->
+    % GIVEN MongooseIM is running default configuration
+    % WHEN we send non-XMPP payload
+    % THEN the server replies with stream error xml-not-well-formed and closes the connection
+    SendMalformedDataStep = fun(Client, Features) ->
+                                    escalus_connection:send_raw(Client, <<"malformed">>),
+                                    {Client, Features}
+                            end,
+    {ok, Connection, _} = escalus_connection:start([], [SendMalformedDataStep]),
+    escalus_connection:receive_stanza(Connection, #{ assert => is_stream_start }),
+    StreamErrorAssertion = {is_stream_error, [<<"xml-not-well-formed">>, <<>>]},
+    escalus_connection:receive_stanza(Connection, #{ assert => StreamErrorAssertion }),
+    %% Sometimes escalus needs a moment to report the connection as closed
+    escalus_connection:wait_for_close(Connection, 5000).
+
+close_connection_if_service_type_is_hidden(_Config) ->
+    % GIVEN the option to hide service name is enabled
+    % WHEN we send non-XMPP payload
+    % THEN connection is closed without any response from the server
+    FailIfAnyDataReturned = fun(Reply) ->
+                                    ct:fail({unexpected_data, Reply})
+                            end,
+    Connection = escalus_tcp:connect(#{ on_reply => FailIfAnyDataReturned }),
+    Ref = monitor(process, Connection),
+    escalus_tcp:send(Connection, <<"malformed">>),
+    receive
+        {'DOWN', Ref, _, _, _} -> ok
+    after
+        5000 ->
+            ct:fail(connection_not_closed)
+    end.
 
 %%--------------------------------------------------------------------
 %% Internal functions
