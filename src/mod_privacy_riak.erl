@@ -44,9 +44,12 @@
 get_bucket_name(LServer, Opt, Default) ->
     {gen_mod:get_module_opt(LServer, mod_privacy, Opt, Default), LServer}.
 
--define(BKT_DEFAULT_LIST(Server), get_bucket_name(Server, defaults_bucket_type, <<"privacy_defaults">>)).
--define(BKT_LISTS_NAMES(Server), get_bucket_name(Server, names_bucket_type, <<"privacy_lists_names">>)).
--define(BKT_LISTS(Server), get_bucket_name(Server, bucket_type, <<"privacy_lists">>)).
+-define(BKT_DEFAULT_LIST(Server),
+        get_bucket_name(Server, defaults_bucket_type, <<"privacy_defaults">>)).
+-define(BKT_LISTS_NAMES(Server),
+        get_bucket_name(Server, names_bucket_type, <<"privacy_lists_names">>)).
+-define(BKT_LISTS(Server),
+        get_bucket_name(Server, bucket_type, <<"privacy_lists">>)).
 
 init(_Host, _Opts) ->
     ok.

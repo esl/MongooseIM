@@ -313,8 +313,9 @@ do_lookup_messages(Host, Params) ->
             {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
-            Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
-                                      {Host, OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
+            SLen = length(SortedKeys),
+            Args = {Host, OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText},
+            Offset = calculate_offset(RSM, TotalCountFullQuery, SLen, Args),
             {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
     end.
 
@@ -331,12 +332,15 @@ add_offset(_, Opts) ->
 
 calculate_offset(#rsm_in{direction = before}, TotalCount, PageSize, _) ->
     TotalCount - PageSize;
-calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Host, Owner, Remote, MsgIdStart, SearchText})
+calculate_offset(#rsm_in{direction = aft, id = Id}, _, _,
+                 {Host, Owner, Remote, MsgIdStart, SearchText})
   when Id /= undefined ->
-    {Count, _} = read_archive(Host, Owner, Remote, MsgIdStart, Id, SearchText,
+    {Count, _} = read_archive(Host, Owner, Remote,
+                              MsgIdStart, Id, SearchText,
                               [{rows, 1}], fun get_msg_id_key/3),
     Count;
-calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _) when is_integer(Index) ->
+calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _)
+  when is_integer(Index) ->
     Index;
 calculate_offset(_, _TotalCount, _PageSize, _) ->
     0.
