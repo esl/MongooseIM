@@ -224,7 +224,7 @@ cannot_reproduce_race_condition_in_store_info(C) ->
     ok = try_to_reproduce_race_condition(C).
 
 store_info_sends_message_to_the_session_owner(C) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
@@ -345,7 +345,7 @@ get_fun_for_unique_count(ejabberd_sm_redis) ->
     end.
 
 make_sid() ->
-    {p1_time_compat:timestamp(), self()}.
+    {erlang:timestamp(), self()}.
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
@@ -470,7 +470,7 @@ is_redis_running() ->
     end.
 
 try_to_reproduce_race_condition(Config) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice">>,
     S = <<"localhost">>,
     R = <<"res1">>,

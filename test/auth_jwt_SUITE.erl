@@ -188,7 +188,7 @@ meck_cleanup() ->
     ets:delete(jwt_meck).
 
 generate_token(Alg, NbfDelta, Key) ->
-    Now = p1_time_compat:system_time(seconds),
+    Now = erlang:system_time(seconds),
     Data = #{bookingNumber => ?USERNAME,
              exp => Now + 60,
              nbf => Now + NbfDelta,
