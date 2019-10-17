@@ -74,9 +74,9 @@ handle_call(Msg, From, State) ->
 
 handle_cast({data, Stamp, Data}, #state{socket = Socket, host = ToHost} = State) ->
     QueueTimeNative = erlang:monotonic_time() - Stamp,
-    QueueTimeUS = erlang:convert_time_unit(QueueTimeNative, native, micro_seconds),
+    QueueTimeUS = erlang:convert_time_unit(QueueTimeNative, native, microsecond),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME(ToHost), QueueTimeUS),
-    ClockTime = erlang:system_time(micro_seconds),
+    ClockTime = erlang:system_time(microsecond),
     Annotated = <<(byte_size(Data) + 8):32, ClockTime:64, Data/binary>>,
     case mod_global_distrib_transport:send(Socket, Annotated) of
         ok ->

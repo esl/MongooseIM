@@ -354,7 +354,7 @@ check_timeout(Source) ->
               end,
     case is_integer(Timeout) of
         true ->
-            Priority = -(erlang:system_time(seconds)),
+            Priority = -(erlang:system_time(second)),
             CleanPriority = Priority + Timeout,
             F = fun() -> check_and_store_ip_entry(Source, Priority, CleanPriority) end,
 

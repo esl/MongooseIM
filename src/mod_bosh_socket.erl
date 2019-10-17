@@ -544,7 +544,7 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
     ReportRid = Ack + 1,
     try
         {ReportRid, TimeSent, _} = lists:keyfind(ReportRid, 1, Sent),
-        ElapsedTimeMillis = erlang:monotonic_time(milli_seconds) - TimeSent,
+        ElapsedTimeMillis = erlang:monotonic_time(millisecond) - TimeSent,
         Report = {ReportRid, ElapsedTimeMillis},
         case S#state.report of
             false ->
@@ -670,7 +670,7 @@ send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
     {Wrapped, NS} = bosh_wrap(Data, Rid, State),
-    NS2 = cache_response({Rid, erlang:monotonic_time(milli_seconds), Wrapped}, NS),
+    NS2 = cache_response({Rid, erlang:monotonic_time(millisecond), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
 
 

@@ -194,7 +194,7 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec generate_message_id() -> integer().
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    CandidateStamp = erlang:system_time(micro_seconds),
+    CandidateStamp = erlang:system_time(microsecond),
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
     encode_compact_uuid(UniqueStamp, NodeId).
 

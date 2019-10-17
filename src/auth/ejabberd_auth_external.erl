@@ -358,7 +358,7 @@ set_password_internal(LUser, LServer, Password) ->
 -spec is_fresh_enough(TimeLast :: integer(),
                       CacheTime :: integer()) -> boolean().
 is_fresh_enough(TimeStampLast, CacheTime) ->
-    Now = erlang:system_time(seconds),
+    Now = erlang:system_time(second),
     (TimeStampLast + CacheTime > Now).
 
 

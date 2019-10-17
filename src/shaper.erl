@@ -54,7 +54,7 @@ update(Shaper, Size) ->
     AdditionalTokensNeeded = max(0, Size - Tokens),
 
     TimeNeededForTokensToGrow = round(AdditionalTokensNeeded / Shaper#shaper.max_rate * Second),
-    Delay = erlang:convert_time_unit(TimeNeededForTokensToGrow, native, milli_seconds),
+    Delay = erlang:convert_time_unit(TimeNeededForTokensToGrow, native, millisecond),
     LastUpdate = Now + TimeNeededForTokensToGrow,
 
     lager:debug("Tokens: ~p (+~p,-~p), delay: ~p ms", [TokensLeft, TokenGrowth, Size, Delay]),
