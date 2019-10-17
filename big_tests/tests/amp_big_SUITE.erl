@@ -933,7 +933,7 @@ required_modules(_) ->
 mam_modules(on) ->
     [{mod_mam_rdbms_user, [pm]},
      {mod_mam_rdbms_prefs, [pm]},
-     {mod_mam_rdbms_arch, [pm]},
+     {mod_mam_rdbms_arch, []},
      {mod_mam, []}];
 mam_modules(off) ->
     [{mod_mam, stopped}].

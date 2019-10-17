@@ -99,7 +99,10 @@
          muc_light_host/0,
          host/0,
          wait_for_archive_size/2,
-         verify_archived_muc_light_aff_msg/3
+         verify_archived_muc_light_aff_msg/3,
+         wait_for_room_archive_size/3,
+         generate_msg_for_date_user/3,
+         generate_msg_for_date_user/4
         ]).
 
 rpc_apply(M, F, Args) ->
