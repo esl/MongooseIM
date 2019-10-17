@@ -28,8 +28,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc).
--xep([{xep, 313}, {version, "0.2"}]).
--xep([{xep, 313}, {version, "0.3"}]).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
 -xep([{xep, 45}, {version, "1.25"}]).
@@ -160,11 +158,8 @@ start(Host, Opts) ->
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(MUCHost, ?NS_MAM_03),
     mod_disco:register_feature(MUCHost, ?NS_MAM_04),
     mod_disco:register_feature(MUCHost, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
@@ -183,10 +178,8 @@ stop(Host) ->
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
-    mod_disco:unregister_feature(MUCHost, ?NS_MAM_03),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_04),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_06),
     ok.
@@ -396,31 +389,9 @@ handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, Res} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
-            send_messages_and_fin_message(Res, From, IQ, Params),
-            ignore;
         {ok, Res} ->
             send_messages_and_iq_result(Res, From, IQ, Params)
     end.
-
-send_messages_and_fin_message({TotalCount, Offset, MessageRows}, From,
-                              #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
-                              #{owner_jid := ArcJID} = Params) ->
-    %% send IQ result
-    ResIQ = IQ#iq{type = result, sub_el = []},
-    ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
-
-    %% forward archived messages
-    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
-                                                 QueryID, MessageRows, true),
-
-    %% send fin message
-    IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
-    IsStable = true,
-    ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-    FinMsg = make_fin_message(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, QueryID),
-    ejabberd_sm:route(ArcJID, From, FinMsg).
 
 send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,

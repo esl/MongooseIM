@@ -125,17 +125,18 @@
 
 -import(mam_helper,
         [rpc_apply/3,
+         get_prop/2,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
          is_elasticsearch_enabled/1,
          is_mam_possible/1,
+         respond_iq/1,
          print_configuration_not_supported/2,
          start_alice_room/1,
          destroy_room/1,
          send_muc_rsm_messages/1,
          send_rsm_messages/1,
          clean_archives/1,
-         mam03_props/0,
          mam04_props/0,
          mam06_props/0,
          bootstrap_archive/1,
@@ -145,20 +146,17 @@
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
-         wait_archive_respond/2,
+         stanza_date_range_archive_request_not_empty/3,
+         wait_archive_respond/1,
          wait_for_complete_archive_response/3,
          assert_respond_size/2,
          assert_respond_query_id/3,
-         parse_result_iq/2,
+         parse_result_iq/1,
          nick_to_jid/2,
          stanza_filtered_by_jid_request/2,
          nick/1,
          respond_messages/1,
          parse_forwarded_message/1,
-         append_subelem/2,
-         archived_elem/2,
-         generate_message_text/1,
-         parse_error_iq/1,
          login_send_presence/2,
          assert_only_one_of_many_is_equal/2,
          add_nostore_hint/1,
@@ -166,23 +164,19 @@
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
          make_iso_time/1,
-         stanza_date_range_archive_request_not_empty/3,
-         respond_iq/1,
-         get_prop/2,
          stanza_retrieve_form_fields/2,
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
-         wait_empty_rset/3,
-         wait_message_range/4,
+         wait_empty_rset/2,
+         wait_message_range/3,
          message_id/2,
-         wait_message_range/6,
+         wait_message_range/5,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
          parse_prefs_result_iq/1,
          mam_ns_binary/0,
-         mam_ns_binary_v03/0,
          mam_ns_binary_v04/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
@@ -313,8 +307,7 @@ basic_groups() ->
     [
      {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
-            {mam03, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
-            {mam04, [parallel], mam_cases() ++ text_search_cases()},
+            {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
             {mam06, [parallel], mam_cases() ++ stanzaid_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
@@ -329,28 +322,22 @@ basic_groups() ->
               %% because there should not be a lot of cases running
               %% using parallel_story with the same user.
               %% Otherwise there would be a lot of presences sent between devices.
-              {rsm03,      [parallel], rsm_cases()},
               {rsm04,      [parallel], rsm_cases()},
-              {rsm03_comp, [parallel], complete_flag_cases()},
               {rsm04_comp, [parallel], complete_flag_cases()},
-              {with_rsm03, [parallel], with_rsm_cases()},
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {chat_markers, [parallel], [archive_chat_markers,
                                  dont_archive_chat_markers]},
      {muc_all, [parallel],
-           [{muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
-            {muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
+           [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
-             [{muc_rsm03, [parallel], muc_rsm_cases()},
-              {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
+             [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {muc_light,        [], muc_light_cases()},
      {prefs_cases,      [parallel], prefs_cases()},
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
          [
-          {mam03, [], disabled_text_search_cases()},
           {mam04, [], disabled_text_search_cases()}
          ]}
     ].
@@ -560,8 +547,6 @@ set_sessions_limit(NewLimit) ->
     rpc_apply(ejabberd_config, add_global_option,
               [{access, max_user_sessions, global}, NewLimit]).
 
-init_per_group(mam03, Config) ->
-    [{props, mam03_props()}|Config];
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];
 init_per_group(mam06, Config) ->
@@ -571,16 +556,10 @@ init_per_group(mam06, Config) ->
 init_per_group(rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
     send_rsm_messages(Config1);
-init_per_group(rsm03, Config) ->
-    [{props, mam03_props()}|Config];
 init_per_group(rsm04, Config) ->
     [{props, mam04_props()}|Config];
-init_per_group(rsm03_comp, Config) ->
-    [{props, mam03_props()}|Config];
 init_per_group(rsm04_comp, Config) ->
     [{props, mam04_props()}|Config];
-init_per_group(with_rsm03, Config) ->
-    [{props, mam03_props()}, {with_rsm, true}|Config];
 init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 
@@ -590,8 +569,6 @@ init_per_group(archived, Config) ->
     Config;
 init_per_group(mam_metrics, Config) ->
     Config;
-init_per_group(muc03, Config) ->
-    [{props, mam03_props()}, {with_rsm, true}|Config];
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 init_per_group(muc06, Config) ->
@@ -607,8 +584,6 @@ init_per_group(muc_rsm_all, Config) ->
     Config2 = start_alice_room(Config1),
     Config3 = send_muc_rsm_messages(Config2),
     [{muc_rsm, true} | Config3];
-init_per_group(muc_rsm03, Config) ->
-    [{props, mam03_props()}|Config];
 init_per_group(muc_rsm04, Config) ->
     [{props, mam04_props()}|Config];
 
@@ -646,9 +621,7 @@ do_init_per_group(C, ConfigIn) ->
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
-    G == mam03; G == rsm03; G == with_rsm03; G == muc03; G == muc_rsm03;
-    G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04;
-    G == rsm03_comp; G == rsm04_comp;
+    G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
     G == muc06; G == mam06;
     G == archived; G == mam_metrics ->
       Config;
@@ -671,7 +644,7 @@ end_per_group(Group, Config) ->
 init_modules(rdbms, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(rdbms, Config),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_rdbms_arch, [muc, pm]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
@@ -689,13 +662,13 @@ init_modules(elasticsearch, muc_all, Config) ->
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms, muc_all, Config) ->
-    init_module(host(), mod_mam_rdbms_arch, [muc]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_simple, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_rdbms_arch, [muc, rdbms_simple_opts()]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
@@ -750,13 +723,13 @@ init_modules(BackendType, muc_light, Config) ->
     Config1;
 init_modules(rdbms, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_simple, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, rdbms_simple_opts()]),
+    init_module(host(), mod_mam_rdbms_arch, [rdbms_simple_opts()]),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
@@ -780,34 +753,34 @@ init_modules(elasticsearch, C, Config) ->
     Config;
 init_modules(rdbms_async, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_async_pool, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_mnesia, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(rdbms_async_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
@@ -815,7 +788,7 @@ init_modules(rdbms_async_cache, C, Config) ->
     Config;
 init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
@@ -1252,9 +1225,9 @@ simple_archive_request(Config) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-        Res = wait_archive_respond(P, Alice),
+        Res = wait_archive_respond(Alice),
         assert_respond_size(1, Res),
-        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1312,9 +1285,9 @@ simple_text_search_request(Config) ->
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
-        Res1 = wait_archive_respond(P, Alice),
+        Res1 = wait_archive_respond(Alice),
         assert_respond_size(2, Res1),
-        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res1)),
         [Msg1, Msg2] = respond_messages(Res1),
         #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
         #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
@@ -1323,9 +1296,9 @@ simple_text_search_request(Config) ->
 
         %% 'Bike' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"bike">>)),
-        Res2 = wait_archive_respond(P, Alice),
+        Res2 = wait_archive_respond(Alice),
         assert_respond_size(1, Res2),
-        assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
+        assert_respond_query_id(P, <<"q2">>, parse_result_iq(Res2)),
         [Msg3] = respond_messages(Res2),
         #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
         ?assert_equal(<<"Also my bike broke down so I'm unable to return him home">>, Body3),
@@ -1355,9 +1328,9 @@ long_text_search_request(Config) ->
         mam_helper:wait_for_archive_size(Alice, ExpectedLen),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
-        Res = wait_archive_respond(P, Alice),
+        Res = wait_archive_respond(Alice),
         assert_respond_size(3, Res),
-        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
 
         [Msg1, Msg2, Msg3] = respond_messages(Res),
         #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
@@ -1386,10 +1359,10 @@ unicode_messages_can_be_extracted(Config) ->
 
         %% WHEN Getting all messages
         escalus:send(Alice, stanza_archive_request(P, <<"uni-q">>)),
-        Res = wait_archive_respond(P, Alice),
+        Res = wait_archive_respond(Alice),
         assert_respond_size(3, Res),
 
-        assert_respond_query_id(P, <<"uni-q">>, parse_result_iq(P, Res)),
+        assert_respond_query_id(P, <<"uni-q">>, parse_result_iq(Res)),
         [Msg1, Msg2, Msg3] = respond_messages(Res),
         #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
         #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
@@ -1414,9 +1387,9 @@ save_unicode_messages(Config) ->
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
-                Res1 = wait_archive_respond(P, Alice),
+                Res1 = wait_archive_respond(Alice),
                 assert_respond_size(2, Res1),
-                assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
+                assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res1)),
                 [Msg1, Msg2] = respond_messages(Res1),
                 #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
                 #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
@@ -1424,9 +1397,9 @@ save_unicode_messages(Config) ->
                 ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body2),
 
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"another"/utf8>>)),
-                Res2 = wait_archive_respond(P, Alice),
+                Res2 = wait_archive_respond(Alice),
                 assert_respond_size(1, Res2),
-                assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
+                assert_respond_query_id(P, <<"q2">>, parse_result_iq(Res2)),
                 [Msg3] = respond_messages(Res2),
                 #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
                 ?assert_equal(<<"this is another one no 🙅"/utf8>>, Body3),
@@ -1460,9 +1433,9 @@ muc_text_search_request(Config) ->
         maybe_wait_for_archive(Config),
         SearchStanza = stanza_text_search_archive_request(P, <<"q1">>, <<"Ribs poRk cUlpa">>),
         escalus:send(Bob,  stanza_to_room(SearchStanza, Room)),
-        Res = wait_archive_respond(P, Bob),
+        Res = wait_archive_respond(Bob),
         assert_respond_size(3, Res),
-        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
 
         [Msg1, Msg2, Msg3] = respond_messages(Res),
         #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
@@ -1488,7 +1461,7 @@ querying_for_all_messages_with_jid(Config) ->
 
         CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(P, BWithJID)),
-        assert_respond_size(CountWithBob, wait_archive_respond(P, Alice)),
+        assert_respond_size(CountWithBob, wait_archive_respond(Alice)),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
@@ -1506,7 +1479,7 @@ muc_querying_for_all_messages(Config) ->
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
         maybe_wait_for_archive(Config),
-        assert_respond_size(MucArchiveLen, wait_archive_respond(P, Alice)),
+        assert_respond_size(MucArchiveLen, wait_archive_respond(Alice)),
 
         ok
         end,
@@ -1525,7 +1498,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
 
             IQ = stanza_filtered_by_jid_request(P, BWithJID),
             escalus:send(Alice, stanza_to_room(IQ, Room)),
-            Result = wait_archive_respond(P, Alice),
+            Result = wait_archive_respond(Alice),
 
             assert_respond_size(Len, Result),
             ok
@@ -1691,7 +1664,7 @@ archived(Config) ->
         %% Bob calls archive.
         maybe_wait_for_archive(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Id, ArcId),
         ok
@@ -1733,11 +1706,11 @@ filter_forwarded(Config) ->
         escalus:wait_for_stanza(Bob),
         mam_helper:wait_for_archive_size(Bob, 1),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        assert_respond_size(1, wait_archive_respond(P, Bob)),
+        assert_respond_size(1, wait_archive_respond(Bob)),
 
         %% Check, that previous forwarded message was not archived.
         escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
-        assert_respond_size(1, wait_archive_respond(P, Bob)),
+        assert_respond_size(1, wait_archive_respond(Bob)),
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1766,7 +1739,7 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-    ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
+    ArcMsgs = respond_messages(wait_archive_respond(Bob)),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_client:stop(Config, Bob).
@@ -1783,7 +1756,7 @@ nostore_hint(Config) ->
 
         %% Bob checks his archive.
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
+        ArcMsgs = respond_messages(wait_archive_respond(Bob)),
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
@@ -1865,7 +1838,7 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
         #forwarded_message{result_id=ArcId, message_body=ArcMsgBody,
                            message_to=MsgTo, message_from=MsgFrom} =
             parse_forwarded_message(ArcMsg),
@@ -1943,7 +1916,7 @@ muc_multiple_devices(Config) ->
         maybe_wait_for_archive(Config),
 
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
         #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Text, ArcMsgBody),
@@ -1985,7 +1958,7 @@ muc_protected_message(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        assert_respond_size(0, wait_archive_respond(P, Bob)),
+        assert_respond_size(0, wait_archive_respond(Bob)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2025,7 +1998,7 @@ muc_allow_access_to_owner(Config) ->
         %% Alice (not in room) requests the room's archive.
         escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         %% mod_mam_muc returns result.
-        assert_respond_size(0, wait_archive_respond(P, Alice)),
+        assert_respond_size(0, wait_archive_respond(Alice)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2054,7 +2027,7 @@ muc_delete_x_user_in_anon_rooms(Config) ->
         escalus:send(Bob, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
 
         ?assert_equal_extra(false, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
@@ -2085,7 +2058,7 @@ muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
         escalus:send(Alice, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Alice))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
 
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
@@ -2116,7 +2089,7 @@ muc_show_x_user_for_your_own_messages_in_anon_rooms(Config) ->
         escalus:send(Bob, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
 
         %% mod_mam_muc returns result.
-        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Props, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
 
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
@@ -2161,7 +2134,7 @@ range_archive_request_not_empty(Config) ->
         %% </iq>
         escalus:send(Alice, stanza_date_range_archive_request_not_empty(P, StartTime, StopTime)),
         %% Receive two messages and IQ
-        Result = wait_archive_respond(P, Alice),
+        Result = wait_archive_respond(Alice),
         IQ = respond_iq(Result),
         [M1, M2|_] = respond_messages(Result),
         escalus:assert(is_iq_result, IQ),
@@ -2189,7 +2162,7 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request(P)),
-        Result = wait_archive_respond(P, Alice),
+        Result = wait_archive_respond(Alice),
         Msgs = respond_messages(Result),
         IQ = respond_iq(Result),
         escalus:assert(is_iq_result, IQ),
@@ -2225,11 +2198,11 @@ archive_chat_markers(Config) ->
             %% Alice queries MAM
             maybe_wait_for_archive(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-            Result = wait_archive_respond(P, Alice),
+            Result = wait_archive_respond(Alice),
 
             %% archived message + 3 markers
             assert_respond_size(1 + 3, Result),
-            assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Result))
+            assert_respond_query_id(P, <<"q1">>, parse_result_iq(Result))
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -2259,11 +2232,11 @@ dont_archive_chat_markers(Config) ->
             %% Alice queries MAM
             maybe_wait_for_archive(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-            Result = wait_archive_respond(P, Alice),
+            Result = wait_archive_respond(Alice),
 
             %% archived message (no archived markers)
             assert_respond_size(1, Result),
-            assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Result))
+            assert_respond_query_id(P, <<"q1">>, parse_result_iq(Result))
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -2275,7 +2248,7 @@ pagination_empty_rset(Config) ->
 
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"empty_rset">>, RSM)),
-        wait_empty_rset(P, Alice, 15)
+        wait_empty_rset(Alice, 15)
         end,
     parallel_story(Config, [{alice, 1}], F).
 
@@ -2286,7 +2259,7 @@ pagination_first5(Config) ->
         RSM = #rsm_in{max=5},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"first5">>, RSM)),
-        wait_message_range(P, Alice, 1, 5),
+        wait_message_range(Alice, 1, 5),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2298,7 +2271,7 @@ pagination_first0(Config) ->
         RSM = #rsm_in{max=0},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"first5">>, RSM)),
-        wait_empty_rset(P, Alice, 15),
+        wait_empty_rset(Alice, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2310,7 +2283,7 @@ pagination_first5_opt_count(Config) ->
         RSM = #rsm_in{max=5},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"first5_opt">>, RSM)),
-        wait_message_range(P, Alice, 1, 5),
+        wait_message_range(Alice, 1, 5),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2322,7 +2295,7 @@ pagination_first25_opt_count_all(Config) ->
         RSM = #rsm_in{max=25},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"first25_opt_all">>, RSM)),
-        wait_message_range(P, Alice, 1, 15),
+        wait_message_range(Alice, 1, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2334,7 +2307,7 @@ pagination_last5(Config) ->
         RSM = #rsm_in{max=5, direction=before},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5">>, RSM)),
-        wait_message_range(P, Alice, 11, 15),
+        wait_message_range(Alice, 11, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2346,7 +2319,7 @@ pagination_last0(Config) ->
         RSM = #rsm_in{max=0, direction=before},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last0">>, RSM)),
-        wait_empty_rset(P, Alice, 15),
+        wait_empty_rset(Alice, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2358,7 +2331,7 @@ pagination_offset5(Config) ->
         RSM = #rsm_in{max=5, index=5},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"offset5">>, RSM)),
-        wait_message_range(P, Alice, 6, 10),
+        wait_message_range(Alice, 6, 10),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2370,7 +2343,7 @@ pagination_offset5_max0(Config) ->
         RSM = #rsm_in{max=0, index=5},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"offset0_max5">>, RSM)),
-        wait_empty_rset(P, Alice, 15),
+        wait_empty_rset(Alice, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2382,7 +2355,7 @@ pagination_last5_opt_count(Config) ->
         RSM = #rsm_in{max=5, direction=before, opt_count=true},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(P, Alice, 11, 15),
+        wait_message_range(Alice, 11, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2394,7 +2367,7 @@ pagination_last25_opt_count_all(Config) ->
         RSM = #rsm_in{max=25, direction=before, opt_count=true},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last25_opt_all">>, RSM)),
-        wait_message_range(P, Alice, 1, 15),
+        wait_message_range(Alice, 1, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2406,7 +2379,7 @@ pagination_offset5_opt_count(Config) ->
         RSM = #rsm_in{max=5, index=5, opt_count=true},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(P, Alice, 6, 10),
+        wait_message_range(Alice, 6, 10),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2418,7 +2391,7 @@ pagination_offset5_opt_count_all(Config) ->
         RSM = #rsm_in{max=25, index=5, opt_count=true},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5_opt_all">>, RSM)),
-        wait_message_range(P, Alice, 6, 15),
+        wait_message_range(Alice, 6, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2431,7 +2404,7 @@ pagination_before10(Config) ->
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"before10">>, RSM)),
-        wait_message_range(P, Alice, 5, 9),
+        wait_message_range(Alice, 5, 9),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2443,8 +2416,8 @@ pagination_simple_before10(Config) ->
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"before10">>, RSM)),
-     %% wait_message_range(P, Client, TotalCount,    Offset, FromN, ToN),
-        wait_message_range(P, Alice,   undefined, undefined,     5,   9),
+     %% wait_message_range(Client, TotalCount,    Offset, FromN, ToN),
+        wait_message_range(Alice,   undefined, undefined,     5,   9),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2456,7 +2429,7 @@ pagination_after10(Config) ->
         RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"after10">>, RSM)),
-        wait_message_range(P, Alice, 11, 15),
+        wait_message_range(Alice, 11, 15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2471,8 +2444,8 @@ pagination_last_after_id5(Config) ->
                 after_id=message_id(5, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last_after_id5">>, RSM)),
-     %% wait_message_range(P, Client, TotalCount, Offset, FromN, ToN),
-        wait_message_range(P, Alice,          10,      5,    11,  15),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,          10,      5,    11,  15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2486,8 +2459,8 @@ pagination_last_after_id5_before_id11(Config) ->
                 before_id=message_id(11, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last_after_id5_before_id11">>, RSM)),
-     %% wait_message_range(P, Client, TotalCount, Offset, FromN, ToN),
-        wait_message_range(P, Alice,           5,      0,     6,  10),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,           5,      0,     6,  10),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2753,10 +2726,10 @@ prefs_set_cdata_request(Config) ->
                                                      [<<"romeo@montague.net">>,
                                                       {xmlcdata, <<"\n">>}, %% Put as it is
                                                       <<"montague@montague.net">>], [],
-                                                     mam_ns_binary_v03())),
+                                                     mam_ns_binary_v04())),
         ReplySet = escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary_v03())),
+        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary_v04())),
         ReplyGet = escalus:wait_for_stanza(Alice),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
@@ -2774,7 +2747,7 @@ mam_service_discovery(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         try
         escalus:assert(is_iq_result, Stanza),
-        escalus:assert(has_feature, [mam_ns_binary_v03()], Stanza),
+        escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
         ok
         catch Class:Reason ->
             Stacktrace = erlang:get_stacktrace(),
@@ -2802,9 +2775,9 @@ metric_incremented_on_archive_request(ConfigIn) ->
     P = ?config(props, ConfigIn),
     F = fun(Alice) ->
         escalus:send(Alice, stanza_archive_request(P, <<"metric_q1">>)),
-        Res = wait_archive_respond(P, Alice),
+        Res = wait_archive_respond(Alice),
         assert_respond_size(0, Res),
-        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(P, Res)),
+        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(Res)),
         ok
         end,
     MongooseMetrics = [{[host(), backends, mod_mam, lookup], changed}],
