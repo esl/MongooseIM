@@ -55,6 +55,7 @@ send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->
 start(Host, Opts0) ->
     Opts = [{listen_port, 5555},
             {connections_per_endpoint, 1},
+            {endpoint_refresh_interval_when_empty, 3},
             {endpoint_refresh_interval, 60},
             {disabled_gc_interval, 60} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).

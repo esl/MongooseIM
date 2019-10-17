@@ -125,6 +125,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **connections_per_endpoint** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
 * **endpoint_refresh_interval** (seconds, default: `60`): An interval between remote endpoint list refresh (and connection rebalancing).
   A separate timer is maintained for every remote domain.
+* **endpoint_refresh_interval_when_empty** (seconds, default: `3`): Endpoint refresh interval, when list of endpoints is empty.
 * **disabled_gc_interval** (seconds, default: `60`): An interval between disabled endpoints "garbage collection".
   It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 * **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.<a name="tls_opts"></a>

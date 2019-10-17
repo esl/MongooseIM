@@ -153,6 +153,7 @@ init_per_group(rebalancing, Config) ->
     %% We need to prevent automatic refreshes, because they may interfere with tests
     %% and we need early disabled garbage collection to check its validity
     ExtraConfig = [{endpoint_refresh_interval, 3600},
+                   {endpoint_refresh_interval_when_empty, 3600},
                    {disabled_gc_interval, 1}],
     RedisExtraConfig = [{refresh_after, 3600}],
     init_per_group_generic([{extra_config, ExtraConfig},

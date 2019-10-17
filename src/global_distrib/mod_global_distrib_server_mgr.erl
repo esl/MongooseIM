@@ -49,6 +49,7 @@
           pending_endpoints :: endpoints_changes(),
           pending_gets :: queue:queue(tuple()),
           refresh_interval :: pos_integer(),
+          refresh_interval_when_disconnected :: pos_integer(),
           gc_interval :: pos_integer(),
           %% Used by force_refresh to block until refresh is fully done.
           %% Listeners are notified only once and then this list is cleared.
@@ -113,6 +114,8 @@ init([Server, Supervisor]) ->
 
     RefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
                                                    endpoint_refresh_interval),
+    DisRefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
+                                                      endpoint_refresh_interval_when_empty),
     GCInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender, disabled_gc_interval),
     State = #state{
                server = Server,
@@ -122,6 +125,7 @@ init([Server, Supervisor]) ->
                pending_endpoints = [],
                pending_gets = queue:new(),
                refresh_interval = RefreshInterval,
+               refresh_interval_when_disconnected = DisRefreshInterval,
                gc_interval = GCInterval
               },
 
@@ -300,7 +304,13 @@ do_call(Server, Msg) ->
     end.
 
 -spec schedule_refresh(State :: state()) -> state().
-schedule_refresh(#state{ refresh_interval = Interval } = State) ->
+schedule_refresh(#state{ refresh_interval = Interval, last_endpoints = [_|_] } = State) ->
+    do_schedule_refresh(State, Interval);
+schedule_refresh(#state{ refresh_interval_when_disconnected = Interval } = State) ->
+    %% Try more often by default when get_endpoints returns empty list
+    do_schedule_refresh(State, Interval).
+
+do_schedule_refresh(State, Interval) ->
     erlang:send_after(timer:seconds(Interval), self(), refresh),
     State.
 
@@ -448,6 +458,7 @@ state_info(#state{
           pending_endpoints = PendingEndpoints,
           pending_gets = PendingGets,
           refresh_interval = RefreshInterval,
+          refresh_interval_when_disconnected = DisRefreshInterval,
           gc_interval = GCInterval,
           pending_endpoints_listeners = PendingEndpointsListeners,
           last_endpoints = LastEndpoints
@@ -459,6 +470,7 @@ state_info(#state{
      {pending_endpoints, PendingEndpoints},
      {pending_gets, PendingGets},
      {refresh_interval, RefreshInterval},
+     {refresh_interval_when_disconnected, DisRefreshInterval},
      {gc_interval, GCInterval},
      {pending_endpoints_listeners, PendingEndpointsListeners},
      {last_endpoints, LastEndpoints}].
