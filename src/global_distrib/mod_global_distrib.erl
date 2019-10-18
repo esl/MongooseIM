@@ -161,9 +161,9 @@ maybe_initialize_metadata({From, To, Acc, Packet}) ->
 
 get_bound_connection_noisy(TargetHost, GDID, FPacket) ->
     try get_bound_connection(TargetHost, GDID)
-    catch Class:Reason ->
-              Stacktrace = erlang:get_stacktrace(),
-              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts gd_id=~s reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
+    catch Class:Reason:Stacktrace ->
+              ?ERROR_MSG("event=gd_get_process_for_failed "
+                         "server=~ts gd_id=~s reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
                            [TargetHost, GDID, Class, Reason, FPacket, Stacktrace]),
               erlang:raise(Class, Reason, Stacktrace)
     end.

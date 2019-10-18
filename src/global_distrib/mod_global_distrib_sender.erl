@@ -34,9 +34,9 @@ send(Server, Packet) when is_binary(Server) ->
     try get_process_for(Server) of
         Worker ->
            send(Worker, Packet)
-    catch Class:Reason ->
-              Stacktrace = erlang:get_stacktrace(),
-              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
+    catch Class:Reason:Stacktrace ->
+              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts "
+                         "reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
                            [Server, Class, Reason, Packet, Stacktrace]),
               erlang:raise(Class, Reason, Stacktrace)
     end;
