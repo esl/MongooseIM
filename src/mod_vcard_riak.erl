@@ -30,9 +30,6 @@
 -include("mod_vcard.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
--define(BUCKET_TYPE, <<"vcard">>).
--define(YZ_VCARD_INDEX, <<"vcard">>).
-
 -spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
@@ -82,12 +79,12 @@ do_search(YZQueryIn, VHost) ->
     YZQuery = [<<"_yz_rb:", BucketName/binary>> |  YZQueryIn],
     Limit = mod_vcard:get_results_limit(VHost),
     YZQueryBin = ejabberd_binary:join(YZQuery, <<" AND ">>),
-    case mongoose_riak:search(?YZ_VCARD_INDEX, YZQueryBin, [{rows, Limit}]) of
+    case mongoose_riak:search(yz_vcard_index(VHost), YZQueryBin, [{rows, Limit}]) of
         {ok, #search_results{docs=R, num_found = _N}} ->
             lists:map(fun({_Index, Props}) -> doc2item(VHost, Props) end, R);
         Err ->
             ?ERROR_MSG("Error while search vCard, index=~s, query=~s, error=~p",
-                [?YZ_VCARD_INDEX, YZQueryBin, Err]),
+                [yz_vcard_index(VHost), YZQueryBin, Err]),
             []
     end.
 
@@ -146,4 +143,7 @@ extract_field(Props, {_, Field}) ->
 
 
 bucket_type(Host) ->
-    {?BUCKET_TYPE, <<"vcard_", Host/binary>>}.
+    {gen_mod:get_module_opt(Host, mod_vcard, bucket_type, <<"vcard">>), <<"vcard_", Host/binary>>}.
+
+yz_vcard_index(Host) ->
+    gen_mod:get_module_opt(Host, mod_vcard, search_index, <<"vcard">>).

@@ -122,6 +122,12 @@ Your instance of Riak KV must be configured with Yokozuna enabled.
 
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"mam_yz">>`) - Riak bucket type.
+
+* `search_index` (default `<<"mam">>`) - Riak index name.
+
 ### Cassandra backend
 
 Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.

@@ -184,7 +184,9 @@ remove_user(_LUser, _LServer, _Password) ->
 
 -spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->
-    {<<"users">>, LServer}.
+    Opts = ejabberd_config:get_local_option_or_default({auth_opts, LServer}, []),
+    BucketType = proplists:get_value(bucket_type, Opts, <<"users">>),
+    {BucketType, LServer}.
 
 %% -----------------------------------------------------------------------------
 %% Internal functions

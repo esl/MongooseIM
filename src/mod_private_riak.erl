@@ -79,7 +79,7 @@ get_private_data(LUser, LServer, NS, Default) ->
     end.
 
 bucket_type(LServer) ->
-    {<<"private">>, LServer}.
+    {gen_mod:get_module_opt(LServer, mod_private, bucket_type, <<"private">>), LServer}.
 
 key(LUser, NS) ->
     <<LUser/binary, "/", NS/binary>>.

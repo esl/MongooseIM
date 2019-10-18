@@ -162,7 +162,7 @@ parse_backend_opts(cassandra, Type, Opts, Deps0) ->
     end;
 
 parse_backend_opts(riak, Type, Opts, Deps0) ->
-    Opts1 = filter_opts(Opts, [db_message_format]),
+    Opts1 = filter_opts(Opts, [db_message_format, search_index, bucket_type]),
     Deps = add_dep(mod_mam_riak_timed_arch_yz, [Type | Opts1], Deps0),
 
     case proplists:get_value(user_prefs_store, Opts, false) of
