@@ -1334,7 +1334,7 @@ custom_loglevels() ->
     %% to check if gc or refresh is triggered
      {mod_global_distrib_server_mgr, info},
    %% To debug incoming connections
-     {mod_global_distrib_receiver, info},
+%    {mod_global_distrib_receiver, info},
    %% to debug global session set/delete
      {mod_global_distrib_mapping, debug}
     ].
