@@ -1243,6 +1243,9 @@ trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain)
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
 
+%% -----------------------------------------------------------------------
+%% Escalus-related helpers
+
 user_receives(User, Bodies) ->
     ExpectedLength = length(Bodies),
     Messages = escalus_client:wait_for_stanzas(User, ExpectedLength),
@@ -1261,6 +1264,9 @@ user_receives(User, Bodies) ->
     end.
 
 
+%% -----------------------------------------------------------------------
+%% Refreshing helpers
+
 %% Reason is a string
 %% NodeName is asia_node, europe_node2, ... in a format used by this suite.
 refresh_mappings(NodeName, Reason) when is_list(Reason) ->
@@ -1269,6 +1275,9 @@ refresh_mappings(NodeName, Reason) when is_list(Reason) ->
 refresh_hosts(NodeNames, Reason) ->
    [refresh_mappings(NodeName, Reason) || NodeName <- NodeNames].
 
+
+%% -----------------------------------------------------------------------
+%% Other helpers
 
 connect_steps_with_sm() ->
     [start_stream, stream_features, maybe_use_ssl,
@@ -1279,6 +1288,10 @@ bare_client(Client) ->
 
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
+
+
+%% -----------------------------------------------------------------------
+%% Waiting helpers
 
 wait_for_domain(Node, Domain) ->
     F = fun() ->
@@ -1300,6 +1313,9 @@ wait_for_registration(Client, Node) ->
     ok.
 
 
+%% -----------------------------------------------------------------------
+%% Ensure, that endpoints are up
+
 wait_for_listeners_to_appear() ->
     [wait_for_can_connect_to_port(Port) || Port <- receiver_ports(get_hosts())].
 
@@ -1320,6 +1336,8 @@ can_connect_to_port(Port) ->
             false
     end.
 
+%% -----------------------------------------------------------------------
+%% Custom log levels for GD modules during the tests
 
 enable_logging() ->
     mim_loglevel:enable_logging(test_hosts(), custom_loglevels()).
@@ -1350,17 +1368,24 @@ custom_loglevels() ->
 test_hosts() -> [mim, mim2, reg].
 
 
+%% -----------------------------------------------------------------------
+%% Module loading/restoration with multi node support
+
 loaded_modules_with_opts(NodeName, VirtHost) ->
     rpc(NodeName, gen_mod, loaded_modules_with_opts, [VirtHost]).
 
 save_modules(NodeName, VirtHosts) ->
-    [{{old_mods, NodeName, VirtHost}, loaded_modules_with_opts(NodeName, VirtHost)} || VirtHost <- VirtHosts].
+    [{{old_mods, NodeName, VirtHost}, loaded_modules_with_opts(NodeName, VirtHost)}
+     || VirtHost <- VirtHosts].
 
 restore_modules(NodeName, VirtHost, Config) ->
     CurrentMods = loaded_modules_with_opts(NodeName, VirtHost),
     case ?config({old_mods, NodeName, VirtHost}, Config) of
         OldMods when is_list(OldMods) ->
-            rpc(NodeName, gen_mod_deps, replace_modules, [VirtHost, CurrentMods, OldMods]);
+            rpc(NodeName, gen_mod_deps, replace_modules,
+                [VirtHost, CurrentMods, OldMods]);
         Other ->
             ct:fail({replace_modules_failed, NodeName, VirtHost, Other})
     end.
+
+%% -----------------------------------------------------------------------
