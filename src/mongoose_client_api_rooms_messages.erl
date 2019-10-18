@@ -89,9 +89,8 @@ prepare_message_and_route_to_room(User, JID, Room, State, Req, JSONData) ->
     RoomJID = #jid{lserver = MucHost} = maps:get(jid, Room),
     {ok, Host} = mongoose_subhosts:get_host(MucHost),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    case validate_body(JSONData) of
-        {ok, Body} ->
-            Message = build_message(User, RoomJID, UUID, Body),
+    case build_message_from_json(User, RoomJID, UUID, JSONData) of
+        {ok, Message} ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                       lserver => JID#jid.lserver,
                                       from_jid => JID,
@@ -101,36 +100,55 @@ prepare_message_and_route_to_room(User, JID, Room, State, Req, JSONData) ->
             Resp = #{id => UUID},
             Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
             {true, Req3, State};
-        {error, no_body} ->
-            Req2 = cowboy_req:set_resp_body(<<"There is no body in the JSON">>, Req),
-            mongoose_client_api:bad_request(Req2, State);
-        _ ->
-            Req2 = cowboy_req:set_resp_body(<<"Invalid body, it must be a string">>, Req),
+        {error, ErrorMsg} ->
+            Req2 = cowboy_req:set_resp_body(ErrorMsg, Req),
             mongoose_client_api:bad_request(Req2, State)
     end.
 
-validate_body(JSONData) ->
-    case maps:get(<<"body">>, JSONData, undefined) of
-        undefined ->
-            {error, no_body};
-        Body when is_binary(Body) ->
-            {ok, Body};
-        _ ->
-            {error, not_acceptable_body}
+-spec build_message_from_json(From :: binary(), To :: jid:jid(), ID :: binary(), JSON :: map()) ->
+    {ok, exml:element()} | {error, ErrorMsg :: binary()}.
+build_message_from_json(From, To, ID, JSON) ->
+    case build_children(JSON) of
+        {error, _} = Err ->
+            Err;
+        [] ->
+            {error, <<"No valid message elements">>};
+        Children ->
+            Attrs = [{<<"from">>, From},
+                     {<<"to">>, jid:to_binary(To)},
+                     {<<"id">>, ID},
+                     {<<"type">>, <<"groupchat">>}],
+            {ok, #xmlel{name = <<"message">>, attrs = Attrs, children = Children}}
     end.
 
--spec build_message(From :: binary(), To :: jid:jid(), ID :: binary(), Body :: binary()) ->
-    exml:element().
-build_message(From, To, ID, Body) ->
-    Attrs = [{<<"from">>, From},
-             {<<"to">>, jid:to_binary(To)},
-             {<<"id">>, ID},
-             {<<"type">>, <<"groupchat">>}],
-    BodyEl = #xmlel{name = <<"body">>,
-                    children = [{xmlcdata, Body}]},
-    #xmlel{name = <<"message">>,
-           attrs = Attrs,
-           children = [BodyEl]}.
+build_children(JSON) ->
+    lists:foldl(fun(_, {error, _} = Err) ->
+                        Err;
+                   (ChildBuilder, Children) ->
+                        ChildBuilder(JSON, Children)
+                end, [], [fun build_markable/2, fun build_marker/2, fun build_body/2]).
+
+build_body(#{ <<"body">> := Body }, Children) when is_binary(Body) ->
+    [#xmlel{ name = <<"body">>, children = [#xmlcdata{ content = Body }] } | Children];
+build_body(#{ <<"body">> := _Body }, _Children) ->
+    {error, <<"Invalid body, it must be a string">>};
+build_body(_JSON, Children) ->
+    Children.
+
+build_marker(#{ <<"chat_marker">> := #{ <<"type">> := Type, <<"id">> := Id } }, Children)
+  when Type == <<"received">>;
+       Type == <<"displayed">>;
+       Type == <<"acknowledged">> ->
+    [#xmlel{ name = Type, attrs = [{<<"xmlns">>, ?NS_CHAT_MARKERS}, {<<"id">>, Id}] } | Children];
+build_marker(#{ <<"chat_marker">> := _Marker }, _Children) ->
+    {error, <<"Invalid marker, it must be 'received', 'displayed' or 'acknowledged'">>};
+build_marker(_JSON, Children) ->
+    Children.
+
+build_markable(#{ <<"body">> := _Body, <<"markable">> := true }, Children) ->
+    [#xmlel{ name = <<"markable">>, attrs = [{<<"xmlns">>, ?NS_CHAT_MARKERS}] } | Children];
+build_markable(_JSON, Children) ->
+    Children.
 
 -spec encode(Packet :: exml:element(), Timestamp :: integer()) -> map().
 encode(Packet, Timestamp) ->
@@ -162,11 +180,26 @@ add_body_and_type(Item, Msg) ->
             add_aff_change_body(Item, AffChange)
     end.
 
-add_regular_message_body(Item, Msg) ->
-    BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-    Body = exml_query:cdata(BodyTag),
-    Item#{type => <<"message">>,
-          body => Body}.
+add_regular_message_body(Item0, Msg) ->
+    Item1 = Item0#{type => <<"message">>},
+    Item2 =
+    case exml_query:path(Msg, [{element, <<"body">>}, cdata]) of
+        undefined ->
+            Item1;
+        Body ->
+            Item1#{body => Body}
+    end,
+    add_chat_marker(Item2, Msg).
+
+add_chat_marker(Item0, Msg) ->
+    case exml_query:subelement_with_ns(Msg, ?NS_CHAT_MARKERS) of
+        undefined ->
+            Item0;
+        #xmlel{ name = <<"markable">> } ->
+            Item0#{ markable => true };
+        #xmlel{ name = Type } = Marker ->
+            Item0#{ chat_marker => #{ type => Type, id => exml_query:attr(Marker, <<"id">>) } }
+    end.
 
 add_aff_change_body(Item, #xmlel{attrs = Attrs} = User) ->
     Item#{type => <<"affiliation">>,

@@ -496,6 +496,19 @@ definitions:
     properties:
       body:
         type: string
+        description: Required if chat marker property is not set.
+      markable:
+        type: boolean
+        description: May only be used when body is present as well.
+      chat_marker:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: [received, displayed, acknowledged]
+          id:
+            type: string
+        description: May be used independently of body and markable properties.
   RecvRoomMessage:
     properties:
       type:
@@ -532,6 +545,16 @@ definitions:
         description: |
           The new affiliation of a user in the room.
           Present only if the type is "affiliation".
+      markable:
+        type: boolean
+      chat_marker:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: [received, displayed, acknowledged]
+          id:
+            type: string
   JID:
     type: string
     example: "alice@wonderland.lit"
