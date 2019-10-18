@@ -192,7 +192,7 @@ init_per_group_generic(Config0) ->
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
                   %% To reduce load when sending many messages
-                  VirtHosts = [<<"localhost">>, <<"localhost.bis">>],
+                  VirtHosts = virtual_hosts(),
                   ModulesToStop = [mod_offline, mod_privacy, mod_roster, mod_last],
 
                   OldMods = save_modules(NodeName, VirtHosts),
@@ -200,7 +200,8 @@ init_per_group_generic(Config0) ->
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
 
-                  [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod]) || Mod <- ModulesToStop, VirtHost <- VirtHosts],
+                  [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod])
+                   || Mod <- ModulesToStop, VirtHost <- VirtHosts],
 
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
                   true = rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
@@ -238,7 +239,7 @@ end_per_group(_, Config) ->
 end_per_group_generic(Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
-              VirtHosts = [<<"localhost">>, <<"localhost.bis">>],
+              VirtHosts = virtual_hosts(),
               [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts],
 
               rpc(NodeName, mod_stream_management, set_resume_timeout,
@@ -297,18 +298,18 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
        CaseName == test_muc_conversation_history ->
-    refresh_mappings(europe_node2, "by_end_per_testcase,testcase=" ++ atom_to_list(CaseName), Config),
+    refresh_mappings(europe_node2, "by_end_per_testcase,testcase=" ++ atom_to_list(CaseName)),
     muc_helper:unload_muc(),
     generic_end_per_testcase(CaseName, Config);
 end_per_testcase(test_update_senders_host_by_ejd_service = CN, Config) ->
-    refresh_mappings(europe_node1, "by_end_per_testcase,testcase=" ++ atom_to_list(CN), Config),
+    refresh_mappings(europe_node1, "by_end_per_testcase,testcase=" ++ atom_to_list(CN)),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) when CN == enable_new_endpoint_on_refresh;
                                   CN == disable_endpoint_on_refresh;
                                   CN == wait_for_connection;
                                   CN == closed_connection_is_removed_from_disabled ->
     restart_receiver(asia_node),
-    refresh_mappings(asia_node, "by_end_per_testcase,testcase=" ++ atom_to_list(CN), Config),
+    refresh_mappings(asia_node, "by_end_per_testcase,testcase=" ++ atom_to_list(CN)),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     generic_end_per_testcase(CaseName, Config).
@@ -339,6 +340,9 @@ generic_end_per_testcase(CaseName, Config) ->
       end,
       get_hosts()),
     escalus:end_per_testcase(CaseName, Config).
+
+virtual_hosts() ->
+    [<<"localhost">>, <<"localhost.bis">>].
 
 %% Refresher is not started at all or stopped for some test cases
 -spec pause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
@@ -691,7 +695,9 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config) ->
 
 test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first(Config) ->
     %% Same as no refresh
-    BeforeResume = fun() -> refresh_hosts([reg, mim], "by_test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first") end,
+    RefreshReason = "by_test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first",
+    % Order of nodes is important here in refresh_hosts!
+    BeforeResume = fun() -> refresh_hosts([asia_node, europe_node1], RefreshReason) end,
     AfterCheck = fun(Alice, NewEve) ->
             user_receives(NewEve, [<<"Hi from Europe1!">>, <<"Hi again from Europe1!">>]),
             user_receives(Alice, [<<"Hi from Europe!">>])
@@ -701,7 +707,8 @@ test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_fir
 test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first(Config) ->
     %% Asia node overrides Europe value with the older ones,
     %% so we loose some messages during rerouting :(
-    BeforeResume = fun() -> refresh_hosts([mim, reg], "by_test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first") end,
+    RefreshReason = "by_test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first",
+    BeforeResume = fun() -> refresh_hosts([europe_node1, asia_node], RefreshReason) end,
     AfterCheck = fun(Alice, NewEve) ->
             user_receives(NewEve, [<<"Hi again from Europe1!">>]),
             user_receives(Alice, [<<"Hi from Europe!">>])
@@ -793,7 +800,7 @@ refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
     NodeBin = ?config(node_to_expire, Config),
     redis_query(europe_node1, [<<"HSET">>, NodesKey, NodeBin, <<"0">>]),
-    refresh_mappings(europe_node1, "by_refresh_nodes", Config),
+    refresh_mappings(europe_node1, "by_refresh_nodes"),
     {ok, undefined} = redis_query(europe_node1, [<<"HGET">>, NodesKey, NodeBin]).
 
 test_in_order_messages_on_multiple_connections(Config) ->
@@ -888,7 +895,7 @@ wait_for_node(Node,Jid) ->
                                  name => rpc}).
 
 test_update_senders_host_by_ejd_service(Config) ->
-    refresh_hosts([mim, mim2, reg], "by_test_update_senders_host_by_ejd_service"),
+    refresh_hosts([europe_node1, europe_node2, asia_node], "by_test_update_senders_host_by_ejd_service"),
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, service_port()}, {component, <<"test_service">>}],
@@ -989,7 +996,7 @@ wait_for_connection(Config) ->
         2000 -> ok
     end,
 
-    refresh_mappings(asia_node, "by_wait_for_connection", Config),
+    refresh_mappings(asia_node, "by_wait_for_connection"),
     trigger_rebalance(europe_node1, <<"reg1">>),
 
     receive
@@ -1193,7 +1200,7 @@ enable_extra_endpoint(ListenNode, SenderNode, Port, Config) ->
     NewEndpoint = {{127, 0, 0, 1}, Port},
 
     restart_receiver(ListenNode, [NewEndpoint, OriginalEndpoint]),
-    refresh_mappings(ListenNode, "by_enable_extra_endpoint,port=" ++ integer_to_list(Port), Config),
+    refresh_mappings(ListenNode, "by_enable_extra_endpoint,port=" ++ integer_to_list(Port)),
     trigger_rebalance(SenderNode, <<"reg1">>),
 
     NewEndpoint.
@@ -1229,8 +1236,10 @@ restart_receiver(NodeName, NewEndpoints) ->
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
 
 trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain) ->
-    %% To ensure that the manager exists, otherwise we can get noproc error in the force_refresh call
-    ok = rpc(NodeName, mod_global_distrib_outgoing_conns_sup, ensure_server_started, [DestinationDomain]),
+    %% To ensure that the manager exists,
+    %% otherwise we can get noproc error in the force_refresh call
+    ok = rpc(NodeName, mod_global_distrib_outgoing_conns_sup,
+             ensure_server_started, [DestinationDomain]),
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
 
@@ -1254,12 +1263,11 @@ user_receives(User, Bodies) ->
 
 %% Reason is a string
 %% NodeName is asia_node, europe_node2, ... in a format used by this suite.
-refresh_mappings(NodeName, Reason, _Config) when is_list(Reason) ->
+refresh_mappings(NodeName, Reason) when is_list(Reason) ->
     rpc(NodeName, mod_global_distrib_mapping_redis, refresh, [Reason]).
 
-%% Hosts is a list of test hosts from config
-refresh_hosts(Hosts, Reason) ->
-   [rpc:call(ct:get_config({hosts, Host, node}), mod_global_distrib_mapping_redis, refresh, [Reason]) || Host <- Hosts].
+refresh_hosts(NodeNames, Reason) ->
+   [refresh_mappings(NodeName, Reason) || NodeName <- NodeNames].
 
 
 connect_steps_with_sm() ->
