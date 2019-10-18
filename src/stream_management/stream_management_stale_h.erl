@@ -50,7 +50,7 @@ read_stale_h(SMID) ->
     ok | {error, any()}.
 write_stale_h(SMID, H) ->
     try
-        Stamp = erlang:monotonic_time(seconds),
+        Stamp = erlang:monotonic_time(second),
         mnesia:dirty_write(#stream_mgmt_stale_h{smid = SMID, h = H, stamp = Stamp})
     catch exit:Reason ->
               {error, Reason}
@@ -119,6 +119,6 @@ handle_info(Info, #smgc_state{gc_repeat_after = RepeatAfter,
     {noreply, State, RepeatAfter}.
 
 clear_table(GeriatricAge) ->
-    TimeToDie = erlang:monotonic_time(seconds) + GeriatricAge,
+    TimeToDie = erlang:monotonic_time(second) + GeriatricAge,
     MS = ets:fun2ms(fun(#stream_mgmt_stale_h{stamp=S}) when S < TimeToDie -> true end),
     ets:select_delete(stream_mgmt_stale_h, MS).

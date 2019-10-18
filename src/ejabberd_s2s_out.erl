@@ -1151,7 +1151,7 @@ wait_before_reconnect(StateData) ->
                 undefined_delay ->
                     %% The initial delay is random between 1 and 15 seconds
                     %% Return a random integer between 1000 and 15000
-                    {_, _, MicroSecs} = p1_time_compat:timestamp(),
+                    MicroSecs = erlang:system_time(microsecond),
                     (MicroSecs rem 14000) + 1000;
                 D1 ->
                     %% Duplicate the delay with each successive failed

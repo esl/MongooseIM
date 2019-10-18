@@ -203,7 +203,7 @@ try_register_if_does_not_exist(LUser, LServer, PasswordIn) ->
    end.
 
 try_register_with_password(LUser, LServer, Password) ->
-    Now = integer_to_binary(now_to_seconds(os:timestamp())),
+    Now = integer_to_binary(os:system_time(second)),
     Ops = [{{<<"created">>, register},
             fun(R) -> riakc_register:set(Now, R) end},
            set_password_map_op(Password)],
@@ -259,8 +259,3 @@ maybe_extract_scram_password({ok, ScramSerialised}) ->
     end;
 maybe_extract_scram_password(_) ->
     false.
-
--spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
-now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
-

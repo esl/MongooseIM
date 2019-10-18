@@ -165,7 +165,7 @@ handle_data(BinHost, State = #state{host = undefined}) ->
     State#state{host = Host};
 handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
-    TransferTime = p1_time_compat:system_time(micro_seconds) - ClockTime,
+    TransferTime = erlang:system_time(microsecond) - ClockTime,
     <<_:80, BinFrom:BinFromSize/binary, BinTerm/binary>> = Data,
     Worker = mod_global_distrib_worker_sup:get_worker(BinFrom),
     Stamp = erlang:monotonic_time(),

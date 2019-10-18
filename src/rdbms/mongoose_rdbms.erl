@@ -219,7 +219,7 @@ sql_call(Host, Msg) ->
 
 -spec sql_call0(Host :: server(), Msg :: rdbms_msg()) -> any().
 sql_call0(Host, Msg) ->
-    Timestamp = p1_time_compat:monotonic_time(milli_seconds),
+    Timestamp = erlang:monotonic_time(millisecond),
     mongoose_wpool:call(rdbms, Host, {sql_cmd, Msg, Timestamp}).
 
 -spec get_db_info(Target :: server() | pid()) ->
@@ -484,7 +484,7 @@ print_state(State) ->
                          {reply, Reply :: any(), state()} | {stop, Reason :: term(), state()} |
                          {noreply, state()}.
 run_sql_cmd(Command, _From, State, Timestamp) ->
-    Now = p1_time_compat:monotonic_time(milli_seconds),
+    Now = erlang:monotonic_time(millisecond),
     case Now - Timestamp of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
             abort_on_driver_error(outer_op(Command, State));

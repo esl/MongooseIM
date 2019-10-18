@@ -207,7 +207,7 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
 common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Limit = elem_to_limit(QueryEl),
-    #{now => p1_time_compat:system_time(micro_seconds),
+    #{now => erlang:system_time(microsecond),
       rsm => RSM,
       max_result_limit => MaxResultLimit,
       page_size => min(MaxResultLimit,

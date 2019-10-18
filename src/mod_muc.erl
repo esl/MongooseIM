@@ -932,7 +932,7 @@ xfield(Type, Label, Var, Val, Lang) ->
 %%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
-        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
+        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, erlang:unique_integer(),
                                                          mongoose_bin:gen_from_crypto()]))}.
 
 

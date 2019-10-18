@@ -748,7 +748,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
     PrivList = ejabberd_hooks:run_fold(privacy_get_user_list, S, #userlist{}, [U, S]),
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
@@ -2782,7 +2782,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 enable_stream_resumption(SD) ->
     SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
-              undefined -> {p1_time_compat:timestamp(), self()};
+              undefined -> {erlang:timestamp(), self()};
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
@@ -3033,7 +3033,7 @@ maybe_resume_session(NextState, El, StateData) ->
 do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
-        SID = {p1_time_compat:timestamp(), self()},
+        SID = {erlang:timestamp(), self()},
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),

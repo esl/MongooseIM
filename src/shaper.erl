@@ -22,7 +22,7 @@
 -record(shaper, {
     max_rate :: undefined | pos_integer(),
     tokens = 0 :: non_neg_integer(),
-    last_update = p1_time_compat:monotonic_time() :: integer()
+    last_update = erlang:monotonic_time() :: integer()
 }).
 
 -type shaper() :: #shaper{} | none.
@@ -43,8 +43,8 @@ new(Name) ->
 update(none, _Size) ->
     {none, 0};
 update(Shaper, Size) ->
-    Now = p1_time_compat:monotonic_time(),
-    Second = p1_time_compat:convert_time_unit(1, seconds, native),
+    Now = erlang:monotonic_time(),
+    Second = erlang:convert_time_unit(1, seconds, native),
 
     SecondsSinceLastUpdate = (Now - Shaper#shaper.last_update) / Second,
     TokenGrowth = round(Shaper#shaper.max_rate * SecondsSinceLastUpdate),
@@ -54,7 +54,7 @@ update(Shaper, Size) ->
     AdditionalTokensNeeded = max(0, Size - Tokens),
 
     TimeNeededForTokensToGrow = round(AdditionalTokensNeeded / Shaper#shaper.max_rate * Second),
-    Delay = p1_time_compat:convert_time_unit(TimeNeededForTokensToGrow, native, milli_seconds),
+    Delay = erlang:convert_time_unit(TimeNeededForTokensToGrow, native, millisecond),
     LastUpdate = Now + TimeNeededForTokensToGrow,
 
     lager:debug("Tokens: ~p (+~p,-~p), delay: ~p ms", [TokensLeft, TokenGrowth, Size, Delay]),
