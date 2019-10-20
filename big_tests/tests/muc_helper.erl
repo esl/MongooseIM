@@ -242,3 +242,14 @@ assert_valid_role(<<"participant">>) -> ok;
 assert_valid_role(<<"visitor">>) -> ok;
 assert_valid_role(<<"none">>) -> ok.
 
+
+story_with_room(Config, RoomOpts, [{Owner, _}|_] = UserSpecs, StoryFun) ->
+    Config1 = escalus_fresh:create_users(Config, UserSpecs),
+    AliceSpec = escalus_users:get_userspec(Config1, Owner),
+    Config2 = given_fresh_room(Config1, AliceSpec, RoomOpts),
+    try
+        StoryFun2 = fun(Args) -> apply(StoryFun, [Config2 | Args]) end,
+        escalus_story:story_with_client_list(Config2, UserSpecs, StoryFun2)
+    after
+        destroy_room(Config2)
+    end.
