@@ -38,6 +38,8 @@ install:
         - test 1 = "$SKIP_COMPILE" || ./tools/cache-build.sh store
         - test 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh store
         - test 1 = "$SKIP_COMPILE" || ./tools/cache-certs.sh store
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then JUST_INSTALL=1 tools/travis-upload-to-gdrive.sh; fi
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi

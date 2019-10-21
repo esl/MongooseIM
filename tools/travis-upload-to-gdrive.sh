@@ -20,7 +20,7 @@ source tools/travis-helpers.sh
 # we need to compile from source.
 # https://github.com/gdrive-org/gdrive/issues/242
 install_gdrive() {
-    echo "Uploading test results to google drive"
+    echo "Installing gdrive..."
     export GOPATH="/tmp/go"
     go get github.com/prasmussen/gdrive
 }
@@ -31,6 +31,15 @@ export PATH="/tmp/go/bin:$PATH"
 if ! hash gdrive; then
     install_gdrive
 fi
+
+JUST_INSTALL="${JUST_INSTALL:-0}"
+if test 1 = "$JUST_INSTALL"; then
+    echo "Exit after installing..."
+    exit 0
+fi
+
+echo "Uploading test results to google drive"
+
 MIM_GDRIVE_OPTS=""
 
 gdrive() {
