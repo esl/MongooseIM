@@ -240,11 +240,13 @@ redis_pool_cant_be_started_with_available_worker_strategy(_Config) ->
     pool_cant_be_started_with_available_worker_strategy(redis).
 
 pool_cant_be_started_with_available_worker_strategy(Type) ->
-    PoolName = mongoose_wpool:make_pool_name(Type, global, default),
+    Host = global,
+    Tag = default,
+    PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),
     meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
-    PoolDef = [{Type, global, default, [{strategy, available_worker}],
+    PoolDef = [{Type, Host, Tag, [{strategy, available_worker}],
                 [{address, "localhost"}, {port, 1805}]}],
-    ?assertError({strategy_not_supported, Type, available_worker},
+    ?assertError({strategy_not_supported, Type, Host, Tag, available_worker},
                  mongoose_wpool:start_configured_pools(PoolDef)).
 
 %%--------------------------------------------------------------------
