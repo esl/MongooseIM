@@ -53,9 +53,10 @@
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
     {external, pid()} | {error, Reason :: term()}.
 -callback default_opts() -> proplist:proplists().
+-callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
 -callback stop(host(), tag()) -> ok.
 
--optional_callbacks([default_opts/0]).
+-optional_callbacks([default_opts/0, is_supported_strategy/1]).
 
 ensure_started() ->
     wpool:start(),
@@ -105,11 +106,21 @@ start(Type, Host, Tag, PoolOpts) ->
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
     Opts = lists:append(Opts0) ++ default_opts(Type),
+    Strategy = proplists:get_value(strategy, Opts, best_worker),
+    CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
 
+    %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
+    CallbackModule = make_callback_module_name(Type),
+    case catch CallbackModule:is_supported_strategy(Strategy) of
+        false ->
+            error({strategy_not_supported, Type, Host, Tag, Strategy});
+        _ ->
+            start(Type, Host, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout)
+    end.
+
+start(Type, Host, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
     case mongoose_wpool_mgr:start(Type, Host, Tag, WpoolOptsIn, ConnOpts) of
         {ok, Pid} ->
-            Strategy = proplists:get_value(strategy, Opts, best_worker),
-            CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
             ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag},
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),

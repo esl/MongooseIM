@@ -4,6 +4,7 @@
 -export([init/0]).
 -export([start/4]).
 -export([stop/2]).
+-export([is_supported_strategy/1]).
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
 
@@ -17,6 +18,9 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
 
 stop(_, _) ->
     ok.
+
+is_supported_strategy(available_worker) -> false;
+is_supported_strategy(_) -> true.
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     {_, RiakAddr} = mongoose_wpool_riak:get_riak_opt(address, ConnOpts),

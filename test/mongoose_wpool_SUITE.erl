@@ -26,7 +26,8 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [get_pools_returns_pool_names,
+    [
+     get_pools_returns_pool_names,
      stats_passes_through_to_wpool_stats,
      a_global_riak_pool_is_started,
      two_distinct_redis_pools_are_started,
@@ -35,7 +36,10 @@ all() ->
      pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
      global_pool_is_used_by_default,
      dead_pool_is_restarted,
-     dead_pool_is_stopped_before_restarted].
+     dead_pool_is_stopped_before_restarted,
+     riak_pool_cant_be_started_with_available_worker_strategy,
+     redis_pool_cant_be_started_with_available_worker_strategy
+    ].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -226,6 +230,25 @@ dead_pool_is_stopped_before_restarted(_C) ->
     timer:sleep(timer:seconds(4)),
     ?assertEqual(undefined, erlang:whereis(PoolName)),
     meck:unload(killing_workers).
+
+%% --- available_worker strategy is banned for some backends --
+
+riak_pool_cant_be_started_with_available_worker_strategy(_Config) ->
+    pool_cant_be_started_with_available_worker_strategy(riak).
+
+redis_pool_cant_be_started_with_available_worker_strategy(_Config) ->
+    pool_cant_be_started_with_available_worker_strategy(redis).
+
+pool_cant_be_started_with_available_worker_strategy(Type) ->
+    Host = global,
+    Tag = default,
+    PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),
+    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
+    PoolDef = [{Type, Host, Tag, [{strategy, available_worker}],
+                [{address, "localhost"}, {port, 1805}]}],
+    ?assertError({strategy_not_supported, Type, Host, Tag, available_worker},
+                 mongoose_wpool:start_configured_pools(PoolDef)).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
