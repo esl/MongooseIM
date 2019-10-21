@@ -123,7 +123,7 @@ cleanup(Node) ->
     lists:foreach(fun(H) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
                           %% Add possible removed ":" from encoded SID
-                          SID = binary_to_term(ejabberd_binary:join(SIDEncoded, <<":">>)),
+                          SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
                           delete_session(SID, U, S, R),
                           Acc = mongoose_acc:new(
                                   #{location => ?LOCATION,
