@@ -1282,6 +1282,7 @@ simple_text_search_request(Config) ->
                                                           "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
         mam_helper:wait_for_archive_size(Alice, 3),
+        maybe_wait_for_archive(Config), %% yz lag
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
@@ -1326,6 +1327,7 @@ long_text_search_request(Config) ->
 
         mam_helper:wait_for_archive_size(Bob, ExpectedLen),
         mam_helper:wait_for_archive_size(Alice, ExpectedLen),
+        maybe_wait_for_archive(Config), %% yz lag
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(Alice),
@@ -1384,6 +1386,12 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
                 mam_helper:wait_for_archive_size(Alice, 3),
+
+                %% Riak YZ is async.
+                %% It takes time to index docs  (usually 1 second).
+                %% https://docs.riak.com/riak/kv/latest/developing/usage/search/index.html#indexing-values
+                %% Each stanza_text_search_archive_request should call it regardless of wait_for_archive_size result.
+                maybe_wait_for_archive(Config),
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
@@ -2850,73 +2858,27 @@ check_user_exist(Config) ->
   %% cleanup
   ok = rpc(mim(), ejabberd_auth, remove_user, [AdminU, AdminS]).
 
-parallel_story(Config, ResourceCounts, F) ->
+%% This function supports only one device, one user.
+%% We don't send initial presence to avoid presence broadcasts between resources
+%% of the same user from different stories.
+%% It is limited comparing to escalus story, but reduces CPU usage, because we don't
+%% need to send any presences.
+parallel_story(Config, [{_, 1}] = ResourceCounts, F) ->
     Config1 = override_for_parallel(Config),
     escalus:story(Config1, ResourceCounts, F).
 
 override_for_parallel(Config) ->
     Overrides = [
-        {initial_activity, initial_activity(Config)},
-        {modify_resource, modify_resource()}
+        {start_ready_clients, start_ready_clients()}
         ],
     [{escalus_overrides, Overrides} | Config].
 
-modify_resource() ->
-    StoryPidBin = list_to_binary(pid_to_list(self())),
-    fun(Base) -> <<Base/binary, "-parallel-", StoryPidBin/binary>> end.
-
-should_pass_parallel_stanza(From, To, StoryPidBin) ->
-    should_pass_parallel_stanza_jid(From, StoryPidBin)
-        andalso should_pass_parallel_stanza_jid(To, StoryPidBin).
-
-should_pass_parallel_stanza_jid(Jid, StoryPidBin) ->
-    case {binary:match(Jid, <<"parallel">>), binary:match(Jid, StoryPidBin)} of
-        {{_, _}, nomatch} ->
-            false;
-        _ ->
-            true
-    end.
-
-log_parallel_story_stanza_drop(_Pass = false, _LogEnabled = true,
-                               Stanza, From, To, StoryPidBin) ->
-    ct:log(default, 50,
-           "drop stanza from_jid=~ts to_jid=~ts my_story_pid=~ts~nstanza=~ts",
-           [From, To, StoryPidBin, exml:to_binary(Stanza)],
-           [esc_chars]),
-    ok;
-log_parallel_story_stanza_drop(_Pass, _LogEnabled,
-                               _Stanza, _From, _To, _StoryPidBin) ->
-    ok.
-
-initial_activity(Config) ->
-    %% Can be enabled in test.config
-    LogDropEnabled = proplists:get_value(log_parallel_story_stanza_drop, Config, false),
-    StoryPidBin = list_to_binary(pid_to_list(self())),
-    fun(Client) ->
-        Pred = fun
-                   (Stanza=#xmlel{}) ->
-                        From = exml_query:attr(Stanza, <<"from">>, <<>>),
-                        To = exml_query:attr(Stanza, <<"to">>, <<>>),
-                        Pass = should_pass_parallel_stanza(From, To, StoryPidBin),
-                        %% Useful for debugging
-                        %% Pretty heavy for real tests
-                        %% Enable, when you see problems with parallel_story cases
-                        log_parallel_story_stanza_drop(Pass, LogDropEnabled,
-                                                       Stanza, From, To, StoryPidBin),
-                        Pass;
-                   (_) -> true %% pass xmlstreamend
-               end,
-        %% Drop stanzas from unknown parallel resources
-        escalus_connection:set_filter_predicate(Client, Pred),
-
-        %% Send presence with priority = -1
-        %% It disables offline message and roster subscriptions push,
-        %% which should improve performance of the tests.
-        PresenceChildren = [#xmlel{name = <<"priority">>,
-                                   children = [#xmlcdata{content = <<"-1">>}]}],
-        PresenceStanza = escalus_stanza:presence(<<"available">>, PresenceChildren),
-        %% send_initial_presence
-        escalus_client:send(Client, PresenceStanza)
+start_ready_clients() ->
+    fun(Config, [{UserSpec, BaseResource}]) ->
+        Suffix = list_to_binary(pid_to_list(self()) -- "<>"),
+        Resource = <<BaseResource/binary, Suffix/binary>>,
+        {ok, Client} = escalus_client:start(Config, UserSpec, Resource),
+        [Client]
     end.
 
 text_search_messages() ->
