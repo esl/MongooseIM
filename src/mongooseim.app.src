@@ -10,7 +10,6 @@
                   asn1,
                   backoff,
                   base16,
-                  bear,
                   cache_tab,
                   cowboy,
                   cpool,
