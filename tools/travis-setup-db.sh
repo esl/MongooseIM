@@ -173,6 +173,8 @@ elif [ "$db" = 'riak' ]; then
         $(mount_ro_volume "${SSLDIR}/mongooseim/key.pem" "/etc/riak/key.pem") \
         $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/etc/riak/ca/cacertfile.pem") \
         $(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
+        $(mount_ro_volume "$TOOLS/mam_search_schema.xml" "/mam_search_schema.xml") \
+        $(mount_ro_volume "$TOOLS/vcard_search_schema.xml" "/vcard_search_schema.xml") \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/riak) \
         --health-cmd='riak-admin status' \
         "michalwski/docker-riak:1.0.6" \
@@ -197,10 +199,7 @@ elif [ "$db" = 'riak' ]; then
     tools/wait_for_healthcheck.sh $NAME
     echo "Waiting for a listener to appear"
     tools/wait_for_service.sh $NAME 8098
-    # Setup schema and indexes
-    RIAK_SECURITY=disabled SETUP_BUCKET_TYPES=false ./tools/setup_riak
-    # Setup access and bucket types
-    time docker exec $NAME riak escript /setup_riak.escript
+    time docker exec -e RIAK_PORT="$RIAK_PORT" $NAME riak escript /setup_riak.escript
     tools/wait_for_service.sh $NAME 8087
     # Use this command to read Riak's logs if something goes wrong
     # docker exec -t $NAME bash -c 'tail -f /var/log/riak/*'
