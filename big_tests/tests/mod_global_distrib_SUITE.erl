@@ -1241,6 +1241,8 @@ trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain)
     ok = rpc(NodeName, mod_global_distrib_outgoing_conns_sup,
              ensure_server_started, [DestinationDomain]),
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
+    StateInfo = rpc(NodeName, mod_global_distrib_server_mgr, get_state_info, [DestinationDomain]),
+    ct:log("mgr_state_info_after_rebalance nodename=~p state_info=~p", [NodeName, StateInfo]),
     timer:sleep(1000).
 
 %% -----------------------------------------------------------------------

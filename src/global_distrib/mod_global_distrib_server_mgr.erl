@@ -21,7 +21,7 @@
 -behaviour(gen_server).
 
 -export([start_link/2]).
--export([get_connection/1, ping_proc/1]).
+-export([get_connection/1, ping_proc/1, get_state_info/1]).
 -export([force_refresh/1, close_disabled/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -93,6 +93,10 @@ ping_proc(Server) ->
         _Error -> pang
     end.
 
+-spec get_state_info(Server :: jid:lserver()) -> map().
+get_state_info(Server) ->
+    do_call(Server, get_state_info).
+
 %%--------------------------------------------------------------------
 %% Debug API
 %%--------------------------------------------------------------------
@@ -161,7 +165,9 @@ handle_call(get_enabled_endpoints, _From, State) ->
 handle_call(get_disabled_endpoints, _From, State) ->
     {reply, [ CI#endpoint_info.endpoint || CI <- State#state.disabled ], State};
 handle_call(ping_proc, _From, State) ->
-    {reply, pong, State}.
+    {reply, pong, State};
+handle_call(get_state_info, _From, State) ->
+    {reply, state_info(State), State}.
 
 handle_cast({call_timeout, FromPid, Msg}, State) ->
     ?WARNING_MSG("event=mgr_timeout, caller_pid=~p, caller_msg=~p state_info=~1000p",
