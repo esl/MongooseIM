@@ -78,7 +78,7 @@ do_search(YZQueryIn, VHost) ->
     {_BucketType, BucketName} = bucket_type(VHost),
     YZQuery = [<<"_yz_rb:", BucketName/binary>> |  YZQueryIn],
     Limit = mod_vcard:get_results_limit(VHost),
-    YZQueryBin = ejabberd_binary:join(YZQuery, <<" AND ">>),
+    YZQueryBin = mongoose_bin:join(YZQuery, <<" AND ">>),
     case mongoose_riak:search(yz_vcard_index(VHost), YZQueryBin, [{rows, Limit}]) of
         {ok, #search_results{docs=R, num_found = _N}} ->
             lists:map(fun({_Index, Props}) -> doc2item(VHost, Props) end, R);

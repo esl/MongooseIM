@@ -300,10 +300,10 @@ push_roster_all(File) ->
 -spec roster_list_to_binary([mod_roster:roster()]) -> [simple_roster()].
 roster_list_to_binary(Roster) ->
     [{
-        ejabberd_binary:string_to_binary(Usr),
-        ejabberd_binary:string_to_binary(Srv),
-        ejabberd_binary:string_to_binary(Grp),
-        ejabberd_binary:string_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
+        mongoose_bin:string_to_binary(Usr),
+        mongoose_bin:string_to_binary(Srv),
+        mongoose_bin:string_to_binary(Grp),
+        mongoose_bin:string_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
 
 
 -spec subscribe_all([simple_roster()]) -> 'ok'.
@@ -433,7 +433,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(UsersS, ":")]
+            [mongoose_bin:string_to_binary(S) || S <- string:tokens(UsersS, ":")]
             ),
 
     Contacts = lists:foldl(
@@ -441,7 +441,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
+            [mongoose_bin:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
             ),
 
     case validate_regexps(Users ++ Contacts) of
