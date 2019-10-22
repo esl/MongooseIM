@@ -290,7 +290,7 @@ terminate(_Reason, #state{parser = Parser,
         undefined -> ok;
         _ -> gen_fsm_compat:send_event(C2SPid, closed)
     end,
-    catch workaround_transport_delivery_problems(State#state.socket, State#state.sock_mod),
+    catch shutdown_socket_and_wait_for_peer_to_close(State#state.socket, State#state.sock_mod),
     ok.
 
 %%--------------------------------------------------------------------
@@ -446,12 +446,17 @@ hibernate() ->
 maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
 maybe_hibernate(#state{hibernate_after = HA}) -> HA.
 
-%% It's workaround taken from ssl application
-workaround_transport_delivery_problems(Socket, gen_tcp) ->
+%% gen_tcp:close/2, but trying to ensure that all data is received by peer.
+%%
+%% This is based on tls_connection:workaround_transport_delivery_problems/2 code
+%% https://github.com/erlang/otp/blob/OTP_17.0-rc2/lib/ssl/src/tls_connection.erl#L959
+%%
+%% There are some more docs why we need it in http://erlang.org/doc/man/gen_tcp.html#close-1
+shutdown_socket_and_wait_for_peer_to_close(Socket, gen_tcp) ->
     %% Standard trick to try to make sure all
     %% data sent to the tcp port is really delivered to the
     %% peer application before tcp port is closed so that the peer will
-    %% get the correct TLS alert message and not only a transport close.
+    %% get the correct stream end and not only a transport close.
     inet:setopts(Socket, [{active, false}]),
     gen_tcp:shutdown(Socket, write),
     %% Will return when other side has closed or after 30 s
@@ -459,5 +464,5 @@ workaround_transport_delivery_problems(Socket, gen_tcp) ->
     %% with the network but we want to maximise the odds that
     %% peer application gets all data sent on the tcp connection.
     gen_tcp:recv(Socket, 0, 30000);
-workaround_transport_delivery_problems(Socket, SockMod) ->
+shutdown_socket_and_wait_for_peer_to_close(Socket, SockMod) ->
     SockMod:close(Socket).
