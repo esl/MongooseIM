@@ -30,7 +30,7 @@
          put_domain/2, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0, get_public_domains/0, get_hosts/0]).
 
--export([refresh/0]).
+-export([refresh/0, refresh/1]).
 
 -export([init/1, handle_info/2]).
 
@@ -116,7 +116,12 @@ get_public_domains() ->
 
 -spec get_endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Host) ->
-    Nodes = [_ | _] = get_nodes(Host), %% TODO: error: unknown host
+    Nodes = get_nodes(Host),
+    get_endpoints_for_nodes(Host, Nodes).
+
+get_endpoints_for_nodes(_Host, []) ->
+    {ok, []};
+get_endpoints_for_nodes(Host, Nodes) ->
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
     {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
@@ -126,16 +131,23 @@ get_endpoints(Host) ->
 %%--------------------------------------------------------------------
 
 init(RefreshAfter) ->
-    handle_info(refresh, RefreshAfter),
+    refresh_and_schedule_next("initial_autorefresh", RefreshAfter),
     {ok, RefreshAfter}.
 
 handle_info(refresh, RefreshAfter) ->
-    refresh(),
-    ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
-    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
+    refresh_and_schedule_next("autorefresh", RefreshAfter),
     {noreply, RefreshAfter}.
 
 refresh() ->
+    refresh("reason_unknown").
+
+refresh_and_schedule_next(Reason, RefreshAfter) ->
+    Reason2 = Reason ++ ",next_refresh_in=" ++ integer_to_list(RefreshAfter),
+    refresh(Reason2),
+    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh).
+
+-spec refresh(Reason :: string()) -> ok.
+refresh(Reason) ->
     ?DEBUG("event=refreshing_own_hosts", []),
     refresh_hosts(),
     ?DEBUG("event=refreshing_own_nodes", []),
@@ -148,6 +160,7 @@ refresh() ->
     refresh_domains(),
     ?DEBUG("event=refreshing_own_public_domains", []),
     refresh_public_domains(),
+    ?INFO_MSG("event=refreshing_own_data_done,reason=~ts", [Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -172,7 +185,7 @@ nodes_key() ->
     nodes_key(LocalHost).
 
 -spec nodes_key(Host :: jid:lserver()) -> binary().
-nodes_key(Host) ->
+nodes_key(Host) when is_binary(Host) ->
     <<Host/binary, "#{nodes}">>.
 
 -spec endpoints_key() -> binary().

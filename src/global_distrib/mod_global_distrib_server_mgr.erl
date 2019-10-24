@@ -21,7 +21,7 @@
 -behaviour(gen_server).
 
 -export([start_link/2]).
--export([get_connection/1, ping_proc/1]).
+-export([get_connection/1, ping_proc/1, get_state_info/1]).
 -export([force_refresh/1, close_disabled/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -49,10 +49,13 @@
           pending_endpoints :: endpoints_changes(),
           pending_gets :: queue:queue(tuple()),
           refresh_interval :: pos_integer(),
+          refresh_interval_when_disconnected :: pos_integer(),
           gc_interval :: pos_integer(),
           %% Used by force_refresh to block until refresh is fully done.
           %% Listeners are notified only once and then this list is cleared.
-          pending_endpoints_listeners = [] :: [pid()]
+          pending_endpoints_listeners = [] :: [pid()],
+          %% Containts last result of get_endpoints
+          last_endpoints :: [endpoint()] | undefined
          }).
 
 -type state() :: #state{}.
@@ -61,7 +64,7 @@
 %%--------------------------------------------------------------------
 
 -spec start_link(Server :: jid:lserver(), ServerSup :: pid()) -> {ok, pid()} | {error, any()}.
-start_link(Server, ServerSup) ->
+start_link(Server, ServerSup) when is_binary(Server) ->
     Name = mod_global_distrib_utils:server_to_mgr_name(Server),
     gen_server:start_link({local, Name}, ?MODULE, [Server, ServerSup], []).
 
@@ -90,6 +93,10 @@ ping_proc(Server) ->
         _Error -> pang
     end.
 
+-spec get_state_info(Server :: jid:lserver()) -> map().
+get_state_info(Server) ->
+    do_call(Server, get_state_info).
+
 %%--------------------------------------------------------------------
 %% Debug API
 %%--------------------------------------------------------------------
@@ -111,6 +118,8 @@ init([Server, Supervisor]) ->
 
     RefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
                                                    endpoint_refresh_interval),
+    DisRefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
+                                                      endpoint_refresh_interval_when_empty),
     GCInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender, disabled_gc_interval),
     State = #state{
                server = Server,
@@ -120,6 +129,7 @@ init([Server, Supervisor]) ->
                pending_endpoints = [],
                pending_gets = queue:new(),
                refresh_interval = RefreshInterval,
+               refresh_interval_when_disconnected = DisRefreshInterval,
                gc_interval = GCInterval
               },
 
@@ -127,7 +137,8 @@ init([Server, Supervisor]) ->
     schedule_refresh(State2),
     schedule_gc(State2),
 
-    ?DEBUG("event=mgr_started,pid='~p',server='~p',supervisor='~p'", [self(), Server, Supervisor]),
+    ?INFO_MSG("event=mgr_started,pid='~p',server='~p',supervisor='~p',refresh_interval=~p",
+              [self(), Server, Supervisor, RefreshInterval]),
     {ok, State2}.
 
 handle_call(get_connection_pool, From, #state{ enabled = [],
@@ -154,8 +165,14 @@ handle_call(get_enabled_endpoints, _From, State) ->
 handle_call(get_disabled_endpoints, _From, State) ->
     {reply, [ CI#endpoint_info.endpoint || CI <- State#state.disabled ], State};
 handle_call(ping_proc, _From, State) ->
-    {reply, pong, State}.
+    {reply, pong, State};
+handle_call(get_state_info, _From, State) ->
+    {reply, state_info(State), State}.
 
+handle_cast({call_timeout, FromPid, Msg}, State) ->
+    ?WARNING_MSG("event=mgr_timeout, caller_pid=~p, caller_msg=~p state_info=~1000p",
+                 [FromPid, Msg, state_info(State)]),
+    {noreply, State};
 handle_cast(Msg, State) ->
     ?WARNING_MSG("event=unknown_msg,msg='~p'", [Msg]),
     {noreply, State}.
@@ -165,16 +182,35 @@ handle_info(refresh, State) ->
                  [] -> refresh_connections(State);
                  _ -> State % May occur if we are in the middle of force_refresh
              end,
+    case State#state.pending_endpoints == State2#state.pending_endpoints of
+        true ->
+            ok;
+        _ ->
+            ?INFO_MSG("event=gd_mgr_refresh refresh_interval=~p "
+                      "pending_endpoints_before=~p pending_endpoints_after=~p",
+                      [State#state.refresh_interval,
+                       State#state.pending_endpoints, State2#state.pending_endpoints])
+    end,
     schedule_refresh(State2),
     {noreply, State2};
 handle_info(disabled_gc, #state{ disabled = Disabled } = State) ->
-    lists:foreach(
+    StoppedEndpoints = lists:flatmap(
       fun(#endpoint_info{ endpoint = Endpoint, conn_pool_ref = ConnPool }) ->
-              case catch cpool:get_connection(ConnPool, no_wait_for_reconnect) of
-                  {'EXIT', {no_connections, _}} -> stop_disabled(Endpoint, State);
-                  _OK -> ok
+              try cpool:get_connection(ConnPool, no_wait_for_reconnect) of
+                  _ConnPid ->
+                      []
+              catch error:no_connections ->
+                      stop_disabled(Endpoint, State),
+                      [Endpoint]
               end
       end, Disabled),
+    case StoppedEndpoints of
+        [] ->
+            ok;
+        _ ->
+            ?INFO_MSG("event=gd_mgr_disabled_gc stopped_endpoints=~p gc_interval=~p",
+                      [StoppedEndpoints, State#state.gc_interval])
+    end,
     schedule_gc(State),
     {noreply, State};
 handle_info(process_pending_get, #state{ enabled = [] } = State) ->
@@ -271,10 +307,21 @@ terminate(_Reason, _State) ->
 -spec do_call(Server :: jid:lserver(), Msg :: any()) -> any().
 do_call(Server, Msg) ->
     MgrName = mod_global_distrib_utils:server_to_mgr_name(Server),
-    gen_server:call(MgrName, Msg).
+    try
+        gen_server:call(MgrName, Msg)
+    catch exit:{timeout,_} = Reason:Stacktrace ->
+        catch gen_server:cast(MgrName, {call_timeout, self(), Msg}),
+        erlang:raise(exit, Reason, Stacktrace)
+    end.
 
 -spec schedule_refresh(State :: state()) -> state().
-schedule_refresh(#state{ refresh_interval = Interval } = State) ->
+schedule_refresh(#state{ refresh_interval = Interval, last_endpoints = [_|_] } = State) ->
+    do_schedule_refresh(State, Interval);
+schedule_refresh(#state{ refresh_interval_when_disconnected = Interval } = State) ->
+    %% Try more often by default when get_endpoints returns empty list
+    do_schedule_refresh(State, Interval).
+
+do_schedule_refresh(State, Interval) ->
     erlang:send_after(timer:seconds(Interval), self(), refresh),
     State.
 
@@ -312,9 +359,17 @@ pick_connection_pool(Enabled) ->
     PoolRef.
 
 -spec refresh_connections(State :: state()) -> state().
-refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints } = State) ->
+refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints,
+                            last_endpoints = LastEndpoints } = State) ->
     ?DEBUG("event=refreshing_endpoints,server='~s'", [Server]),
     {ok, NewEndpoints} = get_endpoints(Server),
+    case NewEndpoints of
+        LastEndpoints ->
+            nothing_new;
+        _ ->
+            ?INFO_MSG("event=endpoints_change old_endpoints=~p new_endpoints=~p",
+                      [LastEndpoints, NewEndpoints])
+    end,
     ?DEBUG("event=fetched_endpoints,server='~s',result='~p'", [Server, NewEndpoints]),
 
     NPendingEndpoints = resolve_pending(NewEndpoints, State#state.enabled),
@@ -334,7 +389,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
             ?DEBUG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
                    [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)])
     end,
-    State#state{ pending_endpoints = FinalPendingEndpoints }.
+    State#state{ pending_endpoints = FinalPendingEndpoints, last_endpoints = NewEndpoints }.
 
 -spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Server) ->
@@ -405,3 +460,29 @@ stop_disabled(Endpoint, State) ->
             ?ERROR_MSG("event=cannot_close_disabled_connection,endpoint='~p',error='~p'",
                        [Endpoint, Error])
     end.
+
+state_info(#state{
+          server = Server,
+          supervisor = Supervisor,
+          enabled = Enabled,
+          disabled = Disabled,
+          pending_endpoints = PendingEndpoints,
+          pending_gets = PendingGets,
+          refresh_interval = RefreshInterval,
+          refresh_interval_when_disconnected = DisRefreshInterval,
+          gc_interval = GCInterval,
+          pending_endpoints_listeners = PendingEndpointsListeners,
+          last_endpoints = LastEndpoints
+         }) ->
+    [{server, Server},
+     {supervisor, Supervisor},
+     {enabled, Enabled},
+     {disabled, Disabled},
+     {pending_endpoints, PendingEndpoints},
+     {pending_gets, PendingGets},
+     {refresh_interval, RefreshInterval},
+     {refresh_interval_when_disconnected, DisRefreshInterval},
+     {gc_interval, GCInterval},
+     {pending_endpoints_listeners, PendingEndpointsListeners},
+     {last_endpoints, LastEndpoints}].
+
