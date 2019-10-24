@@ -3,7 +3,7 @@
 * XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
 [RFC 6120](https://tools.ietf.org/html/rfc6120)
     * **Note:** In RFC 6120 there are 3 different strategies defined in case of a session conflict (same full JID).
-    They are described in "7.7.2.2. Conflict".
+    They are described in [7.7.2.2. Conflict](https://tools.ietf.org/html/rfc6120#section-7.7.2.2)".
     MongooseIM always uses the 3rd option.
     It terminates the older session with `<conflict/>` stream error.
 * XMPP Instant Messaging and Presence: [RFC 3921](https://tools.ietf.org/html/rfc3921),
