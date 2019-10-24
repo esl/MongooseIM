@@ -119,6 +119,6 @@ handle_info(Info, #smgc_state{gc_repeat_after = RepeatAfter,
     {noreply, State, RepeatAfter}.
 
 clear_table(GeriatricAge) ->
-    TimeToDie = erlang:monotonic_time(second) + GeriatricAge,
+    TimeToDie = erlang:monotonic_time(second) - GeriatricAge,
     MS = ets:fun2ms(fun(#stream_mgmt_stale_h{stamp=S}) when S < TimeToDie -> true end),
     ets:select_delete(stream_mgmt_stale_h, MS).
