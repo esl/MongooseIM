@@ -244,13 +244,8 @@ default_host() ->
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      State :: #state{}) -> any().
-process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
-    Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
-                                                  from_jid => From,
-                                                  to_jid => To,
-                                                  element => El }, Acc),
-    Packet = mongoose_acc:element(Acc2),
-    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
+process_packet(_Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
+    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
 
 %%====================================================================
 %% GDPR callback
