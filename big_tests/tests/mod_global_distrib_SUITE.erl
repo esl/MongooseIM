@@ -342,7 +342,7 @@ generic_end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 virtual_hosts() ->
-    [<<"localhost">>, <<"localhost.bis">>].
+    [ct:get_config({hosts, mim, domain}), ct:get_config({hosts, mim, secondary_domain})].
 
 %% Refresher is not started at all or stopped for some test cases
 -spec pause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
