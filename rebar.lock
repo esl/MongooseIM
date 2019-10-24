@@ -155,7 +155,7 @@
        {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
   0},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.7.5">>},0},
- {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"3.2.0">>},0}]}.
+ {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"4.0.1">>},0}]}.
 [
 {pkg_hash,[
  {<<"amqp_client">>, <<"3336631D8DB545B69FCE6C4E286AD01741E291D8E70F7B0CB018163772F7674C">>},
@@ -204,5 +204,5 @@
  {<<"tirerl">>, <<"A80B45AED46342A6985FD52DEBB32BA26214EEF5C43EE2AE88BFBF815FA4F9F8">>},
  {<<"unicode_util_compat">>, <<"D869E4C68901DD9531385BB0C8C40444EBF624E60B6962D95952775CAC5E90CD">>},
  {<<"uuid">>, <<"3862FF9A21C42566DFD0376B97512FA202922897129E09A05E2AFA0D9CAFD97A">>},
- {<<"worker_pool">>, <<"54DD752BA4CA4B702124C45803AA958B36BCE77D683B87886606F1AADA3E124D">>}]}
+ {<<"worker_pool">>, <<"8CDEBCE7E09ECB4F1EB4BBF78AA99248064AC357077668C011AC600599973723">>}]}
 ].
