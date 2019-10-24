@@ -128,6 +128,9 @@ one_message(Config) ->
         end).
 
 message_altered_by_filter_local_packet_hook(Config) ->
+    % this test uses additional hook which changes body of a message on filter_local_packet hook
+    % later processing, including stripping accumulator and replacing element, must use
+    % correct values
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
@@ -142,13 +145,16 @@ message_altered_by_filter_local_packet_hook(Config) ->
 
 
 filter_local_packet_uses_recipient_values(Config) ->
+    % this test is to make sure that when a message (or rather accumulator) reaches
+    % filter_local_packet stage it's been already stripped of sender-related caches
+    % preprocessing hook stores sender jid, filter_local_packet drops a message if there
+    % a sender_jid cached in acc
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
             M = escalus_stanza:chat_to(escalus_client:short_jid(Bob), <<"hi">>),
             escalus:send(Alice, M),
-            R = escalus_client:wait_for_stanza(Bob),
-            ct:pal("R: ~p", [R]),
+            escalus_client:wait_for_stanza(Bob),
             ok
         end).
 

@@ -41,9 +41,8 @@ save_my_jid(Acc, _State) -> Acc.
 drop_if_jid_not_mine({F, T, #{ stanza := #{ type := <<"chat">> } } = Acc, P}) ->
     %% since we are in filter_local_packet, means we are just about to deliver the message
     %% sender-side processing is already completed and now we want the other guy values
-    MyJid = jid:to_binary(jid:to_lus(T)),
     case cached_my_jid(T, Acc) of
-        {MyJid, Acc2} ->
+        {T, Acc2} ->
             {F, T, Acc2, P};
         _ ->
             drop
@@ -75,10 +74,7 @@ alter_message({From, To, Acc, Packet}) ->
 cached_my_jid(User, Acc) ->
     case mongoose_acc:get(test, my_jid, undefined, Acc) of
         undefined ->
-            lager:log(error, self(), "{User, undefined}: ~p~n", [{User, undefined}]),
-            MyJid = jid:to_binary(jid:to_lus(User)),
-            {MyJid, mongoose_acc:set(test, my_jid, MyJid, Acc)};
+            {User, mongoose_acc:set(test, my_jid, User, Acc)};
         Jid ->
-            lager:log(error, self(), "{User, Jid}: ~p~n", [{User, Jid}]),
             {Jid, Acc}
     end.
