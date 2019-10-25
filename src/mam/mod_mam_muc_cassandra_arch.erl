@@ -15,9 +15,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0, get_mam_muc_gdpr_data/2]).
@@ -96,8 +94,6 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
@@ -111,9 +107,6 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages,
-                          50),
     ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
@@ -126,11 +119,9 @@ prepared_queries() ->
      {prev_offset_query, prev_offset_query_cql()},
      {insert_query, insert_query_cql()},
      {fetch_user_messages_query, fetch_user_messages_cql()},
-     {delete_query, delete_query_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
-     {remove_archive_offsets_query, remove_archive_offsets_query_cql()},
-     {message_id_to_nick_name_query, message_id_to_nick_name_cql()}]
+     {remove_archive_offsets_query, remove_archive_offsets_query_cql()}]
         ++ extract_messages_queries()
         ++ extract_messages_r_queries()
         ++ calc_count_queries()
@@ -203,26 +194,6 @@ message_to_params(#mam_muc_message{
 
 
 %% ----------------------------------------------------------------------
-%% DELETE MESSAGE
-
-delete_query_cql() ->
-    "DELETE FROM mam_muc_message "
-        "WHERE room_jid = ? AND with_nick = ? AND id = ?".
-
-delete_messages(PoolName, RoomJID, Messages) ->
-    MultiParams = [delete_message_to_params(M) || M <- Messages],
-    mongoose_cassandra:cql_write(PoolName, RoomJID, ?MODULE, delete_query,
-                                 MultiParams).
-
-delete_message_to_params(#mam_muc_message{
-                            id        = MessID,
-                            room_jid  = BLocJID,
-                            with_nick = BWithNick
-                           }) ->
-    #{room_jid => BLocJID, with_nick => BWithNick, id => MessID}.
-
-
-%% ----------------------------------------------------------------------
 %% REMOVE ARCHIVE
 
 remove_archive_query_cql() ->
@@ -251,25 +222,6 @@ remove_archive(Acc, _Host, _RoomID, RoomJID) ->
     mongoose_cassandra:cql_foldl(PoolName, RoomJID, ?MODULE,
                                  select_for_removal_query, Params, DeleteFun, []),
     Acc.
-
-%% ----------------------------------------------------------------------
-%% GET NICK NAME
-
-message_id_to_nick_name_cql() ->
-    "SELECT nick_name FROM mam_muc_message "
-        "WHERE room_jid = ? AND with_nick = '' AND id = ?".
-
-message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
-    Params = #{room_jid => BRoomJID, id => MessID},
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE,
-                                             message_id_to_nick_name_query, Params),
-    case Rows of
-        [] ->
-            {error, not_found};
-        [#{nick_name := NickName}] ->
-            {ok, NickName}
-    end.
-
 
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
@@ -489,58 +441,6 @@ row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID}, Room
 
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
-
--spec purge_single_message(_Result, Host, MessID, _RoomID, RoomJID,
-                           Now) ->
-                                  ok  | {error, 'not-supported'} when
-      Host :: server_host(), MessID :: message_id(),
-      _RoomID :: user_id(), RoomJID :: jid:jid(),
-      Now :: unix_timestamp().
-purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
-    PoolName = pool_name(RoomJID),
-    BRoomJID = mod_mam_utils:bare_jid(RoomJID),
-    Result = message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID),
-    case Result of
-        {ok, BNick} ->
-            BWithNicks = lists:usort([BNick, <<>>]),
-            %% Set some fields
-            %% To remove record we need to know room_jid, with_nick and id.
-            Messages = [#mam_muc_message{
-                           id        = MessID,
-                           room_jid  = BRoomJID,
-                           nick_name = BNick, %% set the field for debugging
-                           with_nick = BWithNick
-                          }           || BWithNick <- BWithNicks],
-            delete_messages(PoolName, RoomJID, Messages),
-            ok;
-        {error, _} ->
-            ok
-    end.
-
--spec purge_multiple_messages(_Result, Host, _RoomID, RoomJID, Borders,
-                              Start, End, Now, WithNick) ->
-                                     ok when
-      Host :: server_host(), _RoomID :: user_id(),
-      RoomJID :: jid:jid(), Borders :: mod_mam:borders(),
-      Start :: unix_timestamp()  | undefined,
-      End :: unix_timestamp()  | undefined,
-      Now :: unix_timestamp(),
-      WithNick :: jid:jid()  | undefined.
-purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
-                        Start, End, Now, WithNick) ->
-    %% Simple query without calculating offset and total count
-    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    PoolName = pool_name(RoomJID),
-    Limit = 100, %% TODO something smarter
-    QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = maps:put('[limit]', Limit, eval_filter_params(Filter)),
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
-                                             Params),
-    %% TODO can be faster
-    %% TODO rate limiting
-    [purge_single_message(ok, Host, Id, RoomID, RoomJID, Now)
-     || #{id := Id} <- Rows],
-    ok.
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().

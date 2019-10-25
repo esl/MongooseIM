@@ -17,9 +17,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -225,25 +223,6 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
 -spec remove_archive(map(), jid:server(), mod_mam:archive_id(), jid:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     Acc.
-
--spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
-                           jid:server(), MessId :: mod_mam:message_id(),
-                           ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                           Now :: mod_mam:unix_timestamp()) ->
-                                  ejabberd_gen_mam_archive:purge_single_message_result().
-purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
-    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
-    Result.
-
-
--spec purge_multiple_messages(Result :: any(), Host :: jid:server(),
-                              ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                              _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
-                              End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-                              _WithJID :: jid:jid()) -> ok.
-purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
-                        _Start, End, Now, _WithJID) ->
-    Result.
 
 %%====================================================================
 %% Internal functions
