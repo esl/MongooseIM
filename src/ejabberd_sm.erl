@@ -650,10 +650,7 @@ do_route(Acc, From, To, El) ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => To#jid.lserver,
-                                                                  from_jid => From,
-                                                                  to_jid => To,
-                                                                  element => El }, Acc)},
+                    Pid ! {route, From, To, Acc},
                     Acc
             end
     end.
@@ -819,10 +816,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => To#jid.lserver,
-                                                                    from_jid => From,
-                                                                    to_jid => To,
-                                                                    element => Packet }, Acc)};
+                      Pid ! {route, From, To, Acc};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok
