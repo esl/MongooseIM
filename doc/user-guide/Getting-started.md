@@ -251,6 +251,13 @@ The following steps use the registered users on the MongooseIM server, done abov
 
 Users that are registered on your server can now add their accounts in a chat application like Gajim (specifying either the server’s IP address or domain name), and start chatting!
 
+#### Note about session conflicts
+
+If you're going to connect several clients with the same username and domain (for example a phone and a laptop), please make sure they are using different resource names (a kind of device/client identifier).
+This should be configurable in the account settings of every XMPP client.
+
+Otherwise, the clients will keep disconnecting each other, because MongooseIM always terminates the older session in case of a conflict.
+
 ### Connect Gajim
 
 Gajim is available on Ubuntu, CentOS & Windows.
