@@ -21,11 +21,9 @@
 -optional_callbacks([get_mam_pm_gdpr_data/2,
                      get_mam_muc_gdpr_data/2]).
 
--type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.
-
 -type mam_pm_gdpr_data() :: [{MessageID :: bitstring(), FromJID :: bitstring(), Message :: bitstring()}].
 
 -type mam_muc_gdpr_data() :: [{MessageID :: bitstring(), Message :: bitstring()}].
 
--export_type([purge_single_message_result/0, mam_pm_gdpr_data/0, mam_muc_gdpr_data/0]).
+-export_type([mam_pm_gdpr_data/0, mam_muc_gdpr_data/0]).
 
