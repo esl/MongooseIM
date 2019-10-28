@@ -52,14 +52,13 @@ init(Req, Opts) ->
     try
         init_unsafe(Req, Opts)
     catch
-        Class:Reason ->
+        Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              Stacktrace = erlang:get_stacktrace(),
               ?ERROR_MSG("issue=init_failed "
                           "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, Stacktrace]),
-              erlang:raise(Class, Reason, Stacktrace)
+                         [Class, Reason, StackTrace]),
+              erlang:raise(Class, Reason, StackTrace)
     end.
 
 init_unsafe(Req, Opts) ->
@@ -93,14 +92,13 @@ websocket_handle(InFrame, State) ->
     try
         websocket_handle_unsafe(InFrame, State)
     catch
-        Class:Reason ->
+        Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              Stacktrace = erlang:get_stacktrace(),
               ?ERROR_MSG("issue=websocket_handle_failed "
                           "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, Stacktrace]),
-              erlang:raise(Class, Reason, Stacktrace)
+                         [Class, Reason, StackTrace]),
+              erlang:raise(Class, Reason, StackTrace)
     end.
 
 websocket_handle_unsafe(InFrame,
@@ -123,14 +121,13 @@ websocket_info(Info, State) ->
     try
         websocket_info_unsafe(Info, State)
     catch
-        Class:Reason ->
+        Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              Stacktrace = erlang:get_stacktrace(),
               ?ERROR_MSG("issue=websocket_info_failed "
                           "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, Stacktrace]),
-              erlang:raise(Class, Reason, Stacktrace)
+                         [Class, Reason, StackTrace]),
+              erlang:raise(Class, Reason, StackTrace)
     end.
 
 websocket_info_unsafe(Info,

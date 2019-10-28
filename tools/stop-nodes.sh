@@ -16,12 +16,34 @@ source tools/travis-common-vars.sh
 # Fails if release for the node is not compiled
 stop_node() {
   echo -n "${1} stop: "
-  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl stop && echo ok || echo failed
-  echo
+  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl force_stop && echo ok
+}
+
+async_helper() {
+  local ret_val=0 output=""
+  output="$("$@")" || ret_val="$?"
+  echo; echo "$output"; echo
+  return "$ret_val"
+}
+
+wait_for_pids() {
+  ## wait for all pids
+  wait "$@" || true
+  ## wait for pids one by one, so script can be stopped on error
+  for pid in "$@"; do
+    wait "$pid"
+  done
 }
 
 # DEV_NODES_ARRAY is defined in travis-common-vars.sh
 # and contains node names mim1, mim2, ...
-for node in ${DEV_NODES_ARRAY[@]}; do
-  stop_node $node;
-done
+stop_nodes() {
+  local pids=()
+  for node in ${DEV_NODES_ARRAY[@]}; do
+    async_helper stop_node $node &
+    pids+=("$!")
+  done
+  wait_for_pids "${pids[@]}"
+}
+
+stop_nodes

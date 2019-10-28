@@ -29,10 +29,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
-        false -> [];
-        true  -> [{group, rdbms_queries}]
-    end.
+    [{group, rdbms_queries}].
 
 groups() ->
     G = [{rdbms_queries, [sequence], rdbms_queries_cases()}],
@@ -72,7 +69,10 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
+        false -> {skip, rdbms_or_ct_not_running};
+        true -> escalus:init_per_suite(Config)
+    end.
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).

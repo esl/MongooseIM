@@ -298,6 +298,8 @@ process_term(Term, State) ->
             add_option(sasl_mechanisms, Mechanisms, State);
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
+        {cowboy_server_name, Value} ->
+            add_option(cowboy_server_name, Value, State);
         {services, Value} ->
             add_option(services, Value, State);
         {_Opt, _Val} ->

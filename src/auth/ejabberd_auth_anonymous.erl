@@ -53,7 +53,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
+         supports_password_type/2,
          get_vh_registered_users/2,
          get_vh_registered_users_number/1,
          get_vh_registered_users_number/2,
@@ -342,9 +342,11 @@ remove_user(_LUser, _LServer) ->
 remove_user(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
-
-store_type(_) ->
-    plain.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, plain) -> true;
+supports_password_type(_, scram) -> true;
+supports_password_type(_, digest) -> true;
+supports_password_type(_, _) -> false.
 
 get_vh_registered_users_number(_LServer) -> 0.
 
@@ -352,3 +354,5 @@ get_vh_registered_users_number(_LServer, _Opts) -> 0.
 
 %% @doc gen_auth unimplemented callbacks
 get_password_s(_LUser, _LServer) -> erlang:error(not_implemented).
+
+

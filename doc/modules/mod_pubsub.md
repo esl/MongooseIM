@@ -23,8 +23,7 @@ It's all about tailoring PubSub to your needs!
 * `nodetree` (binary, default: `<<"tree">>`): Specifies the storage and organisation of the pubsub nodes. See the section below.
 * `ignore_pep_from_offline` (boolean, default: `true`): specify whether or not we should get last published PEP items from users in our roster which are offline when we connect.
 The default option is `true` hence we will get only the last items from the online contacts.
-* `last_item_cache` (boolean, default `false`): specifies whether or not pubsub should cache the last items. Such an option provides the ability to send the last published item to a new subscriber.
-Such caching might speed up pubsub's performance and can increase the number of user connections but in price of memory usage.
+* `last_item_cache` (atom, default `false`): If enabled, PubSub will cache the last published items in the nodes. It may increase PubSub performance but at a price of an increased memory usage. Valid values are `mnesia`, `rdbms` and `false`.
 * `plugins` ([Plugin, ...], default: `[<<"flat">>]`): List of enabled pubsub plugins.
 * `pep_mapping` ([{Key, Value}, ...]): This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.

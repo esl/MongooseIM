@@ -66,7 +66,7 @@
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
-         on_user_offline/5, remove_user/2, remove_user/3,
+         on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
@@ -85,7 +85,7 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/2, plugins/1, config/3,
+         tree/1, tree/2, plugin/2, plugin/1, plugins/1, plugin_call/3, config/3,
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
@@ -93,6 +93,8 @@
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 -export([default_host/0]).
+
+-export([get_personal_data/2]).
 
 %% packet handler export
 -export([process_packet/5]).
@@ -242,13 +244,22 @@ default_host() ->
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      State :: #state{}) -> any().
-process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
-    Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
-                                                  from_jid => From,
-                                                  to_jid => To,
-                                                  element => El }, Acc),
-    Packet = mongoose_acc:element(Acc2),
-    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
+process_packet(_Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
+    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
+
+%%====================================================================
+%% GDPR callback
+%%====================================================================
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
+     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
+     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
+
+     [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
+      {pubsub_nodes, ["node_name", "type"], Nodes},
+      {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc].
 
 %%====================================================================
 %% gen_server callbacks
@@ -347,7 +358,8 @@ hooks() ->
      {roster_in_subscription, in_subscription, 50},
      {roster_out_subscription, out_subscription, 50},
      {remove_user, remove_user, 50},
-     {anonymous_purge_hook, remove_user, 50}
+     {anonymous_purge_hook, remove_user, 50},
+     {get_personal_data, get_personal_data, 50}
     ].
 
 pep_hooks() ->
@@ -843,40 +855,23 @@ unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
 %%
 
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Entity = jid:make(LUser, LServer, <<>>),
     Host = host(LServer),
-    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
-    spawn(fun() -> lists:foreach(
-                     fun(PType) ->
-                             catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
-                     end, plugins(Host)) end).
+    lists:foreach(fun(PType) ->
+                          remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
+                  end, plugins(Host)),
+    Acc.
 
-remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
-                          node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
-                     (_) ->
-                          ok
-                  end, Subs),
-    {result, Affs} = node_action(Host, PType, get_entity_affiliations, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-                       when N == HomeTreeBase, Type == <<"hometree">> ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{id = Nidx}, publisher}) ->
-                          node_action(Host, PType,
-                                      set_affiliation,
-                                      [Nidx, Entity, none]);
-                     (_) ->
-                          ok
-                  end, Affs).
+remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
+    try
+        plugin_call(Plugin, remove_user, [LUser, LServer])
+    catch
+        Class:Reason:StackTrace ->
+            ?WARNING_MSG("event=cannot_delete_pubsub_user,"
+                         "luser=~s,lserver=~s,class=~p,reason=~p,stacktrace=~p",
+                         [LUser, LServer, Class, Reason, StackTrace])
+    end.
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -1331,8 +1326,23 @@ all_metrics() ->
      {get, affiliations},
      {set, affiliations}].
 
+iq_action_to_metric_name(<<"create">>) -> create;
+iq_action_to_metric_name(<<"publish">>) -> publish;
+iq_action_to_metric_name(<<"retract">>) -> retract;
+iq_action_to_metric_name(<<"subscribe">>) -> subscribe;
+iq_action_to_metric_name(<<"unsubscribe">>) -> unsubscribe;
+iq_action_to_metric_name(<<"items">>) -> items;
+iq_action_to_metric_name(<<"options">>) -> options;
+iq_action_to_metric_name(<<"configure">>) -> configure;
+iq_action_to_metric_name(<<"default">>) -> default;
+iq_action_to_metric_name(<<"delete">>) -> delete;
+iq_action_to_metric_name(<<"purge">>) -> purge;
+iq_action_to_metric_name(<<"subscriptions">>) -> subscriptions;
+iq_action_to_metric_name(<<"affiliations">>) -> affiliations.
+
+
 metric_name(IQType, Name, MetricSuffix) when is_binary(Name) ->
-    NameAtom = binary_to_existing_atom(Name, utf8),
+    NameAtom = iq_action_to_metric_name(Name),
     metric_name(IQType, NameAtom, MetricSuffix);
 metric_name(IQType, Name, MetricSuffix) when is_atom(Name) ->
     [pubsub, IQType, Name, MetricSuffix].
@@ -4143,6 +4153,9 @@ tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
 plugin(_Host, Name) ->
+    plugin(Name).
+
+plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -4251,6 +4264,9 @@ tree_action(Host, Function, Args) ->
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
     PluginModule = plugin(Host, Type),
+    plugin_call(PluginModule, Function, Args).
+
+plugin_call(PluginModule, Function, Args) ->
     CallModule = maybe_default_node(PluginModule, Function, Args),
     case apply(CallModule, Function, Args) of
         {result, Result} ->

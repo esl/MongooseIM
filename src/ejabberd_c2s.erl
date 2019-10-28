@@ -41,7 +41,8 @@
          get_subscribed/1,
          send_filtered/5,
          broadcast/4,
-         store_session_info/5]).
+         store_session_info/5,
+         get_info/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -91,6 +92,9 @@ socket_type() ->
 %% @doc Return Username, Resource and presence information
 get_presence(FsmRef) ->
     p1_fsm_old:sync_send_all_state_event(FsmRef, get_presence, 1000).
+
+get_info(FsmRef) ->
+    p1_fsm_old:sync_send_all_state_event(FsmRef, get_info, 5000).
 
 
 -spec get_aux_field(Key :: aux_key(),
@@ -229,7 +233,8 @@ init([{SockMod, Socket}, Opts]) ->
                                          shaper         = Shaper,
                                          ip             = IP,
                                          lang           = default_language(),
-                                         hibernate_after= HibernateAfter},
+                                         hibernate_after= HibernateAfter
+                                        },
              ?C2S_OPEN_TIMEOUT}
     end.
 
@@ -247,23 +252,25 @@ wait_for_stream({xmlstreamstart, _Name, _} = StreamStart, StateData) ->
     handle_stream_start(StreamStart, StateData);
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
-%% TODO: this clause is most likely dead code - can't be triggered
-%%       with XMPP level tests;
-%%       see github.com/esl/ejabberd_tests/tree/element-before-stream-start
-wait_for_stream({xmlstreamelement, _}, StateData) ->
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
-wait_for_stream({xmlstreamend, _}, StateData) ->
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
-wait_for_stream({xmlstreamerror, _}, StateData) ->
-    send_header(StateData, ?MYNAME, << "1.0">>, <<"">>),
-    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream(closed, StateData) ->
-    {stop, normal, StateData}.
+    {stop, normal, StateData};
+wait_for_stream(_UnexpectedItem, #state{ server = Server } = StateData) ->
+    case ejabberd_config:get_local_option(hide_service_name, Server) of
+        true ->
+            {stop, normal, StateData};
+        _ ->
+            send_header(StateData, Server, << "1.0">>, <<"">>),
+            c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData)
+    end.
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
+    StreamMgmtConfig = case gen_mod:is_loaded(Server, mod_stream_management) of
+                            true -> false;
+                            _ -> disabled
+                        end,
     Lang = get_xml_lang(Attrs),
-    S = S0#state{server = Server, lang = Lang},
+    S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->
@@ -674,15 +681,11 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
 
     end.
 
+check_compression_auth(_El, NextState, StateData = #state{authenticated = false}) ->
+    send_element_from_server_jid(StateData, compress_setup_failed()),
+    fsm_next_state(NextState, StateData);
 check_compression_auth(El, NextState, StateData) ->
-    Auth = StateData#state.authenticated,
-    case Auth of
-        false ->
-            send_element_from_server_jid(StateData, compress_setup_failed()),
-            fsm_next_state(NextState, StateData);
-        _ ->
-            check_compression_method(El, NextState, StateData)
-    end.
+    check_compression_method(El, NextState, StateData).
 
 check_compression_method(El, NextState, StateData) ->
     case exml_query:path(El, [{element, <<"method">>}, cdata]) of
@@ -745,7 +748,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
     PrivList = ejabberd_hooks:run_fold(privacy_get_user_list, S, #userlist{}, [U, S]),
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
@@ -994,6 +997,8 @@ handle_sync_event(get_presence, _From, StateName, StateData) ->
 
     Reply = {User, Resource, Show, Status},
     fsm_reply(Reply, StateName, StateData);
+handle_sync_event(get_info, _From, StateName, StateData) ->
+    {reply, make_c2s_info(StateData), StateName, StateData};
 handle_sync_event(get_subscribed, _From, StateName, StateData) ->
     Subscribed = gb_sets:to_list(StateData#state.pres_f),
     {reply, Subscribed, StateName, StateData};
@@ -1482,15 +1487,20 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %%----------------------------------------------------------------------
 -spec terminate(Reason :: any(), statename(), state()) -> ok.
 terminate(_Reason, StateName, StateData) ->
+    InitialAcc0 = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
+    Acc = case StateData#state.stream_mgmt of
+              true -> mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0);
+              _ -> InitialAcc0
+          end,
     case {should_close_session(StateName), StateData#state.authenticated} of
         {false, _} ->
             ok;
-        %% if we are in an state wich have a session established
+        %% if we are in an state which has a session established
         {_, replaced} ->
             ?INFO_MSG("(~w) Replaced session for ~s",
                       [StateData#state.socket,
                        jid:to_binary(StateData#state.jid)]),
-            From = StateData#state.jid,
             StatusEl = #xmlel{name = <<"status">>,
                               children = [#xmlcdata{content = <<"Replaced by new connection">>}]},
             Packet = #xmlel{name = <<"presence">>,
@@ -1498,6 +1508,7 @@ terminate(_Reason, StateName, StateData) ->
                             children = [StatusEl]},
             Acc0 = element_to_origin_accum(Packet, StateData),
             ejabberd_sm:close_session_unset_presence(
+              Acc,
               StateData#state.sid,
               StateData#state.user,
               StateData#state.server,
@@ -1508,6 +1519,10 @@ terminate(_Reason, StateName, StateData) ->
             presence_broadcast(Acc1, StateData#state.pres_i, StateData),
             reroute_unacked_messages(StateData);
         {_, resumed} ->
+            StreamConflict = mongoose_xmpp_errors:stream_conflict(
+                               StateData#state.lang, <<"Resumed by new connection">>),
+            maybe_send_element_from_server_jid_safe(StateData, StreamConflict),
+            maybe_send_trailer_safe(StateData),
             ?INFO_MSG("(~w) Stream ~p resumed for ~s",
                       [StateData#state.socket,
                        StateData#state.stream_mgmt_id,
@@ -1523,17 +1538,18 @@ terminate(_Reason, StateName, StateData) ->
                        pres_a = EmptySet,
                        pres_i = EmptySet,
                        pres_invis = false} ->
-                    ejabberd_sm:close_session(StateData#state.sid,
+                    ejabberd_sm:close_session(Acc,
+                                              StateData#state.sid,
                                               StateData#state.user,
                                               StateData#state.server,
                                               StateData#state.resource,
                                               normal);
                 _ ->
-                    From = StateData#state.jid,
                     Packet = #xmlel{name = <<"presence">>,
                                     attrs = [{<<"type">>, <<"unavailable">>}]},
                     Acc0 = element_to_origin_accum(Packet, StateData),
                     ejabberd_sm:close_session_unset_presence(
+                      Acc,
                       StateData#state.sid,
                       StateData#state.user,
                       StateData#state.server,
@@ -1560,8 +1576,7 @@ reroute_unacked_messages(StateData) ->
 %%%----------------------------------------------------------------------
 
 fix_message_from_user(#xmlel{attrs = Attrs} = El0, Lang) ->
-    % do some cryptic preparation on xmlel
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
+    NewEl1 = jlib:remove_delay_tags(El0),
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
         <<>> ->
             case Lang of
@@ -1596,7 +1611,8 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 -spec maybe_send_element_from_server_jid_safe(state(), El :: exml:element()) -> any().
-maybe_send_element_from_server_jid_safe(#state{stream_mgmt = false} = State, El) ->
+maybe_send_element_from_server_jid_safe(#state{stream_mgmt = StreamMgmt} = State, El)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     send_element_from_server_jid(State, El);
 maybe_send_element_from_server_jid_safe(State, El) ->
     case catch send_element_from_server_jid(State, El) of
@@ -1669,7 +1685,8 @@ send_header(StateData, Server, Version, Lang) ->
     send_text(StateData, Header).
 
 -spec maybe_send_trailer_safe(State :: state()) -> any().
-maybe_send_trailer_safe(#state{stream_mgmt = false} = State) ->
+maybe_send_trailer_safe(#state{stream_mgmt = StreamMgmt} = State)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     send_trailer(State);
 maybe_send_trailer_safe(StateData) ->
     catch send_trailer(StateData).
@@ -2721,10 +2738,10 @@ bounce_csi_buffer(#state{csi_buffer = []}) ->
     ok;
 bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
     re_route_packets(Buffer).
+
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
-
 maybe_enable_stream_mgmt(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           StateData#state.stream_mgmt,
@@ -2747,9 +2764,14 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                        stream_mgmt_buffer_max = BufferMax,
                                        stream_mgmt_ack_freq = AckFreq,
                                        stream_mgmt_resume_timeout = ResumeTimeout});
-        {?NS_STREAM_MGNT_3, _, _} ->
-            %% already on, ignore
-            fsm_next_state(NextState, StateData);
+        {?NS_STREAM_MGNT_3, true, _} ->
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
+            send_trailer(StateData),
+            {stop, normal, StateData};
+        {?NS_STREAM_MGNT_3, disabled, _} ->
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"feature-not-implemented">>)),
+            send_trailer(StateData),
+            {stop, normal, StateData};
         {_, _, _} ->
             %% invalid namespace
             send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
@@ -2758,17 +2780,14 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
     end.
 
 enable_stream_resumption(SD) ->
-    SMID = make_smid(),
+    SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
-              undefined -> {p1_time_compat:timestamp(), self()};
+              undefined -> {erlang:timestamp(), self()};
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
     {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
-
-make_smid() ->
-    base64:encode(crypto:strong_rand_bytes(21)).
 
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
@@ -2782,31 +2801,47 @@ maybe_unexpected_sm_request(NextState, El, StateData) ->
     end.
 
 stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
-    try
-        {ns, ?NS_STREAM_MGNT_3} = {ns, xml:get_tag_attr_s(<<"xmlns">>, El)},
-        Handled = binary_to_integer(xml:get_tag_attr_s(<<"h">>, El)),
-        NSD = #state{} = do_handle_ack(Handled,
-                                       SD#state.stream_mgmt_out_acked,
-                                       SD#state.stream_mgmt_buffer,
-                                       SD#state.stream_mgmt_buffer_size,
-                                       SD),
-        fsm_next_state(NextState, NSD)
-    catch
-        error:{badmatch, {ns, _}} ->
+    case {exml_query:attr(El, <<"xmlns">>), stream_mgmt_parse_h(El)} of
+        {NS, _} when NS =/= ?NS_STREAM_MGNT_3 ->
             maybe_send_element_from_server_jid_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
-        throw:{policy_violation, Reason} ->
-            PolicyViolation = mongoose_xmpp_errors:policy_violation(SD#state.lang, Reason),
-            maybe_send_element_from_server_jid_safe(SD, PolicyViolation),
+        {_, invalid_h_attribute} ->
+            PolicyViolationErr = mongoose_xmpp_errors:policy_violation(
+                                   SD#state.lang, <<"Invalid h attribute">>),
+            maybe_send_element_from_server_jid_safe(SD, PolicyViolationErr),
             maybe_send_trailer_safe(SD),
-            {stop, normal, SD}
+            {stop, normal, SD};
+        {_, Handled} ->
+            try
+                NSD = #state{} = do_handle_ack(Handled,
+                                               SD#state.stream_mgmt_out_acked,
+                                               SD#state.stream_mgmt_buffer,
+                                               SD#state.stream_mgmt_buffer_size,
+                                               SD),
+                fsm_next_state(NextState, NSD)
+            catch
+                throw:{undefined_condition, H, OldAcked} ->
+                    #xmlel{children = [UndefCond, Text]} = ErrorStanza0
+                    = mongoose_xmpp_errors:undefined_condition(
+                        SD#state.lang, <<"You acknowledged more stanzas that what has been sent">>),
+                    HandledCountField = sm_handled_count_too_high_stanza(H, OldAcked),
+                    ErrorStanza = ErrorStanza0#xmlel{children = [UndefCond, HandledCountField, Text]},
+                    maybe_send_element_from_server_jid_safe(SD, ErrorStanza),
+                    maybe_send_trailer_safe(SD),
+                    {stop, normal, SD}
+            end
+    end.
+
+stream_mgmt_parse_h(El) ->
+    case catch binary_to_integer(exml_query:attr(El, <<"h">>)) of
+        H when is_integer(H) -> H;
+        _ -> invalid_h_attribute
     end.
 
 do_handle_ack(Handled, OldAcked, Buffer, BufferSize, SD) ->
     ToDrop = calc_to_drop(Handled, OldAcked),
-    ToDrop > BufferSize andalso throw({policy_violation,
-                                       <<"h attribute too big">>}),
+    ToDrop > BufferSize andalso throw({undefined_condition, Handled, OldAcked}),
     {Dropped, NewBuffer} = drop_last(ToDrop, Buffer),
     NewSize = BufferSize - Dropped,
     SD#state{stream_mgmt_out_acked = Handled,
@@ -2818,8 +2853,8 @@ calc_to_drop(Handled, OldAcked) when Handled >= OldAcked ->
 calc_to_drop(Handled, OldAcked) ->
     Handled + ?STREAM_MGMT_H_MAX - OldAcked + 1.
 
-maybe_send_sm_ack(?NS_STREAM_MGNT_3, false, _NIncoming,
-                  NextState, StateData) ->
+maybe_send_sm_ack(?NS_STREAM_MGNT_3, StreamMgmt, _NIncoming, NextState, StateData)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     ?WARNING_MSG("received <r/> but stream management is off!", []),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
@@ -2831,7 +2866,8 @@ maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData}.
 
-maybe_increment_sm_incoming(false, StateData) ->
+maybe_increment_sm_incoming(StreamMgmt, StateData)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     StateData;
 maybe_increment_sm_incoming(true, StateData) ->
     Incoming = StateData#state.stream_mgmt_in,
@@ -2854,10 +2890,13 @@ stream_mgmt_enabled(ExtraAttrs) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
 
 stream_mgmt_failed(Reason) ->
+    stream_mgmt_failed(Reason, []).
+
+stream_mgmt_failed(Reason, Attrs) ->
     ReasonEl = #xmlel{name = Reason,
                       attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
     #xmlel{name = <<"failed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}],
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3} | Attrs],
            children = [ReasonEl]}.
 
 stream_mgmt_ack(NIncoming) ->
@@ -2866,16 +2905,18 @@ stream_mgmt_ack(NIncoming) ->
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
 -spec buffer_out_stanza(packet(), state()) -> state().
-buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt = StreamMgmt} = S)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     S;
 buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
     S;
-buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
+buffer_out_stanza(Packet, #state{server = Server,
+                                 stream_mgmt_buffer = Buffer,
                                  stream_mgmt_buffer_size = BufferSize,
                                  stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
     Timestamp = os:timestamp(),
-    NPacket = maybe_add_timestamp(Packet, Timestamp),
+    NPacket = maybe_add_timestamp(Packet, Timestamp, Server),
 
     NS = case is_buffer_full(NewSize, BufferMax) of
              true ->
@@ -2922,7 +2963,8 @@ get_ack_freq() ->
 get_resume_timeout() ->
     mod_stream_management:get_resume_timeout(?STREAM_MGMT_RESUME_TIMEOUT).
 
-maybe_send_ack_request(Acc, #state{stream_mgmt = false}) ->
+maybe_send_ack_request(Acc, #state{stream_mgmt = StreamMgmt})
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     Acc;
 maybe_send_ack_request(Acc, #state{stream_mgmt_ack_freq = never}) ->
     Acc;
@@ -2938,13 +2980,13 @@ stream_mgmt_request() ->
     #xmlel{name = <<"r">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
-flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
+flush_stream_mgmt_buffer(#state{stream_mgmt = StreamMgmt})
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     false;
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
     re_route_packets(Buffer).
 
 re_route_packets(Buffer) ->
-    %% TODO add delayed on it?
     [ejabberd_router:route(From, To, Packet)
      || {From, To, Packet} <- lists:reverse(Buffer)],
     ok.
@@ -2974,18 +3016,24 @@ maybe_resume_session(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           xml:get_tag_attr_s(<<"previd">>, El)} of
         {?NS_STREAM_MGNT_3, SMID} ->
-            MaybeSID = mod_stream_management:get_sid(SMID),
-            do_resume_session(SMID, El, MaybeSID, StateData);
+            FromSMID = mod_stream_management:get_session_from_smid(SMID),
+            do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
             ?INFO_MSG("ignoring <resume/> element "
                       "with invalid namespace ~s~n", [InvalidNS]),
             fsm_next_state(NextState, StateData)
     end.
 
-do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) ->
+-spec do_resume_session(SMID, El, FromSMID, StateData) -> NewState when
+      SMID :: mod_stream_management:smid(),
+      El :: exml:element(),
+      FromSMID :: {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found},
+      StateData :: state(),
+      NewState :: tuple().
+do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
-        SID = {p1_time_compat:timestamp(), self()},
+        SID = {erlang:timestamp(), self()},
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),
@@ -3029,14 +3077,18 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
         end
     catch
         _:_ ->
-            ?WARNING_MSG("resumption error (invalid response from ~p)~n",
-                         [Pid]),
+            ?WARNING_MSG("event=resumption_error reason=invalid_response pid=~p", [Pid]),
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
-do_resume_session(SMID, _El, [], StateData) ->
-    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
+    ?INFO_MSG("event=resumption_error reason=session_resumption_timed_out smid=~p h=~p", [SMID, H]),
+    send_element_from_server_jid(
+      StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
+    fsm_next_state(wait_for_feature_after_auth, StateData);
+do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
+    ?INFO_MSG("event=resumption_error reason=no_previous_session_for_smid smid=~p", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 
@@ -3079,7 +3131,10 @@ stream_mgmt_resumed(SMID, Handled) ->
 handover_session(SD) ->
     %% Assert Stream Management is on; otherwise this should not be called.
     true = SD#state.stream_mgmt,
-    ejabberd_sm:close_session(SD#state.sid,
+    Acc = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+    ejabberd_sm:close_session(Acc,
+                              SD#state.sid,
                               SD#state.user,
                               SD#state.server,
                               SD#state.resource,
@@ -3092,7 +3147,7 @@ handover_session(SD) ->
                    stream_mgmt_buffer = NewBuffer},
     {stop, normal, {ok, NSD}, NSD}.
 
-maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp) ->
+maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     case Type of
         <<"error">> ->
@@ -3100,10 +3155,9 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
         <<"headline">> ->
             PacketTuple;
         _ ->
-            %% TODO: ?MYNAME (or server taken from c2s state) not <<"localhost">>
-            {F, T, add_timestamp(Timestamp, <<"localhost">>, Packet)}
+            {F, T, add_timestamp(Timestamp, Server, Packet)}
     end;
-maybe_add_timestamp(Packet, _Timestamp) ->
+maybe_add_timestamp(Packet, _Timestamp, _Server) ->
     Packet.
 
 add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
@@ -3127,6 +3181,13 @@ defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undef
     State#state{stream_mgmt_constraint_check_tref = TRef};
 defer_resource_constraint_check(State)->
     State.
+
+-spec sm_handled_count_too_high_stanza(non_neg_integer(), non_neg_integer()) -> exml:element().
+sm_handled_count_too_high_stanza(Handled, OldAcked) ->
+    #xmlel{name = <<"handled-count-too-high">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(Handled)},
+                    {<<"send-count">>, integer_to_binary(OldAcked)}]}.
 
 -spec sasl_success_stanza(any()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
@@ -3245,3 +3306,6 @@ hibernate() ->
 -spec maybe_hibernate(state()) -> hibernate | infinity | pos_integer().
 maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
 maybe_hibernate(#state{hibernate_after = HA}) -> HA.
+
+make_c2s_info(_StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
+    #{stream_mgmt_buffer_size => SMBufSize}.

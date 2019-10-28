@@ -69,7 +69,7 @@ clean_opts(Opts) ->
     lists:map(fun clean_opt/1, Opts).
 
 clean_opt({registration_watchers, Watchers}) ->
-    CleanWatchers = lists:map(fun ejabberd_binary:string_to_binary/1, Watchers),
+    CleanWatchers = lists:map(fun mongoose_bin:string_to_binary/1, Watchers),
     {registration_watchers, CleanWatchers};
 clean_opt(Item) ->
     Item.
@@ -354,8 +354,7 @@ check_timeout(Source) ->
               end,
     case is_integer(Timeout) of
         true ->
-            {MSec, Sec, _USec} = p1_time_compat:timestamp(),
-            Priority = -(MSec * 1000000 + Sec),
+            Priority = -(erlang:system_time(second)),
             CleanPriority = Priority + Timeout,
             F = fun() -> check_and_store_ip_entry(Source, Priority, CleanPriority) end,
 

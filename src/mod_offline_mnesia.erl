@@ -30,6 +30,7 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
+         fetch_messages/2,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
@@ -58,6 +59,18 @@ pop_messages(LUser, LServer) ->
                 mnesia:delete({offline_msg, US}),
                 Rs
         end,
+    case mnesia:transaction(F) of
+        {atomic, Rs} ->
+            {ok, Rs};
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
+fetch_messages(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
+    US = {LUser, LServer},
+    F = fun() -> mnesia:wread({offline_msg, US}) end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->
             {ok, Rs};
@@ -97,9 +110,7 @@ count_offline_messages(LUser, LServer, _MaxNeeded) ->
         _ -> 0
     end.
 
-remove_user(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
                 mnesia:delete({offline_msg, US})
@@ -109,7 +120,7 @@ remove_user(User, Server) ->
 -spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
-    TimeStamp = p1_time_compat:timestamp(),
+    TimeStamp = erlang:timestamp(),
     F = fun() ->
                 mnesia:write_lock_table(offline_msg),
                 mnesia:foldl(

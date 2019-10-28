@@ -137,7 +137,7 @@ try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
 try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     try publish(Host, TopicARN, Content, Attributes)
     catch
-        Type:Error ->
+        Type:Error:StackTrace ->
             BackoffTime = calc_backoff_time(Host, Retry),
             timer:apply_after(BackoffTime, mongoose_wpool, cast,
                               [generic, Host, pusher_sns,
@@ -145,7 +145,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
                                 [Host, TopicARN, Content, Attributes, Retry - 1]}]),
             ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",
                          [{Host, TopicARN, Content}, BackoffTime,
-                          {Type, Error}, erlang:get_stacktrace()]),
+                          {Type, Error}, StackTrace]),
             scheduled
     end.
 

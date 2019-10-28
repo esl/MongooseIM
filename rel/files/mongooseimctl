@@ -20,6 +20,9 @@ ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
 EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
 
+EJABBERD_STATUS_PATH="${EJABBERD_STATUS_PATH:-$RUNNER_BASE_DIR/var/status}"
+export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
+
 COOKIE_ARG=`grep -e '^-setcookie' "$EJABBERD_VMARGS_PATH"`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
@@ -94,6 +97,11 @@ start ()
 stop ()
 {
     "$RUNNER_SCRIPT_DIR"/mongooseim stop
+}
+
+force_stop ()
+{
+    "$RUNNER_SCRIPT_DIR"/mongooseim force_stop
 }
 
 # attach to server
@@ -240,17 +248,23 @@ wait_for_status()
     # return: 0 OK, 1 KO
     timeout=$2
     status=4
+    times=0
     while [ $status -ne $1 ]; do
-        sleep $3
+        # Skip first sleep
+        if [ $times -ne 0 ]; then
+            sleep $3
+        fi
         timeout=$(($timeout - 1))
         [ $timeout -eq 0 ] && {
-            status=$1
+            break
         } || {
             ctl status > /dev/null
             status=$?
         }
+        times=$(($times + 1))
     done
     [ $timeout -eq 0 ] && {
+        echo "wait_for_status: timeout"
         status=1
     } || {
         status=0
@@ -258,6 +272,59 @@ wait_for_status()
     return $status
 }
 
+# Calling wait_for_status creates erlang shell process many times, which is resource intensive.
+# Checking for EJABBERD_STATUS_PATH is more resource conservative.
+function wait_for_status_file
+{
+    if [ -z "$EJABBERD_STATUS_PATH" ]; then
+        return 0;
+    else
+        do_wait_for_status_file $@
+    fi
+}
+
+# Usage: read_file_or_default "FILENAME" "DEFAULT"
+function read_file_or_default
+{
+    # Ignore file not found error message
+    cat "$1" 2>/dev/null || echo "$2"
+}
+
+function do_wait_for_status_file
+{
+    # args: status try delay
+    # return: 0 OK, 1 KO
+    timeout=$2
+    status="unknown"
+    times=0
+    while [ "$status" != "$1" ]; do
+        # Skip first sleep
+        if [ $times -ne 0 ]; then
+            sleep $3
+        fi
+        timeout=$(($timeout - 1))
+        [ $timeout -eq 0 ] && {
+            break
+        } || {
+            status=$(read_file_or_default "$EJABBERD_STATUS_PATH" "file_missing")
+        }
+        times=$(($times + 1))
+    done
+    [ $timeout -eq 0 ] && {
+        echo "wait_for_status_file: timeout, last status: $status, expected status: $1"
+        echo "EJABBERD_STATUS_PATH=$EJABBERD_STATUS_PATH"
+        status=1
+    } || {
+        status=0
+    }
+    return $status
+}
+
+function is_started_status_file
+{
+    status=$(read_file_or_default "$EJABBERD_STATUS_PATH" "file_missing")
+    [ "$status" = "started" ]
+}
 
 # parse command line parameters
 ARGS=""; QUOTED_ARGS=""
@@ -275,13 +342,14 @@ done
 case $1 in
     'start') start;;
     'stop') stop;;
+    'force_stop') force_stop;;
     'join_cluster') join_cluster;;
     'leave_cluster') leave_cluster;;
     'remove_from_cluster') remove_from_cluster;;
     'debug') debug;;
     'live') live;;
     'foreground') foreground;;
-    'started') wait_for_status 0 30 2;; # wait 30x2s before timeout
-    'stopped') wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
+    'started') wait_for_status_file started 60 1 || true; wait_for_status 0 30 2;; # wait 30x2s before timeout
+    'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     *) ctl $QUOTED_ARGS;;
 esac

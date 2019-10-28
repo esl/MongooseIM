@@ -64,7 +64,7 @@ The minimal [mod_pubsub][]'s configuration looks as follows:
 
 ```erlang
 {mod_pubsub, [
-    {plugins, [<<"push">>]}}
+    {plugins, [<<"push">>]}
 ]}.
 ```
 
@@ -173,6 +173,19 @@ The client sends the following stanza to the server:
     id='create1'>
   <pubsub xmlns='http://jabber.org/protocol/pubsub'>
     <create node='punsub_node_for_my_private_iphone' type='push'/>
+    <configure>
+      <x xmlns='jabber:x:data' type='submit'>
+        <field var='FORM_TYPE' type='hidden'>
+          <value>http://jabber.org/protocol/pubsub#node_config</value>
+        </field>
+        <field var='pubsub#access_model'>
+          <value>whitelist</value>
+        </field>
+        <field var='pubsub#publish_model'>
+          <value>publishers</value>
+        </field>
+      </x>
+    </configure>
   </pubsub>
 </iq>
 ```
@@ -183,6 +196,11 @@ The most important and only distinction from the standard node creation is the `
 This denotes that you need a node that will handle your push notifications.
 Here we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
+It is also recommended and important from security perspective to configure the node with:
+
+* `access_model` set to `whitelist` so only affiliated users can access the node.
+* `publish_model` set to `publishers` so only users with `publisher` or `publisher_only` role can publish notifications.
+
 
 After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `punsub_node_for_my_private_iphone`).
 

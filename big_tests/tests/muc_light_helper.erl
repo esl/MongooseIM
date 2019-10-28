@@ -6,10 +6,12 @@
 -include("muc_light.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
-                             rpc/4]).
+                             rpc/4,
+                             rpc/5]).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -42,10 +44,14 @@ given_muc_light_room(Name, Creator, InitOccupants) ->
     CreateStanza = stanza_create_room(Name, [], InitOccupants),
     escalus:send(Creator, CreateStanza),
     Affiliations = [{Creator, owner} | InitOccupants],
-    verify_aff_bcast(Affiliations, Affiliations),
+    AffVerFn = aff_msg_verify_fun(Affiliations),
+    AffMsg = escalus:wait_for_stanza(Creator),
+    AffVerFn(AffMsg),
+    muc_helper:foreach_recipient(
+        [ User || {User, _} <- InitOccupants ], AffVerFn),
     IQResult = escalus:wait_for_stanza(Creator),
     escalus:assert(is_iq_result, IQResult),
-    exml_query:attr(IQResult, <<"from">>).
+    exml_query:attr(AffMsg, <<"from">>).
 
 when_muc_light_message_is_sent(Sender, Room, Body, Id) ->
     RoomJid = room_bin_jid(Room),
@@ -85,8 +91,7 @@ user_leave(Room, User, RemainingOccupants) ->
   escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 then_archive_response_is(Receiver, Expected, Config) ->
-    P = ?config(props, Config),
-    Response = mam_helper:wait_archive_respond(P, Receiver),
+    Response = mam_helper:wait_archive_respond(Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
     [ assert_archive_element(Element)
@@ -99,11 +104,23 @@ assert_archive_element({{affiliations, Affiliations}, Stanza}) ->
 assert_archive_element({{muc_message, Room, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(muc_light_room_jid(Room, Sender)),
     #forwarded_message{message_body = Body,
-                       delay_from = FromJid} = Stanza;
+                       delay_from = FromJid,
+                       message_xs = XS} = Stanza,
+    assert_valid_muc_roles_in_user_x(XS);
 assert_archive_element({{message, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(escalus_utils:get_jid(Sender)),
-    #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza.
+    #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza;
+assert_archive_element({{chat_marker, Type}, Stanza}) ->
+    #forwarded_message{chat_marker = Type} = Stanza.
 
+assert_valid_muc_roles_in_user_x([#xmlel{ attrs = [{<<"xmlns">>, ?NS_MUC_USER}] } = XUser | _]) ->
+    Item = exml_query:subelement(XUser, <<"item">>),
+    muc_helper:assert_valid_affiliation(exml_query:attr(Item, <<"affiliation">>)),
+    muc_helper:assert_valid_role(exml_query:attr(Item, <<"role">>));
+assert_valid_muc_roles_in_user_x([_ | RXs]) ->
+    assert_valid_muc_roles_in_user_x(RXs);
+assert_valid_muc_roles_in_user_x([]) ->
+    ok.
 
 muc_light_room_jid(Room, User) ->
     RoomJid = room_bin_jid(Room),
@@ -231,7 +248,7 @@ stanza_aff_set(Room, AffUsers) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
 clear_db() ->
-    rpc(mim(), mod_muc_light_db_backend, force_clear, []).
+    rpc(mim(), mod_muc_light_db_backend, force_clear, [], timer:seconds(15)).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
@@ -240,3 +257,4 @@ ver(Int) ->
 -spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
 set_mod_config(K, V, Host) ->
         true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
+

@@ -76,7 +76,7 @@ set_incoming_request_tr(CallID, ReqID, From, To, JingleEl) ->
                                           from = jid:to_lus(From),
                                           to = Owner,
                                           owner = Owner,
-                                          now = os:system_time(micro_seconds),
+                                          now = os:system_time(microsecond),
                                           meta = Meta},
             mnesia:write(Session)
     end.
@@ -103,7 +103,7 @@ set_outgoing_request_tr(CallID, ReqID, From, To) ->
                                           from = Owner,
                                           to = jid:to_lus(To),
                                           owner = Owner,
-                                          now = os:system_time(micro_seconds),
+                                          now = os:system_time(microsecond),
                                           meta = #{}},
             mnesia:write(Session)
     end.

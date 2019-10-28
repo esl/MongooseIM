@@ -44,7 +44,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1
+         supports_password_type/2
         ]).
 
 %% Internal
@@ -84,11 +84,11 @@ start(_Host) ->
 stop(_Host) ->
     ok.
 
-store_type(Server) ->
-    case scram:enabled(Server) of
-        false -> plain;
-        true -> scram
-    end.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, plain) -> true;
+supports_password_type(_, scram) -> true;
+supports_password_type(Host, digest) -> not mongoose_scram:enabled(Host);
+supports_password_type(_, _) -> false.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -115,9 +115,9 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         {selected, [{Passwd, null}]} ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         {selected, [{_Passwd, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, #scram{} = Scram} ->
-                    scram:check_digest(Scram, Digest, DigestGen, Password);
+                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
             end;
@@ -128,11 +128,10 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
                        "reason=~p user=~ts", [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=check_password_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, StackTrace]),
             false %% Typical error is database not accessible
     end.
 
@@ -147,9 +146,9 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
         {selected, [{_Password2, null}]} ->
             false;
         {selected, [{_Password2, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
-                    scram:check_password(Password, Scram);
+                    mongoose_scram:check_password(Password, Scram);
                 _ ->
                     false %% Password is not correct
             end;
@@ -161,11 +160,10 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
                        [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=check_password_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, StackTrace]),
             false %% Typical error is database not accessible
     end.
 
@@ -221,12 +219,11 @@ get_vh_registered_users(LServer) ->
             ?ERROR_MSG("event=get_vh_registered_users_failed "
                        "reason=~1000p", [Other]),
             []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=get_vh_registered_users_failed "
                    "reason=~p:~p "
                    "stacktrace=~1000p",
-                   [Class, Reason, Stacktrace]),
+                   [Class, Reason, StackTrace]),
         []
     end.
 
@@ -241,11 +238,10 @@ get_vh_registered_users(LServer, Opts) ->
             ?ERROR_MSG("event=get_vh_registered_users_failed "
                        "reason=~1000p opts=~1000p ", [Other, Opts]),
             []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=get_vh_registered_users_failed "
                    "reason=~p:~p opts=~1000p stacktrace=~1000p",
-                   [Class, Reason, Opts, Stacktrace]),
+                   [Class, Reason, Opts, StackTrace]),
         []
     end.
 
@@ -262,11 +258,10 @@ get_vh_registered_users_number(LServer) ->
             ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
                        "reason=~1000p", [Other]),
             0
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
                    "reason=~p:~p stacktrace=~1000p",
-                   [Class, Reason, Stacktrace]),
+                   [Class, Reason, StackTrace]),
         0
     end.
 
@@ -291,9 +286,9 @@ get_password(LUser, LServer) ->
         {selected, [{Password, null}]} ->
             Password; %%Plain password
         {selected, [{_Password, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
-                    scram:scram_to_tuple(Scram);
+                    mongoose_scram:scram_to_tuple(Scram);
                 _ ->
                     false
             end;
@@ -337,11 +332,10 @@ does_user_exist(LUser, LServer) ->
                        "reason=~1000p user=~ts", [Error, LUser]),
             {error, Error} %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=does_user_exist_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, StackTrace]),
             {error, Reason} %% Typical error is database not accessible
     end.
 
@@ -354,11 +348,10 @@ does_user_exist(LUser, LServer) ->
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:del_user(LServer, Username)
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
         ?ERROR_MSG("event=remove_user_failed "
                    "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, Stacktrace]),
+                   [Class, Reason, LUser, StackTrace]),
         ok
     end,
     ok.
@@ -393,8 +386,8 @@ remove_user(LUser, LServer, Password) ->
 -spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
     prepared_scrammed_password().
 prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = scram:password_to_scram(Password, Iterations),
-    PassDetails = scram:serialize(Scram),
+    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+    PassDetails = mongoose_scram:serialize(Scram),
     PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
     EmptyPassword = mongoose_rdbms:escape_string(<<>>),
     #{password => EmptyPassword,
@@ -403,9 +396,9 @@ prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
 -spec prepare_password(Server :: jid:server(), Password :: binary()) ->
     PreparedPassword :: prepared_password().
 prepare_password(Server, Password) ->
-    case scram:enabled(Server) of
+    case mongoose_scram:enabled(Server) of
         true ->
-            prepare_scrammed_password(scram:iterations(Server), Password);
+            prepare_scrammed_password(mongoose_scram:iterations(Server), Password);
         _ ->
             mongoose_rdbms:escape_string(Password)
     end.

@@ -56,7 +56,7 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
          get_jid_info/4,
@@ -66,7 +66,12 @@
          roster_version/2
          ]).
 
--export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
+-export([remove_test_user/2,
+         transaction/2,
+         process_subscription_transaction/6,
+         get_user_rosters_length/2]). % for testing
+
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -156,6 +161,33 @@
     Item :: term(),
     Result :: error | roster().
 
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+    Records = mod_roster_backend:get_roster(LUser, LServer),
+    SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
+    [{roster, Schema, SerializedRecords} | Acc].
+
+roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
+                                     subscription = Subscription, ask = Ask, groups = Groups,
+                                     askmessage = AskMessage, xs = XS }) ->
+    [
+     jid:to_binary(JID),
+     Name,
+     atom_to_binary(Subscription, utf8),
+     atom_to_binary(Ask, utf8),
+     string:join([ unicode:characters_to_list(G) || G <- Groups ], ", "),
+     AskMessage,
+     << <<(exml:to_binary(X))>> || X <- XS >>
+    ].
+
+%%--------------------------------------------------------------------
+%% mod_roster's callbacks
+%%--------------------------------------------------------------------
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -189,7 +221,8 @@ hooks(Host) ->
      {roster_get_jid_info, Host, ?MODULE, get_jid_info, 50},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
-     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50}].
+     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
@@ -826,6 +859,9 @@ in_auto_reply(_, _, _) -> none.
 remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
 
+get_user_rosters_length(User, Server) ->
+    length(get_roster_old(User, Server)).
+
 %% Used only by tests
 remove_user(User, Server) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -836,10 +872,19 @@ remove_user(User, Server) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Acc1 = send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
+    Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
+    mod_roster_backend:remove_user(LUser, LServer),
     Acc1.
+
+try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+    try
+        send_unsubscription_to_rosteritems(Acc, LUser, LServer)
+    catch
+        E:R:S ->
+            ?WARNING_MSG("event=cannot_send_unsubscription_to_rosteritems,"
+                         "class=~p,reason=~p,stacktrace=~p", [E, R, S]),
+            Acc
+    end.
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

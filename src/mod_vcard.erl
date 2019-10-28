@@ -61,7 +61,6 @@
 -export([process_local_iq/4,
          process_sm_iq/4,
          get_local_features/5,
-         remove_user/2,
          remove_user/3,
          set_vcard/3]).
 
@@ -73,6 +72,9 @@
 
 -export([config_change/4]).
 
+%% GDPR related
+-export([get_personal_data/2]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search           :: boolean(),
@@ -82,9 +84,6 @@
 
 -type error() :: error | {error, any()}.
 
-%%--------------------------------------------------------------------
-%% backend callbacks
-%%--------------------------------------------------------------------
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
@@ -123,6 +122,22 @@
 
 -optional_callbacks([tear_down/1]).
 
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Jid = jid:to_binary({LUser, LServer}),
+    Schema = ["jid", "vcard"],
+    Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
+                  {ok, Record} ->
+                      SerializedRecords = exml:to_binary(Record),
+                      [{Jid, SerializedRecords}];
+                  _ -> []
+              end,
+    [{vcard, Schema, Entries} | Acc].
+
 -spec default_search_fields() -> list().
 default_search_fields() ->
     [{<<"User">>, <<"user">>},
@@ -159,6 +174,7 @@ default_host() ->
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
+
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
@@ -235,7 +251,8 @@ hook_handlers() ->
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
      {disco_local_features, ?MODULE, get_local_features, 50},
      {host_config_update,   ?MODULE, config_change,      50},
-     {set_vcard,            ?MODULE, set_vcard,          50}].
+     {set_vcard,            ?MODULE, set_vcard,          50},
+     {get_personal_data,    ?MODULE, get_personal_data,  50}].
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
@@ -297,8 +314,7 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                     IQ#iq{type = error,
                           sub_el = [VCARD, Reason]}
             catch
-                E:R ->
-                    Stack = erlang:get_stacktrace(),
+                E:R:Stack ->
                     ?ERROR_MSG("issue=process_sm_iq_set_failed "
                                 "reason=~p:~p "
                                 "stacktrace=~1000p "
@@ -324,8 +340,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
             IQ#iq{type = error, sub_el = [SubEl, Reason]}
-        catch E:R ->
-            Stack = erlang:get_stacktrace(),
+        catch E:R:Stack ->
             ?ERROR_MSG("issue=process_sm_iq_get_failed "
                         "reason=~p:~p "
                         "stacktrace=~1000p "
@@ -383,14 +398,11 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    mod_vcard_backend:remove_user(LUser, LServer).
-
+    mod_vcard_backend:remove_user(LUser, LServer),
+    Acc.
+                
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
     case mod_vcard_backend:backend() of

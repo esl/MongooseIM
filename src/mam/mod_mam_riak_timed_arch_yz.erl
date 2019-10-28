@@ -41,13 +41,22 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/5, read_archive/7, bucket/1,
-         list_mam_buckets/0, remove_bucket/1]).
+-export([create_obj/6, read_archive/8, bucket/2,
+         list_mam_buckets/1, remove_bucket/1]).
+
+-export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
--define(YZ_SEARCH_INDEX, <<"mam">>).
--define(MAM_BUCKET_TYPE, <<"mam_yz">>).
+-define(DUMMY_LOOKUP_PARAMETERS, #{with_jid => undefined,
+                                   owner_jid => undefined,
+                                   rsm => undefined,
+                                   page_size => undefined,
+                                   borders => undefined,
+                                   start_ts => undefined,
+                                   end_ts => undefined,
+                                   search_text => undefined,
+                                   is_simple => true}).
 
 %% @doc Start module
 %%
@@ -74,13 +83,15 @@ start_chat_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50).
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50).
 
 start_muc_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50).
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50).
 
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -101,6 +112,7 @@ stop_chat_archive(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 stop_muc_archive(Host) ->
@@ -108,25 +120,38 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
+yz_search_index(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, search_index, <<"mam">>).
+
+mam_bucket_type(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, bucket_type, <<"mam_yz">>).
+
+%% LocJID - archive owner's JID
+%% RemJID - interlocutor's JID
+%% SrcJID - "Real" sender JID
 archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
-        archive_message(Host, MessId, LocJID, RemJID, SrcJID, Packet, pm)
-    catch _Type:Reason ->
+        archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
+    catch _Type:Reason:StackTrace ->
             ?WARNING_MSG("Could not write message to archive, reason: ~p",
-                         [{Reason, erlang:get_stacktrace()}]),
+                         [{Reason, StackTrace}]),
             ejabberd_hooks:run(mam_drop_message, Host, [Host]),
             {error, Reason}
     end.
 
-archive_message_muc(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
-    RemJIDMuc = maybe_muc_jid(RemJID),
+%% LocJID - MUC/MUC Light room's JID
+%% FromJID - "Real" sender JID
+%% SrcJID - Full JID of user within room (room@domain/user)
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Dir, Packet) ->
+    RemJIDMuc = maybe_muc_jid(SrcJID),
     try
-        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
-    catch _Type:Reason ->
+        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)
+    catch _Type:Reason:StackTrace ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
-                     [{Reason, erlang:get_stacktrace()}]),
+                     [{Reason, StackTrace}]),
         ejabberd_hooks:run(mam_muc_drop_message, Host, [Host]),
         {error, Reason}
     end.
@@ -142,8 +167,7 @@ lookup_messages({error, _Reason} = Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params) ->
     try
         lookup_messages(Host, Params)
-    catch _Type:Reason ->
-              S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
               {error, {Reason, {stacktrace, S}}}
     end.
 
@@ -153,60 +177,73 @@ lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
     lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
 
 
-archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
+archive_size(_Size, Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
         mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
-    {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+    {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
                                    [{rows, 1}], F),
     TotalCount.
 
 %% use correct bucket for given date
 
--spec bucket(calendar:date() | yearweeknum() | integer()) ->
+-spec bucket(jid:server(), calendar:date() | yearweeknum() | integer()) ->
                     {binary(), binary()} | undefined.
-bucket(MsgId) when is_integer(MsgId) ->
+bucket(Host, MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
     {MsgDate, _} = calendar:now_to_datetime(MsgNow),
-    bucket(MsgDate);
-bucket({_, _, _} = Date) ->
-    bucket(calendar:iso_week_number(Date));
-bucket({Year, Week}) ->
+    bucket(Host, MsgDate);
+bucket(Host, {_, _, _} = Date) ->
+    bucket(Host, calendar:iso_week_number(Date));
+bucket(Host, {Year, Week}) ->
     YearBin = integer_to_binary(Year),
     WeekNumBin = integer_to_binary(Week),
-    {?MAM_BUCKET_TYPE, <<"mam_", YearBin/binary, "_", WeekNumBin/binary>>};
-bucket(_) ->
+    {mam_bucket_type(Host), <<"mam_", YearBin/binary, "_", WeekNumBin/binary>>};
+bucket(_Host, _) ->
     undefined.
 
-list_mam_buckets() ->
-    {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), ?MAM_BUCKET_TYPE),
-    [{?MAM_BUCKET_TYPE, Bucket} || Bucket <- Buckets].
+list_mam_buckets(Host) ->
+    Type = mam_bucket_type(Host),
+    {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), Type),
+    [{Type, Bucket} || Bucket <- Buckets].
 
 
 remove_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
-archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
+
+%% PM:
+%%  * LocJID - archive owner's JID
+%%  * RemJID - interlocutor's JID
+%%  * SrcJID - "Real" sender JID
+%%  * OwnerJID - Same as LocJID
+%% MUC / MUC Light:
+%%  * LocJID - MUC/MUC Light room's JID
+%%  * RemJID - Nickname of JID of destination
+%%  * SrcJID - Full JID of user within room (room@domain/user)
+%%  * OwnerJID - "Real" sender JID (not room specific)
+archive_message(Host, MessID, LocJID, RemJID, SrcJID, OwnerJID, Packet, Type) ->
     LocalJID = mod_mam_utils:bare_jid(LocJID),
     RemoteJID = mod_mam_utils:bare_jid(RemJID),
     SourceJID = mod_mam_utils:full_jid(SrcJID),
+    BareOwnerJID = mod_mam_utils:bare_jid(OwnerJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
-    Bucket = bucket(MessID),
+    Bucket = bucket(Host, MessID),
 
-    RiakMap = create_obj(Host, MsgId, SourceJID, Packet, Type),
+    RiakMap = create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type),
     case mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)) of
         ok -> ok;
         Other -> throw(Other)
     end.
 
-create_obj(Host, MsgId, SourceJID, Packet, Type) ->
+create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type) ->
     ModMAM =
         case Type of
             pm -> mod_mam;
@@ -219,6 +256,10 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             fun(R) -> riakc_register:set(MsgId, R) end},
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
+           {{<<"msg_owner_jid">>, register},
+            fun(R) -> riakc_register:set(BareOwnerJID, R) end},
+           {{<<"mam_type">>, register},
+            fun(R) -> riakc_register:set(atom_to_binary(Type, latin1), R) end},
            {{<<"packet">>, register},
             fun(R) -> riakc_register:set(packet_to_stored_binary(Host, Packet), R) end},
            {{<<"search_text">>, register},
@@ -257,7 +298,7 @@ do_lookup_messages(Host, Params) ->
     End = maps:get(end_ts, Params),
     SearchText = maps:get(search_text, Params),
     {MsgIdStart, MsgIdEnd} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
-    {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
+    {TotalCountFullQuery, Result} = read_archive(Host, OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
 
@@ -268,11 +309,12 @@ do_lookup_messages(Host, Params) ->
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
             mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
-            {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+            {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
-            Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
-                                      {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
+            SLen = length(SortedKeys),
+            Args = {Host, OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText},
+            Offset = calculate_offset(RSM, TotalCountFullQuery, SLen, Args),
             {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
     end.
 
@@ -289,12 +331,15 @@ add_offset(_, Opts) ->
 
 calculate_offset(#rsm_in{direction = before}, TotalCount, PageSize, _) ->
     TotalCount - PageSize;
-calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Owner, Remote, MsgIdStart, SearchText})
+calculate_offset(#rsm_in{direction = aft, id = Id}, _, _,
+                 {Host, Owner, Remote, MsgIdStart, SearchText})
   when Id /= undefined ->
-    {Count, _} = read_archive(Owner, Remote, MsgIdStart, Id, SearchText,
+    {Count, _} = read_archive(Host, Owner, Remote,
+                              MsgIdStart, Id, SearchText,
                               [{rows, 1}], fun get_msg_id_key/3),
     Count;
-calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _) when is_integer(Index) ->
+calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _)
+  when is_integer(Index) ->
     Index;
 calculate_offset(_, _TotalCount, _PageSize, _) ->
     0.
@@ -317,12 +362,30 @@ get_message2(Host, MsgId, Bucket, Key) ->
         _ ->
             []
     end.
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, OwnerJid) ->
+    Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
+    [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages] ++ Acc.
 
-remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
-    remove_archive(Host, ArchiveID, ArchiveJID),
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, JID) ->
+    Messages = get_mam_gdpr_data(JID, <<"muc">>),
+    [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages] ++ Acc.
+
+get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
+    BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),
+    Query = <<"msg_owner_jid_register:", BareLJidBin/binary, " AND mam_type_register:", Type/binary>>,
+    SearchOpts = [],
+    {ok, _Cnt, _, MsgIds} = fold_archive(LServer, fun get_msg_id_key/3, Query, SearchOpts, []),
+    get_messages(LServer, MsgIds).
+
+remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
+    remove_archive(Host, ArchiveJID),
     Acc.
 
-remove_archive(Host, _ArchiveID, ArchiveJID) ->
+remove_archive(Host, ArchiveJID) ->
     {ok, TotalCount, _, _} = R = remove_chunk(Host, ArchiveJID, 0),
     Result = do_remove_archive(100, R, Host, ArchiveJID),
     case Result of
@@ -334,9 +397,10 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
             ok
     end.
 
-remove_chunk(_Host, ArchiveJID, Acc) ->
+remove_chunk(Host, ArchiveJID, Acc) ->
     KeyFiletrs = key_filters(mod_mam_utils:bare_jid(ArchiveJID)),
-    fold_archive(fun delete_key_fun/3,
+    fold_archive(Host,
+                 fun delete_key_fun/3,
                  KeyFiletrs,
                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
 
@@ -360,7 +424,8 @@ key(LocalJID, RemoteJID, MsgId) ->
 decode_key(KeyBinary) ->
     binary:split(KeyBinary, <<"/">>, [global]).
 
--spec read_archive(binary() | undefined,
+-spec read_archive(jid:server(),
+                   binary() | undefined,
                    binary() | undefined,
                    term(),
                    term(),
@@ -368,9 +433,9 @@ decode_key(KeyBinary) ->
                    [term()],
                    fun()) ->
                           {integer(), list()} | {error, term()}.
-read_archive(OwnerJID, WithJID, Start, End, SearchText, SearchOpts, Fun) ->
+read_archive(Host, OwnerJID, WithJID, Start, End, SearchText, SearchOpts, Fun) ->
     KeyFilters = key_filters(OwnerJID, WithJID, Start, End, SearchText),
-    {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, []),
+    {ok, Cnt, _, NewAcc} = fold_archive(Host, Fun, KeyFilters, SearchOpts, []),
     {Cnt, NewAcc}.
 
 
@@ -380,8 +445,8 @@ sort_messages(Msgs) ->
               end,
     lists:sort(SortFun, Msgs).
 
-fold_archive(Fun, Query, SearchOpts, InitialAcc) ->
-    Result = mongoose_riak:search(?YZ_SEARCH_INDEX, Query, SearchOpts),
+fold_archive(Host, Fun, Query, SearchOpts, InitialAcc) ->
+    Result = mongoose_riak:search(yz_search_index(Host), Query, SearchOpts),
     case Result of
         {ok, {search_results, [], _, Count}} ->
             {ok, Count, 0, InitialAcc};
@@ -426,9 +491,9 @@ search_text_filter(SearchText) ->
     <<"search_text_register:", NormText/binary, "~1">>.
 
 jid_filters(LocalJid, undefined) ->
-    <<"_yz_rk:", LocalJid/binary, "*">>;
+    <<"_yz_rk:", LocalJid/binary, "/*/*">>;
 jid_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
+    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "/*">>.
 
 id_filters(undefined, undefined) ->
     undefined;

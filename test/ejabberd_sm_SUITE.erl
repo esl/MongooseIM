@@ -69,7 +69,7 @@ init_per_group(redis, Config) ->
 
 init_redis_group(true, Config) ->
     Self = self(),
-    spawn(fun() ->
+    proc_lib:spawn(fun() ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
@@ -78,7 +78,7 @@ init_redis_group(true, Config) ->
                   Self ! ready,
                   receive stop -> ok end
           end),
-    receive ready -> ok end,
+    receive ready -> ok after timer:seconds(30) -> ct:fail(test_helper_not_ready) end,
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
@@ -224,7 +224,7 @@ cannot_reproduce_race_condition_in_store_info(C) ->
     ok = try_to_reproduce_race_condition(C).
 
 store_info_sends_message_to_the_session_owner(C) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
@@ -327,7 +327,8 @@ set_test_case_meck(MaxUserSessions) ->
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
     meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end).
+    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
+    meck:expect(ejabberd_hooks, run_fold, fun(_, _, Acc, _) -> Acc end).
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
@@ -344,7 +345,7 @@ get_fun_for_unique_count(ejabberd_sm_redis) ->
     end.
 
 make_sid() ->
-    {p1_time_compat:timestamp(), self()}.
+    {erlang:timestamp(), self()}.
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
@@ -454,11 +455,22 @@ n(Node) ->
 
 
 is_redis_running() ->
-    [] =/= os:cmd("ps aux | grep '[r]edis'").
-
+    case eredis:start_link() of
+        {ok, Client} ->
+            Result = eredis:q(Client, [<<"PING">>], 5000),
+            eredis:stop(Client),
+            case Result of
+                {ok,<<"PONG">>} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 try_to_reproduce_race_condition(Config) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice">>,
     S = <<"localhost">>,
     R = <<"res1">>,

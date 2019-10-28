@@ -70,21 +70,17 @@
 -callback extra_lookup_params(jlib:iq(), lookup_params()) -> lookup_params().
 
 -spec action(jlib:iq()) -> action().
-action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
-    action_v03(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
-    action_v03(IQ);
+    action_v04plus(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
-    action_v03(IQ).
+    action_v04plus(IQ).
 
-action_v03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
+action_v04plus(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_get_message_form;
-        {set, <<"query">>} ->
-            mam_set_message_form
-            %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
+        {set, <<"query">>} -> mam_set_message_form
     end.
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -211,7 +207,7 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
 common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
     RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
     Limit = elem_to_limit(QueryEl),
-    #{now => p1_time_compat:system_time(micro_seconds),
+    #{now => erlang:system_time(microsecond),
       rsm => RSM,
       max_result_limit => MaxResultLimit,
       page_size => min(MaxResultLimit,

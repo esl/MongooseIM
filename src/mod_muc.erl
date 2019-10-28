@@ -809,90 +809,94 @@ iq_disco_info(Lang) ->
 
 
 -spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
-        Rsm :: none | jlib:rsm_in()) -> any().
+                     Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
-    lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm_compat:sync_send_all_state_event(
-                                  Pid, {get_disco_item, From, Lang}, 100) of
-                         {item, Desc} ->
-                             flush(),
-                             {true,
-                              #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                              {<<"name">>, Desc}]}};
-                         _ ->
-                             false
-                     end
-             end, get_vh_rooms(Host));
+    Rooms = lists:ukeysort(1, lists:map(
+        fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end,
+        get_vh_rooms(Host) ++ get_persistent_vh_rooms(Host))),
+    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms),
+    lists:ukeysort(3, BareRooms);
 iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm_compat:sync_send_all_state_event(
-                                  Pid, {get_disco_item, From, Lang}, 100) of
-                         {item, Desc} ->
-                             flush(),
-                             {true,
-                              #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                              {<<"name">>, Desc}]}};
-                         _ ->
-                             false
-                     end
-             end, Rooms) ++ RsmOut.
+    lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms) ++ RsmOut.
 
+room_to_item({{Name, _}, Pid}, Host, From, Lang) when is_pid(Pid) ->
+     case catch gen_fsm_compat:sync_send_all_state_event(
+                  Pid, {get_disco_item, From, Lang}, 100) of
+         {item, Desc} ->
+             flush(),
+             {true,
+              #xmlel{name = <<"item">>,
+                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                              {<<"name">>, Desc}]}};
+         _ ->
+             false
+     end;
+ room_to_item({{ Name, _ }, _}, Host, _, _) ->
+     {true,
+     #xmlel{name = <<"item">>,
+            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                     {<<"name">>, Name}]}
+     }.
 
 -spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
-get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
-    AllRooms = lists:sort(get_vh_rooms(Host)),
-    Count = erlang:length(AllRooms),
-    Guard = case Direction of
-                _ when Index =/= undefined ->
-            [{'=:=', {element, 2, '$1'}, Host}];
-                aft ->
-            [{'=:=', {element, 2, '$1'}, Host},
-             {'>',   {element, 1, '$1'}, I}]; %% not exact here
-        before when I =/= <<>> ->
-            [{'=:=', {element, 2, '$1'}, Host},
-             {'<',   {element, 1, '$1'}, I}]; %% not exact here
-                _ ->
-            [{'=:=', {element, 2, '$1'}, Host}]
-            end,
-    L = lists:sort(
-          mnesia:dirty_select(muc_online_room,
-                              [{#muc_online_room{name_host = '$1', _ = '_'},
-                                Guard,
-                                ['$_']}])),
+get_vh_rooms(Host, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
+    NonUndefMax = case Max of
+        undefined -> 134217728;
+        _ -> Max
+    end,
+    Rooms = get_vh_rooms(Host) ++ get_persistent_vh_rooms(Host),
+    BareSortedRooms = lists:ukeysort(1, lists:map(
+        fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end,
+        Rooms)),
+    Count = erlang:length(BareSortedRooms),
     L2 = case {Index, Direction} of
-             {undefined, before} ->
-                 lists:reverse(lists:sublist(lists:reverse(L), 1, M));
-             {undefined, _} ->
-                 lists:sublist(L, 1, M);
-             {Index, _} when Index > Count orelse Index < 0 ->
-                 [];
-             _ ->
-                 lists:sublist(L, Index+1, M)
+        {undefined, undefined} ->
+            lists:sublist(BareSortedRooms, 1, NonUndefMax);
+        {undefined, aft} ->
+            lists:sublist(
+                lists:dropwhile(
+                    fun({{Id, _}, _}) -> Id =< I end,
+                    BareSortedRooms),
+                1,
+                NonUndefMax);
+        {undefined,before} when I == <<>> ->
+            lists:reverse(
+                lists:sublist(
+                    lists:reverse(BareSortedRooms), 1, NonUndefMax));
+        {undefined, before} ->
+            L = lists:takewhile(
+                fun({{Id, _}, _}) -> Id < I end,
+                BareSortedRooms),
+            lists:reverse(
+                lists:sublist(
+                    lists:reverse(L), 1, NonUndefMax));
+        {Index, _} when Index < 0 orelse Index > Count -> [];
+        {Index, _} ->
+            lists:sublist(BareSortedRooms, Index + 1, NonUndefMax);
+         Input ->
+             ?ERROR_MSG("event=get_rooms_with_pagination unexpected_input=~p", [Input]),
+             []
          end,
     case L2 of
         [] ->
             {L2, #rsm_out{count=Count}};
         _ ->
             H = hd(L2),
-            NewIndex = get_room_pos(H, AllRooms),
-            T=lists:last(L2),
-            {F, _} = H#muc_online_room.name_host,
-            {Last, _} = T#muc_online_room.name_host,
+            NewIndex = get_room_pos(H, BareSortedRooms),
+
+            {{F, _},_} = H,
+            {{Last, _}, _} = lists:last(L2),
             {L2, #rsm_out{first=F, last=Last, count=Count, index=NewIndex}}
     end.
 
 %% @doc Return the position of desired room in the list of rooms.
 %% The room must exist in the list. The count starts in 0.
--spec get_room_pos(muc_online_room(), [muc_online_room()]) -> integer().
+-spec get_room_pos({{binary(), any()}, any()}, [{{binary(), any()}, any}]) -> non_neg_integer().
 get_room_pos(Desired, Rooms) ->
     get_room_pos(Desired, Rooms, 0).
-get_room_pos(Desired, [HeadRoom | _], HeadPosition)
-  when (Desired#muc_online_room.name_host ==
-        HeadRoom#muc_online_room.name_host) ->
+get_room_pos({{NameHost, _}, _}, [{{NameHost, _}, _} | _], HeadPosition) ->
     HeadPosition;
 get_room_pos(Desired, [_ | Rooms], HeadPosition) ->
     get_room_pos(Desired, Rooms, HeadPosition + 1).
@@ -928,7 +932,7 @@ xfield(Type, Label, Var, Val, Lang) ->
 %%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
-        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
+        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, erlang:unique_integer(),
                                                          mongoose_bin:gen_from_crypto()]))}.
 
 
@@ -1066,6 +1070,15 @@ get_vh_rooms(Host) ->
                           [{'==', {element, 2, '$1'}, Host}],
                           ['$_']}]).
 
+-spec get_persistent_vh_rooms(jid:server()) -> [muc_room()].
+get_persistent_vh_rooms(MucHost) ->
+    Host = mongoose_subhosts:get_host(MucHost),
+    case mod_muc_db_mnesia:get_rooms(Host, MucHost) of
+        {ok, List} ->
+            List;
+        {error, _} ->
+            []
+    end.
 
 -spec clean_table_from_bad_node(node()) -> any().
 clean_table_from_bad_node(Node) ->

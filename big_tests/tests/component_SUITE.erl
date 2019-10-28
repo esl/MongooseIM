@@ -23,8 +23,7 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(reload_helper, [modify_config_file/3,
-                        backup_ejabberd_config_file/2,
+-import(reload_helper, [backup_ejabberd_config_file/2,
                         restore_ejabberd_config_file/2,
                         reload_through_ctl/2,
                         restart_ejabberd_node/1]).
@@ -80,7 +79,8 @@ xep0114_tests() ->
      try_registering_with_wrong_password,
      try_registering_component_twice,
      try_registering_existing_host,
-     disco_components
+     disco_components,
+     kick_old_component_on_conflict
      ].
 
 %%--------------------------------------------------------------------
@@ -100,7 +100,7 @@ init_per_group(xep0114_tcp, Config) ->
 init_per_group(xep0114_ws, Config) ->
     WSOpts = [{transport, escalus_ws},
               {wspath, <<"/ws-xmpp">>},
-              {wslegacy, true} | common(Config, 5280)],
+              {wslegacy, true} | common(Config, ct:get_config({hosts, mim, cowboy_port}))],
     Config1 = get_components(WSOpts, Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
@@ -148,7 +148,10 @@ register_one_component(Config) ->
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
+    verify_component(Config, Component, ComponentAddr),
+    disconnect_component(Component, ComponentAddr).
 
+verify_component(Config, Component, ComponentAddr) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When Alice sends a message to the component
                 Msg1 = escalus_stanza:chat_to(ComponentAddr, <<"Hi!">>),
@@ -165,9 +168,7 @@ register_one_component(Config) ->
                 Reply2 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
-        end),
-
-    disconnect_component(Component, ComponentAddr).
+        end).
 
 register_two_components(Config) ->
     %% Given two connected components
@@ -256,6 +257,24 @@ try_registering_existing_host(Config) ->
         %% Then it should fail since vjud service already exists on the server
         ok
     end.
+
+%% When conflict_behaviour is kick_old, then:
+%% - stop old connections by sending stream:error with reason "conflict"
+kick_old_component_on_conflict(Config) ->
+    CompOpts1 = spec(kicking_component, Config),
+    {Comp1, Addr, _} = connect_component(CompOpts1),
+
+    %% When trying to connect the second one
+    {Comp2, Addr, _} = connect_component(CompOpts1),
+
+    %% First connection is disconnected
+    Stanza = escalus:wait_for_stanza(Comp1),
+    escalus:assert(is_stream_error, [<<"conflict">>, <<"">>], Stanza),
+
+    %% New connection is usable
+    verify_component(Config, Comp2, Addr),
+
+    disconnect_component(Comp2, Addr).
 
 disco_components(Config) ->
     %% Given two connected components
@@ -508,7 +527,7 @@ add_domain(Config) ->
     Node = default_node(Config),
     Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
     backup_ejabberd_config_file(Node, Config),
-    modify_config_file(Node, [Hosts], Config),
+    ejabberd_node_utils:modify_config_file([Hosts], Config),
     reload_through_ctl(Node, Config),
     ok.
 

@@ -56,7 +56,11 @@ terminate(_Reson, _Req, State) ->
             ok;
         SID ->
             #jid{user = U, server = S, resource = R} = maps:get(jid, State),
-            ejabberd_sm:close_session(SID, U, S, R, normal)
+            Acc = mongoose_acc:new(
+                    #{location => ?LOCATION,
+                      lserver => S,
+                      element => undefined}),
+            ejabberd_sm:close_session(Acc, SID, U, S, R, normal)
     end,
     State.
 

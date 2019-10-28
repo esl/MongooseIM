@@ -30,6 +30,7 @@
 -export([start/0,
          stop/0,
          get_pid_file/0,
+         get_status_file/0,
          get_so_path/0,
          get_bin_path/0]).
 
@@ -94,6 +95,17 @@ get_bin_path() ->
 -spec get_pid_file() -> 'false' | nonempty_string().
 get_pid_file() ->
     case os:getenv("EJABBERD_PID_PATH") of
+        false ->
+            false;
+        "" ->
+            false;
+        Path ->
+            Path
+    end.
+
+-spec get_status_file() -> 'false' | nonempty_string().
+get_status_file() ->
+    case os:getenv("EJABBERD_STATUS_PATH") of
         false ->
             false;
         "" ->

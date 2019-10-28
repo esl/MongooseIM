@@ -233,19 +233,17 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
-%% #rh
--spec remove_archive(map(), jid:server(), mod_mam:archive_id(),
-                     jid:jid()) -> map().
+-spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
+    mongoose_acc:t().
 remove_archive(Acc, Host, UserID, _ArcJID) ->
+    remove_archive(Host, UserID),
+    Acc.
+
+remove_archive(Host, UserID) ->
     SUserID = escape_integer(UserID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
-      Host,
-      ["DELETE "
-       "FROM mam_config "
-       "WHERE user_id=", use_escaped_integer(SUserID)]),
-    Acc.
-
+      Host, ["DELETE FROM mam_config WHERE user_id=", use_escaped_integer(SUserID)]).
 
 -spec query_behaviour(jid:server(),
                       SUserID :: mongoose_rdbms:escaped_integer(),

@@ -140,22 +140,21 @@ start_module_for_host(Host, Module, Opts0) ->
             _ -> {ok, Res}
         end
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             del_module_mnesia(Host, Module),
             ets:delete(ejabberd_modules, {Module, Host}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
                                       "host ~p~n options: ~p~n ~p: ~p~n~p",
                                       [Module, Host, Opts, Class, Reason,
-                                       Stacktrace]),
+                                       StackTrace]),
             ?CRITICAL_MSG(ErrorText, []),
             case is_mim_or_ct_running() of
                 true ->
-                    erlang:raise(Class, Reason, Stacktrace);
+                    erlang:raise(Class, Reason, StackTrace);
                 false ->
                     ?CRITICAL_MSG("mongooseim initialization was aborted "
                                   "because a module start failed.~n"
-                                  "The trace is ~p.", [erlang:get_stacktrace()]),
+                                  "The trace is ~p.", [StackTrace]),
                     timer:sleep(3000),
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                                               1, 199))

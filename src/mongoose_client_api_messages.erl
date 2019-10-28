@@ -48,7 +48,7 @@ maybe_to_json_with_jid(error, _, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
     {stop, Req2, State};
 maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
-    Now = p1_time_compat:os_system_time(micro_seconds),
+    Now = os:system_time(microsecond),
     ArchiveID = mod_mam:archive_id_int(Server, JID),
     QS = cowboy_req:parse_qs(Req),
     PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),

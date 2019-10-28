@@ -32,8 +32,9 @@
 -export([start/2,
          stop/1,
          process_sm_iq/4,
-         remove_user/3,
-         remove_user/2]).
+         remove_user/3]).
+
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -67,6 +68,26 @@
     LUser   :: binary(),
     LServer :: binary().
 
+-callback get_all_nss(LUser, LServer) -> NSs when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NSs     :: [binary()].
+
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Schema = ["ns", "xml"],
+    NSs = mod_private_backend:get_all_nss(LUser, LServer),
+    Entries = lists:map(
+                fun(NS) ->
+                        Data = mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}]),
+                        { NS, exml:to_binary(Data) }
+                end, NSs),
+    [{private, Schema, Entries} | Acc].
+
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
 
@@ -76,12 +97,14 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
                                   ?MODULE, process_sm_iq, IQDisc).
 
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
 
 
@@ -89,14 +112,11 @@ stop(Host) ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_private_backend:remove_user(LUser, LServer).
+    R = mod_private_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},

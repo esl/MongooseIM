@@ -45,10 +45,10 @@ There are 2 types of options: params and features. Unlike params, features can b
 * **node_name** - param
     * **Description:** Erlang node name. Should be changed when deploying MongooseIM cluster, otherwise not relevant.
 
-* **ejabberd_c2s_port** - param
+* **c2s_port** - param
     * **Description:** Port to listen on for standard incoming XMPP connections. Default is 5222.
 
-* **ejabberd_s2s_port** - param
+* **s2s_port** - param
     * **Description:** Port to listen on for incoming S2S (server-to-server) connections. Default is 5269.
 
 * **cowboy_port** - param

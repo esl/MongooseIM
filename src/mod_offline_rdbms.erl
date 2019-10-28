@@ -28,6 +28,7 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
+         fetch_messages/2,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
@@ -48,13 +49,29 @@ pop_messages(LUser, LServer) ->
     To = jid:make(LUser, LServer, <<>>),
     SUser = mongoose_rdbms:escape_string(LUser),
     SServer = mongoose_rdbms:escape_string(LServer),
-    TimeStamp = p1_time_compat:timestamp(),
+    TimeStamp = erlang:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
     case rdbms_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
         {atomic, {selected, Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
             {error, Reason};
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+fetch_messages(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
+    US = {LUser, LServer},
+    To = jid:make(User, LServer, <<>>),
+    TimeStamp = erlang:timestamp(),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
+    STimeStamp = encode_timestamp(TimeStamp),
+    case rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp) of
+        {selected, Rows} ->
+            {ok, rows_to_records(US, To, Rows)};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -111,7 +128,7 @@ remove_user(LUser, LServer) ->
 -spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(LServer) ->
-    TimeStamp = p1_time_compat:timestamp(),
+    TimeStamp = erlang:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
     Result = rdbms_queries:remove_expired_offline_messages(LServer, STimeStamp),
     case Result of

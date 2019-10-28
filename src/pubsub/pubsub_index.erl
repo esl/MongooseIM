@@ -62,8 +62,9 @@ spawn_and_call(F) ->
     Pid = spawn_monitor(FF),
     receive
         {call_result, Ref, Result} ->
+            {atomic, NewId} = Result,
             erlang:demonitor(Ref, [flush]),
-            Result;
+            NewId;
         {'DOWN', Ref, process, Pid, Reason} ->
             erlang:error({spawn_and_call_failed, Reason})
     after 5000 ->

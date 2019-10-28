@@ -126,7 +126,7 @@ handle_call({wait, Host, Action, FromJID, Size},
             From, State=#state{max_delay=MaxDelayMs}) ->
     Key = new_key(Host, Action, FromJID),
     Shaper = find_or_create_shaper(Key, State),
-    State1 = update_access_time(Key, p1_time_compat:timestamp(), State),
+    State1 = update_access_time(Key, erlang:timestamp(), State),
     case shaper:update(Shaper, Size) of
         {UpdatedShaper, 0} ->
             {reply, ok, save_shaper(Key, UpdatedShaper, State1)};
@@ -188,7 +188,7 @@ init_dicts(State) ->
 
 -spec delete_old_shapers(state()) -> state().
 delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
-    Min = subtract_seconds(p1_time_compat:timestamp(), TTL),
+    Min = subtract_seconds(erlang:timestamp(), TTL),
     %% Copy recently modified shapers
     dict:fold(fun
         (_, ATime, Acc) when ATime < Min -> Acc; %% skip too old

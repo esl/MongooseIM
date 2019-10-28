@@ -5,16 +5,27 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("inbox.hrl").
 
--define(MUCHOST,                        <<"muclight.@HOST@">>).
+-define(MUCLIGHTHOST, <<"muclight.localhost">>).
+
+
 
 -import(muc_light_helper,
-    [
-        room_bin_jid/1,
-        create_room/6
-    ]).
+        [
+         when_muc_light_message_is_sent/4,
+         then_muc_light_message_is_received_by/2,
+         when_muc_light_affiliations_are_set/3,
+         then_muc_light_affiliations_are_received_by/2
+        ]).
+-import(push_helper,
+        [
+         enable_stanza/3,
+         become_unavailable/1,
+         become_available/2,
+         become_available/3
+        ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -24,7 +35,8 @@ all() ->
     [
         {group, pm_msg_notifications},
         {group, muclight_msg_notifications},
-        {group, inbox_msg_notifications}
+        {group, pm_notifications_with_inbox},
+        {group, groupchat_notifications_with_inbox}
     ].
 
 groups() ->
@@ -49,18 +61,24 @@ groups() ->
            muclight_msg_notify_on_fcm_silent,
            muclight_msg_notify_on_w_topic
           ]},
-         {inbox_msg_notifications, [parallel],
+         {groupchat_notifications_with_inbox, [parallel],
+          [
+           muclight_inbox_msg_unread_count_apns,
+           muclight_inbox_msg_unread_count_fcm,
+           muclight_aff_change_fcm,
+           muclight_aff_change_apns
+          ]},
+         {pm_notifications_with_inbox, [parallel],
           [
            inbox_msg_unread_count_apns,
            inbox_msg_unread_count_fcm,
-           muclight_inbox_msg_unread_count_apns,
-           muclight_inbox_msg_unread_count_fcm,
            inbox_msg_reset_unread_count_apns,
            inbox_msg_reset_unread_count_fcm
-          ]
-         }
+          ]}
         ],
-    ct_helper:repeat_all_until_all_ok(G).
+    G.
+
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
@@ -70,6 +88,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config0) ->
+    catch mongoose_push_mock:stop(),
     mongoose_push_mock:start(Config0),
     Port = mongoose_push_mock:port(),
 
@@ -79,7 +98,8 @@ init_per_suite(Config0) ->
 
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
-    rpc(mongoose_wpool, start_configured_pools, [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
+    rpc(mongoose_wpool, start_configured_pools,
+        [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_suite(Config).
 
 
@@ -90,33 +110,25 @@ end_per_suite(Config) ->
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
-init_per_group(inbox_msg_notifications, Config) ->
-    rpc(mod_muc_light_db_backend, force_clear, []),
+init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
+                               G =:= groupchat_notifications_with_inbox ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
         true ->
-            dynamic_modules:start(domain(), mod_inbox, [{backend, rdbms}]),
-            Config;
-        false ->
+            init_modules(G, Config);
+        _ ->
             {skip, require_rdbms}
     end;
-
-init_per_group(_, Config) ->
+init_per_group(G, Config) ->
     %% Some cleaning up
-    rpc(mod_muc_light_db_backend, force_clear, []),
-
-    Config.
-
-end_per_group(inbox_msg_notifications, Config) ->
-    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [domain()]),
-    dynamic_modules:stop(domain(), mod_inbox),
-    Config;
+    C = init_modules(G, Config),
+    catch rpc(mod_muc_light_db_backend, force_clear, []),
+    C.
 
 end_per_group(_, Config) ->
+    dynamic_modules:restore_modules(domain(), Config),
     Config.
 
-init_per_testcase(CaseName, Config0) ->
-    Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
-    Config = [{case_name, CaseName} | Config1],
+init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -128,30 +140,35 @@ end_per_testcase(CaseName, Config) ->
 
 
 pm_msg_notify_on_apns(Config, EnableOpts) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
             Notification = wait_for_push_request(DeviceToken),
 
-            assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID)
+            assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID, [])
 
         end).
 
 assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
+    assert_push_notification(Notification, Service, EnableOpts, SenderJID, []).
+
+assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected) ->
 
     ?assertMatch(#{<<"service">> := Service}, Notification),
 
     Alert = maps:get(<<"alert">>, Notification, undefined),
     Data = maps:get(<<"data">>, Notification, undefined),
 
-    ExpectedBody = proplists:get_value(body, EnableOpts, <<"OH, HAI!">>),
+    ExpectedBody = proplists:get_value(body, Expected, <<"OH, HAI!">>),
+    UnreadCount = proplists:get_value(unread_count, Expected, 1),
+    Badge = proplists:get_value(badge, Expected, 1),
 
     case proplists:get_value(<<"silent">>, EnableOpts) of
         undefined ->
             ?assertMatch(#{<<"body">> := ExpectedBody}, Alert),
             ?assertMatch(#{<<"title">> := SenderJID}, Alert),
-            ?assertMatch(#{<<"badge">> := 1}, Alert),
+            ?assertMatch(#{<<"badge">> := Badge}, Alert),
             ?assertMatch(#{<<"tag">> := SenderJID}, Alert),
 
             case proplists:get_value(<<"click_action">>, EnableOpts) of
@@ -163,10 +180,10 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
         <<"true">> ->
             ?assertMatch(#{<<"last-message-body">> := ExpectedBody}, Data),
             ?assertMatch(#{<<"last-message-sender">> := SenderJID}, Data),
-            ?assertMatch(#{<<"message-count">> := 1}, Data)
+            ?assertMatch(#{<<"message-count">> := UnreadCount}, Data)
     end,
 
-    case  proplists:get_value(<<"topic">>, EnableOpts) of
+    case proplists:get_value(<<"topic">>, EnableOpts) of
         undefined -> ok;
         Topic ->
             ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
@@ -174,7 +191,7 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
 
 
 pm_msg_notify_on_fcm(Config, EnableOpts) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
@@ -228,21 +245,38 @@ inbox_msg_reset_unread_count_fcm(Config) ->
     inbox_msg_reset_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
 
 inbox_msg_unread_count(Config, Service, EnableOpts) ->
-    escalus:story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
+    escalus:fresh_story(
+      Config, [{bob, 1}, {alice, 1}, {kate, 1}],
+      fun(Bob, Alice, Kate) ->
+              % In this test Bob is the only recipient of all messages
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+             
+              % We're going to interleave messages from Alice and Kate to ensure
+              % that their unread counts don't leak to each other's notifications
+
+              % We send a first message from Alice, unread counts in convs.: Alice 1, Kate 0
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 1),
+
+              % We send a first message from Kate, unread counts in convs.: Alice 1, Kate 1
+              send_private_message(Kate, Bob),
+              check_notification(DeviceToken, 1),
+              
+              % Now a second message from Alice, unread counts in convs.: Alice 2, Kate 1
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 2),
+              
+              % And one more from Alice, unread counts in convs.: Alice 3, Kate 1
               send_private_message(Alice, Bob),
-              check_notification(DeviceToken, 3)
+              check_notification(DeviceToken, 3),
 
+              % Time for Kate again, unread counts in convs.: Alice 3, Kate 2
+              send_private_message(Kate, Bob),
+              check_notification(DeviceToken, 2)
       end).
 
 inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
@@ -264,26 +298,40 @@ inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
 
 
 muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
-    escalus:story(
-      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
-      fun(Alice, Kate, Bob) ->
-              Room = room_name(Config),
-              RoomInfo = create_room(Room, [alice, kate, bob], Config),
+    escalus:fresh_story(
+      Config, [{alice, 1}, {kate, 1}],
+      fun(Alice, Kate) ->
+              Room = fresh_room_name(),
+              RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, []),
+              KateJid = inbox_helper:to_bare_lower(Kate),
+
+              when_muc_light_affiliations_are_set(Alice, Room, [{Kate, member}]),
+              muc_light_helper:verify_aff_bcast([{Kate, member}, {Alice, owner}], [{Kate, member}]),
+              escalus:wait_for_stanza(Alice),
+
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
-              BobToken = enable_push_for_user(Bob, Service, EnableOpts),
 
-              send_message_to_room(Alice, Room),
-              check_notification(KateToken, 1),
+              SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
+              escalus:wait_for_stanza(Alice),
+              Notification = wait_for_push_request(KateToken),
+              assert_push_notification(Notification, Service, EnableOpts, SenderJID,
+                                       [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 
-              send_message_to_room(Alice, Room),
-              check_notification(KateToken, 2),
+              muclight_conversation(Alice, RoomJID, <<"Second!">>),
+              escalus:wait_for_stanza(Alice),
+              Notification2 = wait_for_push_request(KateToken),
+              assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
+                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
-              send_message_to_room(Alice, Room),
-              [ check_notification(Token, ExpectedCount) ||
-                                  {Token, ExpectedCount} <- [{BobToken, 1},
-                                                             {KateToken, 3},
-                                                             {BobToken, 2},
-                                                             {BobToken, 3}] ]
+              {ok, true} = become_available(Kate, 0),
+
+              muclight_conversation(Alice, RoomJID, <<"Third!">>),
+              escalus:wait_for_stanza(Kate),
+              escalus:wait_for_stanza(Alice),
+              inbox_helper:check_inbox(Kate, [#conv{unread = 3,
+                                                    from = SenderJID,
+                                                    to = KateJid,
+                                                    content = <<"Third!">>}])
       end).
 
 send_private_message(Sender, Recipient) ->
@@ -300,8 +348,8 @@ check_notification(DeviceToken, ExpectedCount) ->
     Data = maps:get(<<"data">>, Notification, undefined),
     ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
 
-send_message_to_room(Sender, Room) ->
-    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat message">>),
+send_message_to_room(Sender, RoomJID) ->
+    Stanza = escalus_stanza:groupchat_to(RoomJID, <<"GroupChat message">>),
     escalus:send(Sender, Stanza).
 
 %%--------------------------------------------------------------------
@@ -310,27 +358,69 @@ send_message_to_room(Sender, Room) ->
 
 
 muclight_msg_notify_on_apns(Config, EnableOpts) ->
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun(Alice, Bob, _Kate) ->
-            {SenderJID, DeviceToken} =
-                muclight_conversation(Config, Alice, Bob, <<"apns">>, EnableOpts),
-            Notification = wait_for_push_request(DeviceToken),
-            assert_push_notification(Notification, <<"apns">>,
-                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            Room = fresh_room_name(),
+            RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
+            DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts),
 
+            SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
+            Notification = wait_for_push_request(DeviceToken),
+            assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID,
+                                     [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}])
         end).
 
 muclight_msg_notify_on_fcm(Config, EnableOpts) ->
-    escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun(Alice, Bob, _Kate) ->
-            {SenderJID, DeviceToken} =
-                muclight_conversation(Config, Alice, Bob, <<"fcm">>,EnableOpts),
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            Room = fresh_room_name(),
+            RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
+            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts),
+
+            SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"fcm">>,
-                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
+                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}])
         end).
+
+muclight_aff_change(Config, Service, EnableOpts) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
+      fun(Alice, Kate, Bob) ->
+              Room = fresh_room_name(),
+              RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, []),
+
+              {_, Affiliations} = when_muc_light_affiliations_are_set(Alice, Room, [{Kate, member}]),
+              then_muc_light_affiliations_are_received_by([Alice, Kate], {Room, Affiliations}),
+              escalus:wait_for_stanza(Alice),
+
+              KateToken = enable_push_for_user(Kate, Service, EnableOpts),
+
+              Bare = bare_jid(Alice),
+              SenderJID = <<RoomJID/binary, "/", Bare/binary>>,
+
+              {Room, Body, M1} = when_muc_light_message_is_sent(Alice, Room, <<"First!">>, <<"M1">>),
+              then_muc_light_message_is_received_by([Alice], {Room, Body, M1}),
+
+              Notification = wait_for_push_request(KateToken),
+              assert_push_notification(Notification, Service, EnableOpts, SenderJID,
+                                       [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
+
+              {_, Aff} = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
+              then_muc_light_affiliations_are_received_by([Alice, Bob], {Room, Aff}),
+              escalus:wait_for_stanza(Alice),
+
+              {_, B2, M2} = when_muc_light_message_is_sent(Alice, Room, <<"Second!">>, <<"M2">>),
+              then_muc_light_message_is_received_by([Alice, Bob], {Room, B2, M2}),
+
+              Notification2 = wait_for_push_request(KateToken),
+              assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
+                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}])
+
+      end).
+
 
 muclight_msg_notify_on_apns_no_click_action(Config) ->
     muclight_msg_notify_on_apns(Config, []).
@@ -353,24 +443,21 @@ muclight_msg_notify_on_apns_silent(Config) ->
 muclight_msg_notify_on_w_topic(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
+muclight_aff_change_fcm(Config) ->
+    muclight_aff_change(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
 
+muclight_aff_change_apns(Config) ->
+    muclight_aff_change(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
 
-muclight_conversation(Config, Alice, Bob, Service, EnableOpts) ->
-    Room = room_name(Config),
-    BobJID = bare_jid(Bob),
-    RoomJID = room_bin_jid(Room),
-    SenderJID = <<RoomJID/binary, "/", BobJID/binary>>,
-    create_room(Room, [bob, alice, kate], Config),
-
-    DeviceToken = enable_push_for_user(Alice, Service, EnableOpts),
-
-    Msg = <<"Heyah!">>,
-    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
-    escalus:send(Bob, Stanza),
-    {SenderJID, DeviceToken}.
+muclight_conversation(Sender, RoomJID, Msg) ->
+    Bare = bare_jid(Sender),
+    SenderJID = <<RoomJID/binary, "/", Bare/binary>>,
+    Stanza = escalus_stanza:groupchat_to(RoomJID, Msg),
+    escalus:send(Sender, Stanza),
+    SenderJID.
 
 pm_conversation(Alice, Bob, Service, EnableOpts) ->
     AliceJID = bare_jid(Alice),
@@ -384,7 +471,10 @@ enable_push_for_user(User, Service, EnableOpts) ->
 
     DeviceToken = gen_token(),
 
-    pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
+    Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                     {<<"pubsub#publish_model">>, <<"publishers">>}],
+    pubsub_tools:create_node(User, Node, [{type, <<"push">>},
+                                          {config, Configuration}]),
     escalus:send(User, enable_stanza(PubsubJID, NodeName,
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
@@ -403,18 +493,16 @@ wait_for_push_request(DeviceToken) ->
 %% Other helpers
 %% ----------------------------------
 
-create_room(Room, [Owner | Members], Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    create_room(Room, <<"muclight.", Domain/binary>>, Owner, Members,
-                                Config, <<"v1">>).
+fresh_room_name(Username) ->
+    escalus_utils:jid_to_lower(<<"room-", Username/binary>>).
+
+fresh_room_name() ->
+    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
+
 
 bare_jid(JIDOrClient) ->
     ShortJID = escalus_client:short_jid(JIDOrClient),
     escalus_utils:jid_to_lower(ShortJID).
-
-room_name(Config) ->
-    CaseName = proplists:get_value(case_name, Config),
-    <<"room_", (atom_to_binary(CaseName, utf8))/binary>>.
 
 gen_token() ->
     integer_to_binary(binary:decode_unsigned(crypto:strong_rand_bytes(16)), 24).
@@ -465,24 +553,41 @@ h2_req(Conn, Method, Path, Body) ->
             {error, Reason}
     end.
 
+init_modules(G, Config) ->
+    Modules = required_modules(G),
+    C = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), Modules),
+    C.
+
+
+required_modules(pm_notifications_with_inbox) ->
+    [{mod_inbox, inbox_opts()}|required_modules()];
+required_modules(groupchat_notifications_with_inbox)->
+    [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}|required_modules()];
+required_modules(muclight_msg_notifications) ->
+    [{mod_muc_light, muc_light_opts()}|required_modules()];
+required_modules(_) ->
+    required_modules().
+
 required_modules() ->
     [
-        {mod_pubsub, [
-            {plugins, [<<"dag">>, <<"push">>]},
-            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-            {nodetree, <<"dag">>},
-            {host, "pubsub.@HOST@"}
-        ]},
-        {mod_push_service_mongoosepush, [
-            {pool_name, mongoose_push_http},
-            {api_version, "v2"}
-        ]},
-        {mod_push, [
-            {backend, mnesia}
-        ]},
-        {mod_muc_light, [
-            {host, binary_to_list(?MUCHOST)},
-            {backend, mnesia},
-            {rooms_in_rosters, true}
-        ]}
+     {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
+                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                   {nodetree, <<"dag">>},
+                   {host, "pubsub.@HOST@"}]},
+     {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
+                                      {api_version, "v2"}]},
+     {mod_push, [{backend, mnesia}]}
     ].
+
+muc_light_opts() ->
+    [
+     {host, binary_to_list(?MUCLIGHTHOST)},
+     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+     {rooms_in_rosters, true}
+    ].
+inbox_opts() ->
+    [{aff_changes, false},
+     {remove_on_kicked, true},
+     {groupchat, [muclight]},
+     {markers, [displayed]}].

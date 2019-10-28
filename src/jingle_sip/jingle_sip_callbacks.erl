@@ -47,8 +47,7 @@
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
                          [Class, Reason, StackTrace]),
             {error, request_not_parsable}
@@ -57,8 +56,7 @@ sip_invite(Req, Call) ->
 sip_reinvite(Req, Call) ->
     try
         sip_reinvite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
                          [Class, Reason, StackTrace]),
             {error, request_not_parsable}

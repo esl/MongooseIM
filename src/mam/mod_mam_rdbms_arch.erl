@@ -23,6 +23,8 @@
          lookup_messages/3,
          remove_archive/4]).
 
+-export([get_mam_pm_gdpr_data/2]).
+
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
 
@@ -64,26 +66,7 @@
 
 -spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    case lists:keyfind(hand_made_partitions, 1, Opts) of
-        false -> ok;
-        _ ->
-            ?ERROR_MSG("hand_made_partitions option for mod_mam_rdbms_arch is "
-                       "no longer supported", []),
-            error(hand_made_partitions_not_supported)
-    end,
-
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end,
+    start_pm(Host, Opts),
 
     prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_size, mam_message, [user_id],
@@ -95,19 +78,18 @@ start(Host, Opts) ->
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
+    stop_pm(Host).
 
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, #jid{ user = User, server = Server, lserver = LServer } = UserJid) ->
+    case mod_mam:archive_id(Server, User) of
+        undefined -> [];
+        ArchiveID ->
+            {selected, Rows} = extract_gdpr_messages(LServer, ArchiveID),
+            [{BMessID, gdpr_decode_jid(LServer, UserJid, FromJID),
+              gdpr_decode_packet(LServer, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
+    end.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -123,6 +105,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 
@@ -137,39 +120,8 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
-
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc
-
--spec start_muc(jid:server(), _) -> 'ok'.
-start_muc(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
--spec stop_muc(binary()) -> 'ok'.
-stop_muc(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
@@ -204,11 +156,11 @@ archive_message(Result, Host, MessID, UserID,
     try
         do_archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, Dir, Packet)
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
                        "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
                        [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
-                        Reason, erlang:get_stacktrace()]),
+                        Reason, StackTrace]),
             {error, Reason}
     end.
 
@@ -259,8 +211,7 @@ lookup_messages(_Result, Host, Params) ->
                            mod_mam_utils:normalize_search_text(SearchText),
                            PageSize,
                            IsSimple, is_opt_count_supported_for(RSM))
-    catch _Type:Reason ->
-        S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
 
@@ -444,17 +395,21 @@ row_to_message_id({BMessID, _, _}) ->
     mongoose_rdbms:result_to_integer(BMessID).
 
 
-%% #rh
--spec remove_archive(Acc :: map(), Host :: jid:server(),
+%% Removals
+
+-spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
-                     RoomJID :: jid:jid()) -> map().
+                     RoomJID :: jid:jid()) -> mongoose_acc:t().
 remove_archive(Acc, Host, UserID, _UserJID) ->
+    remove_archive(Host, UserID),
+    Acc.
+
+remove_archive(Host, UserID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM mam_message "
-       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]),
-    Acc.
+       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]).
 
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
@@ -493,6 +448,14 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
       ["SELECT id, from_jid, message "
        "FROM mam_message ",
        Filter, Order, LimitSQL, Offset]).
+
+extract_gdpr_messages(Host, ArchiveID) ->
+    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, from_jid, message "
+         "FROM mam_message ",
+         Filter, " ORDER BY id"]).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
@@ -675,3 +638,16 @@ db_jid_codec(Host) ->
 -spec db_message_codec(jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+%gdpr helpers
+gdpr_decode_jid(Host, UserJID, BSrcJID) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
+    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
+    jid:to_binary(JID).
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).

@@ -1,10 +1,29 @@
 -module(ct_helper).
--compile([export_all]).
+-export([is_ct_running/0,
+        repeat_all_until_all_ok/1,
+        repeat_all_until_all_ok/2
+        ]).
 
+-type group_name() :: atom().
+
+-type group_def_incomplete() :: {group_name(), [any()]}.
+-type group_def_dirty() :: {group_name(), group_props() | group_props_dirty(), [any()]}.
+-type group_def() :: {group_name(), group_props(), [any()]}.
+
+-type group_props_dirty() :: [parallel | sequence | shuffle() | repeat_type()].
+-type group_props() :: [parallel | sequence | shuffle() | {repeat_type(), repeat_num()}].
+-type shuffle() :: shuffle | {shuffle, {integer(), integer(), integer()}}.
+-type repeat_type() :: repeat | repeat_until_all_ok | repeat_until_all_fail |
+                       repeat_until_any_ok | repeat_until_any_fail.
+-type repeat_num() :: integer(). %% We exclude forever
+
+-spec is_ct_running() -> boolean().
 is_ct_running() ->
     ct:get_status() =/= no_tests_running.
 
 %% @doc See repeat_all_until_all_ok/2
+-spec repeat_all_until_all_ok([group_def() | group_def_dirty() | group_def_incomplete()]) ->
+    [group_def()].
 repeat_all_until_all_ok(GroupDefs) ->
     repeat_all_until_all_ok(GroupDefs, 3).
 
@@ -25,24 +44,48 @@ repeat_all_until_all_ok(GroupDefs) ->
 %% However, if `repeat_until_all_ok` is already defined in Properties it will not be redefined.
 %% This allows you to declaratively override Retries for a particular group definition,
 %% while allowing repeat_all_until_all_ok/2 to add the default for the remaining groups.
+-spec repeat_all_until_all_ok([group_def() | group_def_dirty() | group_def_incomplete()],
+                              repeat_num()) ->
+    [group_def()].
 repeat_all_until_all_ok(GroupDefs, Retries) ->
-    [ {Name, repeat_type(repeat_until_all_ok, Retries, Properties), Tests}
+    [ {Name, maybe_add_repeat_type(repeat_until_all_ok, Retries, Properties), Tests}
       || {Name, Properties, Tests} <- prepare_group_defs(GroupDefs) ].
 
-repeat_type(RepeatType, Retries, Properties) ->
-    %% lists:keyfind expects tuples, but Properties might contain just RepeatType atoms,
-    %% not their tuple forms. Make sure they're expanded to {RepeatType, true} if they
-    %% are present.
-    case lists:keyfind(RepeatType, 1, proplists:unfold(Properties)) of
-        false ->
-            [{RepeatType, Retries} | Properties];
-        {RepeatType, _} ->
-            ct:pal("~s present in ~p - leaving as is", [RepeatType, Properties]),
-            Properties
+-spec maybe_add_repeat_type(repeat_type(), repeat_num(), group_props()) -> group_props().
+maybe_add_repeat_type(RepeatType, Retries, Properties) ->
+    case lists:any(fun(El) -> proplists:is_defined(El, Properties) end, all_repeat_modes()) of
+        true ->
+            Properties;
+        _ ->
+            [{RepeatType, Retries} | Properties]
     end.
 
-%% @doc Expand 2-element group definitions into 3-element group definitions.
+%% @doc Expand dirty group definitions into 3-elements clean group definitions.
+-spec prepare_group_defs([group_def() | group_def_dirty() | group_def_incomplete()]) ->
+    [group_def()].
 prepare_group_defs(GroupDefs) ->
-    lists:map(fun ({Name, Properties, Tests}) -> {Name, Properties, Tests};
-                  ({Name, Tests}) -> {Name, [], Tests} end,
+    lists:map(fun ({Name, Tests}) -> {Name, [], Tests};
+                  ({Name, Properties, Tests}) ->
+                      {Name, clean_properties(Properties), Tests}
+              end,
               GroupDefs).
+
+%% Properties might contain just RepeatType atoms,
+%% so we expand them to {RepeatType, sensible_maximum} if so.
+% -spec clean_properties(group_props() | group_props_dirty()) -> group_props().
+clean_properties(Props) when is_list(Props) ->
+    Max = sensible_maximum_repeats(),
+    proplists:expand(
+      lists:flatten(
+        [[{R, [{R, Max}]}, {{R, forever}, [{R, Max}]}]
+         || R <- all_repeat_modes()]), Props).
+
+all_repeat_modes() ->
+    [repeat,
+     repeat_until_all_ok,
+     repeat_until_any_ok,
+     repeat_until_all_fail,
+     repeat_until_any_fail].
+
+sensible_maximum_repeats() ->
+    ct:get_config(sensible_maximum_repeats, 100).

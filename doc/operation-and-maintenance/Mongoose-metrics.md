@@ -150,7 +150,10 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, totalSessionCount]` | value | A number of sessions connected to a MongooseIM cluster. |
 | `[global, uniqueSessionCount]` | value | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
 | `[global, cache, unique_sessions_number]` | gauge | A cached value of `uniqueSessionCount`. It is automatically updated when a unique session count is calculated. |
-| `[global nodeUpTime]` | value | Node uptime. |
+| `[global, nodeUpTime]` | value | Node uptime. |
+| `[global, clusterSize]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node. |
+| `[global, tcpPortsUsed]` | value | A number of open tcp connections. This should relate to the number of connected sessions and databases, as well as federations and http requests, in order to detect connection leaks. |
+| `[global, processQueueLengths]` | probe | The number of queued messages in the internal message queue of every erlang process, and the internal queue of every fsm (ejabberd\_c2s). This is sampled every 30 seconds asynchronously. It is a good indicator of an overloaded system: if too many messages are queued at the same time, the system is not able to process the data at the rate it was designed for. |
 
 ### Data metrics
 
@@ -192,7 +195,7 @@ These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
 In such case, these metrics will be updated with combined time of 2 failed and 1 successful request.
 
-Additionaly, RDMBS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
+Additionaly, RDBMS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
 
 * `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple"" (not prepared) query by a DB driver.
 * `[global, backends, mongoose_rdbms, execute]` - Execution time of a prepared query by a DB driver.

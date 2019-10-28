@@ -1,6 +1,6 @@
 -module(mongoose_lib).
--export([bin_to_int/1, log_if_backend_error/4]).
 
+-export([log_if_backend_error/4]).
 %% Maps
 -export([maps_append/3]).
 -export([maps_foreach/2]).
@@ -9,15 +9,9 @@
 
 -include("mongoose.hrl").
 
-%% @doc string:to_integer/1 for binaries
-bin_to_int(Bin) ->
-    bin_to_int(Bin, 0).
-
-bin_to_int(<<H, T/binary>>, X) when $0 =< H, H =< $9 ->
-    bin_to_int(T, (X*10)+(H-$0));
-bin_to_int(Bin, X) ->
-    {X, Bin}.
-
+%% ------------------------------------------------------------------
+%% Logging
+%% ------------------------------------------------------------------
 
 %% @doc Database backends for various modules return ok, {atomic, ok}
 %% or {atomic, []} on success, and usually {error, ...} on failure.

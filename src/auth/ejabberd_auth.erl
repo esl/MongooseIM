@@ -50,7 +50,7 @@
          is_user_exists_in_other_modules/3,
          remove_user/2,
          remove_user/3,
-         store_type/1,
+         supports_password_type/2,
          entropy/1
         ]).
 
@@ -67,7 +67,7 @@
               passterm/0]).
 
 -type authmodule() :: module().
--type passterm() :: binary() | scram:scram_tuple().
+-type passterm() :: binary() | mongoose_scram:scram_tuple().
 
 -define(METRIC(Name), [backends, auth, Name]).
 
@@ -122,20 +122,9 @@ get_opt(Host, Opt, Default) ->
 get_opt(Host, Opt) ->
     get_opt(Host, Opt, undefined).
 
-store_type(Server) ->
-    lists:foldl(
-      fun(_, external) ->
-              external;
-         (M, scram) ->
-              case M:store_type(Server) of
-                  external ->
-                      external;
-                  _Else ->
-                      scram
-              end;
-         (M, plain) ->
-              M:store_type(Server)
-      end, plain, auth_modules(Server)).
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(Server, PasswordType) ->
+    lists:any(fun(M) -> M:supports_password_type(Server, PasswordType) end, auth_modules(Server)).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -550,12 +539,20 @@ remove_user(User, Server) ->
 do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
     error;
 do_remove_user(LUser, LServer) ->
-    [M:remove_user(LUser, LServer) || M <- auth_modules(LServer)],
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => LServer,
-                              element => undefined }),
-    ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
-    ok.
+    AuthModules = auth_modules(LServer),
+    RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
+    case lists:any(fun(El) -> El == ok end, RemoveResult) of
+        true ->
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      lserver => LServer,
+                                      element => undefined }),
+            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
+            ok;
+        false ->
+            ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
+                       [LUser, LServer, AuthModules]),
+            {error, not_allowed}
+    end.
 
 %% @doc Try to remove user if the provided password is correct.
 %% The removal is attempted in each auth method provided:

@@ -12,6 +12,7 @@
 
 -include("mod_roster.hrl").
 -include("jlib.hrl").
+
 -behaviour(mod_roster).
 
 %% API

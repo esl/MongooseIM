@@ -16,6 +16,7 @@
 -include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
 -export([pubsub_node/0,
+         pubsub_node/1,
          domain/0,
          node_addr/0,
          rand_name/1,
@@ -50,7 +51,10 @@
          submit_subscription_response/5,
          get_pending_subscriptions/3,
          get_pending_subscriptions/4,
-         modify_node_subscriptions/4
+         modify_node_subscriptions/4,
+
+         create_node_names/1,
+         create_nodes/1
         ]).
 
 %% Receive notification or response
@@ -160,6 +164,7 @@ publish_without_node_attr(User, ItemId, Node, Options) ->
 publish_request(Id, User, ItemId, Node, Options) ->
     case proplists:get_value(with_payload, Options, true) of
         true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+        {true, Payload} -> escalus_pubsub_stanza:publish(User, ItemId, Payload, Id, Node);
         false -> escalus_pubsub_stanza:publish(User, Id, Node);
         #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
     end.
@@ -412,10 +417,9 @@ check_node_creation_notification(Response, NodeName) ->
 check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     try
         do_check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options)
-    catch Class:Reason ->
+    catch Class:Reason:StackTrace ->
               ct:pal("failed to check response=~p", [Response]),
-              Stacktrace = erlang:get_stacktrace(),
-              erlang:raise(Class, Reason, Stacktrace)
+              erlang:raise(Class, Reason, StackTrace)
     end,
     Response.
 
@@ -635,8 +639,12 @@ decode_affiliations(IQResult) ->
 
     [ {exml_query:attr(F, <<"jid">>), exml_query:attr(F, <<"affiliation">>)} || F <- Fields ].
 
-pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
+pubsub_node() -> pubsub_node(1).
+pubsub_node(Num) ->
+    Name = <<"node_", (integer_to_binary(Num))/binary, "_",
+             (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
+    SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
+    {pubsub_tools:node_addr(), SanitizedName}.
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
@@ -660,3 +668,12 @@ encode_group_name(BaseName, NodeTree) ->
 decode_group_name(ComplexName) ->
     [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
     #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
+
+create_node_names(Count) ->
+    [pubsub_node(N) || N <- lists:seq(1, Count)].
+
+create_nodes(List) ->
+    lists:map(fun({User, Node, Opts}) ->
+                      pubsub_tools:create_node(User, Node, Opts)
+              end, List).
+

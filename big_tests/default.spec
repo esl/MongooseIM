@@ -26,6 +26,7 @@
 {suites, "tests", component_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.
+{suites, "tests", gdpr_SUITE}.
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", jingle_SUITE}.
 {suites, "tests", last_SUITE}.
@@ -56,6 +57,7 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", pubsub_SUITE}.
+{suites, "tests", pubsub_s2s_SUITE}.
 {suites, "tests", push_SUITE}.
 {suites, "tests", push_http_SUITE}.
 {suites, "tests", push_integration_SUITE}.
@@ -86,6 +88,7 @@
 %% * ensure preset value is passed to ct Config
 %% * check server's purity after SUITE
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
+            ct_mim_config_hook,
             ct_markdown_errors_hook,
             {ct_mongoose_log_hook, [ejabberd_node, ejabberd_cookie]},
             {ct_mongoose_log_hook, [ejabberd2_node, ejabberd_cookie]}

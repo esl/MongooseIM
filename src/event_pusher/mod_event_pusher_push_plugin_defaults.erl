@@ -30,15 +30,15 @@
 %% Callback 'should_publish'
 -spec should_publish(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) ->
                             boolean().
-should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
+should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, Packet) ->
     try ejabberd_users:does_user_exist(LUser, LServer) of
         false ->
             false;
         true ->
-            ejabberd_sm:is_offline(To)
+            ejabberd_sm:is_offline(To) andalso has_body(Packet)
     catch
         _:_ ->
-            ejabberd_sm:is_offline(To)
+            ejabberd_sm:is_offline(To) andalso has_body(Packet)
     end.
 
 %% Callback 'sender_id'
@@ -130,3 +130,10 @@ get_unread_count(Acc, From, To) ->
     UnreadCount = mongoose_acc:get(inbox, unread_count, 1, Acc0),
     {Acc0, UnreadCount}.
 
+has_body(Packet) ->
+    case exml_query:path(Packet, [{element, <<"body">>}, cdata]) of
+        <<>> ->
+            false;
+        _ ->
+            true
+    end.

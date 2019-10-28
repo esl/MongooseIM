@@ -9,6 +9,10 @@ Use with caution, as it was observed that a user disconnect spike might result i
 * **iqdisc** (default: `one_queue`)
 * **backend** (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported.
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"last">>`) - Riak bucket type.
+
 ### Example Configuration
 
 ` {mod_last, []} `

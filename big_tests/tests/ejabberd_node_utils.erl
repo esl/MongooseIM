@@ -173,9 +173,9 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
                                       dict:from_list(PresetVars),
                                       dict:from_list(CfgVars1))),
     UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
-    CfgTemplateList = binary_to_list(CfgTemplate),
-    UpdatedCfgFile = mustache:render(CfgTemplateList,
-                                     dict:from_list(UpdatedCfgVars)),
+    %% Render twice to replace variables in variables
+    UpdatedCfgFileTmp = bbmustache:render(CfgTemplate, UpdatedCfgVars, [{key_type, atom}]),
+    UpdatedCfgFile = bbmustache:render(UpdatedCfgFileTmp, UpdatedCfgVars, [{key_type, atom}]),
     ok = ejabberd_node_utils:call_fun(Node, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
 
 -spec get_cwd(node(), ct_config()) -> string().

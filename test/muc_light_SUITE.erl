@@ -52,8 +52,8 @@ end_per_group(_, Config) ->
 init_per_testcase(codec_calls, Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    application:ensure_all_started(stringprep),
-    application:ensure_all_started(exometer_core),
+    {ok, _} = application:ensure_all_started(stringprep),
+    {ok, _} = application:ensure_all_started(exometer_core),
     ets:new(local_config, [named_table]),
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
@@ -98,7 +98,7 @@ rsm_disco_item_not_found(_Config) ->
 %% Basically it makes sure that codes have a proper setup of hook calls
 %% and all hooks and handlers are called as they should.
 codec_calls(_Config) ->
-    AffUsers = [{{<<"alice">>, <<"localhost">>}, member}],
+    AffUsers = [{{<<"alice">>, <<"localhost">>}, member}, {{<<"bob">>, <<"localhost">>}, member}],
     Sender = jid:from_binary(<<"bob@localhost/bbb">>),
     RoomUS = {<<"pokoik">>, <<"localhost">>},
     HandleFun = fun(_, _, _) -> count_call(handler) end,
@@ -106,23 +106,30 @@ codec_calls(_Config) ->
                        <<"localhost">>,
                        fun(Acc, _EvData) -> count_call(hook), Acc end,
                        50),
+
+    % count_call/1 should've been called twice - by handler fun (for each affiliated user,
+    % we have one) and by a filter_room_packet hook handler.
+
     mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
                                       Sender, RoomUS, HandleFun),
-    % count_call/0 should've been called twice - by handler fun (for each affiliated user,
-    % we have one) and by a filter_room_packet hook handler.
-    check_count(1, 1),
+    % 1 filter packet, sent 1 msg to 2 users
+    check_count(1, 2),
     mod_muc_light_codec_modern:encode({set, #affiliations{}, [], []},
                                       Sender, RoomUS, HandleFun),
+    % 1 filter packet, sent 1 IQ response to Sender
     check_count(1, 1),
     mod_muc_light_codec_modern:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
                                       Sender, RoomUS, HandleFun),
-    check_count(1, 2),
+    % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
+    check_count(1, 3),
     mod_muc_light_codec_modern:encode({set, #config{id = <<"ajdi">>}, AffUsers},
         Sender, RoomUS, HandleFun),
-    check_count(1, 2),
+    % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
+    check_count(1, 3),
     mod_muc_light_codec_legacy:encode({#msg{id = <<"ajdi">>}, AffUsers},
         Sender, RoomUS, HandleFun),
-    check_count(1, 1),
+    % 1 filter, 1 msg to 2 users
+    check_count(1, 2),
     ok.
 
 %% ------------------------------------------------------------------

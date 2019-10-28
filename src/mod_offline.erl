@@ -42,7 +42,7 @@
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/3]).
@@ -56,6 +56,9 @@
 
 %% helpers to be used from backend moudules
 -export([is_expired_message/2]).
+
+%% GDPR related
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -90,6 +93,11 @@
     Host :: binary(),
     Opts :: list().
 -callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
+    Reason :: term(),
+    Result :: list(#offline_msg{}).
+-callback fetch_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
     Reason :: term(),
@@ -142,6 +150,8 @@ start(Host, Opts) ->
                        ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:add(failed_to_store_message, Host,
                        ?MODULE, amp_failed_event, 30),
+    ejabberd_hooks:add(get_personal_data, Host,
+                       ?MODULE, get_personal_data, 50),
     ok.
 
 stop(Host) ->
@@ -159,6 +169,8 @@ stop(Host) ->
                           ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:delete(failed_to_store_message, Host,
                           ?MODULE, amp_failed_event, 30),
+    ejabberd_hooks:delete(get_personal_data, Host,
+                          ?MODULE, get_personal_data, 50),
     stop_worker(Host),
     ok.
 
@@ -380,11 +392,11 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
     TimeStamp =
     case exml_query:subelement(Packet, <<"delay">>) of
         undefined ->
-            p1_time_compat:timestamp();
+            erlang:timestamp();
         #xmlel{name = <<"delay">>} = DelayEl ->
             case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
                 <<"">> ->
-                    p1_time_compat:timestamp();
+                    erlang:timestamp();
                 Stamp ->
                     jlib:datetime_binary_to_timestamp(Stamp)
             end
@@ -510,6 +522,21 @@ pop_messages(LUser, LServer) ->
             Other
     end.
 
+get_personal_data(Acc, #jid{ user = User, server = Server }) ->
+    {ok, Messages} = mod_offline_backend:fetch_messages(User, Server),
+    [ {offline, ["timestamp", "from", "to", "packet"],
+       offline_messages_to_gdpr_format(Messages)} | Acc].
+
+offline_messages_to_gdpr_format(MsgList) ->
+    [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
+
+offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From,
+                                        to = To, packet = Packet}) ->
+    NowUniversal = calendar:now_to_universal_time(Timestamp),
+    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
+    UTC = list_to_binary(UTCTime ++ UTCDiff),
+    {UTC, jid:to_binary(From), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
+
 skip_expired_messages(TimeStamp, Rs) ->
     [R || R <- Rs, not is_expired_message(TimeStamp, R)].
 
@@ -545,13 +572,15 @@ remove_old_messages(Host, Days) ->
     mod_offline_backend:remove_old_messages(Host, Timestamp).
 
 %% #rh
+
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    remove_user(User, Server),
     Acc.
 
 remove_user(User, Server) ->
-    mod_offline_backend:remove_user(User, Server).
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    mod_offline_backend:remove_user(LUser, LServer).
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->

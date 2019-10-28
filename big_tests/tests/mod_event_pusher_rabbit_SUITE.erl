@@ -408,7 +408,7 @@ group_chat_message_received_event_properly_formatted(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
-              %% GIVEN
+              %% GIVEN basic variables
               Room = ?config(room, Config),
               RoomAddr = muc_helper:room_address(Room),
               BobRoomJID = user_room_jid(RoomAddr, Bob),
@@ -416,18 +416,20 @@ group_chat_message_received_event_properly_formatted(Config) ->
               AliceFullJID = client_lower_full_jid(Alice),
               AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
               Message = <<"Hi there!">>,
-              listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
-                                                               Config),
+              %% GIVEN users in room
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, nick(Alice))),
+              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room, nick(Bob))),
+              % wait for all room stanzas to be processed
+              escalus:wait_for_stanzas(Alice, 3),
+              escalus:wait_for_stanzas(Bob, 3),
+              %% GIVEN Room subscription to Rabbit
+              % We subscribe to RMQ now and not earlier to avoid messages other
+              % than the one we are testing, `Message` from Bob to Room, like
+              % for example affiliations and the like.
+              listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID], Config),
               %% WHEN users chat
-              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room,
-                                                                   nick(Alice))),
-              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room,
-                                                                 nick(Bob))),
-
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Message)),
               %% THEN
-              %% TODO: Investigate why there is an empty message sent.
-              get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK),
               ?assertMatch(#{<<"from_user_id">> := BobRoomJID,
                              <<"to_user_id">> := AliceFullJID,
                              <<"message">> := Message},

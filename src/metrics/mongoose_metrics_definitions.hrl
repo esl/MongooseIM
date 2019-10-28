@@ -77,7 +77,18 @@
            eval, ?EX_EVAL_SINGLE_VALUE}},
          {nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
-           tagged, [value]}}
+           tagged, [value]}},
+         {clusterSize,
+          {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
+           tagged, [value]}},
+         {tcpPortsUsed,
+          {probe,
+           [{callback_module, mongoose_metrics_probe_tcp},
+            {sample_interval, timer:seconds(30)}]}},
+         {processQueueLengths,
+          {probe,
+           [{callback_module, mongoose_metrics_probe_queues},
+            {sample_interval, timer:seconds(30)}]}}
         ]
 ).
 

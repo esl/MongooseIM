@@ -44,7 +44,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1
+         supports_password_type/2
         ]).
 
 %% Internal
@@ -88,8 +88,8 @@ check_cache_last_options(Server) ->
             end
     end.
 
-store_type(_) ->
-    external.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, Type) -> Type =:= plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -358,8 +358,7 @@ set_password_internal(LUser, LServer, Password) ->
 -spec is_fresh_enough(TimeLast :: integer(),
                       CacheTime :: integer()) -> boolean().
 is_fresh_enough(TimeStampLast, CacheTime) ->
-    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
-    Now = MegaSecs * 1000000 + Secs,
+    Now = erlang:system_time(second),
     (TimeStampLast + CacheTime > Now).
 
 

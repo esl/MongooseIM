@@ -17,6 +17,9 @@
 -export([archive_id/3,
          remove_archive/4]).
 
+%% gdpr functions
+-export([get_archive_id/2]).
+
 %% For debugging ONLY
 -export([create_user_archive/3]).
 
@@ -127,10 +130,27 @@ archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
+-spec get_archive_id(jid:server(), jid:user()) -> undefined | mod_mam:archive_id().
+get_archive_id(Host, User) ->
+    #jid{lserver = Server, luser = UserName} = jid:make(User, Host, <<"">>),
+    SServer = mongoose_rdbms:escape_string(Server),
+    SUserName = mongoose_rdbms:escape_string(UserName),
+    DbType = mongoose_rdbms_type:get(),
+    case do_query_archive_id(DbType, Host, SServer, SUserName) of
+        {selected, [{IdBin}]} ->
+            mongoose_rdbms:result_to_integer(IdBin);
+        {selected, []} ->
+            undefined
+    end.
+
 -spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
                      ArchiveJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
+remove_archive(Acc, Host, ArcID, ArcJID) ->
+    remove_archive(Host, ArcID, ArcJID),
+    Acc.
+
+remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = mongoose_rdbms:escape_string(UserName),
     SServer   = mongoose_rdbms:escape_string(Server),
     {updated, _} =
@@ -138,8 +158,7 @@ remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserNam
       Host,
       ["DELETE FROM mam_server_user "
        "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
-            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]),
-    Acc.
+            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]).
 
 %%====================================================================
 %% Internal functions

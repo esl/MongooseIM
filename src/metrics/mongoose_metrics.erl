@@ -38,10 +38,12 @@
          get_rdbms_data_stats/1,
          get_dist_data_stats/0,
          get_up_time/0,
+         get_mnesia_running_db_nodes_count/0,
          remove_host_metrics/1,
          remove_all_metrics/0,
          get_report_interval/0,
-         subscribe_metric/3]).
+         subscribe_metric/3
+        ]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
@@ -161,6 +163,10 @@ get_dist_data_stats() ->
 -spec get_up_time() -> {value, integer()}.
 get_up_time() ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
+
+-spec get_mnesia_running_db_nodes_count() -> {value, non_neg_integer()}.
+get_mnesia_running_db_nodes_count() ->
+    {value, length(mnesia:system_info(running_db_nodes))}.
 
 remove_host_metrics(Host) ->
     lists:foreach(fun remove_metric/1, exometer:find_entries([Host])).
@@ -287,6 +293,33 @@ merge_stats_fun(_, V1, V2) ->
 inet_stats(Port) when is_port(Port) ->
     {ok, Stats} = inet:getstat(Port, ?INET_STATS),
     Stats;
+%% TLS dist is operated by PID, not PORT directly, so we need to find the relevant port
+inet_stats(Pid) when is_pid(Pid) ->
+    {links, Links} = erlang:process_info(Pid, links),
+    %% In case of TLS, controlling process of a TCP port is one of the linked proceses
+    %% so we should check all links of all processes linked to givan one
+    RelatedPidsAndPorts =
+        lists:map(fun(LinkedPid) ->
+            {links, SubLinks} = erlang:process_info(LinkedPid, links),
+            SubLinks
+        end, [Pid | Links]),
+
+    PortsTCP = lists:filter(
+        fun(Link) ->
+            case Link of
+                Port when is_port(Port) ->
+                    {name, "tcp_inet"} == erlang:port_info(Port, name);
+                _ ->
+                    false
+            end
+        end, lists:flatten(RelatedPidsAndPorts)),
+
+    case PortsTCP of
+        [Port | _] ->
+            inet_stats(Port);
+        _ ->
+            ?EMPTY_INET_STATS
+    end;
 inet_stats(_) ->
     ?EMPTY_INET_STATS.
 
@@ -338,18 +371,32 @@ create_metrics(Host) ->
 
 ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(Host, [Metric], Type, ShortType);
+
+ensure_metric(Host, Metric, Type, probe = ShortType) ->
+    PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
+    {ShortType, Opts} = Type,
+    case exometer:info(PrefixedMetric, type) of
+        undefined ->
+            ExometerOpts = [{module, mongoose_metrics_probe}, {type, ShortType}] ++ Opts,
+            do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
+        _ ->
+        {ok, already_present}
+    end;
 ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     case exometer:info(PrefixedMetric, type) of
-        ShortType -> {ok, already_present};
         undefined ->
-            case catch exometer:new(PrefixedMetric, Type) of
-                {'EXIT', {exists, _}} -> {ok, already_present};
-                ok -> ok;
-                {'EXIT', Error} -> {error, Error}
-            end
+            do_create_metric(PrefixedMetric, Type, []);
+        ShortType -> {ok, already_present}
+    end.
+
+do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
+    case catch exometer:new(PrefixedMetric, ExometerType, ExometerOpts) of
+        {'EXIT', {exists, _}} -> {ok, already_present};
+        ok -> ok;
+        {'EXIT', Error} -> {error, Error}
     end.
 
 -spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.

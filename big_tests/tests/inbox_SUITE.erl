@@ -23,13 +23,18 @@
          returns_error_when_bad_form_field_end_sent/1,
          returns_error_when_bad_form_field_order_sent/1,
          returns_error_when_bad_form_field_hidden_read_sent/1,
+         returns_error_when_bad_reset_field_jid/1,
+         returns_error_when_no_reset_field_jid/1,
          returns_error_when_unknown_field_sent/1
         ]).
 -export([msg_sent_stored_in_inbox/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
-         reset_unread_counter/1,
+         other_resources_do_not_interfere/1,
+         reset_unread_counter_with_reset_chat_marker/1,
+         reset_unread_counter_with_reset_stanza/1,
          try_to_reset_unread_counter_with_bad_marker/1,
+         non_reset_marker_should_not_affect_inbox/1,
          user_has_two_conversations/1,
          msg_sent_to_offline_user/1,
          msg_sent_to_not_existing_user/1,
@@ -42,6 +47,8 @@
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
          groupchat_markers_one_reset/1,
+         non_reset_marker_should_not_affect_muclight_inbox/1,
+         groupchat_reset_stanza_resets_inbox/1,
          create_groupchat/1,
          create_groupchat_no_affiliation_stored/1,
          leave_and_remove_conversation/1,
@@ -54,6 +61,8 @@
          simple_groupchat_stored_in_offline_users_inbox_muc/1,
          unread_count_is_the_same_after_going_online_again/1,
          unread_count_is_reset_after_sending_chatmarker/1,
+         non_reset_marker_should_not_affect_muc_inbox/1,
+         unread_count_is_reset_after_sending_reset_stanza/1,
          private_messages_are_handled_as_one2one/1
         ]).
 -export([timestamp_is_updated_on_new_message/1,
@@ -67,7 +76,8 @@
                        check_inbox/2, check_inbox/4,
                        clear_inbox_all/0,
                        given_conversations_between/2,
-                       assert_invalid_inbox_form_value_error/3
+                       assert_invalid_inbox_form_value_error/3,
+                       assert_invalid_reset_inbox/4
                       ]).
 
 -define(ROOM, <<"testroom1">>).
@@ -75,6 +85,8 @@
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
+-define(ROOM_MARKERS2, <<"room_markers2">>).
+-define(ROOM_MARKERS_RESET, <<"room_markers_reset">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -107,6 +119,8 @@ groups() ->
            returns_error_when_bad_form_field_end_sent,
            returns_error_when_bad_form_field_order_sent,
            returns_error_when_bad_form_field_hidden_read_sent,
+           returns_error_when_bad_reset_field_jid,
+           returns_error_when_no_reset_field_jid,
            returns_error_when_unknown_field_sent
           ]},
          {one_to_one, [sequence],
@@ -117,8 +131,11 @@ groups() ->
            msg_sent_to_offline_user,
            msg_sent_to_not_existing_user,
            user_has_two_unread_messages,
-           reset_unread_counter,
+           other_resources_do_not_interfere,
+           reset_unread_counter_with_reset_chat_marker,
+           reset_unread_counter_with_reset_stanza,
            try_to_reset_unread_counter_with_bad_marker,
+           non_reset_marker_should_not_affect_inbox,
            user_has_only_unread_messages_or_only_read,
            reset_unread_counter_and_show_only_unread,
            check_total_unread_count_and_active_conv_count,
@@ -130,6 +147,8 @@ groups() ->
            simple_groupchat_stored_in_all_inbox,
            advanced_groupchat_stored_in_all_inbox,
            groupchat_markers_one_reset,
+           non_reset_marker_should_not_affect_muclight_inbox,
+           groupchat_reset_stanza_resets_inbox,
            create_groupchat,
            create_groupchat_no_affiliation_stored,
            leave_and_remove_conversation,
@@ -145,6 +164,8 @@ groups() ->
            simple_groupchat_stored_in_offline_users_inbox_muc,
            unread_count_is_the_same_after_going_online_again,
            unread_count_is_reset_after_sending_chatmarker,
+           non_reset_marker_should_not_affect_muc_inbox,
+           unread_count_is_reset_after_sending_reset_stanza,
            private_messages_are_handled_as_one2one
           ]},
          {timestamps, [sequence],
@@ -177,7 +198,7 @@ is_rdbms_enabled(Host) ->
 
 required_modules() ->
     [
-     {mod_muc_light, [{host, binary_to_list(muclight_domain())},
+     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
                       {backend, rdbms}]},
      {mod_inbox, inbox_opts()}
     ].
@@ -190,6 +211,10 @@ inbox_opts() ->
 
 muclight_domain() ->
     Domain = inbox_helper:domain(),
+    <<"muclight.", Domain/binary>>.
+
+muclight_config_domain() ->
+    Domain = <<"@HOST@">>,
     <<"muclight.", Domain/binary>>.
 
 muc_domain() ->
@@ -232,6 +257,16 @@ init_per_testcase(groupchat_markers_one_reset, Config) ->
     muc_light_helper:create_room(?ROOM_MARKERS, muclight_domain(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(groupchat_markers_one_reset, Config);
+init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
+    clear_inbox_all(),
+    muc_light_helper:create_room(?ROOM_MARKERS2, muclight_domain(), alice, [bob, kate],
+                                 Config, muc_light_helper:ver(1)),
+    escalus:init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
+init_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
+    clear_inbox_all(),
+    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muclight_domain(), alice, [bob, kate],
+                                 Config, muc_light_helper:ver(1)),
+    escalus:init_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
 init_per_testcase(leave_and_remove_conversation, Config) ->
     clear_inbox_all(),
     muc_light_helper:create_room(?ROOM2, muclight_domain(), alice, [bob, kate],
@@ -258,6 +293,8 @@ init_per_testcase(TC, Config)
        TC =:= simple_groupchat_stored_in_offline_users_inbox_muc;
        TC =:= unread_count_is_the_same_after_going_online_again;
        TC =:= unread_count_is_reset_after_sending_chatmarker;
+       TC =:= non_reset_marker_should_not_affect_muc_inbox;
+       TC =:= unread_count_is_reset_after_sending_reset_stanza;
        TC =:= private_messages_are_handled_as_one2one ->
     clear_inbox_all(),
     Users = ?config(escalus_users, Config),
@@ -273,6 +310,14 @@ end_per_testcase(groupchat_markers_one_reset, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(groupchat_markers_one_reset, Config);
+end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
+    clear_inbox_all(),
+    inbox_helper:restore_inbox_option(Config),
+    escalus:end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
+end_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
+    clear_inbox_all(),
+    inbox_helper:restore_inbox_option(Config),
+    escalus:end_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
 end_per_testcase(leave_and_remove_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -301,6 +346,8 @@ end_per_testcase(TC, Config) when TC =:= simple_groupchat_stored_in_all_inbox_mu
                                   TC =:= simple_groupchat_stored_in_offline_users_inbox_muc;
                                   TC =:= unread_count_is_the_same_after_going_online_again;
                                   TC =:= unread_count_is_reset_after_sending_chatmarker;
+                                  TC =:= non_reset_marker_should_not_affect_muc_inbox;
+                                  TC =:= unread_count_is_reset_after_sending_reset_stanza;
                                   TC =:= private_messages_are_handled_as_one2one ->
     muc_helper:destroy_room(Config);
 end_per_testcase(CaseName, Config) ->
@@ -348,6 +395,19 @@ returns_error_when_bad_form_field_hidden_read_sent(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_inbox_form_value_error(Alice, <<"hidden_read">>, <<"invalid">>)
     end).
+
+returns_error_when_bad_reset_field_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_reset_inbox(
+        Alice, <<"$@/">>, <<"jid">>, <<"$@/">>)
+    end).
+
+returns_error_when_no_reset_field_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_reset_inbox(
+        Alice, undefined, <<"jid">>, <<"No Interlocutor JID provided">>)
+    end).
+
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -496,7 +556,21 @@ user_has_two_unread_messages(Config) ->
         check_inbox(Kate, [#conv{unread = 0, from = Kate, to = Mike, content = <<"How are you">>}])
       end).
 
-reset_unread_counter(Config) ->
+other_resources_do_not_interfere(Config) ->
+    %% regression test
+    escalus:story(Config, [{kate, 2}, {mike, 1}], fun(Kate, Kate2, Mike) ->
+        Prio = #xmlel{name = <<"priority">>, children = [#xmlcdata{content = <<"100">>}]},
+        escalus_client:send(Kate2, escalus_stanza:presence(<<"available">>, [Prio])),
+        escalus_client:wait_for_stanza(Kate),
+        inbox_helper:send_msg(Kate, Mike, "Hello"),
+        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        %% Mike has two unread messages in conversation with Kate
+        check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
+        %% Kate has one conv in her inbox (no unread messages)
+        check_inbox(Kate, [#conv{unread = 0, from = Kate, to = Mike, content = <<"How are you">>}])
+                                                  end).
+
+reset_unread_counter_with_reset_chat_marker(Config) ->
     escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
         Msg = inbox_helper:send_msg(Kate, Mike, <<"Hi mike">>),
         MsgId = exml_query:attr(Msg, <<"id">>),
@@ -508,6 +582,20 @@ reset_unread_counter(Config) ->
         escalus:send(Mike, ChatMarker),
         %% Now Mike asks for inbox second time. He has 0 unread messages now
         check_inbox(Mike, [#conv{unread = 0, from = Kate, to = Mike, content = <<"Hi mike">>}])
+      end).
+
+reset_unread_counter_with_reset_stanza(Config) ->
+    escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
+        _Msg = inbox_helper:send_msg(Kate, Mike, <<"Hi mike">>),
+
+        %% Mike has one unread message
+        check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = <<"Hi mike">>}]),
+        %% Mike sends "reset" stanza
+        inbox_helper:reset_inbox(Mike, Kate),
+        %% Now Mike asks for inbox second time. He has 0 unread messages now
+        check_inbox(Mike, [#conv{unread = 0, from = Kate, to = Mike, content = <<"Hi mike">>}]),
+        %% Kate should not be receiving this stanza
+        inbox_helper:assert_has_no_stanzas(Kate)
       end).
 
 reset_unread_counter_and_show_only_unread(Config) ->
@@ -565,6 +653,27 @@ try_to_reset_unread_counter_with_bad_marker(Config) ->
         escalus:send(Mike, ChatMarker),
         %% Now Mike asks for inbox second time. Unread count should be still the same
         check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = <<"okey dockey">>}])
+      end).
+
+non_reset_marker_should_not_affect_inbox(Config) ->
+    escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
+        MsgId = <<"kate_to_mike">>,
+        MsgBody = <<"okey dockey">>,
+        Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, MsgBody), MsgId),
+        %% Kate sends message to Mike
+        escalus:send(Kate, Msg),
+        M1 = escalus:wait_for_stanza(Mike),
+        escalus:assert(is_chat_message, M1),
+        %% Mike has one unread message
+        check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = MsgBody}]),
+        ChatMarker = escalus_stanza:chat_marker(Kate, <<"received">>, MsgId),
+        %% Mike sends "received" chat marker, which is not a reset_marker
+        escalus:send(Mike, ChatMarker),
+        CM = escalus:wait_for_stanza(Kate),
+        escalus:assert(is_message, CM),
+        %% Now Mike asks for inbox second time. Unread count should be still the same
+        check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = MsgBody}]),
+        check_inbox(Kate, [], #{hidden_read => true}, #{})
       end).
 
 %%--------------------------------------------------------------------
@@ -668,6 +777,72 @@ groupchat_markers_one_reset(Config) ->
         %% Kate still has unread message
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid,
                                  to = KateJid, content = <<"marker time!">>}])
+      end).
+
+non_reset_marker_should_not_affect_muclight_inbox(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        % %% GIVEN
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        KateJid = inbox_helper:to_bare_lower(Kate),
+        RoomJid = room_bin_jid(?ROOM_MARKERS2),
+        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        Msg = <<"marker time!">>,
+        % %% WHEN DONE
+        Stanza1 = escalus_stanza:set_id(
+          escalus_stanza:groupchat_to(RoomJid, Msg), escalus_stanza:id()),
+        escalus:send(Alice, Stanza1),
+        R0 = escalus:wait_for_stanza(Alice),
+        R1 = escalus:wait_for_stanza(Bob),
+        R2 = escalus:wait_for_stanza(Kate),
+        escalus:assert(is_groupchat_message, R0),
+        escalus:assert(is_groupchat_message, R1),
+        escalus:assert(is_groupchat_message, R2),
+        % %% AND MARKED WRONG
+        inbox_helper:mark_last_muclight_message(Bob, [Alice, Bob, Kate], <<"received">>),
+        inbox_helper:mark_last_muclight_message(Kate, [Alice, Bob, Kate], <<"acknowledged">>),
+        % %% THEN
+        %% Alice has 0 unread messages because she was the sender
+        check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid,
+                                  to = AliceJid, content = Msg}]),
+        %% Bob still has unread message
+        check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid,
+                                to = BobJid, content = Msg}]),
+        %% Kate still has unread message
+        check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid,
+                                 to = KateJid, content = Msg}])
+      end).
+
+groupchat_reset_stanza_resets_inbox(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        % %% WITH
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        KateJid = inbox_helper:to_bare_lower(Kate),
+        RoomJid = room_bin_jid(?ROOM_MARKERS_RESET),
+        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        % %% WHEN A MESSAGE IS SENT
+        MsgStanza = escalus_stanza:set_id(
+          escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), <<"some_ID">>),
+        escalus:send(Alice, MsgStanza),
+        inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
+        % verify that Bob has the message on inbox
+        check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid,
+                                to = BobJid, content = <<"marker time!">>}]),
+        % %% AND WHEN SEND RESET FOR ROOM
+        inbox_helper:reset_inbox(Bob, RoomJid),
+        % %% THEN INBOX IS RESET FOR BOB, WITHOUT FORWARDING
+        %% Bob has 0 unread messages because he reset his counter
+        check_inbox(Bob, [#conv{unread = 0, from = AliceRoomJid,
+                                to = BobJid, content = <<"marker time!">>}]),
+        %% Alice has 0 unread messages because she was the sender
+        check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid,
+                                  to = AliceJid, content = <<"marker time!">>}]),
+        %% Kate still has unread message
+        check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid,
+                                 to = KateJid, content = <<"marker time!">>}]),
+        %% And nobody received any other stanza
+        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
       end).
 
 %% this test combines options:
@@ -993,6 +1168,74 @@ unread_count_is_reset_after_sending_chatmarker(Config) ->
         %% Kate has 0 unread messages
         check_inbox(Kate, [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}],
                     #{}, #{case_sensitive => true})
+      end).
+
+non_reset_marker_should_not_affect_muc_inbox(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        % %% GIVEN
+        Users = [Alice, Bob, Kate],
+        Msg = <<"Hi Room!">>,
+        Id = <<"MyID">>,
+        Room = ?config(room, Config),
+        RoomAddr = muc_helper:room_address(Room),
+
+        % %% WHEN
+        inbox_helper:enter_room(Room, Users),
+        inbox_helper:make_members(Room, Alice, Users -- [Alice]),
+        Stanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+        escalus:send(Bob, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+        % %% AND MARKED WRONG
+        KateChatMarkerWOType = escalus_stanza:chat_marker(RoomAddr,<<"acknowledged">>, Id),
+        KateChatMarker = escalus_stanza:setattr(KateChatMarkerWOType, <<"type">>, <<"groupchat">>),
+        escalus:send(Kate, KateChatMarker),
+        inbox_helper:wait_for_groupchat_msg(Users),
+
+        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
+        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
+        % %% THEN
+        %% Bob has 0 unread messages
+        check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
+        %% Alice have one conv with 1 unread message
+        check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
+        %% Kate has 1 unread messages
+        check_inbox(Kate, [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}],
+                    #{}, #{case_sensitive => true})
+      end).
+
+unread_count_is_reset_after_sending_reset_stanza(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        % %% WITH
+        Users = [Alice, Bob, Kate],
+        Msg = <<"Hi Room!">>,
+        Id = <<"MyID">>,
+        Room = ?config(room, Config),
+        RoomAddr = muc_helper:room_address(Room),
+        % %% PROVIDED
+        inbox_helper:enter_room(Room, Users),
+        inbox_helper:make_members(Room, Alice, Users -- [Alice]),
+        % %% WHEN A MESSAGE IS SENT
+        Stanza = escalus_stanza:set_id(
+          escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+        escalus:send(Bob, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+        % %% AND WHEN SEND RESET FOR ROOM
+        inbox_helper:reset_inbox(Kate, RoomAddr),
+
+        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
+        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
+        %% Bob has 0 unread messages
+        check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
+        %% Alice have one conv with 1 unread message
+        check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
+        %% Kate has 0 unread messages
+        check_inbox(Kate, [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
+        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
       end).
 
 private_messages_are_handled_as_one2one(Config) ->

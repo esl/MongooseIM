@@ -10,13 +10,13 @@
 -spec apply(fun((...) -> A), [term()]) -> catch_result(A).
 apply(Function, Args) when is_function(Function), is_list(Args) ->
     try erlang:apply(Function, Args)
-    catch error:R -> {'EXIT', {R, erlang:get_stacktrace()}};
+    catch error:R:S -> {'EXIT', {R, S}};
           _:R -> {'EXIT', R}
     end.
 
 -spec apply(atom(), atom(), [term()]) -> catch_result(any()).
 apply(Module, Function, Args) when is_atom(Function), is_list(Args) ->
     try erlang:apply(Module, Function, Args)
-    catch error:R -> {'EXIT', {R, erlang:get_stacktrace()}};
+    catch error:R:S -> {'EXIT', {R, S}};
           _:R -> {'EXIT', R}
     end.

@@ -65,8 +65,11 @@ init(Req, Opts) ->
     PeerCert = cowboy_req:cert(Req),
     Req1 = add_sec_websocket_protocol_header(Req),
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
+    Timeout = gen_mod:get_opt(timeout, Opts, 60000),
+
+    AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
     %% upgrade protocol
-    {cowboy_websocket, Req1, [{peer, Peer}, {peercert, PeerCert} | Opts]}.
+    {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
 
 terminate(_Reason, _Req, _State) ->
     ok.
@@ -78,8 +81,6 @@ terminate(_Reason, _Req, _State) ->
 % Called for every new websocket connection.
 websocket_init(Opts) ->
     ?DEBUG("websocket_init: ~p~n", [Opts]),
-    %% TODO Enable timeout, was disabled for cowboy 2
-    Timeout = gen_mod:get_opt(timeout, Opts, infinity),
     PingRate = gen_mod:get_opt(ping_rate, Opts, none),
     MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
     Peer = gen_mod:get_opt(peer, Opts),

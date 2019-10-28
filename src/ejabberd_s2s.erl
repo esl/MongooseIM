@@ -288,6 +288,8 @@ do_route(From, To, Acc, Packet) ->
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->
+                    ?DEBUG("event=s2s_connection_not_found from=~1000p to=~1000p packet=~1000p",
+                           [From, To, Packet]),
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
                     ejabberd_router:route(To, From, Acc1, Err)
