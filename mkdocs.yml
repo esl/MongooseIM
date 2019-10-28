@@ -48,6 +48,7 @@ pages:
       - 'LDAP Authentication Module': 'authentication-backends/LDAP-authentication-module.md'
       - 'PKI Authentication Module': 'authentication-backends/PKI-authentication-module.md'
       - 'Riak Authentication Module': 'authentication-backends/Riak-authentication-module.md'
+      - 'Dummy Authentication Module': 'authentication-backends/Dummy-authentication-module.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
