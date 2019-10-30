@@ -39,7 +39,7 @@
 -define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
 %% API
--export([start_link/2, start_ping/2, stop_ping/2]).
+-export([start_link/3, start_ping/2, stop_ping/2]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -56,7 +56,6 @@
          user_keep_alive/2]).
 
 -record(state, {host = <<"">>,
-                send_pings = ?DEFAULT_SEND_PINGS,
                 ping_interval = ?DEFAULT_PING_INTERVAL,
                 timeout_action = none,
                 ping_req_timeout = ?DEFAULT_PING_REQ_TIMEOUT,
@@ -65,65 +64,102 @@
 -type state() :: #state{}.
 
 %%====================================================================
+%% gen_mod callbacks
+%%====================================================================
+start(Host, Opts) ->
+    WorkerCount = proplists:get_value(workers, Opts, 10),
+    ejabberd_config:add_local_option({mod_ping_workers, Host}, WorkerCount),
+    start_workers(Host, WorkerCount, Opts),
+    SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
+    maybe_add_hooks_handlers(Host, SendPings),
+    register_ping(Host, Opts).
+
+stop(Host) ->
+    unregister_ping(Host),
+    delete_hook_handlers(Host),
+    stop_workers(Host).
+
+%%====================================================================
 %% API
 %%====================================================================
-start_link(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
+start_link(Proc, Host, Opts) ->
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 start_ping(Host, JID) when JID#jid.lresource =/= <<>> ->
     %% Guard check above ensures we are not adding a user without a
     %% resource by accident. If this happens the server ends up in a
     %% hot loop of iq-error replies.
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    Proc = worker_name(Host, JID),
     gen_server:cast(Proc, {start_ping, JID});
 start_ping(_Host, _JID) -> ok.
 
 stop_ping(Host, JID) ->
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    Proc = worker_name(Host, JID),
     gen_server:cast(Proc, {stop_ping, JID}).
 
 %%====================================================================
-%% gen_mod callbacks
+%% workers
 %%====================================================================
-start(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    PingSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
-                transient, 2000, worker, [?MODULE]},
-    supervisor:start_child(?SUPERVISOR, PingSpec).
 
-stop(Host) ->
+worker_name(Host, JID) ->
+    WorkerNum = worker_number(Host, JID),
+    worker_number_to_name(Host, WorkerNum).
+
+worker_number_to_name(Host, WorkerNum) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    ProcStr = atom_to_list(Proc),
+    WorkerStr = integer_to_list(WorkerNum),
+    list_to_atom(ProcStr ++ "_" ++ WorkerStr).
+
+worker_names(Host) ->
+    WorkerCount = worker_count(Host),
+    [worker_number_to_name(Host, WorkerNum) || WorkerNum <- lists:seq(1, WorkerCount)].
+
+worker_number(Host, #jid{luser = LUser}) ->
+    erlang:phash2(LUser, worker_count(Host)).
+
+worker_count(Host) ->
+    ejabberd_config:get_local_option_or_default({mod_ping_workers, Host}, 10).
+
+worker_specs(Host, WorkerCount, Opts) ->
+    [worker_spec(Host, WorkerNum, Opts) || WorkerNum <- lists:seq(1, WorkerCount)].
+
+worker_spec(Host, WorkerNum, Opts) ->
+    Proc = worker_number_to_name(Host, WorkerNum),
+    {Proc, {?MODULE, start_link, [Proc, Host, Opts]},
+         transient, 2000, worker, [?MODULE]}.
+
+start_workers(Host, WorkerCount, Opts) ->
+    Specs = worker_specs(Host, WorkerCount, Opts),
+    [supervisor:start_child(?SUPERVISOR, Spec) || Spec <- Specs],
+    ok.
+
+stop_workers(Host) ->
+    [stop_proc(Proc) || Proc <- worker_names(Host)].
+
+stop_proc(Proc) ->
     Pid = erlang:whereis(Proc),
     gen_server:call(Proc, stop),
     wait_for_process_to_stop(Pid),
     supervisor:delete_child(?SUPERVISOR, Proc).
 
+
 %%====================================================================
-%% gen_server callbacks
+%% init
 %%====================================================================
 
--spec init(Args :: list()) -> {ok, state()}.
-init([Host, Opts]) ->
-    SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
-    PingInterval = gen_mod:get_opt(ping_interval, Opts, ?DEFAULT_PING_INTERVAL),
-    PingReqTimeout = gen_mod:get_opt(ping_req_timeout, Opts, ?DEFAULT_PING_REQ_TIMEOUT),
-    TimeoutAction = gen_mod:get_opt(timeout_action, Opts, none),
+register_ping(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_PING),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PING,
                                   ?MODULE, iq_ping, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PING,
-                                  ?MODULE, iq_ping, IQDisc),
+                                  ?MODULE, iq_ping, IQDisc).
 
-    maybe_add_hooks_handlers(Host, SendPings),
-
-    {ok, #state{host = Host,
-                send_pings = SendPings,
-                ping_interval = timer:seconds(PingInterval),
-                timeout_action = TimeoutAction,
-                ping_req_timeout = timer:seconds(PingReqTimeout),
-                timers = dict:new()}}.
+unregister_ping(Host) ->
+    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
+    mod_disco:unregister_feature(Host, ?NS_PING).
 
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(sm_register_connection_hook, Host,
@@ -137,7 +173,7 @@ maybe_add_hooks_handlers(Host, true) ->
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
-terminate(_Reason, #state{host = Host}) ->
+delete_hook_handlers(Host) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, Host,
                           ?MODULE, user_offline, 100),
     ejabberd_hooks:delete(sm_register_connection_hook, Host,
@@ -146,9 +182,26 @@ terminate(_Reason, #state{host = Host}) ->
                           ?MODULE, user_send, 100),
     ejabberd_hooks:delete(user_sent_keep_alive, Host,
                           ?MODULE, user_keep_alive, 100),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
-    mod_disco:unregister_feature(Host, ?NS_PING).
+    ok.
+
+
+%%====================================================================
+%% gen_server callbacks
+%%====================================================================
+
+-spec init(Args :: list()) -> {ok, state()}.
+init([Host, Opts]) ->
+    PingInterval = gen_mod:get_opt(ping_interval, Opts, ?DEFAULT_PING_INTERVAL),
+    PingReqTimeout = gen_mod:get_opt(ping_req_timeout, Opts, ?DEFAULT_PING_REQ_TIMEOUT),
+    TimeoutAction = gen_mod:get_opt(timeout_action, Opts, none),
+    {ok, #state{host = Host,
+                ping_interval = timer:seconds(PingInterval),
+                timeout_action = TimeoutAction,
+                ping_req_timeout = timer:seconds(PingReqTimeout),
+                timers = dict:new()}}.
+
+terminate(_Reason, _State) ->
+    ok.
 
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
