@@ -7,26 +7,31 @@
 
 -export([report_user_stats/0]).
 
+report_user_stats() ->
+    IsAllowed = ejabberd_config:get_local_option_or_default(is_report_user_stats_allowed, true),
+    report_user_stats(IsAllowed).
+
 % Functions are spawned and not linked, as MongooseIM should not care if they fail or not.
 % Moreover the MongooseIM's start should not be blocked.
-report_user_stats() ->
+report_user_stats(true) ->
     % Data used for more then one report
     Hosts = ejabberd_config:get_global_option(hosts),
     Reports = [
-    fun() -> report_number_of_hosts(Hosts) end,
-    fun() -> report_used_modules(Hosts) end
+        fun() -> report_number_of_hosts(Hosts) end,
+        fun() -> report_used_modules(Hosts) end
     ],
     lists:foreach(
         fun(Fun) ->
             spawn(Fun)
-        end, Reports).
+        end, Reports);
+report_user_stats(_) -> ok.
 
 report_number_of_hosts(Hosts) ->
     Len = length(Hosts),
     report(hosts_count, Len).
 
 report_used_modules(Hosts) ->
-    Modules = gen_mod:loaded_modules(Hosts),
+    Modules = lists:flatten(lists:map(fun gen_mod:loaded_modules/1, Hosts)),
     lists:foreach(
         fun(Module) ->
             % TODO extract backend for a module
