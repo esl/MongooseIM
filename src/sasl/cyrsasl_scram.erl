@@ -28,7 +28,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([start/1, stop/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/2, mech_step/2]).
 
 -include("mongoose.hrl").
 
@@ -51,11 +51,9 @@
 
 -define(NONCE_LENGTH, 16).
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"SCRAM-SHA-1">>, ?MODULE,
-                               scram).
-
-stop() -> ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"SCRAM-SHA-1">>.
 
 mech_new(_Host, Creds) ->
     {ok, #state{step = 2, creds = Creds}}.

@@ -22,7 +22,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         supports_password_type/2,
+         supports_sasl_module/2,
          scram_passwords/0]).
 
 -include("mongoose.hrl").
@@ -99,8 +99,8 @@ remove_user(_User, _Server, _Password) ->
     %% in fact not_supported
     ok.
 
-supports_password_type(_, plain) -> true;
-supports_password_type(_, _) -> false.
+supports_sasl_module(_, cyrsasl_plain) -> true;
+supports_sasl_module(_, _) -> false.
 
 scram_passwords() ->
     not_supported.

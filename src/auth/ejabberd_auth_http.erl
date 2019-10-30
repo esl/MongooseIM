@@ -25,7 +25,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         supports_password_type/2,
+         supports_sasl_module/2,
          stop/1]).
 
 %% Pre-mongoose_credentials API
@@ -45,11 +45,11 @@
 start(_Host) ->
     ok.
 
--spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, plain) -> true;
-supports_password_type(_, scram) -> true;
-supports_password_type(Host, digest) -> not mongoose_scram:enabled(Host);
-supports_password_type(_, _) -> false.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, cyrsasl_plain) -> true;
+supports_sasl_module(_, cyrsasl_scram) -> true;
+supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
+supports_sasl_module(_, _) -> false.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.

@@ -46,7 +46,7 @@ all_tests() ->
      get_password,
      is_user_exists,
      remove_user,
-     supported_password_types
+     supported_sasl_mechanisms
     ].
 
 suite() ->
@@ -172,13 +172,14 @@ remove_user(_Config) ->
 
     {error, not_exists} = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
 
-supported_password_types(Config) ->
+supported_sasl_mechanisms(Config) ->
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
     DigestSupported = case lists:keyfind(scram_group, 1, Config) of
                           {_, true} -> false;
                           _ -> true
                       end,
     [true, DigestSupported, true, false] =
-        [ejabberd_auth_http:supports_password_type(?DOMAIN1, PT) || PT <- [plain, digest, scram, cert]].
+        [ejabberd_auth_http:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
 %%--------------------------------------------------------------------
 %% Helpers

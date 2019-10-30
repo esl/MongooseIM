@@ -79,7 +79,7 @@ end_per_suite(Config) ->
 
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    case supports_password_type(scram) of
+    case supports_sasl_module(cyrsasl_scram) of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -98,7 +98,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(CaseName, Config) when
       CaseName =:= log_one_digest; CaseName =:= log_non_existent_digest ->
-    case supports_password_type(digest) of
+    case supports_sasl_module(cyrsasl_digest) of
         false ->
             {skip, "digest password type not supported"};
         true ->
@@ -106,7 +106,7 @@ init_per_testcase(CaseName, Config) when
     end;
 init_per_testcase(CaseName, Config) when
       CaseName =:= log_one_scram; CaseName =:= log_non_existent_scram ->
-    case supports_password_type(scram) of
+    case supports_sasl_module(cyrsasl_scram) of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -213,10 +213,10 @@ message_zlib_limit(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-supports_password_type(PasswordType) ->
+supports_sasl_module(Module) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config({hosts, mim, domain})),
-    rpc(mim(), ejabberd_auth, supports_password_type, [XMPPDomain, PasswordType]).
+    rpc(mim(), ejabberd_auth, supports_sasl_module, [XMPPDomain, Module]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
