@@ -26,7 +26,7 @@ all() -> [
          ].
 
 init_per_suite(C) ->
-    application:start(stringprep),
+    {ok, _} = application:ensure_all_started(stringprep),
     C.
 
 end_per_suite(C) ->

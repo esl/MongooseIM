@@ -66,28 +66,20 @@
 
 -define(SANE_LIMIT, 1024).
 
--spec make(User :: user(), Server :: server(),
-           Resource :: resource()) ->
-    jid()  | error.
-make(User, Server, Resource) ->
-    make_nodeprep(nodeprep(User), Server, Resource, {User, Server, Resource}).
-
-make_nodeprep(error, _, _, _) -> error;
-make_nodeprep(LUser,  Server, Resource, T) ->
-    make_nameprep(LUser, nameprep(Server), Resource, T).
-
-make_nameprep(_, error, _, _) -> error;
-make_nameprep(LUser,  LServer, Resource, T) ->
-    make_resourceprep(LUser, LServer, resourceprep(Resource), T).
-
-make_resourceprep(_, _, error, _) -> error;
-make_resourceprep(LUser,  LServer, LResource, {User, Server, Resource}) ->
-    #jid{user = User,
-        server = Server,
-        resource = Resource,
-        luser = LUser,
-        lserver = LServer,
-        lresource = LResource}.
+-spec make(User :: user(), Server :: server(), Res :: resource()) -> jid()  | error.
+make(User, Server, Res) ->
+    case {nodeprep(User), nameprep(Server), resourceprep(Res)} of
+        {error, _, _} -> error;
+        {_, error, _} -> error;
+        {_, _, error} -> error;
+        {LUser, LServer, LRes} ->
+            #jid{user = User,
+                 server = Server,
+                 resource = Res,
+                 luser = LUser,
+                 lserver = LServer,
+                 lresource = LRes}
+    end.
 
 -spec make(simple_jid()) ->  jid()  | error.
 make({User, Server, Resource}) ->
