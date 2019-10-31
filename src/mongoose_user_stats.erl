@@ -31,13 +31,13 @@ report_number_of_hosts(Hosts) ->
     report(hosts_count, Len).
 
 report_used_modules(Hosts) ->
-    Modules = lists:flatten(lists:map(fun gen_mod:loaded_modules/1, Hosts)),
+    ModulesWithOpts = lists:flatten(
+        lists:map(fun gen_mod:loaded_modules_with_opts/1, Hosts)),
     lists:foreach(
-        fun(Module) ->
-            % TODO extract backend for a module
-            Backend = wololo,
+        fun({Module, Opts}) ->
+            Backend = proplists:get_value(backend, Opts, none),
             report(modules, Module, Backend)
-        end, Modules).
+        end, ModulesWithOpts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%% HELPERS %%%%%%%%%%%%%%%%%%%%%%
