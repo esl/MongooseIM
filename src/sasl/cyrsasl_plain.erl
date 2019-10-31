@@ -27,17 +27,14 @@
 -module(cyrsasl_plain).
 -author('alexey@process-one.net').
 
--export([start/1, stop/0, mech_new/2, mech_step/2, parse/1]).
+-export([mechanism/0, mech_new/2, mech_step/2, parse/1]).
 -behaviour(cyrsasl).
 
 -include("mongoose.hrl").
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),
-    ok.
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"PLAIN">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.

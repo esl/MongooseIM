@@ -23,7 +23,7 @@
 %% API
 -export([start/1,
          stop/1,
-         supports_password_type/2,
+         supports_sasl_module/2,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -53,11 +53,11 @@ start(_Host) ->
 stop(_Host) ->
     ok.
 
--spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, plain) -> true;
-supports_password_type(_, scram) -> true;
-supports_password_type(Host, digest) -> not mongoose_scram:enabled(Host);
-supports_password_type(_, _) -> false.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, cyrsasl_plain) -> true;
+supports_sasl_module(_, cyrsasl_scram) -> true;
+supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
+supports_sasl_module(_, _) -> false.
 
 -spec set_password(jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.

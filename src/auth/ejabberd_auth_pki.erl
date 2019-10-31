@@ -23,7 +23,7 @@
 %% ejabberd_gen_auth API
 -export([start/1,
          stop/1,
-         supports_password_type/2,
+         supports_sasl_module/2,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -48,8 +48,8 @@ start(_) -> ok.
 -spec stop(Host :: ejabberd:lserver()) -> ok.
 stop(_) -> ok.
 
--spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, PasswordType) -> PasswordType =:= cert.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, Module) -> Module =:= cyrsasl_external.
 
 -spec set_password( User :: ejabberd:luser(),
                     Server :: ejabberd:lserver(),

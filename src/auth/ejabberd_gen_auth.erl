@@ -11,8 +11,8 @@
 
 -callback stop(Host :: jid:lserver()) -> ok.
 
--callback supports_password_type(Host :: jid:lserver(),
-                                 PasswordType :: cyrsasl:password_type()) -> boolean().
+-callback supports_sasl_module(Host :: jid:lserver(),
+                               Module :: cyrsasl:sasl_module()) -> boolean().
 
 -callback set_password(User :: jid:luser(),
                        Server :: jid:lserver(),

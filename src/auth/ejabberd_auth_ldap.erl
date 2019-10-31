@@ -50,7 +50,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         supports_password_type/2
+         supports_sasl_module/2
         ]).
 
 %% Internal
@@ -120,10 +120,10 @@ init(Host) ->
     State = parse_options(Host),
     {ok, State}.
 
--spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, plain) -> true;
-supports_password_type(_, cert) -> true;
-supports_password_type(_, _) -> false.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, cyrsasl_plain) -> true;
+supports_sasl_module(_, cyrsasl_external) -> true;
+supports_sasl_module(_, _) -> false.
 
 config_change(Acc, Host, ldap, _NewConfig) ->
     stop(Host),

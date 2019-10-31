@@ -4,21 +4,16 @@
 
 -export([notify/0]).
 -export([status/0]).
--export([maybe_register_mech/3]).
+-export([supports_sasl_module/1]).
 
 -ifndef(fips_mode).
 
 notify() -> ok.
 status() -> disabled.
 
--spec maybe_register_mech(Mechanism, Module, PasswordType) -> Result when
-      Mechanism :: cyrsasl:mechanism(),
-      Module :: module(),
-      PasswordType :: cyrsasl:password_type(),
-      Result :: true.
-
-maybe_register_mech(MechFeature, Module, PasswordType) ->
-    do_register(MechFeature, Module, PasswordType).
+-spec supports_sasl_module(cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_Module) ->
+    true.
 
 -else.
 
@@ -47,16 +42,13 @@ do_notify() ->
 status() ->
     crypto:info_fips().
 
-maybe_register_mech(MechFeature, Module, MechName) ->
+-spec supports_sasl_module(cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(Module) ->
     case crypto:info_fips() of
         enabled ->
-            ok;
+            Module =/= cyrsasl_digest;
         _ ->
-            do_register(MechFeature, Module, MechName)
+            true
     end.
 
 -endif.
-
-do_register(MechFeature, Module, PasswordType) ->
-    cyrsasl:register_mechanism(MechFeature, Module, PasswordType).
-

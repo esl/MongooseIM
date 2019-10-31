@@ -27,18 +27,15 @@
 
 -module(cyrsasl_anonymous).
 -xep([{xep, 175}, {version, "1.2"}]).
--export([start/1, stop/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/2, mech_step/2]).
 
 -behaviour(cyrsasl).
 
 -record(state, {creds}).
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"ANONYMOUS">>, ?MODULE, plain),
-    ok.
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"ANONYMOUS">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
