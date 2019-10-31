@@ -28,6 +28,7 @@
 -export([get_session_pid/2]).
 -export([wait_for_route_message_count/2]).
 -export([wait_for_pid_to_die/1]).
+-export([supports_sasl_module/1]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4,
@@ -369,3 +370,7 @@ wait_for_pid_to_die(Pid) ->
         after 10000 ->
             ct:fail({wait_for_pid_to_die_failed, Pid})
     end.
+
+supports_sasl_module(Module) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    rpc(mim(), ejabberd_auth, supports_sasl_module, [Host, Module]).

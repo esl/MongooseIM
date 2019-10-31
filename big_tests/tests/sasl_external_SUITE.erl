@@ -110,7 +110,7 @@ init_per_group(standard, Config) ->
 init_per_group(standard_keep_auth, Config) ->
     Config1 = [{auth_methods, []} | Config],
     modify_config_and_restart("standard", Config1),
-    case supports_sasl_module(cyrsasl_external) of
+    case mongoose_helper:supports_sasl_module(cyrsasl_external) of
         false -> {skip, "SASL External not supported"};
         true -> Config1
     end;
@@ -442,7 +442,3 @@ replace_addrs(undefined) ->
 replace_addrs(Addresses) ->
     lists:map( fun(Addr) -> [User, Hostname] = binary:split(list_to_binary(Addr), <<"@">>),
                             binary_to_list(<<User/binary, <<"-self-signed@">>/binary, Hostname/binary>>) end, Addresses).
-
-supports_sasl_module(Module) ->
-    distributed_helper:rpc(distributed_helper:mim(), ejabberd_auth, supports_sasl_module,
-                           [<<"localhost">>, Module]).
