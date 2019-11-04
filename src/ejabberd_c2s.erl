@@ -2738,10 +2738,23 @@ flush_csi_buffer(State) ->
 -spec flush_csi_buffer(mongoose_acc:t() | no_acc, state()) -> state().
 flush_csi_buffer(Acc, #state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
-    F = fun(Packet, {_, OldState}) ->
-                send_and_maybe_buffer_stanza(Acc, Packet, OldState)
+    F = fun({From, To, El}, {_, MaybeAccum, OldState}) ->
+                 Accum = case MaybeAccum of
+                             no_acc ->
+                                 mongoose_acc:new(#{location => ?LOCATION,
+                                                    from_jid => From,
+                                                    to_jid => To,
+                                                    lserver => State#state.server,
+                                                    element => El });
+                             A ->
+                                 mongoose_acc:update_stanza(#{from_jid => From,
+                                                              to_jid => To,
+                                                              element => El },
+                                                            A)
+                         end,
+                send_and_maybe_buffer_stanza(Accum, {From, To, El}, OldState)
         end,
-    {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
+    {_, _, NewState} = lists:foldr(F, {ok, Acc, State}, BufferOut),
     NewState#state{csi_buffer = []}.
 
 bounce_csi_buffer(#state{csi_buffer = []}) ->
