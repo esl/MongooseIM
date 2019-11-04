@@ -88,7 +88,7 @@ init_per_group(muclight_msg_notifications, Config0) ->
     Config = init_per_group(generic_group, Config0),
     dynamic_modules:ensure_modules(Host, [{mod_muc_light,
                                            [{host, binary_to_list(?MUCHOST)},
-                                            {backend, mnesia},
+                                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                             {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;

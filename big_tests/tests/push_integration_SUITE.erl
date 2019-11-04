@@ -250,7 +250,7 @@ inbox_msg_unread_count(Config, Service, EnableOpts) ->
       fun(Bob, Alice, Kate) ->
               % In this test Bob is the only recipient of all messages
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
-             
+
               % We're going to interleave messages from Alice and Kate to ensure
               % that their unread counts don't leak to each other's notifications
 
@@ -261,11 +261,11 @@ inbox_msg_unread_count(Config, Service, EnableOpts) ->
               % We send a first message from Kate, unread counts in convs.: Alice 1, Kate 1
               send_private_message(Kate, Bob),
               check_notification(DeviceToken, 1),
-              
+
               % Now a second message from Alice, unread counts in convs.: Alice 2, Kate 1
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 2),
-              
+
               % And one more from Alice, unread counts in convs.: Alice 3, Kate 1
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 3),
@@ -577,7 +577,7 @@ required_modules() ->
                    {host, "pubsub.@HOST@"}]},
      {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
                                       {api_version, "v2"}]},
-     {mod_push, [{backend, mnesia}]}
+     {mod_push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]}
     ].
 
 muc_light_opts() ->
