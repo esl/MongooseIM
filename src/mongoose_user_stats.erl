@@ -2,12 +2,12 @@
 
 -author('aleksander.lisiecki@erlang-solutions.com').
 
--export([report_user_stats/0]).
+-export([report/0]).
 
 % TODO replace tid to official ESL one
 -define(BASE_URL, "https://www.google-analytics.com/collect?v=1&tid=UA-151110014-1&t=event").
 
-report_user_stats() ->
+report() ->
     ReportUrl = ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL),
     report_user_stats(ReportUrl).
 
@@ -21,10 +21,7 @@ report_user_stats(ReportUrl) ->
         fun() -> report_number_of_hosts(Hosts, ReportUrl) end,
         fun() -> report_used_modules(Hosts, ReportUrl) end
     ],
-    lists:foreach(
-        fun(Fun) ->
-            spawn(Fun)
-        end, Reports).
+    [spawn(Fun) || Fun <- Reports].
 
 report_number_of_hosts(Hosts, ReportUrl) ->
     Len = length(Hosts),
@@ -47,13 +44,7 @@ report(ReportUrl, EventCategory, EventAction) ->
     report(ReportUrl, EventCategory, EventAction, empty).
 
 report(ReportUrl, EventCategory, EventAction, EventLabel) ->
-    MaybeLabel = case EventLabel of
-        empty ->
-            [];
-        AnyEventLabel ->
-            LstEventLabel = term_to_string(AnyEventLabel),
-            ["&el=", LstEventLabel]
-    end,
+    MaybeLabel = maybe_event_label(EventLabel),
     LstClientId = term_to_string(client_id()),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
@@ -66,6 +57,12 @@ report(ReportUrl, EventCategory, EventAction, EventLabel) ->
     URL = string:join(ListUrl, ""),
     lager:debug("~p reported = ~p", [?MODULE, URL]),
     httpc:request(URL).
+
+
+maybe_event_label(empty) -> [];
+maybe_event_label(EventLabel) ->
+    LstEventLabel = term_to_string(EventLabel),
+    ["&el=", LstEventLabel].
 
 term_to_string(Term) ->
     R= io_lib:format("~p",[Term]),

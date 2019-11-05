@@ -76,10 +76,10 @@ number_of_hosts_is_reported_to_google_analytics_when_mim_starts(_Config) ->
     % Restart MIM will not work, because on restart config file is read and config is reloaded,
     %  which overwrites the config and the passed option is not set
     % WHEN
-    mongoose_helper:successful_rpc(mongoose_user_stats, report_user_stats, []),
+    mongoose_helper:successful_rpc(mongoose_user_stats, report, []),
     % THEN
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
-    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
+    mongoose_helper:wait_until(fun modules_are_reported/0, true),
     ok.
 
 %%--------------------------------------------------------------------
