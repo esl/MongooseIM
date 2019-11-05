@@ -5,8 +5,3 @@
 -define(MUCHOST,                <<"muclight.@HOST@">>).
 -define(PUBSUB_SUB_DOMAIN,      "push").
 
--define(PUSH_OPTS,
-        [
-         {backend, mnesia}
-        ]).
-

@@ -93,10 +93,11 @@ init_per_group(muclight_msg_notifications, Config0) ->
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
 init_per_group(_, Config0) ->
-    Config1 = [{push_config, ?PUSH_OPTS} | Config0],
+    PushOpts = push_opts(),
+    Config1 = [{push_config, PushOpts} | Config0],
     Host = ct:get_config({hosts, mim, domain}),
     Config = dynamic_modules:save_modules(Host, Config1),
-    dynamic_modules:ensure_modules(Host, [{mod_push, ?PUSH_OPTS}]),
+    dynamic_modules:ensure_modules(Host, [{mod_push, PushOpts}]),
     Config.
 
 end_per_group(disco, Config) ->
@@ -110,7 +111,7 @@ end_per_group(_, Config) ->
 init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, ?PUSH_OPTS}]]),
+    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, push_opts()}]]),
     escalus:init_per_testcase(CaseName, [{old_modules, OldModules} | Config]);
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
@@ -642,3 +643,9 @@ is_offline(LUser, LServer) ->
 
 lower(Bin) when is_binary(Bin) ->
     list_to_binary(string:to_lower(binary_to_list(Bin))).
+
+push_opts() ->
+    [
+     {backend, mongoose_helper:mnesia_or_rdbms_backend()}
+    ].
+
