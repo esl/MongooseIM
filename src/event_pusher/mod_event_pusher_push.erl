@@ -69,7 +69,7 @@ start(Host, Opts) ->
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
 
-    gen_mod:start_backend_module(?MODULE, Opts, []),
+    gen_mod:start_backend_module(?MODULE, Opts, [enable, disable, get_publish_services]),
     mod_event_pusher_push_backend:init(Host, Opts),
 
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
