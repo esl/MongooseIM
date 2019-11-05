@@ -390,3 +390,13 @@ CREATE TABLE pubsub_subscriptions (
 CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
 CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
 
+CREATE TABLE event_pusher_push_subscription (
+     owner_jid VARCHAR(250),
+     node VARCHAR(250),
+     pubsub_jid VARCHAR(250),
+     form JSON NOT NULL,
+     created_at BIGINT NOT NULL,
+     PRIMARY KEY(owner_jid, node, pubsub_jid)
+ );
+
+CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
