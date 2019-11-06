@@ -302,6 +302,10 @@ process_term(Term, State) ->
             add_option(cowboy_server_name, Value, State);
         {services, Value} ->
             add_option(services, Value, State);
+        {mongoose_user_stats_is_allowed, Value} ->
+            add_option(mongoose_user_stats_is_allowed, Value, State);
+        {google_analytics_url, Value} ->
+            add_option(google_analytics_url, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)

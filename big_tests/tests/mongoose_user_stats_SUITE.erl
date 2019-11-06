@@ -29,7 +29,7 @@ suite() ->
 
 all() ->
     [
-        number_of_hosts_is_reported_to_google_analytics_when_mim_starts
+        user_stats_are_reported_to_google_analytics_when_mim_starts
     ].
 
 groups() ->
@@ -60,11 +60,16 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(_CaseName, Config) ->
     ets:new(?ETS_TABLE, [duplicate_bag, named_table, public]),
-    Args = [google_analytics_url, "http://localhost:8765?dummy=arg"],
-    {atomic, ok} = mongoose_helper:successful_rpc(ejabberd_config, add_local_option, Args),
+    UrlArgs = [google_analytics_url, "http://localhost:8765"],
+    {atomic, ok} = mongoose_helper:successful_rpc(ejabberd_config, add_local_option, UrlArgs),
+    IsAllowedArgs = [mongoose_user_stats_is_allowed, true],
+    {atomic, ok} = mongoose_helper:successful_rpc(ejabberd_config, add_local_option, IsAllowedArgs),
     Config.
 
 end_per_testcase(_CaseName, Config) ->
+    ets:delete_all_objects(?ETS_TABLE),
+    mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [ google_analytics_url ]),
+    mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [ mongoose_user_stats_is_allowed ]),
     Config.
 
 %%--------------------------------------------------------------------
@@ -72,7 +77,8 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 
-number_of_hosts_is_reported_to_google_analytics_when_mim_starts(_Config) ->
+user_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
+    %GIVEN
     % Restart MIM will not work, because on restart config file is read and config is reloaded,
     %  which overwrites the config and the passed option is not set
     % WHEN

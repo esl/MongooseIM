@@ -5,16 +5,21 @@
 -export([report/0]).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
-% TODO when finished replace tid to official ESL one
--define(TRACKING_ID, "UA-151110014-1").
+-define(TRACKING_ID, "UA-151671255-1").
 
 report() ->
-    ReportUrl = ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL),
-    report_user_stats(ReportUrl).
+    IsAllowed = ejabberd_config:get_local_option(mongoose_user_stats_is_allowed),
+    case IsAllowed of
+        true ->
+            ReportUrl = ejabberd_config:get_local_option(google_analytics_url),
+            report_user_stats(ReportUrl);
+        _ -> ok
+    end.
 
 % Functions are spawned and not linked, as MongooseIM should not care if they fail or not.
 % Moreover the MongooseIM's start should not be blocked.
-report_user_stats(disable) -> ok;
+report_user_stats(undefined) ->
+    report_user_stats(?BASE_URL);
 report_user_stats(ReportUrl) ->
     % Data used for more then one report
     Hosts = ejabberd_config:get_global_option(hosts),
@@ -37,7 +42,7 @@ report_used_modules(Hosts, ReportUrl) ->
             Backend = proplists:get_value(backend, Opts, none),
             build_report(modules, Module, Backend)
         end, ModulesWithOpts),
-    send_reports(ReportUrl, Lines   ).
+    send_reports(ReportUrl, Lines).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -60,7 +65,7 @@ build_report(EventCategory, EventAction, EventLabel) ->
         "&ea=", LstEventAction
         ] ++ MaybeLabel,
     Line = string:join(LstLine, ""),
-    lager:error("~p reported = ~p", [?MODULE, Line]),
+    lager:debug("~p reported = ~p", [?MODULE, Line]),
     Line.
 
 % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
@@ -70,8 +75,7 @@ send_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
     ContentType = "",
     Body = string:join(Lines, "\n"),
     Request = {ReportUrl, Headers, ContentType, Body},
-    Res = httpc:request(post, Request, [], []),
-    lager:error("Res = ~p", [Res]);
+    httpc:request(post, Request, [], []);
 send_reports(ReportUrl, Lines) ->
     {NewBatch, RemainigLines} = lists:split(20, Lines),
     send_reports(ReportUrl, NewBatch),
