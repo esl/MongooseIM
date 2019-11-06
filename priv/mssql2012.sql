@@ -569,6 +569,23 @@ GO
 CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
 GO
 
+CREATE TABLE event_pusher_push_subscription (
+     owner_jid NVARCHAR(250),
+     node NVARCHAR(250),
+     pubsub_jid NVARCHAR(150),
+     form NVARCHAR(max) NOT NULL,
+     created_at BIGINT NOT NULL,
+     CONSTRAINT PK_even_pusher_push_subscription PRIMARY KEY CLUSTERED(
+	owner_jid ASC,
+	node ASC,
+	pubsub_jid ASC
+    )
+ )
+GO
+
+CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]
