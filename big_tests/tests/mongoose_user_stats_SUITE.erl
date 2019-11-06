@@ -125,13 +125,17 @@ remove_dummy_cowboy_handler() ->
 %%--------------------------------------------------------------------
 
 handler_init(Req0, _State) ->
-    Qs = maps:get(qs, Req0),
-    Event = qs_to_event(Qs),
-    ets:insert(?ETS_TABLE, Event),
-    Req1 = cowboy_req:reply(200, #{}, <<"">>, Req0),
+    {ok, Body, Req} = cowboy_req:read_body(Req0),
+    StrEvents = string:split(Body, "\n", all),
+    lists:map(
+        fun(StrEvent) ->
+            Event = str_to_event(StrEvent),
+            ets:insert(?ETS_TABLE, Event)
+        end, StrEvents),
+    Req1 = cowboy_req:reply(200, #{}, <<"">>, Req),
     {ok, Req1, no_state}.
 
-qs_to_event(Qs) ->
+str_to_event(Qs) ->
     StrParams = string:split(Qs, "&", all),
     Params = lists:map(
         fun(StrParam) ->

@@ -4,8 +4,9 @@
 
 -export([report/0]).
 
-% TODO replace tid to official ESL one
--define(BASE_URL, "https://www.google-analytics.com/collect?v=1&tid=UA-151110014-1&t=event").
+-define(BASE_URL, "https://www.google-analytics.com/batch").
+% TODO when finished replace tid to official ESL one
+-define(TRACKING_ID, "UA-151110014-1").
 
 report() ->
     ReportUrl = ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL),
@@ -25,38 +26,57 @@ report_user_stats(ReportUrl) ->
 
 report_number_of_hosts(Hosts, ReportUrl) ->
     Len = length(Hosts),
-    report(ReportUrl, hosts_count, Len).
+    ReportLine = build_report(hosts_count, Len),
+    send_reports(ReportUrl, [ReportLine]).
 
 report_used_modules(Hosts, ReportUrl) ->
     ModulesWithOpts = lists:flatten(
         lists:map(fun gen_mod:loaded_modules_with_opts/1, Hosts)),
-    lists:foreach(
+    Lines = lists:map(
         fun({Module, Opts}) ->
             Backend = proplists:get_value(backend, Opts, none),
-            report(ReportUrl, modules, Module, Backend)
-        end, ModulesWithOpts).
+            build_report(modules, Module, Backend)
+        end, ModulesWithOpts),
+    send_reports(ReportUrl, Lines   ).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
-report(ReportUrl, EventCategory, EventAction) ->
-    report(ReportUrl, EventCategory, EventAction, empty).
+build_report(EventCategory, EventAction) ->
+    build_report(EventCategory, EventAction, empty).
 
-report(ReportUrl, EventCategory, EventAction, EventLabel) ->
+build_report(EventCategory, EventAction, EventLabel) ->
     MaybeLabel = maybe_event_label(EventLabel),
     LstClientId = term_to_string(client_id()),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
-    ListUrl = [
-        ReportUrl,
+    LstLine = [
+        "v=1",
+        "&tid=", ?TRACKING_ID,
+        "&t=event",
         "&cid=", LstClientId,
         "&ec=", LstEventCategory,
         "&ea=", LstEventAction
         ] ++ MaybeLabel,
-    URL = string:join(ListUrl, ""),
-    lager:debug("~p reported = ~p", [?MODULE, URL]),
-    httpc:request(URL).
+    Line = string:join(LstLine, ""),
+    lager:error("~p reported = ~p", [?MODULE, Line]),
+    Line.
+
+% https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
+% A maximum of 20 hits can be specified per request.
+send_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
+    Headers = [],
+    ContentType = "",
+    Body = string:join(Lines, "\n"),
+    Request = {ReportUrl, Headers, ContentType, Body},
+    Res = httpc:request(post, Request, [], []),
+    lager:error("Res = ~p", [Res]);
+send_reports(ReportUrl, Lines) ->
+    {NewBatch, RemainigLines} = lists:split(20, Lines),
+    send_reports(ReportUrl, NewBatch),
+    send_reports(ReportUrl, RemainigLines),
+    ok.
 
 
 maybe_event_label(empty) -> [];
