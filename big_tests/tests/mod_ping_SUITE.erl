@@ -30,8 +30,8 @@ all() ->
 
 groups() ->
     G = [{client_ping, [], [ping]},
-         {server_ping, [parallel], all_tests()},
-         {server_ping_kill, [parallel], all_tests()}
+         {server_ping, [], all_tests()},
+         {server_ping_kill, [], all_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -90,10 +90,15 @@ start_mod_ping(Opts) ->
 %%--------------------------------------------------------------------
 %% Ping tests
 %%--------------------------------------------------------------------
-ping(Config) ->
+ping(ConfigIn) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    Metrics = [
+        {[Domain, mod_ping, ping_response],0},
+        {[Domain, mod_ping, ping_response_timeout],0}
+    ],
+    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config({hosts, mim, domain}),
                 PingReq = escalus_stanza:ping_request(Domain),
                 escalus_client:send(Alice, PingReq),
 
@@ -101,7 +106,13 @@ ping(Config) ->
                 escalus:assert(is_iq_result, [PingReq], PingResp)
         end).
 
-active(Config) ->
+active(ConfigIn) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    Metrics = [
+        {[Domain, mod_ping, ping_response],0},
+        {[Domain, mod_ping, ping_response_timeout],0}
+    ],
+    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Domain = ct:get_config({hosts, mim, domain}),
@@ -114,7 +125,13 @@ active(Config) ->
                 false = escalus_client:has_stanzas(Alice)
         end).
 
-active_keep_alive(Config) ->
+active_keep_alive(ConfigIn) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    Metrics = [
+        {[Domain, mod_ping, ping_response],0},
+        {[Domain, mod_ping, ping_response_timeout],0}
+    ],
+    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_ping_interval(0.75),
@@ -124,7 +141,13 @@ active_keep_alive(Config) ->
                 false = escalus_client:has_stanzas(Alice)
         end).
 
-server_ping_pong(Config) ->
+server_ping_pong(ConfigIn) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    Metrics = [
+        {[Domain, mod_ping, ping_response],1},
+        {[Domain, mod_ping, ping_response_timeout],0}
+    ],
+    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 PingReq = wait_for_ping_req(Alice),
@@ -134,7 +157,10 @@ server_ping_pong(Config) ->
 
 server_ping_pang(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    Metrics = [{[Domain, user_ping_timeout], 1}],
+    Metrics = [
+        {[Domain, mod_ping, ping_response], 0},
+        {[Domain, mod_ping, ping_response_timeout], 1}],
+%%      {[Domain, mod_ping, ping_response_time, 95],  {1, 1000000000}}], % not possible to compare histograms in escalus
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
