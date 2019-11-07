@@ -53,7 +53,9 @@
          user_online/4,
          user_offline/5,
          user_send/4,
-         user_keep_alive/2]).
+         user_keep_alive/2,
+         user_ping_timeout/2,
+         user_ping_response/4]).
 
 -record(state, {host = <<"">>,
                 send_pings = ?DEFAULT_SEND_PINGS,
@@ -87,6 +89,7 @@ stop_ping(Host, JID) ->
 %% gen_mod callbacks
 %%====================================================================
 start(Host, Opts) ->
+    ensure_metrics(Host),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     PingSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                 transient, 2000, worker, [?MODULE]},
@@ -126,26 +129,12 @@ init([Host, Opts]) ->
                 timers = dict:new()}}.
 
 maybe_add_hooks_handlers(Host, true) ->
-    ejabberd_hooks:add(sm_register_connection_hook, Host,
-                       ?MODULE, user_online, 100),
-    ejabberd_hooks:add(sm_remove_connection_hook, Host,
-                       ?MODULE, user_offline, 100),
-    ejabberd_hooks:add(user_send_packet, Host,
-                       ?MODULE, user_send, 100),
-    ejabberd_hooks:add(user_sent_keep_alive, Host,
-                       ?MODULE, user_keep_alive, 100);
+    ejabberd_hooks:add(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
 terminate(_Reason, #state{host = Host}) ->
-    ejabberd_hooks:delete(sm_remove_connection_hook, Host,
-                          ?MODULE, user_offline, 100),
-    ejabberd_hooks:delete(sm_register_connection_hook, Host,
-                          ?MODULE, user_online, 100),
-    ejabberd_hooks:delete(user_send_packet, Host,
-                          ?MODULE, user_send, 100),
-    ejabberd_hooks:delete(user_sent_keep_alive, Host,
-                          ?MODULE, user_keep_alive, 100),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
     mod_disco:unregister_feature(Host, ?NS_PING).
@@ -186,6 +175,7 @@ handle_info({timeout, _TRef, {ping, JID}},
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
+    T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, Response) ->
                 TDelta = erlang:monotonic_time(millisecond) - T0,
                 NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host, Acc, [JID, Response, TDelta]),
@@ -234,9 +224,37 @@ user_keep_alive(Acc, JID) ->
     start_ping(JID#jid.lserver, JID),
     Acc.
 
+user_ping_timeout(Acc, _JID) -> % TODO is this hook really needed?
+    Acc.
+
+-spec user_ping_response(Acc :: mongoose_acc:t(),
+                         JID :: jid:jid(),
+                         Response :: timeout | jlib:iq(),
+                         TDelta :: pos_integer()) -> mongoose_acc:t().
+user_ping_response(Acc, #jid{server = Server}, Response, TDelta) ->
+    case Response of
+        timeout -> mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1);
+        _ -> mongoose_metrics:update(Server, [mod_ping, ping_response], 1)
+    end,
+    mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
+    Acc.
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
+hooks(Host) ->
+    [{sm_register_connection_hook, Host, ?MODULE, user_online, 100},
+     {sm_remove_connection_hook, Host, ?MODULE, user_offline, 100},
+     {user_send_packet, Host, ?MODULE, user_send, 100},
+     {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
+     {user_ping_timeout, Host, ?MODULE, user_ping_timeout, 100},
+     {user_ping_response, Host, ?MODULE, user_ping_response, 100}].
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response], spiral),
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_timeout], spiral),
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_time], histogram).
+
 add_timer(JID, Interval, Timers) ->
     LJID = jid:to_lower(JID),
     NewTimers = case dict:find(LJID, Timers) of

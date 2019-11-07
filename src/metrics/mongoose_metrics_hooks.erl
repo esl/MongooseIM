@@ -33,7 +33,6 @@
          privacy_iq_get/5,
          privacy_iq_set/4,
          privacy_check_packet/6,
-         user_ping_timeout/2,
          privacy_list_push/5
         ]).
 
@@ -69,8 +68,7 @@ get_hooks(Host) ->
      [privacy_iq_get,         Host, ?MODULE, privacy_iq_get, 1],
      [privacy_iq_set,         Host, ?MODULE, privacy_iq_set, 1],
      [privacy_check_packet,   Host, ?MODULE, privacy_check_packet, 55],
-     [sm_broadcast,           Host, ?MODULE, privacy_list_push, 1],
-     [user_ping_timeout,      Host, ?MODULE, user_ping_timeout, 50]
+     [sm_broadcast,           Host, ?MODULE, privacy_list_push, 1]
      | mongoose_metrics_mam_hooks:get_hooks(Host)].
 
 -spec sm_register_connection_hook(map(), tuple(), jid:jid(), term()
@@ -230,8 +228,6 @@ privacy_list_push(Acc, _From, #jid{server = Server} = _To, _Broadcast, SessionCo
     mongoose_metrics:update(Server, modPrivacyPush, SessionCount),
     Acc.
 
-user_ping_timeout(Acc, _JID) ->
-    Acc.
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                           binary(),
