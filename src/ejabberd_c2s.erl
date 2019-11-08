@@ -1738,7 +1738,7 @@ result_to_amp_event(ok) -> delivered;
 result_to_amp_event(_) -> delivery_failed.
 
 -spec send_and_maybe_buffer_stanza_no_ack(mongoose_acc:t(), packet(), state()) ->
-    {ok | any(), state()}.
+    {ok | any(), mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza_no_ack(Acc, {_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_from_server_jid_safe(Acc, State, Stanza),
     BufferedStateData = buffer_out_stanza(Packet, State),
@@ -2742,10 +2742,11 @@ flush_or_buffer_packets(Acc, State) ->
 -spec flush_csi_buffer(state()) -> state().
 flush_csi_buffer(State) ->
     Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             lserver => State#state.server}),
+                             lserver => State#state.server,
+                             element => undefined, from_jid => undefined, to_jid => undefined}),
     flush_csi_buffer(Acc, State).
 
--spec flush_csi_buffer(mongoose_acc:t() | no_acc, state()) -> state().
+-spec flush_csi_buffer(mongoose_acc:t(), state()) -> state().
 flush_csi_buffer(Acc, #state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
     F = fun({From, To, El}, {_, A, OldState}) ->
