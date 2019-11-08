@@ -1713,10 +1713,10 @@ send_trailer(StateData) ->
 -spec send_and_maybe_buffer_stanza(mongoose_acc:t(), packet(), state()) ->
     {ok | resume, mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
-    % to be removed
     StrippedStanza = mod_amp:strip_amp_el_from_request(El),
-    SendResult = maybe_send_element_from_server_jid_safe(Acc, State, StrippedStanza),
-    BufferedStateData = buffer_out_stanza({J1, J2, StrippedStanza}, State),
+    {SendResult, _, BufferedStateData} = send_and_maybe_buffer_stanza_no_ack(Acc,
+                                                                          {J1, J2, StrippedStanza},
+                                                                          State),
     mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
@@ -1736,6 +1736,14 @@ send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
 
 result_to_amp_event(ok) -> delivered;
 result_to_amp_event(_) -> delivery_failed.
+
+-spec send_and_maybe_buffer_stanza_no_ack(mongoose_acc:t(), packet(), state()) ->
+    {ok | any(), state()}.
+send_and_maybe_buffer_stanza_no_ack(Acc, {_, _, Stanza} = Packet, State) ->
+    SendResult = maybe_send_element_from_server_jid_safe(Acc, State, Stanza),
+    BufferedStateData = buffer_out_stanza(Packet, State),
+    {SendResult, Acc, BufferedStateData}.
+
 
 -spec new_id() -> binary().
 new_id() ->
@@ -2733,26 +2741,19 @@ flush_or_buffer_packets(Acc, State) ->
 
 -spec flush_csi_buffer(state()) -> state().
 flush_csi_buffer(State) ->
-    flush_csi_buffer(no_acc, State).
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             lserver => State#state.server}),
+    flush_csi_buffer(Acc, State).
 
 -spec flush_csi_buffer(mongoose_acc:t() | no_acc, state()) -> state().
 flush_csi_buffer(Acc, #state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
-    F = fun({From, To, El}, {_, MaybeAccum, OldState}) ->
-                 Accum = case MaybeAccum of
-                             no_acc ->
-                                 mongoose_acc:new(#{location => ?LOCATION,
-                                                    from_jid => From,
-                                                    to_jid => To,
-                                                    lserver => State#state.server,
-                                                    element => El });
-                             A ->
-                                 mongoose_acc:update_stanza(#{from_jid => From,
-                                                              to_jid => To,
-                                                              element => El },
-                                                            A)
-                         end,
-                send_and_maybe_buffer_stanza(Accum, {From, To, El}, OldState)
+    F = fun({From, To, El}, {_, A, OldState}) ->
+                Accum = mongoose_acc:update_stanza(#{from_jid => From,
+                                                     to_jid => To,
+                                                     element => El },
+                                                   A),
+                send_and_maybe_buffer_stanza_no_ack(Accum, {From, To, El}, OldState)
         end,
     {_, _, NewState} = lists:foldr(F, {ok, Acc, State}, BufferOut),
     NewState#state{csi_buffer = []}.
