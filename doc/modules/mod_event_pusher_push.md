@@ -11,7 +11,7 @@ Any publish error may result in disabling push notifications to this node.
 ### Options
 
 * **backend** (atom, default: `mnesia`) - Backend to use for storing the registrations.
- Currently only `mnesia` may be used.
+ Possible options are `mnesia` and `rdbms`.
 * **wpool** (list, default: `[]`) - List of options that will be passed to the `worker_pool` library that handles all the requests.
  Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
 * **plugin_module** (atom, default: `mod_event_pusher_push_plugin_defaults`) - module implementing `mod_event_pusher_push_plugin` behaviour,
