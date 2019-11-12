@@ -276,6 +276,7 @@ This is the perfect place to plug in custom security control.
 * update_inbox_for_muc
 * user_available_hook
 * user_ping_timeout
+* user_ping_response
 * user_receive_packet
 * user_send_packet
 * user_sent_keep_alive
