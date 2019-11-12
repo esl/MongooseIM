@@ -21,8 +21,8 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Backend action | Description (when it gets incremented) |
-| ---- | -------------------------------------- |
+| Backend action | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
 | `pop_messages` | histogram | Offline messages for a user are retrieved and deleted from a DB. |
 | `write_messages` | histogram | New offline messages to a user are written in a DB. |
 
