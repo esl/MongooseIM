@@ -7,6 +7,10 @@
 
 -compile(export_all).
 
+-type rpc_spec() :: #{node := node(),
+                      cookie => atom(),
+                      timeout => non_neg_integer()}.
+
 is_sm_distributed() ->
     Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
     is_sm_backend_distributed(Backend).
@@ -72,12 +76,30 @@ cluster_op_timeout() ->
     %% This timeout is deliberately a long one.
     timer:seconds(30).
 
-rpc(Node, M, F, A) ->
-    rpc(Node, M, F, A, timer:seconds(5)).
+-spec rpc(Spec, _, _, _) -> any() when
+      Spec :: rpc_spec() | node().
+rpc(Node, M, F, A) when is_atom(Node) ->
+    ct:pal("rpc/4: use RPCSpec :: #{node := Node} instead of just Node :: atom()"),
+    rpc(#{node => Node}, M, F, A);
+rpc(#{} = RPCSpec, M, F, A) ->
+    Node = maps:get(node, RPCSpec),
+    Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
+    TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
+    case escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie) of
+        {badrpc, Reason} -> error({badrpc, Reason}, [RPCSpec, M, F, A]);
+        Result -> Result
+    end.
 
+%% @deprecated Use rpc/4 instead.
+-deprecated({rpc,5}).
+-spec rpc(Spec, _, _, _, TimeOut) -> any() when
+      Spec :: rpc_spec() | node(),
+      TimeOut :: non_neg_integer().
 rpc(Node, M, F, A, TimeOut) ->
-    Cookie = ct:get_config(ejabberd_cookie),
-    escalus_rpc:call(Node, M, F, A, TimeOut, Cookie).
+    RPCSpec = #{node => Node,
+                cookie => ct:get_config(ejabberd_cookie),
+                timeout => TimeOut},
+    rpc(RPCSpec, M, F, A).
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
 %%
