@@ -7,6 +7,8 @@
 
 -compile(export_all).
 
+-deprecated({rpc,5}).
+
 -type rpc_spec() :: #{node := node(),
                       cookie => atom(),
                       timeout => non_neg_integer()}.
@@ -91,7 +93,6 @@ rpc(#{} = RPCSpec, M, F, A) ->
     end.
 
 %% @deprecated Use rpc/4 instead.
--deprecated({rpc,5}).
 -spec rpc(Spec, _, _, _, TimeOut) -> any() when
       Spec :: rpc_spec() | node(),
       TimeOut :: non_neg_integer().
