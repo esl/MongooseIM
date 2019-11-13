@@ -87,7 +87,7 @@ rpc(#{} = RPCSpec, M, F, A) ->
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
     TimeOut = maps:get(timeout, RPCSpec, timer:seconds(5)),
-    case escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie) of
+    case ct_rpc:call(Node, M, F, A, TimeOut, Cookie) of
         {badrpc, Reason} -> error({badrpc, Reason}, [RPCSpec, M, F, A]);
         Result -> Result
     end.
