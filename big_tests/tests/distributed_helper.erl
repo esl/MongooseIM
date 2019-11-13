@@ -78,6 +78,33 @@ cluster_op_timeout() ->
     %% This timeout is deliberately a long one.
     timer:seconds(30).
 
+%% @doc Perform a remote call on a target node described by `RPCSpec'.
+%%
+%% You can define the spec once for multiple calls:
+%%
+%% ```
+%% -define(dh, distributed_helper).
+%%
+%% my_test(Config) ->
+%%    Spec = #{node => ?dh:mim()},
+%%    ...
+%%    ?dh:rpc(Spec, ejabberd_sm, get_full_session_list, []),
+%%    ?dh:rpc(Spec#{timeout => timer:seconds(30),
+%%            mongoose_cluster, join, [Node1])
+%%    ...
+%% '''
+%%
+%% Or inline for a quick-and-dirty hack (but don't blame me if it doesn't pass code review):
+%%
+%% ```
+%% my_test(Config) ->
+%%    ...
+%%    ?dh:rpc(#{node => mongooseim@localhost}, ejabberd_sm, get_full_session_list, []),
+%%    %% or even use an atom, but please do NOT!
+%%    ?dh:rpc(mongooseim@localhost, ejabberd_sm, get_full_session_list, []),
+%%    ...
+%% '''
+%% @end
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec() | node().
 rpc(Node, M, F, A) when is_atom(Node) ->
