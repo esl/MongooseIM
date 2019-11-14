@@ -2,6 +2,11 @@
 
 -author('aleksander.lisiecki@erlang-solutions.com').
 
+-define(TAB_NAME, persistent_user_info).
+
+% dummy is needed as it is not possible to create a mnesia table from single filed record.
+-record(?TAB_NAME, {client_id, dummy}).
+
 -export([report/0]).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
@@ -77,9 +82,9 @@ send_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
     Request = {ReportUrl, Headers, ContentType, Body},
     httpc:request(post, Request, [], []);
 send_reports(ReportUrl, Lines) ->
-    {NewBatch, RemainigLines} = lists:split(20, Lines),
+    {NewBatch, RemainingLines} = lists:split(20, Lines),
     send_reports(ReportUrl, NewBatch),
-    send_reports(ReportUrl, RemainigLines),
+    send_reports(ReportUrl, RemainingLines),
     ok.
 
 
@@ -93,5 +98,30 @@ term_to_string(Term) ->
     lists:flatten(R).
 
 client_id() ->
-    % TODO in the later implementation store client's ID in eg mnesia table and report stats with the same ID for the same client
-    rand:uniform(1000 * 1000 * 1000 * 1000 * 1000).
+    CreateTableResult = mnesia:create_table(?TAB_NAME,
+        [
+            {type, set},
+            {record_name, ?TAB_NAME},
+            {attributes, record_info(fields, ?TAB_NAME)},
+            {disc_copies, [node() | nodes()]}
+        ]),
+    get_client_id(CreateTableResult).
+
+get_client_id({aborted, {already_exists, persistent_user_info}}) ->
+    case ets:tab2list(?TAB_NAME) of
+                [] ->
+                    new_client_id();
+                [#?TAB_NAME{client_id = ClientId}] ->
+                    ClientId
+            end;
+get_client_id({atomic, ok}) ->
+    mnesia:wait_for_tables([?TAB_NAME], 5000),
+    new_client_id().
+
+new_client_id() ->
+    ClientId = rand:uniform(1000 * 1000 * 1000 * 1000 * 1000),
+    T = fun() ->
+        mnesia:write(#?TAB_NAME{client_id = ClientId})
+    end,
+    mnesia:transaction(T),
+    ClientId.
