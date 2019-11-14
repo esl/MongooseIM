@@ -947,6 +947,18 @@ resume_session(resume, From, SD) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
+
+handle_event({add_info_handler, Tag, M, F, Extra}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, M, F, Extra, StateData0),
+    case ejabberd_c2s_info_handler:safe_call(Tag, init, M, F, Extra, StateData1) of
+        {error, _} ->
+            fsm_next_state(StateName, StateData0);
+        StateData2 ->
+            fsm_next_state(StateName, StateData2)
+    end;
+handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
+    fsm_next_state(StateName, StateData1);
 handle_event(keep_alive_packet, session_established,
              #state{server = Server, jid = JID} = StateData) ->
     mongoose_hooks:user_sent_keep_alive(Server, JID),
@@ -1135,6 +1147,21 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
+handle_incoming_message({Tag, Data} = MaybeCustomInfo, StateName, StateData) ->
+    NStateData =
+    case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
+        {M, F, HandlerState} ->
+            case ejabberd_c2s_info_handler:safe_call(Tag, Data, M, F, HandlerState, StateData) of
+                {error, _} ->
+                    StateData;
+                NStateData0 ->
+                    NStateData0
+            end;
+        _ ->
+            ?ERROR_MSG("Unexpected info: ~p", [MaybeCustomInfo]),
+            StateData
+    end,
+    fsm_next_state(StateName, NStateData);
 handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
