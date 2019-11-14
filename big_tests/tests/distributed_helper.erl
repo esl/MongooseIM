@@ -80,7 +80,7 @@ cluster_op_timeout() ->
 
 %% @doc Perform a remote call on a target node described by `RPCSpec'.
 %%
-%% You can define the spec once for multiple calls:
+%% We can define the spec once for multiple calls:
 %%
 %% ```
 %% -define(dh, distributed_helper).
@@ -94,7 +94,7 @@ cluster_op_timeout() ->
 %%    ...
 %% '''
 %%
-%% Or inline for a quick-and-dirty hack (but don't blame me if it doesn't pass code review):
+%% Or inline for a quick-and-dirty hack (but beware of code review):
 %%
 %% ```
 %% my_test(Config) ->
