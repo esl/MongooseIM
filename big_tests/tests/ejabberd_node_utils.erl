@@ -17,16 +17,16 @@
 -module(ejabberd_node_utils).
 
 -export([init/1, init/2,
-    node_cwd/2,
-    restart_application/1, restart_application/2,
-    call_fun/3, call_fun/4,
-    call_ctl/2, call_ctl/3,
-    call_ctl_with_args/3,
-    file_exists/1, file_exists/2,
-    backup_config_file/1, backup_config_file/2,
-    restore_config_file/1, restore_config_file/2,
-    modify_config_file/2, modify_config_file/4,
-    get_cwd/2]).
+         node_cwd/2,
+         restart_application/1, restart_application/2,
+         call_fun/3, call_fun/4,
+         call_ctl/2, call_ctl/3,
+         call_ctl_with_args/3,
+         file_exists/1, file_exists/2,
+         backup_config_file/1, backup_config_file/2,
+         restore_config_file/1, restore_config_file/2,
+         modify_config_file/2, modify_config_file/4,
+         get_cwd/2]).
 
 -include_lib("common_test/include/ct.hrl").
 

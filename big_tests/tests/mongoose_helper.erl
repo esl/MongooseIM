@@ -357,7 +357,7 @@ get_session_pid(User, Node) ->
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
     successful_rpc(Node, ejabberd_sm, get_session_pid,
-                            [Username, Server, Resource]).
+                   [Username, Server, Resource]).
 
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
