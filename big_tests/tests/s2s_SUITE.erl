@@ -12,6 +12,9 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+%% Module aliases
+-define(dh, distributed_helper).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -141,13 +144,12 @@ timeout_waiting_for_message(Config) ->
 
 connections_info(Config) ->
     simple_message(Config),
-    Node = ct:get_config({hosts, mim, node}),
     FedDomain = ct:get_config({hosts, fed, domain}),
-    S2SIn = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [in]),
+    S2SIn = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [in]),
     ct:pal("S2sIn: ~p", [S2SIn]),
     true = lists:any(fun(PropList) -> [FedDomain] =:= proplists:get_value(domains, PropList) end,
                      S2SIn),
-    S2SOut = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [out]),
+    S2SOut = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [out]),
     ct:pal("S2sOut: ~p", [S2SOut]),
     true = lists:any(fun(PropList) -> FedDomain =:= proplists:get_value(server, PropList) end,
                      S2SOut),

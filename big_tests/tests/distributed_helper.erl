@@ -25,8 +25,8 @@ add_node_to_cluster(Config) ->
     add_node_to_cluster(Node2, Config).
 
 add_node_to_cluster(Node, Config) ->
-    ClusterMember = mim(),
-    ok = rpc(Node, mongoose_cluster, join, [ClusterMember], cluster_op_timeout()),
+    ClusterMemberNode = maps:get(node, mim()),
+    ok = rpc(Node, mongoose_cluster, join, [ClusterMemberNode], cluster_op_timeout()),
     verify_result(Node, add),
     Config.
 
@@ -62,13 +62,13 @@ do_verify_result(Node, Op) ->
               {VerifyNode, DbNodes1, should_belong(Op)},
               {Node, DbNodes1, true},
               {VerifyNode, DbNodes2, true}],
-    Results = [case lists:member(Element, List) of
+    Results = [case lists:member(maps:get(node, CurrentNode), RunningNodes) of
                    ShouldBelong ->
                        [];
                    _ ->
                        ct:log("~p has ~p~n~p has ~p~n", [Node, DbNodes1, VerifyNode, DbNodes2]),
                        [Check]
-               end || Check = {Element, List, ShouldBelong} <- Checks],
+               end || Check = {CurrentNode, RunningNodes, ShouldBelong} <- Checks],
     lists:append(Results).
 
 should_belong(add) -> true;
