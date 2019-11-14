@@ -153,18 +153,22 @@ require_rpc_nodes(Nodes) ->
     [ {require, {hosts, Node, node}} || Node <- Nodes ].
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
+-spec mim() -> rpc_spec().
 mim() ->
-    get_or_fail({hosts, mim, node}).
+    #{node => get_or_fail({hosts, mim, node})}.
 
+-spec mim2() -> rpc_spec().
 mim2() ->
-    get_or_fail({hosts, mim2, node}).
+    #{node => get_or_fail({hosts, mim2, node})}.
 
+-spec mim3() -> rpc_spec().
 mim3() ->
-    get_or_fail({hosts, mim3, node}).
+    #{node => get_or_fail({hosts, mim3, node})}.
 
 %% @doc Shorthand for hosts->fed->node from `test.config'.
+-spec fed() -> rpc_spec().
 fed() ->
-    get_or_fail({hosts, fed, node}).
+    #{node => get_or_fail({hosts, fed, node})}.
 
 get_or_fail(Key) ->
     Val = ct:get_config(Key),
