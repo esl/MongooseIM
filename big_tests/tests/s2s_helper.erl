@@ -99,7 +99,7 @@ configure_s2s(node1_tls_optional_node2_tls_required_trusted_with_cachain, Config
     S2S = ?config(s2s_opts, Config),
     {S2SPortIPProto, Mod, Opts} = S2S#s2s_opts.node2_s2s_listener,
     CACertFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "ca", "cacert.pem"]),
+                                "tools", "ssl", "ca", "cacert.pem"]),
     NewOpts = [{cafile, CACertFile} | Opts],
     configure_s2s(S2S#s2s_opts{node2_s2s_use_starttls = required_trusted,
                                node2_s2s_listener = {S2SPortIPProto, Mod, NewOpts}

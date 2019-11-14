@@ -316,7 +316,7 @@ wait_for_user(Config, User, LeftTime) ->
     mongoose_helper:wait_until(fun() ->
                                 escalus_users:verify_creation(escalus_users:create_user(Config, User))
                                end, ok,
-							   #{
+                               #{
                                  sleep_time => 400,
                                  left_time => LeftTime,
                                  name => 'escalus_users:create_user'
