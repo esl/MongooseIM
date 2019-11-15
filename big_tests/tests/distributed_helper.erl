@@ -59,16 +59,16 @@ do_verify_result(Node, Op) ->
     DbNodes1 = rpc(Node, mnesia, system_info, [running_db_nodes]),
     DbNodes2 = rpc(VerifyNode, mnesia, system_info, [running_db_nodes]),
     Checks = [{Node, DbNodes2, should_belong(Op)},
-        {VerifyNode, DbNodes1, should_belong(Op)},
-        {Node, DbNodes1, true},
-        {VerifyNode, DbNodes2, true}],
+              {VerifyNode, DbNodes1, should_belong(Op)},
+              {Node, DbNodes1, true},
+              {VerifyNode, DbNodes2, true}],
     Results = [case lists:member(Element, List) of
-         ShouldBelong ->
-             [];
-         _ ->
-             ct:log("~p has ~p~n~p has ~p~n", [Node, DbNodes1, VerifyNode, DbNodes2]),
-             [Check]
-     end || Check = {Element, List, ShouldBelong} <- Checks],
+                   ShouldBelong ->
+                       [];
+                   _ ->
+                       ct:log("~p has ~p~n~p has ~p~n", [Node, DbNodes1, VerifyNode, DbNodes2]),
+                       [Check]
+               end || Check = {Element, List, ShouldBelong} <- Checks],
     lists:append(Results).
 
 should_belong(add) -> true;
