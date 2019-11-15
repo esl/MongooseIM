@@ -156,7 +156,7 @@ get_config({RoomU, RoomS} = RoomUS) ->
             {ok, [], Version};
         [{Version, _, _} | _] ->
             RawConfig = [{Key, Val} || {_, Key, Val} <- Result],
-            {ok, Config} = mod_muc_light_utils:process_raw_config(
+            {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
                              RawConfig, [], mod_muc_light:config_schema(RoomS)),
             {ok, Config, Version}
     end.
@@ -178,7 +178,8 @@ get_config({RoomU, RoomS} = RoomUS, Key) ->
             {error, invalid_opt};
         [{Version, _, ValDB}] ->
             RawConfig = [{KeyDB, ValDB}],
-            {ok, [{_, Val}]} = mod_muc_light_utils:process_raw_config(RawConfig, [], ConfigSchema),
+            {ok, [{_, Val}]} = mod_muc_light_room_config:apply_binary_kv(
+                                 RawConfig, [], ConfigSchema),
             {ok, Val, Version}
     end.
 
@@ -283,7 +284,7 @@ get_info({RoomU, RoomS} = RoomUS) ->
 
             {selected, ConfigDB} = mongoose_rdbms:sql_query(
                                         MainHost, mod_muc_light_db_rdbms_sql:select_config(RoomID)),
-            {ok, Config} = mod_muc_light_utils:process_raw_config(
+            {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
             {ok, Config, lists:sort(AffUsers), Version};
