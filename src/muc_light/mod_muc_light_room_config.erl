@@ -25,43 +25,50 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([make_config_schema/1, make_default_config/2]).
--export([process_raw_config/3, config_to_raw/2]).
+-export([schema_from_definition/1, default_from_definition/2]).
+-export([apply_binary_kv/3, to_binary_kv/2]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
--type schema_value_type() :: binary | integer | float.
--type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
-                        ValueType :: schema_value_type()}.
+-export_type([schema/0, binary_kv/0, kv/0]).
+
+%% Config primitives
+-type key() :: atom().
+-type value() :: binary() | integer() | float().
+-type value_type() :: binary | integer | float.
+-type form_field_name() :: binary().
+
+%% Schema
+-type schema_item() :: {form_field_name(), key(), value_type()}.
 -type schema() :: [schema_item()].
 
--type config_item() :: {Key :: atom(), Value :: term()}.
--type config() :: [config_item()].
--type raw_config() :: [{Key :: binary(), Value :: binary()}].
+%% Actual config
+-type item() :: {key(), value()}.
+-type kv() :: [item()].
+-type binary_kv() :: [{Key :: binary(), Value :: binary()}].
 
+%% User definition processing
 -type user_defined_schema_item() :: FieldName :: string()
-                                    | {FieldName :: string(), FieldName :: schema_value_type()}
+                                    | {FieldName :: string(), FieldName :: value_type()}
                                     | schema_item().
 -type user_defined_schema() :: [user_defined_schema_item()].
 
 -type user_config_defaults_item() :: {FieldName :: string(), FieldValue :: term()}.
 -type user_config_defaults() :: [user_config_defaults_item()].
 
--export_type([schema/0, raw_config/0, config/0]).
-
 %%====================================================================
 %% API
 %%====================================================================
 
--spec make_config_schema(UserDefinedSchema :: user_defined_schema()) -> schema().
-make_config_schema(UserDefinedSchema) ->
+-spec schema_from_definition(UserDefinedSchema :: user_defined_schema()) -> schema().
+schema_from_definition(UserDefinedSchema) ->
     lists:map(fun expand_config_schema_field/1, UserDefinedSchema).
 
--spec make_default_config(UserConfigDefaults :: user_config_defaults(),
-                         ConfigSchema :: schema()) -> config().
-make_default_config(UserConfigDefaults, ConfigSchema) ->
+-spec default_from_definition(UserConfigDefaults :: user_config_defaults(),
+                         ConfigSchema :: schema()) -> kv().
+default_from_definition(UserConfigDefaults, ConfigSchema) ->
     DefaultConfigCandidate = lists:map(fun process_config_field/1, UserConfigDefaults),
     lists:foreach(fun({Key, Value}) ->
                           try
@@ -74,26 +81,24 @@ make_default_config(UserConfigDefaults, ConfigSchema) ->
     DefaultConfigCandidate.
 
 %% Guarantees that config will have unique fields
--spec process_raw_config(
-        RawConfig :: raw_config(), Config :: config(), ConfigSchema :: schema()) ->
-    {ok, config()} | validation_error().
-process_raw_config([], Config, _ConfigSchema) ->
+-spec apply_binary_kv(RawConfig :: binary_kv(), Config :: kv(), ConfigSchema :: schema()) ->
+    {ok, kv()} | validation_error().
+apply_binary_kv([], Config, _ConfigSchema) ->
     {ok, Config};
-process_raw_config([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
+apply_binary_kv([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
     case process_raw_config_opt(KeyBin, ValBin, ConfigSchema) of
         {ok, Key, Val} ->
-            process_raw_config(
-              RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}), ConfigSchema);
+            apply_binary_kv(RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}), ConfigSchema);
         Error ->
             Error
     end.
 
--spec config_to_raw(Config :: config(), ConfigSchema :: schema()) -> raw_config().
-config_to_raw([], _ConfigSchema) ->
+-spec to_binary_kv(Config :: kv(), ConfigSchema :: schema()) -> binary_kv().
+to_binary_kv([], _ConfigSchema) ->
     [];
-config_to_raw([{Key, Val} | RConfig], ConfigSchema) ->
+to_binary_kv([{Key, Val} | RConfig], ConfigSchema) ->
     {KeyBin, _, ValType} = lists:keyfind(Key, 2, ConfigSchema),
-    [{KeyBin, value2b(Val, ValType)} | config_to_raw(RConfig, ConfigSchema)].
+    [{KeyBin, value2b(Val, ValType)} | to_binary_kv(RConfig, ConfigSchema)].
 
 %%====================================================================
 %% Internal functions
@@ -111,7 +116,7 @@ expand_config_schema_field({FieldNameBin, FieldName, Type} = SchemaItem)
 expand_config_schema_field(Name) ->
     {list_to_binary(Name), list_to_atom(Name), binary}.
 
--spec process_config_field(UserConfigDefaultsItem :: user_config_defaults_item()) -> config_item().
+-spec process_config_field(UserConfigDefaultsItem :: user_config_defaults_item()) -> item().
 process_config_field({Key, Value}) when is_list(Value) ->
     process_config_field({Key, list_to_binary(Value)});
 process_config_field({Key, Value}) ->
@@ -126,18 +131,18 @@ process_raw_config_opt(KeyBin, ValBin, ConfigSchema) ->
         _ -> {error, {KeyBin, unknown}}
     end.
 
--spec is_valid_config_type(Type :: schema_value_type() | atom()) -> boolean().
+-spec is_valid_config_type(Type :: value_type() | term()) -> boolean().
 is_valid_config_type(binary) -> true;
 is_valid_config_type(integer) -> true;
 is_valid_config_type(float) -> true;
 is_valid_config_type(_) -> false.
 
--spec b2value(ValBin :: binary(), Type :: schema_value_type()) -> Converted :: any().
+-spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
 b2value(ValBin, binary) -> ValBin;
 b2value(ValBin, integer) -> binary_to_integer(ValBin);
 b2value(ValBin, float) -> binary_to_float(ValBin).
 
--spec value2b(Val :: any(), Type :: schema_value_type()) -> Converted :: binary().
+-spec value2b(Val :: value(), Type :: value_type()) -> Converted :: binary().
 value2b(Val, binary) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
 value2b(Val, float) -> float_to_binary(Val).

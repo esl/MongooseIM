@@ -63,7 +63,7 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: mod_muc_light_room_config:raw_config()
+          raw_config = [] :: mod_muc_light_room_config:binary_kv()
          }).
 
 -type config_req_props() :: #config{}.
@@ -81,7 +81,7 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: mod_muc_light_room_config:raw_config(),
+          raw_config = [] :: mod_muc_light_room_config:binary_kv(),
           aff_users = [] :: aff_users()
          }).
 
@@ -95,7 +95,7 @@
 -record(create, {
           id = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: mod_muc_light_room_config:raw_config(),
+          raw_config = [] :: mod_muc_light_room_config:binary_kv(),
           aff_users = [] :: aff_users()
          }).
 

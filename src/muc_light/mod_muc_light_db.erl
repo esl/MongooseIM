@@ -31,7 +31,7 @@
 
 %% ------------------------ General room management ------------------------
 
--callback create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:config(),
+-callback create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                       AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 
@@ -53,12 +53,12 @@
 %% ------------------------ Configuration manipulation ------------------------
 
 -callback get_config(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, mod_muc_light_room_config:config(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:kv(), Version :: binary()} | {error, not_exists}.
 
 -callback get_config(RoomUS :: jid:simple_bare_jid(), Key :: atom()) ->
     {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
 
--callback set_config(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:config(),
+-callback set_config(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                      Version :: binary()) -> {ok, PrevVersion :: binary()} | {error, not_exists}.
 
 -callback set_config(RoomUS :: jid:simple_bare_jid(), Key :: atom(),
@@ -93,7 +93,7 @@
 %% ------------------------ Getting room configuration ------------------------
 
 -callback get_info(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, mod_muc_light_room_config:config(), aff_users(), Version :: binary()}
+    {ok, mod_muc_light_room_config:kv(), aff_users(), Version :: binary()}
     | {error, not_exists}.
 
 %% ------------------------ API for tests ------------------------

@@ -1107,10 +1107,10 @@ set_default_mod_config() ->
 
 -spec set_custom_config(RawSchema :: list(), RawDefaultConfig :: list()) -> true.
 set_custom_config(RawSchema, RawDefaultConfig) ->
-    ConfigSchema = rpc(mod_muc_light_room_config, make_config_schema, [RawSchema]),
+    ConfigSchema = rpc(mod_muc_light_room_config, schema_from_definition, [RawSchema]),
     _ = hd(ConfigSchema), %% checks if is a list
 
-    DefaultConfig = rpc(mod_muc_light_room_config, make_default_config,
+    DefaultConfig = rpc(mod_muc_light_room_config, default_from_definition,
                         [RawDefaultConfig, ConfigSchema]),
     _ = hd(DefaultConfig), %% checks if is a list
 
