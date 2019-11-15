@@ -241,7 +241,7 @@ successful_rpc(#{} = Spec, Module, Function, Args, Timeout) ->
     end.
 
 logout_user(Config, User) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     logout_user(Config, User, Node).
 
 %% This function is a version of escalus_client:stop/2
