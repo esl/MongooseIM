@@ -16,15 +16,6 @@
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
 
--type schema_value_type() :: binary | integer | float.
--type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
-                        ValueType :: schema_value_type()}.
--type config_schema() :: [schema_item()].
-
--type config_item() :: {Key :: atom(), Value :: term()}.
--type config() :: [config_item()].
--type raw_config() :: [{Key :: binary(), Value :: binary()}].
-
 -type aff() :: owner | member | none.
 -type aff_user() :: {jid:simple_bare_jid(), aff()}.
 -type aff_users() :: [aff_user()].
@@ -72,7 +63,7 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: raw_config()
+          raw_config = [] :: mod_muc_light_room_config:raw_config()
          }).
 
 -type config_req_props() :: #config{}.
@@ -90,7 +81,7 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: raw_config(),
+          raw_config = [] :: mod_muc_light_room_config:raw_config(),
           aff_users = [] :: aff_users()
          }).
 
@@ -104,7 +95,7 @@
 -record(create, {
           id = <<>> :: binary(),
           version = <<>> :: binary(),
-          raw_config = [] :: raw_config(),
+          raw_config = [] :: mod_muc_light_room_config:raw_config(),
           aff_users = [] :: aff_users()
          }).
 

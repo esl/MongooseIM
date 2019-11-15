@@ -97,11 +97,11 @@ standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 default_host() ->
     <<"muclight.@HOST@">>.
 
--spec default_config(MUCServer :: jid:lserver()) -> config().
+-spec default_config(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:config().
 default_config(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, default_config, []).
 
--spec config_schema(MUCServer :: jid:lserver()) -> config_schema().
+-spec config_schema(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:schema().
 config_schema(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
 
@@ -119,7 +119,7 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
                         CreatorUS, RoomUS, CreationCfg#create.aff_users),
     MaxOccupants = gen_mod:get_module_opt_by_subhost(
                      RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
-    case {mod_muc_light_utils:process_raw_config(
+    case {mod_muc_light_room_config:process_raw_config(
             RawConfig, default_config(RoomS), config_schema(RoomS)),
           process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
@@ -194,12 +194,12 @@ start(Host, Opts) ->
     ejabberd_router:register_route(MUCHost, mongoose_packet_handler:new(?MODULE)),
 
     %% Prepare config schema
-    ConfigSchema = mod_muc_light_utils:make_config_schema(
+    ConfigSchema = mod_muc_light_room_config:make_config_schema(
                      gen_mod:get_opt(config_schema, Opts, standard_config_schema())),
     gen_mod:set_module_opt(Host, ?MODULE, config_schema, ConfigSchema),
 
     %% Prepare default config
-    DefaultConfig = mod_muc_light_utils:make_default_config(
+    DefaultConfig = mod_muc_light_room_config:make_default_config(
                       gen_mod:get_opt(default_config, Opts, standard_default_config()),
                       ConfigSchema),
     gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),

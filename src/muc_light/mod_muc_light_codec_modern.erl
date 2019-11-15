@@ -205,12 +205,13 @@ decode_iq(_, _) ->
 
 %% ------------------ Parsers ------------------
 
--spec parse_config(Els :: [jlib:xmlch()]) -> {ok, raw_config()} | {error, bad_request}.
+-spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:raw_config()}
+                                             | {error, bad_request}.
 parse_config(Els) ->
     parse_config(Els, []).
 
--spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: raw_config()) ->
-    {ok, raw_config()} | {error, bad_request}.
+-spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:raw_config()) ->
+    {ok, mod_muc_light_room_config:raw_config()} | {error, bad_request}.
 parse_config([], ConfigAcc) ->
     {ok, ConfigAcc};
 parse_config([#xmlel{ name = <<"version">> } | _], _) ->

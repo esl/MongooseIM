@@ -107,7 +107,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
 -spec decode_message_by_type(Type :: {binary(), binary()} | false,
                              Id :: {binary(), binary()} | false,
                              Children :: [jlib:xmlch()]) ->
-    {ok, msg() | {set, config()}} | {error, bad_request} | ignore.
+    {ok, msg() | {set, mod_muc_light_room_config:config()}} | {error, bad_request} | ignore.
 decode_message_by_type({_, <<"groupchat">>}, _, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
 decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
@@ -180,11 +180,12 @@ decode_iq(_From, #iq{} = IQ) ->
 
 %% ------------------ Parsers ------------------
 
--spec parse_config(Els :: [jlib:xmlch()]) -> {ok, raw_config()}.
+-spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:raw_config()}.
 parse_config(Els) ->
     parse_config(Els, []).
 
--spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: raw_config()) -> {ok, raw_config()}.
+-spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:raw_config()) ->
+    {ok, mod_muc_light_room_config:raw_config()}.
 parse_config([], ConfigAcc) ->
     {ok, ConfigAcc};
 parse_config([Field | REls], ConfigAcc) ->

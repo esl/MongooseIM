@@ -96,7 +96,7 @@ stop(_Host, _MUCHost) ->
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: config(),
+-spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:config(),
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room(RoomUS, Config, AffUsers, Version) ->
@@ -136,7 +136,7 @@ remove_user(UserUS, Version) ->
 %% ------------------------ Configuration manipulation ------------------------
 
 -spec get_config(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:config(), Version :: binary()} | {error, not_exists}.
 get_config(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
@@ -156,7 +156,9 @@ get_config(RoomUS, Option) ->
             Error
     end.
 
--spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: config(), Version :: binary()) ->
+-spec set_config(RoomUS :: jid:simple_bare_jid(),
+                 Config :: mod_muc_light_room_config:config(),
+                 Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomUS, ConfigChanges, Version) ->
     {atomic, Res} = mnesia:transaction(fun set_config_transaction/3,
@@ -226,7 +228,8 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
 %% ------------------------ Misc ------------------------
 
 -spec get_info(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:config(), aff_users(), Version :: binary()}
+    | {error, not_exists}.
 get_info(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] ->
@@ -284,7 +287,8 @@ create_table(Name, TabDef) ->
 
 %% Expects config to have unique fields!
 -spec create_room_transaction(RoomUS :: jid:simple_bare_jid(),
-                              Config :: config(), AffUsers :: aff_users(),
+                              Config :: mod_muc_light_room_config:config(),
+                              AffUsers :: aff_users(),
                               Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({<<>>, Domain}, Config, AffUsers, Version) ->
@@ -344,7 +348,7 @@ remove_user_transaction(UserUS, Version) ->
 
 %% Expects config changes to have unique fields!
 -spec set_config_transaction(RoomUS :: jid:simple_bare_jid(),
-                             ConfigChanges :: config(),
+                             ConfigChanges :: mod_muc_light_room_config:config(),
                              Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config_transaction(RoomUS, ConfigChanges, Version) ->

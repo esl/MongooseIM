@@ -35,13 +35,13 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    application:ensure_all_started(stringprep),
     Config.
 
 end_per_suite(Config) ->
     Config.
 
 init_per_group(rsm_disco, Config) ->
-    application:start(stringprep),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -52,7 +52,6 @@ end_per_group(_, Config) ->
 init_per_testcase(codec_calls, Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    {ok, _} = application:ensure_all_started(stringprep),
     {ok, _} = application:ensure_all_started(exometer_core),
     ets:new(local_config, [named_table]),
     ejabberd_hooks:start_link(),

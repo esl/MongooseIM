@@ -82,7 +82,7 @@ stop(_Host, _MUCHost) ->
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: config(),
+-spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:config(),
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room(RoomUS, Config, AffUsers, Version) ->
@@ -142,7 +142,7 @@ remove_user({_, UserS} = UserUS, Version) ->
 %% ------------------------ Configuration manipulation ------------------------
 
 -spec get_config(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:config(), Version :: binary()} | {error, not_exists}.
 get_config({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
 
@@ -183,7 +183,8 @@ get_config({RoomU, RoomS} = RoomUS, Key) ->
     end.
 
 
--spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: config(), Version :: binary()) ->
+-spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:config(),
+                 Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
@@ -269,7 +270,8 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
 %% ------------------------ Misc ------------------------
 
 -spec get_info(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:config(), aff_users(), Version :: binary()}
+    | {error, not_exists}.
 get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     case mongoose_rdbms:sql_query(
@@ -331,7 +333,8 @@ force_clear() ->
 
 %% Expects config to have unique fields!
 -spec create_room_transaction(RoomUS :: jid:simple_bare_jid(),
-                              Config :: config(), AffUsers :: aff_users(),
+                              Config :: mod_muc_light_room_config:config(),
+                              AffUsers :: aff_users(),
                               Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
@@ -376,7 +379,8 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
               fun({Key, Val}) ->
                       {updated, _} = mongoose_rdbms:sql_query_t(
                                        mod_muc_light_db_rdbms_sql:insert_config(RoomID, Key, Val))
-              end, mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS))),
+              end, mod_muc_light_room_config:config_to_raw(
+                     Config, mod_muc_light:config_schema(RoomS))),
             {ok, {RoomU, RoomS}}
     end.
 
@@ -410,7 +414,7 @@ remove_user_transaction({UserU, UserS} = UserUS, Version) ->
 %% ------------------------ Configuration manipulation ------------------------
 
 -spec set_config_transaction(RoomUS :: jid:simple_bare_jid(),
-                             ConfigChanges :: config(),
+                             ConfigChanges :: mod_muc_light_room_config:config(),
                              Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
@@ -425,7 +429,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
                       {updated, _}
                       = mongoose_rdbms:sql_query(
                           MainHost, mod_muc_light_db_rdbms_sql:update_config(RoomID, Key, Val))
-              end, mod_muc_light_utils:config_to_raw(
+              end, mod_muc_light_room_config:config_to_raw(
                      ConfigChanges, mod_muc_light:config_schema(RoomS))),
             {ok, PrevVersion};
         {selected, []} ->
