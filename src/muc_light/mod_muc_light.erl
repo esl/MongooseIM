@@ -54,7 +54,7 @@
 -behaviour(mongoose_packet_handler).
 
 %% API
--export([standard_config_schema/0, standard_default_config/0, default_host/0]).
+-export([default_schema_definition/0, default_host/0]).
 -export([config_schema/1, default_config/1]).
 
 %% For Administration API
@@ -87,11 +87,10 @@
 %% API
 %%====================================================================
 
--spec standard_config_schema() -> [Field :: string()].
-standard_config_schema() -> ["roomname", "subject"].
-
--spec standard_default_config() -> [{K :: string(), V :: string()}].
-standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
+-spec default_schema_definition() -> mod_muc_light_room_config:user_defined_schema().
+default_schema_definition() ->
+    [{"roomname", "Untitled"},
+     {"subject", ""}].
 
 -spec default_host() -> binary().
 default_host() ->
@@ -195,13 +194,11 @@ start(Host, Opts) ->
 
     %% Prepare config schema
     ConfigSchema = mod_muc_light_room_config:schema_from_definition(
-                     gen_mod:get_opt(config_schema, Opts, standard_config_schema())),
+                     gen_mod:get_opt(config_schema, Opts, default_schema_definition())),
     gen_mod:set_module_opt(Host, ?MODULE, config_schema, ConfigSchema),
 
     %% Prepare default config
-    DefaultConfig = mod_muc_light_room_config:default_from_definition(
-                      gen_mod:get_opt(default_config, Opts, standard_default_config()),
-                      ConfigSchema),
+    DefaultConfig = mod_muc_light_room_config:default_from_schema(ConfigSchema),
     gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),
 
     ok.

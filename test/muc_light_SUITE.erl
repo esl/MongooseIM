@@ -18,7 +18,8 @@ all() ->
     [
      {group, aff_changes},
      {group, rsm_disco},
-     {group, codec}
+     {group, codec},
+     {group, configuration}
     ].
 
 groups() ->
@@ -31,7 +32,15 @@ groups() ->
                               rsm_disco_success,
                               rsm_disco_item_not_found
                              ]},
-        {codec, [sequence], [codec_calls]}
+     {codec, [sequence], [codec_calls]},
+     {configuration, [parallel], [
+                                  simple_config_items_are_parsed,
+                                  full_config_items_are_parsed,
+                                  invalid_binary_default_value_is_rejected,
+                                  invalid_integer_default_value_is_rejected,
+                                  invalid_float_default_value_is_rejected,
+                                  unicode_config_fields_are_supported
+                                 ]}
     ].
 
 init_per_suite(Config) ->
@@ -81,17 +90,23 @@ end_per_testcase(_, Config) ->
 %% Test cases
 %% ------------------------------------------------------------------
 
+%% ----------------- Aff changes ----------------------
+
 aff_change_success(_Config) ->
     ?assert(proper:quickcheck(prop_aff_change_success())).
 
 aff_change_bad_request(_Config) ->
     ?assert(proper:quickcheck(prop_aff_change_bad_request())).
 
+%% ----------------- RSM disco ----------------------
+
 rsm_disco_success(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_success())).
 
 rsm_disco_item_not_found(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_item_not_found())).
+
+%% ----------------- Codecs ----------------------
 
 %% @doc This is a regression test for a bug that was fixed in #01506f5a
 %% Basically it makes sure that codes have a proper setup of hook calls
@@ -130,6 +145,64 @@ codec_calls(_Config) ->
     % 1 filter, 1 msg to 2 users
     check_count(1, 2),
     ok.
+
+%% ----------------- Room config schema ----------------------
+
+simple_config_items_are_parsed(_Config) ->
+    Definition = [
+                  {"roomname", "TARDIS"},
+                  {"subject", "Time Travel"},
+                  {"incarnation", "13"},
+                  {"spoilers", "false"}
+                 ],
+    ExpectedSchema = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary}, roomname => <<"roomname">>,
+      <<"subject">> => {<<"Time Travel">>, subject, binary}, subject => <<"subject">>,
+      <<"incarnation">> => {<<"13">>, incarnation, binary}, incarnation => <<"incarnation">>,
+      <<"spoilers">> => {<<"false">>, spoilers, binary}, spoilers => <<"spoilers">>
+     },
+    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
+
+full_config_items_are_parsed(_Config) ->
+    Definition = [
+                  {"roomname", "TARDIS", roomname, binary},
+                  {"subject", "Time Travel", subject, binary},
+                  {"incarnation", 13, incarnation, integer},
+                  {"height", 1.67, height, float}
+                 ],
+    ExpectedSchema = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary}, roomname => <<"roomname">>,
+      <<"subject">> => {<<"Time Travel">>, subject, binary}, subject => <<"subject">>,
+      <<"incarnation">> => {13, incarnation, integer}, incarnation => <<"incarnation">>,
+      <<"height">> => {1.67, height, float}, height => <<"height">>
+     },
+    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
+
+invalid_binary_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"roomname", 12345}])),
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"roomname", 12345,
+                                                                       roomname, binary}])).
+
+invalid_integer_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"incarnation", 123.45,
+                                                                       incarnation, integer}])).
+
+invalid_float_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"height", 12345,
+                                                                       height, float}])).
+
+unicode_config_fields_are_supported(_Config) ->
+    Definition = [{"zażółćgęśląjaźń", "gżegżółka"},
+                  {"Рентгеноэлектрокардиографический", 42,
+                   'Рентгеноэлектрокардиографический', integer}],
+    ExpectedSchema = #{
+      <<"zażółćgęśląjaźń"/utf8>> => {<<"gżegżółka"/utf8>>, 'zażółćgęśląjaźń', binary},
+      'zażółćgęśląjaźń' => <<"zażółćgęśląjaźń"/utf8>>,
+      <<"Рентгеноэлектрокардиографический"/utf8>> =>
+            {42, 'Рентгеноэлектрокардиографический', integer},
+      'Рентгеноэлектрокардиографический' => <<"Рентгеноэлектрокардиографический"/utf8>>
+     },
+    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
 
 %% ------------------------------------------------------------------
 %% Properties and validators

@@ -25,14 +25,14 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([schema_from_definition/1, default_from_definition/2]).
+-export([schema_from_definition/1, default_from_schema/1]).
 -export([apply_binary_kv/3, to_binary_kv/2]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
--export_type([schema/0, binary_kv/0, kv/0]).
+-export_type([schema/0, binary_kv/0, kv/0, user_defined_schema/0]).
 
 %% Config primitives
 -type key() :: atom().
@@ -41,8 +41,11 @@
 -type form_field_name() :: binary().
 
 %% Schema
--type schema_item() :: {form_field_name(), key(), value_type()}.
--type schema() :: [schema_item()].
+-type schema_item() :: {Default :: value(), key(), value_type()}.
+-type schema() :: #{
+        form_field_name() => schema_item(),
+        key() => form_field_name()
+       }.
 
 %% Actual config
 -type item() :: {key(), value()}.
@@ -50,13 +53,10 @@
 -type binary_kv() :: [{Key :: binary(), Value :: binary()}].
 
 %% User definition processing
--type user_defined_schema_item() :: FieldName :: string()
-                                    | {FieldName :: string(), FieldName :: value_type()}
-                                    | schema_item().
+-type user_defined_schema_item() :: {FieldName :: string(), DefaultValue :: string()}
+                                    | {FieldName :: string(), DefaultValue :: value() | string(),
+                                       key(), value_type()}.
 -type user_defined_schema() :: [user_defined_schema_item()].
-
--type user_config_defaults_item() :: {FieldName :: string(), FieldValue :: term()}.
--type user_config_defaults() :: [user_config_defaults_item()].
 
 %%====================================================================
 %% API
@@ -64,21 +64,13 @@
 
 -spec schema_from_definition(UserDefinedSchema :: user_defined_schema()) -> schema().
 schema_from_definition(UserDefinedSchema) ->
-    lists:map(fun expand_config_schema_field/1, UserDefinedSchema).
+    lists:foldl(fun add_config_schema_field/2, #{}, UserDefinedSchema).
 
--spec default_from_definition(UserConfigDefaults :: user_config_defaults(),
-                         ConfigSchema :: schema()) -> kv().
-default_from_definition(UserConfigDefaults, ConfigSchema) ->
-    DefaultConfigCandidate = lists:map(fun process_config_field/1, UserConfigDefaults),
-    lists:foreach(fun({Key, Value}) ->
-                          try
-                              {_, _, ValueType} = lists:keyfind(Key, 2, ConfigSchema),
-                              value2b(Value, ValueType)
-                          catch
-                              _:Error -> error({invalid_default_config, Key, Value, Error})
-                          end
-                  end, DefaultConfigCandidate),
-    DefaultConfigCandidate.
+-spec default_from_schema(ConfigSchema :: schema()) -> kv().
+default_from_schema(ConfigSchema) ->
+    lists:foldl(fun({DefaultValue, Key, _}, Acc) -> [{Key, DefaultValue} | Acc];
+                   (_, Acc) -> Acc
+                end, [], maps:values(ConfigSchema)).
 
 %% Guarantees that config will have unique fields
 -spec apply_binary_kv(RawConfig :: binary_kv(), Config :: kv(), ConfigSchema :: schema()) ->
@@ -86,7 +78,7 @@ default_from_definition(UserConfigDefaults, ConfigSchema) ->
 apply_binary_kv([], Config, _ConfigSchema) ->
     {ok, Config};
 apply_binary_kv([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
-    case process_raw_config_opt(KeyBin, ValBin, ConfigSchema) of
+    case from_kv_tuple(KeyBin, ValBin, ConfigSchema) of
         {ok, Key, Val} ->
             apply_binary_kv(RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}), ConfigSchema);
         Error ->
@@ -97,37 +89,37 @@ apply_binary_kv([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
 to_binary_kv([], _ConfigSchema) ->
     [];
 to_binary_kv([{Key, Val} | RConfig], ConfigSchema) ->
-    {KeyBin, _, ValType} = lists:keyfind(Key, 2, ConfigSchema),
+    KeyBin = maps:get(Key, ConfigSchema),
+    {_Def, _Key, ValType} = maps:get(KeyBin, ConfigSchema),
     [{KeyBin, value2b(Val, ValType)} | to_binary_kv(RConfig, ConfigSchema)].
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec expand_config_schema_field(UserDefinedSchemaItem :: user_defined_schema_item()) ->
-    schema_item().
-expand_config_schema_field({FieldName, Type}) ->
-    {_, true} = {FieldName, is_valid_config_type(Type)},
-    {list_to_binary(FieldName), list_to_atom(FieldName), Type};
-expand_config_schema_field({FieldNameBin, FieldName, Type} = SchemaItem)
-  when is_binary(FieldNameBin) andalso is_atom(FieldName) ->
-    {_, true} = {FieldName, is_valid_config_type(Type)},
-    SchemaItem;
-expand_config_schema_field(Name) ->
-    {list_to_binary(Name), list_to_atom(Name), binary}.
+-spec add_config_schema_field(UserDefinedSchemaItem :: user_defined_schema_item(),
+                              SchemaAcc :: schema()) ->
+    schema().
+add_config_schema_field({FieldName, DefaultValue}, SchemaAcc) ->
+    add_config_schema_field({FieldName, DefaultValue, list_to_atom(FieldName), binary}, SchemaAcc);
+add_config_schema_field({FieldName, DefaultValue, Key, ValueType} = Definition, SchemaAcc) ->
+    case is_list(FieldName) andalso
+         is_valid_config_type(ValueType) andalso
+         has_valid_type(DefaultValue, ValueType) andalso
+         is_atom(Key) of
+        true ->
+            FieldNameBin = unicode:characters_to_binary(FieldName),
+            SchemaAcc#{ FieldNameBin => {normalize_value(DefaultValue, ValueType), Key, ValueType},
+                        Key => FieldNameBin };
+        false ->
+            error({invalid_schema_definition, Definition})
+    end.
 
--spec process_config_field(UserConfigDefaultsItem :: user_config_defaults_item()) -> item().
-process_config_field({Key, Value}) when is_list(Value) ->
-    process_config_field({Key, list_to_binary(Value)});
-process_config_field({Key, Value}) ->
-    {list_to_atom(Key), Value}.
-
--spec process_raw_config_opt(
-        KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: schema()) ->
+-spec from_kv_tuple(KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: schema()) ->
     {ok, Key :: atom(), Val :: any()} | validation_error().
-process_raw_config_opt(KeyBin, ValBin, ConfigSchema) ->
-    case lists:keyfind(KeyBin, 1, ConfigSchema) of
-        {_, Key, Type} -> {ok, Key, b2value(ValBin, Type)};
+from_kv_tuple(KeyBin, ValBin, ConfigSchema) ->
+    case ConfigSchema of
+        #{ KeyBin := {_Def, Key, Type} } -> {ok, Key, b2value(ValBin, Type)};
         _ -> {error, {KeyBin, unknown}}
     end.
 
@@ -136,6 +128,15 @@ is_valid_config_type(binary) -> true;
 is_valid_config_type(integer) -> true;
 is_valid_config_type(float) -> true;
 is_valid_config_type(_) -> false.
+
+-spec has_valid_type(Value :: value() | string() | term(), value_type()) -> boolean().
+has_valid_type(Val, binary) -> is_binary(Val) or is_list(Val);
+has_valid_type(Val, integer) -> is_integer(Val);
+has_valid_type(Val, float) -> is_float(Val).
+
+-spec normalize_value(Value :: value() | string(), value_type()) -> value().
+normalize_value(Val, binary) when is_list(Val) -> unicode:characters_to_binary(Val);
+normalize_value(Val, _) -> Val.
 
 -spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
 b2value(ValBin, binary) -> ValBin;

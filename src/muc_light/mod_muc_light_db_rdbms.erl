@@ -165,8 +165,7 @@ get_config({RoomU, RoomS} = RoomUS) ->
     {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
 get_config({RoomU, RoomS} = RoomUS, Key) ->
     MainHost = main_host(RoomUS),
-    ConfigSchema = mod_muc_light:config_schema(RoomS),
-    {KeyDB, _, _} = lists:keyfind(Key, 2, ConfigSchema),
+    #{ Key := KeyDB } = ConfigSchema = mod_muc_light:config_schema(RoomS),
 
     SQL = mod_muc_light_db_rdbms_sql:select_config(RoomU, RoomS, KeyDB),
     {selected, Result} = mongoose_rdbms:sql_query(MainHost, SQL),
