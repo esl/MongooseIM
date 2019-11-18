@@ -7,6 +7,7 @@
 %%% MongooseIM, Copyright (C) 2015      Erlang Solutions Ltd.
 %%%
 %%%----------------------------------------------------------------------
+
 %%% @doc Riak backend for last activity XEP
 %%%
 %%% The backend uses the existing riak connection pool, which is "globally" defined in
@@ -14,12 +15,14 @@
 %%% function.
 %%%
 %%% The module follows the approach taken by the other riak backends - it creates
-%%% the following bucket {<<"offline">>, <<"example.com">>} for each xmpp domain.
+%%% the following bucket `{<<"offline">>, <<"example.com">>}' for each xmpp domain.
 %%%
+%%% ```
 %%% Data Layout:
 %%% KV: {Username_and_timestamp:binary, Status:binary}
 %%% 2i: [Username:binary, Timestamp:integer]
-%%%
+%%% '''
+%%% @end
 -module(mod_offline_riak).
 
 -behaviour(mod_offline).

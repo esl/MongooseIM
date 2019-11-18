@@ -1,15 +1,13 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
 %%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% @doc
-%%%
-%%% @end
 %%% Created : 05. Jul 2016 12:59
 %%%-------------------------------------------------------------------
+
 %% @doc MongooseIM REST HTTP API for administration.
 %% This module implements cowboy REST callbacks and
 %% passes the requests on to the http api backend module.
-
+%% @end
 -module(mongoose_api_admin).
 -author("ludwikbukowski").
 -behaviour(cowboy_rest).

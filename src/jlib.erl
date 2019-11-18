@@ -793,7 +793,7 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     NCh = [Spec | Er#xmlel.children],
     Er#xmlel{children = NCh}.
 
-%% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
+%% TODO: remove `code' attribute (currently it used for backward-compatibility)
 
 -spec stanza_error( Code :: binary()
                  , Type :: binary()

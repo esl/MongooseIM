@@ -3371,7 +3371,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     IsNameAccepted and IsDescAccepted.
 
 %% @doc Return false if:
-%% <<"the password for a password-protected room is blank">>
+%% `<<"the password for a password-protected room is blank">>'
 -spec is_password_settings_correct(exml:element(), state()) -> boolean().
 is_password_settings_correct(XEl, StateData) ->
     Config = StateData#state.config,

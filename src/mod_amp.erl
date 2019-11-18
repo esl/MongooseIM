@@ -1,8 +1,5 @@
 -module(mod_amp).
 %% @doc MongooseIM/Ejabberd module for (a subset of) XEP-0079 support.
-%% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
-%% @author <mongooseim@erlang-solutions.com>
-%% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
 -behavior(gen_mod).

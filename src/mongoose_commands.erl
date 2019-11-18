@@ -62,7 +62,8 @@
 %% A command's definition includes specification of it arguments; when
 %% it is called, arguments are check for compatibility. Examples of specs
 %% and compliant arguments:
-%%
+%% 
+%% ```
 %% a single type spec
 %% integer                          2
 %% binary                           <<"zzz">>
@@ -79,6 +80,7 @@
 %% {integer, binary, float}         {1, <<"2">>, 3.0}
 %% a tuple of named args
 %% {{x, integer}, {y, binary}}      {1, <<"bbb">>}
+%% '''
 %%
 %% Arg specification is used at call-time for control, and also for introspection
 %% (see list/1, list/2, mongoose_commands:get_command/2 and args/1)
