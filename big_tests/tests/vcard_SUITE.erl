@@ -74,7 +74,8 @@ groups() ->
 rw_tests() ->
     [
      update_own_card,
-     cant_update_own_card_with_invalid_field
+     cant_update_own_card_with_invalid_field,
+     can_update_own_card_with_emoji_in_nickname
     ].
 
 ro_full_search_tests() ->
@@ -223,6 +224,18 @@ cant_update_own_card_with_invalid_field(Config) ->
                 escalus:assert(is_iq_error, Client1SetResultStanza)
         end).
 
+can_update_own_card_with_emoji_in_nickname(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                %% One of "Non-character code points". Banned in stringrep but still valid UTF.
+                Client1Fields = [{<<"NICKNAME">>, <<"Jan 😊"/utf8>>}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                            escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_result, Client1SetResultStanza)
+        end).
+
 retrieve_own_card(Config) ->
     escalus:story(
       Config, [{alice, 1}],
@@ -236,8 +249,8 @@ retrieve_own_card(Config) ->
 
 
 
-%% If no vCard exists, the server MUST return a stanza error 
-%% (which SHOULD be <item-not-found/>) or an IQ-result 
+%% If no vCard exists, the server MUST return a stanza error
+%% (which SHOULD be <item-not-found/>) or an IQ-result
 %% containing an empty <vCard/> element.
 %% We return <item-not-found/>
 user_doesnt_exist(Config) ->
