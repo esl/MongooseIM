@@ -44,7 +44,7 @@
 -type schema_item() :: {Default :: value(), key(), value_type()}.
 -type schema() :: #{
         form_field_name() => schema_item(),
-        key() => form_field_name()
+        key() => form_field_name() %% A kind of an index required for some operations
        }.
 
 %% Actual config

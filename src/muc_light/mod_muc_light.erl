@@ -4,40 +4,8 @@
 %%% Purpose : MUC light support
 %%% Created : 8 Sep 2014 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%
-%%% Configuration options:
-%%% * backend (mnesia) - DB backend
-%%% * equal_occupants (false) - When enabled, everyone in the room will have 'member' status,
-%%%                             including creator
-%%% * legacy_mode (false) - Enables XEP-0045 compatibility mode
-%%% * rooms_per_user (infinity) - Default maximum count of rooms the user can occupy
-%%% * blocking (true) - Blocking feature enabled/disabled
-%%% * all_can_configure (false) - Every room occupant can change room configuration
-%%% * all_can_invite (false) - Every room occupant can invite a user to the room
-%%% * max_occupants (infinity) - Maximal occupant count per room
-%%% * rooms_per_page (10) - Maximal room count per result page in room disco
-%%% * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
-%%%                              user's roster
-%%% * config_schema (["roomname", "subject"]) - Custom list of configuration options for a room;
-%%%                               WARNING! Lack of `roomname` field will cause room names in
-%%%                               Disco results and Roster items be set to room username.
-%%% * default_config ([{"roomname, "Untitled"}, {"subject", ""}]) -
-%%%                                Custom default room configuration; must be a subset of
-%%%                                config schema. It's a list of KV tuples with string keys
-%%%                                and values of appriopriate type. String values will be
-%%%                                converted to binary automatically.
-%%%        Example: [{"roomname", "The room"}, {"subject", "Chit-chat"}, {"security", 10}]
-%%%
-%%% Allowed `config_schema` list items (may be mixed):
-%%% * Just field name: "field" - will be expanded to "field" of type 'binary'
-%%% * Field name and type: {"field", integer}
-%%% * Field name, atom and the type: {"field", field, float} - useful only for debugging
-%%%                 or unusual applications
-%%% Sample valid list: `["roomname", {"subject", binary}, {"priority", priority, integer}]`
-%%%
-%%% Valid config field types:
-%%% * binary
-%%% * integer
-%%% * float
+%%% Looking for documentation excerpt that was present here for 5 years?
+%%% Now everything is moved to doc/modules/mod_muc_light.md
 %%%
 %%%----------------------------------------------------------------------
 
