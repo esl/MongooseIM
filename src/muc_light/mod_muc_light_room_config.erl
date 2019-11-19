@@ -26,7 +26,11 @@
 
 %% API
 -export([schema_from_definition/1, default_from_schema/1]).
+-export([schema_reverse_find/2]).
 -export([apply_binary_kv/3, to_binary_kv/2]).
+
+%% Test helpers
+-export([schema_fields/1, schema_reverse_index/1]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -41,11 +45,18 @@
 -type form_field_name() :: binary().
 
 %% Schema
+-record(schema, {
+          fields = #{},
+          reverse_index = #{}
+         }).
+
 -type schema_item() :: {Default :: value(), key(), value_type()}.
--type schema() :: #{
-        form_field_name() => schema_item(),
-        key() => form_field_name() %% A kind of an index required for some operations
-       }.
+-type schema_fields_map() :: #{ form_field_name() => schema_item() }.
+-type schema_reverse_index() :: #{ key() => form_field_name() }.
+-type schema() :: #schema{
+                     fields :: schema_fields_map(),
+                     reverse_index :: schema_reverse_index()
+                    }.
 
 %% Actual config
 -type item() :: {key(), value()}.
@@ -64,13 +75,18 @@
 
 -spec schema_from_definition(UserDefinedSchema :: user_defined_schema()) -> schema().
 schema_from_definition(UserDefinedSchema) ->
-    lists:foldl(fun add_config_schema_field/2, #{}, UserDefinedSchema).
+    lists:foldl(fun add_config_schema_field/2, #schema{}, UserDefinedSchema).
 
 -spec default_from_schema(ConfigSchema :: schema()) -> kv().
 default_from_schema(ConfigSchema) ->
     lists:foldl(fun({DefaultValue, Key, _}, Acc) -> [{Key, DefaultValue} | Acc];
                    (_, Acc) -> Acc
-                end, [], maps:values(ConfigSchema)).
+                end, [], maps:values(ConfigSchema#schema.fields)).
+
+-spec schema_reverse_find(Key :: key(), ConfigSchema :: schema()) ->
+    {ok, form_field_name()} | error.
+schema_reverse_find(Key, ConfigSchema) ->
+    maps:find(Key, ConfigSchema#schema.reverse_index).
 
 %% Guarantees that config will have unique fields
 -spec apply_binary_kv(RawConfig :: binary_kv(), Config :: kv(), ConfigSchema :: schema()) ->
@@ -89,9 +105,19 @@ apply_binary_kv([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
 to_binary_kv([], _ConfigSchema) ->
     [];
 to_binary_kv([{Key, Val} | RConfig], ConfigSchema) ->
-    KeyBin = maps:get(Key, ConfigSchema),
-    {_Def, _Key, ValType} = maps:get(KeyBin, ConfigSchema),
+    {ok, KeyBin} = schema_reverse_find(Key, ConfigSchema),
+    {_Def, _Key, ValType} = maps:get(KeyBin, ConfigSchema#schema.fields),
     [{KeyBin, value2b(Val, ValType)} | to_binary_kv(RConfig, ConfigSchema)].
+
+%%====================================================================
+%% API for unit tests
+%%====================================================================
+
+-spec schema_fields(schema()) -> schema_fields_map().
+schema_fields(#schema{ fields = Fields }) -> Fields.
+
+-spec schema_reverse_index(schema()) -> schema_reverse_index().
+schema_reverse_index(#schema{ reverse_index = RevIndex }) -> RevIndex.
 
 %%====================================================================
 %% Internal functions
@@ -103,36 +129,41 @@ to_binary_kv([{Key, Val} | RConfig], ConfigSchema) ->
 add_config_schema_field({FieldName, DefaultValue}, SchemaAcc) ->
     add_config_schema_field({FieldName, DefaultValue, list_to_atom(FieldName), binary}, SchemaAcc);
 add_config_schema_field({FieldName, DefaultValue, Key, ValueType} = Definition, SchemaAcc) ->
-    case is_list(FieldName) andalso
-         is_valid_config_type(ValueType) andalso
-         has_valid_type(DefaultValue, ValueType) andalso
-         is_atom(Key) of
+    case validate_schema_definition(Definition) of
         true ->
+            #schema{ fields = Fields0, reverse_index = RevIndex0 } = SchemaAcc,
+            
             FieldNameBin = unicode:characters_to_binary(FieldName),
-            SchemaAcc#{ FieldNameBin => {normalize_value(DefaultValue, ValueType), Key, ValueType},
-                        Key => FieldNameBin };
+            NormalizedValue = normalize_value(DefaultValue, ValueType),
+            
+            NFields = Fields0#{ FieldNameBin => { NormalizedValue, Key, ValueType } },
+            NRevIndex = RevIndex0#{ Key => FieldNameBin },
+            
+            SchemaAcc#schema{ fields = NFields, reverse_index = NRevIndex };
         false ->
             error({invalid_schema_definition, Definition})
     end.
 
+-spec validate_schema_definition(user_defined_schema_item()) -> boolean().
+validate_schema_definition({FieldName, DefaultValue, Key, ValueType})
+  when is_list(FieldName), is_atom(Key) ->
+    validate_schema_default_and_type(DefaultValue, ValueType);
+validate_schema_definition(_Definition) ->
+    false.
+
+-spec validate_schema_default_and_type(value(), value_type()) -> boolean().
+validate_schema_default_and_type(Val, binary) -> is_binary(Val) orelse is_list(Val);
+validate_schema_default_and_type(Val, integer) -> is_integer(Val);
+validate_schema_default_and_type(Val, float) -> is_float(Val);
+validate_schema_default_and_type(_Val, _Type) -> false.
+
 -spec from_kv_tuple(KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: schema()) ->
     {ok, Key :: atom(), Val :: any()} | validation_error().
 from_kv_tuple(KeyBin, ValBin, ConfigSchema) ->
-    case ConfigSchema of
-        #{ KeyBin := {_Def, Key, Type} } -> {ok, Key, b2value(ValBin, Type)};
+    case maps:find(KeyBin, ConfigSchema#schema.fields) of
+        {ok, {_Def, Key, Type}} -> {ok, Key, b2value(ValBin, Type)};
         _ -> {error, {KeyBin, unknown}}
     end.
-
--spec is_valid_config_type(Type :: value_type() | term()) -> boolean().
-is_valid_config_type(binary) -> true;
-is_valid_config_type(integer) -> true;
-is_valid_config_type(float) -> true;
-is_valid_config_type(_) -> false.
-
--spec has_valid_type(Value :: value() | string() | term(), value_type()) -> boolean().
-has_valid_type(Val, binary) -> is_binary(Val) or is_list(Val);
-has_valid_type(Val, integer) -> is_integer(Val);
-has_valid_type(Val, float) -> is_float(Val).
 
 -spec normalize_value(Value :: value() | string(), value_type()) -> value().
 normalize_value(Val, binary) when is_list(Val) -> unicode:characters_to_binary(Val);

@@ -155,13 +155,24 @@ simple_config_items_are_parsed(_Config) ->
                   {"incarnation", "13"},
                   {"spoilers", "false"}
                  ],
-    ExpectedSchema = #{
-      <<"roomname">> => {<<"TARDIS">>, roomname, binary}, roomname => <<"roomname">>,
-      <<"subject">> => {<<"Time Travel">>, subject, binary}, subject => <<"subject">>,
-      <<"incarnation">> => {<<"13">>, incarnation, binary}, incarnation => <<"incarnation">>,
-      <<"spoilers">> => {<<"false">>, spoilers, binary}, spoilers => <<"spoilers">>
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary},
+      <<"subject">> => {<<"Time Travel">>, subject, binary},
+      <<"incarnation">> => {<<"13">>, incarnation, binary},
+      <<"spoilers">> => {<<"false">>, spoilers, binary}
      },
-    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      roomname => <<"roomname">>,
+      subject => <<"subject">>,
+      incarnation => <<"incarnation">>,
+      spoilers => <<"spoilers">>
+     },
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
 
 full_config_items_are_parsed(_Config) ->
     Definition = [
@@ -170,13 +181,24 @@ full_config_items_are_parsed(_Config) ->
                   {"incarnation", 13, incarnation, integer},
                   {"height", 1.67, height, float}
                  ],
-    ExpectedSchema = #{
-      <<"roomname">> => {<<"TARDIS">>, roomname, binary}, roomname => <<"roomname">>,
-      <<"subject">> => {<<"Time Travel">>, subject, binary}, subject => <<"subject">>,
-      <<"incarnation">> => {13, incarnation, integer}, incarnation => <<"incarnation">>,
-      <<"height">> => {1.67, height, float}, height => <<"height">>
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary},
+      <<"subject">> => {<<"Time Travel">>, subject, binary},
+      <<"incarnation">> => {13, incarnation, integer},
+      <<"height">> => {1.67, height, float}
      },
-    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      roomname => <<"roomname">>,
+      subject => <<"subject">>,
+      incarnation => <<"incarnation">>,
+      height => <<"height">>
+     },
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
 
 invalid_binary_default_value_is_rejected(_Config) ->
     ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"roomname", 12345}])),
@@ -195,14 +217,21 @@ unicode_config_fields_are_supported(_Config) ->
     Definition = [{"zażółćgęśląjaźń", "gżegżółka"},
                   {"Рентгеноэлектрокардиографический", 42,
                    'Рентгеноэлектрокардиографический', integer}],
-    ExpectedSchema = #{
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
       <<"zażółćgęśląjaźń"/utf8>> => {<<"gżegżółka"/utf8>>, 'zażółćgęśląjaźń', binary},
-      'zażółćgęśląjaźń' => <<"zażółćgęśląjaźń"/utf8>>,
       <<"Рентгеноэлектрокардиографический"/utf8>> =>
-            {42, 'Рентгеноэлектрокардиографический', integer},
+            {42, 'Рентгеноэлектрокардиографический', integer}
+     },
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      'zażółćgęśląjaźń' => <<"zażółćgęśląjaźń"/utf8>>,
       'Рентгеноэлектрокардиографический' => <<"Рентгеноэлектрокардиографический"/utf8>>
      },
-    ?assertEqual(ExpectedSchema, mod_muc_light_room_config:schema_from_definition(Definition)).
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
 
 %% ------------------------------------------------------------------
 %% Properties and validators

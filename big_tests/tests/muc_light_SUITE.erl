@@ -1086,8 +1086,7 @@ set_default_mod_config() ->
 
 -spec set_custom_config(UserDefSchema :: list()) -> any().
 set_custom_config(UserDefSchema) ->
-    % Valid config schema is a map
-    #{} = ConfigSchema = rpc(mod_muc_light_room_config, schema_from_definition, [UserDefSchema]),
+    ConfigSchema = rpc(mod_muc_light_room_config, schema_from_definition, [UserDefSchema]),
 
     % Valid default config is a proplist
     [_|_] = DefaultConfig = rpc(mod_muc_light_room_config, default_from_schema, [ConfigSchema]),
