@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%
 %% @doc
-%% Backend for `mod_event_pusher` that supports RabbitMQ integration.
+%% Backend for `mod_event_pusher' that supports RabbitMQ integration.
 %% @end
 %%==============================================================================
 

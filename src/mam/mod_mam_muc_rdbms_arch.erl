@@ -420,7 +420,10 @@ extract_gdpr_messages(Host, ArchiveID) ->
 %% @doc Zero-based index of the row with UMessID in the result test.
 %% If the element does not exists, the MessID of the next element will
 %% be returned instead.
+%%
+%% ```
 %% "SELECT COUNT(*) as "index" FROM mam_muc_message WHERE id <= '",  UMessID
+%% '''
 -spec calc_index(Host :: jid:server(),
                  Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, Filter, SUMessID) ->
