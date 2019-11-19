@@ -6,7 +6,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Node implementation that proxies all published items to `push_notification` hook.
+%%% Node implementation that proxies all published items to `push_notification' hook.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(node_push).

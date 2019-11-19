@@ -1,10 +1,11 @@
--module(amp_strategy).
 %% @doc This module is responsible for determining the server's strategy for a
 %% particular message. (See XEP section 2.2.2 "Determine Default Action")
+%% This work was sponsored by Grindr LLC
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
 %% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
-%% This work was sponsored by Grindr LLC
+-module(amp_strategy).
+
 -export([determine_strategy/5,
          null_strategy/0]).
 

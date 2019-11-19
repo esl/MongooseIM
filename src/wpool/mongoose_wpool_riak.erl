@@ -33,9 +33,9 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     [{worker, Worker} | WpoolOptsIn].
 
 
-%% @doc Gets a particular option from `Opts`. They're expressed as a list
-%% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
-%% exist the `Default` is returned.
+%% @doc Gets a particular option from `Opts'. They're expressed as a list
+%% of tuples where the first element is `OptKey'. If provided `OptKey' doesn't
+%% exist the `Default' is returned.
 -spec get_riak_opt(OptKey :: atom(), Opts :: [tuple()], Default :: tuple()) ->
                                    tuple().
 get_riak_opt(OptKey, Opts, Default) ->
@@ -48,7 +48,7 @@ get_riak_opt(OptKey, Opts) ->
 verify_if_riak_opt_exists(false, Default) -> Default;
 verify_if_riak_opt_exists(Opt, _) -> Opt.
 
-%% @docs Merges `AdditionalOpts` into `Opts` if a particular additional option
+%% @doc Merges `AdditionalOpts' into `Opts' if a particular additional option
 %% exists.
 -spec maybe_add_additional_opts(Opts :: [term()],
                                    AdditionalOpts :: [tuple()]) -> [term()].

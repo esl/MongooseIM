@@ -1,16 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
 %%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% @doc
-%%%
-%%% @end
 %%% Created : 20. Jul 2016 10:16
 %%%-------------------------------------------------------------------
--module(mongoose_api_common).
--author("ludwikbukowski").
--include("mongoose_api.hrl").
--include("mongoose.hrl").
-%%
+
 %% @doc MongooseIM REST API backend
 %%
 %% This module handles the client HTTP REST requests, then respectively convert
@@ -65,6 +58,11 @@
 %% with response code 201 so that it could represent now a new created resource.
 %% If error occured while executing the command, the appropriate reason is
 %% returned in response body.
+
+-module(mongoose_api_common).
+-author("ludwikbukowski").
+-include("mongoose_api.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([create_admin_url_path/1,
