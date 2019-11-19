@@ -20,7 +20,6 @@
 %%% @copyright 2006-2015 ProcessOne
 %%% @author Christophe Romain <christophe.romain@process-one.net>
 %%%   [http://www.process-one.net/]
-%%% @version {@vsn}, {@date} {@time}
 %%% @end
 %%% ====================================================================
 
@@ -1884,19 +1883,21 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 %%<li>nodetree create_node checks if nodeid already exists</li>
 %%<li>node plugin create_node just sets default affiliation/subscription</li>
 %%</ul>
--spec create_node(
-        Host          :: mod_pubsub:host(),
-          ServerHost    :: binary(),
-          Node        :: <<>> | mod_pubsub:nodeId(),
-          Owner         ::jid:jid(),
-          Type          :: binary(),
-          Access        :: atom(),
-          Configuration :: [exml:element()])
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+%% @end
+
 create_node(Host, ServerHost, Node, Owner, Type) ->
     create_node(Host, ServerHost, Node, Owner, Type, all, []).
+
+-spec create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) -> R when
+      Host          :: mod_pubsub:host(),
+      ServerHost    :: binary(),
+      Node          :: <<>> | mod_pubsub:nodeId(),
+      Owner         :: jid:jid(),
+      Type          :: binary(),
+      Access        :: atom(),
+      Configuration :: [exml:element()],
+      R             :: {result, [exml:element(), ...]}
+                     | {error, exml:element()}.
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
         true ->

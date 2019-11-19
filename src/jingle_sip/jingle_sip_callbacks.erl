@@ -202,11 +202,11 @@ sip_dialog_update(_, _, _) ->
 %% @doc
 %% This function is called for every response to the SIP INVITE
 %% SIP response contains the same headers as request
-%% That's why we need to switch `from` and `to` when preparing and routing Jingle
+%% That's why we need to switch `from' and `to' when preparing and routing Jingle
 %% to the request originator
 %% interpreted status codes:
-%% * 180 and 183 - provisional respons - we can send `ringing` session-info
-%% * 200 - the invite was accepted we can sent `session-accepted` stanza
+%% * 180 and 183 - provisional respons - we can send `ringing' session-info
+%% * 200 - the invite was accepted we can sent `session-accepted' stanza
 %% * 487 - this is to confirm INVITE cancelation from the other side (no action in this case)
 %% * 603 - used to decline the INVITE by the reciving side
 %% * all error responses between 400 and 700 result in genering session-terminate reason

@@ -4,7 +4,7 @@
 %%% @doc SASL EXTERNAL implementation (XEP178)
 %%%
 %%% SASL EXTERNAL mechanism requires client's SSL certificate. the purpose of
-%%% this module is to parse the certificate & get authorization identity (if
+%%% this module is to parse the certificate and get authorization identity (if
 %%% any provided by the client). this module doesn't make authorization, it
 %%% only prepares all the data and provides it to auth. backend.
 %%%
