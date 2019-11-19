@@ -2,15 +2,35 @@
 
 -author('aleksander.lisiecki@erlang-solutions.com').
 
+-behaviour(mongoose_service).
+
+-export([start/1, stop/0]).
+
 -define(TAB_NAME, persistent_user_info).
 
 % dummy is needed as it is not possible to create a mnesia table from single filed record.
 -record(?TAB_NAME, {client_id, dummy}).
 
--export([report/0]).
-
 -define(BASE_URL, "https://www.google-analytics.com/batch").
 -define(TRACKING_ID, "UA-151671255-1").
+
+start(_) ->
+    init(),
+    report().
+
+stop() ->
+    ok.
+
+init() ->
+    mnesia:create_table(?TAB_NAME,
+        [
+            {type, set},
+            {record_name, ?TAB_NAME},
+            {attributes, record_info(fields, ?TAB_NAME)},
+            {disc_copies, [node() | nodes()]}
+        ]),
+    mnesia:wait_for_tables([?TAB_NAME], 5000),
+    maybe_make_and_save_new_client_id().
 
 report() ->
     IsAllowed = ejabberd_config:get_local_option(mongoose_user_stats_is_allowed),
@@ -58,7 +78,7 @@ build_report(EventCategory, EventAction) ->
 
 build_report(EventCategory, EventAction, EventLabel) ->
     MaybeLabel = maybe_event_label(EventLabel),
-    LstClientId = term_to_string(client_id()),
+    LstClientId = term_to_string(get_client_id()),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
     LstLine = [
@@ -97,28 +117,25 @@ term_to_string(Term) ->
     R= io_lib:format("~p",[Term]),
     lists:flatten(R).
 
-client_id() ->
-    CreateTableResult = mnesia:create_table(?TAB_NAME,
-        [
-            {type, set},
-            {record_name, ?TAB_NAME},
-            {attributes, record_info(fields, ?TAB_NAME)},
-            {disc_copies, [node() | nodes()]}
-        ]),
-    get_client_id(CreateTableResult).
+maybe_make_and_save_new_client_id() ->
+    T = fun() ->
+        mnesia:first(?TAB_NAME)
+    end,
+    case mnesia:transaction(T) of
+        {atomic, '$end_of_table'} ->
+            make_and_save_new_client_id();
+        {atomic, _ClientId} ->
+            ok
+    end.
 
-get_client_id({aborted, {already_exists, persistent_user_info}}) ->
-    case ets:tab2list(?TAB_NAME) of
-                [] ->
-                    new_client_id();
-                [#?TAB_NAME{client_id = ClientId}] ->
-                    ClientId
-            end;
-get_client_id({atomic, ok}) ->
-    mnesia:wait_for_tables([?TAB_NAME], 5000),
-    new_client_id().
+get_client_id() ->
+    T = fun() ->
+        mnesia:first(?TAB_NAME)
+    end,
+    {atomic, ClientId} = mnesia:transaction(T),
+    ClientId.
 
-new_client_id() ->
+make_and_save_new_client_id() ->
     ClientId = rand:uniform(1000 * 1000 * 1000 * 1000 * 1000),
     T = fun() ->
         mnesia:write(#?TAB_NAME{client_id = ClientId})

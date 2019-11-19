@@ -91,7 +91,7 @@ user_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     % Restart MIM will not work, because on restart config file is read and config is reloaded,
     %  which overwrites the config and the passed option is not set
     % WHEN
-    mongoose_helper:successful_rpc(mongoose_user_stats, report, []),
+    trigger_reporting(mim()),
     % THEN
 
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
@@ -102,9 +102,8 @@ user_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     ok.
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
-
-    mongoose_helper:successful_rpc(mim(), mongoose_user_stats, report, []),
-    mongoose_helper:successful_rpc(mim2(), mongoose_user_stats, report, []),
+    trigger_reporting(mim()),
+    trigger_reporting(mim2()),
 
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
 
@@ -118,7 +117,8 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
 
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
-    1 = length(lists:usort([Cid ||#event{cid = Cid} <- Tab])).
+    UniqueSortedTab = lists:usort([Cid ||#event{cid = Cid} <- Tab]),
+    1 = length(UniqueSortedTab).
 
 no_more_events_is_reported() ->
     Prev = get_events_collection_size(),
@@ -218,4 +218,5 @@ get(Key, Proplist) ->
 handler_terminate(_Reason, _Req, _State) ->
     ok.
 
-
+trigger_reporting(Node) ->
+    mongoose_helper:successful_rpc(Node, mongoose_user_stats, start, [ok]).
