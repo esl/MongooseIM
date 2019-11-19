@@ -3,7 +3,7 @@ You may also find proposed workarounds if any is available.
 
 ## Missing MUC Light room config fields with RDBMS backend
 
-Until MongooseIM 3.5.x (incl.) new MUC Light rooms could be created with some config fields absent in the RDBMS table.
+Before MongooseIM 3.5.x (incl.) new MUC Light rooms could be created with some config fields absent in the RDBMS table.
 These options couldn't be re-added later by changing the room config via requests from the clients.
 
 It happened when the default config was a subset of the schema and the client hasn't provided these values when a room was created.
@@ -28,7 +28,7 @@ Let's say you were using the following config:
                  ]}
 ```
 
-Your client application has created some rooms without `background` option by mistake.
+Your client application has created some rooms without the `background` option by mistake.
 
 For every `id` in the `muc_light_rooms` table, you need to execute:
 
