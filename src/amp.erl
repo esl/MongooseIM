@@ -1,6 +1,9 @@
--module(amp).
 %% @doc Models and business logic for  XEP-0079: Advanced Message Processing
 %% This work was sponsored by Grindr LLC
+%% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
+%% @author <mongooseim@erlang-solutions.com>
+%% @copyright 2014 Erlang Solutions, Ltd.
+-module(amp).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
