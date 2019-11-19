@@ -6,7 +6,6 @@
 -include_lib("exml/include/exml.hrl").
 
 -export([ % service
-         mismatched_default_config_is_rejected/1,
          removing_users_from_server_triggers_room_destruction/1
         ]).
 -export([ % entity
@@ -30,7 +29,6 @@
          all_can_configure/1,
          set_config_deny/1,
          get_room_config/1,
-         custom_schema_works_with_standard_default_config/1,
          custom_default_config_works/1,
          get_room_occupants/1,
          get_room_info/1,
@@ -75,7 +73,6 @@
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
-                           aff_msg_verify_fun/1,
                            gc_message_verify_fun/3,
                            lbin/1,
                            room_bin_jid/1,
@@ -83,7 +80,6 @@
                            verify_aff_bcast/3,
                            verify_aff_users/2,
                            kv_el/2,
-                           to_lus/2,
                            stanza_create_room/3,
                            create_room/6,
                            stanza_aff_set/2,
@@ -127,7 +123,6 @@ all() ->
 groups() ->
     G = [
          {service, [sequence], [
-                                mismatched_default_config_is_rejected,
                                 removing_users_from_server_triggers_room_destruction
                                ]},
          {entity, [sequence], [
@@ -151,7 +146,6 @@ groups() ->
                                  all_can_configure,
                                  set_config_deny,
                                  get_room_config,
-                                 custom_schema_works_with_standard_default_config,
                                  custom_default_config_works,
                                  get_room_occupants,
                                  get_room_info,
@@ -219,8 +213,7 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 -define(ROOM_LESS_CASES, [disco_rooms_empty_page_infinity,
-                          disco_rooms_empty_page_1,
-                          mismatched_default_config_is_rejected]).
+                          disco_rooms_empty_page_1]).
 
 -define(CUSTOM_CONFIG_CASES, [set_config_with_custom_schema,
                               deny_config_change_that_conflicts_with_schema,
@@ -238,20 +231,11 @@ init_per_testcase(disco_rooms_rsm, Config) ->
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(disco_rooms_rsm, Config);
-init_per_testcase(custom_schema_works_with_standard_default_config = CaseName, Config) ->
-    set_default_mod_config(),
-    set_custom_config(["roomname", "subject", "background", "music"], standard_default_config()),
-    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
-    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
-        true ->
-            CustomDefaultConfig = [{atom_to_list(K), binary_to_list(V)}
-                                   || {K, V} <- custom_default_config()],
-            set_custom_config(["background", "music"], CustomDefaultConfig);
-        _ ->
-            ok
+        true -> set_custom_config(common_custom_config());
+        _ -> ok
     end,
     case lists:member(CaseName, ?ROOM_LESS_CASES) of
         false -> create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1));
@@ -260,9 +244,8 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    case lists:member(
-           CaseName, [custom_schema_works_with_standard_default_config | ?CUSTOM_CONFIG_CASES]) of
-        true -> set_custom_config(standard_config_schema(), standard_default_config());
+    case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
+        true -> set_custom_config(default_schema_definition());
         _ -> ok
     end,
     muc_light_helper:clear_db(),
@@ -273,11 +256,6 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 %% ---------------------- Service ----------------------
-
-mismatched_default_config_is_rejected(_Config) ->
-    {'EXIT', _} = (catch set_custom_config(["background", "music"], standard_default_config())),
-    {'EXIT', _} = (catch set_custom_config(["background", "music"], ["misfit"])),
-    ok.
 
 removing_users_from_server_triggers_room_destruction(Config) ->
     escalus:delete_users(Config, escalus:get_users([carol])),
@@ -498,9 +476,8 @@ set_config_deny(Config) ->
 get_room_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
-            ConfigKV = [{version, ver(1)} | default_config()],
-            ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
-            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin)),
+            ConfigKV = [{"version", binary_to_list(ver(1))} | standard_default_config()],
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKV)),
 
             %% Empty result when user has most recent version
             escalus:send(Bob, stanza_config_get(?ROOM, ver(1))),
@@ -509,20 +486,11 @@ get_room_config(Config) ->
             undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
 
-custom_schema_works_with_standard_default_config(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            Stanza = stanza_config_get(?ROOM, <<"oldver">>),
-            ConfigKV = [{version, ver(1)} | default_config()],
-            ConfigKVBin = [{atom_to_binary(Key, utf8), Val} || {Key, Val} <- ConfigKV],
-            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
-        end).
-
 custom_default_config_works(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
-            ConfigKV = [{version, ver(1)} | custom_default_config()],
-            ConfigKVBin = [{atom_to_binary(Key, utf8), Val} || {Key, Val} <- ConfigKV],
-            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+            ConfigKV = [{"version", binary_to_list(ver(1))} | common_custom_config()],
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKV))
         end).
 
 
@@ -952,6 +920,7 @@ stanza_config_set(Room, ConfigChanges) ->
     Items = [ kv_el(Key, Value) || {Key, Value} <- ConfigChanges],
     escalus_stanza:to(
       escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, Items), room_bin_jid(Room)).
+
 %%--------------------------------------------------------------------
 %% Verifiers
 %%--------------------------------------------------------------------
@@ -994,9 +963,11 @@ verify_config(ConfigRoot, Config) ->
       fun({Key, Val}) ->
               Val = exml_query:path(ConfigRoot, [{element, Key}, cdata])
       end, Config).
+
 %%--------------------------------------------------------------------
 %% Verification funs generators
 %%--------------------------------------------------------------------
+
 -spec config_msg_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
 config_msg_verify_fun(RoomConfig) ->
     fun(Incoming) ->
@@ -1014,12 +985,14 @@ config_msg_verify_fun(RoomConfig) ->
               end, RoomConfig)
     end.
 
--spec config_iq_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
+-spec config_iq_verify_fun(RoomConfig :: [{string(), string()}]) -> verify_fun().
 config_iq_verify_fun(RoomConfig) ->
     fun(Incoming) ->
             [Query] = exml_query:subelements(Incoming, <<"query">>),
             ?NS_MUC_LIGHT_CONFIGURATION = exml_query:attr(Query, <<"xmlns">>),
-            verify_config(Query, RoomConfig)
+            BinaryRoomConfig = [{list_to_binary(K), list_to_binary(V)}
+                                || {K, V} <- RoomConfig],
+            verify_config(Query, BinaryRoomConfig)
     end.
 
 -spec aff_iq_verify_fun(AffUsers :: ct_aff_users(), Version :: binary()) -> verify_fun().
@@ -1082,14 +1055,20 @@ assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
                  end,
   assert_process_memory_not_growing(Pid, Memory, NewCounter).
 
+-spec common_custom_config() -> list().
+common_custom_config() -> [{"background", "builtin:hell"}, {"music", "builtin:screams"}].
+
+-spec default_schema_definition() -> list().
+default_schema_definition() ->
+    rpc(mod_muc_light, default_schema_definition, []).
+
 -spec standard_default_config() -> list().
-standard_default_config() -> rpc(mod_muc_light, standard_default_config, []).
-
--spec custom_default_config() -> list().
-custom_default_config() -> [{background, <<"builtin:hell">>}, {music, <<"builtin:screams">>}].
-
--spec standard_config_schema() -> list().
-standard_config_schema() -> rpc(mod_muc_light, standard_config_schema, []).
+standard_default_config() ->
+    % Default schema definition is actually a proplist with the option name as a key
+    % and the default as a value, but we verify it to avoid strange errors.
+    DefaultConfig = default_schema_definition(),
+    lists:foreach(fun({K, V}) when is_list(K), is_list(V) -> ok end, DefaultConfig),
+    DefaultConfig.
 
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->
@@ -1105,16 +1084,16 @@ set_default_mod_config() ->
        {rooms_per_page, infinity}
       ]).
 
--spec set_custom_config(RawSchema :: list(), RawDefaultConfig :: list()) -> true.
-set_custom_config(RawSchema, RawDefaultConfig) ->
-    ConfigSchema = rpc(mod_muc_light_utils, make_config_schema, [RawSchema]),
-    _ = hd(ConfigSchema), %% checks if is a list
+-spec set_custom_config(UserDefSchema :: list()) -> any().
+set_custom_config(UserDefSchema) ->
+    ConfigSchema = rpc(mod_muc_light_room_config, schema_from_definition, [UserDefSchema]),
 
-    DefaultConfig = rpc(mod_muc_light_utils, make_default_config, [RawDefaultConfig, ConfigSchema]),
-    _ = hd(DefaultConfig), %% checks if is a list
+    % Valid default config is a proplist
+    [_|_] = DefaultConfig = rpc(mod_muc_light_room_config, default_from_schema, [ConfigSchema]),
 
     set_mod_config(config_schema, ConfigSchema, ?MUCHOST),
     set_mod_config(default_config, DefaultConfig, ?MUCHOST).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+

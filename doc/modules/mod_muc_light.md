@@ -26,22 +26,18 @@ This extension consists of several modules but only `mod_muc_light` needs to be 
 * **max_occupants** (positive integer or `infinity`, default: `infinity`) - Specifies a cap on the occupant count per room.
 * **rooms_per_page** (positive integer or `infinity`, default: 10) - Specifies maximal number of rooms returned for a single Disco request.
 * **rooms_in_rosters** (boolean, default: `false`) - When enabled, rooms the user occupies are included in their roster.
-* **config_schema** (list; see below, default: `["roomname", "subject"]`) - A list of fields allowed in the room configuration.
+* **config_schema** (list; see below, default: `[{"roomname", "Untitled"}, {"subject", ""}]`) - A list of fields allowed in the room configuration.
  The field type may be specified but the default is "binary", i.e. effectively a string. 
  **WARNING!** Lack of the `roomname` field will cause room names in Disco results and Roster items be set to the room username.
-* **default_config** (list, default: `[{"roomname, "Untitled"}, {"subject", ""}]`) - Custom default room configuration; must be a subset of config schema. 
- It's a list of KV tuples with string keys and values of appriopriate type. 
- String values will be converted to binary automatically.
 
 ### Config schema
 
 Allowed `config_schema` list items are (may be mixed):
 
-* Just the field name: `"field"` - will be expanded to "field" of a type `binary`
-* Field name and a type: `{"field", integer}`
-* Field name, an atom and a type: `{"field", field, float}` - useful only for debugging or unusual applications
+* Field name and a default value: `{"field", "value"}` - will be expanded to "field" of a type `binary` (string) with a default "value"
+* Field name, a default value, an atom (internal key representation) and a type: `{"field", "value", field, float}` - useful only for debugging or custom applications
 
-Example of such list: `["roomname", {"subject", binary}, {"priority", priority, integer}]`
+Example of such list: `[{"roomname", "My Room"}, {"subject", "Hi"}, {"priority", 0, priority, integer}]`
 
 Valid config field types are:
 
@@ -63,8 +59,7 @@ Valid config field types are:
              {max_occupants, 50},
              {rooms_per_page, 5},
              {rooms_in_rosters, true},
-             {config_schema, ["roomname", {"display-lines", integer}]},
-             {default_config, [{"roomname", "The Room"}, {"display-lines", 30}]}
+             {config_schema, [{"roomname", "The Room"}, {"display-lines", 30, display_lines, integer}]}
             ]},
 ```
 

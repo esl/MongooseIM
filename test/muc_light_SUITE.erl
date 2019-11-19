@@ -18,7 +18,8 @@ all() ->
     [
      {group, aff_changes},
      {group, rsm_disco},
-     {group, codec}
+     {group, codec},
+     {group, configuration}
     ].
 
 groups() ->
@@ -31,17 +32,25 @@ groups() ->
                               rsm_disco_success,
                               rsm_disco_item_not_found
                              ]},
-        {codec, [sequence], [codec_calls]}
+     {codec, [sequence], [codec_calls]},
+     {configuration, [parallel], [
+                                  simple_config_items_are_parsed,
+                                  full_config_items_are_parsed,
+                                  invalid_binary_default_value_is_rejected,
+                                  invalid_integer_default_value_is_rejected,
+                                  invalid_float_default_value_is_rejected,
+                                  unicode_config_fields_are_supported
+                                 ]}
     ].
 
 init_per_suite(Config) ->
+    application:ensure_all_started(stringprep),
     Config.
 
 end_per_suite(Config) ->
     Config.
 
 init_per_group(rsm_disco, Config) ->
-    application:start(stringprep),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -52,7 +61,6 @@ end_per_group(_, Config) ->
 init_per_testcase(codec_calls, Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    {ok, _} = application:ensure_all_started(stringprep),
     {ok, _} = application:ensure_all_started(exometer_core),
     ets:new(local_config, [named_table]),
     ejabberd_hooks:start_link(),
@@ -82,17 +90,23 @@ end_per_testcase(_, Config) ->
 %% Test cases
 %% ------------------------------------------------------------------
 
+%% ----------------- Aff changes ----------------------
+
 aff_change_success(_Config) ->
     ?assert(proper:quickcheck(prop_aff_change_success())).
 
 aff_change_bad_request(_Config) ->
     ?assert(proper:quickcheck(prop_aff_change_bad_request())).
 
+%% ----------------- RSM disco ----------------------
+
 rsm_disco_success(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_success())).
 
 rsm_disco_item_not_found(_Config) ->
     ?assert(proper:quickcheck(prop_rsm_disco_item_not_found())).
+
+%% ----------------- Codecs ----------------------
 
 %% @doc This is a regression test for a bug that was fixed in #01506f5a
 %% Basically it makes sure that codes have a proper setup of hook calls
@@ -131,6 +145,93 @@ codec_calls(_Config) ->
     % 1 filter, 1 msg to 2 users
     check_count(1, 2),
     ok.
+
+%% ----------------- Room config schema ----------------------
+
+simple_config_items_are_parsed(_Config) ->
+    Definition = [
+                  {"roomname", "TARDIS"},
+                  {"subject", "Time Travel"},
+                  {"incarnation", "13"},
+                  {"spoilers", "false"}
+                 ],
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary},
+      <<"subject">> => {<<"Time Travel">>, subject, binary},
+      <<"incarnation">> => {<<"13">>, incarnation, binary},
+      <<"spoilers">> => {<<"false">>, spoilers, binary}
+     },
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      roomname => <<"roomname">>,
+      subject => <<"subject">>,
+      incarnation => <<"incarnation">>,
+      spoilers => <<"spoilers">>
+     },
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
+
+full_config_items_are_parsed(_Config) ->
+    Definition = [
+                  {"roomname", "TARDIS", roomname, binary},
+                  {"subject", "Time Travel", subject, binary},
+                  {"incarnation", 13, incarnation, integer},
+                  {"height", 1.67, height, float}
+                 ],
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
+      <<"roomname">> => {<<"TARDIS">>, roomname, binary},
+      <<"subject">> => {<<"Time Travel">>, subject, binary},
+      <<"incarnation">> => {13, incarnation, integer},
+      <<"height">> => {1.67, height, float}
+     },
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      roomname => <<"roomname">>,
+      subject => <<"subject">>,
+      incarnation => <<"incarnation">>,
+      height => <<"height">>
+     },
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
+
+invalid_binary_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"roomname", 12345}])),
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"roomname", 12345,
+                                                                       roomname, binary}])).
+
+invalid_integer_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"incarnation", 123.45,
+                                                                       incarnation, integer}])).
+
+invalid_float_default_value_is_rejected(_Config) ->
+    ?assertError(_, mod_muc_light_room_config:schema_from_definition([{"height", 12345,
+                                                                       height, float}])).
+
+unicode_config_fields_are_supported(_Config) ->
+    Definition = [{"zażółćgęśląjaźń", "gżegżółka"},
+                  {"Рентгеноэлектрокардиографический", 42,
+                   'Рентгеноэлектрокардиографический', integer}],
+    Schema = mod_muc_light_room_config:schema_from_definition(Definition),
+
+    ExpectedFields = #{
+      <<"zażółćgęśląjaźń"/utf8>> => {<<"gżegżółka"/utf8>>, 'zażółćgęśląjaźń', binary},
+      <<"Рентгеноэлектрокардиографический"/utf8>> =>
+            {42, 'Рентгеноэлектрокардиографический', integer}
+     },
+    ?assertEqual(ExpectedFields, mod_muc_light_room_config:schema_fields(Schema)),
+
+    ExpectedRevIndex = #{
+      'zażółćgęśląjaźń' => <<"zażółćgęśląjaźń"/utf8>>,
+      'Рентгеноэлектрокардиографический' => <<"Рентгеноэлектрокардиографический"/utf8>>
+     },
+    ?assertEqual(ExpectedRevIndex, mod_muc_light_room_config:schema_reverse_index(Schema)).
+
 
 %% ------------------------------------------------------------------
 %% Properties and validators
