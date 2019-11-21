@@ -205,7 +205,6 @@ do_update_own_card(Config) ->
                     = escalus:send_and_wait(Client1,
                                         escalus_stanza:vcard_update(Client1Fields)),
                 escalus:assert(is_iq_result, Client1SetResultStanza),
-                escalus_stanza:vcard_request(),
                 Client1GetResultStanza
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 <<"Old name">>
@@ -228,12 +227,15 @@ can_update_own_card_with_emoji_in_nickname(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Client1) ->
-                %% One of "Non-character code points". Banned in stringrep but still valid UTF.
-                Client1Fields = [{<<"NICKNAME">>, <<"Jan 😊"/utf8>>}],
+                NickWithEmoji = <<"Jan 😊"/utf8>>,
+                Client1Fields = [{<<"NICKNAME">>, NickWithEmoji}],
                 Client1SetResultStanza
                     = escalus:send_and_wait(Client1,
                                             escalus_stanza:vcard_update(Client1Fields)),
-                escalus:assert(is_iq_result, Client1SetResultStanza)
+                escalus:assert(is_iq_result, Client1SetResultStanza),
+                Client1GetResultStanza
+                    = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
+                NickWithEmoji = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"NICKNAME">>)
         end).
 
 retrieve_own_card(Config) ->
