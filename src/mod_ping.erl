@@ -54,7 +54,6 @@
          user_offline/5,
          user_send/4,
          user_keep_alive/2,
-         user_ping_timeout/2,
          user_ping_response/4]).
 
 -record(state, {host = <<"">>,
@@ -224,19 +223,16 @@ user_keep_alive(Acc, JID) ->
     start_ping(JID#jid.lserver, JID),
     Acc.
 
-user_ping_timeout(Acc, _JID) -> % TODO is this hook really needed?
-    Acc.
-
 -spec user_ping_response(Acc :: mongoose_acc:t(),
                          JID :: jid:jid(),
                          Response :: timeout | jlib:iq(),
                          TDelta :: pos_integer()) -> mongoose_acc:t().
-user_ping_response(Acc, #jid{server = Server}, Response, TDelta) ->
-    case Response of
-        timeout -> mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1);
-        _ -> mongoose_metrics:update(Server, [mod_ping, ping_response], 1)
-    end,
+user_ping_response(Acc, #jid{server = Server}, timeout, _TDelta) ->
+    mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1),
+    Acc;
+user_ping_response(Acc, #jid{server = Server}, _Response, TDelta) ->
     mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
+    mongoose_metrics:update(Server, [mod_ping, ping_response], 1),
     Acc.
 
 %%====================================================================
@@ -247,7 +243,6 @@ hooks(Host) ->
      {sm_remove_connection_hook, Host, ?MODULE, user_offline, 100},
      {user_send_packet, Host, ?MODULE, user_send, 100},
      {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
-     {user_ping_timeout, Host, ?MODULE, user_ping_timeout, 100},
      {user_ping_response, Host, ?MODULE, user_ping_response, 100}].
 
 ensure_metrics(Host) ->

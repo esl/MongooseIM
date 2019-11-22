@@ -144,23 +144,28 @@ active_keep_alive(ConfigIn) ->
 server_ping_pong(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
     Metrics = [
-        {[Domain, mod_ping, ping_response],1},
-        {[Domain, mod_ping, ping_response_timeout],0}
+        {[Domain, mod_ping, ping_response], 5},
+        {[Domain, mod_ping, ping_response_timeout], 0},
+        {[Domain, mod_ping, ping_response_time], changed}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
-    escalus:fresh_story(Config, [{alice, 1}],
-        fun(Alice) ->
-                PingReq = wait_for_ping_req(Alice),
-                Pong = escalus_stanza:iq_result(PingReq),
-                escalus_client:send(Alice, Pong)
+    %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
+    %% due to exometer histogram implementation
+    escalus:fresh_story(Config, [{alice, 5}],
+        fun(Alice1, Alice2, Alice3, Alice4, Alice5) ->
+                lists:foreach(fun(Alice) ->
+                                      PingReq = wait_for_ping_req(Alice),
+                                      Pong = escalus_stanza:iq_result(PingReq),
+                                      escalus_client:send(Alice, Pong)
+                              end, [Alice1, Alice2, Alice3, Alice4, Alice5])
         end).
 
 server_ping_pang(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
     Metrics = [
         {[Domain, mod_ping, ping_response], 0},
-        {[Domain, mod_ping, ping_response_timeout], 1}],
-%%      {[Domain, mod_ping, ping_response_time, 95],  {1, 1000000000}}], % not possible to compare histograms in escalus
+        {[Domain, mod_ping, ping_response_timeout], 1}
+    ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
