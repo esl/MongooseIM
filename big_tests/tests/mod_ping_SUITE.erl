@@ -29,6 +29,8 @@ all() ->
      {group, server_ping_kill}].
 
 groups() ->
+    % Don't make these parallel! Metrics tests will most probably fail
+    % and injected hook will most probably won't work as expected.
     G = [{client_ping, [], [ping]},
          {server_ping, [], all_tests()},
          {server_ping_kill, [], all_tests()}
@@ -51,6 +53,7 @@ ping_req_timeout() ->
     3.
 
 init_per_suite(Config) ->
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
@@ -77,15 +80,43 @@ end_per_group(_GroupName, Config) ->
     dynamic_modules:stop(Domain, mod_ping),
     Config.
 
+init_per_testcase(server_ping_pong = CN, Config) ->
+    NConfig = setup_pong_hook(Config),
+    escalus:init_per_testcase(CN, NConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(server_ping_pong = CN, Config) ->
+    NConfig = clear_pong_hook(Config),
+    escalus:init_per_testcase(CN, NConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_ping(Opts) ->
     Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Domain, mod_ping, Opts).
+
+setup_pong_hook(Config) ->
+    Pid = self(),
+    Host = escalus_users:get_host(Config, alice),
+    Handler = mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [Host, Pid]),
+    [{pong_handler, Handler} | Config].
+
+setup_pong_hook(Host, Pid) ->
+    Handler = fun(_Acc, JID, _Response, _TDelta) ->
+                      Pid ! {pong, jid:to_binary(jid:to_lower(JID))}
+              end,
+    ejabberd_hooks:add(user_ping_response, Host, Handler, 50),
+    Handler.
+
+clear_pong_hook(Config) ->
+    {value, {_, Handler}, NConfig} = lists:keytake(pong_handler, 1, Config),
+    Host = escalus_users:get_host(Config, alice),
+    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [Host, Handler]),
+    NConfig.
+
+clear_pong_hook(Host, Handler) ->
+    ejabberd_hooks:delete(user_ping_response, Host, Handler, 50).
 
 %%--------------------------------------------------------------------
 %% Ping tests
@@ -157,7 +188,8 @@ server_ping_pong(ConfigIn) ->
                                       PingReq = wait_for_ping_req(Alice),
                                       Pong = escalus_stanza:iq_result(PingReq),
                                       escalus_client:send(Alice, Pong)
-                              end, [Alice1, Alice2, Alice3, Alice4, Alice5])
+                              end, [Alice1, Alice2, Alice3, Alice4, Alice5]),
+                wait_for_pong_hooks(5)
         end).
 
 server_ping_pang(ConfigIn) ->
@@ -192,3 +224,14 @@ wait_for_ping_req(Alice) ->
     <<"urn:xmpp:ping">> = exml_query:path(PingReq, [{element, <<"ping">>},
                                                     {attr, <<"xmlns">>}]),
     PingReq.
+
+wait_for_pong_hooks(0) ->
+    ok;
+wait_for_pong_hooks(N) ->
+    receive
+        {pong, _} -> wait_for_pong_hooks(N-1)
+    after
+        5000 ->
+            ct:fail({pong_hook_runs_missing, N})
+    end.
+

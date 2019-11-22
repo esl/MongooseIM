@@ -177,7 +177,8 @@ handle_info({timeout, _TRef, {ping, JID}},
     T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, Response) ->
                 TDelta = erlang:monotonic_time(millisecond) - T0,
-                NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host, Acc, [JID, Response, TDelta]),
+                NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host,
+                                                 Acc, [JID, Response, TDelta]),
                 gen_server:cast(Pid, {iq_pong, JID, Response}),
                 NewAcc
         end,
@@ -199,13 +200,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Hook callbacks
 %%====================================================================
-iq_ping(_From, _To, Acc, #iq{type = Type, sub_el = SubEl} = IQ) ->
-    case {Type, SubEl} of
-        {get, #xmlel{name = <<"ping">>}} ->
-            {Acc, IQ#iq{type = result, sub_el = []}};
-        _ ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}
-    end.
+iq_ping(_From, _To, Acc, #iq{type = get, sub_el = #xmlel{ name = <<"ping">> }} = IQ) ->
+    {Acc, IQ#iq{type = result, sub_el = []}};
+iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}.
 
 user_online(Acc, _SID, JID, _Info) ->
     start_ping(JID#jid.lserver, JID),
