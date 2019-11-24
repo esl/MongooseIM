@@ -16,3 +16,13 @@ This module implements XMPP Ping functionality as described in [XEP-0199: XMPP P
 ```
   {mod_ping, [{send_pings, true}]},
 ```
+
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| ``[Host, mod_ping, ping_response]`` | spiral | Client responds to a ping. |
+| ``[Host, mod_ping, ping_response_timeout]`` | spiral | Ping request timeouts without a response from client. |
+| ``[Host, mod_ping, ping_response_time]`` | histogram | Response times (doesn't include timeouts). |
