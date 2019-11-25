@@ -149,12 +149,14 @@ end_per_suite(Config) ->
     NewConfig = escalus:delete_users(Config, Who),
     escalus:end_per_suite(NewConfig).
 
-init_per_group(rw, Config) ->
-    restart_vcard_mod(Config, rw),
-    Config;
-init_per_group(params_limited_infinity, Config) ->
-    restart_vcard_mod(Config, params_limited_infinity),
-    Config;
+init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity ->
+    restart_vcard_mod(Config, Group),
+    case vcard_update:is_vcard_ldap() of
+        true ->
+            {skip, ldap_vcard_is_readonly};
+        _ ->
+            Config
+    end;
 init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard, Config),
     case proplists:get_value(backend, VCardConfig) of
@@ -187,14 +189,6 @@ restart_and_prepare_vcard(GroupName, Config) ->
 %%--------------------------------------------------------------------
 
 update_own_card(Config) ->
-    case vcard_update:is_vcard_ldap() of
-        true ->
-            {skip, ldap_vcard_is_readonly};
-        _ ->
-            do_update_own_card(Config)
-    end.
-
-do_update_own_card(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Client1) ->
