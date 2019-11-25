@@ -1,4 +1,4 @@
--module(mongoose_user_stats).
+-module(service_mongoose_user_stats).
 
 -author('aleksander.lisiecki@erlang-solutions.com').
 
@@ -33,7 +33,7 @@ init() ->
     maybe_make_and_save_new_client_id().
 
 report() ->
-    IsAllowed = ejabberd_config:get_local_option(mongoose_user_stats_is_allowed),
+    IsAllowed = ejabberd_config:get_local_option(service_mongoose_user_stats_is_allowed),
     case IsAllowed of
         true ->
             ReportUrl = ejabberd_config:get_local_option(google_analytics_url),

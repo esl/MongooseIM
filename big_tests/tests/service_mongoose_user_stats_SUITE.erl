@@ -1,4 +1,4 @@
--module(mongoose_user_stats_SUITE).
+-module(service_mongoose_user_stats_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
@@ -167,12 +167,12 @@ remove_dummy_cowboy_handler() ->
 enable_user_stats(Node) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
-    IsAllowedArgs = [mongoose_user_stats_is_allowed, true],
+    IsAllowedArgs = [service_mongoose_user_stats_is_allowed, true],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, IsAllowedArgs).
 
 disable_user_stats(Node) ->
     mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]),
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ mongoose_user_stats_is_allowed ]).
+    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ service_mongoose_user_stats_is_allowed ]).
 
 delete_prev_client_id(Node) ->
     mongoose_helper:successful_rpc(Node, mnesia, delete_table, [persistent_user_info]).
@@ -219,4 +219,4 @@ handler_terminate(_Reason, _Req, _State) ->
     ok.
 
 trigger_reporting(Node) ->
-    mongoose_helper:successful_rpc(Node, mongoose_user_stats, start, [ok]).
+    mongoose_helper:successful_rpc(Node, service_mongoose_user_stats, start, [ok]).
