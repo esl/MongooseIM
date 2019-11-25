@@ -29,8 +29,8 @@ suite() ->
 
 all() ->
     [
-        user_stats_are_reported_to_google_analytics_when_mim_starts
-        , all_clustered_mongooses_report_the_same_client_id
+        user_stats_are_reported_to_google_analytics_when_mim_starts,
+        all_clustered_mongooses_report_the_same_client_id
     ].
 
 groups() ->

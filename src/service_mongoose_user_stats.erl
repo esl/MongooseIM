@@ -6,10 +6,7 @@
 
 -export([start/1, stop/0]).
 
--define(TAB_NAME, persistent_user_info).
-
-% dummy is needed as it is not possible to create a mnesia table from single filed record.
--record(?TAB_NAME, {client_id, dummy}).
+-record(service_mongoose_user_stats, {key, value}).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
 -define(TRACKING_ID, "UA-151671255-1").
@@ -22,14 +19,14 @@ stop() ->
     ok.
 
 init() ->
-    mnesia:create_table(?TAB_NAME,
+    mnesia:create_table(service_mongoose_user_stats,
         [
             {type, set},
-            {record_name, ?TAB_NAME},
-            {attributes, record_info(fields, ?TAB_NAME)},
+            {record_name, service_mongoose_user_stats},
+            {attributes, record_info(fields, service_mongoose_user_stats)},
             {disc_copies, [node() | nodes()]}
         ]),
-    mnesia:wait_for_tables([?TAB_NAME], 5000),
+    mnesia:wait_for_tables([service_mongoose_user_stats], 5000),
     maybe_make_and_save_new_client_id().
 
 report() ->
@@ -119,26 +116,21 @@ term_to_string(Term) ->
 
 maybe_make_and_save_new_client_id() ->
     T = fun() ->
-        mnesia:first(?TAB_NAME)
+        case mnesia:read(service_mongoose_user_stats, client_id) of
+            [] ->
+                ClientId = rand:uniform(1000 * 1000 * 1000 * 1000 * 1000),
+                mnesia:write(#service_mongoose_user_stats{key = client_id, value = ClientId}),
+                ClientId;
+            [#service_mongoose_user_stats{value = ClientId}] ->
+                ClientId
+        end
     end,
-    case mnesia:transaction(T) of
-        {atomic, '$end_of_table'} ->
-            make_and_save_new_client_id();
-        {atomic, _ClientId} ->
-            ok
-    end.
+    {atomic, _} = mnesia:transaction(T).
 
 get_client_id() ->
     T = fun() ->
-        mnesia:first(?TAB_NAME)
+        mnesia:read(service_mongoose_user_stats, client_id)
     end,
-    {atomic, ClientId} = mnesia:transaction(T),
-    ClientId.
-
-make_and_save_new_client_id() ->
-    ClientId = rand:uniform(1000 * 1000 * 1000 * 1000 * 1000),
-    T = fun() ->
-        mnesia:write(#?TAB_NAME{client_id = ClientId})
-    end,
-    mnesia:transaction(T),
+    {atomic, [Record]} = mnesia:transaction(T),
+    #service_mongoose_user_stats{value = ClientId} = Record,
     ClientId.
