@@ -74,7 +74,8 @@ groups() ->
 rw_tests() ->
     [
      update_own_card,
-     cant_update_own_card_with_invalid_field
+     cant_update_own_card_with_invalid_field,
+     can_update_own_card_with_emoji_in_nickname
     ].
 
 ro_full_search_tests() ->
@@ -148,12 +149,14 @@ end_per_suite(Config) ->
     NewConfig = escalus:delete_users(Config, Who),
     escalus:end_per_suite(NewConfig).
 
-init_per_group(rw, Config) ->
-    restart_vcard_mod(Config, rw),
-    Config;
-init_per_group(params_limited_infinity, Config) ->
-    restart_vcard_mod(Config, params_limited_infinity),
-    Config;
+init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity ->
+    restart_vcard_mod(Config, Group),
+    case vcard_update:is_vcard_ldap() of
+        true ->
+            {skip, ldap_vcard_is_readonly};
+        _ ->
+            Config
+    end;
 init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard, Config),
     case proplists:get_value(backend, VCardConfig) of
@@ -186,14 +189,6 @@ restart_and_prepare_vcard(GroupName, Config) ->
 %%--------------------------------------------------------------------
 
 update_own_card(Config) ->
-    case vcard_update:is_vcard_ldap() of
-        true ->
-            {skip, ldap_vcard_is_readonly};
-        _ ->
-            do_update_own_card(Config)
-    end.
-
-do_update_own_card(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Client1) ->
@@ -204,7 +199,6 @@ do_update_own_card(Config) ->
                     = escalus:send_and_wait(Client1,
                                         escalus_stanza:vcard_update(Client1Fields)),
                 escalus:assert(is_iq_result, Client1SetResultStanza),
-                escalus_stanza:vcard_request(),
                 Client1GetResultStanza
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 <<"Old name">>
@@ -223,6 +217,21 @@ cant_update_own_card_with_invalid_field(Config) ->
                 escalus:assert(is_iq_error, Client1SetResultStanza)
         end).
 
+can_update_own_card_with_emoji_in_nickname(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                NickWithEmoji = <<"Jan 😊"/utf8>>,
+                Client1Fields = [{<<"NICKNAME">>, NickWithEmoji}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                            escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_result, Client1SetResultStanza),
+                Client1GetResultStanza
+                    = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
+                NickWithEmoji = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"NICKNAME">>)
+        end).
+
 retrieve_own_card(Config) ->
     escalus:story(
       Config, [{alice, 1}],
@@ -236,8 +245,8 @@ retrieve_own_card(Config) ->
 
 
 
-%% If no vCard exists, the server MUST return a stanza error 
-%% (which SHOULD be <item-not-found/>) or an IQ-result 
+%% If no vCard exists, the server MUST return a stanza error
+%% (which SHOULD be <item-not-found/>) or an IQ-result
 %% containing an empty <vCard/> element.
 %% We return <item-not-found/>
 user_doesnt_exist(Config) ->
