@@ -110,6 +110,8 @@ do_authorize({AuthMethod, User, Password}, HTTPMethod) ->
             mongoose_api_common:is_known_auth_method(AuthMethod)
     end.
 
+check_password(<<>>, Password) ->
+    false;
 check_password(User, Password) ->
     #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
     Creds0 = mongoose_credentials:new(Server),
