@@ -12,13 +12,14 @@
 -define(TRACKING_ID, "UA-151671255-1").
 
 start(_) ->
-    init(),
+    maybe_create_table(),
+    maybe_make_and_save_new_client_id(),
     report().
 
 stop() ->
     ok.
 
-init() ->
+maybe_create_table() ->
     mnesia:create_table(service_mongoose_user_stats,
         [
             {type, set},
@@ -26,8 +27,7 @@ init() ->
             {attributes, record_info(fields, service_mongoose_user_stats)},
             {disc_copies, [node() | nodes()]}
         ]),
-    mnesia:wait_for_tables([service_mongoose_user_stats], 5000),
-    maybe_make_and_save_new_client_id().
+    mnesia:wait_for_tables([service_mongoose_user_stats], 5000).
 
 report() ->
     IsAllowed = ejabberd_config:get_local_option(service_mongoose_user_stats_is_allowed),
@@ -125,12 +125,17 @@ maybe_make_and_save_new_client_id() ->
                 ClientId
         end
     end,
-    {atomic, _} = mnesia:transaction(T).
+    mnesia:transaction(T).
 
 get_client_id() ->
     T = fun() ->
         mnesia:read(service_mongoose_user_stats, client_id)
     end,
-    {atomic, [Record]} = mnesia:transaction(T),
-    #service_mongoose_user_stats{value = ClientId} = Record,
-    ClientId.
+    case mnesia:transaction(T) of 
+        {aborted, {no_exists, service_mongoose_user_stats}} ->
+            maybe_create_table(),
+            maybe_make_and_save_new_client_id();
+        {atomic, [Record]} ->
+            #service_mongoose_user_stats{value = ClientId} = Record,
+            ClientId
+    end.
