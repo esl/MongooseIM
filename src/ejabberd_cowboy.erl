@@ -145,6 +145,7 @@ do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
     end.
 
 do_start_cowboy(Ref, Opts) ->
+    ok = trails_store(),
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     TransportOpts0 = gen_mod:get_opt(transport_options, Opts, #{}),
@@ -282,3 +283,18 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
         Value ->
             TransportOpts#{Key => Value}
     end.
+
+%% -------------------------------------------------------------------
+%% @private
+%% @doc
+%% Store trails, this need for generate swagger documentation
+%% Add to Trails each of modules where used trails behaviour
+%% The modules must be added into `mongooseim.cfg`in `swagger` section
+%% @end
+%% -------------------------------------------------------------------
+trails_store() ->
+    [H | _] = ejabberd_config:get_global_option(hosts),
+    Config = ejabberd_config:get_local_option(swagger, H),
+    Mods = proplists:get_value(modules, Config),
+    Trails = trails:trails(Mods),
+    trails:store(Trails).
