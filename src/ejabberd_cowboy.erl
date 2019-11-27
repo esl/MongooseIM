@@ -293,8 +293,12 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% @end
 %% -------------------------------------------------------------------
 trails_store() ->
-    [H | _] = ejabberd_config:get_global_option(hosts),
-    Config = ejabberd_config:get_local_option(swagger, H),
-    Mods = proplists:get_value(modules, Config),
-    Trails = trails:trails(Mods),
-    trails:store(Trails).
+    try
+      Host = hd(ejabberd_config:get_global_option(hosts)),
+      Config = ejabberd_config:get_local_option(swagger, Host),
+      Mods = proplists:get_value(modules, Config),
+      Trails = trails:trails(Mods),
+      trails:store(Trails)
+    catch _:_ ->
+        ok
+    end.
