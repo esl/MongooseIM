@@ -1,14 +1,36 @@
--module(mongoose_user_stats).
+-module(service_mongoose_user_stats).
 
 -author('aleksander.lisiecki@erlang-solutions.com').
 
--export([report/0]).
+-behaviour(mongoose_service).
+
+-export([start/1, stop/0]).
+
+-record(service_mongoose_user_stats, {key, value}).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
 -define(TRACKING_ID, "UA-151671255-1").
 
+start(_) ->
+    maybe_create_table(),
+    maybe_make_and_save_new_client_id(),
+    report().
+
+stop() ->
+    ok.
+
+maybe_create_table() ->
+    mnesia:create_table(service_mongoose_user_stats,
+        [
+            {type, set},
+            {record_name, service_mongoose_user_stats},
+            {attributes, record_info(fields, service_mongoose_user_stats)},
+            {disc_copies, [node() | nodes()]}
+        ]),
+    mnesia:wait_for_tables([service_mongoose_user_stats], 5000).
+
 report() ->
-    IsAllowed = ejabberd_config:get_local_option(mongoose_user_stats_is_allowed),
+    IsAllowed = ejabberd_config:get_local_option(service_mongoose_user_stats_is_allowed),
     case IsAllowed of
         true ->
             ReportUrl = ejabberd_config:get_local_option(google_analytics_url),
@@ -53,7 +75,7 @@ build_report(EventCategory, EventAction) ->
 
 build_report(EventCategory, EventAction, EventLabel) ->
     MaybeLabel = maybe_event_label(EventLabel),
-    LstClientId = term_to_string(client_id()),
+    LstClientId = term_to_string(get_client_id()),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
     LstLine = [
@@ -77,9 +99,9 @@ send_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
     Request = {ReportUrl, Headers, ContentType, Body},
     httpc:request(post, Request, [], []);
 send_reports(ReportUrl, Lines) ->
-    {NewBatch, RemainigLines} = lists:split(20, Lines),
+    {NewBatch, RemainingLines} = lists:split(20, Lines),
     send_reports(ReportUrl, NewBatch),
-    send_reports(ReportUrl, RemainigLines),
+    send_reports(ReportUrl, RemainingLines),
     ok.
 
 
@@ -92,6 +114,28 @@ term_to_string(Term) ->
     R= io_lib:format("~p",[Term]),
     lists:flatten(R).
 
-client_id() ->
-    % TODO in the later implementation store client's ID in eg mnesia table and report stats with the same ID for the same client
-    rand:uniform(1000 * 1000 * 1000 * 1000 * 1000).
+maybe_make_and_save_new_client_id() ->
+    T = fun() ->
+        case mnesia:read(service_mongoose_user_stats, client_id) of
+            [] ->
+                ClientId = rand:uniform(1000 * 1000 * 1000 * 1000 * 1000),
+                mnesia:write(#service_mongoose_user_stats{key = client_id, value = ClientId}),
+                ClientId;
+            [#service_mongoose_user_stats{value = ClientId}] ->
+                ClientId
+        end
+    end,
+    mnesia:transaction(T).
+
+get_client_id() ->
+    T = fun() ->
+        mnesia:read(service_mongoose_user_stats, client_id)
+    end,
+    case mnesia:transaction(T) of 
+        {aborted, {no_exists, service_mongoose_user_stats}} ->
+            maybe_create_table(),
+            maybe_make_and_save_new_client_id();
+        {atomic, [Record]} ->
+            #service_mongoose_user_stats{value = ClientId} = Record,
+            ClientId
+    end.

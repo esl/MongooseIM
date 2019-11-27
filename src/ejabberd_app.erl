@@ -75,7 +75,6 @@ start(normal, _Args) ->
     ejabberd_admin:start(),
     update_status_file(started),
     ?INFO_MSG("ejabberd ~s is started in the node ~p", [?MONGOOSE_VERSION, node()]),
-    mongoose_user_stats:report(),
     Sup;
 start(_, _) ->
     {error, badarg}.
