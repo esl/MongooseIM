@@ -299,6 +299,6 @@ trails_store() ->
       Mods = proplists:get_value(modules, Config),
       Trails = trails:trails(Mods),
       trails:store(Trails)
-    catch _:_ ->
-        ok
+    catch Class:Exception ->
+        ?WARNING_MSG("Trails Call: [~p:~p/0] catched ~p:~p", [?MODULE, trails_store, Class, Exception])
     end.

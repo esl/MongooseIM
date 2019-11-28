@@ -43,7 +43,7 @@ fun() ->
         end
 end,
 
-RequiredApps = fun() -> [mongooseim, inets, tools, trails, cowboy_swagger] end,
+RequiredApps = fun() -> [mongooseim, inets, tools] end,
 EnvApps = GetEnvApps(),
 
 SetupIncludedApps =
