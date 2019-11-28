@@ -130,32 +130,12 @@ from_binary(J) ->
     end.
 
 -spec from_binary_nif(binary()) ->  error  | {binary(), binary(), binary()}.
-from_binary_nif(B) when is_binary(B) ->
+from_binary_nif(_) ->
     erlang:nif_error(not_loaded).
 
 -spec to_binary(simple_jid() | simple_bare_jid() | jid()) ->  binary().
-to_binary(Jid) when is_binary(Jid) ->
-    % sometimes it is used to format error messages
-    Jid;
-to_binary(#jid{user = User, server = Server, resource = Resource}) ->
-    to_binary({User, Server, Resource});
-to_binary({User, Server}) ->
-    to_binary({User, Server, <<>>});
-to_binary({Node, Server, Resource}) ->
-    S1 = case Node of
-             <<>> ->
-                 <<>>;
-             _ ->
-                 <<Node/binary, "@">>
-         end,
-    S2 = <<S1/binary, Server/binary>>,
-    S3 = case Resource of
-             <<>> ->
-                 S2;
-             _ ->
-                 <<S2/binary, "/", Resource/binary>>
-         end,
-    S3.
+to_binary(_) ->
+    erlang:nif_error(not_loaded).
 
 -spec is_nodename(<<>> | binary()) -> boolean().
 is_nodename(<<>>) ->

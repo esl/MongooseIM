@@ -68,7 +68,73 @@ end_loop:
             resource);
 }
 
+
+static ERL_NIF_TERM
+to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    if(argc != 1)
+        return enif_make_badarg(env);
+    if (enif_is_binary(env, argv[0]))
+        return argv[0];
+
+    int arity;
+    const ERL_NIF_TERM *tuple;
+    if (!enif_get_tuple(env, argv[0], &arity, &tuple))
+        return enif_make_badarg(env);
+
+    ErlNifBinary user = {};
+    ErlNifBinary server = {};
+    ErlNifBinary resource = {};
+    switch(arity) {
+        case 7: // #jid record, extract fields {1, 2, 3}
+            if (!enif_inspect_binary(env, tuple[1], &user)
+                    || !enif_inspect_binary(env, tuple[2], &server)
+                    || !enif_inspect_binary(env, tuple[3], &resource))
+                return enif_make_badarg(env);
+            break;
+        case 2: // {User, Server}
+            if (!enif_inspect_binary(env, tuple[0], &user)
+                    || !enif_inspect_binary(env, tuple[1], &server))
+                return enif_make_badarg(env);
+            break;
+        case 3: // {User, Server, Resource}
+            if (!enif_inspect_binary(env, tuple[0], &user)
+                    || !enif_inspect_binary(env, tuple[1], &server)
+                    || !enif_inspect_binary(env, tuple[2], &resource))
+                return enif_make_badarg(env);
+            break;
+        default:
+            return enif_make_badarg(env);
+    }
+    // Process those three binaries
+    unsigned index = 0;
+    unsigned len =
+        (user.size == 0 ? 0 : user.size + 1) + // user plus commertial_at
+        server.size +
+        (resource.size == 0 ? 0 : resource.size + 1); // res plus slash
+
+    ERL_NIF_TERM final_jid;
+    unsigned char *final_jid_data = enif_make_new_binary(env, len, &final_jid);
+    std::memset(final_jid_data,0,len);
+    // copy the user field and the commercial_at if there's a user
+    if (user.size != 0) {
+        std::memcpy(final_jid_data, user.data, user.size);
+        std::memcpy(final_jid_data+user.size, "@", 1);
+        index += user.size + 1;
+    }
+    // always copy the server field
+    std::memcpy(final_jid_data+index, server.data, server.size);
+    index += server.size;
+    // copy the slash and the resource fieldif there's a resource
+    if (resource.size != 0) {
+        std::memcpy(final_jid_data+index, "/", 1);
+        std::memcpy(final_jid_data+index+1, resource.data, resource.size);
+    }
+    return final_jid;
+}
+
 static ErlNifFunc jid_nif_funcs[] = {
+    {"to_binary", 1, to_binary},
     {"from_binary_nif", 1, from_binary_nif}
 };
 
