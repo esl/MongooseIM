@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(jid).
+-on_load(load/0).
 
 -export([make/3]).
 -export([make/1]).
@@ -123,47 +124,14 @@ are_bare_equal(_, _) ->
 
 -spec from_binary(binary()) ->  error  | jid().
 from_binary(J) ->
-    binary_to_jid1(J, []).
+    case from_binary_nif(J) of
+        {U,H,R} -> make(U,H,R);
+        error -> error
+    end.
 
--spec binary_to_jid1(binary(), [byte()]) -> 'error' | jid().
-binary_to_jid1(<<$@, _J/binary>>, []) ->
-    error;
-binary_to_jid1(<<$@, J/binary>>, N) ->
-    binary_to_jid2(J, lists:reverse(N), []);
-binary_to_jid1(<<$/, _J/binary>>, []) ->
-    error;
-binary_to_jid1(<<$/, J/binary>>, N) ->
-    binary_to_jid3(J, [], lists:reverse(N), []);
-binary_to_jid1(<<C, J/binary>>, N) ->
-    binary_to_jid1(J, [C | N]);
-binary_to_jid1(<<>>, []) ->
-    error;
-binary_to_jid1(<<>>, N) ->
-    make(<<>>, list_to_binary(lists:reverse(N)), <<>>).
-
-
-%% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(), [byte()], [byte()]) -> 'error' | jid().
-binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
-    error;
-binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
-    error;
-binary_to_jid2(<<$/, J/binary>>, N, S) ->
-    binary_to_jid3(J, N, lists:reverse(S), []);
-binary_to_jid2(<<C, J/binary>>, N, S) ->
-    binary_to_jid2(J, N, [C | S]);
-binary_to_jid2(<<>>, _N, []) ->
-    error;
-binary_to_jid2(<<>>, N, S) ->
-    make(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
-
-
--spec binary_to_jid3(binary(), [byte()], [byte()], [byte()]) -> 'error' | jid().
-binary_to_jid3(<<C, J/binary>>, N, S, R) ->
-    binary_to_jid3(J, N, S, [C | R]);
-binary_to_jid3(<<>>, N, S, R) ->
-    make(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
-
+-spec from_binary_nif(binary()) ->  error  | {binary(), binary(), binary()}.
+from_binary_nif(B) when is_binary(B) ->
+    erlang:nif_error(not_loaded).
 
 -spec to_binary(simple_jid() | simple_bare_jid() | jid()) ->  binary().
 to_binary(Jid) when is_binary(Jid) ->
@@ -264,3 +232,22 @@ binary_to_bare(JID) when is_binary(JID) ->
         #jid{} = Result ->
             to_bare(Result)
     end.
+
+
+%%%===================================================================
+%%% Load NIF
+%%%===================================================================
+-spec load() -> any().
+load() ->
+    SoName = case code:priv_dir(mongooseim) of
+        {error, bad_name} ->
+            case filelib:is_dir(filename:join(["..", priv])) of
+                true ->
+                    filename:join(["..", priv, jid]);
+                _ ->
+                    filename:join([priv, jid])
+            end;
+        Dir ->
+            filename:join([Dir, lib, ?MODULE_STRING])
+    end,
+    erlang:load_nif(SoName, 0).
