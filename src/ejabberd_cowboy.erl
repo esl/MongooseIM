@@ -300,5 +300,5 @@ trails_store() ->
       Trails = trails:trails(Mods),
       trails:store(Trails)
     catch Class:Exception ->
-        io:format("WARNING! Trails Call: [~p:~p/0] catched ~p:~p~n", [?MODULE, trails_store, Class, Exception])
+        ?WARNING_MSG("Trails Call: [~p:~p/0] catched ~p:~p~n", [?MODULE, trails_store, Class, Exception])
     end.
