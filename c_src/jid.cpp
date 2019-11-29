@@ -114,7 +114,7 @@ to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     unsigned index = 0;
     unsigned len =
         server.size + // there's always a server
-        (user.size == 0 ? 0 : user.size + 1) + // user plus commertial_at, if any
+        (user.size == 0 ? 0 : user.size + 1) + // user plus commercial_at, if any
         (resource.size == 0 ? 0 : resource.size + 1); // res plus slash, if any
 
     ERL_NIF_TERM final_jid;
