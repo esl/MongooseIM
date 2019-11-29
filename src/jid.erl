@@ -125,11 +125,11 @@ are_bare_equal(_, _) ->
 -spec from_binary(binary()) ->  error  | jid().
 from_binary(J) ->
     case from_binary_nif(J) of
-        {U,H,R} -> make(U,H,R);
+        {U, H, R} -> make(U, H, R);
         error -> error
     end.
 
--spec from_binary_nif(binary()) ->  error  | {binary(), binary(), binary()}.
+-spec from_binary_nif(binary()) ->  error | simple_jid().
 from_binary_nif(_) ->
     erlang:nif_error(not_loaded).
 

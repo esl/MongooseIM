@@ -30,6 +30,8 @@ from_binary_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
                 if (slash == size) {
                     slash = i;
                     goto end_loop;
+                    // If we found a slash first, we don't care about commercial_ats anymore
+                    // https://tools.ietf.org/html/rfc7622#section-3.2
                 }
                 break;
             case '@':
@@ -49,10 +51,10 @@ end_loop:
     if (host_size == 0) return mk_error(env);
     ERL_NIF_TERM host;
     unsigned char *host_data = enif_make_new_binary(env, host_size, &host);
-    std::memcpy(host_data, &(bin.data[commercial_at+1]), host_size);
+    std::memcpy(host_data, &(bin.data[commercial_at + 1]), host_size);
 
     ERL_NIF_TERM resource;
-    unsigned res_size = slash >= size-1 ? 0 : size-1-slash;
+    unsigned res_size = slash >= size - 1 ? 0 : size - slash - 1;
     unsigned char *res_data = enif_make_new_binary(env, res_size, &resource);
     std::memcpy(res_data, &(bin.data[slash + 1]), res_size);
 
@@ -86,7 +88,9 @@ to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ErlNifBinary server = {};
     ErlNifBinary resource = {};
     switch(arity) {
-        case 7: // #jid record, extract fields {1, 2, 3}
+        case 7: // It is a #jid record, so from
+                // {jid, User, Server, Resource, LUser, LServer, LResource}
+                // extract fields 1, 2, and 3 (U, S, and R, it's 0-indexed)
             if (!enif_inspect_binary(env, tuple[1], &user)
                     || !enif_inspect_binary(env, tuple[2], &server)
                     || !enif_inspect_binary(env, tuple[3], &resource))
@@ -109,26 +113,26 @@ to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     // Process those three binaries
     unsigned index = 0;
     unsigned len =
-        (user.size == 0 ? 0 : user.size + 1) + // user plus commertial_at
-        server.size +
-        (resource.size == 0 ? 0 : resource.size + 1); // res plus slash
+        server.size + // there's always a server
+        (user.size == 0 ? 0 : user.size + 1) + // user plus commertial_at, if any
+        (resource.size == 0 ? 0 : resource.size + 1); // res plus slash, if any
 
     ERL_NIF_TERM final_jid;
     unsigned char *final_jid_data = enif_make_new_binary(env, len, &final_jid);
-    std::memset(final_jid_data,0,len);
+    std::memset(final_jid_data, 0, len);
     // copy the user field and the commercial_at if there's a user
     if (user.size != 0) {
         std::memcpy(final_jid_data, user.data, user.size);
-        std::memcpy(final_jid_data+user.size, "@", 1);
+        std::memcpy(final_jid_data + user.size, "@", 1);
         index += user.size + 1;
     }
     // always copy the server field
-    std::memcpy(final_jid_data+index, server.data, server.size);
+    std::memcpy(final_jid_data + index, server.data, server.size);
     index += server.size;
-    // copy the slash and the resource fieldif there's a resource
+    // copy the slash and the resource field if there's a resource
     if (resource.size != 0) {
-        std::memcpy(final_jid_data+index, "/", 1);
-        std::memcpy(final_jid_data+index+1, resource.data, resource.size);
+        std::memcpy(final_jid_data + index, "/", 1);
+        std::memcpy(final_jid_data + index + 1, resource.data, resource.size);
     }
     return final_jid;
 }
