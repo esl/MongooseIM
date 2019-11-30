@@ -356,7 +356,7 @@ process_data(Data, #state{parser = Parser,
                           stanza_chunk_size = ChunkSize,
                           c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
-    Size = size(Data),
+    Size = byte_size(Data),
     maybe_run_keep_alive_hook(Size, State),
     {C2SEvents, NewParser} =
         case exml_stream:parse(Parser, Data) of
