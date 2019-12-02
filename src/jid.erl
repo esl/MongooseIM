@@ -66,6 +66,9 @@
              ]).
 
 -define(SANE_LIMIT, 1024).
+-define(XMPP_JID_SIZE_LIMIT, 3071).
+% Maximum JID size in octets (bytes) as defined in
+% https://tools.ietf.org/html/rfc7622#section-3.1
 
 -spec make(User :: user(), Server :: server(), Res :: resource()) -> jid()  | error.
 make(User, Server, Res) ->
@@ -123,11 +126,13 @@ are_bare_equal(_, _) ->
     false.
 
 -spec from_binary(binary()) ->  error  | jid().
-from_binary(J) ->
+from_binary(J) when is_binary(J), byte_size(J) < ?XMPP_JID_SIZE_LIMIT ->
     case from_binary_nif(J) of
         {U, H, R} -> make(U, H, R);
         error -> error
-    end.
+    end;
+from_binary(_) ->
+    error.
 
 -spec from_binary_nif(binary()) ->  error | simple_jid().
 from_binary_nif(_) ->
