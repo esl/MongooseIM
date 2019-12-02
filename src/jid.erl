@@ -134,10 +134,14 @@ from_binary(J) when is_binary(J), byte_size(J) < ?XMPP_JID_SIZE_LIMIT ->
 from_binary(_) ->
     error.
 
+%% Original Erlang equivalent can be found in test/jid_SUITE.erl,
+%% together with `proper` generators to check for equivalence
 -spec from_binary_nif(binary()) ->  error | simple_jid().
 from_binary_nif(_) ->
     erlang:nif_error(not_loaded).
 
+%% Original Erlang equivalent can be found in test/jid_SUITE.erl,
+%% together with `proper` generators to check for equivalence
 -spec to_binary(simple_jid() | simple_bare_jid() | jid()) ->  binary().
 to_binary(_) ->
     erlang:nif_error(not_loaded).
