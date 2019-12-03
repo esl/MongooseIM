@@ -5,7 +5,7 @@
 %%% @end
 %%% ==================================================================
 
--module(mongooseim_swagger_docs).
+-module(mongoose_client_api_messages_doc).
 
 %%% ==================================================================
 %%% Macros: HTTP Response Codes
