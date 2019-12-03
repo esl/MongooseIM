@@ -15,10 +15,15 @@
 -export([maybe_integer/1]).
 -export([maybe_before_to_us/2]).
 
+-export([trails/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
+
+trails() ->
+  mongooseim_swagger_docs:trails().
 
 init(Req, Opts) ->
     mongoose_client_api:init(Req, Opts).
@@ -154,4 +159,3 @@ maybe_before_to_us(undefined, Now) ->
     Now;
 maybe_before_to_us(Timestamp, _) ->
    Timestamp * 1000.
-

@@ -145,7 +145,6 @@ do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
     end.
 
 do_start_cowboy(Ref, Opts) ->
-    ok = trails_store(),
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     TransportOpts0 = gen_mod:get_opt(transport_options, Opts, #{}),
@@ -154,6 +153,7 @@ do_start_cowboy(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(Modules)),
     ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
                     gen_mod:get_opt(protocol_options, Opts, [])],
+    ok = trails_store(Modules),
     case catch start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
@@ -292,13 +292,27 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% The modules must be added into `mongooseim.cfg`in `swagger` section
 %% @end
 %% -------------------------------------------------------------------
-trails_store() ->
+trails_store(Modules) ->
     try
-      Host = hd(ejabberd_config:get_global_option(hosts)),
-      Config = ejabberd_config:get_local_option(swagger, Host),
-      Mods = proplists:get_value(modules, Config),
-      Trails = trails:trails(Mods),
-      trails:store(Trails)
+        trails:store(trails:trails(collect_trails(Modules, [])))
     catch Class:Exception ->
         ?WARNING_MSG("Trails Call: [~p:~p/0] catched ~p:~p~n", [?MODULE, trails_store, Class, Exception])
     end.
+
+%% -------------------------------------------------------------------
+%% @private
+%% @doc
+%% Helper of store trails for collect trails modules
+%% @end
+%% -------------------------------------------------------------------
+collect_trails([], Acc) ->
+    Acc;
+collect_trails([{Host, BasePath, Module} | T], Acc) ->
+    collect_trails([{Host, BasePath, Module, []} | T], Acc);
+collect_trails([{_, _, Module, _} | T], Acc) ->
+    case erlang:function_exported(Module, trails, 0) of
+      true ->
+          collect_trails(T, [Module | Acc]);
+      _ ->
+          collect_trails(T, Acc)
+  end.
