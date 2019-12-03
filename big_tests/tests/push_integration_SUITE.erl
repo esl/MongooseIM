@@ -36,7 +36,8 @@ all() ->
         {group, pm_msg_notifications},
         {group, muclight_msg_notifications},
         {group, pm_notifications_with_inbox},
-        {group, groupchat_notifications_with_inbox}
+        {group, groupchat_notifications_with_inbox},
+        {group, failure_cases}
     ].
 
 groups() ->
@@ -74,7 +75,11 @@ groups() ->
            inbox_msg_unread_count_fcm,
            inbox_msg_reset_unread_count_apns,
            inbox_msg_reset_unread_count_fcm
-          ]}
+          ]},
+         {failure_cases, [parallel],
+          [no_push_notification_for_expired_device,
+           no_push_notification_for_internal_mongoose_push_error]
+         }
         ],
     G.
 
@@ -144,7 +149,7 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
-            Notification = wait_for_push_request(DeviceToken),
+            {Notification, _} = wait_for_push_request(DeviceToken),
 
             assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID, [])
 
@@ -195,7 +200,7 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
-            Notification = wait_for_push_request(DeviceToken),
+            {Notification, _} = wait_for_push_request(DeviceToken),
 
             assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
@@ -313,13 +318,13 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
 
               SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
               escalus:wait_for_stanza(Alice),
-              Notification = wait_for_push_request(KateToken),
+              {Notification, _} = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
                                        [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 
               muclight_conversation(Alice, RoomJID, <<"Second!">>),
               escalus:wait_for_stanza(Alice),
-              Notification2 = wait_for_push_request(KateToken),
+              {Notification2, _} = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
                                        [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
@@ -344,7 +349,7 @@ send_private_message(Sender, Recipient, Body) ->
     Id.
 
 check_notification(DeviceToken, ExpectedCount) ->
-    Notification = wait_for_push_request(DeviceToken),
+    {Notification, _} = wait_for_push_request(DeviceToken),
     Data = maps:get(<<"data">>, Notification, undefined),
     ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
 
@@ -366,7 +371,7 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
             DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
-            Notification = wait_for_push_request(DeviceToken),
+            {Notification, _} = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID,
                                      [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}])
         end).
@@ -380,7 +385,7 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
             DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
-            Notification = wait_for_push_request(DeviceToken),
+            {Notification, _} = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"fcm">>,
                                      EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}])
         end).
@@ -404,7 +409,7 @@ muclight_aff_change(Config, Service, EnableOpts) ->
               {Room, Body, M1} = when_muc_light_message_is_sent(Alice, Room, <<"First!">>, <<"M1">>),
               then_muc_light_message_is_received_by([Alice], {Room, Body, M1}),
 
-              Notification = wait_for_push_request(KateToken),
+              {Notification, _} = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
                                        [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 
@@ -415,7 +420,7 @@ muclight_aff_change(Config, Service, EnableOpts) ->
               {_, B2, M2} = when_muc_light_message_is_sent(Alice, Room, <<"Second!">>, <<"M2">>),
               then_muc_light_message_is_received_by([Alice, Bob], {Room, B2, M2}),
 
-              Notification2 = wait_for_push_request(KateToken),
+              {Notification2, _} = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
                                        [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}])
 
@@ -448,9 +453,35 @@ muclight_aff_change_fcm(Config) ->
 
 muclight_aff_change_apns(Config) ->
     muclight_aff_change(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+no_push_notification_for_expired_device(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            Response = {410, jiffy:encode(#{<<"reason">> => <<"unregistered">>})},
+            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, [], Response),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+            {_, Response} = wait_for_push_request(DeviceToken)
+
+        end).
+
+no_push_notification_for_internal_mongoose_push_error(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            Response = {503, jiffy:encode(#{<<"reason">> => <<"unspecified">>})},
+            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, [], Response),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+            {_, Response} = wait_for_push_request(DeviceToken)
+
+        end).
+
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+
+
 
 muclight_conversation(Sender, RoomJID, Msg) ->
     Bare = bare_jid(Sender),
@@ -466,6 +497,9 @@ pm_conversation(Alice, Bob, Service, EnableOpts) ->
     {AliceJID, DeviceToken}.
 
 enable_push_for_user(User, Service, EnableOpts) ->
+    enable_push_for_user(User, Service, EnableOpts, {200, <<"OK">>}).
+
+enable_push_for_user(User, Service, EnableOpts, MockResponse) ->
     PubsubJID = node_addr(),
     Node = {_, NodeName} = pubsub_node(),
 
@@ -479,14 +513,13 @@ enable_push_for_user(User, Service, EnableOpts) ->
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)),
-    mongoose_push_mock:subscribe(DeviceToken),
+    mongoose_push_mock:subscribe(DeviceToken, MockResponse),
     become_unavailable(User),
     DeviceToken.
 
 
 wait_for_push_request(DeviceToken) ->
-    Body = mongoose_push_mock:wait_for_push_request(DeviceToken),
-    jiffy:decode(Body, [return_maps]).
+    mongoose_push_mock:wait_for_push_request(DeviceToken).
 
 
 %% ----------------------------------
