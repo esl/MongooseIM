@@ -37,7 +37,8 @@ all() ->
         {group, muclight_msg_notifications},
         {group, pm_notifications_with_inbox},
         {group, groupchat_notifications_with_inbox},
-        {group, failure_cases}
+        {group, failure_cases_v3},
+        {group, failure_cases_v2}
     ].
 
 groups() ->
@@ -76,12 +77,14 @@ groups() ->
            inbox_msg_reset_unread_count_apns,
            inbox_msg_reset_unread_count_fcm
           ]},
-         {failure_cases, [parallel],
-          [no_push_notification_for_expired_device,
-           no_push_notification_for_internal_mongoose_push_error]
-         }
+         {failure_cases_v3, [parallel], failure_cases()},
+         {failure_cases_v2, [parallel], failure_cases()}
         ],
     G.
+
+failure_cases() ->
+    [no_push_notification_for_expired_device,
+     no_push_notification_for_internal_mongoose_push_error].
 
 %%    ct_helper:repeat_all_until_all_ok(G).
 
@@ -99,7 +102,7 @@ init_per_suite(Config0) ->
 
     %% Start modules
     Config = dynamic_modules:save_modules(domain(), Config0),
-    dynamic_modules:ensure_modules(domain(), required_modules()),
+    dynamic_modules:ensure_modules(domain(), required_modules("v3")),
 
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
@@ -587,29 +590,32 @@ h2_req(Conn, Method, Path, Body) ->
     end.
 
 init_modules(G, Config) ->
-    Modules = required_modules(G),
+    Modules = required_modules_for_group(G),
     C = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), Modules),
     C.
 
 
-required_modules(pm_notifications_with_inbox) ->
-    [{mod_inbox, inbox_opts()}|required_modules()];
-required_modules(groupchat_notifications_with_inbox)->
-    [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}|required_modules()];
-required_modules(muclight_msg_notifications) ->
-    [{mod_muc_light, muc_light_opts()}|required_modules()];
-required_modules(_) ->
-    required_modules().
+required_modules_for_group(pm_notifications_with_inbox) ->
+    [{mod_inbox, inbox_opts()} | required_modules("v3")];
+required_modules_for_group(groupchat_notifications_with_inbox)->
+    [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()} |
+     required_modules_for_group("v3")];
+required_modules_for_group(muclight_msg_notifications) ->
+    [{mod_muc_light, muc_light_opts()} | required_modules("v3")];
+required_modules_for_group(failure_cases_v2) ->
+    required_modules("v2");
+required_modules_for_group(_) ->
+    required_modules("v3").
 
-required_modules() ->
+required_modules(API) ->
     [
      {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {nodetree, <<"dag">>},
                    {host, "pubsub.@HOST@"}]},
      {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-                                      {api_version, "v2"}]},
+                                      {api_version, API}]},
      {mod_push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]}
     ].
 

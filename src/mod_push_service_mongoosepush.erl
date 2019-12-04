@@ -35,7 +35,7 @@
 %% Definitions
 %%--------------------------------------------------------------------
 
--define(DEFAULT_API_VERSION, "v2").
+-define(DEFAULT_API_VERSION, "v3").
 
 -callback init(term(), term()) -> ok.
 
@@ -78,14 +78,14 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
     DeviceId = maps:get(<<"device_id">>, Options),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version,
-                                                            ?DEFAULT_API_VERSION)),
+    ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
+    {ok, ProtocolVersion, ProtocolVersionAtom} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
             {ok, JSON} =
-                make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options),
+                make_notification(ProtocolVersionAtom, Notification, Options),
             Payload = jiffy:encode(JSON),
             cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
@@ -125,8 +125,16 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
+parse_api_version("v3") ->
+    {ok, <<"v3">>, v3};
+parse_api_version("v2") ->
+    {ok, <<"v2">>, v2};
+parse_api_version(_) ->
+    {error, not_supported}.
+
 %% Create notification for API v2
-make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
+make_notification(API, Notification, Options = #{<<"silent">> := <<"true">>})
+  when API =:= v2; API =:= v3 ->
     MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
     {ok, #{
         service => maps:get(<<"service">>, Options),
@@ -134,7 +142,8 @@ make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
         topic => maps:get(<<"topic">>, Options, null),
         data => Notification#{<<"message-count">> => MessageCount}
     }};
-make_notification(v2, Notification, Options) ->
+make_notification(API, Notification, Options)
+  when API =:= v2; API =:= v3 ->
     {ok, #{
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
