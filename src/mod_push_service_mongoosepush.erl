@@ -106,14 +106,17 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
                     ok;
+                410 ->
+                    ?WARNING_MSG("issue=unable_to_submit_push_notification, https_status=410, reason=device_not_registered", []),
+                    {error, device_not_registered};
                 StatusCode when StatusCode >= 400 andalso StatusCode < 500  ->
-                    ?ERROR_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p."
-                               "Possible API mismatch - tried URL: ~p.",
-                               [StatusCode, Payload, URL]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, url=~p, response=~p, "
+                               "details=\"Possible API mismatch\", payload=~p",
+                               [StatusCode, URL, Body, Payload]),
                     {error, {invalid_status_code, StatusCode}};
                 StatusCode ->
-                    ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p",
-                                 [StatusCode, Body]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, response=~p",
+                               [StatusCode, Body]),
                     {error, {invalid_status_code, StatusCode}}
             end;
         {error, Reason} ->
