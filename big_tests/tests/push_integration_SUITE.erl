@@ -461,12 +461,20 @@ no_push_notification_for_expired_device(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            Response = {410, jiffy:encode(#{<<"reason">> => <<"unregistered">>})},
+            Response = mongoose_push_unregistered_device_resp(Config),
             DeviceToken = enable_push_for_user(Bob, <<"fcm">>, [], Response),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             {_, Response} = wait_for_push_request(DeviceToken)
 
         end).
+
+mongoose_push_unregistered_device_resp(Config) ->
+    case ?config(api_v, Config) of
+        "v3" ->
+            {410, jiffy:encode(#{<<"reason">> => <<"unregistered">>})};
+        "v2" ->
+            {500, jiffy:encode(#{<<"details">> => <<"probably_unregistered">>})}
+    end.
 
 no_push_notification_for_internal_mongoose_push_error(Config) ->
     escalus:fresh_story(
@@ -590,23 +598,26 @@ h2_req(Conn, Method, Path, Body) ->
     end.
 
 init_modules(G, Config) ->
-    Modules = required_modules_for_group(G),
+    MongoosePushAPI = mongoose_push_api_for_group(G),
+    Modules = required_modules_for_group(G, MongoosePushAPI),
     C = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), Modules),
-    C.
+    [{api_v, MongoosePushAPI} | C].
 
+mongoose_push_api_for_group(failure_cases_v2) ->
+    "v2";
+mongoose_push_api_for_group(_) ->
+    "v3".
 
-required_modules_for_group(pm_notifications_with_inbox) ->
-    [{mod_inbox, inbox_opts()} | required_modules("v3")];
-required_modules_for_group(groupchat_notifications_with_inbox)->
+required_modules_for_group(pm_notifications_with_inbox, API) ->
+    [{mod_inbox, inbox_opts()} | required_modules(API)];
+required_modules_for_group(groupchat_notifications_with_inbox, API)->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()} |
-     required_modules_for_group("v3")];
-required_modules_for_group(muclight_msg_notifications) ->
-    [{mod_muc_light, muc_light_opts()} | required_modules("v3")];
-required_modules_for_group(failure_cases_v2) ->
-    required_modules("v2");
-required_modules_for_group(_) ->
-    required_modules("v3").
+     required_modules(API)];
+required_modules_for_group(muclight_msg_notifications, API) ->
+    [{mod_muc_light, muc_light_opts()} | required_modules(API)];
+required_modules_for_group(_, API) ->
+    required_modules(API).
 
 required_modules(API) ->
     [
