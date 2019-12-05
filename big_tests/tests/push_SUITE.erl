@@ -92,27 +92,19 @@ init_per_group(muclight_msg_notifications, Config0) ->
                                             {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
-init_per_group(_, Config0) ->
-    PushOpts = push_opts(),
-    Config1 = [{push_config, PushOpts} | Config0],
-    Host = ct:get_config({hosts, mim, domain}),
-    Config = dynamic_modules:save_modules(Host, Config1),
-    dynamic_modules:ensure_modules(Host, [{mod_push, PushOpts}]),
-    Config.
+init_per_group(_, Config) ->
+    ensure_pusher_module_and_save_old_mods(Config).
 
 end_per_group(disco, Config) ->
     escalus:delete_users(Config),
     Config;
 end_per_group(_, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:restore_modules(Host, Config),
+    restore_modules(Config),
     Config.
 
-init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, push_opts()}]]),
-    escalus:init_per_testcase(CaseName, [{old_modules, OldModules} | Config]);
+init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config1) ->
+    Config2 = ensure_pusher_module_and_save_old_mods(Config1),
+    escalus:init_per_testcase(CaseName, Config2);
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
@@ -123,16 +115,25 @@ init_per_testcase(CaseName, Config0) ->
 
 
 end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OldModules = ?config(old_modules, Config),
-    CurrentModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, replace_modules, [Host, CurrentModules, OldModules]),
+    restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     rpc(ejabberd_router, unregister_route, [atom_to_binary(CaseName, utf8)]),
     escalus:end_per_testcase(CaseName, Config).
+
+ensure_pusher_module_and_save_old_mods(Config) ->
+    PushOpts = push_opts(),
+    Host = ct:get_config({hosts, mim, domain}),
+    Config1 = dynamic_modules:save_modules(Host, Config),
+    PusherMod = {mod_event_pusher, [{backends, [{push, PushOpts}]}]},
+    dynamic_modules:ensure_modules(Host, [PusherMod]),
+    [{push_opts, PushOpts} | Config1].
+
+restore_modules(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:restore_modules(Host, Config).
 
 %%--------------------------------------------------------------------
 %% GROUP disco
