@@ -1,6 +1,6 @@
 %%% ==================================================================
 %%% @doc
-%%% This module provided documentation of MongooseIM client REST API
+%%% This module provided documentation of MongooseIM client REST API Messages: /api/messages/[:with]
 %%% This module can be used as base template for other custom REST API documentation
 %%% @end
 %%% ==================================================================
@@ -141,7 +141,7 @@ trails() ->
   MetadataClientApiMessages = #{
     get => #{
       tags => ["One-to-one messages"],
-      description => "Gets all recent messages from all users from the archive.",
+      description => <<"Gets all recent messages from all users from the archive.">>,
       consumes => ["application/json"],
       produces => ["application/json"],
       parameters => [RequestQueryGetLimitMessages, RequestQueryGetBeforeMessages],
@@ -154,7 +154,7 @@ trails() ->
     },
     post => #{
       tags => ["One-to-one messages"],
-      description => "Sends messages.",
+      description => <<"Sends messages.">>,
       consumes => ["application/json"],
       produces => ["application/json"],
       parameters => [RequestBodyMessages],
@@ -170,7 +170,7 @@ trails() ->
   MetadataClientApiMessagesGetWith = #{
     get => #{
       tags => ["One-to-one messages"],
-      description => "Gets all recent messages from specified user from the archive.",
+      description => <<"Gets all recent messages from specified user from the archive.">>,
       consumes => ["application/json"],
       produces => ["application/json"],
       parameters => [RequestPushGetMessagesWith, RequestQueryGetLimitMessages, RequestQueryGetBeforeMessages],

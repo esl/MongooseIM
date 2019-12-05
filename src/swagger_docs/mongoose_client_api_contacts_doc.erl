@@ -1,6 +1,6 @@
 %%% ==================================================================
 %%% @doc
-%%% This module provided documentation of MongooseIM client REST API Contacts
+%%% This module provided documentation of MongooseIM client REST API Contacts: /api/contacts/[:jid]
 %%% @end
 %%% ==================================================================
 
@@ -154,7 +154,7 @@ trails() ->
   MetadataClientApiContacts = #{
     post => #{
       tags => ["Contacts"],
-      description => "Adds a user to a contact list.",
+      description => <<"Adds a user to a contact list.">>,
       consumes => ["application/json"],
       produces => ["application/json"],
       parameters => [RequestPostBodyContact],
