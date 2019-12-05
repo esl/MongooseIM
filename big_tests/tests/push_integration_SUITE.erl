@@ -520,6 +520,8 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse) ->
                      {<<"pubsub#publish_model">>, <<"publishers">>}],
     pubsub_tools:create_node(User, Node, [{type, <<"push">>},
                                           {config, Configuration}]),
+
+    add_user_server_to_whitelist(User, Node),
     escalus:send(User, enable_stanza(PubsubJID, NodeName,
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
@@ -528,6 +530,17 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse) ->
     become_unavailable(User),
     DeviceToken.
 
+add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
+    AffList = [ #xmlel{ name = <<"affiliation">>,
+                        attrs = [{<<"jid">>, escalus_utils:get_server(User)},
+                                 {<<"affiliation">>, <<"publish-only">>}] }
+              ],
+    Affiliations = #xmlel{ name = <<"affiliations">>, attrs = [{<<"node">>, NodeName}],
+                           children = AffList },
+    Id = base64:encode(crypto:strong_rand_bytes(5)),
+    Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),
+    escalus:send(User, Stanza),
+    escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
 
 wait_for_push_request(DeviceToken) ->
     mongoose_push_mock:wait_for_push_request(DeviceToken).
