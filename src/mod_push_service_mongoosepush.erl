@@ -35,7 +35,7 @@
 %% Definitions
 %%--------------------------------------------------------------------
 
--define(DEFAULT_API_VERSION, "v2").
+-define(DEFAULT_API_VERSION, "v3").
 
 -callback init(term(), term()) -> ok.
 
@@ -78,14 +78,14 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
     DeviceId = maps:get(<<"device_id">>, Options),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version,
-                                                            ?DEFAULT_API_VERSION)),
+    ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
+    {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
             {ok, JSON} =
-                make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options),
+                make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),
             cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
@@ -106,14 +106,17 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
                     ok;
+                410 ->
+                    ?WARNING_MSG("issue=unable_to_submit_push_notification, https_status=410, reason=device_not_registered", []),
+                    {error, device_not_registered};
                 StatusCode when StatusCode >= 400 andalso StatusCode < 500  ->
-                    ?ERROR_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p."
-                               "Possible API mismatch - tried URL: ~p.",
-                               [StatusCode, Payload, URL]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, url=~p, response=~p, "
+                               "details=\"Possible API mismatch\", payload=~p",
+                               [StatusCode, URL, Body, Payload]),
                     {error, {invalid_status_code, StatusCode}};
                 StatusCode ->
-                    ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p",
-                                 [StatusCode, Body]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, response=~p",
+                               [StatusCode, Body]),
                     {error, {invalid_status_code, StatusCode}}
             end;
         {error, Reason} ->
@@ -125,8 +128,15 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
-%% Create notification for API v2
-make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
+parse_api_version("v3") ->
+    {ok, <<"v3">>};
+parse_api_version("v2") ->
+    {ok, <<"v2">>};
+parse_api_version(_) ->
+    {error, not_supported}.
+
+%% Create notification for API v2 and v3
+make_notification(Notification, Options = #{<<"silent">> := <<"true">>}) ->
     MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
     {ok, #{
         service => maps:get(<<"service">>, Options),
@@ -134,7 +144,7 @@ make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
         topic => maps:get(<<"topic">>, Options, null),
         data => Notification#{<<"message-count">> => MessageCount}
     }};
-make_notification(v2, Notification, Options) ->
+make_notification(Notification, Options) ->
     {ok, #{
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),

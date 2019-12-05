@@ -4,7 +4,7 @@
 -export([stop/0]).
 -export([port/0]).
 -export([init/2]).
--export([subscribe/1]).
+-export([subscribe/2]).
 -export([wait_for_push_request/1]).
 
 start(Config) ->
@@ -13,7 +13,10 @@ start(Config) ->
     CertPath = path_helper:canonicalize_path(filename:join(CertDir, "cert.pem")),
     KeyPath = path_helper:canonicalize_path(filename:join(CertDir, "key.pem")),
 
-    Dispatch = cowboy_router:compile([{'_', [{<<"/v2/notification/:token">>, ?MODULE, #{}}]}]),
+    Dispatch = cowboy_router:compile([{'_', [{<<"/v2/notification/:token">>, ?MODULE, #{}},
+                                             {<<"/v3/notification/:token">>, ?MODULE, #{}}
+                                            ]}
+                                     ]),
     {ok, Pid} = cowboy:start_tls(mongoose_push_https_mock,
                                  [{certfile, CertPath}, {keyfile, KeyPath}],
                                  #{env => #{dispatch => Dispatch}}),
@@ -26,13 +29,13 @@ port() ->
 stop() ->
     cowboy:stop_listener(mongoose_push_https_mock).
 
-subscribe(Token) ->
-    ets:insert(mongoose_push_mock_subscribers, {Token, self()}).
+subscribe(Token, Response) ->
+    ets:insert(mongoose_push_mock_subscribers, {Token, self(), Response}).
 
 wait_for_push_request(Token) ->
     receive
-        {push_request, Token, Body} ->
-            Body
+        {push_request, Token, Body, Resp} ->
+            {jiffy:decode(Body, [return_maps]), Resp}
     after 10000 ->
               ct:fail("timeout_waiting_for_push_request")
     end.
@@ -40,8 +43,8 @@ wait_for_push_request(Token) ->
 init(Req, State) ->
     Token = cowboy_req:binding(token, Req),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    [{_, Subscriber}] = ets:lookup(mongoose_push_mock_subscribers, Token),
-    Subscriber ! {push_request, Token, Body},
-    Req3 = cowboy_req:reply(204, #{}, <<>>, Req2),
+    [{_, Subscriber, {RespStatus, RespBody} = Resp}] = ets:lookup(mongoose_push_mock_subscribers, Token),
+    Subscriber ! {push_request, Token, Body, Resp},
+    Req3 = cowboy_req:reply(RespStatus, #{}, RespBody, Req2),
     {ok, Req3, State}.
 

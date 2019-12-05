@@ -8,7 +8,7 @@ The following list shows those components as defined in
 
   * _XMPP Server_ in MongooseIM is enabled by module [mod_event_pusher_push][]
   * _App Server_ in MongooseIM is enabled by adding a `push` node type to [mod_pubsub][]'s configuration
-  * _XMPP Push Service_ is implemented as a [MongoosePush][] application
+  * _XMPP Push Service_ is implemented as a [MongoosePush][] application, the recommended version is 2.0.0 or above
 
 All these entities have to be enabled and properly configured in order to use push notifications.
 So let's get to it, shall we?
@@ -97,7 +97,7 @@ Then add `mod_push_service_mongoosepush` to the `modules` section in the config 
 
     {mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http},
-        {api_version, "v2"}]},
+        {api_version, "v3"}]},
 
     (...)
 ```
@@ -105,7 +105,7 @@ Then add `mod_push_service_mongoosepush` to the `modules` section in the config 
 First, we create the HTTP pool for communicating with [MongoosePush][].
 Here, we assume that [MongoosePush][] will be available on the localhost on port 8443 which is the default one.
 Next we enable [mod_push_service_mongoosepush][].
-First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API (currently only "_v2_" is supported).
+First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API ("_v2_" or "_v3_" are supported).
 
 And that's it, we've just completed the entire MongooseIM configuration.
 All we need to do now is to set up [MongoosePush][].
