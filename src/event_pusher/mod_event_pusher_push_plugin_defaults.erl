@@ -58,52 +58,70 @@ sender_id(From, Packet) ->
                            Services :: [mod_event_pusher_push:publish_service()]) ->
     mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
-    {Acc2, MessageCount} = get_unread_count(Acc0, From, To),
+    {Acc2, MessageCount} = get_unread_count(Acc0, To),
     BareRecipient = jid:to_bare(To),
-    lists:foreach(
-      fun({PubsubJID, Node, Form}) ->
-              Stanza = push_notification_iq(From, Packet, Node, Form, MessageCount),
-              Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                                        lserver => To#jid.lserver,
-                                        element => jlib:iq_to_xml(Stanza),
-                                        from_jid => To,
-                                        to_jid => PubsubJID }),
-
-              ResponseHandler =
-                  fun(_From, _To, Acc1, Response) ->
-                          mod_event_pusher_push:cast(Host, handle_publish_response,
-                                                     [BareRecipient, PubsubJID, Node, Response]),
-                          Acc1
-                  end,
-              mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
-                                         [To, PubsubJID, Acc, Stanza, ResponseHandler])
-      end, Services),
+    VirtualPubsubHosts = mod_event_pusher_push:virtual_pubsub_hosts(Host),
+    PushPayload = push_content_fields(From, Packet, MessageCount),
+    lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
+                          case lists:member(PubsubJID#jid.lserver, VirtualPubsubHosts) of
+                              true ->
+                                  publish_via_hook(Host, BareRecipient, Service, PushPayload);
+                              false ->
+                                  publish_via_pubsub(Host, BareRecipient, To, Service, PushPayload)
+                          end
+                  end, Services),
     Acc2.
 
+publish_via_hook(Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
+    case maps:from_list(Form) of
+        #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
+            ejabberd_hooks:run(push_notifications, Host,
+                               [Host, [maps:from_list(PushPayload)], OptionMap]);
+        _ ->
+            mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node)
+    end.
 
--spec push_notification_iq(From :: jid:jid(),
-                           Packet :: exml:element(), Node :: mod_event_pusher_push:pubsub_node(),
+publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload) ->
+    Stanza = push_notification_iq(Node, Form, PushPayload),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => To#jid.lserver,
+                              element => jlib:iq_to_xml(Stanza),
+                              from_jid => To,
+                              to_jid => PubsubJID }),
+
+    ResponseHandler =
+    fun(_From, _To, Acc1, Response) ->
+            mod_event_pusher_push:cast(Host, handle_publish_response,
+                                       [BareRecipient, PubsubJID, Node, Response]),
+            Acc1
+    end,
+    mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
+                               [To, PubsubJID, Acc, Stanza, ResponseHandler]).
+
+-spec push_notification_iq(Node :: mod_event_pusher_push:pubsub_node(),
                            Form :: mod_event_pusher_push:form(),
-                           MessageCount :: integer()) -> jlib:iq().
-push_notification_iq(From, Packet, Node, Form, MessageCount) ->
-    ContentFields =
-        [
-         {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
-         {<<"message-count">>, integer_to_binary(MessageCount)},
-         {<<"last-message-sender">>, sender_id(From, Packet)},
-         {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
-        ],
+                           PushPayload :: [{Key :: binary(), Value :: binary()}]) -> jlib:iq().
+push_notification_iq(Node, Form, PushPayload) ->
+    NotificationFields = [{<<"FORM_TYPE">>, ?PUSH_FORM_TYPE} | PushPayload ],
 
     #iq{type = set, sub_el = [
         #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
             #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
                 #xmlel{name = <<"item">>, children = [
                     #xmlel{name = <<"notification">>,
-                           attrs = [{<<"xmlns">>, ?NS_PUSH}], children = [make_form(ContentFields)]}
+                           attrs = [{<<"xmlns">>, ?NS_PUSH}],
+                           children = [make_form(NotificationFields)]}
                 ]}
             ]}
         ] ++ maybe_publish_options(Form)}
     ]}.
+
+push_content_fields(From, Packet, MessageCount) ->
+    [
+     {<<"message-count">>, integer_to_binary(MessageCount)},
+     {<<"last-message-sender">>, sender_id(From, Packet)},
+     {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
+    ].
 
 -spec maybe_publish_options(mod_event_pusher_push:form()) -> [exml:element()].
 maybe_publish_options([]) ->
@@ -125,7 +143,7 @@ make_form_field({Name, Value}) ->
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
-get_unread_count(Acc, From, To) ->
+get_unread_count(Acc, To) ->
     Acc0 = ejabberd_hooks:run_fold(inbox_unread_count, To#jid.lserver, Acc, [To]),
     UnreadCount = mongoose_acc:get(inbox, unread_count, 1, Acc0),
     {Acc0, UnreadCount}.

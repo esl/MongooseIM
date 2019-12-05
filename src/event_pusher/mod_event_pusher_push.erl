@@ -32,7 +32,9 @@
          remove_user/3,
          push_event/3]).
 
+%% Plugin utils
 -export([cast/3, cast/4]).
+-export([virtual_pubsub_hosts/1]).
 
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
@@ -65,6 +67,8 @@
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
+
+    expand_and_store_virtual_pubsub_hosts(Host, Opts),
 
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
@@ -175,8 +179,29 @@ publish_message(Acc, From, To, Packet) ->
     mod_event_pusher_push_plugin:publish_notification(Acc, From, To, Packet, Services).
 
 %%--------------------------------------------------------------------
+%% Plugin utils
+%%--------------------------------------------------------------------
+
+-spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
+cast(Host, F, A) ->
+    cast(Host, ?MODULE, F, A).
+
+-spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+cast(Host, M, F, A) ->
+    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).
+
+virtual_pubsub_hosts(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, virtual_pubsub_hosts, []).
+
+%%--------------------------------------------------------------------
 %% Helper functions
 %%--------------------------------------------------------------------
+
+-spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
+expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
+    ExpandedVHosts = [ gen_mod:make_subhost(Spec, Host)
+                       || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []) ],
+    gen_mod:set_module_opt(Host, ?MODULE, virtual_pubsub_hosts, ExpandedVHosts).
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |
@@ -232,10 +257,3 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
-cast(Host, F, A) ->
-    cast(Host, ?MODULE, F, A).
-
--spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(Host, M, F, A) ->
-    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).

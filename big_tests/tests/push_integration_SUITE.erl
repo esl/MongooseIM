@@ -523,10 +523,16 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
 
     DeviceToken = gen_token(),
 
-    Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
-                     {<<"pubsub#publish_model">>, <<"publishers">>}],
-    pubsub_tools:create_node(User, Node, [{type, <<"push">>},
-                                          {config, Configuration}]),
+    case ?config(pubsub_host, Config) of
+        real ->
+            Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                             {<<"pubsub#publish_model">>, <<"publishers">>}],
+            pubsub_tools:create_node(User, Node, [{type, <<"push">>},
+                                                  {config, Configuration}]);
+        _ ->
+            skip
+    end,
+
     escalus:send(User, enable_stanza(PubsubJID, NodeName,
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
@@ -642,7 +648,7 @@ required_modules(API, PubSubHost) ->
                          virtual -> [{virtual_pubsub_hosts, [virtual_pubsub_host()]}];
                          _ -> []
                      end,
-    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]},
+    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | VirtualHostOpt]},
     [
      {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
@@ -650,7 +656,7 @@ required_modules(API, PubSubHost) ->
                    {host, "pubsub.@HOST@"}]},
      {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
                                       {api_version, API}]},
-     {mod_event_pusher, [{backends, [PushBackend]} | VirtualHostOpt]}
+     {mod_event_pusher, [{backends, [PushBackend]}]}
     ].
 
 muc_light_opts() ->
