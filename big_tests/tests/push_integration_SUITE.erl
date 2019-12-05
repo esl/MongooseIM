@@ -620,6 +620,7 @@ required_modules_for_group(_, API) ->
     required_modules(API).
 
 required_modules(API) ->
+    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]},
     [
      {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
@@ -627,7 +628,7 @@ required_modules(API) ->
                    {host, "pubsub.@HOST@"}]},
      {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
                                       {api_version, API}]},
-     {mod_push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]}
+     {mod_event_pusher, [{backends, [PushBackend]}]}
     ].
 
 muc_light_opts() ->
