@@ -1,6 +1,8 @@
 -module(mongoose_client_api_messages).
 -behaviour(cowboy_rest).
 
+-export([trails/0]).
+
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -19,6 +21,9 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
+
+trails() ->
+    mongoose_client_api_messages_doc:trails().
 
 init(Req, Opts) ->
     mongoose_client_api:init(Req, Opts).
@@ -154,4 +159,3 @@ maybe_before_to_us(undefined, Now) ->
     Now;
 maybe_before_to_us(Timestamp, _) ->
    Timestamp * 1000.
-

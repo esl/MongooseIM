@@ -48,7 +48,9 @@
                   xmerl,
                   worker_pool,
                   gen_fsm_compat,
-                  erl_csv_generator
+                  erl_csv_generator,
+                  trails,
+                  cowboy_swagger
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.

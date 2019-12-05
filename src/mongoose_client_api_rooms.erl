@@ -1,6 +1,8 @@
 -module(mongoose_client_api_rooms).
 -behaviour(cowboy_rest).
 
+-export([trails/0]).
+
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -15,6 +17,9 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+
+trails() ->
+    mongoose_client_api_rooms_doc:trails().
 
 init(Req, Opts) ->
     mongoose_client_api:init(Req, Opts).
