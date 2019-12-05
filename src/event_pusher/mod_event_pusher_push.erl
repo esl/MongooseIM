@@ -156,11 +156,15 @@ handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
     ok;
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, #iq{type = result}) ->
     ok;
-handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
-    %% @todo: maybe filter only some errors? e.g. internal server error may be temporary and
-    %%        should not disable notifications
-    mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node),
-    ok.
+handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
+    [Error | _ ] = [Err || #xmlel{name = <<"error">>} = Err <- Els],
+    case exml_query:attr(Error, <<"type">>) of
+        <<"cancel">> ->
+            %% We disable the push node in case the error type is cancel
+            mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
+        _ ->
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Module API
