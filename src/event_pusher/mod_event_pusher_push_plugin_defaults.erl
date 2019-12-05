@@ -23,6 +23,8 @@
 
 -define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
+-type push_payload() :: [{Key :: binary(), Value :: binary()}].
+
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
@@ -72,6 +74,10 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
                   end, Services),
     Acc2.
 
+-spec publish_via_hook(Host :: jid:server(),
+                       BareRecipient :: jid:jid(),
+                       Service :: mod_event_pusher_push:publish_service(),
+                       PushPayload :: push_payload()) -> any().
 publish_via_hook(Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
     case maps:from_list(Form) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
@@ -81,6 +87,11 @@ publish_via_hook(Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node)
     end.
 
+-spec publish_via_pubsub(Host :: jid:server(),
+                         BareRecipient :: jid:jid(),
+                         To :: jid:jid(),
+                         Service :: mod_event_pusher_push:publish_service(),
+                         PushPayload :: push_payload()) -> any().
 publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload) ->
     Stanza = push_notification_iq(Node, Form, PushPayload),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -100,7 +111,7 @@ publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload
 
 -spec push_notification_iq(Node :: mod_event_pusher_push:pubsub_node(),
                            Form :: mod_event_pusher_push:form(),
-                           PushPayload :: [{Key :: binary(), Value :: binary()}]) -> jlib:iq().
+                           PushPayload :: push_payload()) -> jlib:iq().
 push_notification_iq(Node, Form, PushPayload) ->
     NotificationFields = [{<<"FORM_TYPE">>, ?PUSH_FORM_TYPE} | PushPayload ],
 
@@ -116,6 +127,9 @@ push_notification_iq(Node, Form, PushPayload) ->
         ] ++ maybe_publish_options(Form)}
     ]}.
 
+-spec push_content_fields(From :: jid:jid(),
+                          Packet :: exml:element(),
+                          MessageCount :: non_neg_integer()) -> push_payload().
 push_content_fields(From, Packet, MessageCount) ->
     [
      {<<"message-count">>, integer_to_binary(MessageCount)},

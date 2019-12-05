@@ -190,6 +190,7 @@ cast(Host, F, A) ->
 cast(Host, M, F, A) ->
     mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).
 
+-spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
 virtual_pubsub_hosts(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, virtual_pubsub_hosts, []).
 
