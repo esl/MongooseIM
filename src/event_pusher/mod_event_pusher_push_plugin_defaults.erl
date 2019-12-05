@@ -75,8 +75,11 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
                                                      [BareRecipient, PubsubJID, Node, Response]),
                           Acc1
                   end,
+              %% The IQ is routed from the recipient's server JID to pubsub JID
+              %% This is recommended in the XEP and also helps process replies to this IQ
+              NotificationFrom = jid:make(<<>>, Host, <<>>),
               mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
-                                         [To, PubsubJID, Acc, Stanza, ResponseHandler])
+                                         [NotificationFrom, PubsubJID, Acc, Stanza, ResponseHandler])
       end, Services),
     Acc2.
 
