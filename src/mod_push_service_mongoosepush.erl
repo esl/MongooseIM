@@ -79,13 +79,13 @@ push_notifications(AccIn, Host, Notifications, Options) ->
 
     DeviceId = maps:get(<<"device_id">>, Options),
     ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
-    {ok, ProtocolVersion, ProtocolVersionAtom} = parse_api_version(ProtocolVersionOpt),
+    {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     lists:foreach(
         fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
             {ok, JSON} =
-                make_notification(ProtocolVersionAtom, Notification, Options),
+                make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),
             cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end, Notifications),
@@ -129,15 +129,14 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %%--------------------------------------------------------------------
 
 parse_api_version("v3") ->
-    {ok, <<"v3">>, v3};
+    {ok, <<"v3">>};
 parse_api_version("v2") ->
-    {ok, <<"v2">>, v2};
+    {ok, <<"v2">>};
 parse_api_version(_) ->
     {error, not_supported}.
 
-%% Create notification for API v2
-make_notification(API, Notification, Options = #{<<"silent">> := <<"true">>})
-  when API =:= v2; API =:= v3 ->
+%% Create notification for API v2 and v3
+make_notification(Notification, Options = #{<<"silent">> := <<"true">>}) ->
     MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
     {ok, #{
         service => maps:get(<<"service">>, Options),
@@ -145,8 +144,7 @@ make_notification(API, Notification, Options = #{<<"silent">> := <<"true">>})
         topic => maps:get(<<"topic">>, Options, null),
         data => Notification#{<<"message-count">> => MessageCount}
     }};
-make_notification(API, Notification, Options)
-  when API =:= v2; API =:= v3 ->
+make_notification(Notification, Options) ->
     {ok, #{
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
