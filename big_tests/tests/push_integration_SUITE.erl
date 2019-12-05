@@ -8,6 +8,7 @@
 -include_lib("inbox.hrl").
 
 -define(MUCLIGHTHOST, <<"muclight.localhost">>).
+-define(RPC_SPEC, #{node => distributed_helper:mim()}).
 
 
 
@@ -25,7 +26,7 @@
          become_available/2,
          become_available/3
         ]).
--import(escalus_ejabberd, [rpc/3]).
+-import(distributed_helper, [rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -106,14 +107,14 @@ init_per_suite(Config0) ->
 
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
-    rpc(mongoose_wpool, start_configured_pools,
+    rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
         [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_suite(Config).
 
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
+    rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),
     dynamic_modules:restore_modules(domain(), Config),
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
@@ -129,7 +130,7 @@ init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
 init_per_group(G, Config) ->
     %% Some cleaning up
     C = init_modules(G, Config),
-    catch rpc(mod_muc_light_db_backend, force_clear, []),
+    catch rpc(?RPC_SPEC, mod_muc_light_db_backend, force_clear, []),
     C.
 
 end_per_group(_, Config) ->
