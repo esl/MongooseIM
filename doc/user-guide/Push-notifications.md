@@ -8,7 +8,7 @@ The following list shows those components as defined in
 
   * _XMPP Server_ in MongooseIM is enabled by module [mod_event_pusher_push][]
   * _App Server_ in MongooseIM is enabled by adding a `push` node type to [mod_pubsub][]'s configuration
-  * _XMPP Push Service_ is implemented as a [MongoosePush][] application, recommended version is 2.0.0 or above
+  * _XMPP Push Service_ is implemented as a [MongoosePush][] application, the recommended version is 2.0.0 or above
 
 All these entities have to be enabled and properly configured in order to use push notifications.
 So let's get to it, shall we?
