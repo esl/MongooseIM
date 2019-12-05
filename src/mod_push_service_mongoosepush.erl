@@ -71,26 +71,43 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'push_notifications'
--spec push_notifications(AccIn :: term(), Host :: jid:server(),
+-spec push_notifications(AccIn :: ok, Host :: jid:server(),
                          Notifications :: [#{binary() => binary()}],
-                         Options :: #{binary() => binary()}) -> ok.
-push_notifications(AccIn, Host, Notifications, Options) ->
+                         Options :: #{binary() => binary()}) ->
+    ok | {error, Reason :: term()}.
+push_notifications(_AccIn, Host, Notifications, Options) ->
     ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
     DeviceId = maps:get(<<"device_id">>, Options),
     ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
     {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
-    lists:foreach(
-        fun(Notification) ->
+    Fun = fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
             {ok, JSON} =
                 make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),
-            cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
-        end, Notifications),
+            call(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
+        end,
+    send_push_notifications(Notifications, Fun, ok).
 
-    AccIn.
+send_push_notifications([], _, Result) ->
+    Result;
+send_push_notifications([Notification | Notifications], Fun, Result) ->
+    case Fun(Notification) of
+        {ok, ok} ->
+            send_push_notifications(Notifications, Fun, Result);
+        {ok, {error, device_not_registered} = Err} ->
+            %% In this case there is no point in sending other push notifications
+            %% so we can finish immediately
+            Err;
+        {ok, Other} ->
+            %% The publish IQ allows to put more notifications into one request
+            %% but this is currently not used in MongooseIM.
+            %% In case it's used we try sending other notifications
+            send_push_notifications(Notifications, Fun, Other)
+    end.
+
 
 %%--------------------------------------------------------------------
 %% Module API
@@ -158,6 +175,6 @@ make_notification(Notification, Options) ->
         topic => maps:get(<<"topic">>, Options, null)
     }}.
 
--spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(Host, M, F, A) ->
-    mongoose_wpool:cast(generic, Host, mongoosepush_service, {M, F, A}).
+-spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+call(Host, M, F, A) ->
+    mongoose_wpool:call(generic, Host, mongoosepush_service, {M, F, A}).
