@@ -1,6 +1,8 @@
 -module(mongoose_client_api_rooms_messages).
 -behaviour(cowboy_rest).
 
+-export([trails/0]).
+
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -19,6 +21,9 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
+
+trails() ->
+    mongoose_client_api_rooms_messages_doc:trails().
 
 init(Req, Opts) ->
     mongoose_client_api:init(Req, Opts).
@@ -67,7 +72,7 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
                                       limit_passed => true,
                                       max_result_limit => 50,
                                       is_simple => true}),
-    {ok, {undefined, undefined, Msgs}} = R,
+    {ok, {_, _, Msgs}} = R,
     JSONData = [make_json_item(Msg) || Msg <- Msgs],
     {jiffy:encode(JSONData), Req, State}.
 
@@ -205,4 +210,3 @@ add_aff_change_body(Item, #xmlel{attrs = Attrs} = User) ->
     Item#{type => <<"affiliation">>,
           affiliation => proplists:get_value(<<"affiliation">>, Attrs),
           user => exml_query:cdata(User)}.
-
