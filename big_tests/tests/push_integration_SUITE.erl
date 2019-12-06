@@ -463,9 +463,11 @@ no_push_notification_for_expired_device(Config) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             Response = mongoose_push_unregistered_device_resp(Config),
-            #{device_token := DeviceToken} = enable_push_for_user(Bob, <<"fcm">>, [], Response),
+            #{device_token := DeviceToken,
+              pubsub_node := PushNode} = enable_push_for_user(Bob, <<"fcm">>, [], Response),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-            {_, Response} = wait_for_push_request(DeviceToken)
+            {_, Response} = wait_for_push_request(DeviceToken),
+            maybe_check_if_push_node_was_disabled(?config(api_v, Config), Bob, DeviceToken)
 
         end).
 
@@ -476,6 +478,16 @@ mongoose_push_unregistered_device_resp(Config) ->
         "v2" ->
             {500, jiffy:encode(#{<<"details">> => <<"probably_unregistered">>})}
     end.
+
+maybe_check_if_push_node_was_disabled("v2", _, _) ->
+    ok;
+maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
+    JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
+    Fun = fun() ->
+                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [JID]),
+                  lists:keymember(PushNode, 2, Services)
+          end,
+    mongoose_helper:wait_until(Fun, false).
 
 no_push_notification_for_internal_mongoose_push_error(Config) ->
     escalus:fresh_story(
