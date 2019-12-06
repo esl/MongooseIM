@@ -41,8 +41,16 @@ trails() ->
     }
   },
 
+  %% Definitions and properties
+  DefinitionsAndProperties = [
+    {DefConfigRoomReq, PropConfigRoomReq}
+  ],
+
   %% Add definitions
-  ok = cowboy_swagger:add_definition(DefConfigRoomReq, PropConfigRoomReq),
+  lists:foreach(
+    fun({Definition, DefinitionProperties}) ->
+      cowboy_swagger:add_definition(Definition, DefinitionProperties)
+    end, DefinitionsAndProperties),
 
   %% Request Body
   RequestBodyConfigRoom = #{
