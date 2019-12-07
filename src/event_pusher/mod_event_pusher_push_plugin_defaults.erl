@@ -60,32 +60,30 @@ sender_id(From, Packet) ->
                            Services :: [mod_event_pusher_push:publish_service()]) ->
     mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
-    {Acc2, MessageCount} = get_unread_count(Acc0, To),
+    {Acc1, MessageCount} = get_unread_count(Acc0, To),
     BareRecipient = jid:to_bare(To),
     VirtualPubsubHosts = mod_event_pusher_push:virtual_pubsub_hosts(Host),
     PushPayload = push_content_fields(From, Packet, MessageCount),
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
                           case lists:member(PubsubJID#jid.lserver, VirtualPubsubHosts) of
                               true ->
-                                  publish_via_hook(Host, BareRecipient, Service, PushPayload);
+                                  publish_via_hook(Acc1, Host, BareRecipient, Service, PushPayload);
                               false ->
                                   publish_via_pubsub(Host, BareRecipient, To, Service, PushPayload)
                           end
                   end, Services),
-    Acc2.
+    Acc1.
 
--spec publish_via_hook(Host :: jid:server(),
+-spec publish_via_hook(Acc :: mongoose_acc:t(),
+                       Host :: jid:server(),
                        BareRecipient :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),
                        PushPayload :: push_payload()) -> any().
-publish_via_hook(Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
-    case maps:from_list(Form) of
-        #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
-            ejabberd_hooks:run(push_notifications, Host,
-                               [Host, [maps:from_list(PushPayload)], OptionMap]);
-        _ ->
-            mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node)
-    end.
+publish_via_hook(Acc0, Host, _BareRecipient, {PubsubJID, _Node, Form}, PushPayload) ->
+    OptionMap = maps:from_list(Form),
+    Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
+    ejabberd_hooks:run_fold(push_notifications, Host, Acc,
+                            [Host, maps:from_list(PushPayload), OptionMap]).
 
 -spec publish_via_pubsub(Host :: jid:server(),
                          BareRecipient :: jid:jid(),

@@ -36,6 +36,9 @@
 -export([cast/3, cast/4]).
 -export([virtual_pubsub_hosts/1]).
 
+%% Debug & testing
+-export([add_virtual_pubsub_host/2]).
+
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
 -export_type([publish_service/0]).
@@ -193,6 +196,16 @@ cast(Host, M, F, A) ->
 -spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
 virtual_pubsub_hosts(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, virtual_pubsub_hosts, []).
+
+%%--------------------------------------------------------------------
+%% Debug & testing
+%%--------------------------------------------------------------------
+
+-spec add_virtual_pubsub_host(Host :: jid:server(), VirtualHost :: jid:server()) -> any().
+add_virtual_pubsub_host(Host, VirtualHost) ->
+    VHosts0 = virtual_pubsub_hosts(Host),
+    VHosts = [gen_mod:make_subhost(VirtualHost, Host) | VHosts0],
+    gen_mod:set_module_opt(Host, ?MODULE, virtual_pubsub_hosts, VHosts).
 
 %%--------------------------------------------------------------------
 %% Helper functions
