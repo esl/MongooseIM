@@ -79,11 +79,11 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+%% --------------------- Callbacks ------------------------
+
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE),
-    %% For namespace definitions
-    mongoose_helper:inject_module(push_helper),
     escalus:init_per_suite(Config).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -97,7 +97,7 @@ init_per_group(pubsub_less, Config) ->
     [{pubsub_host, virtual} | Config];
 init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
-    Config = common_group_init(Config0),
+    Config = ensure_pusher_module_and_save_old_mods(Config0),
     dynamic_modules:ensure_modules(Host, [{mod_muc_light,
                                            [{host, binary_to_list(?MUCHOST)},
                                             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
@@ -105,9 +105,6 @@ init_per_group(muclight_msg_notifications, Config0) ->
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
 init_per_group(_, Config) ->
-    common_group_init(Config).
-
-common_group_init(Config) ->
     ensure_pusher_module_and_save_old_mods(Config).
 
 end_per_group(disco, Config) ->
@@ -147,6 +144,11 @@ end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_availab
 end_per_testcase(CaseName, Config) ->
     rpc(ejabberd_router, unregister_route, [atom_to_binary(CaseName, utf8)]),
     escalus:end_per_testcase(CaseName, Config).
+
+%% --------------------- Helpers ------------------------
+
+add_virtual_host_to_pusher(VirtualHost) ->
+    rpc(mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]).
 
 ensure_pusher_module_and_save_old_mods(Config) ->
     PushOpts = [{backend, mongoose_helper:mnesia_or_rdbms_backend()}],
@@ -566,10 +568,46 @@ muclight_msg_notify_stops_after_disabling(Config) ->
             ok
         end).
 
+%%--------------------------------------------------------------------
+%% Remote code
+%% Functions that will be executed in MongooseIM context + helpers that set them up
+%%--------------------------------------------------------------------
 
-%%--------------------------------------------------------------------
-%% Test helpers
-%%--------------------------------------------------------------------
+start_route_listener(CaseName) ->
+    %% We put namespaces in the state to avoid injecting push_helper module to MIM as well
+    State = #{ pid => self(),
+               pub_options_ns => push_helper:ns_pubsub_pub_options(),
+               push_form_ns => push_helper:push_form_type() },
+    Handler = rpc(mongoose_packet_handler, new, [?MODULE, State]),
+    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]).
+
+process_packet(_Acc, _From, To, El, State) ->
+    #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
+    PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish-options">>},
+                                      {element, <<"x">>}]),
+    PublishOptions = parse_form(PublishXML),
+
+    PayloadXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish">>},
+                                      {element, <<"item">>},
+                                      {element, <<"notification">>},
+                                      {element, <<"x">>}]),
+    Payload = parse_form(PayloadXML),
+    
+    case valid_ns_if_defined(PubOptionsNS, PublishOptions) andalso
+         valid_ns_if_defined(PushFormNS, Payload) of
+        true ->
+            TestCasePid ! #{ publish_options => PublishOptions,
+                             payload => Payload,
+                             pubsub_jid_bin => jid:to_binary(To) };
+        false ->
+            %% We use publish_options0 and payload0 to avoid accidental match in received_push
+            %% even after some tests updates and refactors
+            TestCasePid ! #{ error => invalid_namespace,
+                             publish_options0 => PublishOptions,
+                             payload0 => Payload }
+    end.
 
 parse_form(undefined) ->
     undefined;
@@ -582,19 +620,15 @@ parse_form(Fields) when is_list(Fields) ->
              exml_query:path(Field, [{element, <<"value">>}, cdata])}
         end, Fields).
 
-start_route_listener(CaseName) ->
-    TestCasePid = self(),
-    Handler = rpc(mongoose_packet_handler, new, [?MODULE, TestCasePid]),
-    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]).
-
-add_virtual_host_to_pusher(VirtualHost) ->
-    rpc(mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]).
+valid_ns_if_defined(_, undefined) ->
+    true;
+valid_ns_if_defined(NS, FormProplist) ->
+    NS =:= proplists:get_value(<<"FORM_TYPE">>, FormProplist).
 
 start_hook_listener() ->
     TestCasePid = self(),
     rpc(?MODULE, rpc_start_hook_handler, [TestCasePid]).
 
-%% Executed in MongooseIM context
 rpc_start_hook_handler(TestCasePid) ->
     Handler = fun(Acc, _Host, PayloadMap, OptionMap) ->
                       try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
@@ -614,32 +648,9 @@ rpc_start_hook_handler(TestCasePid) ->
               end,
     ejabberd_hooks:add(push_notifications, <<"localhost">>, Handler, 50).
 
-process_packet(_Acc, _From, To, El, TestCasePid) ->
-    PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
-                                      {element, <<"publish-options">>},
-                                      {element, <<"x">>}]),
-    PublishOptions = parse_form(PublishXML),
-
-    PayloadXML = exml_query:path(El, [{element, <<"pubsub">>},
-                                      {element, <<"publish">>},
-                                      {element, <<"item">>},
-                                      {element, <<"notification">>},
-                                      {element, <<"x">>}]),
-    Payload = parse_form(PayloadXML),
-    
-    case valid_ns_if_defined(push_helper:ns_pubsub_pub_options(), PublishOptions) andalso
-         valid_ns_if_defined(push_helper:push_form_type(), Payload) of
-        true ->
-            TestCasePid ! #{ publish_options => PublishOptions,
-                             payload => Payload,
-                             pubsub_jid_bin => jid:to_binary(To) };
-        false ->
-            %% We use publish_options0 and payload0 to avoid accidental match in received_push
-            %% even after some tests updates and refactors
-            TestCasePid ! #{ error => invalid_namespace,
-                             publish_options0 => PublishOptions,
-                             payload0 => Payload }
-    end.
+%%--------------------------------------------------------------------
+%% Test helpers
+%%--------------------------------------------------------------------
 
 create_room(Room, [Owner | Members], Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
@@ -648,6 +659,8 @@ create_room(Room, [Owner | Members], Config) ->
 
 received_push(Config) ->
     ExpectedPubsubJIDBin = pubsub_jid(Config),
+    %% With parallel test cases execution we might receive notifications from other cases
+    %% so it's essential to filter by our pubsub JID
     receive
         #{ pubsub_jid_bin := PubsubJIDBin } = Push when PubsubJIDBin =:= ExpectedPubsubJIDBin ->
             Push
@@ -656,11 +669,6 @@ received_push(Config) ->
             ct:pal("~p", [#{ result => nomatch, msg_inbox => process_info(self(), messages) }]),
             false
     end.
-
-valid_ns_if_defined(_, undefined) ->
-    true;
-valid_ns_if_defined(NS, FormProplist) ->
-    NS =:= proplists:get_value(<<"FORM_TYPE">>, FormProplist).
 
 truly(false) ->
     false;
@@ -692,7 +700,4 @@ is_offline(LUser, LServer) ->
         _ ->
             true
     end.
-
-lower(Bin) when is_binary(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
 
