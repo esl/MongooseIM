@@ -474,7 +474,7 @@ select_nodes_by_owner(LJID) ->
         {odbc, mssql} ->
             ["SELECT name, type"
             " FROM pubsub_nodes"
-            " WHERE cast(owners as varchar) = ", esc_string(iolist_to_binary(["[\"", LJID, "\"]"]))
+            " WHERE cast(owners as nvarchar(max)) = ", esc_string(iolist_to_binary(["[\"", LJID, "\"]"]))
             ]
     end.
 
