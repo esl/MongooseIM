@@ -83,7 +83,7 @@ publish_via_hook(Acc0, Host, _BareRecipient, {PubsubJID, _Node, Form}, PushPaylo
     OptionMap = maps:from_list(Form),
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
     ejabberd_hooks:run_fold(push_notifications, Host, Acc,
-                            [Host, maps:from_list(PushPayload), OptionMap]).
+                            [Host, [maps:from_list(PushPayload)], OptionMap]).
 
 -spec publish_via_pubsub(Host :: jid:server(),
                          BareRecipient :: jid:jid(),

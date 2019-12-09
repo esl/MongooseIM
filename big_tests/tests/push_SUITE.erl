@@ -127,11 +127,11 @@ init_per_testcase(CaseName, Config0) ->
     Config = [{case_name, CaseName} | Config1],
 
     case ?config(pubsub_host, Config0) of
-        real ->
-            start_route_listener(CaseName);
         virtual ->
             add_virtual_host_to_pusher(pubsub_jid(Config)),
-            start_hook_listener()
+            start_hook_listener();
+        _ ->
+            start_route_listener(CaseName)
     end,
 
     escalus:init_per_testcase(CaseName, Config).
@@ -630,7 +630,7 @@ start_hook_listener() ->
     rpc(?MODULE, rpc_start_hook_handler, [TestCasePid]).
 
 rpc_start_hook_handler(TestCasePid) ->
-    Handler = fun(Acc, _Host, PayloadMap, OptionMap) ->
+    Handler = fun(Acc, _Host, [PayloadMap], OptionMap) ->
                       try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
                           PubsubJIDBin ->
                               TestCasePid ! #{ publish_options => maps:to_list(OptionMap),
