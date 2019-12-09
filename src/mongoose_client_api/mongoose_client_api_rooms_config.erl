@@ -43,8 +43,12 @@ from_json(Req, State = #{was_replied := true}) ->
 from_json(Req, State) ->
     Method = cowboy_req:method(Req),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    JSONData = jiffy:decode(Body, [return_maps]),
-    handle_request(Method, JSONData, Req2, State).
+    case mongoose_client_api:json_to_map(Body) of
+      {ok, #{<<"name">> := N, <<"subject">> := S} = JSONData} when is_binary(N), is_binary(S) ->
+          handle_request(Method, JSONData, Req2, State);
+      _ ->
+          {false, Req, State}
+    end.
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
@@ -57,7 +61,7 @@ handle_request(Method, JSONData, Req, State) ->
     end.
 
 handle_request_by_method(<<"PUT">>,
-                         #{<<"name">> := Name, <<"subject">> := Subject} = JSONData,
+                         #{<<"name">> := Name, <<"subject">> := Subject},
                          Req, State) ->
     mongoose_client_api_rooms:assert_room_id_set(Req, State),
     #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
