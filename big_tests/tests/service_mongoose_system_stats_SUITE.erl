@@ -8,10 +8,10 @@
 -define(ETS_TABLE, qs).
 
 -record(event, {
-    el = "",
-    cid = "",
-    ec = "",
-    ea = ""
+    el = "",  % event Label
+    cid = "", % client ID
+    ec = "",  % event category
+    ea = ""   % event action
     }).
 
 -compile(export_all).
@@ -63,7 +63,6 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     create_events_collection(),
     enable_system_stats(mim()),
-    delete_prev_client_id(mim()),
     Config;
 init_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     create_events_collection(),
@@ -72,19 +71,22 @@ init_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     Config;
 init_per_testcase(_TestName, Config) ->
     create_events_collection(),
-    Nodes = [mim(), mim2()],
-    [ begin enable_system_stats(Node), delete_prev_client_id(Node) end || Node <- Nodes ],
+    enable_system_stats(mim()),
+    enable_system_stats(mim2()),
     distributed_helper:add_node_to_cluster(mim2(), Config),
     Config.
 
 end_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
+    clear_events_collection(),
     delete_prev_client_id(mim()),
     disable_system_stats(mim()),
     Config;
 end_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
+    clear_events_collection(),
     delete_prev_client_id(mim3()),
     Config;
 end_per_testcase(_TestName, Config) ->
+    clear_events_collection(),
     delete_prev_client_id(mim()),
     Nodes = [mim(), mim2()],
     [ begin delete_prev_client_id(Node), disable_system_stats(Node) end || Node <- Nodes ],
