@@ -50,14 +50,14 @@ init(_Args) ->
 -spec handle_continue(do_init, system_stats_state()) ->
     {noreply, system_stats_state()} | {stop, no_client_id, system_stats_state()}.
 handle_continue(do_init, State) ->
-    telemetry:attach(
-        <<"mongoose_system_stats">>,
-        ?STAT_TYPE,
-        fun service_mongoose_system_stats:handle_event/4,
-        [] ),
     case get_client_id() of
         no_client_id -> {stop, no_client_id, State};
         Value ->
+            telemetry:attach(
+                <<"mongoose_system_stats">>,
+                ?STAT_TYPE,
+                fun service_mongoose_system_stats:handle_event/4,
+                [] ),
             TimerRef = erlang:send_after(?DEFAULT_REPORT_AFTER, self(), flush_reports),
             NewState = State#system_stats_state{
                 client_id = Value,
