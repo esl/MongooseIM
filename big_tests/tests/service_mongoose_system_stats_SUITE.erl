@@ -16,7 +16,7 @@
 
 -compile(export_all).
 
--import(distributed_helper, [mim/0, mim2/0, mim3/0,
+-import(distributed_helper, [mim/0, mim2/0,
                              require_rpc_nodes/1,
                              rpc/4]).
 
@@ -66,8 +66,8 @@ init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts,
     Config;
 init_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     create_events_collection(),
-    disable_system_stats(mim3()),
-    delete_prev_client_id(mim3()),
+    disable_system_stats(mim()),
+    delete_prev_client_id(mim()),
     Config;
 init_per_testcase(_TestName, Config) ->
     create_events_collection(),
@@ -83,7 +83,7 @@ end_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, 
     Config;
 end_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     clear_events_collection(),
-    delete_prev_client_id(mim3()),
+    delete_prev_client_id(mim()),
     Config;
 end_per_testcase(_TestName, Config) ->
     clear_events_collection(),
