@@ -54,7 +54,7 @@
          set_module_opt/4,
          set_module_opts/3,
          get_module_opts/2,
-         make_subhost/2,
+         make_subhosts/2,
          get_opt_subhost/3,
          get_opt_subhost/4,
          get_module_opt_subhost/3,
@@ -360,12 +360,23 @@ set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
 make_subhost(Spec, Host) ->
     re:replace(Spec, "@HOST@", Host, [global, {return, binary}]).
 
+-spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> [jid:server()].
+make_subhosts(Spec,Host)->
+    [make_subhost(S, Host) || S <- expand_hosts(Spec)].
+
+-spec expand_hosts(iodata()) -> [iodata()].
+expand_hosts(Spec)->
+    case re:run(Spec,"@HOSTS@") of
+         nomatch -> [Spec];
+         {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
+    end.
+
 -spec get_opt_subhost(jid:server(), list(), list() | binary()) -> jid:server().
 get_opt_subhost(Host, Opts, Default) ->
     get_opt_subhost(Host, host, Opts, Default).
 
 -spec get_opt_subhost(jid:server(), atom(), list(), list() | binary()) -> jid:server().
-    get_opt_subhost(Host, OptName, Opts, Default) ->
+get_opt_subhost(Host, OptName, Opts, Default) ->
     Val = get_opt(OptName, Opts, Default),
     make_subhost(Val, Host).
 

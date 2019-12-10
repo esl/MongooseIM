@@ -213,8 +213,8 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
 
 -spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
 expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
-    ExpandedVHosts = [ gen_mod:make_subhost(Spec, Host)
-                       || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []) ],
+    ExpandedVHosts = lists:usort([SubHost || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []),
+                                             SubHost <- gen_mod:make_subhosts(Spec, Host)]),
     gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, ExpandedVHosts).
 
 -spec parse_request(Request :: exml:element()) ->
