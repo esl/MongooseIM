@@ -157,7 +157,7 @@ init([]) ->
     Stats =
         {service_mongoose_system_stats,
             {service_mongoose_system_stats, start_link, []},
-            permanent,
+            temporary,
             brutal_kill,
             worker,
             [service_mongoose_system_stats]},
@@ -179,8 +179,7 @@ init([]) ->
            MucIQ,
            MAM,
            ShaperSup,
-           Stats
-           ]}}.
+           Stats]}}.
 
 start_child(ChildSpec) ->
     case supervisor:start_child(ejabberd_sup, ChildSpec) of

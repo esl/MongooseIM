@@ -29,8 +29,8 @@ suite() ->
 
 all() ->
     [
-        user_stats_are_reported_to_google_analytics_when_mim_starts
-        % all_clustered_mongooses_report_the_same_client_id
+        system_stats_are_reported_to_google_analytics_when_mim_starts,
+        all_clustered_mongooses_report_the_same_client_id
     ].
 
 groups() ->
@@ -59,26 +59,26 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(user_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
+init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     create_events_collection(),
-    enable_user_stats(mim()),
+    enable_system_stats(mim()),
     delete_prev_client_id(mim()),
     Config;
 init_per_testcase(_TestName, Config) ->
     create_events_collection(),
     Nodes = [mim(), mim2()],
-    [ begin enable_user_stats(Node), delete_prev_client_id(Node) end || Node <- Nodes ],
+    [ begin enable_system_stats(Node), delete_prev_client_id(Node) end || Node <- Nodes ],
     distributed_helper:add_node_to_cluster(mim2(), Config),
     Config.
 
-end_per_testcase(user_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
+end_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     delete_prev_client_id(mim()),
-    disable_user_stats(mim()),
+    disable_system_stats(mim()),
     Config;
 end_per_testcase(_TestName, Config) ->
     delete_prev_client_id(mim()),
     Nodes = [mim(), mim2()],
-    [ begin delete_prev_client_id(Node), disable_user_stats(Node) end || Node <- Nodes ],
+    [ begin delete_prev_client_id(Node), disable_system_stats(Node) end || Node <- Nodes ],
     Config.
 
 %%--------------------------------------------------------------------
@@ -86,7 +86,7 @@ end_per_testcase(_TestName, Config) ->
 %%--------------------------------------------------------------------
 
 
-user_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
+system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     %GIVEN
     % Restart MIM will not work, because on restart config file is read and config is reloaded,
     %  which overwrites the config and the passed option is not set
@@ -165,18 +165,18 @@ remove_dummy_cowboy_handler() ->
     true = meck:validate(?COWBOY_DUMMY_HANDLER_MODULE),
     ok = meck:unload(?COWBOY_DUMMY_HANDLER_MODULE).
 
-enable_user_stats(Node) ->
+enable_system_stats(Node) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
     IsAllowedArgs = [service_mongoose_system_stats_is_allowed, true],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, IsAllowedArgs).
 
-disable_user_stats(Node) ->
+disable_system_stats(Node) ->
     mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]),
     mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ service_mongoose_system_stats_is_allowed ]).
 
 delete_prev_client_id(Node) ->
-    mongoose_helper:successful_rpc(Node, mnesia, delete_table, [persistent_user_info]).
+    mongoose_helper:successful_rpc(Node, mnesia, delete_table, [persistent_system_info]).
 
 create_events_collection() ->
     ets:new(?ETS_TABLE, [duplicate_bag, named_table, public]).
@@ -190,7 +190,6 @@ clear_events_collection() ->
 
 handler_init(Req0, _State) ->
     {ok, Body, Req} = cowboy_req:read_body(Req0),
-    ct:log("~p", Body),    
     StrEvents = string:split(Body, "\n", all),
     lists:map(
         fun(StrEvent) ->
@@ -221,4 +220,7 @@ handler_terminate(_Reason, _Req, _State) ->
     ok.
 
 trigger_reporting(Node) ->
-    [mongoose_helper:successful_rpc(Node, service_mongoose_system_stats, report, [#{}, #{}]) || _ <- lists:seq(1,30)]. 
+    [mongoose_helper:successful_rpc(Node, telemetry, execute,
+        [[mongoose_system_stats], #{hosts_count => 20}, #{}]) || _ <- lists:seq(1,20)],
+    [mongoose_helper:successful_rpc(Node, telemetry, execute,
+        [[mongoose_system_stats], #{module => test_mod}, #{host => "0.0.0.0", opts => [{backend, test_backend}]}]) || _ <- lists:seq(1,20)].
