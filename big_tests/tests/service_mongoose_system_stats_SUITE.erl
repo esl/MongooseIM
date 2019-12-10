@@ -31,7 +31,8 @@ all() ->
     [
         system_stats_are_reported_to_google_analytics_when_mim_starts,
         all_clustered_mongooses_report_the_same_client_id,
-        system_stats_are_not_reported_when_not_allowed
+        system_stats_are_not_reported_when_not_allowed,
+        periodic_report_available
     ].
 
 %%--------------------------------------------------------------------
@@ -57,6 +58,10 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(periodic_report_available, Config) ->
+    create_events_collection(),
+    enable_system_stats(mim(), 100),
+    Config;
 init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     create_events_collection(),
     enable_system_stats(mim()),
@@ -73,6 +78,11 @@ init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     distributed_helper:add_node_to_cluster(mim2(), Config),
     Config.
 
+end_per_testcase(periodic_report_available, Config) ->
+    clear_events_collection(),
+    disable_system_stats(mim()),
+    delete_prev_client_id(mim()),
+    Config;
 end_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     clear_events_collection(),
     delete_prev_client_id(mim()),
@@ -108,6 +118,9 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
     trigger_reporting(mim2()),
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
     all_event_have_the_same_client_id().
+
+periodic_report_available(_Config) ->
+    mongoose_helper:wait_until(fun() -> is_in_table(<<"periodic_report">>) end, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -172,9 +185,14 @@ remove_dummy_cowboy_handler() ->
     ok = meck:unload(?COWBOY_DUMMY_HANDLER_MODULE).
 
 enable_system_stats(Node) ->
+    enable_system_stats(Node, timer:seconds(36000)).
+
+enable_system_stats(Node, PeriodicReport) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
-    distributed_helper:rpc(Node, mongoose_service, start_service, [service_mongoose_system_stats, []]).
+    distributed_helper:rpc(
+      Node, mongoose_service, start_service,
+      [service_mongoose_system_stats, [{periodic_report, PeriodicReport}]]).
 
 disable_system_stats(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_stats]),
