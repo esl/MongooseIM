@@ -193,12 +193,11 @@ remove_dummy_cowboy_handler() ->
 enable_system_stats(Node) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
-    IsAllowedArgs = [service_mongoose_system_stats_is_allowed, true],
-    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, IsAllowedArgs).
+    distributed_helper:rpc(Node, mongoose_service, start_service, [service_mongoose_system_stats, []]).
 
 disable_system_stats(Node) ->
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]),
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ service_mongoose_system_stats_is_allowed ]).
+    distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_stats]),
+    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
     mongoose_helper:successful_rpc(Node, mnesia, delete_table, [persistent_system_info]).

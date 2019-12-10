@@ -10,7 +10,7 @@
 
 -include("mongoose.hrl").
 
--export([start/1, stop/0]).
+-export([start/1, stop/1]).
 -export([start_link/0, init/1, handle_event/4, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -record(state, {
@@ -26,18 +26,14 @@ start([]) ->
     Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
-stop() ->
+stop([]) ->
     ejabberd_sup:stop_child(?MODULE).
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_Args) ->
-    IsAllowed = ejabberd_config:get_local_option(service_mongoose_system_stats_is_allowed),
-    case IsAllowed of
-        true -> {ok, no_state , {continue, do_init}};
-        _ -> ignore
-    end.
+    {ok, no_state , {continue, do_init}}.
 
 handle_continue(do_init, NoState ) ->
     telemetry:attach(
