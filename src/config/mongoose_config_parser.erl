@@ -302,8 +302,8 @@ process_term(Term, State) ->
             add_option(cowboy_server_name, Value, State);
         {services, Value} ->
             add_option(services, Value, State);
-        {service_mongoose_user_stats_is_allowed, Value} ->
-            add_option(service_mongoose_user_stats_is_allowed, Value, State);
+        {service_mongoose_system_stats_is_allowed, Value} ->
+            add_option(service_mongoose_system_stats_is_allowed, Value, State);
         {google_analytics_url, Value} ->
             add_option(google_analytics_url, Value, State);
         {_Opt, _Val} ->
