@@ -132,8 +132,9 @@ maybe_flush_report(_) ->
 
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
+-spec flush_reports(string(), list(string())) -> {ok, term()} | {error, term()}.
 flush_reports(_, []) ->
-    ok;
+    {ok, nothing_to_do};
 flush_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
     Headers = [],
     ContentType = "",
@@ -143,11 +144,11 @@ flush_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
 flush_reports(ReportUrl, Lines) ->
     {NewBatch, RemainingLines} = lists:split(20, Lines),
     flush_reports(ReportUrl, NewBatch),
-    flush_reports(ReportUrl, RemainingLines),
-    ok.
+    flush_reports(ReportUrl, RemainingLines).
 
 get_client_id() ->
-    get_client_id(20).
+    get_client_id(20). % trying to get client ID 20 times, because it seems fine
+
 get_client_id(0) ->
     no_client_id;
 get_client_id(Counter) when Counter > 0 ->
