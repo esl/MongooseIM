@@ -116,6 +116,7 @@ start_module(Host, Module, Opts) ->
 start_module_for_host(Host, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = clear_opts(Module, Opts0),
+    telemetry:execute([mongoose_system_stats], #{module => Module}, #{host => Host, opts => Opts}),    
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try

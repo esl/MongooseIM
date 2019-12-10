@@ -15,8 +15,6 @@
 {http_api_old_endpoint_port, ""}.
 {http_api_client_endpoint_port, ""}.
 
-{service_mongoose_user_stats_is_allowed, false}.
-
 {hosts, "[\"localhost\"]"}.
 {host_config, ""}.
 {auth_ldap, ""}.

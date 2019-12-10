@@ -153,8 +153,7 @@ init([]) ->
     ShaperSup =
         {ejabberd_shaper_sup,
           {ejabberd_shaper_sup, start_link, []},
-          permanent, infinity, supervisor, [ejabberd_shaper_sup]}, 
-
+          permanent, infinity, supervisor, [ejabberd_shaper_sup]},
     {ok, {{one_for_one, 10, 1},
           [Hooks,
            Cleaner,
