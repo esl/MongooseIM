@@ -44,10 +44,10 @@ from_json(Req, State) ->
     Method = cowboy_req:method(Req),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     case mongoose_client_api:json_to_map(Body) of
-      {ok, #{<<"name">> := N, <<"subject">> := S} = JSONData} when is_binary(N), is_binary(S) ->
-          handle_request(Method, JSONData, Req2, State);
-      _ ->
-          {false, Req, State}
+        {ok, #{<<"name">> := N, <<"subject">> := S} = JSONData} when is_binary(N), is_binary(S) ->
+            handle_request(Method, JSONData, Req2, State);
+        _ ->
+            {false, Req, State}
     end.
 
 handle_request(Method, JSONData, Req, State) ->

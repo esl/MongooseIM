@@ -48,11 +48,11 @@ from_json(Req, #{user := User,
                  room_id := RoomID} = State) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     case mongoose_client_api:json_to_map(Body) of
-      {ok, #{<<"user">> := UserToInvite}} when is_binary(UserToInvite) ->
-          mod_muc_light_commands:change_affiliation(Server, RoomID, User, UserToInvite, <<"member">>),
-          {true, Req2, State};
-      _ ->
-          {false, Req, State}
+        {ok, #{<<"user">> := UserToInvite}} when is_binary(UserToInvite) ->
+            mod_muc_light_commands:change_affiliation(Server, RoomID, User, UserToInvite, <<"member">>),
+            {true, Req2, State};
+        _ ->
+            {false, Req, State}
     end;
 from_json(Req, State) ->
     mongoose_client_api:forbidden_request(Req, State).

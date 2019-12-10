@@ -136,8 +136,8 @@ is_noauth_http_method(_) -> false.
 
 json_to_map(JsonBin) ->
     case catch jiffy:decode(JsonBin, [return_maps]) of
-      Map when is_map(Map) ->
-        {ok, Map};
-      _ ->
-        {error, invalid_json}
+        Map when is_map(Map) ->
+          {ok, Map};
+        _ ->
+          {error, invalid_json}
     end.

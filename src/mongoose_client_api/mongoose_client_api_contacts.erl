@@ -73,7 +73,7 @@ from_json(Req, #{jid := Caller} = State) ->
             Action = maps:get(<<"action">>, JSONData, undefined),
             handle_request_and_respond(Method, Jid, Action, CJid, Req1, State);
         _ ->
-          mongoose_client_api:bad_request(Req1, State)
+            mongoose_client_api:bad_request(Req1, State)
     end.
 
 %% @doc Called for a method of type "DELETE"
