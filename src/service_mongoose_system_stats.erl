@@ -27,8 +27,13 @@ init(_Args) ->
 
 handle_continue(do_init, NoState ) ->
     IsAllowed = ejabberd_config:get_local_option(service_mongoose_system_stats_is_allowed),
-    case {IsAllowed, init_telemetry_reporter()} of
-        {true, ok} ->
+    case IsAllowed of
+        true ->
+           telemetry:attach(
+                <<"mongoose_system_stats">>,
+                ?STAT_TYPE,
+                fun service_mongoose_system_stats:handle_event/4,
+                [] ),
             ReportAfter = ?DEFAULT_REPORT_AFTER,
             TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
             State = #state{
@@ -39,20 +44,7 @@ handle_continue(do_init, NoState ) ->
                 },
             report_hosts_count(),
             {noreply, State};
-        {false, _} -> {noreply, is_not_allowed};
-        {_ , Error} -> {stop, Error, NoState}
-    end.
-
-init_telemetry_reporter() ->
-    Result = telemetry:attach(
-                <<"mongoose_system_stats">>,
-                ?STAT_TYPE,
-                fun service_mongoose_system_stats:handle_event/4,
-                [] ),
-    case Result of
-        ok -> ok;
-        {error, already_exists} -> ok;
-        Reason -> {error, Reason}
+        _ -> {stop, is_not_allowed, NoState}
     end.
 
 handle_event(?STAT_TYPE, Metrics, Metadata , _Config) ->
