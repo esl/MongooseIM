@@ -16,7 +16,7 @@
 
 -compile(export_all).
 
--import(distributed_helper, [mim/0, mim2/0,
+-import(distributed_helper, [mim/0, mim2/0, mim3/0,
                              require_rpc_nodes/1,
                              rpc/4]).
 
@@ -30,7 +30,8 @@ suite() ->
 all() ->
     [
         system_stats_are_reported_to_google_analytics_when_mim_starts,
-        all_clustered_mongooses_report_the_same_client_id
+        all_clustered_mongooses_report_the_same_client_id,
+        system_stats_are_not_reported_when_not_allowed
     ].
 
 groups() ->
@@ -64,6 +65,11 @@ init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts,
     enable_system_stats(mim()),
     delete_prev_client_id(mim()),
     Config;
+init_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
+    create_events_collection(),
+    disable_system_stats(mim3()),
+    delete_prev_client_id(mim3()),
+    Config;
 init_per_testcase(_TestName, Config) ->
     create_events_collection(),
     Nodes = [mim(), mim2()],
@@ -74,6 +80,9 @@ init_per_testcase(_TestName, Config) ->
 end_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     delete_prev_client_id(mim()),
     disable_system_stats(mim()),
+    Config;
+end_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
+    delete_prev_client_id(mim3()),
     Config;
 end_per_testcase(_TestName, Config) ->
     delete_prev_client_id(mim()),
@@ -99,6 +108,13 @@ system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
 
     all_event_have_the_same_client_id(),
+    ok.
+
+system_stats_are_not_reported_when_not_allowed(_Config) ->
+    trigger_reporting(mim3()),
+    timer:sleep(1000),
+    modules_are_not_reported(),
+    mongoose_helper:wait_until(fun hosts_count_is_not_reported/0, true),
     ok.
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
@@ -131,8 +147,14 @@ no_more_events_is_reported() ->
 hosts_count_is_reported() ->
     is_in_table(<<"hosts_count">>).
 
+hosts_count_is_not_reported() ->
+    is_not_in_table(<<"hosts_count">>).
+
 modules_are_reported() ->
     is_in_table(<<"modules">>).
+
+modules_are_not_reported() ->
+    is_not_in_table(<<"modules">>).
 
 is_in_table(EventCategory) ->
     Tab = ets:tab2list(?ETS_TABLE),
@@ -140,6 +162,9 @@ is_in_table(EventCategory) ->
         fun(#event{ec = EC}) ->
             EC == EventCategory
         end, Tab).
+
+is_not_in_table(EventCategory) ->
+    not is_in_table(EventCategory).
 
 get_events_collection_size() ->
     length(ets:tab2list(?ETS_TABLE)).

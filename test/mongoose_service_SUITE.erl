@@ -52,6 +52,7 @@ service_deps() ->
     ].
 
 init_per_testcase(misconfigured, C) ->
+    application:ensure_all_started(telemetry),
     mongoose_service:start(),
     meck:new(ejabberd_config, [passthrough]),
     meck:expect(ejabberd_config, get_local_option_or_default,

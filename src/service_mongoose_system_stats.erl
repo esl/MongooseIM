@@ -9,7 +9,7 @@
 -define(STAT_TYPE, [mongoose_system_stats]).
 
 -export([start_link/0, handle_event/4]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([init/1, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -record(state, {
     client_id = '',
@@ -23,6 +23,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_Args) ->
+    {ok, no_state , {continue, do_init}}.
+
+handle_continue(do_init, NoState ) ->
     IsAllowed = ejabberd_config:get_local_option(service_mongoose_system_stats_is_allowed),
     case {IsAllowed, init_telemetry_reporter()} of
         {true, ok} ->
@@ -35,9 +38,9 @@ init(_Args) ->
                 loop_timer_ref = TimerRef
                 },
             report_hosts_count(),
-            {ok, State};
-        {false, _} -> {stop, is_not_allowed};
-        {_ , Error} -> {stop, Error}
+            {noreply, State};
+        {false, _} -> {noreply, is_not_allowed};
+        {_ , Error} -> {stop, Error, NoState}
     end.
 
 init_telemetry_reporter() ->
