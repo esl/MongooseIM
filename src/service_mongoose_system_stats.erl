@@ -20,7 +20,7 @@
          handle_info/2,
          terminate/2]).
 
--record(state, {
+-record(system_stats_state, {
     client_id = '',
     reports = [],
     report_after = ?DEFAULT_REPORT_AFTER,
@@ -53,7 +53,7 @@ handle_continue(do_init, NoState ) ->
     case get_client_id() of
         no_client_id-> {stop, no_client_id, NoState};
         Value -> 
-            State = #state{
+            State = #system_stats_state{
                 client_id = Value,
                 report_after = ReportAfter,
                 reports = [],
@@ -82,12 +82,12 @@ parse_telemetry_report(_ClientId, _Metrics, _Metadata) ->
     %incorrect reports are ignored
     ok.
 
-handle_info(flush_reports, State = #state{reports = Reports, loop_timer_ref = TimerRef, report_after = ReportAfter}) ->
+handle_info(flush_reports, State = #system_stats_state{reports = Reports, loop_timer_ref = TimerRef, report_after = ReportAfter}) ->
     UrlBase = maybe_get_url(),
     erlang:cancel_timer(TimerRef),
     flush_reports(UrlBase, Reports),
     NewTimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
-    {noreply, State#state{reports = [], loop_timer_ref = NewTimerRef}};
+    {noreply, State#system_stats_state{reports = [], loop_timer_ref = NewTimerRef}};
 handle_info(_Message, _State) ->
     ok.
 
@@ -99,11 +99,11 @@ get_url(undefined)->
 get_url(Url) ->
     Url.
 
-handle_cast({add_report, {Metrics, Metadata}}, State = #state{reports = Reports, client_id = ClientId}) ->
+handle_cast({add_report, {Metrics, Metadata}}, State = #system_stats_state{reports = Reports, client_id = ClientId}) ->
     NewReport = parse_telemetry_report(ClientId, Metrics, Metadata),
     FullReport = [NewReport | Reports],
     maybe_flush_report(length(FullReport)),
-    {noreply, State#state{reports = FullReport}}.
+    {noreply, State#system_stats_state{reports = FullReport}}.
 
 % %%-----------------------------------------
 % %% Helpers
