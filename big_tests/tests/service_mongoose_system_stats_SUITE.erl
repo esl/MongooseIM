@@ -34,9 +34,6 @@ all() ->
         system_stats_are_not_reported_when_not_allowed
     ].
 
-groups() ->
-    [].
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -97,17 +94,10 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
 %%--------------------------------------------------------------------
 
 system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
-    %GIVEN
-    % Restart MIM will not work, because on restart config file is read and config is reloaded,
-    %  which overwrites the config and the passed option is not set
-    % WHEN
     trigger_reporting(mim()),
-    % THEN
-
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
-
     all_event_have_the_same_client_id().
 
 system_stats_are_not_reported_when_not_allowed(_Config) ->
@@ -116,9 +106,7 @@ system_stats_are_not_reported_when_not_allowed(_Config) ->
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
     trigger_reporting(mim()),
     trigger_reporting(mim2()),
-
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
-
     all_event_have_the_same_client_id().
 
 %%--------------------------------------------------------------------
