@@ -10,7 +10,7 @@
 
 -include("mongoose.hrl").
 
--export([start/1, stop/1]).
+-export([start/1, stop/0]).
 -export([start_link/0, init/1, handle_event/4, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -record(state, {
@@ -26,7 +26,7 @@ start([]) ->
     Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
-stop([]) ->
+stop() ->
     ejabberd_sup:stop_child(?MODULE).
 
 start_link() ->
@@ -149,7 +149,6 @@ get_client_id(Counter) when Counter > 0 ->
     end.
 
 maybe_create_table() ->
-    ?WARNING_MSG("stats module creating the table", []),
     mnesia:create_table(service_mongoose_system_stats,
         [
             {type, set},

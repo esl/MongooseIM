@@ -200,7 +200,7 @@ disable_system_stats(Node) ->
     mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
-    mongoose_helper:successful_rpc(Node, mnesia, delete_table, [persistent_system_info]).
+    mongoose_helper:successful_rpc(Node, mnesia, delete_table, [service_mongoose_system_stats]).
 
 create_events_collection() ->
     ets:new(?ETS_TABLE, [duplicate_bag, named_table, public]).
