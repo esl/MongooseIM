@@ -371,8 +371,8 @@ get_opt_subhost(Host, Opts, Default) ->
 
 -spec get_module_opt_subhost(jid:server(), module(), list() | binary()) -> jid:server().
 get_module_opt_subhost(Host, Module, Default) ->
-    Subject = get_module_opt(Host, Module, host, Default),
-    re:replace(Subject, "@HOST@", Host, [global, {return, binary}]).
+    Spec = get_module_opt(Host, Module, host, Default),
+    make_subhost(Spec, Host).
 
 -spec loaded_modules(jid:server()) -> [module()].
 loaded_modules(Host) ->

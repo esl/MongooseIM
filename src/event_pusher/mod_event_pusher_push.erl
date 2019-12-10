@@ -195,7 +195,7 @@ cast(Host, M, F, A) ->
 
 -spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
 virtual_pubsub_hosts(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, virtual_pubsub_hosts, []).
+    gen_mod:get_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, []).
 
 %%--------------------------------------------------------------------
 %% Debug & testing
@@ -205,7 +205,7 @@ virtual_pubsub_hosts(Host) ->
 add_virtual_pubsub_host(Host, VirtualHost) ->
     VHosts0 = virtual_pubsub_hosts(Host),
     VHosts = [gen_mod:make_subhost(VirtualHost, Host) | VHosts0],
-    gen_mod:set_module_opt(Host, ?MODULE, virtual_pubsub_hosts, VHosts).
+    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
 
 %%--------------------------------------------------------------------
 %% Helper functions
@@ -215,7 +215,7 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
 expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
     ExpandedVHosts = [ gen_mod:make_subhost(Spec, Host)
                        || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []) ],
-    gen_mod:set_module_opt(Host, ?MODULE, virtual_pubsub_hosts, ExpandedVHosts).
+    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, ExpandedVHosts).
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |
