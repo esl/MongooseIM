@@ -89,7 +89,8 @@
 
 %% Unicode escaping
 -export([escape_string/1,
-         use_escaped_string/1]).
+         use_escaped_string/1,
+         escape_characters/1]).
 
 %% Integer escaping
 -export([escape_integer/1,
