@@ -89,7 +89,7 @@ send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
                                        lserver => FromJID#jid.lserver,
                                        from_jid => FromJID,
                                        to_jid => ToJID,
-                                      element => XMLMsg0 }),
+                                       element => XMLMsg0 }),
             Acc1 = ejabberd_hooks:run_fold(rest_user_send_packet, FromJID#jid.lserver, Acc0,
                                            [FromJID, ToJID, XMLMsg0]),
             XMLMsg1 = mongoose_acc:element(Acc1),
