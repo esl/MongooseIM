@@ -31,9 +31,31 @@ handle_event(?STAT_TYPE, Metrics, Metadata , _Config) ->
 handle_event(StatType, Map1, Map2, _Config) ->
   lager:info("Unknown Stat Type: ~p, Map1:~p Map2:~p sent in wololo", [StatType, Map1, Map2]).
 
-parse_telemetry_report(_Metrics, _Metadata) -> 
+parse_telemetry_report(#{module := Module}, _Metadata) -> 
     %TODO: add event label and make a report
-    "v=1&tid=" ?TRACKING_ID "&t=event&ec=wololo&ea=convert". 
+    LstEventCategory = term_to_string(modules),
+    LstEventAction = term_to_string(Module),    
+    LstClientId = term_to_string(get_client_id()),    
+    LstLine = [
+        "v=1",
+        "&tid=", ?TRACKING_ID,
+        "&t=event",
+        "&cid=", LstClientId,
+        "&ec=", LstEventCategory,
+        "&ea=", LstEventAction
+    ],
+    Line = string:join(LstLine, ""),
+    lager:error("~p reported = ~p", [?MODULE, Line]),
+    Line;
+parse_telemetry_report(Metrics, Metadata) -> 
+    lager:error("Reported Metric: ~p, Metadata:~p", [Metrics, Metadata]),
+    %TODO: add event label and make a report
+    "v=1&tid=" ?TRACKING_ID "&t=event&ec=wololo&ea=convert&cid=". 
+
+term_to_string(Term) ->
+    R= io_lib:format("~p",[Term]),
+    lists:flatten(R).
+
 
 start_link() ->
     lager:error("Hello Jan from start_link"),
@@ -58,7 +80,8 @@ init(_Args) ->
                     % TODO: adjust log level, consider crashing 
                     lager:error("Telemetry result: ~p", [Result])
             end,
-            Url = ejabberd_config:get_local_option(google_analytics_url),
+            %Url = ejabberd_config:get_local_option(google_analytics_url),
+            Url = "http://localhost:8765",
             ReportAfter = ?DEFAULT_REPORT_AFTER,
             TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
             State = #state{
@@ -73,14 +96,17 @@ init(_Args) ->
     end.
 
 handle_info(flush_reports, State = #state{url_base = UrlBase, reports = Reports, loop_timer_ref = TimerRef, report_after = ReportAfter}) ->
+    lager:error("Hello from handle info"),
     erlang:cancel_timer(TimerRef),
     % TODO maybe send report
     flush_reports(UrlBase, Reports),
-    TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
-    {noreply, State#state{reports = [], loop_timer_ref = TimerRef}}.
+    NewTimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
+    {noreply, State#state{reports = [], loop_timer_ref = NewTimerRef}};
+handle_info(Message, _State) ->
+    lager:error("Unexpected handle info: ~p", [Message]).
 
 handle_cast({add_report, NewReport}, State = #state{reports = Reports, client_id = ClientID}) ->
-    FullReport = [NewReport ++ ClientID | Reports],
+    FullReport = [NewReport ++ integer_to_list(ClientID) | Reports],
     maybe_flush_report(length(FullReport)),
     {noreply, State#state{reports = FullReport}}.
 
