@@ -30,8 +30,8 @@
 
 -record(service_mongoose_system_stats, {key, value}).
 
--spec start([]) -> {ok, pid()}.
-start([]) ->
+-spec start(proplists:proplist()) -> {ok, pid()}.
+start(_Args) ->
     Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 

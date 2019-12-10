@@ -69,7 +69,7 @@ init_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     disable_system_stats(mim()),
     delete_prev_client_id(mim()),
     Config;
-init_per_testcase(_TestName, Config) ->
+init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     create_events_collection(),
     enable_system_stats(mim()),
     enable_system_stats(mim2()),
@@ -85,7 +85,7 @@ end_per_testcase(system_stats_are_not_reported_when_not_allowed, Config) ->
     clear_events_collection(),
     delete_prev_client_id(mim()),
     Config;
-end_per_testcase(_TestName, Config) ->
+end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
     clear_events_collection(),
     delete_prev_client_id(mim()),
     Nodes = [mim(), mim2()],
@@ -95,7 +95,6 @@ end_per_testcase(_TestName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
-
 
 system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     %GIVEN
