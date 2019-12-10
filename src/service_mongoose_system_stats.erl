@@ -47,22 +47,20 @@ start_link() ->
 init(_Args) ->
     {ok, #system_stats_state{}, {continue, do_init}}.
 
--spec handle_continue(do_init, system_stats_state() | no_state) -> {noreply, system_stats_state()} | {stop, no_client_id, no_state}.
+-spec handle_continue(do_init, system_stats_state()) ->
+    {noreply, system_stats_state()} | {stop, no_client_id, system_stats_state()}.
 handle_continue(do_init, State) ->
     telemetry:attach(
         <<"mongoose_system_stats">>,
         ?STAT_TYPE,
         fun service_mongoose_system_stats:handle_event/4,
         [] ),
-    ReportAfter = ?DEFAULT_REPORT_AFTER,
-    TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
     case get_client_id() of
-        no_client_id-> {stop, no_client_id, State};
+        no_client_id -> {stop, no_client_id, State};
         Value ->
-            NewState = #system_stats_state{
+            TimerRef = erlang:send_after(?DEFAULT_REPORT_AFTER, self(), flush_reports),
+            NewState = State#system_stats_state{
                 client_id = Value,
-                report_after = ReportAfter,
-                reports = [],
                 loop_timer_ref = TimerRef
                 },
             report_hosts_count(),
@@ -70,8 +68,7 @@ handle_continue(do_init, State) ->
     end.
 
 handle_event(?STAT_TYPE, Metrics, Metadata , _Config) ->
-    gen_server:cast(?MODULE, {add_report, {Metrics, Metadata}}),
-    ok;
+    gen_server:cast(?MODULE, {add_report, {Metrics, Metadata}});
 handle_event(_StatType, _Map1, _Map2, _Config) ->
     ok.
 
@@ -80,15 +77,21 @@ parse_telemetry_report(ClientId, #{module := Module}, #{host := _Host, opts := O
     build_report(ClientId, modules, Module, Backend);
 parse_telemetry_report(ClientId, #{hosts_count := HostsCount}, _Metadata) ->
     build_report(ClientId, hosts_count, HostsCount);
-parse_telemetry_report(ClientId, #{event_category := EventCategory}, #{event_action := EventAction}) ->
+parse_telemetry_report(ClientId,
+                       #{event_category := EventCategory},
+                       #{event_action := EventAction}) ->
     build_report(ClientId, EventCategory, EventAction);
-parse_telemetry_report(ClientId, #{event_category := EventCategory}, #{event_action := EventAction, event_label := EventLabel}) ->
+parse_telemetry_report(ClientId,
+                       #{event_category := EventCategory},
+                       #{event_action := EventAction, event_label := EventLabel}) ->
     build_report(ClientId, EventCategory, EventAction, EventLabel);
 parse_telemetry_report(_ClientId, _Metrics, _Metadata) ->
     %incorrect reports are ignored
     ok.
 
-handle_info(flush_reports, State = #system_stats_state{reports = Reports, loop_timer_ref = TimerRef, report_after = ReportAfter}) ->
+handle_info(flush_reports, #system_stats_state{reports = Reports,
+                                               loop_timer_ref = TimerRef,
+                                               report_after = ReportAfter} = State ) ->
     UrlBase = maybe_get_url(),
     erlang:cancel_timer(TimerRef),
     flush_reports(UrlBase, Reports),
@@ -100,12 +103,14 @@ handle_info(_Message, _State) ->
 maybe_get_url() ->
     MaybeUrl = ejabberd_config:get_local_option(google_analytics_url),
     get_url(MaybeUrl).
+
 get_url(undefined)->
     ?BASE_URL;
 get_url(Url) ->
     Url.
 
-handle_cast({add_report, {Metrics, Metadata}}, State = #system_stats_state{reports = Reports, client_id = ClientId}) ->
+handle_cast({add_report, {Metrics, Metadata}},
+            #system_stats_state{reports = Reports, client_id = ClientId} = State) ->
     NewReport = parse_telemetry_report(ClientId, Metrics, Metadata),
     FullReport = [NewReport | Reports],
     maybe_flush_report(length(FullReport)),
