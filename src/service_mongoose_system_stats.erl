@@ -8,6 +8,8 @@
 -define(DEFAULT_REPORT_AFTER, 60 * 60 * 1000).
 -define(STAT_TYPE, [mongoose_system_stats]).
 
+-include("mongoose.hrl").
+
 -export([start_link/0, handle_event/4]).
 -export([init/1, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
@@ -23,46 +25,49 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_Args) ->
-    {ok, no_state , {continue, do_init}}.
-
-handle_continue(do_init, NoState ) ->
     IsAllowed = ejabberd_config:get_local_option(service_mongoose_system_stats_is_allowed),
     case IsAllowed of
-        true ->
-           telemetry:attach(
-                <<"mongoose_system_stats">>,
-                ?STAT_TYPE,
-                fun service_mongoose_system_stats:handle_event/4,
-                [] ),
-            ReportAfter = ?DEFAULT_REPORT_AFTER,
-            TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
+        true -> {ok, no_state , {continue, do_init}};
+        _ -> ignore
+    end.
+
+handle_continue(do_init, NoState ) ->
+    telemetry:attach(
+        <<"mongoose_system_stats">>,
+        ?STAT_TYPE,
+        fun service_mongoose_system_stats:handle_event/4,
+        [] ),
+    ReportAfter = ?DEFAULT_REPORT_AFTER,
+    TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
+    case get_client_id() of
+        no_client_id-> {stop, no_client_id, NoState};
+        Value -> 
             State = #state{
-                client_id = get_client_id(),
+                client_id = Value,
                 report_after = ReportAfter,
                 reports = [],
                 loop_timer_ref = TimerRef
                 },
             report_hosts_count(),
-            {noreply, State};
-        _ -> {stop, is_not_allowed, NoState}
+            {noreply, State}
     end.
 
 handle_event(?STAT_TYPE, Metrics, Metadata , _Config) ->
-    ReportLine = parse_telemetry_report(Metrics, Metadata),
-    gen_server:cast(?MODULE, {add_report, ReportLine});
+    gen_server:cast(?MODULE, {add_report, {Metrics, Metadata}}),
+    ok;
 handle_event(_StatType, _Map1, _Map2, _Config) ->
     ok.
 
-parse_telemetry_report(#{module := Module}, #{host := _Host, opts := Opts}) ->
+parse_telemetry_report(ClientId, #{module := Module}, #{host := _Host, opts := Opts}) ->
     Backend = proplists:get_value(backend, Opts, none),
-    build_report(modules, Module, Backend);
-parse_telemetry_report(#{hosts_count := HostsCount}, _Metadata) ->
-    build_report(hosts_count, HostsCount);
-parse_telemetry_report(#{event_category := EventCategory}, #{event_action := EventAction}) ->
-    build_report(EventCategory, EventAction);
-parse_telemetry_report(#{event_category := EventCategory}, #{event_action := EventAction, event_label := EventLabel}) ->
-    build_report(EventCategory, EventAction, EventLabel);
-parse_telemetry_report(_Metrics, _Metadata) ->
+    build_report(ClientId, modules, Module, Backend);
+parse_telemetry_report(ClientId, #{hosts_count := HostsCount}, _Metadata) ->
+    build_report(ClientId, hosts_count, HostsCount);
+parse_telemetry_report(ClientId, #{event_category := EventCategory}, #{event_action := EventAction}) ->
+    build_report(ClientId, EventCategory, EventAction);
+parse_telemetry_report(ClientId, #{event_category := EventCategory}, #{event_action := EventAction, event_label := EventLabel}) ->
+    build_report(ClientId, EventCategory, EventAction, EventLabel);
+parse_telemetry_report(_ClientId, _Metrics, _Metadata) ->
     %incorrect reports are ignored
     ok.
 
@@ -83,7 +88,8 @@ get_url(undefined)->
 get_url(Url) ->
     Url.
 
-handle_cast({add_report, NewReport}, State = #state{reports = Reports}) ->
+handle_cast({add_report, {Metrics, Metadata}}, State = #state{reports = Reports, client_id = ClientId}) ->
+    NewReport = parse_telemetry_report(ClientId, Metrics, Metadata),
     FullReport = [NewReport | Reports],
     maybe_flush_report(length(FullReport)),
     {noreply, State#state{reports = FullReport}}.
@@ -119,25 +125,33 @@ flush_reports(ReportUrl, Lines) ->
     ok.
 
 get_client_id() ->
+    get_client_id(20).
+get_client_id(0) ->
+    no_client_id;
+get_client_id(Counter) when Counter > 0 ->
     T = fun() ->
         mnesia:read(service_mongoose_system_stats, client_id)
     end,
     case mnesia:transaction(T) of
         {aborted, {no_exists, service_mongoose_system_stats}} ->
             maybe_create_table(),
-            maybe_make_and_save_new_client_id();
+            get_client_id(Counter - 1);
+        {atomic, []} ->
+            maybe_make_and_save_new_client_id(),
+            get_client_id(Counter - 1);
         {atomic, [Record]} ->
             #service_mongoose_system_stats{value = ClientId} = Record,
             ClientId
     end.
 
 maybe_create_table() ->
+    ?WARNING_MSG("stats module creating the table", []),
     mnesia:create_table(service_mongoose_system_stats,
         [
             {type, set},
             {record_name, service_mongoose_system_stats},
             {attributes, record_info(fields, service_mongoose_system_stats)},
-            {disc_copies, [node() | nodes()]}
+            {disc_copies, mnesia:system_info(running_db_nodes)}
         ]),
     mnesia:wait_for_tables([service_mongoose_system_stats], 5000).
 
@@ -155,12 +169,12 @@ maybe_make_and_save_new_client_id() ->
     end,
     mnesia:transaction(T).
 
-build_report(EventCategory, EventAction) ->
-    build_report(EventCategory, EventAction, none).
+build_report(ClientId, EventCategory, EventAction) ->
+    build_report(ClientId, EventCategory, EventAction, none).
 
-build_report(EventCategory, EventAction, EventLabel) ->
+build_report(ClientId, EventCategory, EventAction, EventLabel) ->
     MaybeLabel = maybe_event_label(EventLabel),
-    LstClientId = term_to_string(get_client_id()),
+    LstClientId = term_to_string(ClientId),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
     LstLine = [
