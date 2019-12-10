@@ -92,7 +92,7 @@ parse_telemetry_report(_ClientId, _Metrics, _Metadata) ->
 handle_info(flush_reports, #system_stats_state{reports = Reports,
                                                loop_timer_ref = TimerRef,
                                                report_after = ReportAfter} = State ) ->
-    UrlBase = maybe_get_url(),
+    UrlBase = get_url(),
     erlang:cancel_timer(TimerRef),
     flush_reports(UrlBase, Reports),
     NewTimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
@@ -100,14 +100,8 @@ handle_info(flush_reports, #system_stats_state{reports = Reports,
 handle_info(_Message, _State) ->
     ok.
 
-maybe_get_url() ->
-    MaybeUrl = ejabberd_config:get_local_option(google_analytics_url),
-    get_url(MaybeUrl).
-
-get_url(undefined)->
-    ?BASE_URL;
-get_url(Url) ->
-    Url.
+get_url() ->
+    ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
 
 handle_cast({add_report, {Metrics, Metadata}},
             #system_stats_state{reports = Reports, client_id = ClientId} = State) ->
