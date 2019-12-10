@@ -153,14 +153,7 @@ init([]) ->
     ShaperSup =
         {ejabberd_shaper_sup,
           {ejabberd_shaper_sup, start_link, []},
-          permanent, infinity, supervisor, [ejabberd_shaper_sup]}, 
-    Stats =
-        {service_mongoose_system_stats,
-            {service_mongoose_system_stats, start_link, []},
-            temporary,
-            brutal_kill,
-            worker,
-            [service_mongoose_system_stats]},
+          permanent, infinity, supervisor, [ejabberd_shaper_sup]},
     {ok, {{one_for_one, 10, 1},
           [Hooks,
            Cleaner,
@@ -178,8 +171,7 @@ init([]) ->
            Listener,
            MucIQ,
            MAM,
-           ShaperSup,
-           Stats]}}.
+           ShaperSup]}}.
 
 start_child(ChildSpec) ->
     case supervisor:start_child(ejabberd_sup, ChildSpec) of

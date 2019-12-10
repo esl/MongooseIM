@@ -10,8 +10,8 @@
 
 -include("mongoose.hrl").
 
--export([start_link/0, handle_event/4]).
--export([init/1, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([start/1, stop/0]).
+-export([start_link/0, init/1, handle_event/4, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -record(state, {
     client_id = '',
@@ -20,6 +20,14 @@
     loop_timer_ref
     }).
 -record(service_mongoose_system_stats, {key, value}).
+
+-spec start([]) -> {ok, pid()}.
+start([]) ->
+    Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
+    {ok, _} = ejabberd_sup:start_child(Spec).
+
+stop() ->
+    ejabberd_sup:stop_child(?MODULE).
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
