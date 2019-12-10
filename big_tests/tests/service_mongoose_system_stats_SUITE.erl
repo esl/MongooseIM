@@ -124,6 +124,7 @@ no_more_events_is_reported() ->
     Prev = get_events_collection_size(),
     timer:sleep(100),
     Post = get_events_collection_size(),
+    ct:log("No more events reported Prev:~p, Post:~p", [Prev,Post]),
     % Prev > 0 is needed because we need to wait for some reports to come.
     Prev == Post andalso Prev > 0.
 
@@ -189,6 +190,7 @@ clear_events_collection() ->
 
 handler_init(Req0, _State) ->
     {ok, Body, Req} = cowboy_req:read_body(Req0),
+    ct:log("~p", Body),    
     StrEvents = string:split(Body, "\n", all),
     lists:map(
         fun(StrEvent) ->
@@ -219,4 +221,4 @@ handler_terminate(_Reason, _Req, _State) ->
     ok.
 
 trigger_reporting(Node) ->
-    mongoose_helper:successful_rpc(Node, service_mongoose_system_stats, start, [ok]).
+    [mongoose_helper:successful_rpc(Node, service_mongoose_system_stats, report, [#{}, #{}]) || _ <- lists:seq(1,30)]. 
