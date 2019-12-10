@@ -26,6 +26,8 @@
     report_after = ?DEFAULT_REPORT_AFTER,
     loop_timer_ref
     }).
+-type system_stats_state() :: #system_stats_state{}.
+
 -record(service_mongoose_system_stats, {key, value}).
 
 -spec start([]) -> {ok, pid()}.
@@ -33,16 +35,20 @@ start([]) ->
     Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
+-spec stop() -> ok.
 stop() ->
     ejabberd_sup:stop_child(?MODULE).
 
+-spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec init([]) -> {ok, system_stats_state(), {continue, do_init}}.
 init(_Args) ->
-    {ok, no_state , {continue, do_init}}.
+    {ok, #system_stats_state{}, {continue, do_init}}.
 
-handle_continue(do_init, NoState ) ->
+-spec handle_continue(do_init, system_stats_state() | no_state) -> {noreply, system_stats_state()} | {stop, no_client_id, no_state}.
+handle_continue(do_init, State) ->
     telemetry:attach(
         <<"mongoose_system_stats">>,
         ?STAT_TYPE,
@@ -51,16 +57,16 @@ handle_continue(do_init, NoState ) ->
     ReportAfter = ?DEFAULT_REPORT_AFTER,
     TimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
     case get_client_id() of
-        no_client_id-> {stop, no_client_id, NoState};
-        Value -> 
-            State = #system_stats_state{
+        no_client_id-> {stop, no_client_id, State};
+        Value ->
+            NewState = #system_stats_state{
                 client_id = Value,
                 report_after = ReportAfter,
                 reports = [],
                 loop_timer_ref = TimerRef
                 },
             report_hosts_count(),
-            {noreply, State}
+            {noreply, NewState}
     end.
 
 handle_event(?STAT_TYPE, Metrics, Metadata , _Config) ->
