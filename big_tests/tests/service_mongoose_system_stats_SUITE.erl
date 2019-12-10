@@ -109,15 +109,10 @@ system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
 
-    all_event_have_the_same_client_id(),
-    ok.
+    all_event_have_the_same_client_id().
 
 system_stats_are_not_reported_when_not_allowed(_Config) ->
-    trigger_reporting(mim3()),
-    timer:sleep(1000),
-    modules_are_not_reported(),
-    mongoose_helper:wait_until(fun hosts_count_is_not_reported/0, true),
-    ok.
+    true = system_stats_service_is_disabled(mim()).
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
     trigger_reporting(mim()),
@@ -125,9 +120,7 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
 
     mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
 
-    all_event_have_the_same_client_id(),
-    ok.
-
+    all_event_have_the_same_client_id().
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -209,6 +202,10 @@ create_events_collection() ->
 
 clear_events_collection() ->
     ets:delete_all_objects(?ETS_TABLE).
+
+system_stats_service_is_disabled(Node) ->
+    Pid = distributed_helper:rpc(Node, erlang, whereis, [service_mongoose_system_stats]),
+    not erlang:is_pid(Pid).
 
 %%--------------------------------------------------------------------
 %% Cowboy handlers
