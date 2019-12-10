@@ -134,7 +134,6 @@ no_more_events_is_reported() ->
     Prev = get_events_collection_size(),
     timer:sleep(100),
     Post = get_events_collection_size(),
-    ct:log("No more events reported Prev:~p, Post:~p", [Prev,Post]),
     % Prev > 0 is needed because we need to wait for some reports to come.
     Prev == Post andalso Prev > 0.
 
