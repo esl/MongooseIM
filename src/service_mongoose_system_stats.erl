@@ -159,9 +159,9 @@ maybe_create_table() ->
             {type, set},
             {record_name, service_mongoose_system_stats},
             {attributes, record_info(fields, service_mongoose_system_stats)},
-            {disc_copies, mnesia:system_info(running_db_nodes)}
+            {ram_copies, [node()]}
         ]),
-    mnesia:wait_for_tables([service_mongoose_system_stats], 5000).
+    mnesia:add_table_copy(service_mongoose_system_stats, node(), ram_copies).
 
 maybe_make_and_save_new_client_id() ->
     T = fun() ->
