@@ -11,7 +11,14 @@
 -include("mongoose.hrl").
 
 -export([start/1, stop/0]).
--export([start_link/0, init/1, handle_event/4, handle_continue/2, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([start_link/0,
+         init/1,
+         handle_event/4,
+         handle_continue/2,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2]).
 
 -record(state, {
     client_id = '',
