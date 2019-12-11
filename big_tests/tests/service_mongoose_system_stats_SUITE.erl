@@ -60,7 +60,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(periodic_report_available, Config) ->
     create_events_collection(),
-    enable_system_stats(mim(), 100),
+    enable_system_stats(mim()),
     Config;
 init_per_testcase(system_stats_are_reported_to_google_analytics_when_mim_starts, Config) ->
     create_events_collection(),
@@ -105,7 +105,7 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
 
 system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     trigger_reporting(mim()),
-    mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
+    % mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
     all_event_have_the_same_client_id().
@@ -116,11 +116,16 @@ system_stats_are_not_reported_when_not_allowed(_Config) ->
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
     trigger_reporting(mim()),
     trigger_reporting(mim2()),
-    mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
-    all_event_have_the_same_client_id().
+    mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
 
 periodic_report_available(_Config) ->
-    mongoose_helper:wait_until(fun() -> is_in_table(<<"periodic_report">>) end, true).
+    ReportsNumber = get_events_collection_size(),
+    mongoose_helper:wait_until(
+        fun() ->
+                NewReportsNumber = get_events_collection_size(),
+                NewReportsNumber > ReportsNumber + 1
+        end,
+        true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -129,14 +134,8 @@ periodic_report_available(_Config) ->
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     UniqueSortedTab = lists:usort([Cid ||#event{cid = Cid} <- Tab]),
-    1 = length(UniqueSortedTab).
+    1 == length(UniqueSortedTab).
 
-no_more_events_is_reported() ->
-    Prev = get_events_collection_size(),
-    timer:sleep(100),
-    Post = get_events_collection_size(),
-    % Prev > 0 is needed because we need to wait for some reports to come.
-    Prev == Post andalso Prev > 0.
 
 hosts_count_is_reported() ->
     is_in_table(<<"hosts_count">>).
@@ -185,14 +184,14 @@ remove_dummy_cowboy_handler() ->
     ok = meck:unload(?COWBOY_DUMMY_HANDLER_MODULE).
 
 enable_system_stats(Node) ->
-    enable_system_stats(Node, timer:seconds(36000)).
+    enable_system_stats(Node, 100, 100).
 
-enable_system_stats(Node, PeriodicReport) ->
+enable_system_stats(Node, InitialReport, PeriodicReport) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
     distributed_helper:rpc(
       Node, mongoose_service, start_service,
-      [service_mongoose_system_stats, [{periodic_report, PeriodicReport}]]).
+    [service_mongoose_system_stats, [{initial_report, InitialReport}, {periodic_report, PeriodicReport}]]).
 
 disable_system_stats(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_stats]),

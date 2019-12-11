@@ -5,13 +5,14 @@
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
 -define(TRACKING_ID, "UA-151671255-1").
+-define(DEFAULT_INITIAL_REPORT, 60 * 1000).
 -define(DEFAULT_REPORT_AFTER, 60 * 60 * 1000).
 -define(STAT_TYPE, [mongoose_system_stats]).
 
 -include("mongoose.hrl").
 
 -export([start/1, stop/0]).
--export([start_link/0,
+-export([start_link/1,
          init/1,
          handle_event/4,
          handle_continue/2,
@@ -24,32 +25,36 @@
     client_id = '',
     reports = [],
     report_after = ?DEFAULT_REPORT_AFTER,
-    loop_timer_ref
+    loop_timer_ref,
+    initial_report    
     }).
 -type system_stats_state() :: #system_stats_state{}.
 
 -record(service_mongoose_system_stats, {key, value}).
 
 -spec start(proplists:proplist()) -> {ok, pid()}.
-start(_Args) ->
-    Spec = {?MODULE, {?MODULE, start_link, []}, temporary, brutal_kill, worker, [?MODULE]},
+start(Args) ->
+    Spec = {?MODULE, {?MODULE, start_link, [Args]}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
 -spec stop() -> ok.
 stop() ->
     ejabberd_sup:stop_child(?MODULE).
 
--spec start_link() -> {ok, pid()}.
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+-spec start_link(proplists:proplist()) -> {ok, pid()}.
+start_link(Args) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Args], []).
 
--spec init([]) -> {ok, system_stats_state(), {continue, do_init}}.
-init(_Args) ->
-    {ok, #system_stats_state{}, {continue, do_init}}.
+-spec init(proplists:proplist()) -> {ok, system_stats_state(), {continue, do_init}}.
+init(Args) ->
+    InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
+    ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
+    State = #system_stats_state{initial_report = InitialReport, report_after = ReportAfter},
+    {ok, State, {continue, do_init}}.
 
 -spec handle_continue(do_init, system_stats_state()) ->
     {noreply, system_stats_state()} | {stop, no_client_id, system_stats_state()}.
-handle_continue(do_init, State) ->
+handle_continue(do_init, State = #system_stats_state{initial_report = InitialReport}) ->
     case get_client_id() of
         no_client_id -> {stop, no_client_id, State};
         Value ->
@@ -58,7 +63,7 @@ handle_continue(do_init, State) ->
                 ?STAT_TYPE,
                 fun service_mongoose_system_stats:handle_event/4,
                 [] ),
-            TimerRef = erlang:send_after(?DEFAULT_REPORT_AFTER, self(), flush_reports),
+            TimerRef = erlang:send_after(InitialReport, self(), flush_reports),
             NewState = State#system_stats_state{
                 client_id = Value,
                 loop_timer_ref = TimerRef
@@ -95,6 +100,7 @@ handle_info(flush_reports, #system_stats_state{reports = Reports,
     UrlBase = get_url(),
     erlang:cancel_timer(TimerRef),
     flush_reports(UrlBase, Reports),
+    report_hosts_count(),
     NewTimerRef = erlang:send_after(ReportAfter, self(), flush_reports),
     {noreply, State#system_stats_state{reports = [], loop_timer_ref = NewTimerRef}};
 handle_info(_Message, _State) ->
@@ -107,7 +113,7 @@ handle_cast({add_report, {Metrics, Metadata}},
             #system_stats_state{reports = Reports, client_id = ClientId} = State) ->
     NewReport = parse_telemetry_report(ClientId, Metrics, Metadata),
     FullReport = [NewReport | Reports],
-    maybe_flush_report(length(FullReport)),
+    self() ! flush_reports,
     {noreply, State#system_stats_state{reports = FullReport}}.
 
 % %%-----------------------------------------
@@ -119,10 +125,6 @@ report_hosts_count() ->
     NumberOfHosts = length(Hosts),
     telemetry:execute(?STAT_TYPE, #{hosts_count => NumberOfHosts}, #{}).
 
-maybe_flush_report(ReportLength) when ReportLength >= 20 ->
-    self() ! flush_reports;
-maybe_flush_report(_) ->
-    ok.
 
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
