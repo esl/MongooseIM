@@ -10,6 +10,7 @@
 -export([bad_request/3]).
 -export([forbidden_request/2]).
 -export([forbidden_request/3]).
+-export([json_to_map/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -126,3 +127,17 @@ check_password(User, Password) ->
 is_noauth_http_method(<<"OPTIONS">>) -> true;
 is_noauth_http_method(_) -> false.
 
+%% -------------------------------------------------------------------
+%% @doc
+%% Decode JSON binary into map
+%% @end
+%% -------------------------------------------------------------------
+-spec json_to_map(JsonBin :: binary()) -> {ok, Map :: maps:map()} | {error, invalid_json}.
+
+json_to_map(JsonBin) ->
+    case catch jiffy:decode(JsonBin, [return_maps]) of
+        Map when is_map(Map) ->
+            {ok, Map};
+        _ ->
+            {error, invalid_json}
+    end.

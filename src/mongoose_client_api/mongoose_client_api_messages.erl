@@ -80,22 +80,26 @@ maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    #{<<"to">> := To, <<"body">> := MsgBody} = jiffy:decode(Body, [return_maps]),
-    ToJID = jid:from_binary(To),
-    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    XMLMsg0 = build_message(RawUser, To, UUID, MsgBody),
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                               lserver => FromJID#jid.lserver,
-                               from_jid => FromJID,
-                               to_jid => ToJID,
-                               element => XMLMsg0 }),
-    Acc1 = ejabberd_hooks:run_fold(rest_user_send_packet, FromJID#jid.lserver, Acc0,
-                                   [FromJID, ToJID, XMLMsg0]),
-    XMLMsg1 = mongoose_acc:element(Acc1),
-    ejabberd_router:route(FromJID, ToJID, Acc1, XMLMsg1),
-    Resp = #{<<"id">> => UUID},
-    Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
-    {true, Req3, State}.
+    case mongoose_client_api:json_to_map(Body) of
+        {ok, #{<<"to">> := To, <<"body">> := MsgBody}} when is_binary(To), is_binary(MsgBody) ->
+            ToJID = jid:from_binary(To),
+            UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+            XMLMsg0 = build_message(RawUser, To, UUID, MsgBody),
+            Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+                                       lserver => FromJID#jid.lserver,
+                                       from_jid => FromJID,
+                                       to_jid => ToJID,
+                                       element => XMLMsg0 }),
+            Acc1 = ejabberd_hooks:run_fold(rest_user_send_packet, FromJID#jid.lserver, Acc0,
+                                           [FromJID, ToJID, XMLMsg0]),
+            XMLMsg1 = mongoose_acc:element(Acc1),
+            ejabberd_router:route(FromJID, ToJID, Acc1, XMLMsg1),
+            Resp = #{<<"id">> => UUID},
+            Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
+            {true, Req3, State};
+        _ ->
+            mongoose_client_api:bad_request(Req2, State)
+    end.
 
 build_message(From, To, Id, Body) ->
     Attrs = [{<<"from">>, From},

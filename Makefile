@@ -66,4 +66,4 @@ install: configure.out rel
 	@. ./configure.out && tools/install
 
 elvis:
-	rebar3 as lint lint
+	$(REBAR) as lint lint
