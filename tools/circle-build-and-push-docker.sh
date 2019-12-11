@@ -33,7 +33,7 @@ IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 git clone https://github.com/esl/mongooseim-docker.git
 cd mongooseim-docker
-git checkout 753e2faa631bce21a38321ac2869c640f4e0c926
+git checkout 77f825a281409aef338f2c15e1ca2b610593e982
 
 cp ../${MONGOOSE_TGZ} member
 
