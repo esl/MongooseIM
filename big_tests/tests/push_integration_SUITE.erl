@@ -615,7 +615,7 @@ pubsub_node(Config) ->
 
 virtual_pubsub_host() ->
     Domain = domain(),
-    <<"fast-push-notifications.", Domain/binary>>.
+    <<Domain/binary,".",Domain/binary>>.
 
 real_pubsub_host() ->
     Domain = domain(),
@@ -672,7 +672,7 @@ required_modules_for_group(_, API, PubSubHost) ->
 
 required_modules(API, PubSubHost) ->
     VirtualHostOpt = case PubSubHost of
-                         virtual -> [{virtual_pubsub_hosts, [virtual_pubsub_host()]}];
+                         virtual -> [{virtual_pubsub_hosts, ["@HOST@.@HOSTS@"]}];
                          _ -> []
                      end,
     PubSub = case PubSubHost of
