@@ -590,6 +590,9 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)),
+
+    assert_push_notification_in_session(User, NodeName, Service, DeviceToken),
+
     mongoose_push_mock:subscribe(DeviceToken, MockResponse),
     become_unavailable(User),
     #{device_token => DeviceToken,
@@ -606,6 +609,21 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
     Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),
     escalus:send(User, Stanza),
     escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
+
+assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    Resource = escalus_client:resource(User),
+
+    {_, _, _, Info} = rpc(?RPC_SPEC, ejabberd_sm, get_session,
+                          [Username, Server, Resource]),
+
+    {push_notifications, {NodeName, Details}} = lists:keyfind(push_notifications, 1, Info),
+    ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
+    ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
+
+
+
 
 wait_for_push_request(DeviceToken) ->
     mongoose_push_mock:wait_for_push_request(DeviceToken).
