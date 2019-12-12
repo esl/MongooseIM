@@ -13,11 +13,28 @@
     ea = ""   % event action
     }).
 
--compile(export_all).
+%% API
+-export([
+         all/0,
+         suite/0,
+         init_per_suite/1,
+         end_per_suite/1,
+         init_per_group/2,
+         end_per_group/2,
+         init_per_testcase/2,
+         end_per_testcase/2
+        ]).
+
+-export([
+         system_stats_are_reported_to_google_analytics_when_mim_starts/1,
+         all_clustered_mongooses_report_the_same_client_id/1,
+         system_stats_are_not_reported_when_not_allowed/1,
+         periodic_report_available/1
+        ]).
 
 -import(distributed_helper, [mim/0, mim2/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
+                             require_rpc_nodes/1
+                            ]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -208,13 +225,13 @@ str_to_event(Qs) ->
             {binary_to_atom(StrKey, utf8), StrVal}
         end, StrParams),
     #event{
-        el = get(el, Params),
-        cid = get(cid, Params),
-        ec = get(ec, Params),
-        ea = get(ea, Params)
+        el = get_el(el, Params),
+        cid = get_el(cid, Params),
+        ec = get_el(ec, Params),
+        ea = get_el(ea, Params)
     }.
 
-get(Key, Proplist) ->
+get_el(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
 
 trigger_reporting(Node) ->
