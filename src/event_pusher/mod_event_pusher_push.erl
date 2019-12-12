@@ -141,7 +141,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
     BareFrom = jid:to_bare(From),
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
-                  maybe_enable_node(BareFrom, BarePubSubJID, Node, FormFields, IQ);
+                  maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ);
               {disable, BarePubSubJID, Node} ->
                   ok = mod_event_pusher_push_backend:disable(BareFrom, BarePubSubJID, Node),
                   IQ#iq{type = result, sub_el = []};
@@ -150,11 +150,13 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
           end,
     {Acc, Res}.
 
-maybe_enable_node(#jid{lserver = Host} = BareFrom, BarePubSubJID, Node, FormFields, IQ) ->
+maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, IQ) ->
     AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
     case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
         true ->
-            ok = mod_event_pusher_push_backend:enable(BareFrom, BarePubSubJID, Node, FormFields),
+            ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
+            ejabberd_sm:store_info(From#jid.luser, From#jid.lserver, From#jid.lresource,
+                                  {push_notifications, {Node, FormFields}}),
             IQ#iq{type = result, sub_el = []};
         false ->
             NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
