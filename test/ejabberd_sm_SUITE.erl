@@ -244,6 +244,27 @@ store_info_sends_message_to_the_session_owner(C) ->
             ct:fail("store_info_sends_message_to_the_session_owner=timeout")
     end.
 
+remove_info_sends_message_to_the_session_owner(C) ->
+    SID = {erlang:timestamp(), self()},
+    U = <<"alice2">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    %% Create session in one process
+    ?B(C):create_session(U, S, R, Session),
+    %% but call store_info from another process
+    spawn_link(fun() -> ejabberd_sm:remove_info(U, S, R, cc) end),
+    %% The original process receives a message
+    receive {store_session_info, User, Server, Resource, Key, _FromPid} ->
+        ?eq(U, User),
+        ?eq(S, Server),
+        ?eq(R, Resource),
+        ?eq(cc, Key),
+        ok
+        after 5000 ->
+            ct:fail("store_info_sends_message_to_the_session_owner=timeout")
+    end.
+
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),

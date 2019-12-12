@@ -36,6 +36,7 @@
          open_session/5, open_session/6,
          close_session/6,
          store_info/4,
+         remove_info/4,
          check_in_subscription/6,
          bounce_offline_message/4,
          disconnect_removed_user/3,
@@ -244,6 +245,26 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
                     %% Async operation
                     ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
                     {ok, KV}
+            end
+    end.
+
+-spec remove_info(jid:user(), jid:server(), jid:resource(),
+                 {any(), any()}) -> ok | {error, offline}.
+remove_info(User, Server, Resource, Key) ->
+    case get_session(User, Server, Resource) of
+        offline -> {error, offline};
+        {_SUser, SID, SPriority, SInfo} ->
+            case SID of
+                {_, Pid} when self() =:= Pid ->
+                    %% It's safe to allow process update it's own record
+                    set_session(SID, User, Server, Resource, SPriority,
+                                lists:keydelete(Key, 1, SInfo)),
+                    ok;
+                {_, Pid} ->
+                    %% Ask the process to update it's record itself
+                    %% Async operation
+                    ejabberd_c2s:remove_session_info(Pid, User, Server, Resource, Key),
+                    ok
             end
     end.
 

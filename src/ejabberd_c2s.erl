@@ -42,6 +42,7 @@
          send_filtered/5,
          broadcast/4,
          store_session_info/5,
+         remove_session_info/5,
          get_info/1]).
 
 %% gen_fsm callbacks
@@ -148,6 +149,10 @@ stop(FsmRef) ->
 
 store_session_info(FsmRef, User, Server, Resource, KV) ->
     FsmRef ! {store_session_info, User, Server, Resource, KV, self()}.
+
+remove_session_info(FsmRef, User, Server, Resource, Key) ->
+    FsmRef ! {remove_session_info, User, Server, Resource, Key, self()}.
+
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -1104,6 +1109,9 @@ handle_info(check_buffer_full, StateName, StateData) ->
     end;
 handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateName, StateData) ->
     ejabberd_sm:store_info(User, Server, Resource, KV),
+    fsm_next_state(StateName, StateData);
+handle_info({remove_session_info, User, Server, Resource, Key, _FromPid}, StateName, StateData) ->
+    ejabberd_sm:remove_info(User, Server, Resource, Key),
     fsm_next_state(StateName, StateData);
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
