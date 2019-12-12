@@ -3,7 +3,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
--define(COWBOY_DUMMY_HANDLER_MODULE, my_cowboy_mecked_module).
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
 
@@ -43,13 +42,11 @@ all() ->
 
 init_per_suite(Config) ->
     [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
-    create_dummy_cowboy_handler(),
-    start_cowboy(),
+    http_helper:start(8765, "/[...]", fun handler_init/1),
     Config.
 
 end_per_suite(Config) ->
-    stop_cowboy(),
-    remove_dummy_cowboy_handler(),
+    http_helper:stop(),
     Config.
 
 init_per_group(_GroupName, Config) ->
@@ -162,27 +159,6 @@ is_not_in_table(EventCategory) ->
 get_events_collection_size() ->
     length(ets:tab2list(?ETS_TABLE)).
 
-start_cowboy() ->
-    Dispatch = cowboy_router:compile([
-        {'_', [{"/[...]", ?COWBOY_DUMMY_HANDLER_MODULE, []}]}
-    ]),
-    {ok, _Pid} = cowboy:start_clear(http_listener,
-                                    #{num_acceptors => 20,
-                                      socket_opts => [{port, 8765}]},
-                                    #{env => #{dispatch => Dispatch}}).
-
-stop_cowboy() ->
-    ok = cowboy:stop_listener(http_listener).
-
-create_dummy_cowboy_handler() ->
-    ok = meck:new(?COWBOY_DUMMY_HANDLER_MODULE, [non_strict, no_link]),
-    ok = meck:expect(?COWBOY_DUMMY_HANDLER_MODULE, init, fun handler_init/2),
-    ok = meck:expect(?COWBOY_DUMMY_HANDLER_MODULE, terminate, fun handler_terminate/3).
-
-remove_dummy_cowboy_handler() ->
-    true = meck:validate(?COWBOY_DUMMY_HANDLER_MODULE),
-    ok = meck:unload(?COWBOY_DUMMY_HANDLER_MODULE).
-
 enable_system_stats(Node) ->
     enable_system_stats(Node, 100, 100).
 
@@ -213,8 +189,7 @@ system_stats_service_is_disabled(Node) ->
 %%--------------------------------------------------------------------
 %% Cowboy handlers
 %%--------------------------------------------------------------------
-
-handler_init(Req0, _State) ->
+handler_init(Req0) ->
     {ok, Body, Req} = cowboy_req:read_body(Req0),
     StrEvents = string:split(Body, "\n", all),
     lists:map(
@@ -241,9 +216,6 @@ str_to_event(Qs) ->
 
 get(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
-
-handler_terminate(_Reason, _Req, _State) ->
-    ok.
 
 trigger_reporting(Node) ->
     [mongoose_helper:successful_rpc(Node, telemetry, execute,
