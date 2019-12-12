@@ -26,37 +26,32 @@
         ]).
 
 -export([
-         system_stats_are_reported_to_google_analytics_when_mim_starts/1,
-         all_clustered_mongooses_report_the_same_client_id/1,
          system_stats_are_not_reported_when_not_allowed/1,
-         periodic_report_available/1
+         periodic_report_available/1,
+         all_clustered_mongooses_report_the_same_client_id/1,
+         system_stats_are_reported_to_google_analytics_when_mim_starts/1
         ]).
 
 -import(distributed_helper, [mim/0, mim2/0,
                              require_rpc_nodes/1
                             ]).
 
-%%--------------------------------------------------------------------
-%% Suite configuration
-%%--------------------------------------------------------------------
-
 suite() ->
     require_rpc_nodes([mim]).
 
 all() ->
     [
-        system_stats_are_reported_to_google_analytics_when_mim_starts,
-        all_clustered_mongooses_report_the_same_client_id,
-        system_stats_are_not_reported_when_not_allowed,
-        periodic_report_available
+     system_stats_are_not_reported_when_not_allowed,
+     periodic_report_available,
+     all_clustered_mongooses_report_the_same_client_id,
+     system_stats_are_reported_to_google_analytics_when_mim_starts
     ].
-
-%%--------------------------------------------------------------------
-%% Init & teardown
-%%--------------------------------------------------------------------
 
 -define(APPS, [inets, crypto, ssl, fusco, ranch, cowlib, cowboy]).
 
+%%--------------------------------------------------------------------
+%% Suite configuration
+%%--------------------------------------------------------------------
 init_per_suite(Config) ->
     [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
     http_helper:start(8765, "/[...]", fun handler_init/1),
@@ -66,6 +61,9 @@ end_per_suite(Config) ->
     http_helper:stop(),
     Config.
 
+%%--------------------------------------------------------------------
+%% Init & teardown
+%%--------------------------------------------------------------------
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -116,21 +114,8 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
-
-system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
-    trigger_reporting(mim()),
-    % mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
-    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
-    mongoose_helper:wait_until(fun modules_are_reported/0, true),
-    all_event_have_the_same_client_id().
-
 system_stats_are_not_reported_when_not_allowed(_Config) ->
     true = system_stats_service_is_disabled(mim()).
-
-all_clustered_mongooses_report_the_same_client_id(_Config) ->
-    trigger_reporting(mim()),
-    trigger_reporting(mim2()),
-    mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
 
 periodic_report_available(_Config) ->
     ReportsNumber = get_events_collection_size(),
@@ -140,6 +125,18 @@ periodic_report_available(_Config) ->
                 NewReportsNumber > ReportsNumber + 1
         end,
         true).
+
+all_clustered_mongooses_report_the_same_client_id(_Config) ->
+    trigger_reporting(mim()),
+    trigger_reporting(mim2()),
+    mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
+
+system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
+    trigger_reporting(mim()),
+    % mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
+    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
+    mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    all_event_have_the_same_client_id().
 
 %%--------------------------------------------------------------------
 %% Helpers
