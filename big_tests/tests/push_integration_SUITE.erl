@@ -475,7 +475,7 @@ no_push_notification_for_expired_device(Config) ->
               pubsub_node := PushNode} = enable_push_for_user(Bob, <<"fcm">>, [], Response, Config),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             {_, Response} = wait_for_push_request(DeviceToken),
-            maybe_check_if_push_node_was_disabled(?config(api_v, Config), Bob, DeviceToken)
+            maybe_check_if_push_node_was_disabled(?config(api_v, Config), Bob, PushNode)
 
         end).
 
@@ -675,15 +675,20 @@ required_modules(API, PubSubHost) ->
                          virtual -> [{virtual_pubsub_hosts, [virtual_pubsub_host()]}];
                          _ -> []
                      end,
+    PubSub = case PubSubHost of
+                 virtual -> [];
+                 _ ->
+                     [{mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
+                         {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                         {nodetree, <<"dag">>},
+                         {host, "pubsub.@HOST@"}]}]
+             end,
     PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | VirtualHostOpt]},
     [
-     {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
-                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {nodetree, <<"dag">>},
-                   {host, "pubsub.@HOST@"}]},
-     {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-                                      {api_version, API}]},
-     {mod_event_pusher, [{backends, [PushBackend]}]}
+        {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
+            {api_version, API}]},
+        {mod_event_pusher, [{backends, [PushBackend]}]} |
+        PubSub
     ].
 
 muc_light_opts() ->
