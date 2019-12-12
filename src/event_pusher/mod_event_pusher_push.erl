@@ -138,20 +138,28 @@ remove_user(Acc, LUser, LServer) ->
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
+    BareFrom = jid:to_bare(From),
     Res = case parse_request(Request) of
-              {enable, BarePubsubJID, Node, FormFields} ->
-                  ok = mod_event_pusher_push_backend:enable(
-                         jid:to_bare(From), BarePubsubJID, Node, FormFields),
-                  IQ#iq{type = result, sub_el = []};
-              {disable, BarePubsubJID, Node} ->
-                  ok = mod_event_pusher_push_backend:disable(
-                         jid:to_bare(From), BarePubsubJID, Node),
+              {enable, BarePubSubJID, Node, FormFields} ->
+                  maybe_enable_node(BareFrom, BarePubSubJID, Node, FormFields, IQ);
+              {disable, BarePubSubJID, Node} ->
+                  ok = mod_event_pusher_push_backend:disable(BareFrom, BarePubSubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
           end,
     {Acc, Res}.
 
+maybe_enable_node(#jid{lserver = Host} = BareFrom, BarePubSubJID, Node, FormFields, IQ) ->
+    AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
+    case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
+        true ->
+            ok = mod_event_pusher_push_backend:enable(BareFrom, BarePubSubJID, Node, FormFields),
+            IQ#iq{type = result, sub_el = []};
+        false ->
+            NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
+            IQ#iq{type = error, sub_el = NewSubEl}
+    end.
 
 %%--------------------------------------------------------------------
 %% Router callbacks
