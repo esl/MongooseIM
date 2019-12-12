@@ -78,14 +78,21 @@ do_publish_item(ServerHost, PublishOptions,
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            ejabberd_hooks:run(push_notifications, ServerHost,
-                               [ServerHost, NotificationForms, OptionMap]),
-            {result, default};
+            Result = ejabberd_hooks:run_fold(push_notifications, ServerHost, ok,
+                                             [ServerHost, NotificationForms, OptionMap]),
+            handle_push_hook_result(Result);
         _ ->
             {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
     end;
 do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
     {error, mongoose_xmpp_errors:bad_request()}.
+
+handle_push_hook_result(ok) ->
+    {result, default};
+handle_push_hook_result({error, device_not_registered}) ->
+    {error, mod_pubsub:extended_error(mongoose_xmpp_errors:not_acceptable_cancel(), <<"device-not-registered">>)};
+handle_push_hook_result({error, _}) ->
+    {error, mod_pubsub:extended_error(mongoose_xmpp_errors:bad_request(), <<"faild-to-submit-push-notification">>)}.
 
 node_to_path(Node) ->
     node_flat:node_to_path(Node).

@@ -104,8 +104,11 @@ publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload
                                        [BareRecipient, PubsubJID, Node, Response]),
             Acc1
     end,
+    %% The IQ is routed from the recipient's server JID to pubsub JID
+    %% This is recommended in the XEP and also helps process replies to this IQ
+    NotificationFrom = jid:make(<<>>, Host, <<>>),
     mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
-                               [To, PubsubJID, Acc, Stanza, ResponseHandler]).
+                               [NotificationFrom, PubsubJID, Acc, Stanza, ResponseHandler]).
 
 -spec push_notification_iq(Node :: mod_event_pusher_push:pubsub_node(),
                            Form :: mod_event_pusher_push:form(),

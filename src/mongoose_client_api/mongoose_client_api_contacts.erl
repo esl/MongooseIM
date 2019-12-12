@@ -63,14 +63,18 @@ from_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
     Method = cowboy_req:method(Req),
     {ok, Body, Req1} = cowboy_req:read_body(Req),
-    JSONData = jiffy:decode(Body, [return_maps]),
-    Jid = case maps:get(<<"jid">>, JSONData, undefined) of
-              undefined ->
-                  cowboy_req:binding(jid, Req1);
-              J -> J
-          end,
-    Action = maps:get(<<"action">>, JSONData, undefined),
-    handle_request_and_respond(Method, Jid, Action, CJid, Req1, State).
+    case mongoose_client_api:json_to_map(Body) of
+        {ok, JSONData} ->
+            Jid = case maps:get(<<"jid">>, JSONData, undefined) of
+                      undefined -> cowboy_req:binding(jid, Req1);
+                      J when is_binary(J) -> J;
+                      _ -> undefined
+                  end,
+            Action = maps:get(<<"action">>, JSONData, undefined),
+            handle_request_and_respond(Method, Jid, Action, CJid, Req1, State);
+        _ ->
+            mongoose_client_api:bad_request(Req1, State)
+    end.
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #{jid := Caller} = State) ->
@@ -83,6 +87,8 @@ delete_resource(Req, #{jid := Caller} = State) ->
             handle_single_deletion(CJid, Jid, Req, State)
     end.
 
+handle_multiple_deletion(_, undefined, Req, State) ->
+    mongoose_client_api:bad_request(Req, State);
 handle_multiple_deletion(CJid, ToDelete, Req, State) ->
     case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
         {ok, NotDeleted} ->
@@ -94,6 +100,8 @@ handle_multiple_deletion(CJid, ToDelete, Req, State) ->
             serve_failure(Other, Req, State)
     end.
 
+handle_single_deletion(_, undefined, Req, State) ->
+    mongoose_client_api:bad_request(Req, State);
 handle_single_deletion(CJid, ToDelete, Req, State) ->
     case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
         ok ->
@@ -102,6 +110,8 @@ handle_single_deletion(CJid, ToDelete, Req, State) ->
             serve_failure(Other, Req, State)
     end.
 
+handle_request_and_respond(_, undefined, _, _, Req, State) ->
+    mongoose_client_api:bad_request(Req, State);
 handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
     case handle_request(Method, to_binary(Jid), Action, CJid) of
         ok ->
@@ -127,8 +137,17 @@ serve_failure({error, ErrorType, Msg}, Req, State) ->
 
 get_requested_contacts(Req) ->
     Body = get_whole_body(Req, <<"">>),
-    #{<<"to_delete">> :=  ResultJids} = jiffy:decode(Body, [return_maps]),
-    ResultJids.
+    case mongoose_client_api:json_to_map(Body) of
+        {ok, #{<<"to_delete">> :=  ResultJids}} when is_list(ResultJids) ->
+            case [X || X <- ResultJids, is_binary(X)] =:= ResultJids of
+                true ->
+                    ResultJids;
+                false ->
+                    undefined
+            end;
+        _ ->
+            undefined
+    end.
 
 get_whole_body(Req, Acc) ->
     case cowboy_req:read_body(Req) of

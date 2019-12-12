@@ -30,6 +30,7 @@ all() -> [
 ].
 
 init_per_suite(C) ->
+    application:ensure_all_started(telemetry),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     ok = stringprep:start(),

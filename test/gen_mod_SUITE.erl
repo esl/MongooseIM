@@ -29,6 +29,7 @@ all() ->
     [start_and_stop].
 
 init_per_testcase(_, Config) ->
+    application:ensure_all_started(telemetry),
     meck:new(ejabberd_config, [passthrough]),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> {atomic, ok} end),

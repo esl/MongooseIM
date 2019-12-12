@@ -8,6 +8,7 @@
 -include_lib("inbox.hrl").
 
 -define(MUCLIGHTHOST, <<"muclight.localhost">>).
+-define(RPC_SPEC, #{node => distributed_helper:mim()}).
 
 
 
@@ -24,7 +25,7 @@
          become_unavailable/1,
          become_available/2
         ]).
--import(escalus_ejabberd, [rpc/3]).
+-import(distributed_helper, [rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -108,14 +109,14 @@ init_per_suite(Config) ->
 
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
-    rpc(mongoose_wpool, start_configured_pools,
+    rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
         [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_suite(Config).
 
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
+    rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
@@ -134,7 +135,7 @@ init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
 init_per_group(G, Config) ->
     %% Some cleaning up
     C = init_modules(G, Config),
-    catch rpc(mod_muc_light_db_backend, force_clear, []),
+    catch rpc(?RPC_SPEC, mod_muc_light_db_backend, force_clear, []),
     C.
 
 end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_less;
@@ -265,7 +266,7 @@ inbox_msg_unread_count(Config, Service, EnableOpts) ->
       Config, [{bob, 1}, {alice, 1}, {kate, 1}],
       fun(Bob, Alice, Kate) ->
               % In this test Bob is the only recipient of all messages
-              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts, Config),
+              #{device_token := DeviceToken} = enable_push_for_user(Bob, Service, EnableOpts, Config),
 
               % We're going to interleave messages from Alice and Kate to ensure
               % that their unread counts don't leak to each other's notifications
@@ -295,7 +296,7 @@ inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
     escalus:fresh_story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
-              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts, Config),
+              #{device_token := DeviceToken} = enable_push_for_user(Bob, Service, EnableOpts, Config),
               send_private_message(Alice, Bob, <<"FIRST MESSAGE">>),
               check_notification(DeviceToken, 1),
               MsgId = send_private_message(Alice, Bob, <<"SECOND MESSAGE">>),
@@ -325,7 +326,7 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               muc_light_helper:verify_aff_bcast([{Kate, member}, {Alice, owner}], [{Kate, member}]),
               escalus:wait_for_stanza(Alice),
 
-              KateToken = enable_push_for_user(Kate, Service, EnableOpts, Config),
+              #{device_token := KateToken} = enable_push_for_user(Kate, Service, EnableOpts, Config),
 
               SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
               escalus:wait_for_stanza(Alice),
@@ -379,7 +380,7 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
         fun(Alice, Bob) ->
             Room = fresh_room_name(),
             RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
-            DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts, Config),
+            #{device_token := DeviceToken} = enable_push_for_user(Bob, <<"apns">>, EnableOpts, Config),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             {Notification, _} = wait_for_push_request(DeviceToken),
@@ -393,7 +394,7 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
         fun(Alice, Bob) ->
             Room = fresh_room_name(),
             RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
-            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts, Config),
+            #{device_token := DeviceToken} = enable_push_for_user(Bob, <<"fcm">>, EnableOpts, Config),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             {Notification, _} = wait_for_push_request(DeviceToken),
@@ -412,7 +413,7 @@ muclight_aff_change(Config, Service, EnableOpts) ->
               then_muc_light_affiliations_are_received_by([Alice, Kate], {Room, Affiliations}),
               escalus:wait_for_stanza(Alice),
 
-              KateToken = enable_push_for_user(Kate, Service, EnableOpts, Config),
+              #{device_token := KateToken} = enable_push_for_user(Kate, Service, EnableOpts, Config),
 
               Bare = bare_jid(Alice),
               SenderJID = <<RoomJID/binary, "/", Bare/binary>>,
@@ -470,9 +471,11 @@ no_push_notification_for_expired_device(Config) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             Response = mongoose_push_unregistered_device_resp(Config),
-            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, [], Response, Config),
+            #{device_token := DeviceToken,
+              pubsub_node := PushNode} = enable_push_for_user(Bob, <<"fcm">>, [], Response, Config),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-            {_, Response} = wait_for_push_request(DeviceToken)
+            {_, Response} = wait_for_push_request(DeviceToken),
+            maybe_check_if_push_node_was_disabled(?config(api_v, Config), Bob, DeviceToken)
 
         end).
 
@@ -484,16 +487,27 @@ mongoose_push_unregistered_device_resp(Config) ->
             {500, jiffy:encode(#{<<"details">> => <<"probably_unregistered">>})}
     end.
 
+maybe_check_if_push_node_was_disabled("v2", _, _) ->
+    ok;
+maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
+    JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
+    Fun = fun() ->
+                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [JID]),
+                  lists:keymember(PushNode, 2, Services)
+          end,
+    mongoose_helper:wait_until(Fun, false).
+
 no_push_notification_for_internal_mongoose_push_error(Config) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             Response = {503, jiffy:encode(#{<<"reason">> => <<"unspecified">>})},
-            DeviceToken = enable_push_for_user(Bob, <<"fcm">>, [], Response, Config),
+            #{device_token := DeviceToken} = enable_push_for_user(Bob, <<"fcm">>, [], Response, Config),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             {_, Response} = wait_for_push_request(DeviceToken)
 
         end).
+
 
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -510,7 +524,7 @@ muclight_conversation(Sender, RoomJID, Msg) ->
 
 pm_conversation(Alice, Bob, Service, EnableOpts, Config) ->
     AliceJID = bare_jid(Alice),
-    DeviceToken = enable_push_for_user(Bob, Service, EnableOpts, Config),
+    #{device_token := DeviceToken} = enable_push_for_user(Bob, Service, EnableOpts, Config),
     escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
     {AliceJID, DeviceToken}.
 
@@ -526,9 +540,10 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
     case ?config(pubsub_host, Config) of
         real ->
             Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
-                             {<<"pubsub#publish_model">>, <<"publishers">>}],
+                {<<"pubsub#publish_model">>, <<"publishers">>}],
             pubsub_tools:create_node(User, Node, [{type, <<"push">>},
-                                                  {config, Configuration}]);
+                {config, Configuration}]),
+            add_user_server_to_whitelist(User, Node);
         _ ->
             skip
     end,
@@ -539,8 +554,20 @@ enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)),
     mongoose_push_mock:subscribe(DeviceToken, MockResponse),
     become_unavailable(User),
-    DeviceToken.
+    #{device_token => DeviceToken,
+      pubsub_node => NodeName}.
 
+add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
+    AffList = [ #xmlel{ name = <<"affiliation">>,
+                        attrs = [{<<"jid">>, escalus_utils:get_server(User)},
+                                 {<<"affiliation">>, <<"publish-only">>}] }
+              ],
+    Affiliations = #xmlel{ name = <<"affiliations">>, attrs = [{<<"node">>, NodeName}],
+                           children = AffList },
+    Id = base64:encode(crypto:strong_rand_bytes(5)),
+    Stanza = escalus_pubsub_stanza:pubsub_owner_iq(<<"set">>, User, Id, NodeAddr, [Affiliations]),
+    escalus:send(User, Stanza),
+    escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
 
 wait_for_push_request(DeviceToken) ->
     mongoose_push_mock:wait_for_push_request(DeviceToken).
