@@ -127,12 +127,9 @@ periodic_report_available(_Config) ->
         true).
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
-    trigger_reporting(mim()),
-    trigger_reporting(mim2()),
     mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
 
 system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
-    trigger_reporting(mim()),
     % mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
@@ -149,10 +146,10 @@ all_event_have_the_same_client_id() ->
 
 
 hosts_count_is_reported() ->
-    is_in_table(<<"hosts_count">>).
+    is_in_table(<<"hosts">>).
 
 hosts_count_is_not_reported() ->
-    is_not_in_table(<<"hosts_count">>).
+    is_not_in_table(<<"hosts">>).
 
 modules_are_reported() ->
     is_in_table(<<"modules">>).
@@ -230,9 +227,3 @@ str_to_event(Qs) ->
 
 get_el(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
-
-trigger_reporting(Node) ->
-    [mongoose_helper:successful_rpc(Node, telemetry, execute,
-        [[mongoose_system_stats], #{hosts_count => 20}, #{}]) || _ <- lists:seq(1,20)],
-    [mongoose_helper:successful_rpc(Node, telemetry, execute,
-        [[mongoose_system_stats], #{module => test_mod}, #{host => "0.0.0.0", opts => [{backend, test_backend}]}]) || _ <- lists:seq(1,20)].
