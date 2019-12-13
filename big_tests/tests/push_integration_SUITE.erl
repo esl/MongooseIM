@@ -538,7 +538,7 @@ maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
     mongoose_helper:wait_until(Fun, false),
 
     Fun2 = fun() ->
-                   Info = get_session_info(User),
+                   Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
                    lists:keyfind(push_notifications, 1, Info)
            end,
     mongoose_helper:wait_until(Fun2, false).
@@ -617,21 +617,11 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
     escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(User)).
 
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
-    Info = get_session_info(User),
+    Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
 
     {push_notifications, {NodeName, Details}} = lists:keyfind(push_notifications, 1, Info),
     ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
     ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
-
-get_session_info(User) ->
-    Username = escalus_client:username(User),
-    Server = escalus_client:server(User),
-    Resource = escalus_client:resource(User),
-
-    {_, _, _, Info} = rpc(?RPC_SPEC, ejabberd_sm, get_session,
-                          [Username, Server, Resource]),
-    Info.
-
 
 wait_for_push_request(DeviceToken) ->
     mongoose_push_mock:wait_for_push_request(DeviceToken).

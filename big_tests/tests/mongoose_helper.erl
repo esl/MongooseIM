@@ -26,6 +26,7 @@
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
 -export([get_session_pid/2]).
+-export([get_session_info/2]).
 -export([wait_for_route_message_count/2]).
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
@@ -310,12 +311,12 @@ wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
                                             history => [FunResult | History]}).
 
 wait_for_user(Config, User, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> 
-                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
+    mongoose_helper:wait_until(fun() ->
+                                escalus_users:verify_creation(escalus_users:create_user(Config, User))
                                end, ok,
 							   #{
-                                 sleep_time => 400, 
-                                 left_time => LeftTime, 
+                                 sleep_time => 400,
+                                 left_time => LeftTime,
                                  name => 'escalus_users:create_user'
                                 }).
 
@@ -353,6 +354,14 @@ get_session_pid(User, Node) ->
     successful_rpc(Node, ejabberd_sm, get_session_pid,
                             [Username, Server, Resource]).
 
+get_session_info(RpcDetails, User) ->
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    Resource = escalus_client:resource(User),
+
+    {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session,
+                          [Username, Server, Resource]),
+    Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
     mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
