@@ -61,26 +61,26 @@ sender_id(From, Packet) ->
     mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
     {Acc1, MessageCount} = get_unread_count(Acc0, To),
-    BareRecipient = jid:to_bare(To),
     VirtualPubsubHosts = mod_event_pusher_push:virtual_pubsub_hosts(Host),
     PushPayload = push_content_fields(From, Packet, MessageCount),
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
                           case lists:member(PubsubJID#jid.lserver, VirtualPubsubHosts) of
                               true ->
-                                  publish_via_hook(Acc0, Host, BareRecipient, Service, PushPayload);
+                                  publish_via_hook(Acc0, Host, To, Service, PushPayload);
                               false ->
-                                  publish_via_pubsub(Host, BareRecipient, To, Service, PushPayload)
+                                  publish_via_pubsub(Host, To, Service, PushPayload)
                           end
                   end, Services),
     Acc1.
 
 -spec publish_via_hook(Acc :: mongooseim_acc:t(),
                        Host :: jid:server(),
-                       BareRecipient :: jid:jid(),
+                       To :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),
                        PushPayload :: push_payload()) -> any().
-publish_via_hook(Acc0, Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
+publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
+    BareRecipient = jid:to_bare(To),
     HookArgs = [Host, [maps:from_list(PushPayload)], OptionMap],
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% tracability purposes and push_SUITE code unification
@@ -88,16 +88,17 @@ publish_via_hook(Acc0, Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload
     case ejabberd_hooks:run_fold(push_notifications, Host, Acc, HookArgs) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
+            ejabberd_sm:remove_info(To#jid.luser, To#jid.lserver, To#jid.lresource,
+                                    push_notifications),
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
         _ -> ok
     end.
 
 -spec publish_via_pubsub(Host :: jid:server(),
-                         BareRecipient :: jid:jid(),
                          To :: jid:jid(),
                          Service :: mod_event_pusher_push:publish_service(),
                          PushPayload :: push_payload()) -> any().
-publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload) ->
+publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     Stanza = push_notification_iq(Node, Form, PushPayload),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => To#jid.lserver,
@@ -108,7 +109,7 @@ publish_via_pubsub(Host, BareRecipient, To, {PubsubJID, Node, Form}, PushPayload
     ResponseHandler =
     fun(_From, _To, Acc1, Response) ->
             mod_event_pusher_push:cast(Host, handle_publish_response,
-                                       [BareRecipient, PubsubJID, Node, Response]),
+                                       [To, PubsubJID, Node, Response]),
             Acc1
     end,
     %% The IQ is routed from the recipient's server JID to pubsub JID

@@ -167,17 +167,20 @@ maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, 
 %% Router callbacks
 %%--------------------------------------------------------------------
 
--spec handle_publish_response(BareRecipient :: jid:jid(), PubsubJID :: jid:jid(),
+-spec handle_publish_response(Recipient :: jid:jid(), PubsubJID :: jid:jid(),
                               Node :: pubsub_node(), Result :: timeout | jlib:iq()) -> ok.
-handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
+handle_publish_response(_Recipient, _PubsubJID, _Node, timeout) ->
     ok;
-handle_publish_response(_BareRecipient, _PubsubJID, _Node, #iq{type = result}) ->
+handle_publish_response(_Recipient, _PubsubJID, _Node, #iq{type = result}) ->
     ok;
-handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
+handle_publish_response(Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
     [Error | _ ] = [Err || #xmlel{name = <<"error">>} = Err <- Els],
     case exml_query:attr(Error, <<"type">>) of
         <<"cancel">> ->
             %% We disable the push node in case the error type is cancel
+            ejabberd_sm:remove_info(Recipient#jid.luser, Recipient#jid.lserver, Recipient#jid.lresource,
+                                    push_notifications),
+            BareRecipient = jid:to_bare(Recipient),
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
         _ ->
             ok
