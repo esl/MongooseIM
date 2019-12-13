@@ -654,7 +654,8 @@ required_modules(API) ->
                    {nodetree, <<"dag">>},
                    {host, "pubsub.@HOST@"}]},
      {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-                                      {api_version, API}]},
+                                      {api_version, API},
+                                      {max_http_connections, 10}]},
      {mod_event_pusher, [{backends, [PushBackend]}]}
     ].
 
