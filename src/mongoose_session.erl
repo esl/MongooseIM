@@ -8,9 +8,8 @@
 merge_info(New, Old) ->
     NewInfo = orddict:from_list(New#session.info),
     OldInfo = orddict:from_list(Old#session.info),
-    New#session{info =
-                    orddict:to_list(orddict:merge(fun merger/3,
-                                                  NewInfo, OldInfo))}.
+    MergedInfo = orddict:to_list(orddict:merge(fun merger/3, NewInfo, OldInfo)),
+    New#session{info = MergedInfo}.
 
 merger(_Key, NewVal, _OldVal) ->
     NewVal.

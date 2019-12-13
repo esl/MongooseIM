@@ -19,6 +19,7 @@
          get_sessions/2,
          get_sessions/3,
          create_session/4,
+         update_session/4,
          delete_session/4,
          cleanup/1,
          total_count/0,
@@ -82,6 +83,13 @@ create_session(User, Server, Resource, Session) ->
                               (Session, hd(lists:sort(Sessions))),
             mnesia:sync_dirty(fun() -> mnesia:write(MergedSession) end)
     end.
+
+-spec update_session(_User :: jid:luser(),
+                     _Server :: jid:lserver(),
+                     _Resource :: jid:lresource(),
+                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+update_session(_User, _Server, _Resource, Session) ->
+    mnesia:sync_dirty(fun() -> mnesia:write(Session) end).
 
 -spec delete_session(ejabberd_sm:sid(),
                      _User :: jid:user(),

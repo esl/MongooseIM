@@ -44,7 +44,7 @@ tests() ->
      get_vh_session_list,
      get_sessions_2,
      get_sessions_3,
-     update_session,
+     session_is_updated_when_created_twice,
      delete_session,
      clean_up,
      too_much_sessions,
@@ -154,7 +154,7 @@ get_sessions_3(C) ->
     end,
     true = lists:all(F, UserRes).
 
-update_session(C) ->
+session_is_updated_when_created_twice(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR),
@@ -207,8 +207,8 @@ kv_can_be_stored_for_session(C) ->
 
     when_session_info_stored(U, S, R, {key2, newval}),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
-     = ?B(C):get_sessions(U,S).
+    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}],
+                 ?B(C):get_sessions(U,S)).
 
 kv_can_be_updated_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -217,7 +217,26 @@ kv_can_be_updated_for_session(C) ->
     when_session_info_stored(U, S, R, {key2, newval}),
     when_session_info_stored(U, S, R, {key2, override}),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
+    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, override}]}],
+                 ?B(C):get_sessions(U, S)).
+
+kv_can_be_removed_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
+     = ?B(C):get_sessions(U, S),
+
+    when_session_info_removed(U, S, R, key2),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U, S),
+
+    when_session_info_removed(U, S, R, key1),
+
+    [#session{sid = Sid, info = []}]
      = ?B(C):get_sessions(U, S).
 
 cannot_reproduce_race_condition_in_store_info(C) ->
@@ -297,7 +316,7 @@ ensure_empty(C, N, Sessions) ->
             ensure_empty(C, N-1, ?B(C):get_sessions())
     end.
 
-too_much_sessions(C) ->
+too_much_sessions(_C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
     UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
     {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
@@ -315,7 +334,7 @@ too_much_sessions(C) ->
 
 
 
-unique_count(C) ->
+unique_count(_C) ->
     UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     USDict = get_unique_us_dict(UsersWithManyResources),
@@ -362,6 +381,7 @@ get_fun_for_unique_count(ejabberd_sm_mnesia) ->
     end;
 get_fun_for_unique_count(ejabberd_sm_redis) ->
     fun() ->
+        %% The code below is on purpose, it's to crash with badarg reason
         length({error, timeout})
     end.
 
@@ -382,6 +402,9 @@ when_session_opened(Sid, {U,S,R}, Priority, Info) ->
 
 when_session_info_stored(U, S, R, {_,_}=KV) ->
     ejabberd_sm:store_info(U, S, R, KV).
+
+when_session_info_removed(U, S, R, Key) ->
+    ejabberd_sm:remove_info(U, S, R, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
