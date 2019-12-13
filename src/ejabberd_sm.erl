@@ -236,12 +236,12 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update it's own record
+                    %% It's safe to allow process update its own record
                     update_session(SID, User, Server, Resource, SPriority,
                                    lists:keystore(Key, 1, SInfo, KV)),
                     {ok, KV};
                 {_, Pid} ->
-                    %% Ask the process to update it's record itself
+                    %% Ask the process to update its record itself
                     %% Async operation
                     ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
                     {ok, KV}
@@ -256,12 +256,12 @@ remove_info(User, Server, Resource, Key) ->
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update it's own record
+                    %% It's safe to allow process update its own record
                     update_session(SID, User, Server, Resource, SPriority,
                                    lists:keydelete(Key, 1, SInfo)),
                     ok;
                 {_, Pid} ->
-                    %% Ask the process to update it's record itself
+                    %% Ask the process to update its record itself
                     %% Async operation
                     ejabberd_c2s:remove_session_info(Pid, User, Server, Resource, Key),
                     ok

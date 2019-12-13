@@ -68,9 +68,9 @@ get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
 
 
--spec create_session(_User :: jid:user(),
-                     _Server :: jid:server(),
-                     _Resource :: jid:resource(),
+-spec create_session(_User :: jid:luser(),
+                     _Server :: jid:lserver(),
+                     _Resource :: jid:lresource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     case get_sessions(User, Server, Resource) of
