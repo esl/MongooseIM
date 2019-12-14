@@ -42,6 +42,7 @@ groups() ->
                                  enable_should_succeed_without_form,
                                  enable_with_form_should_fail_with_incorrect_from,
                                  enable_should_accept_correct_from,
+                                 enable_should_fail_with_invalid_pubsub_jid,
                                  disable_should_fail_with_missing_attributes,
                                  disable_should_fail_with_invalid_attributes,
                                  disable_all,
@@ -290,6 +291,16 @@ enable_should_accept_correct_from(Config) ->
             ])),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
+            ok
+        end).
+
+enable_should_fail_with_invalid_pubsub_jid(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            escalus:send(Bob, enable_stanza(<<"invalid_pubsub_jid">>, <<"NodeId">>)),
+            escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>],
+                           escalus:wait_for_stanza(Bob)),
             ok
         end).
 
