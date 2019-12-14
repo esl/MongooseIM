@@ -216,7 +216,7 @@ virtual_pubsub_hosts(Host) ->
 -spec add_virtual_pubsub_host(Host :: jid:server(), VirtualHost :: jid:server()) -> any().
 add_virtual_pubsub_host(Host, VirtualHost) ->
     VHosts0 = virtual_pubsub_hosts(Host),
-    VHosts = [gen_mod:make_subhost(VirtualHost, Host) | VHosts0],
+    VHosts = lists:usort(gen_mod:make_subhosts(VirtualHost, Host) ++ VHosts0),
     gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
 
 %%--------------------------------------------------------------------

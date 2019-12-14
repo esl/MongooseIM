@@ -67,21 +67,25 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
                           case lists:member(PubsubJID#jid.lserver, VirtualPubsubHosts) of
                               true ->
-                                  publish_via_hook( Host, BareRecipient, Service, PushPayload);
+                                  publish_via_hook(Acc0, Host, BareRecipient, Service, PushPayload);
                               false ->
                                   publish_via_pubsub(Host, BareRecipient, To, Service, PushPayload)
                           end
                   end, Services),
     Acc1.
 
--spec publish_via_hook(Host :: jid:server(),
+-spec publish_via_hook(Acc :: mongooseim_acc:t(),
+                       Host :: jid:server(),
                        BareRecipient :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),
                        PushPayload :: push_payload()) -> any().
-publish_via_hook(Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
+publish_via_hook(Acc0, Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
     HookArgs = [Host, [maps:from_list(PushPayload)], OptionMap],
-    case ejabberd_hooks:run_fold(push_notifications, Host, ok, HookArgs) of
+    %%Acc is ignored by mod_push_service_mongoosepush, added here only for
+    %% tracability purposes and push_SUITE code unification
+    Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
+    case ejabberd_hooks:run_fold(push_notifications, Host, Acc, HookArgs) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
