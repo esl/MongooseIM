@@ -24,7 +24,6 @@ build_reports(ReportStructs) ->
         end, ReportStructs).
 
 send_reports(Reports) ->
-    %get the URL form persistent term storage
     Url = get_url(),
     flush_reports(Url, Reports).
 
