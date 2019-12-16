@@ -7,11 +7,11 @@
 -define(ETS_TABLE, qs).
 
 -record(event, {
-    el = "",  % event Label
-    cid = "", % client ID
-    ec = "",  % event category
-    ea = ""   % event action
-    }).
+    cid = "",
+    ec = "",
+    ea = "",
+    ev = "",
+    el = "" }).
 
 %% API
 -export([
@@ -130,7 +130,6 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
     mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
 
 system_stats_are_reported_to_google_analytics_when_mim_starts(_Config) ->
-    % mongoose_helper:wait_until(fun no_more_events_is_reported/0, true),
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
     all_event_have_the_same_client_id().
@@ -152,7 +151,7 @@ hosts_count_is_not_reported() ->
     is_not_in_table(<<"hosts">>).
 
 modules_are_reported() ->
-    is_in_table(<<"modules">>).
+    is_in_table(<<"mod_vcard">>).
 
 modules_are_not_reported() ->
     is_not_in_table(<<"modules">>).
@@ -219,10 +218,11 @@ str_to_event(Qs) ->
             {binary_to_atom(StrKey, utf8), StrVal}
         end, StrParams),
     #event{
-        el = get_el(el, Params),
         cid = get_el(cid, Params),
         ec = get_el(ec, Params),
-        ea = get_el(ea, Params)
+        ea = get_el(ea, Params),
+        el = get_el(el, Params),
+        ev = get_el(ev, Params)
     }.
 
 get_el(Key, Proplist) ->
