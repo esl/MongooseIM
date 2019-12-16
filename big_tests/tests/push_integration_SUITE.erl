@@ -615,7 +615,7 @@ pubsub_node(Config) ->
 
 virtual_pubsub_host() ->
     Domain = domain(),
-    <<Domain/binary,".",Domain/binary>>.
+    <<Domain/binary, ".", Domain/binary>>.
 
 real_pubsub_host() ->
     Domain = domain(),

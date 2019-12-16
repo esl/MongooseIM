@@ -362,14 +362,14 @@ make_subhost(Spec, Host) ->
     re:replace(Spec, "@HOST@", Host, [global, {return, binary}]).
 
 -spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> [jid:server()].
-make_subhosts(Spec,Host)->
+make_subhosts(Spec, Host) ->
     [make_subhost(S, Host) || S <- expand_hosts(Spec)].
 
 -spec expand_hosts(iodata()) -> [iodata()].
-expand_hosts(Spec)->
-    case re:run(Spec,"@HOSTS@") of
-         nomatch -> [Spec];
-         {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
+expand_hosts(Spec) ->
+    case re:run(Spec, "@HOSTS@") of
+        nomatch -> [Spec];
+        {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
     end.
 
 -spec get_opt_subhost(jid:server(), list(), list() | binary()) -> jid:server().

@@ -82,7 +82,7 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
 publish_via_hook(Acc0, Host, BareRecipient, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
     HookArgs = [Host, [maps:from_list(PushPayload)], OptionMap],
-    %%Acc is ignored by mod_push_service_mongoosepush, added here only for
+    %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% tracability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
     case ejabberd_hooks:run_fold(push_notifications, Host, Acc, HookArgs) of
