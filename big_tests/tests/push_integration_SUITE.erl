@@ -54,6 +54,8 @@ groups() ->
 
          {pm_msg_notifications, [parallel],
           [
+           pm_msg_notify_on_apns_w_high_priority,
+           pm_msg_notify_on_fcm_w_high_priority,
            pm_msg_notify_on_apns_no_click_action,
            pm_msg_notify_on_fcm_no_click_action,
            pm_msg_notify_on_apns_w_click_action,
@@ -64,6 +66,8 @@ groups() ->
           ]},
          {muclight_msg_notifications, [parallel],
           [
+           muclight_msg_notify_on_apns_w_high_priority,
+           muclight_msg_notify_on_fcm_w_high_priority,
            muclight_msg_notify_on_apns_no_click_action,
            muclight_msg_notify_on_fcm_no_click_action,
            muclight_msg_notify_on_apns_w_click_action,
@@ -212,6 +216,12 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected)
             ?assertMatch(#{<<"message-count">> := UnreadCount}, Data)
     end,
 
+    case proplists:get_value(<<"priority">>, EnableOpts) of
+        undefined -> ok;
+        Priority ->
+            ?assertMatch(Priority, maps:get(<<"priority">>, Notification, undefined))
+    end,
+
     case proplists:get_value(<<"topic">>, EnableOpts) of
         undefined -> ok;
         Topic ->
@@ -224,6 +234,12 @@ pm_msg_notify_on_apns_no_click_action(Config) ->
 
 pm_msg_notify_on_fcm_no_click_action(Config) ->
     pm_msg_notify_on_fcm(Config, []).
+
+pm_msg_notify_on_apns_w_high_priority(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_fcm_w_high_priority(Config) ->
+    pm_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
 
 pm_msg_notify_on_apns_w_click_action(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).
@@ -446,6 +462,12 @@ muclight_msg_notify_on_apns_no_click_action(Config) ->
 
 muclight_msg_notify_on_fcm_no_click_action(Config) ->
     muclight_msg_notify_on_fcm(Config, []).
+
+muclight_msg_notify_on_apns_w_high_priority(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_fcm_w_high_priority(Config) ->
+    muclight_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
 
 muclight_msg_notify_on_apns_w_click_action(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).
