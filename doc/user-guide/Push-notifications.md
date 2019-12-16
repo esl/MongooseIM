@@ -237,6 +237,7 @@ To enable push notifications in the simplest configuration, just send the follow
       <field var='device_id'><value>your_pns_device_token</value></field>
       <field var='silent'><value>false</value></field>
       <field var='topic'><value>some_apns_topic</value></field>
+      <field var='priority'><value>some_priority</value></field>
     </x>
   </enable>
 </iq>
@@ -253,6 +254,9 @@ Those two options are the only ones required, but there are some others that are
   * `silent` - if set to `true`, all notifications will be "silent". This means that only data
   payload will be send to push notifications provider with no notification. The data payload will
    contain all notification fields as defined in [XEP-0357].
+  * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
+    This value will set the push notification priority. Please refer to FCM / APNS documentation for
+    more details on those values.
 
 ### Disabling push notifications
 

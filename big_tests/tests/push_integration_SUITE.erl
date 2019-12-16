@@ -54,6 +54,10 @@ groups() ->
 
          {pm_msg_notifications, [parallel],
           [
+           pm_msg_notify_on_apns_w_high_priority,
+           pm_msg_notify_on_fcm_w_high_priority,
+           pm_msg_notify_on_apns_w_high_priority_silent,
+           pm_msg_notify_on_fcm_w_high_priority_silent,
            pm_msg_notify_on_apns_no_click_action,
            pm_msg_notify_on_fcm_no_click_action,
            pm_msg_notify_on_apns_w_click_action,
@@ -64,6 +68,10 @@ groups() ->
           ]},
          {muclight_msg_notifications, [parallel],
           [
+           muclight_msg_notify_on_apns_w_high_priority,
+           muclight_msg_notify_on_fcm_w_high_priority,
+           muclight_msg_notify_on_apns_w_high_priority_silent,
+           muclight_msg_notify_on_fcm_w_high_priority_silent,
            muclight_msg_notify_on_apns_no_click_action,
            muclight_msg_notify_on_fcm_no_click_action,
            muclight_msg_notify_on_apns_w_click_action,
@@ -92,8 +100,10 @@ groups() ->
     G.
 
 failure_cases() ->
-    [no_push_notification_for_expired_device,
-     no_push_notification_for_internal_mongoose_push_error].
+    [
+     no_push_notification_for_expired_device,
+     no_push_notification_for_internal_mongoose_push_error
+    ].
 
 suite() ->
     escalus:suite().
@@ -155,7 +165,6 @@ end_per_testcase(CaseName, Config) ->
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
 
-
 pm_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:fresh_story(
         Config, [{bob, 1}, {alice, 1}],
@@ -164,6 +173,17 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
             {Notification, _} = wait_for_push_request(DeviceToken),
 
             assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID, [])
+
+        end).
+
+pm_msg_notify_on_fcm(Config, EnableOpts) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts, Config),
+            {Notification, _} = wait_for_push_request(DeviceToken),
+
+            assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
         end).
 
@@ -200,6 +220,12 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected)
             ?assertMatch(#{<<"message-count">> := UnreadCount}, Data)
     end,
 
+    case proplists:get_value(<<"priority">>, EnableOpts) of
+        undefined -> ok;
+        Priority ->
+            ?assertMatch(Priority, maps:get(<<"priority">>, Notification, undefined))
+    end,
+
     case proplists:get_value(<<"topic">>, EnableOpts) of
         undefined -> ok;
         Topic ->
@@ -207,22 +233,23 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected)
     end.
 
 
-pm_msg_notify_on_fcm(Config, EnableOpts) ->
-    escalus:fresh_story(
-        Config, [{bob, 1}, {alice, 1}],
-        fun(Bob, Alice) ->
-            {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts, Config),
-            {Notification, _} = wait_for_push_request(DeviceToken),
-
-            assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
-
-        end).
-
 pm_msg_notify_on_apns_no_click_action(Config) ->
     pm_msg_notify_on_apns(Config, []).
 
 pm_msg_notify_on_fcm_no_click_action(Config) ->
     pm_msg_notify_on_fcm(Config, []).
+
+pm_msg_notify_on_apns_w_high_priority(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_fcm_w_high_priority(Config) ->
+    pm_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_apns_w_high_priority_silent(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_fcm_w_high_priority_silent(Config) ->
+    pm_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
 
 pm_msg_notify_on_apns_w_click_action(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).
@@ -238,6 +265,7 @@ pm_msg_notify_on_apns_silent(Config) ->
 
 pm_msg_notify_on_apns_w_topic(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
+
 
 %%--------------------------------------------------------------------
 %% GROUP inbox_msg_notifications
@@ -369,10 +397,10 @@ send_message_to_room(Sender, RoomJID) ->
     Stanza = escalus_stanza:groupchat_to(RoomJID, <<"GroupChat message">>),
     escalus:send(Sender, Stanza).
 
+
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
-
 
 muclight_msg_notify_on_apns(Config, EnableOpts) ->
     escalus:fresh_story(
@@ -445,6 +473,18 @@ muclight_msg_notify_on_apns_no_click_action(Config) ->
 muclight_msg_notify_on_fcm_no_click_action(Config) ->
     muclight_msg_notify_on_fcm(Config, []).
 
+muclight_msg_notify_on_apns_w_high_priority(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_fcm_w_high_priority(Config) ->
+    muclight_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_apns_w_high_priority_silent(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_fcm_w_high_priority_silent(Config) ->
+    muclight_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
+
 muclight_msg_notify_on_apns_w_click_action(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).
 
@@ -512,8 +552,6 @@ no_push_notification_for_internal_mongoose_push_error(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
-
-
 
 muclight_conversation(Sender, RoomJID, Msg) ->
     Bare = bare_jid(Sender),

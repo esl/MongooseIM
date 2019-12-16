@@ -159,7 +159,8 @@ make_notification(Notification, Options = #{<<"silent">> := <<"true">>}) ->
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
         topic => maps:get(<<"topic">>, Options, null),
-        data => Notification#{<<"message-count">> => MessageCount}
+        data => Notification#{<<"message-count">> => MessageCount},
+        priority => maps:get(<<"priority">>, Options, normal)
     }};
 make_notification(Notification, Options) ->
     {ok, #{
@@ -172,7 +173,8 @@ make_notification(Notification, Options) ->
             badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
             click_action => maps:get(<<"click_action">>, Options, null)
         },
-        topic => maps:get(<<"topic">>, Options, null)
+        topic => maps:get(<<"topic">>, Options, null),
+        priority => maps:get(<<"priority">>, Options, normal)
     }}.
 
 -spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
