@@ -1312,8 +1312,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData)
   when Type /= result, Type /= error ->
-    %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
-    %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
+    % we could make iq handlers handle full jids as well, but wouldn't it be an overkill?
     {Acc, HasFromSub} = case is_subscribed_to_my_presence(From, StateData) of
                              true ->
                                  {A, R} = privacy_check_packet(Acc0, To, out, StateData),
