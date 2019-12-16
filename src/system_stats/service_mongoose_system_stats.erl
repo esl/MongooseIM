@@ -3,8 +3,8 @@
 
 -behaviour(gen_server).
 
--define(DEFAULT_INITIAL_REPORT, 100). %TODO: restore values
--define(DEFAULT_REPORT_AFTER, 1000).
+-define(DEFAULT_INITIAL_REPORT, 5 * 60 * 1000).     % 5 min intial report
+-define(DEFAULT_REPORT_AFTER, 3 * 60 * 60 * 1000).  % 3 hours periodic report
 
 -include("mongoose.hrl").
 
@@ -51,7 +51,7 @@ handle_info(_Message, _State) ->
 % %%-----------------------------------------
 
 load_client_id() ->
-    ClientId = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    ClientId = uuid:uuid_to_string(uuid:get_v4()),
     persistent_term:put(ga_client_id, ClientId).
 %TODO: save client id to file and if file exists, read from file
 
