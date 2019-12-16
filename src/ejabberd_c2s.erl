@@ -1311,7 +1311,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
                        IQ :: invalid | not_iq | jlib:iq(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData)
-  when Type /= result ->
+  when Type /= result, Type /= error ->
     %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
     %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
     {Acc, HasFromSub} = case is_subscribed_to_my_presence(From, StateData) of
