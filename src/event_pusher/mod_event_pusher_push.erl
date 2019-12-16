@@ -231,11 +231,12 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
 -spec maybe_remove_push_node_from_session_info(jid:jid(), pubsub_node() | undefined) ->
     ok.
 maybe_remove_push_node_from_session_info(From, undefined) ->
-    %% The node is undefined which means that a user want to disabled all push nodes
+    %% The node is undefined which means that a user wants to disable all push nodes
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
     AllResources = ejabberd_sm:get_user_present_resources(LUser, LServer),
-    [ejabberd_sm:remove_info(LUser, LServer, Resource, push_notifications) || {_, Resource} <- AllResources],
+    [ejabberd_sm:remove_info(LUser, LServer, Resource, push_notifications) ||
+     {_, Resource} <- AllResources],
     ok;
 maybe_remove_push_node_from_session_info(From, Node) ->
     LUser = From#jid.luser,

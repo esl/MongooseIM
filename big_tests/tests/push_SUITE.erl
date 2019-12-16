@@ -387,9 +387,7 @@ disable_node_enabled_in_session_removes_it_from_session_info(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
-            false = lists:keyfind(push_notifications, 1, Info2),
-
-            ok
+            false = lists:keyfind(push_notifications, 1, Info2)
         end).
 
 disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
@@ -421,9 +419,7 @@ disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
             false = lists:keyfind(push_notifications, 1, Info3),
 
             Info4 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            false = lists:keyfind(push_notifications, 1, Info4),
-
-            ok
+            false = lists:keyfind(push_notifications, 1, Info4)
         end).
 
 disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
@@ -452,9 +448,7 @@ disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
 
             %% And we check if Bob1 still has its own Node in the session info
             Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            false = lists:keyfind(push_notifications, 1, Info3),
-
-            ok
+            false = lists:keyfind(push_notifications, 1, Info3)
         end).
 
 %%--------------------------------------------------------------------
