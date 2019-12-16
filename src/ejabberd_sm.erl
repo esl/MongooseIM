@@ -92,16 +92,18 @@
                       usr      :: jid:simple_jid(),
                       us       :: jid:simple_bare_jid(),
                       priority :: priority(),
-                      info     :: list()
+                      info     :: [info_item()]
                      }.
 
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: jid:simple_jid(),
                       Sid :: ejabberd_sm:sid(),
                       Prio :: priority(),
-                      Info :: list()}.
+                      Info :: [info_item()]}.
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
 -type close_reason() :: resumed | normal | replaced.
+-type info_key() :: atom().
+-type info_item() :: {info_key(), any()}.
 
 -export_type([session/0,
               sid/0,
@@ -228,8 +230,8 @@ close_session(Acc, SID, User, Server, Resource, Reason) ->
     ejabberd_hooks:run_fold(sm_remove_connection_hook, JID#jid.lserver, Acc,
                             [SID, JID, Info, Reason]).
 
--spec store_info(jid:user(), jid:server(), jid:resource(),
-                 {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
+-spec store_info(jid:user(), jid:server(), jid:resource(), info_item()) ->
+    {ok, {any(), any()}} | {error, offline}.
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
@@ -249,7 +251,7 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
     end.
 
 -spec remove_info(jid:user(), jid:server(), jid:resource(),
-                 {any(), any()}) -> ok | {error, offline}.
+                  info_key()) -> ok | {error, offline}.
 remove_info(User, Server, Resource, Key) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
