@@ -18,6 +18,7 @@
     disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
+-define(RPC_SPEC, #{node => distributed_helper:mim()}).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -46,7 +47,10 @@ groups() ->
                                  disable_should_fail_with_missing_attributes,
                                  disable_should_fail_with_invalid_attributes,
                                  disable_all,
-                                 disable_node
+                                 disable_node,
+                                 disable_node_enabled_in_session_removes_it_from_session_info,
+                                 disable_all_nodes_removes_it_from_all_user_session_infos,
+                                 disable_node_enabled_in_other_session_leaves_current_info_unchanged
                                 ]},
          {pubsub_ful, [], notification_groups()},
          {pubsub_less, [], notification_groups()},
@@ -366,6 +370,93 @@ disable_node(Config) ->
             ok
         end).
 
+disable_node_enabled_in_session_removes_it_from_session_info(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_node(),
+
+            escalus:send(Bob, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
+            {push_notifications, {NodeId, _}} = lists:keyfind(push_notifications, 1, Info),
+
+            escalus:send(Bob, disable_stanza(PubsubJID, NodeId)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
+            false = lists:keyfind(push_notifications, 1, Info2),
+
+            ok
+        end).
+
+disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 2}],
+        fun(Bob1, Bob2) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_node(),
+            NodeId2 = pubsub_node(),
+
+            escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            escalus:send(Bob2, enable_stanza(PubsubJID, NodeId2, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            {push_notifications, {NodeId, _}} = lists:keyfind(push_notifications, 1, Info),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            {push_notifications, {NodeId2, _}} = lists:keyfind(push_notifications, 1, Info2),
+
+            %% Now Bob1 disables all nodes
+            escalus:send(Bob1, disable_stanza(PubsubJID)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            %% And we check if Bob1 and Bob2 have push notifications cleared from session info
+            Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            false = lists:keyfind(push_notifications, 1, Info3),
+
+            Info4 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            false = lists:keyfind(push_notifications, 1, Info4),
+
+            ok
+        end).
+
+disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 2}],
+        fun(Bob1, Bob2) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_node(),
+            NodeId2 = pubsub_node(),
+
+            escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            escalus:send(Bob2, enable_stanza(PubsubJID, NodeId2, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            {push_notifications, {NodeId, _}} = lists:keyfind(push_notifications, 1, Info),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            {push_notifications, {NodeId2, _}} = lists:keyfind(push_notifications, 1, Info2),
+
+            %% Now Bob1 disables the node registered by Bob2
+            escalus:send(Bob1, disable_stanza(PubsubJID, NodeId)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            %% And we check if Bob1 still has its own Node in the session info
+            Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            false = lists:keyfind(push_notifications, 1, Info3),
+
+            ok
+        end).
+
 %%--------------------------------------------------------------------
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
@@ -605,7 +696,7 @@ process_packet(_Acc, _From, To, El, State) ->
                                       {element, <<"notification">>},
                                       {element, <<"x">>}]),
     Payload = parse_form(PayloadXML),
-    
+
     case valid_ns_if_defined(PubOptionsNS, PublishOptions) andalso
          valid_ns_if_defined(PushFormNS, Payload) of
         true ->
@@ -699,6 +790,9 @@ pubsub_jid(Config) ->
         virtual -> <<CaseNameBin/binary, ".hyperion">>;
         _ -> <<"pubsub@", CaseNameBin/binary>>
     end.
+
+pubsub_node() ->
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),

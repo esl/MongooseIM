@@ -138,12 +138,13 @@ remove_user(Acc, LUser, LServer) ->
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
-    BareFrom = jid:to_bare(From),
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
                   maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ);
-              {disable, BarePubSubJID, Node} ->
-                  ok = mod_event_pusher_push_backend:disable(BareFrom, BarePubSubJID, Node),
+              {disable, BarePubsubJID, Node} ->
+                  ok = mod_event_pusher_push_backend:disable(
+                         jid:to_bare(From), BarePubsubJID, Node),
+                  maybe_remove_push_node_from_session_info(From, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
@@ -227,6 +228,52 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
 %%--------------------------------------------------------------------
 %% Helper functions
 %%--------------------------------------------------------------------
+-spec maybe_remove_push_node_from_session_info(jid:jid(), pubsub_node() | undefined) ->
+    ok.
+maybe_remove_push_node_from_session_info(From, undefined) ->
+    %% The node is undefined which means that a user want to disabled all push nodes
+    LUser = From#jid.luser,
+    LServer = From#jid.lserver,
+    AllResources = ejabberd_sm:get_user_present_resources(LUser, LServer),
+    [ejabberd_sm:remove_info(LUser, LServer, Resource, push_notifications) || {_, Resource} <- AllResources],
+    ok;
+maybe_remove_push_node_from_session_info(From, Node) ->
+    LUser = From#jid.luser,
+    LServer = From#jid.lserver,
+    LResource = From#jid.lresource,
+    case my_push_node(LUser, LServer, LResource, Node) of
+        true ->
+            ejabberd_sm:remove_info(LUser, LServer, LResource, push_notifications);
+        false ->
+            find_and_remove_push_node_from_other_session(From, Node)
+    end.
+
+my_push_node(LUser, LServer, LResource, Node) ->
+    {_SUser, _SID, _, SInfo} = ejabberd_sm:get_session(LUser, LServer, LResource),
+    case lists:keyfind(push_notifications, 1, SInfo) of
+        {push_notifications, {Node, _}} ->
+            true;
+        _ ->
+            false
+    end.
+
+find_and_remove_push_node_from_other_session(From, Node) ->
+    LUser = From#jid.luser,
+    LServer = From#jid.lserver,
+    AllResources = ejabberd_sm:get_user_present_resources(LUser, LServer),
+    AllResourcesButMine = [LResource || {_, LResource} <- AllResources,
+                                        LResource /= From#jid.lresource],
+    find_and_remove_push_node(LUser, LServer, AllResourcesButMine, Node).
+
+find_and_remove_push_node(_LUser, _LServer, [], _Node) ->
+    ok;
+find_and_remove_push_node(LUser, LServer, [LResource | Rest], Node) ->
+    case my_push_node(LUser, LServer, LResource, Node) of
+        true ->
+            ejabberd_sm:remove_info(LUser, LServer, LResource, push_notifications);
+        false ->
+            find_and_remove_push_node(LUser, LServer, Rest, Node)
+    end.
 
 -spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
 expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
@@ -236,7 +283,7 @@ expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |
-    {disable, jid:jid(), pubsub_node()} |
+    {disable, jid:jid(), pubsub_node() | undefined} |
     bad_request.
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
