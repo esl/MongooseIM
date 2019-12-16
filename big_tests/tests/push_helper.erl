@@ -69,6 +69,7 @@ become_unavailable(Client) ->
 
 become_available(Client, NumberOfUnreadMessages) ->
     become_available(Client, NumberOfUnreadMessages, 5000).
+
 become_available(Client, NumberOfUnreadMessages, Timeout) ->
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Preds = [ is_presence | lists:duplicate(NumberOfUnreadMessages, is_message) ],

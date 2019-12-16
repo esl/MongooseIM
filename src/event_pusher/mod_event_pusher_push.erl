@@ -32,7 +32,12 @@
          remove_user/3,
          push_event/3]).
 
+%% Plugin utils
 -export([cast/3, cast/4]).
+-export([virtual_pubsub_hosts/1]).
+
+%% Debug & testing
+-export([add_virtual_pubsub_host/2]).
 
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
@@ -65,6 +70,8 @@
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
+
+    expand_and_store_virtual_pubsub_hosts(Host, Opts),
 
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
@@ -131,20 +138,28 @@ remove_user(Acc, LUser, LServer) ->
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
+    BareFrom = jid:to_bare(From),
     Res = case parse_request(Request) of
-              {enable, BarePubsubJID, Node, FormFields} ->
-                  ok = mod_event_pusher_push_backend:enable(
-                         jid:to_bare(From), BarePubsubJID, Node, FormFields),
-                  IQ#iq{type = result, sub_el = []};
-              {disable, BarePubsubJID, Node} ->
-                  ok = mod_event_pusher_push_backend:disable(
-                         jid:to_bare(From), BarePubsubJID, Node),
+              {enable, BarePubSubJID, Node, FormFields} ->
+                  maybe_enable_node(BareFrom, BarePubSubJID, Node, FormFields, IQ);
+              {disable, BarePubSubJID, Node} ->
+                  ok = mod_event_pusher_push_backend:disable(BareFrom, BarePubSubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
           end,
     {Acc, Res}.
 
+maybe_enable_node(#jid{lserver = Host} = BareFrom, BarePubSubJID, Node, FormFields, IQ) ->
+    AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
+    case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
+        true ->
+            ok = mod_event_pusher_push_backend:enable(BareFrom, BarePubSubJID, Node, FormFields),
+            IQ#iq{type = result, sub_el = []};
+        false ->
+            NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
+            IQ#iq{type = error, sub_el = NewSubEl}
+    end.
 
 %%--------------------------------------------------------------------
 %% Router callbacks
@@ -179,8 +194,40 @@ publish_message(Acc, From, To, Packet) ->
     mod_event_pusher_push_plugin:publish_notification(Acc, From, To, Packet, Services).
 
 %%--------------------------------------------------------------------
+%% Plugin utils
+%%--------------------------------------------------------------------
+
+-spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
+cast(Host, F, A) ->
+    cast(Host, ?MODULE, F, A).
+
+-spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+cast(Host, M, F, A) ->
+    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).
+
+-spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
+virtual_pubsub_hosts(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, []).
+
+%%--------------------------------------------------------------------
+%% Debug & testing
+%%--------------------------------------------------------------------
+
+-spec add_virtual_pubsub_host(Host :: jid:server(), VirtualHost :: jid:server()) -> any().
+add_virtual_pubsub_host(Host, VirtualHost) ->
+    VHosts0 = virtual_pubsub_hosts(Host),
+    VHosts = lists:usort(gen_mod:make_subhosts(VirtualHost, Host) ++ VHosts0),
+    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
+
+%%--------------------------------------------------------------------
 %% Helper functions
 %%--------------------------------------------------------------------
+
+-spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
+expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
+    ExpandedVHosts = lists:usort([SubHost || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []),
+                                             SubHost <- gen_mod:make_subhosts(Spec, Host)]),
+    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, ExpandedVHosts).
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |
@@ -236,10 +283,3 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
-cast(Host, F, A) ->
-    cast(Host, ?MODULE, F, A).
-
--spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(Host, M, F, A) ->
-    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).
