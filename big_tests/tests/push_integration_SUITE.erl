@@ -56,6 +56,8 @@ groups() ->
           [
            pm_msg_notify_on_apns_w_high_priority,
            pm_msg_notify_on_fcm_w_high_priority,
+           pm_msg_notify_on_apns_w_high_priority_silent,
+           pm_msg_notify_on_fcm_w_high_priority_silent,
            pm_msg_notify_on_apns_no_click_action,
            pm_msg_notify_on_fcm_no_click_action,
            pm_msg_notify_on_apns_w_click_action,
@@ -68,6 +70,8 @@ groups() ->
           [
            muclight_msg_notify_on_apns_w_high_priority,
            muclight_msg_notify_on_fcm_w_high_priority,
+           muclight_msg_notify_on_apns_w_high_priority_silent,
+           muclight_msg_notify_on_fcm_w_high_priority_silent,
            muclight_msg_notify_on_apns_no_click_action,
            muclight_msg_notify_on_fcm_no_click_action,
            muclight_msg_notify_on_apns_w_click_action,
@@ -240,6 +244,12 @@ pm_msg_notify_on_apns_w_high_priority(Config) ->
 
 pm_msg_notify_on_fcm_w_high_priority(Config) ->
     pm_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_apns_w_high_priority_silent(Config) ->
+    pm_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
+
+pm_msg_notify_on_fcm_w_high_priority_silent(Config) ->
+    pm_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
 
 pm_msg_notify_on_apns_w_click_action(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).
@@ -468,6 +478,12 @@ muclight_msg_notify_on_apns_w_high_priority(Config) ->
 
 muclight_msg_notify_on_fcm_w_high_priority(Config) ->
     muclight_msg_notify_on_fcm(Config, [{<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_apns_w_high_priority_silent(Config) ->
+    muclight_msg_notify_on_apns(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
+
+muclight_msg_notify_on_fcm_w_high_priority_silent(Config) ->
+    muclight_msg_notify_on_fcm(Config, [{<<"silent">>, <<"true">>}, {<<"priority">>, <<"high">>}]).
 
 muclight_msg_notify_on_apns_w_click_action(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"click_action">>, <<"myactivity">>}]).

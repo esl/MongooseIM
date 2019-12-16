@@ -159,7 +159,8 @@ make_notification(Notification, Options = #{<<"silent">> := <<"true">>}) ->
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
         topic => maps:get(<<"topic">>, Options, null),
-        data => Notification#{<<"message-count">> => MessageCount}
+        data => Notification#{<<"message-count">> => MessageCount},
+        priority => maps:get(<<"priority">>, Options, normal)
     }};
 make_notification(Notification, Options) ->
     {ok, #{
