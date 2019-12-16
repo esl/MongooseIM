@@ -19,7 +19,7 @@
 -include("mongoose.hrl").
 
 -type hardness() :: soft | hard | optional.
--type deps_list() :: [{module(), gen_mod_params(), hardness()}].
+-type module_deps_list() :: [{module(), gen_mod_params(), hardness()}].
 -type gen_mod_params() :: proplists:proplist().
 -type gen_mod_list() :: [{module(), gen_mod_params()}].
 -type gen_mod_map() :: #{module() => gen_mod_params()}.
@@ -256,7 +256,7 @@ find_edge(Graph, A, B) ->
     end.
 
 
--spec get_deps(Host :: jid:server(), module(), gen_mod_params()) -> deps_list().
+-spec get_deps(Host :: jid:server(), module(), gen_mod_params()) -> module_deps_list().
 get_deps(Host, Module, Args) ->
     lists:map(
       fun
