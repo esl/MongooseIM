@@ -1,4 +1,4 @@
--module(mongoose_system_stats_sender).
+-module(mongoose_system_metrics_sender).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
 -define(TRACKING_ID, "UA-151671255-1").
@@ -7,7 +7,7 @@
 
 -type google_analytics_report() :: string().
 -type url() :: string().
--type report_struct() :: mongoose_system_stats_gatherer:report_struct().
+-type report_struct() :: mongoose_system_metrics_gatherer:report_struct().
 
 -spec send([report_struct()]) -> ok.
 send(ReportStructs) ->

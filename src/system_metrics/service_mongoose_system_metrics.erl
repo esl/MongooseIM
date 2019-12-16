@@ -1,4 +1,4 @@
--module(service_mongoose_system_stats).
+-module(service_mongoose_system_metrics).
 -author('jan.ciesla@erlang-solutions.com').
 
 -behaviour(gen_server).
@@ -16,7 +16,7 @@
          handle_info/2,
          terminate/2]).
 
--type system_stats_state() :: pos_integer().
+-type system_metrics_state() :: pos_integer().
 
 -spec start(proplists:proplist()) -> {ok, pid()}.
 start(Args) ->
@@ -31,7 +31,7 @@ stop() ->
 start_link(Args) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
--spec init(proplists:proplist()) -> {ok, system_stats_state()}.
+-spec init(proplists:proplist()) -> {ok, system_metrics_state()}.
 init(Args) ->
     InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
@@ -40,7 +40,7 @@ init(Args) ->
     {ok, ReportAfter}.
     
 handle_info(spawn_gatherer, ReportAfter) ->
-    spawn(mongoose_system_stats_gatherer, gather, []),
+    spawn(mongoose_system_metrics_gatherer, gather, []),
     erlang:send_after(ReportAfter, self(), spawn_gatherer),
     {noreply, ReportAfter};
 handle_info(_Message, _State) ->

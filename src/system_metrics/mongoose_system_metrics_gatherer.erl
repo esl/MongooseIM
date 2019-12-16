@@ -1,4 +1,4 @@
--module(mongoose_system_stats_gatherer).
+-module(mongoose_system_metrics_gatherer).
 
 -type report_struct() :: 
     #{
@@ -14,7 +14,7 @@
 gather() ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
     FlatReportResults = lists:flatten(ReportResults),
-    spawn(mongoose_system_stats_sender, send, [FlatReportResults]).
+    spawn(mongoose_system_metrics_sender, send, [FlatReportResults]).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
 get_reports(Fun) ->
