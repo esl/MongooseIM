@@ -250,8 +250,8 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
             end
     end.
 
--spec remove_info(jid:user(), jid:server(), jid:resource(),
-                  info_key()) -> ok | {error, offline}.
+-spec remove_info(jid:user(), jid:server(), jid:resource(), info_key()) ->
+    ok | {error, offline}.
 remove_info(User, Server, Resource, Key) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
