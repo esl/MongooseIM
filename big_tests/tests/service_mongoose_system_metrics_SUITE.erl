@@ -109,6 +109,7 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
     delete_prev_client_id(mim()),
     Nodes = [mim(), mim2()],
     [ begin delete_prev_client_id(Node), disable_system_metrics(Node) end || Node <- Nodes ],
+    distributed_helper:remove_node_from_cluster(mim2(), Config),
     Config.
 
 %%--------------------------------------------------------------------
@@ -141,8 +142,7 @@ system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     UniqueSortedTab = lists:usort([Cid ||#event{cid = Cid} <- Tab]),
-    1 == length(UniqueSortedTab).
-
+    1 = length(UniqueSortedTab).
 
 hosts_count_is_reported() ->
     is_in_table(<<"hosts">>).
