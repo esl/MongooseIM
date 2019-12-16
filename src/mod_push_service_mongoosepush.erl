@@ -172,7 +172,8 @@ make_notification(Notification, Options) ->
             badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
             click_action => maps:get(<<"click_action">>, Options, null)
         },
-        topic => maps:get(<<"topic">>, Options, null)
+        topic => maps:get(<<"topic">>, Options, null),
+        priority => maps:get(<<"priority">>, Options, normal)
     }}.
 
 -spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
