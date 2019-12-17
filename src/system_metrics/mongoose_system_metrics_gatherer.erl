@@ -9,12 +9,12 @@
 
 -export_type([report_struct/0]).
 
--export([gather/0]).
+-export([gather/1]).
 
-gather() ->
+gather(ClientId) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
     FlatReportResults = lists:flatten(ReportResults),
-    spawn(mongoose_system_metrics_sender, send, [FlatReportResults]).
+    spawn(mongoose_system_metrics_sender, send, [ClientId, FlatReportResults]).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
 get_reports(Fun) ->

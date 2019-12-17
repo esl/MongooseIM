@@ -1,6 +1,7 @@
 -module(service_mongoose_system_metrics).
 -author('jan.ciesla@erlang-solutions.com').
 
+-behaviour(mongoose_service).
 -behaviour(gen_server).
 
 -define(DEFAULT_INITIAL_REPORT, 5 * 60 * 1000).     % 5 min intial report
@@ -35,25 +36,63 @@ start_link(Args) ->
 init(Args) ->
     InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
-    load_client_id(),
     erlang:send_after(InitialReport, self(), spawn_gatherer),
-    {ok, ReportAfter}.
+    {ok, #system_metrics_state{report_after = ReportAfter}}.
     
-handle_info(spawn_gatherer, ReportAfter) ->
-    spawn(mongoose_system_metrics_gatherer, gather, []),
-    erlang:send_after(ReportAfter, self(), spawn_gatherer),
-    {noreply, ReportAfter};
+handle_info(spawn_gatherer, #system_metrics_state{report_after = ReportAfter, collector_monitor = none} = State) ->
+    case get_client_id() of
+        {error, no_client_id} -> {stop, no_client_id, State};
+        {ok, ClientId} ->
+            {_Pid, Monitor} = spawn_monitor(mongoose_system_metrics_gatherer, gather, [ClientId]),
+            erlang:send_after(ReportAfter, self(), spawn_gatherer),
+            {noreply, State#system_metrics_state{collector_monitor = Monitor}}
+    end;
+handle_info({'DOWN', CollectorMonitor, _, _, _}, #system_metrics_state{collector_monitor = CollectorMonitor} = State) ->
+    {noreply, State#system_metrics_state{collector_monitor = none}};
 handle_info(_Message, _State) ->
     ok.
+
 
 % %%-----------------------------------------
 % %% Helpers
 % %%-----------------------------------------
 
-load_client_id() ->
-    ClientId = uuid:uuid_to_string(uuid:get_v4()),
-    persistent_term:put(ga_client_id, ClientId).
-%TODO: save client id to file and if file exists, read from file
+% trying to get client ID 20 times, because it seems fine
+-spec get_client_id() -> {ok, client_id()} | {error, no_client_id}.
+get_client_id() ->
+    get_client_id(20).
+
+get_client_id(0) ->
+    {error, no_client_id};
+get_client_id(Counter) when Counter > 0 ->
+    T = fun() ->
+        case mnesia:read(service_mongoose_system_metrics, client_id) of
+            [] ->
+                ClientId = uuid:uuid_to_string(uuid:get_v4()),
+                mnesia:write(#service_mongoose_system_metrics{key = client_id, value = ClientId}),
+                ClientId;
+            [#service_mongoose_system_metrics{value = ClientId}] ->
+                ClientId
+        end
+    end,
+    case mnesia:transaction(T) of
+        {aborted, {no_exists, service_mongoose_system_metrics}} ->
+            maybe_create_table(),
+            get_client_id(Counter - 1);
+        {atomic, ClientId} ->
+            {ok, ClientId}
+    end.
+
+maybe_create_table() ->
+    mnesia:create_table(service_mongoose_system_metrics,
+        [
+            {type, set},
+            {record_name, service_mongoose_system_metrics},
+            {attributes, record_info(fields, service_mongoose_system_metrics)},
+            {ram_copies, [node()]}
+        ]),
+    mnesia:add_table_copy(service_mongoose_system_metrics, node(), ram_copies).
+
 
 % %%-----------------------------------------
 % %% Unused

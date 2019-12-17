@@ -1,23 +1,22 @@
 -module(mongoose_system_metrics_sender).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
--define(TRACKING_ID, "UA-151671255-1").
+-define(TRACKING_ID, "UA-151671255-2").
 
--export([send/1]).
+-export([send/2]).
 
 -type google_analytics_report() :: string().
 -type url() :: string().
 -type report_struct() :: mongoose_system_metrics_gatherer:report_struct().
 
--spec send([report_struct()]) -> ok.
-send(ReportStructs) ->
-    Reports = build_reports(ReportStructs),
+-spec send(string(), [report_struct()]) -> ok.
+send(ClientId, ReportStructs) ->
+    Reports = build_reports(ClientId, ReportStructs),
     send_reports(Reports),
     ok.
 
--spec build_reports([report_struct()]) -> [google_analytics_report()].
-build_reports(ReportStructs) ->
-    ClientId = persistent_term:get(ga_client_id),
+-spec build_reports(string(), [report_struct()]) -> [google_analytics_report()].
+build_reports(ClientId, ReportStructs) ->
     lists:map(
         fun(Report) -> 
             build_report(ClientId, Report)
