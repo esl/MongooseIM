@@ -85,9 +85,9 @@ init_per_testcase(system_metrics_are_not_reported_when_not_allowed, Config) ->
     Config;
 init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     create_events_collection(),
+    distributed_helper:add_node_to_cluster(mim2(), Config),
     enable_system_metrics(mim()),
     enable_system_metrics(mim2()),
-    distributed_helper:add_node_to_cluster(mim2(), Config),
     Config.
 
 end_per_testcase(periodic_report_available, Config) ->
