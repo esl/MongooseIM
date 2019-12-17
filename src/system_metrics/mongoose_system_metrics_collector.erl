@@ -1,4 +1,4 @@
--module(mongoose_system_metrics_gatherer).
+-module(mongoose_system_metrics_collector).
 
 -type report_struct() :: 
     #{
@@ -9,9 +9,9 @@
 
 -export_type([report_struct/0]).
 
--export([gather/1]).
+-export([collect/1]).
 
-gather(ClientId) ->
+collect(ClientId) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
     FlatReportResults = lists:flatten(ReportResults),
     spawn(mongoose_system_metrics_sender, send, [ClientId, FlatReportResults]).

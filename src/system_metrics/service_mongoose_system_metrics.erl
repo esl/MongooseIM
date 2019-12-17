@@ -40,15 +40,15 @@ start_link(Args) ->
 init(Args) ->
     InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
-    erlang:send_after(InitialReport, self(), spawn_gatherer),
+    erlang:send_after(InitialReport, self(), spawn_collector),
     {ok, #system_metrics_state{report_after = ReportAfter}}.
     
-handle_info(spawn_gatherer, #system_metrics_state{report_after = ReportAfter, collector_monitor = none} = State) ->
+handle_info(spawn_collector, #system_metrics_state{report_after = ReportAfter, collector_monitor = none} = State) ->
     case get_client_id() of
         {error, no_client_id} -> {stop, no_client_id, State};
         {ok, ClientId} ->
-            {_Pid, Monitor} = spawn_monitor(mongoose_system_metrics_gatherer, gather, [ClientId]),
-            erlang:send_after(ReportAfter, self(), spawn_gatherer),
+            {_Pid, Monitor} = spawn_monitor(mongoose_system_metrics_collector, collect, [ClientId]),
+            erlang:send_after(ReportAfter, self(), spawn_collector),
             {noreply, State#system_metrics_state{collector_monitor = Monitor}}
     end;
 handle_info({'DOWN', CollectorMonitor, _, _, _}, #system_metrics_state{collector_monitor = CollectorMonitor} = State) ->

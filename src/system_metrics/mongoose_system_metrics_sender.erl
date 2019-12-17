@@ -7,7 +7,7 @@
 
 -type google_analytics_report() :: string().
 -type url() :: string().
--type report_struct() :: mongoose_system_metrics_gatherer:report_struct().
+-type report_struct() :: mongoose_system_metrics_collector:report_struct().
 
 -spec send(string(), [report_struct()]) -> ok.
 send(ClientId, ReportStructs) ->
