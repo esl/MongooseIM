@@ -80,7 +80,6 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
                        PushPayload :: push_payload()) -> any().
 publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
-    BareRecipient = jid:to_bare(To),
     HookArgs = [Host, [maps:from_list(PushPayload)], OptionMap],
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% tracability purposes and push_SUITE code unification
@@ -88,8 +87,8 @@ publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     case ejabberd_hooks:run_fold(push_notifications, Host, Acc, HookArgs) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
-            ejabberd_sm:remove_info(To#jid.luser, To#jid.lserver, To#jid.lresource,
-                                    push_notifications),
+            BareRecipient = jid:to_bare(To),
+            mod_event_pusher_push:maybe_remove_push_node_from_sessions_info(BareRecipient, Node),
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
         _ -> ok
     end.
