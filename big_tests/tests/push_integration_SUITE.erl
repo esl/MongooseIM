@@ -667,7 +667,7 @@ pubsub_node(Config) ->
 
 virtual_pubsub_host() ->
     Domain = domain(),
-    <<Domain/binary, ".", Domain/binary>>.
+    <<"virtual.", Domain/binary>>.
 
 real_pubsub_host() ->
     Domain = domain(),
@@ -725,7 +725,7 @@ required_modules_for_group(_, API, PubSubHost) ->
 
 required_modules(API, PubSubHost) ->
     VirtualHostOpt = case PubSubHost of
-                         virtual -> [{virtual_pubsub_hosts, ["@HOST@.@HOSTS@"]}];
+                         virtual -> [{virtual_pubsub_hosts, ["virtual.@HOSTS@"]}];
                          _ -> []
                      end,
     PubSub = case PubSubHost of
