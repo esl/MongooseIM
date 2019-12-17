@@ -17,7 +17,11 @@
          handle_info/2,
          terminate/2]).
 
--type system_metrics_state() :: pos_integer().
+-record(service_mongoose_system_metrics, {key, value}).
+-record(system_metrics_state, {report_after, collector_monitor = none}).
+
+-type system_metrics_state() :: #system_metrics_state{}.
+-type client_id() :: string().
 
 -spec start(proplists:proplist()) -> {ok, pid()}.
 start(Args) ->
