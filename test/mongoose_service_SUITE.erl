@@ -51,8 +51,14 @@ service_deps() ->
         {service_l, [service_k]}
     ].
 
-init_per_testcase(misconfigured, C) ->
+init_per_suite(C) ->
     application:ensure_all_started(telemetry),
+    C.
+
+end_per_suite(C) ->
+    C.
+
+init_per_testcase(misconfigured, C) ->
     mongoose_service:start(),
     meck:new(ejabberd_config, [passthrough]),
     meck:expect(ejabberd_config, get_local_option_or_default,
@@ -173,7 +179,7 @@ module_deps(_) ->
     ?assertError({service_not_loaded, _}, gen_mod:start_module(<<"localhost">>, module_a, [])),
     meck:unload(gen_mod),
     mongoose_service:ensure_loaded(service_c),
-    gen_mod:start_module(<<"localhost">>, module_a, []),
+    gen_mod_deps:start_modules(<<"localhost">>, [{module_a, []}]),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
     ok.
 

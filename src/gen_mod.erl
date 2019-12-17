@@ -34,6 +34,13 @@
                       {service, mongoose_service:service()}
                      ].
 
+-type module_deps_list() :: [
+                              {module(), dep_arguments(), gen_mod_deps:hardness()} |
+                              {module(), gen_mod_deps:hardness()}
+                             ].
+
+-type service_deps_list() :: [atom()].
+
 -export_type([deps_list/0]).
 
 -export([
@@ -470,19 +477,20 @@ clear_opts(Module, Opts0) ->
     end.
 
 -spec get_deps(Host :: jid:server(), Module :: module(),
-               Opts :: proplists:proplist()) -> deps_list().
+               Opts :: proplists:proplist()) -> module_deps_list().
 get_deps(Host, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
     case erlang:function_exported(Module, deps, 2) of
         true ->
-            Module:deps(Host, Opts);
+            Deps = Module:deps(Host, Opts),
+            lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
         _ ->
             []
     end.
 
--spec get_required_services(jid:server(), module(), proplists:proplist()) -> [atom()].
+-spec get_required_services(jid:server(), module(), proplists:proplist()) -> service_deps_list().
 get_required_services(Host, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
