@@ -121,13 +121,15 @@ init_per_suite(Config) ->
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
     rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
         [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
-    escalus:init_per_suite(Config).
+    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
+    escalus:init_per_suite(ConfigWithModules).
 
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     rpc(?RPC_SPEC, mongoose_wpool, stop, [http, global, mongoose_push_http]),
     mongoose_push_mock:stop(),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(pubsub_less, Config) ->
@@ -148,11 +150,7 @@ init_per_group(G, Config) ->
     catch rpc(?RPC_SPEC, mod_muc_light_db_backend, force_clear, []),
     C.
 
-end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_less;
-                                         ComplexGroup == pubsub_ful ->
-    Config;
 end_per_group(_, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
     Config.
 
 init_per_testcase(CaseName, Config) ->
