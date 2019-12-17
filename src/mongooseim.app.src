@@ -50,8 +50,7 @@
                   gen_fsm_compat,
                   erl_csv_generator,
                   trails,
-                  cowboy_swagger,
-                  telemetry
+                  cowboy_swagger
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
