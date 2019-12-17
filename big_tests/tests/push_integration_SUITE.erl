@@ -704,7 +704,8 @@ init_modules(G, Config) ->
     PubSubHost = ?config(pubsub_host, Config),
     Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
     C = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), Modules),
+    Fun = fun() -> catch dynamic_modules:ensure_modules(domain(), Modules) end,
+    mongoose_helper:wait_until(Fun, ok),
     [{api_v, MongoosePushAPI} | C].
 
 mongoose_push_api_for_group(failure_cases_v2) ->
