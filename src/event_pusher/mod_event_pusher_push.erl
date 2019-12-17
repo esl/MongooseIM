@@ -35,6 +35,7 @@
 %% Plugin utils
 -export([cast/3, cast/4]).
 -export([virtual_pubsub_hosts/1]).
+-export([maybe_remove_push_node_from_sessions_info/2]).
 
 %% Debug & testing
 -export([add_virtual_pubsub_host/2]).
@@ -144,7 +145,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
               {disable, BarePubsubJID, Node} ->
                   ok = mod_event_pusher_push_backend:disable(
                          jid:to_bare(From), BarePubsubJID, Node),
-                  maybe_remove_push_node_from_session_info(From, Node),
+                  maybe_remove_push_node_from_sessions_info(From, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
@@ -179,9 +180,8 @@ handle_publish_response(Recipient, PubsubJID, Node, #iq{type = error, sub_el = E
     case exml_query:attr(Error, <<"type">>) of
         <<"cancel">> ->
             %% We disable the push node in case the error type is cancel
-            ejabberd_sm:remove_info(Recipient#jid.luser, Recipient#jid.lserver, Recipient#jid.lresource,
-                                    push_notifications),
             BareRecipient = jid:to_bare(Recipient),
+            maybe_remove_push_node_from_sessions_info(BareRecipient, Node),
             mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
         _ ->
             ok
@@ -225,12 +225,9 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
     VHosts = lists:usort(gen_mod:make_subhosts(VirtualHost, Host) ++ VHosts0),
     gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
 
-%%--------------------------------------------------------------------
-%% Helper functions
-%%--------------------------------------------------------------------
--spec maybe_remove_push_node_from_session_info(jid:jid(), pubsub_node() | undefined) ->
+-spec maybe_remove_push_node_from_sessions_info(jid:jid(), pubsub_node() | undefined) ->
     ok.
-maybe_remove_push_node_from_session_info(From, undefined) ->
+maybe_remove_push_node_from_sessions_info(From, undefined) ->
     %% The node is undefined which means that a user wants to disable all push nodes
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
@@ -238,19 +235,18 @@ maybe_remove_push_node_from_session_info(From, undefined) ->
     [ejabberd_sm:remove_info(LUser, LServer, Resource, push_notifications) ||
      {_, Resource} <- AllResources],
     ok;
-maybe_remove_push_node_from_session_info(From, Node) ->
+maybe_remove_push_node_from_sessions_info(From, Node) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
-    LResource = From#jid.lresource,
-    case my_push_node(LUser, LServer, LResource, Node) of
-        true ->
-            ejabberd_sm:remove_info(LUser, LServer, LResource, push_notifications);
-        false ->
-            find_and_remove_push_node_from_other_session(From, Node)
-    end.
+    AllSessions = ejabberd_sm:get_raw_sessions(LUser, LServer),
+    find_and_remove_push_node(LUser, LServer, AllSessions, Node).
 
-my_push_node(LUser, LServer, LResource, Node) ->
-    {_SUser, _SID, _, SInfo} = ejabberd_sm:get_session(LUser, LServer, LResource),
+%%--------------------------------------------------------------------
+%% Helper functions
+%%--------------------------------------------------------------------
+
+my_push_node(RawSession, Node) ->
+    SInfo = mongoose_session:get_info(RawSession),
     case lists:keyfind(push_notifications, 1, SInfo) of
         {push_notifications, {Node, _}} ->
             true;
@@ -258,19 +254,12 @@ my_push_node(LUser, LServer, LResource, Node) ->
             false
     end.
 
-find_and_remove_push_node_from_other_session(From, Node) ->
-    LUser = From#jid.luser,
-    LServer = From#jid.lserver,
-    AllResources = ejabberd_sm:get_user_present_resources(LUser, LServer),
-    AllResourcesButMine = [LResource || {_, LResource} <- AllResources,
-                                        LResource /= From#jid.lresource],
-    find_and_remove_push_node(LUser, LServer, AllResourcesButMine, Node).
-
 find_and_remove_push_node(_LUser, _LServer, [], _Node) ->
     ok;
-find_and_remove_push_node(LUser, LServer, [LResource | Rest], Node) ->
-    case my_push_node(LUser, LServer, LResource, Node) of
+find_and_remove_push_node(LUser, LServer, [RawSession | Rest], Node) ->
+    case my_push_node(RawSession, Node) of
         true ->
+            LResource  = mongoose_session:get_resource(RawSession),
             ejabberd_sm:remove_info(LUser, LServer, LResource, push_notifications);
         false ->
             find_and_remove_push_node(LUser, LServer, Rest, Node)

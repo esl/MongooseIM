@@ -92,14 +92,15 @@
                       usr      :: jid:simple_jid(),
                       us       :: jid:simple_bare_jid(),
                       priority :: priority(),
-                      info     :: [info_item()]
+                      info     :: info()
                      }.
+-type info() :: [info_item()].
 
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: jid:simple_jid(),
                       Sid :: ejabberd_sm:sid(),
                       Prio :: priority(),
-                      Info :: [info_item()]}.
+                      Info :: info()}.
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
 -type close_reason() :: resumed | normal | replaced.
 -type info_key() :: atom().
@@ -109,7 +110,8 @@
               sid/0,
               ses_tuple/0,
               backend/0,
-              close_reason/0
+              close_reason/0,
+              info/0
              ]).
 
 %% default value for the maximum number of user connections
