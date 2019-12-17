@@ -128,7 +128,9 @@ periodic_report_available(_Config) ->
         true).
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
-    mongoose_helper:wait_until(fun all_event_have_the_same_client_id/0, true).
+    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
+    all_event_have_the_same_client_id().
+
 
 system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
