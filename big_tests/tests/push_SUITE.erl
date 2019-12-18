@@ -18,8 +18,6 @@
     disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
--record(route, {from, to, acc, packet}).
-
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -28,8 +26,8 @@ all() ->
     [
         {group, disco},
         {group, toggling},
-        {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, pubsub_ful},
+        {group, pubsub_less}
     ].
 
 groups() ->
@@ -44,11 +42,14 @@ groups() ->
                                  enable_should_succeed_without_form,
                                  enable_with_form_should_fail_with_incorrect_from,
                                  enable_should_accept_correct_from,
+                                 enable_should_fail_with_invalid_pubsub_jid,
                                  disable_should_fail_with_missing_attributes,
                                  disable_should_fail_with_invalid_attributes,
                                  disable_all,
                                  disable_node
                                 ]},
+         {pubsub_ful, [], notification_groups()},
+         {pubsub_less, [], notification_groups()},
          {pm_msg_notifications, [parallel], [
                                              pm_no_msg_notifications_if_not_enabled,
                                              pm_no_msg_notifications_if_user_online,
@@ -66,12 +67,20 @@ groups() ->
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
+notification_groups() ->
+    [
+     {group, pm_msg_notifications},
+     {group, muclight_msg_notifications}
+    ].
+
 suite() ->
     escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+
+%% --------------------- Callbacks ------------------------
 
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
@@ -83,9 +92,13 @@ end_per_suite(Config) ->
 
 init_per_group(disco, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
+init_per_group(pubsub_ful, Config) ->
+    [{pubsub_host, real} | Config];
+init_per_group(pubsub_less, Config) ->
+    [{pubsub_host, virtual} | Config];
 init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
-    Config = init_per_group(generic_group, Config0),
+    Config = ensure_pusher_module_and_save_old_mods(Config0),
     dynamic_modules:ensure_modules(Host, [{mod_muc_light,
                                            [{host, binary_to_list(?MUCHOST)},
                                             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
@@ -98,6 +111,9 @@ init_per_group(_, Config) ->
 end_per_group(disco, Config) ->
     escalus:delete_users(Config),
     Config;
+end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_ful;
+                                         ComplexGroup == pubsub_less ->
+    Config;
 end_per_group(_, Config) ->
     restore_modules(Config),
     Config.
@@ -108,11 +124,18 @@ init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Con
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
-    start_publish_listener(CaseName, Config0),
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
     Config = [{case_name, CaseName} | Config1],
-    escalus:init_per_testcase(CaseName, Config).
 
+    case ?config(pubsub_host, Config0) of
+        virtual ->
+            add_virtual_host_to_pusher(pubsub_jid(Config)),
+            start_hook_listener();
+        _ ->
+            start_route_listener(CaseName)
+    end,
+
+    escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
     restore_modules(Config),
@@ -123,8 +146,13 @@ end_per_testcase(CaseName, Config) ->
     rpc(ejabberd_router, unregister_route, [atom_to_binary(CaseName, utf8)]),
     escalus:end_per_testcase(CaseName, Config).
 
+%% --------------------- Helpers ------------------------
+
+add_virtual_host_to_pusher(VirtualHost) ->
+    rpc(mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]).
+
 ensure_pusher_module_and_save_old_mods(Config) ->
-    PushOpts = push_opts(),
+    PushOpts = [{backend, mongoose_helper:mnesia_or_rdbms_backend()}],
     Host = ct:get_config({hosts, mim, domain}),
     Config1 = dynamic_modules:save_modules(Host, Config),
     PusherMod = {mod_event_pusher, [{backends, [{push, PushOpts}]}]},
@@ -159,7 +187,7 @@ push_notifications_not_listed_disco_when_not_available(Config) ->
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(is_iq_result, Stanza),
-            Pred = fun(Feature, Stanza) -> not escalus_pred:has_feature(Feature, Stanza) end,
+            Pred = fun(Feature, Stanza0) -> not escalus_pred:has_feature(Feature, Stanza0) end,
             escalus:assert(Pred, [push_helper:ns_push()], Stanza),
             ok
         end).
@@ -266,6 +294,16 @@ enable_should_accept_correct_from(Config) ->
             ok
         end).
 
+enable_should_fail_with_invalid_pubsub_jid(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            escalus:send(Bob, enable_stanza(<<"invalid_pubsub_jid">>, <<"NodeId">>)),
+            escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>],
+                           escalus:wait_for_stanza(Bob)),
+            ok
+        end).
+
 disable_should_fail_with_missing_attributes(Config) ->
     escalus:story(
         Config, [{bob, 1}],
@@ -339,7 +377,7 @@ pm_no_msg_notifications_if_not_enabled(Config) ->
             become_unavailable(Bob),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -354,7 +392,7 @@ pm_no_msg_notifications_if_user_online(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -371,21 +409,10 @@ pm_msg_notify_if_user_offline(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                             {element, <<"publish">>},
-                                             {element, <<"item">>},
-                                             {element, <<"notification">>},
-                                             {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:push_form_type(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
+            #{ payload := Payload } = received_push(Config),
+            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Payload)),
             ?assertMatch(AliceJID,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
+                         proplists:get_value(<<"last-message-sender">>, Payload)),
 
             ok
         end).
@@ -404,18 +431,10 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish-options">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:ns_pubsub_pub_options(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
-            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
+            #{ publish_options := PublishOptions } = received_push(Config),
+
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, PublishOptions)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, PublishOptions)),
             ok
         end).
 
@@ -436,7 +455,7 @@ pm_msg_notify_stops_after_disabling(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not received_route()),
+            ?assert(not received_push(Config)),
 
             ok
         end).
@@ -459,7 +478,7 @@ muclight_no_msg_notifications_if_not_enabled(Config) ->
 
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
 
             ok
         end).
@@ -480,7 +499,7 @@ muclight_no_msg_notifications_if_user_online(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -501,22 +520,12 @@ muclight_msg_notify_if_user_offline(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish">>},
-                                            {element, <<"item">>},
-                                            {element, <<"notification">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:push_form_type(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Fields)),
+            #{ payload := Payload } = received_push(Config),
+
+            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Payload)),
             SenderId = <<(room_bin_jid(Room))/binary, "/" ,BobJID/binary>>,
             ?assertMatch(SenderId,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
+                         proplists:get_value(<<"last-message-sender">>, Payload)),
             ok
         end).
 
@@ -538,18 +547,10 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish-options">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:ns_pubsub_pub_options(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
-            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
+            #{ publish_options := PublishOptions } = received_push(Config),
+
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, PublishOptions)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, PublishOptions)),
             ok
         end).
 
@@ -574,15 +575,53 @@ muclight_msg_notify_stops_after_disabling(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
-
 %%--------------------------------------------------------------------
-%% Test helpers
+%% Remote code
+%% Functions that will be executed in MongooseIM context + helpers that set them up
 %%--------------------------------------------------------------------
 
+start_route_listener(CaseName) ->
+    %% We put namespaces in the state to avoid injecting push_helper module to MIM as well
+    State = #{ pid => self(),
+               pub_options_ns => push_helper:ns_pubsub_pub_options(),
+               push_form_ns => push_helper:push_form_type() },
+    Handler = rpc(mongoose_packet_handler, new, [?MODULE, State]),
+    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]).
+
+process_packet(_Acc, _From, To, El, State) ->
+    #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
+    PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish-options">>},
+                                      {element, <<"x">>}]),
+    PublishOptions = parse_form(PublishXML),
+
+    PayloadXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish">>},
+                                      {element, <<"item">>},
+                                      {element, <<"notification">>},
+                                      {element, <<"x">>}]),
+    Payload = parse_form(PayloadXML),
+    
+    case valid_ns_if_defined(PubOptionsNS, PublishOptions) andalso
+         valid_ns_if_defined(PushFormNS, Payload) of
+        true ->
+            TestCasePid ! #{ publish_options => PublishOptions,
+                             payload => Payload,
+                             pubsub_jid_bin => jid:to_binary(To) };
+        false ->
+            %% We use publish_options0 and payload0 to avoid accidental match in received_push
+            %% even after some tests updates and refactors
+            TestCasePid ! #{ error => invalid_namespace,
+                             publish_options0 => PublishOptions,
+                             payload0 => Payload }
+    end.
+
+parse_form(undefined) ->
+    undefined;
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));
 parse_form(Fields) when is_list(Fields) ->
@@ -592,27 +631,54 @@ parse_form(Fields) when is_list(Fields) ->
              exml_query:path(Field, [{element, <<"value">>}, cdata])}
         end, Fields).
 
-start_publish_listener(CaseName, Config) ->
+valid_ns_if_defined(_, undefined) ->
+    true;
+valid_ns_if_defined(NS, FormProplist) ->
+    NS =:= proplists:get_value(<<"FORM_TYPE">>, FormProplist).
+
+start_hook_listener() ->
     TestCasePid = self(),
-    Handler = rpc(mongoose_packet_handler, new, [?MODULE, TestCasePid]),
-    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]),
+    rpc(?MODULE, rpc_start_hook_handler, [TestCasePid]).
 
-    Config.
+rpc_start_hook_handler(TestCasePid) ->
+    Handler = fun(Acc, _Host, [PayloadMap], OptionMap) ->
+                      try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
+                          PubsubJIDBin ->
+                              TestCasePid ! #{ publish_options => maps:to_list(OptionMap),
+                                               payload => maps:to_list(PayloadMap),
+                                               pubsub_jid_bin => PubsubJIDBin },
+                              Acc
+                      catch
+                          C:R:S ->
+                              TestCasePid ! #{ event => handler_error,
+                                               class => C,
+                                               reason => R,
+                                               stacktrace => S },
+                              Acc
+                      end
+              end,
+    ejabberd_hooks:add(push_notifications, <<"localhost">>, Handler, 50).
 
-process_packet(Acc, From, To, El, TestCasePid) ->
-    TestCasePid ! #route{from = From, to = To, acc = Acc, packet = El}.
+%%--------------------------------------------------------------------
+%% Test helpers
+%%--------------------------------------------------------------------
 
 create_room(Room, [Owner | Members], Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     create_room(Room, <<"muclight.", Domain/binary>>, Owner, Members,
                                 Config, <<"v1">>).
 
-received_route() ->
+received_push(Config) ->
+    ExpectedPubsubJIDBin = pubsub_jid(Config),
+    %% With parallel test cases execution we might receive notifications from other cases
+    %% so it's essential to filter by our pubsub JID
     receive
-        #route{} = R ->
-            R
-    after timer:seconds(5) ->
-        false
+        #{ pubsub_jid_bin := PubsubJIDBin } = Push when PubsubJIDBin =:= ExpectedPubsubJIDBin ->
+            Push
+    after
+        timer:seconds(5) ->
+            ct:pal("~p", [#{ result => nomatch, msg_inbox => process_info(self(), messages) }]),
+            false
     end.
 
 truly(false) ->
@@ -628,7 +694,11 @@ bare_jid(JIDOrClient) ->
 
 pubsub_jid(Config) ->
     CaseName = proplists:get_value(case_name, Config),
-    <<"pubsub@", (atom_to_binary(CaseName, utf8))/binary>>.
+    CaseNameBin = atom_to_binary(CaseName, utf8),
+    case ?config(pubsub_host, Config) of
+        virtual -> <<CaseNameBin/binary, ".hyperion">>;
+        _ -> <<"pubsub@", CaseNameBin/binary>>
+    end.
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
@@ -641,12 +711,4 @@ is_offline(LUser, LServer) ->
         _ ->
             true
     end.
-
-lower(Bin) when is_binary(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).
-
-push_opts() ->
-    [
-     {backend, mongoose_helper:mnesia_or_rdbms_backend()}
-    ].
 

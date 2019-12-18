@@ -201,8 +201,25 @@ It is also recommended and important from security perspective to configure the 
 * `access_model` set to `whitelist` so only affiliated users can access the node.
 * `publish_model` set to `publishers` so only users with `publisher` or `publisher_only` role can publish notifications.
 
+#### Adding server's JID to allowed publishers
 
-After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `punsub_node_for_my_private_iphone`).
+Push notifications to the push node are addressed from your server JID.
+If the push node was configured with the above recommended options, you need to allow your server's JID to publish notifications to that node.
+Considering your JID is `alice@mychat.com`, your server's JID is just `mychat.com`.
+The following stanza sent to the just created push node will allow your server JID to publish notifications:
+
+```xml
+<iq to='pubsub.mypubsub.com'
+    type='set'
+    id='wy6Hibg='
+    from='alice@mychat.com/resource'>
+	<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+		<affiliations node='punsub_node_for_my_private_iphone'>
+			<affiliation jid='mychat.com' affiliation='publish-only'/>
+		</affiliations>
+	</pubsub>
+</iq>
+```
 
 ### Enabling push notifications
 
@@ -220,6 +237,7 @@ To enable push notifications in the simplest configuration, just send the follow
       <field var='device_id'><value>your_pns_device_token</value></field>
       <field var='silent'><value>false</value></field>
       <field var='topic'><value>some_apns_topic</value></field>
+      <field var='priority'><value>some_priority</value></field>
     </x>
   </enable>
 </iq>
@@ -236,6 +254,9 @@ Those two options are the only ones required, but there are some others that are
   * `silent` - if set to `true`, all notifications will be "silent". This means that only data
   payload will be send to push notifications provider with no notification. The data payload will
    contain all notification fields as defined in [XEP-0357].
+  * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
+    This value will set the push notification priority. Please refer to FCM / APNS documentation for
+    more details on those values.
 
 ### Disabling push notifications
 
