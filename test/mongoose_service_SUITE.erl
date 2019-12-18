@@ -51,13 +51,6 @@ service_deps() ->
         {service_l, [service_k]}
     ].
 
-init_per_suite(C) ->
-    application:ensure_all_started(telemetry),
-    C.
-
-end_per_suite(C) ->
-    C.
-
 init_per_testcase(misconfigured, C) ->
     mongoose_service:start(),
     meck:new(ejabberd_config, [passthrough]),
