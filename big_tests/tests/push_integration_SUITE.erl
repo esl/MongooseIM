@@ -574,7 +574,7 @@ enable_push_for_user(User, Service, EnableOpts, Config) ->
     enable_push_for_user(User, Service, EnableOpts, {200, <<"OK">>}, Config).
 
 enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
-    Node = {PubsubJID, NodeName} = pubsub_node(Config),
+    Node = {PubsubJID, NodeName} = pubsub_node_from_host(Config),
 
     DeviceToken = gen_token(),
 
@@ -648,12 +648,13 @@ lower(Bin) when is_binary(Bin) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-pubsub_node(Config) ->
-    NodeAddr = case ?config(pubsub_host, Config) of
-        virtual -> pubsub_tools:node_addr("virtual.");
-        real -> pubsub_tools:node_addr()
-    end,
-    {NodeAddr, pubsub_tools:pubsub_node_name()}.
+pubsub_node_from_host(Config) ->
+    case ?config(pubsub_host, Config) of
+        virtual ->
+            pubsub_tools:pubsub_node_with_subdomain("virtual.");
+        real ->
+            pubsub_tools:pubsub_node()
+    end.
 
 getenv(VarName, Default) ->
     case os:getenv(VarName) of

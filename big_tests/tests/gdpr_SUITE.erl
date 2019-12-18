@@ -1091,7 +1091,7 @@ retrieve_pubsub_subscriptions(Config) ->
 
 remove_pubsub_dont_remove_flat_pubsub_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Node1 = {_,NodeName} = pubsub_tools:pubsub_node(1),
+        Node1 = {_,NodeName} = pubsub_tools:pubsub_node_with_num(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
         {0, _} = unregister(Alice, Config),
@@ -1146,7 +1146,7 @@ remove_pubsub_pep_node(Config) ->
 
 remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_,NodeName} = pubsub_tools:pubsub_node(1),
+        Node1 = {_,NodeName} = pubsub_tools:pubsub_node_with_num(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
         AffChange = [{Bob, <<"publish-only">>}],

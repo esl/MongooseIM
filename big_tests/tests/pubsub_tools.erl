@@ -16,7 +16,9 @@
 -include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
 -export([pubsub_node/0,
-         pubsub_node/1,
+         pubsub_node_with_num/1,
+         pubsub_node_with_subdomain/1,
+         pubsub_node_with_num_and_domain/2,
          domain/0,
          node_addr/0,
          node_addr/1,
@@ -653,13 +655,22 @@ node_addr(SubDomain) when is_binary(SubDomain) ->
     <<SubDomain/binary, Domain/binary>>.
 
 pubsub_node() ->
-    pubsub_node(1).
+    {node_addr(), pubsub_node_name()}.
 
-pubsub_node(Num) ->
+pubsub_node_with_num(Num) when is_integer(Num) ->
     Name = <<"node_", (integer_to_binary(Num))/binary, "_",
              (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
     SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
-    {pubsub_tools:node_addr(), SanitizedName}.
+    {node_addr(), SanitizedName}.
+
+pubsub_node_with_subdomain(SubDomain) ->
+    {node_addr(SubDomain), pubsub_node_name()}.
+
+pubsub_node_with_num_and_domain(Num, Dom) when is_integer(Num) ->
+    Name = <<"node_", (integer_to_binary(Num))/binary, "_",
+             (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
+    SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
+    {node_addr(Dom), SanitizedName}.
 
 rand_name(Prefix) ->
     Suffix = base64:encode(crypto:strong_rand_bytes(5)),
@@ -678,7 +689,7 @@ decode_group_name(ComplexName) ->
     #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
 
 create_node_names(Count) ->
-    [pubsub_node(N) || N <- lists:seq(1, Count)].
+    [pubsub_node_with_num(N) || N <- lists:seq(1, Count)].
 
 create_nodes(List) ->
     lists:map(fun({User, Node, Opts}) ->

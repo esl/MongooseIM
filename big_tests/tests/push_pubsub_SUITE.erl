@@ -110,7 +110,7 @@ allocate_basic_node(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}])
         end).
 
@@ -122,7 +122,7 @@ publish_fails_with_invalid_item(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             Item =
@@ -142,7 +142,7 @@ publish_fails_with_no_options(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             ContentFields = [
@@ -170,7 +170,7 @@ publish_succeeds_with_valid_options(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             Content = [
@@ -196,7 +196,7 @@ push_node_can_be_configured_to_whitelist_publishers(Config) ->
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
                              {<<"pubsub#publish_model">>, <<"publishers">>}],
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>},
@@ -345,7 +345,7 @@ prepare_notification(CustomOptions) ->
     {Notification, Options ++ CustomOptions}.
 
 setup_pubsub(User) ->
-    Node = pubsub_node(),
+    Node = push_pubsub_node(),
     pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
     Node.
 
@@ -377,8 +377,8 @@ publish_iq(Client, Node, Content, Options) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-pubsub_node() ->
-    {pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."), pubsub_tools:pubsub_node_name()}.
+push_pubsub_node() ->
+    pubsub_tools:pubsub_node_with_subdomain(?PUBSUB_SUB_DOMAIN ++ ".").
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));
