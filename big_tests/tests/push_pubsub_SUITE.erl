@@ -96,7 +96,7 @@ has_disco_identity(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Server = node_addr(),
+            Server = pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."),
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
@@ -377,10 +377,6 @@ publish_iq(Client, Node, Content, Options) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-node_addr() ->
-    Domain = domain(),
-    <<?PUBSUB_SUB_DOMAIN, ".", Domain/binary>>.
-
 rand_name(Prefix) ->
     Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
@@ -389,7 +385,7 @@ pubsub_node_name() ->
     rand_name(<<"princely_musings">>).
 
 pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
+    {pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."), pubsub_node_name()}.
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));

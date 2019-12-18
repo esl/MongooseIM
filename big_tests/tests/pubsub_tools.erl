@@ -19,6 +19,7 @@
          pubsub_node/1,
          domain/0,
          node_addr/0,
+         node_addr/1,
          rand_name/1,
          pubsub_node_name/0,
          encode_group_name/2,
@@ -639,19 +640,26 @@ decode_affiliations(IQResult) ->
 
     [ {exml_query:attr(F, <<"jid">>), exml_query:attr(F, <<"affiliation">>)} || F <- Fields ].
 
-pubsub_node() -> pubsub_node(1).
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+node_addr() ->
+    node_addr(<<"pubsub.">>).
+
+node_addr(SubDomain) when is_list(SubDomain) ->
+    node_addr(list_to_binary(SubDomain));
+node_addr(SubDomain) when is_binary(SubDomain) ->
+    Domain = domain(),
+    <<SubDomain/binary, Domain/binary>>.
+
+pubsub_node() ->
+    pubsub_node(1).
+
 pubsub_node(Num) ->
     Name = <<"node_", (integer_to_binary(Num))/binary, "_",
              (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
     SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
     {pubsub_tools:node_addr(), SanitizedName}.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
-node_addr() ->
-    Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
 
 rand_name(Prefix) ->
     Suffix = base64:encode(crypto:strong_rand_bytes(5)),
