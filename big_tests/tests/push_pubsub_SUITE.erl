@@ -377,11 +377,8 @@ publish_iq(Client, Node, Content, Options) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-pubsub_node_name() ->
-    pubsub_tools:rand_name(<<"princely_musings">>).
-
 pubsub_node() ->
-    {pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."), pubsub_node_name()}.
+    {pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."), pubsub_tools:pubsub_node_name()}.
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));

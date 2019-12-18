@@ -648,15 +648,12 @@ lower(Bin) when is_binary(Bin) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-pubsub_node_name() ->
-    pubsub_tools:rand_name(<<"princely_musings">>).
-
 pubsub_node(Config) ->
     NodeAddr = case ?config(pubsub_host, Config) of
         virtual -> pubsub_tools:node_addr("virtual.");
         real -> pubsub_tools:node_addr()
     end,
-    {NodeAddr, pubsub_node_name()}.
+    {NodeAddr, pubsub_tools:pubsub_node_name()}.
 
 getenv(VarName, Default) ->
     case os:getenv(VarName) of
