@@ -18,7 +18,7 @@
          terminate/2]).
 
 -record(service_mongoose_system_metrics, {key, value}).
--record(system_metrics_state, {report_after, reporter_monitor = none}).
+-record(system_metrics_state, {report_after, reporter_monitor = none, reporter_pid = none}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
@@ -40,25 +40,29 @@ start_link(Args) ->
 init(Args) ->
     InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
-    erlang:send_after(InitialReport, self(), spawn_collector),
+    erlang:send_after(InitialReport, self(), spawn_reporter),
     {ok, #system_metrics_state{report_after = ReportAfter}}.
     
-handle_info(spawn_collector, #system_metrics_state{report_after = ReportAfter, reporter_monitor = none} = State) ->
+handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter, reporter_monitor = none, reporter_pid = none} = State) ->
     case get_client_id() of
         {error, no_client_id} -> {stop, no_client_id, State};
         {ok, ClientId} ->
-            {_Pid, Monitor} = spawn_monitor(
+            {Pid, Monitor} = spawn_monitor(
                 fun() ->
                     Reports = mongoose_system_metrics_collector:collect(),
                     mongoose_system_metrics_sender:send(ClientId, Reports)
                 end),
-            erlang:send_after(ReportAfter, self(), spawn_collector),
-            {noreply, State#system_metrics_state{reporter_monitor = Monitor}}
+            erlang:send_after(ReportAfter, self(), spawn_reporter),
+            {noreply, State#system_metrics_state{reporter_monitor = Monitor, reporter_pid = Pid}}
     end;
+handle_info(spawn_reporter, #system_metrics_state{reporter_pid = Pid} = State) ->
+    exit(Pid, kill),
+    self() ! spawn_reporter,
+    {noreply, State#system_metrics_state{reporter_monitor = none, reporter_pid = none}};
 handle_info({'DOWN', CollectorMonitor, _, _, _}, #system_metrics_state{reporter_monitor = CollectorMonitor} = State) ->
-    {noreply, State#system_metrics_state{reporter_monitor = none}};
-handle_info(_Message, _State) ->
-    ok.
+    {noreply, State#system_metrics_state{reporter_monitor = none, reporter_pid = none}};
+handle_info(_Message, State) ->
+    {noreply, State}.
 
 
 % %%-----------------------------------------
