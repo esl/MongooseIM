@@ -64,6 +64,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     http_helper:stop(),
+    Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:hours(1)}],
+    [enable_system_metrics(Node, Args) || Node <- [mim(), mim2()]],
     Config.
 
 %%--------------------------------------------------------------------
@@ -188,14 +190,13 @@ get_events_collection_size() ->
     length(ets:tab2list(?ETS_TABLE)).
 
 enable_system_metrics(Node) ->
-    enable_system_metrics(Node, 100, 100).
+    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}]).
 
-enable_system_metrics(Node, InitialReport, PeriodicReport) ->
+enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
     distributed_helper:rpc(
-      Node, mongoose_service, start_service,
-    [service_mongoose_system_metrics, [{initial_report, InitialReport}, {periodic_report, PeriodicReport}]]).
+      Node, mongoose_service, start_service, [service_mongoose_system_metrics, Timers]).
 
 disable_system_metrics(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
