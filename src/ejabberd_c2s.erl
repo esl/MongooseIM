@@ -58,7 +58,7 @@
          handle_sync_event/4,
          code_change/4,
          handle_info/3,
-         terminate/3,
+         terminate/4,
          print_state/1]).
 
 -include("mongoose.hrl").
@@ -958,11 +958,11 @@ resume_session(Msg, StateData) ->
 %%          {stop, Reason, Reply, NewStateData}
 %%----------------------------------------------------------------------
 
-session_established(resume, _From, SD) ->
-    handover_session(SD).
+session_established(resume, From, SD) ->
+    handover_session(SD, From).
 
-resume_session(resume, _From, SD) ->
-    handover_session(SD).
+resume_session(resume, From, SD) ->
+    handover_session(SD, From).
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -1493,8 +1493,14 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %% Purpose: Shutdown the fsm
 %% Returns: any
 %%----------------------------------------------------------------------
--spec terminate(Reason :: any(), statename(), state()) -> ok.
-terminate(_Reason, StateName, StateData) ->
+-spec terminate(Reason :: any(), statename(), state(), list()) -> ok.
+terminate({handover_session, From}, StateName, StateData, UnreadMessages) ->
+    % do handover first
+    NewStateData = do_handover_session(StateData, UnreadMessages),
+    p1_fsm_old:reply(From, {ok, NewStateData}),
+    % and then run the normal termination
+    terminate(normal, StateName, NewStateData, []);
+terminate(_Reason, StateName, StateData, UnreadMessages) ->
     InitialAcc0 = mongoose_acc:new(
              #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
     Acc = case StateData#state.stream_mgmt of
@@ -1525,7 +1531,7 @@ terminate(_Reason, StateName, StateData) ->
               replaced),
             Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
             presence_broadcast(Acc1, StateData#state.pres_i, StateData),
-            reroute_unacked_messages(StateData);
+            reroute_unacked_messages(StateData, UnreadMessages);
         {_, resumed} ->
             StreamConflict = mongoose_xmpp_errors:stream_conflict(
                                StateData#state.lang, <<"Resumed by new connection">>),
@@ -1567,17 +1573,17 @@ terminate(_Reason, StateName, StateData) ->
                     Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
                     presence_broadcast(Acc1, StateData#state.pres_i, StateData)
             end,
-            reroute_unacked_messages(StateData)
+            reroute_unacked_messages(StateData, UnreadMessages)
     end,
     (StateData#state.sockmod):close(StateData#state.socket),
     ok.
 
--spec reroute_unacked_messages(StateData :: state()) -> any().
-reroute_unacked_messages(StateData) ->
+-spec reroute_unacked_messages(StateData :: state(), list()) -> any().
+reroute_unacked_messages(StateData, UnreadMessages) ->
     ?DEBUG("rerouting unacked messages", []),
     flush_stream_mgmt_buffer(StateData),
     bounce_csi_buffer(StateData),
-    bounce_messages().
+    bounce_messages(UnreadMessages).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
@@ -2525,37 +2531,52 @@ fsm_limit_opts(Opts) ->
             end
     end.
 
-
--spec bounce_messages() -> 'ok'.
-bounce_messages() ->
-    receive
-        {route, From, To, El} ->
+-spec bounce_messages(list()) -> 'ok'.
+bounce_messages(UnreadMessages) ->
+    case get_msg(UnreadMessages) of
+        {ok, {route, From, To, El}, RemainedUnreadMessages} ->
             ejabberd_router:route(From, To, El),
-            bounce_messages();
-        {store_session_info, User, Server, Resource, KV, _FromPid} ->
-            ejabberd_sm:store_info(User, Server, Resource, KV)
-    after 0 ->
-              ok
+            bounce_messages(RemainedUnreadMessages);
+        {ok, {store_session_info, User, Server, Resource, KV, _FromPid}, _} ->
+            ejabberd_sm:store_info(User, Server, Resource, KV);
+        {ok, _, RemainedUnreadMessages} ->
+            % ignore this one, get the next message
+            bounce_messages(RemainedUnreadMessages);
+        {error, no_messages} ->
+            ok
     end.
 
 %% Return the messages in reverse order than they were received in!
--spec flush_messages() -> {N :: non_neg_integer(), Msgs :: [packet()]}.
-flush_messages() ->
-    flush_messages(0, []).
+-spec flush_messages(list()) -> {N :: non_neg_integer(), Msgs :: [packet()]}.
+flush_messages(UnreadMessages) ->
+    flush_messages(0, [], UnreadMessages).
 
--spec flush_messages(N :: non_neg_integer(), Msgs :: [packet()]) ->
+-spec flush_messages(N :: non_neg_integer(), Msgs :: [packet()], list()) ->
     {N :: non_neg_integer(), Msgs :: [packet()]}.
-flush_messages(N, Acc) ->
-    receive
-        {route, From, To, #xmlel{} = Packet} ->
-            flush_messages(N+1, [{From, To, Packet} | Acc]);
-        {route, From, To, MongooseAcc} ->
+flush_messages(N, Acc, UnreadMessages) ->
+    case get_msg(UnreadMessages) of
+        {ok, {route, From, To, #xmlel{} = Packet}, RemainedUnreadMessages} ->
+            NewAcc = [{From, To, Packet} | Acc],
+            flush_messages(N + 1, NewAcc, RemainedUnreadMessages);
+        {ok, {route, From, To, MongooseAcc}, RemainedUnreadMessages} ->
             % TODO: SM buffer should hold acc, not xmlels
-            flush_messages(N+1, [{From, To, mongoose_acc:element(MongooseAcc)} | Acc])
-    after 0 ->
-              {N, Acc}
+            NewAcc = [{From, To, mongoose_acc:element(MongooseAcc)} | Acc],
+            flush_messages(N + 1, NewAcc, RemainedUnreadMessages);
+        {ok, _, RemainedUnreadMessages} ->
+            % ignore this one, get the next message
+            flush_messages(N, Acc, RemainedUnreadMessages);
+        {error, no_messages} ->
+            {N, Acc}
     end.
 
+get_msg([H | T]) ->
+    {ok, H, T};
+get_msg([]) ->
+    receive
+        Msg -> {ok, Msg, []}
+    after 0 ->
+        {error, no_messages}
+    end.
 
 %%%----------------------------------------------------------------------
 %%% XEP-0016
@@ -3161,24 +3182,26 @@ stream_mgmt_resumed(SMID, Handled) ->
                     {<<"previd">>, SMID},
                     {<<"h">>, integer_to_binary(Handled)}]}.
 
-handover_session(SD) ->
-    %% Assert Stream Management is on; otherwise this should not be called.
+handover_session(SD, From)->
     true = SD#state.stream_mgmt,
     Acc = mongoose_acc:new(
-             #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+        #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
     ejabberd_sm:close_session(Acc,
-                              SD#state.sid,
-                              SD#state.user,
-                              SD#state.server,
-                              SD#state.resource,
-                              resumed),
-    {N, Messages} = flush_messages(),
+        SD#state.sid,
+        SD#state.user,
+        SD#state.server,
+        SD#state.resource,
+        resumed),
+    %the actual handover to be done on termination
+    {stop, {handover_session, From}, SD}.
+
+do_handover_session(SD, UnreadMessages) ->
+    {N, Messages} = flush_messages(UnreadMessages),
     NewSize = N + SD#state.stream_mgmt_buffer_size,
     NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,
-    NSD = SD#state{authenticated = resumed,
-                   stream_mgmt_buffer_size = NewSize,
-                   stream_mgmt_buffer = NewBuffer},
-    {stop, normal, {ok, NSD}, NSD}.
+    SD#state{authenticated = resumed,
+        stream_mgmt_buffer_size = NewSize,
+        stream_mgmt_buffer = NewBuffer}.
 
 maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),

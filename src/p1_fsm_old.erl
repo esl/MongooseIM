@@ -90,7 +90,8 @@
 %%%        {stop, Reason, NewStateData}
 %%%              Reason = normal | shutdown | Term terminate(State) is called
 %%%
-%%%   terminate(Reason, StateName, StateData) Let the user module clean up
+%%%   terminate(Reason, StateName, StateData, Messages)
+%%%        Let the user module clean up
 %%%        always called when server terminates
 %%%
 %%%    ==> the return value is ignored
@@ -169,8 +170,9 @@
     {next_state, NextStateName :: atom(), NewStateData :: term(),
      timeout() | hibernate} |
     {stop, Reason :: normal | term(), NewStateData :: term()}.
--callback terminate(Reason :: normal | shutdown | {shutdown, term()}
-                    | term(), StateName :: atom(), StateData :: term()) ->
+-callback terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
+                    StateName :: atom(), StateData :: term(),
+                    BufferedMessages :: list()) ->
     term().
 -callback code_change(OldVsn :: term() | {down, term()}, StateName :: atom(),
                       StateData :: term(), Extra :: term()) ->
@@ -428,7 +430,7 @@ loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
         {process_limit, Limit} ->
             Reason = {process_limit, Limit},
             Msg = {'EXIT', Parent, {error, {process_limit, Limit}}},
-            terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug)
+            terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug, Queue)
     end,
     process_message(Parent, Name, StateName, StateData,
                     Mod, Time, Debug, Limits, Queue, QueueLen).
@@ -484,7 +486,7 @@ decode_msg(Msg, Parent, Name, StateName, StateData, Mod, Time, Debug,
                                   [Name, StateName, StateData,
                                    Mod, Time, Limits, Queue, QueueLen], Hib);
         {'EXIT', Parent, Reason} ->
-            terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug);
+            terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug, Queue);
         _Msg when Debug == [] ->
             handle_msg(Msg, Parent, Name, StateName, StateData,
                        Mod, Time, Limits, Queue, QueueLen);
@@ -505,8 +507,9 @@ system_continue(Parent, Debug, [Name, StateName, StateData,
 
 -spec system_terminate(term(), _, _, [term(), ...]) -> no_return().
 system_terminate(Reason, _Parent, Debug,
-                 [Name, StateName, StateData, Mod, _Time, _Limits]) ->
-    terminate(Reason, Name, [], Mod, StateName, StateData, Debug).
+                 [Name, StateName, StateData, Mod,
+                  _Time, _Limits, Queue, _QueueLen]) ->
+    terminate(Reason, Name, [], Mod, StateName, StateData, Debug, Queue).
 
 system_code_change([Name, StateName, StateData, Mod, Time,
                     Limits, Queue, QueueLen],
@@ -604,19 +607,19 @@ handle_msg(Msg, Parent, Name, StateName, StateData, Mod, _Time,
                          Reply ->
                              {migration_error, {bad_reply, Reply}}
                      end,
-            terminate(Reason, Name, Msg, Mod, StateName, NStateData, []);
+            terminate(Reason, Name, Msg, Mod, StateName, NStateData, [], Queue);
         {stop, Reason, NStateData} ->
-            terminate(Reason, Name, Msg, Mod, StateName, NStateData, []);
+            terminate(Reason, Name, Msg, Mod, StateName, NStateData, [], Queue);
         {stop, Reason, Reply, NStateData} when From =/= undefined ->
-            {'EXIT', R} = (catch terminate(Reason, Name, Msg, Mod,
-                                           StateName, NStateData, [])),
+            {'EXIT', R} = (catch terminate(Reason, Name, Msg, Mod, StateName,
+                                           NStateData, [], Queue)),
             reply(From, Reply),
             exit(R);
         {'EXIT', What} ->
-            terminate(What, Name, Msg, Mod, StateName, StateData, []);
+            terminate(What, Name, Msg, Mod, StateName, StateData, [], Queue);
         Reply ->
-            terminate({bad_return_value, Reply},
-                      Name, Msg, Mod, StateName, StateData, [])
+            terminate({bad_return_value, Reply}, Name, Msg, Mod,
+                      StateName, StateData, [], Queue)
     end.
 
 handle_msg(Msg, Parent, Name, StateName, StateData,
@@ -657,19 +660,19 @@ handle_msg(Msg, Parent, Name, StateName, StateData,
                          Reply ->
                              {migration_error, {bad_reply, Reply}}
                      end,
-            terminate(Reason, Name, Msg, Mod, StateName, NStateData, Debug);
+            terminate(Reason, Name, Msg, Mod, StateName, NStateData, Debug, Queue);
         {stop, Reason, NStateData} ->
-            terminate(Reason, Name, Msg, Mod, StateName, NStateData, Debug);
+            terminate(Reason, Name, Msg, Mod, StateName, NStateData, Debug, Queue);
         {stop, Reason, Reply, NStateData} when From =/= undefined ->
-            {'EXIT', R} = (catch terminate(Reason, Name, Msg, Mod,
-                                           StateName, NStateData, Debug)),
+            {'EXIT', R} = (catch terminate(Reason, Name, Msg, Mod, StateName,
+                                           NStateData, Debug, Queue)),
             reply(Name, From, Reply, Debug, StateName),
             exit(R);
         {'EXIT', What} ->
-            terminate(What, Name, Msg, Mod, StateName, StateData, Debug);
+            terminate(What, Name, Msg, Mod, StateName, StateData, Debug, Queue);
         Reply ->
-            terminate({bad_return_value, Reply},
-                      Name, Msg, Mod, StateName, StateData, Debug)
+            terminate({bad_return_value, Reply}, Name, Msg, Mod,
+                      StateName, StateData, Debug, Queue)
     end.
 
 dispatch({'$gen_event', Event}, Mod, StateName, StateData) ->
@@ -705,8 +708,9 @@ reply(Name, {To, Tag}, Reply, Debug, StateName) ->
 %%% Terminate the server.
 %%% ---------------------------------------------------
 
-terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug) ->
-    case catch Mod:terminate(Reason, StateName, StateData) of
+terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug, Queue) ->
+    List = queue:to_list(Queue),
+    case catch Mod:terminate(Reason, StateName, StateData, List) of
         {'EXIT', R} ->
             error_info(Mod, R, Name, Msg, StateName, StateData, Debug),
             exit(R);
@@ -796,7 +800,7 @@ format_status(Opt, StatusData) ->
                       Name
               end,
     Header = lists:concat(["Status for state machine ", NameTag]),
-    Log = sys:get_debug(log, Debug, []),
+    Log = sys:get_log(Debug),
     Specfic =
         case erlang:function_exported(Mod, format_status, 2) of
             true ->
