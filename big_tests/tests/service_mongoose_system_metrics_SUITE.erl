@@ -53,9 +53,14 @@ all() ->
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
-    http_helper:start(8765, "/[...]", fun handler_init/1),
-    Config.
+    case system_metrics_service_is_enabled(mim()) of
+        false ->
+            ct:fail("service_mongoose_system_metrics is not running");
+        true ->
+            [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
+            http_helper:start(8765, "/[...]", fun handler_init/1),
+            Config
+    end.
 
 end_per_suite(Config) ->
     http_helper:stop(),
@@ -205,10 +210,12 @@ create_events_collection() ->
 clear_events_collection() ->
     ets:delete_all_objects(?ETS_TABLE).
 
-system_metrics_service_is_disabled(Node) ->
+system_metrics_service_is_enabled(Node) ->
     Pid = distributed_helper:rpc(Node, erlang, whereis, [service_mongoose_system_metrics]),
-    not erlang:is_pid(Pid).
+    erlang:is_pid(Pid).
 
+system_metrics_service_is_disabled(Node) ->
+    not system_metrics_service_is_enabled(Node).
 %%--------------------------------------------------------------------
 %% Cowboy handlers
 %%--------------------------------------------------------------------
