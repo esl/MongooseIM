@@ -648,12 +648,8 @@ lower(Bin) when is_binary(Bin) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
-    <<Prefix/binary, "_", Suffix/binary>>.
-
 pubsub_node_name() ->
-    rand_name(<<"princely_musings">>).
+    pubsub_tools:rand_name(<<"princely_musings">>).
 
 pubsub_node(Config) ->
     NodeAddr = case ?config(pubsub_host, Config) of

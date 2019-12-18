@@ -116,7 +116,6 @@
 -import(pubsub_tools, [pubsub_node/0,
                        domain/0,
                        node_addr/0,
-                       rand_name/1,
                        encode_group_name/2,
                        decode_group_name/1]).
 -import(distributed_helper, [mim/0,
@@ -1162,7 +1161,7 @@ retrieve_pending_subscription_requests_test(Config) ->
 %% Comments in test cases refer to sections is the XEP
 %%--------------------------------------------------------------------
 
-pubsub_leaf_name() -> rand_name(<<"leaf">>).
+pubsub_leaf_name() -> pubsub_tools:rand_name(<<"leaf">>).
 pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
 create_delete_collection_test(Config) ->
