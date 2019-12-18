@@ -47,7 +47,7 @@ all() ->
      system_metrics_are_reported_to_google_analytics_when_mim_starts
     ].
 
--define(APPS, [inets, crypto, ssl, fusco, ranch, cowlib, cowboy]).
+-define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
