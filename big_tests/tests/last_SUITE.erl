@@ -135,14 +135,14 @@ user_not_subscribed_receives_error(Config) ->
         escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
 
         %% server replies with an error, since there is no subscription
-        Stanza = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, Stanza),
+        Error = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
 
         BobFullJID = escalus_client:full_jid(Bob),
         escalus_client:send(Alice, escalus_stanza:last_activity(BobFullJID)),
 
-        Stanza1 = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, Stanza1),
+        Error1 = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error1),
         ok
     end).
 
