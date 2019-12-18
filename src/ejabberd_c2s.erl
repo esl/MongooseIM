@@ -524,6 +524,8 @@ wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
+    {stop, normal, StateData};
+wait_for_feature_before_auth(_, StateData) ->
     {stop, normal, StateData}.
 
 compressed() ->
