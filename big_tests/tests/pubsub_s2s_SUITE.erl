@@ -23,7 +23,7 @@
         ]).
 
 -import(distributed_helper, [require_rpc_nodes/1]).
--import(pubsub_tools, [pubsub_node/0,
+-import(pubsub_tools, [
                        domain/0,
                        encode_group_name/2,
                        decode_group_name/1]).
@@ -106,7 +106,7 @@ publish_test(Config) ->
       Config,
       [{alice, 1}, {alice2, 1}],
       fun(Alice, Alice2) ->
-              Node = pubsub_node(),
+              Node = pubsub_tools:pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice2, <<"item2">>, Node, [{expected_error_type, <<"cancel">>}]),
@@ -118,7 +118,7 @@ publish_without_node_attr_test(Config) ->
       Config,
       [{alice, 1}, {alice2, 1}],
       fun(Alice, Alice2) ->
-              Node = pubsub_node(),
+              Node = pubsub_tools:pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish_without_node_attr(Alice2, <<"item2">>, Node, [{expected_error_type, <<"cancel">>}]),
