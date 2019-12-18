@@ -9,12 +9,11 @@
 
 -export_type([report_struct/0]).
 
--export([collect/1]).
+-export([collect/0]).
 
-collect(ClientId) ->
+collect() ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    FlatReportResults = lists:flatten(ReportResults),
-    spawn(mongoose_system_metrics_sender, send, [ClientId, FlatReportResults]).
+    lists:flatten(ReportResults).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
 get_reports(Fun) ->
@@ -41,5 +40,3 @@ get_modules() ->
             Backend = proplists:get_value(backend, Opts, none),
             #{report_name => Module, key => backend, value => Backend}
         end, ModulesWithOpts).
-
-
