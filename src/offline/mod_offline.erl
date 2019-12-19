@@ -353,8 +353,8 @@ add_feature({result, Features}, Feature) ->
 add_feature(_, Feature) ->
     {result, [Feature]}.
 
-%% This function should be called only from hook
-%% Calling it directly is dangerous and my store unwanted message
+%% This function should be called only from a hook
+%% Calling it directly is dangerous and may store unwanted messages
 %% in the offline storage (f.e. messages of type error or groupchat)
 %% #rh
 inspect_packet(Acc, From, To, Packet) ->
