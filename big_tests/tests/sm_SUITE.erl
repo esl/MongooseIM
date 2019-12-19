@@ -69,7 +69,8 @@ parallel_test_cases() ->
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption
+     messages_are_properly_flushed_during_resumption,
+     messages_are_properly_flushed_during_resumption_p1_fsm_old
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -1082,6 +1083,50 @@ messages_are_properly_flushed_during_resumption(Config) ->
 
                       % ...and old process is resumed.
                       ok = rpc(mim(), sys, resume, [C2SPid])
+              end),
+
+        Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
+        {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+
+        % THEN Alice's new session receives Bob's message
+        RecvMsg = escalus:wait_for_stanza(Alice2),
+        escalus:assert(is_chat_message, [MsgBody], RecvMsg)
+      end).
+
+messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
+    %% the same as messages_are_properly_flushed_during_resumption,
+    %% but tests that buffered by p1_fsm_old messages are delivered
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        Steps = connection_steps_to_enable_stream_resumption(),
+        {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+        SMID = proplists:get_value(smid, Props),
+        InitialPresence = escalus_stanza:presence(<<"available">>),
+        escalus_connection:send(Alice, InitialPresence),
+        Presence = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence, Presence),
+        SMH = escalus_connection:get_sm_h(Alice),
+        escalus_client:kill_connection(Config, Alice),
+        {ok, C2SPid} = get_session_pid(AliceSpec, server_string("escalus-default-resource")),
+        ok = rpc(mim(), sys, suspend, [C2SPid]),
+
+        %% send some dummy event. ignored by c2s but ensures that
+        %% p1_old_fsm buffers the messages, sent after this one
+        rpc(mim(), p1_fsm_old, send_all_state_event, [C2SPid, dummy_event]),
+
+        MsgBody = <<"flush-regression">>,
+        spawn(fun() ->
+                    wait_for_queue_length(C2SPid, 2),
+
+                    % Bob sends a message...
+                    escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
+
+                    % ...we ensure that a message is enqueued in Alice's session...
+                    % (2 messages = resume request + Bob's message)
+                    wait_for_queue_length(C2SPid, 3),
+
+                    % ...and old process is resumed.
+                    ok = rpc(mim(), sys, resume, [C2SPid])
               end),
 
         Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
