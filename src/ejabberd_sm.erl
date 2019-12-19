@@ -501,23 +501,23 @@ init([]) ->
     code:load_binary(Mod, "ejabberd_sm_backend.erl", Code),
 
     ets:new(sm_iqtable, [named_table]),
+
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    lists:foreach(
-      fun(Host) ->
-              ejabberd_hooks:add(roster_in_subscription, Host,
-                                 ejabberd_sm, check_in_subscription, 20),
-              ejabberd_hooks:add(offline_message_hook, Host,
-                                 ejabberd_sm, bounce_offline_message, 100),
-              ejabberd_hooks:add(offline_groupchat_message_hook, Host,
-                                 ejabberd_sm, bounce_offline_message, 100),
-              ejabberd_hooks:add(remove_user, Host,
-                                 ejabberd_sm, disconnect_removed_user, 100)
-      end, ?MYHOSTS),
+    lists:foreach(fun(Host) -> ejabberd_hooks:add(hooks(Host)) end, ?MYHOSTS),
+
     ejabberd_commands:register_commands(commands()),
 
     ejabberd_gen_sm:start(sm_backend(), Opts),
 
     {ok, #state{}}.
+
+hooks(Host) ->
+    [
+     {roster_in_subscription, Host, ejabberd_sm, check_in_subscription, 20},
+     {offline_message_hook, Host, ejabberd_sm, bounce_offline_message, 100},
+     {offline_groupchat_message_hook, Host, ejabberd_sm, bounce_offline_message, 100},
+     {remove_user, Host, ejabberd_sm, disconnect_removed_user, 100}
+    ].
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
