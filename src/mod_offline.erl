@@ -134,46 +134,26 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
     mod_offline_backend:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
-    ejabberd_hooks:add(offline_message_hook, Host,
-                       ?MODULE, inspect_packet, 50),
-    ejabberd_hooks:add(resend_offline_messages_hook, Host,
-                       ?MODULE, pop_offline_messages, 50),
-    ejabberd_hooks:add(remove_user, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(disco_sm_features, Host,
-                       ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:add(disco_local_features, Host,
-                       ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:add(amp_determine_strategy, Host,
-                       ?MODULE, determine_amp_strategy, 30),
-    ejabberd_hooks:add(failed_to_store_message, Host,
-                       ?MODULE, amp_failed_event, 30),
-    ejabberd_hooks:add(get_personal_data, Host,
-                       ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:add(hooks(Host)),
     ok.
 
 stop(Host) ->
-    ejabberd_hooks:delete(offline_message_hook, Host,
-                          ?MODULE, inspect_packet, 50),
-    ejabberd_hooks:delete(resend_offline_messages_hook, Host,
-                          ?MODULE, pop_offline_messages, 50),
-    ejabberd_hooks:delete(remove_user, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(amp_determine_strategy, Host,
-                          ?MODULE, determine_amp_strategy, 30),
-    ejabberd_hooks:delete(failed_to_store_message, Host,
-                          ?MODULE, amp_failed_event, 30),
-    ejabberd_hooks:delete(get_personal_data, Host,
-                          ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:delete(hooks(Host)),
     stop_worker(Host),
     ok.
 
+hooks(Host) ->
+    [
+     {offline_message_hook, Host, ?MODULE, inspect_packet, 50},
+     {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 50},
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
+     {disco_sm_features, Host, ?MODULE, get_sm_features, 50},
+     {disco_local_features, Host, ?MODULE, get_sm_features, 50},
+     {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 30},
+     {failed_to_store_message, Host, ?MODULE, amp_failed_event, 30},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+    ].
 
 %% Server side functions
 %% ------------------------------------------------------------------
@@ -223,7 +203,6 @@ is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) ->
     MaxArchivedMsg = MaxOfflineMsgs - Len,
     %% Maybe do not need to count all messages in archive
     MaxArchivedMsg < mod_offline_backend:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1).
-
 
 
 get_max_user_messages(AccessRule, LUser, Host) ->
