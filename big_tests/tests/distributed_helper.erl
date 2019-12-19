@@ -108,7 +108,8 @@ cluster_op_timeout() ->
 -spec rpc(Spec, _, _, _) -> any() when
       Spec :: rpc_spec() | node().
 rpc(Node, M, F, A) when is_atom(Node) ->
-    ct:pal("rpc/4: use RPCSpec :: #{node := Node} instead of just Node :: atom()"),
+    % TODO: review once https://github.com/esl/MongooseIM/pull/2533 is done
+    % ct:pal("rpc/4: use RPCSpec :: #{node := Node} instead of just Node :: atom()"),
     rpc(#{node => Node}, M, F, A);
 rpc(#{} = RPCSpec, M, F, A) ->
     Node = maps:get(node, RPCSpec),
