@@ -16,8 +16,7 @@
 ## (Disabled by default..use with caution!)
 ##-heart
 
-## Enable kernel poll and a few async threads
-+K true
+## Enable a few async threads
 +A 5
 
 {{highload_vm_args}}
