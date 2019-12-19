@@ -24,7 +24,10 @@ report_getters() ->
     [
         fun get_hosts_count/0,
         fun get_modules/0,
-        fun get_number_of_custom_modules/0
+        fun get_number_of_custom_modules/0,
+        fun get_uptime/0,
+        fun get_cluster_size/0,
+        fun get_version/0
     ].
 
 get_hosts_count() ->
@@ -86,3 +89,21 @@ get_number_of_custom_modules() ->
     MetricsModuleSet = sets:from_list(MetricsModule),
     CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
     #{report_name => custom_modules, key => count, value => CountCustomMods}.
+
+get_uptime() ->
+    {Uptime, _} = statistics(wall_clock),
+    UptimeSeconds = Uptime div 1000,
+    {D, {H, M, S}} = calendar:seconds_to_daystime(UptimeSeconds),
+    Formatted = io_lib:format("~4..0B-~2..0B:~2..0B:~2..0B", [D,H,M,S]),
+    [#{report_name => cluster, key => uptime, value => Formatted}].
+
+get_cluster_size() ->
+    NodesNo = length(nodes()) + 1,
+    [#{report_name => cluster, key => number_of_nodes, value => NodesNo}].
+
+get_version() ->
+    ok.
+%%get_loglevel() ->
+%%    Loglevels = ejabberd_loglevel:get(),
+%%    [{_Module, {_N, Loglevel}} | _T ] = Loglevels, % TODO which loglevel should be chosen?
+%%    [#{report_name => cluster, key => log_level_configured, value => Loglevel}].
