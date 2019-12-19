@@ -70,6 +70,8 @@
          receive_subscribe_response/3,
          receive_unsubscribe_response/3]).
 
+-type pubsub_node() :: {binary(), binary()}.
+
 %%-----------------------------------------------------------------------------
 %% Request functions with (optional) built-in response handlers
 %%-----------------------------------------------------------------------------
@@ -645,41 +647,55 @@ decode_affiliations(IQResult) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
+-spec node_addr() -> binary().
 node_addr() ->
     node_addr(<<"pubsub.">>).
 
+-spec node_addr(string() | binary()) -> binary().
 node_addr(SubDomain) when is_list(SubDomain) ->
     node_addr(list_to_binary(SubDomain));
 node_addr(SubDomain) when is_binary(SubDomain) ->
     Domain = domain(),
     <<SubDomain/binary, Domain/binary>>.
 
+-spec pubsub_node() -> pubsub_node().
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
-pubsub_node_with_num(Num) when is_integer(Num) ->
+-spec sanitize_node_name(binary()) -> binary().
+sanitize_node_name(NodeName) ->
+    binary:replace(NodeName, <<"/">>, <<".">>, [global]).
+
+-spec sanitized_node_name_with_num(non_neg_integer()) -> binary().
+sanitized_node_name_with_num(Num) ->
     Name = <<"node_", (integer_to_binary(Num))/binary, "_",
              (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
-    SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
+    sanitize_node_name(Name).
+
+-spec pubsub_node_with_num(pos_integer()) -> pubsub_node().
+pubsub_node_with_num(Num) when is_integer(Num) ->
+    SanitizedName = sanitized_node_name_with_num(Num),
     {node_addr(), SanitizedName}.
 
+-spec pubsub_node_with_subdomain(string() | binary()) -> pubsub_node().
 pubsub_node_with_subdomain(SubDomain) ->
     {node_addr(SubDomain), pubsub_node_name()}.
 
-pubsub_node_with_num_and_domain(Num, Dom) when is_integer(Num) ->
-    Name = <<"node_", (integer_to_binary(Num))/binary, "_",
-             (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
-    SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
+-spec pubsub_node_with_num_and_domain(pos_integer(), string() | binary()) -> pubsub_node().
+pubsub_node_with_num_and_domain(Num, Dom) ->
+    SanitizedName = sanitized_node_name_with_num(Num),
     {node_addr(Dom), SanitizedName}.
 
+-spec rand_name(binary()) -> binary().
 rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
+    Suffix = base64:encode(crypto:strong_rand_bytes(6)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
 %% Generates nodetree_tree-safe names
+-spec pubsub_node_name() -> binary().
 pubsub_node_name() ->
-    Name0 = rand_name(<<"princely_musings">>),
-    re:replace(Name0, "/", "_", [global, {return, binary}]).
+    Name = rand_name(<<"princely_musings">>),
+    sanitize_node_name(Name).
 
 encode_group_name(BaseName, NodeTree) ->
     binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
@@ -688,6 +704,7 @@ decode_group_name(ComplexName) ->
     [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
     #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
 
+-spec create_node_names(non_neg_integer()) -> [pubsub_node()].
 create_node_names(Count) ->
     [pubsub_node_with_num(N) || N <- lists:seq(1, Count)].
 
