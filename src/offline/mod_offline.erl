@@ -368,29 +368,29 @@ inspect_packet(Acc, From, To, Packet) ->
 
 store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              Packet = #xmlel{children = Els}) ->
-    TimeStamp =
-    case exml_query:subelement(Packet, <<"delay">>) of
-        undefined ->
-            erlang:timestamp();
-        #xmlel{name = <<"delay">>} = DelayEl ->
-            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
-                <<"">> ->
-                    erlang:timestamp();
-                Stamp ->
-                    jlib:datetime_binary_to_timestamp(Stamp)
-            end
-    end,
-
+    TimeStamp = get_or_build_timestamp_from_packet(Packet),
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
     Msg = #offline_msg{us = {LUser, LServer},
-             timestamp = TimeStamp,
-             expire = Expire,
-             from = From,
-             to = To,
-             packet = jlib:remove_delay_tags(Packet)},
+                       timestamp = TimeStamp,
+                       expire = Expire,
+                       from = From,
+                       to = To,
+                       packet = jlib:remove_delay_tags(Packet)},
     Pid ! {Acc, Msg},
     mongoose_acc:set(offline, stored, true, Acc).
+
+-spec get_or_build_timestamp_from_packet(exml:element()) -> erlang:timestamp().
+get_or_build_timestamp_from_packet(Packet) ->
+    case exml_query:subelement(Packet, <<"delay">>) of
+        undefined -> erlang:timestamp();
+        #xmlel{name = <<"delay">>} = DelayEl ->
+            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
+                <<"">> -> erlang:timestamp();
+                Stamp -> jlib:datetime_binary_to_timestamp(Stamp)
+            end
+    end.
+
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
