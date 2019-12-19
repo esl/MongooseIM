@@ -103,9 +103,10 @@ call_fun(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     call_fun(Node, M, F, A).
 
--spec call_fun(node(), module(), atom(), []) -> term() | {badrpc, term()}.
+-spec call_fun(distributed_helper:rpc_spec() | node(), module(), atom(), []) ->
+    term() | {badrpc, term()}.
 call_fun(Node, M, F, A) ->
-    rpc:call(Node, M, F, A).
+    distributed_helper:rpc(Node, M, F, A).
 
 %% @doc Calls the mongooseimctl script with given command `Cmd'.
 %%
@@ -186,8 +187,8 @@ get_cwd(Node, Config) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
-set_ejabberd_node_cwd(Node, Config) ->
-    {ok, Cwd} = call_fun(Node, file, get_cwd, []),
+set_ejabberd_node_cwd(#{node := Node} = RPCSpec, Config) ->
+    {ok, Cwd} = call_fun(RPCSpec, file, get_cwd, []),
     [{{ejabberd_cwd, Node}, Cwd} | Config].
 
 update_config_variables(CfgVarsToChange, CfgVars) ->

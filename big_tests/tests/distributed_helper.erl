@@ -13,6 +13,8 @@
                       cookie => atom(),
                       timeout => non_neg_integer()}.
 
+-export_type([rpc_spec/0]).
+
 is_sm_distributed() ->
     Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
     is_sm_backend_distributed(Backend).
@@ -26,7 +28,8 @@ add_node_to_cluster(Config) ->
 
 add_node_to_cluster(Node, Config) ->
     ClusterMemberNode = maps:get(node, mim()),
-    ok = rpc(Node, mongoose_cluster, join, [ClusterMemberNode], cluster_op_timeout()),
+    ok = rpc(Node#{timeout => cluster_op_timeout()},
+             mongoose_cluster, join, [ClusterMemberNode]),
     verify_result(Node, add),
     Config.
 
@@ -35,7 +38,7 @@ remove_node_from_cluster(_Config) ->
     remove_node_from_cluster(Node, _Config).
 
 remove_node_from_cluster(Node, _Config) ->
-    ok = rpc(Node, mongoose_cluster, leave, [], cluster_op_timeout()),
+    ok = rpc(Node#{timeout => cluster_op_timeout()}, mongoose_cluster, leave, []),
     verify_result(Node, remove),
     ok.
 
