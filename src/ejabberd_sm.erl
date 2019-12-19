@@ -1041,6 +1041,7 @@ process_iq(From, To, Acc0, Packet) ->
     process_iq(IQ, From, To, Acc, Packet).
 
 process_iq(#iq{type = Type}, _From, _To, Acc, _Packet) when Type == result; Type == error ->
+    % results and errors are always sent to full jids, so we ignore them here
     Acc;
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     Host = To#jid.lserver,
