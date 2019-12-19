@@ -72,7 +72,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     http_helper:stop(),
     Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
-    [enable_system_metrics(Node, Args) || Node <- [mim(), mim2()]],
+    [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
     Config.
 
 %%--------------------------------------------------------------------
@@ -219,6 +219,9 @@ enable_system_metrics(Node) ->
 enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
+    start_system_metrics_module(Node, Timers).
+
+start_system_metrics_module(Node, Timers) ->
     distributed_helper:rpc(
       Node, mongoose_service, start_service, [service_mongoose_system_metrics, Timers]).
 
