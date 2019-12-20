@@ -3187,11 +3187,11 @@ handover_session(SD, From)->
     Acc = mongoose_acc:new(
         #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
     ejabberd_sm:close_session(Acc,
-        SD#state.sid,
-        SD#state.user,
-        SD#state.server,
-        SD#state.resource,
-        resumed),
+                              SD#state.sid,
+                              SD#state.user,
+                              SD#state.server,
+                              SD#state.resource,
+                              resumed),
     %the actual handover to be done on termination
     {stop, {handover_session, From}, SD}.
 
@@ -3200,8 +3200,8 @@ do_handover_session(SD, UnreadMessages) ->
     NewSize = N + SD#state.stream_mgmt_buffer_size,
     NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,
     SD#state{authenticated = resumed,
-        stream_mgmt_buffer_size = NewSize,
-        stream_mgmt_buffer = NewBuffer}.
+             stream_mgmt_buffer_size = NewSize,
+             stream_mgmt_buffer = NewBuffer}.
 
 maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
