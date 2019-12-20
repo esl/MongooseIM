@@ -2977,6 +2977,7 @@ buffer_out_stanza(Packet, #state{server = Server,
              _ ->
                  S
          end,
+    notify_unacknowledged_msg(S, NPacket),
     NS#state{stream_mgmt_buffer_size = NewSize,
              stream_mgmt_buffer = [NPacket | Buffer]}.
 
@@ -3044,6 +3045,35 @@ re_route_packets(Buffer) ->
      || {From, To, Packet} <- lists:reverse(Buffer)],
     ok.
 
+notify_unacknowledged_messages(#state{stream_mgmt_buffer = Buffer} = State) ->
+    notify_unacknowledged_messages(State, Buffer).
+
+notify_unacknowledged_messages(State, Buffer) ->
+    [notify_unacknowledged_msg(State, Msg) || Msg <- lists:reverse(Buffer)],
+    ok.
+
+notify_unacknowledged_msg(#state{resource                = Res,
+                                 server                  = Server,
+                                 stream_mgmt             = SM,
+                                 stream_mgmt_resume_tref = ResumeTimer},
+                          {From, To, Packet}) ->
+    case {SM, ResumeTimer} of
+        {false, _} -> ok;
+        {true, undefined} -> ok;
+        _ ->
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                from_jid => From,
+                to_jid => To,
+                lserver => Server,
+                element => Packet }),
+            ejabberd_hooks:run_fold(unacknowledged_message,
+                                    Server,
+                                    Acc,
+                                    [From, To, Packet, Res]),
+            ok
+    end.
+
+
 finish_state(ok, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 finish_state(resume, _, StateData) ->
@@ -3059,7 +3089,9 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
               undefined ->
                   Seconds = timer:seconds(SD#state.stream_mgmt_resume_timeout),
                   TRef = erlang:send_after(Seconds, self(), resume_timeout),
-                  SD#state{stream_mgmt_resume_tref = TRef};
+                  NewState=SD#state{stream_mgmt_resume_tref = TRef},
+                  notify_unacknowledged_messages(NewState),
+                  NewState;
               _TRef ->
                   SD
           end,
