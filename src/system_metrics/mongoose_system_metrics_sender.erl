@@ -17,9 +17,10 @@ send(ClientId, ReportStructs) ->
 
 -spec build_reports(string(), [report_struct()]) -> [google_analytics_report()].
 build_reports(ClientId, ReportStructs) ->
+    TrackingId = get_tracking_id(),
     lists:map(
         fun(Report) -> 
-            build_report(ClientId, Report)
+            build_report(ClientId, TrackingId, Report)
         end, ReportStructs).
 
 send_reports(Reports) ->
@@ -28,6 +29,9 @@ send_reports(Reports) ->
 
 get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
+
+get_tracking_id() ->
+    ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID).
 
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
@@ -45,26 +49,20 @@ flush_reports(ReportUrl, Lines) ->
     flush_reports(ReportUrl, NewBatch),
     flush_reports(ReportUrl, RemainingLines).
 
-build_report(ClientId, #{report_name := EventCategory, key := EventAction, value := AnyTerm})  ->
-    LabelOrValue = label_or_value(AnyTerm),
-    LstAnyTerm = term_to_string(AnyTerm),
+build_report(ClientId, TrackingId, #{report_name := EventCategory, key := EventAction, value := EventLabel})  ->
     LstClientId = term_to_string(ClientId),
     LstEventCategory = term_to_string(EventCategory),
     LstEventAction = term_to_string(EventAction),
+    LstEventLabel = term_to_string(EventLabel),
     LstLine = [
         "v=1",
-        "&tid=", ?TRACKING_ID,
+        "&tid=", TrackingId,
         "&t=event",
         "&cid=", LstClientId,
         "&ec=", LstEventCategory,
         "&ea=", LstEventAction,
-        LabelOrValue, LstAnyTerm],
+        "&el=", LstEventLabel],
     string:join(LstLine, "").
-
-label_or_value(Value) when is_integer(Value) ->
-    "&ev=";
-label_or_value(_Label) ->
-    "&el=".
 
 term_to_string(Term) ->
     R = io_lib:format("~p",[Term]),

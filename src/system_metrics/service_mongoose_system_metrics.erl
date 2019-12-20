@@ -6,6 +6,8 @@
 
 -define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).
+-define(TRACKING_ID, "UA-151671255-2").
+-define(TRACKING_ID_CI, "UA-151671255-1").
 
 -include("mongoose.hrl").
 
@@ -38,12 +40,13 @@ start_link(Args) ->
 
 -spec init(proplists:proplist()) -> {ok, system_metrics_state()}.
 init(Args) ->
-    InitialReport = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
-    ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
+    {InitialReport, ReportAfter} = metrics_module_config(Args),
     erlang:send_after(InitialReport, self(), spawn_reporter),
     {ok, #system_metrics_state{report_after = ReportAfter}}.
     
-handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter, reporter_monitor = none, reporter_pid = none} = State) ->
+handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
+                                                  reporter_monitor = none,
+                                                  reporter_pid = none} = State) ->
     case get_client_id() of
         {error, no_client_id} -> {stop, no_client_id, State};
         {ok, ClientId} ->
@@ -59,7 +62,8 @@ handle_info(spawn_reporter, #system_metrics_state{reporter_pid = Pid} = State) -
     exit(Pid, kill),
     self() ! spawn_reporter,
     {noreply, State#system_metrics_state{reporter_monitor = none, reporter_pid = none}};
-handle_info({'DOWN', CollectorMonitor, _, _, _}, #system_metrics_state{reporter_monitor = CollectorMonitor} = State) ->
+handle_info({'DOWN', CollectorMonitor, _, _, _},
+                #system_metrics_state{reporter_monitor = CollectorMonitor} = State) ->
     {noreply, State#system_metrics_state{reporter_monitor = none, reporter_pid = none}};
 handle_info(_Message, State) ->
     {noreply, State}.
@@ -105,6 +109,18 @@ maybe_create_table() ->
         ]),
     mnesia:add_table_copy(service_mongoose_system_metrics, node(), ram_copies).
 
+metrics_module_config(Args) ->
+    case os:getenv("CI") of
+        "true" ->
+            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
+            InitialReport = proplists:get_value(initial_report, Args, timer:seconds(20)),
+            ReportAfter = proplists:get_value(report_after, Args, timer:minutes(5));
+        _ ->
+            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
+            InitialReport= proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
+            ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER)
+    end,
+    {InitialReport, ReportAfter}.
 
 % %%-----------------------------------------
 % %% Unused

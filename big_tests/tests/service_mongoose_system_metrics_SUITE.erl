@@ -2,9 +2,14 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
 
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
+-define(TRACKING_ID, "UA-151671255-2").
+-define(TRACKING_ID_CI, "UA-151671255-1").
+
 
 -record(event, {
     cid = "",
@@ -29,7 +34,8 @@
          system_metrics_are_not_reported_when_not_allowed/1,
          periodic_report_available/1,
          all_clustered_mongooses_report_the_same_client_id/1,
-         system_metrics_are_reported_to_google_analytics_when_mim_starts/1
+         system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
+         tracking_id_is_correctly_configured/1
         ]).
 
 -import(distributed_helper, [mim/0, mim2/0,
@@ -44,7 +50,8 @@ all() ->
      system_metrics_are_not_reported_when_not_allowed,
      periodic_report_available,
      all_clustered_mongooses_report_the_same_client_id,
-     system_metrics_are_reported_to_google_analytics_when_mim_starts
+     system_metrics_are_reported_to_google_analytics_when_mim_starts,
+     tracking_id_is_correctly_configured
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -64,8 +71,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     http_helper:stop(),
-    Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:hours(1)}],
-    [enable_system_metrics(Node, Args) || Node <- [mim(), mim2()]],
+    Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
+    [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
     Config.
 
 %%--------------------------------------------------------------------
@@ -95,6 +102,10 @@ init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     distributed_helper:add_node_to_cluster(mim2(), Config),
     enable_system_metrics(mim()),
     enable_system_metrics(mim2()),
+    Config;
+init_per_testcase(tracking_id_is_correctly_configured, Config) ->
+    create_events_collection(),
+    enable_system_metrics(mim()),
     Config.
 
 end_per_testcase(periodic_report_available, Config) ->
@@ -117,6 +128,10 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
     Nodes = [mim(), mim2()],
     [ begin delete_prev_client_id(Node), disable_system_metrics(Node) end || Node <- Nodes ],
     distributed_helper:remove_node_from_cluster(mim2(), Config),
+    Config;
+end_per_testcase(tracking_id_is_correctly_configured, Config) ->
+    clear_events_collection(),
+    disable_system_metrics(mim()),
     Config.
 
 %%--------------------------------------------------------------------
@@ -143,6 +158,15 @@ system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
     all_event_have_the_same_client_id().
+
+tracking_id_is_correctly_configured(_Config) ->
+    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [google_analytics_tracking_id]),
+    case os:getenv("CI") of
+        "true" ->
+            ?assertEqual(?TRACKING_ID_CI, TrackingId);
+        _ ->
+            ?assertEqual(?TRACKING_ID, TrackingId)
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -195,6 +219,9 @@ enable_system_metrics(Node) ->
 enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
+    start_system_metrics_module(Node, Timers).
+
+start_system_metrics_module(Node, Timers) ->
     distributed_helper:rpc(
       Node, mongoose_service, start_service, [service_mongoose_system_metrics, Timers]).
 
@@ -217,6 +244,7 @@ system_metrics_service_is_enabled(Node) ->
 
 system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
+
 %%--------------------------------------------------------------------
 %% Cowboy handlers
 %%--------------------------------------------------------------------
