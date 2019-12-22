@@ -16,9 +16,6 @@
 ## (Disabled by default..use with caution!)
 ##-heart
 
-## Enable a few async threads
-+A 5
-
 {{highload_vm_args}}
 
 ## Tweak GC to run more often
