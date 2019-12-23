@@ -49,7 +49,8 @@ groups() ->
          {errors, [sequence], [error_total,
                                error_mesg,
                                error_iq,
-                               error_presence]},
+                               error_presence,
+                               error_double_open_stream_must_close_connect]},
          {count, [sequence], [stanza_count]}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -267,3 +268,13 @@ error_iq(Config) ->
     Alice = escalus_users:get_user_by_name(alice, Users),
     escalus_users:create_user(Config, Alice),
     wait_for_counter(Errors + 1, xmppErrorIq).
+
+error_double_open_stream_must_close_connect(Config) ->
+    AliceSpecs = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = [start_stream, stream_features],
+    {ok, Alice, _} = escalus_connection:start(AliceSpecs, Steps),
+    try
+        escalus_connection:start_stream(Alice)
+    catch throw:{timeout, stream_start} ->
+        escalus_connection:wait_for_close(Alice, timer:seconds(5))
+    end.
