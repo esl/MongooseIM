@@ -520,15 +520,12 @@ wait_for_feature_before_auth({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_feature_before_auth(closed, StateData) ->
     {stop, normal, StateData};
 wait_for_feature_before_auth(Stream, StateData) ->
     ?WARNING_MSG("Unexpected stream: ~s", [exml:to_binary(Stream)]),
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:bad_format()),
-    {stop, normal, StateData}.
+    c2s_stream_error(mongoose_xmpp_errors:bad_format(), StateData).
 
 compressed() ->
     #xmlel{name = <<"compressed">>,
