@@ -568,9 +568,7 @@ wait_for_sasl_response({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response({xmlstreamerror, _}, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_sasl_response(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -622,9 +620,7 @@ wait_for_feature_after_auth({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_feature_after_auth({xmlstreamerror, _}, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 
 wait_for_feature_after_auth(closed, StateData) ->
     {stop, normal, StateData}.
@@ -666,9 +662,7 @@ wait_for_session_or_sm({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 
 wait_for_session_or_sm(closed, StateData) ->
     {stop, normal, StateData}.
@@ -819,9 +813,7 @@ session_established({xmlstreamelement, El}, StateData) ->
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
         'invalid-from' ->
-            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_from()),
-            send_trailer(StateData),
-            {stop, normal, StateData};
+            c2s_stream_error(mongoose_xmpp_errors:invalid_from(), StateData);
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
@@ -846,13 +838,9 @@ session_established({xmlstreamend, _Name}, StateData) ->
 
 session_established({xmlstreamerror, <<"child element too big">> = E}, StateData) ->
     PolicyViolationErr = mongoose_xmpp_errors:policy_violation(StateData#state.lang, E),
-    send_element_from_server_jid(StateData, PolicyViolationErr),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(PolicyViolationErr, StateData);
 session_established({xmlstreamerror, _}, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 session_established(closed, StateData) ->
     ?DEBUG("Session established closed - trying to enter resume_session", []),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
@@ -1066,12 +1054,10 @@ handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
         wait_for_stream ->
             send_header(StateData, ?MYNAME, <<"1.0">>, <<"en">>),
-            send_element_from_server_jid(StateData, mongoose_xmpp_errors:system_shutdown()),
-            send_trailer(StateData),
+            c2s_stream_error(mongoose_xmpp_errors:system_shutdown(), StateData),
             ok;
         _ ->
-            send_element_from_server_jid(StateData, mongoose_xmpp_errors:system_shutdown()),
-            send_trailer(StateData),
+            c2s_stream_error(mongoose_xmpp_errors:system_shutdown(), StateData),
             ok
     end,
     {stop, normal, StateData};
@@ -1101,9 +1087,7 @@ handle_info(check_buffer_full, StateName, StateData) ->
         true ->
             Err = mongoose_xmpp_errors:stream_resource_constraint((StateData#state.lang),
                                            <<"too many unacked stanzas">>),
-            send_element_from_server_jid(StateData, Err),
-            send_trailer(StateData),
-            {stop, normal, StateData};
+            c2s_stream_error(Err, StateData);
         false ->
             fsm_next_state(StateName,
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
@@ -2799,18 +2783,12 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                        stream_mgmt_ack_freq = AckFreq,
                                        stream_mgmt_resume_timeout = ResumeTimeout});
         {?NS_STREAM_MGNT_3, true, _} ->
-            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
-            send_trailer(StateData),
-            {stop, normal, StateData};
+            c2s_stream_error(stream_mgmt_failed(<<"unexpected-request">>), StateData);
         {?NS_STREAM_MGNT_3, disabled, _} ->
-            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"feature-not-implemented">>)),
-            send_trailer(StateData),
-            {stop, normal, StateData};
+            c2s_stream_error(stream_mgmt_failed(<<"feature-not-implemented">>), StateData);
         {_, _, _} ->
             %% invalid namespace
-            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
-            send_trailer(StateData),
-            {stop, normal, StateData}
+            c2s_stream_error(mongoose_xmpp_errors:invalid_namespace(), StateData)
     end.
 
 enable_stream_resumption(SD) ->
@@ -2829,9 +2807,7 @@ maybe_unexpected_sm_request(NextState, El, StateData) ->
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
             fsm_next_state(NextState, StateData);
         _ ->
-            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
-            send_trailer(StateData),
-            {stop, normal, StateData}
+            c2s_stream_error(mongoose_xmpp_errors:invalid_namespace(), StateData)
     end.
 
 stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
@@ -2896,9 +2872,7 @@ maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
     send_element_from_server_jid(StateData, stream_mgmt_ack(NIncoming)),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
-    send_trailer(StateData),
-    {stop, normal, StateData}.
+    c2s_stream_error(mongoose_xmpp_errors:invalid_namespace(), StateData).
 
 maybe_increment_sm_incoming(StreamMgmt, StateData)
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
@@ -3301,10 +3275,8 @@ open_session_allowed_hook(Server, JID) ->
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,
-    send_element_from_server_jid(StateData, mongoose_xmpp_errors:policy_violation(
-                                              Lang, <<"Use of STARTTLS required">>)),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(mongoose_xmpp_errors:policy_violation(
+                                              Lang, <<"Use of STARTTLS required">>), StateData);
 terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
     process_unauthenticated_stanza(StateData, El),
     fsm_next_state(wait_for_feature_before_auth, StateData).
