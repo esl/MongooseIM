@@ -525,7 +525,9 @@ wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
     {stop, normal, StateData};
-wait_for_feature_before_auth(_, StateData) ->
+wait_for_feature_before_auth(Stream, StateData) ->
+    ?WARNING_MSG("Unexpected stream: ~s", [exml:to_binary(Stream)]),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:bad_format()),
     {stop, normal, StateData}.
 
 compressed() ->

@@ -275,6 +275,6 @@ error_double_open_stream_must_close_connect(Config) ->
     {ok, Alice, _} = escalus_connection:start(AliceSpecs, Steps),
     try
         escalus_connection:start_stream(Alice)
-    catch throw:{timeout, stream_start} ->
+    catch error:"Not a valid stream start" ->
         escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end.
