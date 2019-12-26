@@ -744,7 +744,7 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = ejabberd_hooks:run_fold(roster_get_subscription_lists, S, Acc, [U, S]),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
@@ -756,7 +756,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
-    ReplacedPids = ejabberd_sm:open_session(SID, U, S, R, Info),
+    ReplacedPids = ejabberd_sm:open_session(SID, JID, Info),
 
     RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
     case RefsAndPids of
@@ -3103,11 +3103,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Info = [{ip, NSD#state.ip},
                         {conn, NSD#state.conn},
                         {auth_module, NSD#state.auth_module}],
-                ejabberd_sm:open_session(SID,
-                                         NSD#state.user,
-                                         NSD#state.server,
-                                         NSD#state.resource,
-                                         Priority, Info),
+                ejabberd_sm:open_session(SID, NSD#state.jid, Priority, Info),
                 ok = mod_stream_management:register_smid(SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,

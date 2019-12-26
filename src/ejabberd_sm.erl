@@ -33,7 +33,7 @@
          start_link/0,
          route/3,
          route/4,
-         open_session/5, open_session/6,
+         open_session/3, open_session/4,
          close_session/6,
          store_info/4,
          remove_info/4,
@@ -183,26 +183,21 @@ route(From, To, Acc, El) ->
         Acc1 -> Acc1
     end.
 
--spec open_session(SID, User, Server, Resource, Info) -> ReplacedPids when
+-spec open_session(SID, JID, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: binary(),
+      JID :: jid:jid(),
       Info :: 'undefined' | [any()],
       ReplacedPids :: [pid()].
-open_session(SID, User, Server, Resource, Info) ->
-    open_session(SID, User, Server, Resource, undefined, Info).
+open_session(SID, JID, Info) ->
+    open_session(SID, JID, undefined, Info).
 
--spec open_session(SID, User, Server, Resource, Priority, Info) -> ReplacedPids when
+-spec open_session(SID, JID, Priority, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: binary(),
+      JID :: jid:jid(),
       Priority :: integer() | undefined,
       Info :: 'undefined' | [any()],
       ReplacedPids :: [pid()].
-open_session(SID, User, Server, Resource, Priority, Info) ->
-    JID = jid:make(User, Server, Resource),
+open_session(SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(JID),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
