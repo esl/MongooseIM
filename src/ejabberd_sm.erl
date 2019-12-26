@@ -202,9 +202,9 @@ open_session(SID, User, Server, Resource, Info) ->
       Info :: 'undefined' | [any()],
       ReplacedPids :: [pid()].
 open_session(SID, User, Server, Resource, Priority, Info) ->
-    set_session(SID, User, Server, Resource, Priority, Info),
-    ReplacedPIDs = check_for_sessions_to_replace(User, Server, Resource),
     JID = jid:make(User, Server, Resource),
+    set_session(SID, JID, Priority, Info),
+    ReplacedPIDs = check_for_sessions_to_replace(JID),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
                        [SID, JID, Info]),
     ReplacedPIDs.
@@ -218,9 +218,8 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session(Acc, SID, User, Server, Resource, Reason) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
+    #jid{luser = LUser, lserver = LServer, lresource = LResource}
+        = JID = jid:make(User, Server, Resource),
     Info = case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                [Session] ->
                    Session#session.info;
@@ -228,7 +227,6 @@ close_session(Acc, SID, User, Server, Resource, Reason) ->
                    []
            end,
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
-    JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run_fold(sm_remove_connection_hook, JID#jid.lserver, Acc,
                             [SID, JID, Info, Reason]).
 
@@ -323,17 +321,10 @@ get_user_resources(User, Server) ->
       Server :: jid:server(),
       Resource :: jid:resource().
 get_session_ip(User, Server, Resource) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
-    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
-        [] ->
-            undefined;
-        Ss ->
-            Session = lists:max(Ss),
-            proplists:get_value(ip, Session#session.info)
+    case get_session(User, Server, Resource) of
+        offline -> undefined;
+        {_, _, _, Info} -> proplists:get_value(ip, Info)
     end.
-
 
 -spec get_session(User, Server, Resource) -> offline | ses_tuple() when
       User :: jid:user(),
@@ -369,7 +360,7 @@ get_raw_sessions(User, Server) ->
       Presence :: any(),
       Info :: 'undefined' | [any()].
 set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
-    set_session(SID, User, Server, Resource, Priority, Info),
+    set_session(SID, jid:make(User, Server, Resource), Priority, Info),
     ejabberd_hooks:run_fold(set_presence_hook, jid:nameprep(Server), Acc,
                        [User, Server, Resource, Presence]).
 
@@ -384,11 +375,11 @@ set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
       Status :: any(),
       Info :: 'undefined' | [any()].
 unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
-    set_session(SID, User, Server, Resource, undefined, Info),
-    LServer = jid:nameprep(Server),
+    #jid{luser = LUser, lserver = LServer, lresource = LResource}
+        = JID = jid:make(User, Server, Resource),
+    set_session(SID, JID, undefined, Info),
     ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
-                       [jid:nodeprep(User), LServer,
-                        jid:resourceprep(Resource), Status]).
+                       [LUser, LServer, LResource, Status]).
 
 
 -spec close_session_unset_presence(Acc, SID, User, Server, Resource, Status, Reason) -> Acc1 when
@@ -602,17 +593,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--spec set_session(SID, User, Server, Resource, Prio, Info) -> ok | {error, any()} when
+-spec set_session(SID, JID, Prio, Info) -> ok | {error, any()} when
       SID :: sid() | 'undefined',
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource(),
+      JID :: jid:jid(),
       Prio :: priority(),
       Info :: undefined | [any()].
-set_session(SID, User, Server, Resource, Priority, Info) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
+set_session(SID, JID, Priority, Info) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     US = {LUser, LServer},
     USR = {LUser, LServer, LResource},
     Session = #session{sid = SID,
@@ -638,6 +625,7 @@ update_session(SID, LUser, LServer, LResource, Priority, Info) ->
                        priority = Priority,
                        info = Info},
     ejabberd_gen_sm:update_session(sm_backend(), LUser, LServer, LResource, Session).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 do_filter(From, To, Packet) ->
@@ -958,16 +946,11 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @doc On new session, check if some existing connections need to be replace
--spec check_for_sessions_to_replace(User, Server, Resource) -> ReplacedPids when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource(),
+-spec check_for_sessions_to_replace(JID) -> ReplacedPids when
+      JID :: jid:jid(),
       ReplacedPids :: [pid()].
-check_for_sessions_to_replace(User, Server, Resource) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
-
+check_for_sessions_to_replace(JID) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
     ReplacedRedundantSessions = check_existing_resources(LUser, LServer, LResource),
