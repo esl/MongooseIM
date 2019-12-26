@@ -34,7 +34,7 @@
          route/3,
          route/4,
          open_session/3, open_session/4,
-         close_session/6,
+         close_session/4,
          store_info/4,
          remove_info/4,
          check_in_subscription/6,
@@ -204,17 +204,14 @@ open_session(SID, JID, Priority, Info) ->
                        [SID, JID, Info]),
     ReplacedPIDs.
 
--spec close_session(Acc, SID, User, Server, Resource, Reason) -> Acc1 when
+-spec close_session(Acc, SID, JID, Reason) -> Acc1 when
       Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource(),
+      JID :: jid:jid(),
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
-close_session(Acc, SID, User, Server, Resource, Reason) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource}
-        = JID = jid:make(User, Server, Resource),
+close_session(Acc, SID, JID, Reason) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Info = case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
                [Session] ->
                    Session#session.info;

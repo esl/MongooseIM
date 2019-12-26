@@ -1543,9 +1543,7 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                        pres_invis = false} ->
                     ejabberd_sm:close_session(Acc,
                                               StateData#state.sid,
-                                              StateData#state.user,
-                                              StateData#state.server,
-                                              StateData#state.resource,
+                                              StateData#state.jid,
                                               normal);
                 _ ->
                     Packet = #xmlel{name = <<"presence">>,
@@ -3186,9 +3184,7 @@ handover_session(SD, From)->
         #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
     ejabberd_sm:close_session(Acc,
                               SD#state.sid,
-                              SD#state.user,
-                              SD#state.server,
-                              SD#state.resource,
+                              SD#state.jid,
                               resumed),
     %the actual handover to be done on termination
     {stop, {handover_session, From}, SD}.
