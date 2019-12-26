@@ -4,6 +4,7 @@
 
 -include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
+-include("jid.hrl").
 -include_lib("session.hrl").
 -compile([export_all]).
 
@@ -109,7 +110,7 @@ end_per_testcase(_, Config) ->
     Config.
 
 open_session(C) ->
-    {Sid, USR} =  generate_random_user(<<"localhost">>),
+    {Sid, USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR).
 
@@ -397,7 +398,9 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
     given_session_opened(Sid, {U,S,R}, Priority, []).
 
 given_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
+    JID = #jid{user = U, server = S, resource = R,
+               luser = U, lserver = S, lresource = R},
+    ejabberd_sm:open_session(Sid, JID, Priority, Info).
 
 when_session_opened(Sid, {U,S,R}, Priority, Info) ->
     given_session_opened(Sid, {U,S,R}, Priority, Info).
