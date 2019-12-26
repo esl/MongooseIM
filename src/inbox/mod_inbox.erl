@@ -44,7 +44,7 @@
                     Content :: binary(),
                     Count :: integer(),
                     MsgId :: binary(),
-                    Timestamp :: erlang:timestamp().
+                    Timestamp :: integer().
 
 -callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
                        Username :: jid:luser(),

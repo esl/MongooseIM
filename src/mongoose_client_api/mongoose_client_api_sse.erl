@@ -40,7 +40,7 @@ handle_info(_Msg, State) ->
     {nosend, State}.
 
 handle_msg(<<"message">>, Acc, El, State) ->
-    Timestamp = usec:from_now(os:timestamp()),
+    Timestamp = os:system_time(microsecond),
     Type = mongoose_acc:stanza_type(Acc),
     maybe_send_message_event(Type, El, Timestamp, State).
 

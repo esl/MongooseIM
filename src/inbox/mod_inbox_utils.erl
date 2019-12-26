@@ -72,7 +72,7 @@ write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
     RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
-    Timestamp = erlang:timestamp(),
+    Timestamp = erlang:system_time(microsecond),
     ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
                                      Content, Count, MsgId, Timestamp).
 
@@ -85,7 +85,7 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     Content = exml:to_binary(Packet),
     Username = Receiver#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
-    Timestamp = erlang:timestamp(),
+    Timestamp = erlang:system_time(microsecond),
     mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
                                             Content, MsgId, Timestamp).
 
