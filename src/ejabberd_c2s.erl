@@ -584,7 +584,6 @@ wait_for_feature_after_auth({xmlstreamelement,
 wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND, sub_el = SubEl} = IQ ->
-            U = StateData#state.user,
             R1 = xml:get_path_s(SubEl, [{elem, <<"resource">>}, cdata]),
             R = case jid:resourceprep(R1) of
                     error -> error;
@@ -597,7 +596,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     send_element_from_server_jid(StateData, Err),
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
-                    JID = jid:make(U, StateData#state.server, R),
+                    JID = jid:replace_resource(StateData#state.jid, R),
                     JIDEl = #xmlel{name = <<"jid">>,
                                    children = [#xmlcdata{content = jid:to_binary(JID)}]},
                     Res = IQ#iq{type = result,
@@ -3280,12 +3279,14 @@ handle_sasl_success(State, Creds) ->
     send_element_from_server_jid(State, sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     AuthModule = mongoose_credentials:get(Creds, auth_module),
+    Server = State#state.server,
     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
               [State#state.socket, User, AuthModule]),
     NewState = State#state{ streamid = new_id(),
                             authenticated = true,
                             auth_module = AuthModule,
-                            user = User },
+                            user = User,
+                            jid = jid:make(User, Server, <<>>)},
     {wait_for_stream, NewState}.
 
 handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
