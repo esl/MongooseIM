@@ -238,7 +238,7 @@ maybe_remove_push_node_from_sessions_info(From, undefined) ->
 maybe_remove_push_node_from_sessions_info(From, Node) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
-    AllSessions = ejabberd_sm:get_raw_sessions(LUser, LServer),
+    AllSessions = ejabberd_sm:get_raw_sessions(From),
     find_and_remove_push_node(LUser, LServer, AllSessions, Node).
 
 %%--------------------------------------------------------------------

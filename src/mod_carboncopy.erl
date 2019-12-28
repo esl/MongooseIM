@@ -225,7 +225,7 @@ drop_singleton_jid(_JID, Targets)        -> Targets.
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
     {U, S, R} = jid:to_lower(JID),
-    {PrioRes, CCResList} = get_cc_enabled_resources(U, S),
+    {PrioRes, CCResList} = get_cc_enabled_resources(JID),
     Targets = case is_bare_to(Direction, To, PrioRes) of
                   true -> jids_minus_max_priority_resource
                             (U, S, R, CCResList, PrioRes);
@@ -294,8 +294,8 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-get_cc_enabled_resources(User, Server)->
-    AllSessions = ejabberd_sm:get_raw_sessions(User, Server),
+get_cc_enabled_resources(JID)->
+    AllSessions = ejabberd_sm:get_raw_sessions(JID),
     CCs = cat_maybes([maybe_cc_resource(S) || S <- AllSessions]),
     Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
     {Prios, CCs}.

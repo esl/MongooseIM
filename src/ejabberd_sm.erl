@@ -59,7 +59,7 @@
          get_session/3,
          get_session_ip/3,
          get_user_present_resources/2,
-         get_raw_sessions/2,
+         get_raw_sessions/1,
          is_offline/1,
          get_user_present_pids/2
         ]).
@@ -336,10 +336,10 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
--spec get_raw_sessions(jid:user(), jid:server()) -> [session()].
-get_raw_sessions(User, Server) ->
+-spec get_raw_sessions(jid:jid()) -> [session()].
+get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
-      ejabberd_gen_sm:get_sessions(sm_backend(), jid:nodeprep(User), jid:nameprep(Server))).
+      ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)).
 
 -spec set_presence(Acc, SID, User, Server, Resource, Prio, Presence, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
