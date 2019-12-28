@@ -35,7 +35,7 @@
          route/4,
          open_session/3, open_session/4,
          close_session/4,
-         store_info/4,
+         store_info/2,
          remove_info/4,
          check_in_subscription/6,
          bounce_offline_message/4,
@@ -222,22 +222,23 @@ close_session(Acc, SID, JID, Reason) ->
     ejabberd_hooks:run_fold(sm_remove_connection_hook, JID#jid.lserver, Acc,
                             [SID, JID, Info, Reason]).
 
--spec store_info(jid:user(), jid:server(), jid:resource(), info_item()) ->
+-spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.
-store_info(User, Server, Resource, {Key, _Value} = KV) ->
-    case get_session(User, Server, Resource) of
+store_info(JID, {Key, _Value} = KV) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    case get_session(LUser, LServer, LResource) of
         offline -> {error, offline};
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update its own record
-                    update_session(SID, User, Server, Resource, SPriority,
+                    update_session(SID, LUser, LServer, LResource, SPriority,
                                    lists:keystore(Key, 1, SInfo, KV)),
                     {ok, KV};
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:store_session_info(Pid, User, Server, Resource, KV),
+                    ejabberd_c2s:store_session_info(Pid, JID, KV),
                     {ok, KV}
             end
     end.
@@ -365,10 +366,10 @@ set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
       Status :: any(),
       Info :: 'undefined' | [any()].
 unset_presence(Acc, SID, JID, Status, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    #jid{lserver = LServer} = JID,
     set_session(SID, JID, undefined, Info),
     ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
-                       [LUser, LServer, LResource, Status]).
+                       [JID, Status]).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
@@ -379,10 +380,10 @@ unset_presence(Acc, SID, JID, Status, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    #jid{lserver = LServer} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
     ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc1,
-                       [LUser, LServer, LResource, Status]).
+                       [JID, Status]).
 
 
 -spec get_session_pid(User, Server, Resource) -> none | pid() when

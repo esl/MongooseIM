@@ -194,7 +194,7 @@ user_topic_routing_key(JID, Topic) ->
 
 -spec presence_msg(JID :: jid:jid(), Status :: atom()) -> binary().
 presence_msg(JID, Status) ->
-    Msg = #{user_id => jid:to_binary(JID), present => is_user_online(Status)},
+    Msg = #{user_id => jid:to_binary(jid:to_lower(JID)), present => is_user_online(Status)},
     jiffy:encode(Msg).
 
 -spec chat_msg(From :: jid:jid(), To :: jid:jid(), UserMsg :: binary()) ->

@@ -157,8 +157,7 @@ maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, 
     case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
         true ->
             ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
-            ejabberd_sm:store_info(From#jid.luser, From#jid.lserver, From#jid.lresource,
-                                  {push_notifications, {Node, FormFields}}),
+            ejabberd_sm:store_info(From, {push_notifications, {Node, FormFields}}),
             IQ#iq{type = result, sub_el = []};
         false ->
             NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],

@@ -23,7 +23,7 @@
 -include("mod_event_pusher_events.hrl").
 
 -export([start/2, stop/1]).
--export([user_send_packet/4, filter_local_packet/1, user_present/2, user_not_present/5]).
+-export([user_send_packet/4, filter_local_packet/1, user_present/2, user_not_present/3]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -76,11 +76,10 @@ user_present(Acc, #jid{} = UserJID) ->
                                 #user_status_event{jid = UserJID, status = online}),
     Acc.
 
--spec user_not_present(mongoose_acc:t(), User :: jid:luser(), Server :: jid:lserver(),
-                       Resource :: jid:lresource(), Status :: any()) -> mongoose_acc:t().
-user_not_present(Acc, User, Host, Resource, _Status) ->
-    UserJID = jid:make_noprep(User, Host, Resource),
-    mod_event_pusher:push_event(Acc, Host, #user_status_event{jid = UserJID, status = offline}),
+-spec user_not_present(mongoose_acc:t(), UserJID :: jid:jid(), Status :: any()) ->
+    mongoose_acc:t().
+user_not_present(Acc, #jid{lserver = Server} = UserJID, _Status) ->
+    mod_event_pusher:push_event(Acc, Server, #user_status_event{jid = UserJID, status = offline}),
     Acc.
 
 %%--------------------------------------------------------------------

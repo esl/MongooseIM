@@ -254,9 +254,12 @@ store_info_sends_message_to_the_session_owner(C) ->
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
-    spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
+    JID = jid:make_noprep(U,S,R),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, {cc, undefined}) end),
     %% The original process receives a message
-    receive {store_session_info, User, Server, Resource, KV, _FromPid} ->
+    receive {store_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             KV, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
@@ -398,6 +401,7 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
     given_session_opened(Sid, {U,S,R}, Priority, []).
 
 given_session_opened(Sid, {U,S,R}, Priority, Info) ->
+    JID = jid:make_noprep(U,S,R),
     JID = #jid{user = U, server = S, resource = R,
                luser = U, lserver = S, lresource = R},
     ejabberd_sm:open_session(Sid, JID, Priority, Info).
@@ -406,7 +410,8 @@ when_session_opened(Sid, {U,S,R}, Priority, Info) ->
     given_session_opened(Sid, {U,S,R}, Priority, Info).
 
 when_session_info_stored(U, S, R, {_,_}=KV) ->
-    ejabberd_sm:store_info(U, S, R, KV).
+    JID = jid:make_noprep(U,S,R),
+    ejabberd_sm:store_info(JID, KV).
 
 when_session_info_removed(U, S, R, Key) ->
     ejabberd_sm:remove_info(U, S, R, Key).
@@ -538,7 +543,7 @@ try_to_reproduce_race_condition(Config) ->
                             end),
     SetterPid = spawn_link(fun() ->
                                    receive start -> ok end,
-                                   ejabberd_sm:store_info(U, S, R, {cc, undefined}),
+                                   when_session_info_stored(U,S,R, {cc, undefined}),
                                    Parent ! p2_done
                            end),
     %% Step2 setup mocking for some ejabbers_sm_mnesia functions

@@ -40,11 +40,8 @@
          user_receive_packet/5,
          iq_handler2/4,
          iq_handler1/4,
-         remove_connection/5
+         remove_connection/3
         ]).
-
-%% For testing and debugging
--export([enable/4, disable/3]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
@@ -97,14 +94,13 @@ iq_handler1(From, To, Acc, IQ) ->
 iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
                                                        children = []}} = IQ, CC) ->
     ?DEBUG("carbons IQ received: ~p", [IQ]),
-    {U, S, R} = jid:to_lower(From),
     Result = case Operation of
                  <<"enable">> ->
-                     ?INFO_MSG("carbons enabled for user ~s@~s/~s", [U, S, R]),
-                     enable(S, U, R, CC);
+                     ?INFO_MSG("carbons enabled for user ~s", [jid:to_binary(From)]),
+                     enable(From, CC);
                  <<"disable">> ->
-                     ?INFO_MSG("carbons disabled for user ~s@~s/~s", [U, S, R]),
-                     disable(S, U, R)
+                     ?INFO_MSG("carbons disabled for user ~s", [jid:to_binary(From)]),
+                     disable(From)
              end,
     case Result of
         ok ->
@@ -185,8 +181,8 @@ is_forwarded(SubTag) ->
         _ -> ignore
     end.
 
-remove_connection(Acc, User, Server, Resource, _Status) ->
-    disable(Server, User, Resource),
+remove_connection(Acc, JID, _Status) ->
+    disable(JID),
     Acc.
 
 
@@ -264,16 +260,18 @@ carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
                                  attrs = [{<<"xmlns">>, ?NS_FORWARD}],
                                  children = [complete_packet(JID, Packet, Direction)]} ]} ].
 
-enable(Host, U, R, CC) ->
-    ?DEBUG("enabling for ~p/~p", [U, R]),
+enable(JID, CC) ->
+    ?DEBUG("enabling for ~p", [jid:to_binary(JID)]),
     KV = {?CC_KEY, cc_ver_to_int(CC)},
-    {ok, KV} = ejabberd_sm:store_info(U, Host, R, KV),
-    ok.
+    case ejabberd_sm:store_info(JID, KV) of
+        {ok, KV} -> ok;
+        _ -> {error, error}
+    end.
 
-disable(Host, U, R) ->
-    ?DEBUG("disabling for ~ts@~ts/~ts", [U, Host, R]),
+disable(JID) ->
+    ?DEBUG("disabling for ~p", [jid:to_binary(JID)]),
     KV = {?CC_KEY, ?CC_DISABLED},
-    case ejabberd_sm:store_info(U, Host, R, KV) of
+    case ejabberd_sm:store_info(JID, KV) of
         {error, offline} -> ok;
         {ok, KV} -> ok;
         Err -> {error, Err}
