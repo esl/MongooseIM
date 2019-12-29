@@ -248,4 +248,3 @@ remove_user(Acc, User, Server) ->
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
     on_presence_update(Acc, jid:make_noprep(LUser, LServer, LResource), <<>>).
-

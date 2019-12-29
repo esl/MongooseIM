@@ -95,10 +95,13 @@ last(_Config) ->
     Status1 = <<"status1">>,
     #{} = mod_last:on_presence_update(#{}, JID, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
-    timer:sleep(2000),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
-    {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
-    true = TS2 - TS1 > 0.
+    async_helper:wait_until(
+      fun() ->
+              ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+              {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
+              TS2 - TS1 > 0
+      end,
+      true).
 
 stream_management(_Config) ->
     mod_stream_management:start(?HOST, []),
@@ -127,12 +130,9 @@ local(_Config) ->
     end,
 
     ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 2000),
+    {ok, undefined, _F} = ejabberd_local:get_iq_callback(ID),
     ejabberd_hooks:run(node_cleanup, [node()]),
-    receive
-        timeout -> ct:fail({timeout, cleaned_iq_timeout})
-    after
-        4000 -> ok
-    end.
+    error = ejabberd_local:get_iq_callback(ID).
 
 s2s(_Config) ->
     ejabberd_s2s:start_link(),
