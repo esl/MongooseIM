@@ -41,7 +41,7 @@
          bounce_offline_message/4,
          disconnect_removed_user/3,
          get_user_resources/2,
-         set_presence/8,
+         set_presence/6,
          unset_presence/5,
          close_session_unset_presence/5,
          get_unique_sessions_number/0,
@@ -342,20 +342,19 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
       ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)).
 
--spec set_presence(Acc, SID, User, Server, Resource, Prio, Presence, Info) -> Acc1 when
+-spec set_presence(Acc, SID, JID, Prio, Presence, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource(),
+      JID :: jid:jid(),
       Prio :: 'undefined' | integer(),
       Presence :: any(),
       Info :: 'undefined' | [any()].
-set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
-    set_session(SID, jid:make(User, Server, Resource), Priority, Info),
-    ejabberd_hooks:run_fold(set_presence_hook, jid:nameprep(Server), Acc,
-                       [User, Server, Resource, Presence]).
+set_presence(Acc, SID, JID, Priority, Presence, Info) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    set_session(SID, JID, Priority, Info),
+    ejabberd_hooks:run_fold(set_presence_hook, LServer, Acc,
+                       [LUser, LServer, LResource, Presence]).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when

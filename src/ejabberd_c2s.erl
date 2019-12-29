@@ -2245,9 +2245,7 @@ update_priority(Acc, Priority, Packet, StateData) ->
             {auth_module, StateData#state.auth_module}],
     ejabberd_sm:set_presence(Acc,
                              StateData#state.sid,
-                             StateData#state.user,
-                             StateData#state.server,
-                             StateData#state.resource,
+                             StateData#state.jid,
                              Priority,
                              Packet,
                              Info).
