@@ -56,6 +56,7 @@
          force_update_presence/1,
          user_resources/2,
          get_session_pid/3,
+         get_session/1,
          get_session/3,
          get_session_ip/3,
          get_user_present_resources/2,
@@ -226,7 +227,7 @@ close_session(Acc, SID, JID, Reason) ->
     {ok, {any(), any()}} | {error, offline}.
 store_info(JID, {Key, _Value} = KV) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    case get_session(LUser, LServer, LResource) of
+    case get_session(JID) of
         offline -> {error, offline};
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
@@ -319,14 +320,10 @@ get_session_ip(User, Server, Resource) ->
         {_, _, _, Info} -> proplists:get_value(ip, Info)
     end.
 
--spec get_session(User, Server, Resource) -> offline | ses_tuple() when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource().
-get_session(User, Server, Resource) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
+-spec get_session(JID) -> offline | ses_tuple() when
+      JID :: jid:jid().
+get_session(JID) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
         [] ->
             offline;
@@ -337,6 +334,14 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
+
+-spec get_session(User, Server, Resource) -> offline | ses_tuple() when
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource().
+get_session(User, Server, Resource) ->
+    get_session(jid:make(User, Server, Resource)).
+
 -spec get_raw_sessions(jid:jid()) -> [session()].
 get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
