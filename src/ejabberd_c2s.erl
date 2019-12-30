@@ -123,12 +123,10 @@ del_aux_field(Key, #state{aux_fields = Opts} = State) ->
     State#state{aux_fields = Opts1}.
 
 
--spec get_subscription(From :: jid:jid() | jid:simple_jid(),
-                       State :: state()) -> 'both' | 'from' | 'none' | 'to'.
+-spec get_subscription(From :: jid:jid(), State :: state()) ->
+    both | from | 'none' | 'to'.
 get_subscription(From = #jid{}, StateData) ->
-    get_subscription(jid:to_lower(From), StateData);
-get_subscription(LFrom, StateData) ->
-    LBFrom = setelement(3, LFrom, <<>>),
+    {LFrom, LBFrom} = lowcase_and_bare(From),
     F = is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
     T = am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
     case {F, T} of
@@ -1768,8 +1766,7 @@ get_conn_type(StateData) ->
                              Acc :: mongoose_acc:t(),
                              State :: state()) -> mongoose_acc:t().
 process_presence_probe(From, To, Acc, StateData) ->
-    LFrom = jid:to_lower(From),
-    LBareFrom = setelement(3, LFrom, <<>>),
+    {LFrom, LBareFrom} = lowcase_and_bare(From),
     case StateData#state.pres_last of
         undefined ->
             Acc;
