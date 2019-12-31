@@ -68,7 +68,7 @@
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
--export_type([broadcast/0]).
+-export_type([broadcast/0, packet/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 
@@ -868,15 +868,6 @@ process_outgoing_stanza(Acc, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, Element}]),
     fsm_next_state(session_established, NState).
 
-process_outgoing_stanza(Acc, error, _Name, StateData) ->
-    case mongoose_acc:stanza_type(Acc) of
-        <<"error">> -> StateData;
-        <<"result">> -> StateData;
-        _ ->
-            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:jid_malformed()),
-            send_element(Acc1, Err, StateData),
-            StateData
-    end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     #jid{ user = User, server = Server, lserver = LServer } = FromJID = mongoose_acc:from_jid(Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence, LServer, Acc, []),

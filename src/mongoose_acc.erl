@@ -27,6 +27,7 @@
          element/1,
          to_jid/1,
          from_jid/1,
+         packet/1,
          stanza_name/1,
          stanza_type/1,
          stanza_ref/1
@@ -78,6 +79,7 @@
         non_strippable := sets:set(ns_key()),
         ns_key() => Value :: any()
        }.
+
 -export_type([t/0]).
 
 -type new_acc_params() :: #{
@@ -127,40 +129,57 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       non_strippable => sets:new()
      }.
 
+-spec ref(Acc :: t()) -> reference().
 ref(#{ mongoose_acc := true, ref := Ref }) ->
     Ref.
 
+-spec timestamp(Acc :: t()) -> erlang:timestamp().
 timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
     TS.
 
+-spec lserver(Acc :: t()) -> jid:lserver().
 lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
 
+-spec element(Acc :: t()) -> exml:element() | undefined.
 element(#{ mongoose_acc := true, stanza := #{ element := El } }) ->
     El;
 element(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec from_jid(Acc :: t()) -> jid:jid() | undefined.
 from_jid(#{ mongoose_acc := true, stanza := #{ from_jid := FromJID } }) ->
     FromJID;
 from_jid(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec to_jid(Acc :: t()) -> jid:jid() | undefined.
 to_jid(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID } }) ->
     ToJID;
 to_jid(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec packet(Acc :: t()) -> ejabberd_c2s:packet() | undefined.
+packet(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID,
+                                             from_jid := FromJID,
+                                             element := El } }) ->
+    {FromJID, ToJID, El};
+packet(#{ mongoose_acc := true }) ->
+    undefined.
+
+-spec stanza_name(Acc :: t()) -> binary() | undefined.
 stanza_name(#{ mongoose_acc := true, stanza := #{ name := Name } }) ->
     Name;
 stanza_name(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec stanza_type(Acc :: t()) -> binary() | undefined.
 stanza_type(#{ mongoose_acc := true, stanza := #{ type := Type } }) ->
     Type;
 stanza_type(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec stanza_ref(Acc :: t()) -> reference() | undefined.
 stanza_ref(#{ mongoose_acc := true, stanza := #{ ref := StanzaRef } }) ->
     StanzaRef;
 stanza_ref(#{ mongoose_acc := true }) ->
