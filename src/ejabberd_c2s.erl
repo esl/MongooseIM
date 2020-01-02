@@ -3060,8 +3060,7 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
                   Seconds = timer:seconds(SD#state.stream_mgmt_resume_timeout),
                   TRef = erlang:send_after(Seconds, self(), resume_timeout),
                   NewState=SD#state{stream_mgmt_resume_tref = TRef},
-                  notify_unacknowledged_messages(NewState),
-                  NewState;
+                  notify_unacknowledged_messages(NewState);
               _TRef ->
                   SD
           end,
@@ -3197,10 +3196,8 @@ handover_session(SD, From)->
 do_handover_session(SD, UnreadMessages) ->
     Messages = flush_messages(UnreadMessages),
     NewCsiBuffer = Messages ++ SD#state.csi_buffer,
-    NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,
     SD#state{authenticated = resumed,
-             csi_buffer = NewCsiBuffer,
-             stream_mgmt_buffer = NewBuffer}.
+             csi_buffer = NewCsiBuffer}.
 
 maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
