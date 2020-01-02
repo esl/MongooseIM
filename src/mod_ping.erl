@@ -154,8 +154,7 @@ handle_cast({iq_pong, JID, timeout}, State) ->
     ejabberd_hooks:run(user_ping_timeout, State#state.host, [JID]),
     case State#state.timeout_action of
         kill ->
-            #jid{user = User, server = Server, resource = Resource} = JID,
-            case ejabberd_sm:get_session_pid(User, Server, Resource) of
+            case ejabberd_sm:get_session_pid(JID) of
                 Pid when is_pid(Pid) ->
                     ejabberd_c2s:stop(Pid);
                 _ ->

@@ -55,6 +55,7 @@
          unregister_iq_handler/2,
          force_update_presence/1,
          user_resources/2,
+         get_session_pid/1,
          get_session_pid/3,
          get_session/1,
          get_session/3,
@@ -390,14 +391,10 @@ close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
                        [JID, Status]).
 
 
--spec get_session_pid(User, Server, Resource) -> none | pid() when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource().
-get_session_pid(User, Server, Resource) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    LResource = jid:resourceprep(Resource),
+-spec get_session_pid(JID) -> none | pid() when
+      JID :: jid:jid().
+get_session_pid(JID) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
         [#session{sid = {_, Pid}}] ->
             Pid;
@@ -405,6 +402,12 @@ get_session_pid(User, Server, Resource) ->
             none
     end.
 
+-spec get_session_pid(User, Server, Resource) -> none | pid() when
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource().
+get_session_pid(User, Server, Resource) ->
+    get_session_pid(jid:make(User, Server, Resource)).
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
@@ -640,35 +643,30 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
             Acc1;
         _ ->
-            case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
-                [] ->
+            case get_session_pid(To) of
+                none ->
                     Acc; % do nothing
-                Ss ->
-                    Session = lists:max(Ss),
-                    Pid = element(2, Session#session.sid),
+                Pid when is_pid(Pid) ->
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    BCast = {broadcast, Payload},
-                    Pid ! BCast,
+                    Pid ! Broadcast,
                     Acc
             end
     end;
 do_route(Acc, From, To, El) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Acc, 8]),
-    #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
+    #jid{lresource = LResource} = To,
     #xmlel{name = Name, attrs = Attrs} = El,
     case LResource of
         <<>> ->
             do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
                                  From, To, Acc, El);
         _ ->
-            case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
-                [] ->
+            case get_session_pid(To) of
+                none ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
                                      From, To, Acc, El);
-                Ss ->
-                    Session = lists:max(Ss),
-                    Pid = element(2, Session#session.sid),
+                Pid when is_pid(Pid) ->
                     ?DEBUG("sending to process ~p~n", [Pid]),
                     Pid ! {route, From, To, Acc},
                     Acc
