@@ -403,7 +403,9 @@ assert_ringing(InviteStanza, RingingStanza) ->
     JingleEl = exml_query:subelement(RingingStanza, <<"jingle">>),
     ?assertEqual(<<"session-info">>,
                  (exml_query:attr(JingleEl, <<"action">>))),
-    ?assertMatch(#xmlel{}, exml_query:subelement(JingleEl, <<"ringing">>)),
+    Ringing = exml_query:subelement(JingleEl, <<"ringing">>),
+    ?assertMatch(#xmlel{}, Ringing),
+    ?assertEqual(<<"urn:xmpp:jingle:apps:rtp:info:1">>, exml_query:attr(Ringing, <<"xmlns">>)),
 
     assert_same_sid(InviteStanza, RingingStanza).
 

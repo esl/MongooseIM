@@ -290,7 +290,7 @@ send_ringing_session_info(SIPMsg) ->
     mod_jingle_sip_backend:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
 
     RingingEl = #xmlel{name = <<"ringing">>,
-                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1:info">>}]},
+                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:info:1">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
