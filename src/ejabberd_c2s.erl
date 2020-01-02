@@ -3368,6 +3368,8 @@ make_c2s_info(_StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
 -spec update_stanza(jid:jid(), jid:jid(), exml:element(), mongoose_acc:t()) ->
     mongoose_acc:t().
 update_stanza(From, To, #xmlel{} = Element, Acc) ->
-    Params = #{from_jid => From, to_jid => To, element => Element},
-    NewAcc = mongoose_acc:update_stanza(Params, Acc),
-    mongoose_acc:strip(NewAcc).
+    LServer = mongoose_acc:lserver(Acc),
+    Params = #{lserver => LServer, element => Element,
+               from_jid => From, to_jid => To},
+    NewAcc = mongoose_acc:strip(Params, Acc),
+    mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], NewAcc).
