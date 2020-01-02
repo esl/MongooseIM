@@ -40,6 +40,7 @@
          check_in_subscription/6,
          bounce_offline_message/4,
          disconnect_removed_user/3,
+         get_user_resources/1,
          get_user_resources/2,
          set_presence/6,
          unset_presence/5,
@@ -303,12 +304,15 @@ disconnect_removed_user(Acc, User, Server) ->
                       {broadcast, {exit, <<"User removed">>}}).
 
 
--spec get_user_resources(User :: jid:user(), Server :: jid:server()) -> [binary()].
-get_user_resources(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+-spec get_user_resources(JID :: jid:jid()) -> [binary()].
+get_user_resources(JID) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
+
+-spec get_user_resources(User :: jid:user(), Server :: jid:server()) -> [binary()].
+get_user_resources(User, Server) ->
+    get_user_resources(jid:make(User, Server, <<>>)).
 
 
 -spec get_session_ip(User, Server, Resource) -> undefined | {inet:ip_address(), integer()} when
@@ -776,14 +780,13 @@ do_route_offline(_, _, _, _, Acc, _) ->
                        Acc :: mongoose_acc:t(),
                        El :: exml:element()) -> mongoose_acc:t().
 broadcast_packet(From, To, Acc, El) ->
-    #jid{user = User, server = Server} = To,
     lists:foldl(
       fun(A, R) ->
               do_route(A,
                        From,
                        jid:replace_resource(To, R),
                        El)
-      end, Acc, get_user_resources(User, Server)).
+      end, Acc, get_user_resources(To)).
 
 %% @doc The default list applies to the user as a whole,
 %% and is processed if there is no active list set

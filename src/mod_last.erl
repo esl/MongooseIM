@@ -165,17 +165,18 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,
                                                              out),
-            {Acc1, make_response(IQ, SubEl, User, Server, Res)};
+            {Acc1, make_response(IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
 -spec make_response(jlib:iq(), SubEl :: 'undefined' | [exml:element()],
-                    jid:luser(), jid:lserver(), allow | deny) -> jlib:iq().
-make_response(IQ, SubEl, _, _, deny) ->
+                    jid:jid(), allow | deny) -> jlib:iq().
+make_response(IQ, SubEl, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
-make_response(IQ, SubEl, LUser, LServer, allow) ->
-    case ejabberd_sm:get_user_resources(LUser, LServer) of
+make_response(IQ, SubEl, JID, allow) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
+    case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last(LUser, LServer) of
                 {error, _Reason} ->
