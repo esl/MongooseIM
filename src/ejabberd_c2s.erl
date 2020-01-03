@@ -2348,7 +2348,9 @@ resend_offline_messages(Acc, StateData) ->
 
 
 resend_offline_message(Acc0, StateData, From, To, Packet, in) ->
-    Acc = mongoose_acc:update_stanza(#{ element => Packet, from_jid => From, to_jid => To }, Acc0),
+    Acc1 = mongoose_acc:update_stanza(#{ element => Packet, from_jid => From, to_jid => To }, Acc0),
+    %% !THIS IS STUB FOR unacknowledged_message_hook_offline TESTCASE, REMOVE THIS BEFORE MERGE!
+    Acc = mongoose_acc:set_permanent(sm_test, counter, 1, Acc1),
     check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, in).
 
 
