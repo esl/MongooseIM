@@ -9,10 +9,11 @@
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, "UA-151671255-2").
 -define(TRACKING_ID_CI, "UA-151671255-1").
-
+-define(TRACKING_ID_ADDITIONAL, "UA-151671255-3").
 
 -record(event, {
     cid = "",
+    tid = "",
     ec = "",
     ea = "",
     ev = "",
@@ -35,6 +36,7 @@
          periodic_report_available/1,
          all_clustered_mongooses_report_the_same_client_id/1,
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
+         system_metrics_are_reported_to_additional_google_analytics/1,
          tracking_id_is_correctly_configured/1
         ]).
 
@@ -51,6 +53,7 @@ all() ->
      periodic_report_available,
      all_clustered_mongooses_report_the_same_client_id,
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
+     system_metrics_are_reported_to_additional_google_analytics,
      tracking_id_is_correctly_configured
     ].
 
@@ -103,10 +106,16 @@ init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     enable_system_metrics(mim()),
     enable_system_metrics(mim2()),
     Config;
+init_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
+    create_events_collection(),
+    configure_additional_tracking_id(mim()),
+    enable_system_metrics(mim()),
+    Config;
 init_per_testcase(tracking_id_is_correctly_configured, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
     Config.
+
 
 end_per_testcase(periodic_report_available, Config) ->
     clear_events_collection(),
@@ -129,10 +138,16 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
     [ begin delete_prev_client_id(Node), disable_system_metrics(Node) end || Node <- Nodes ],
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     Config;
+end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
+    clear_events_collection(),
+    remove_additional_tracking_id(mim()),
+    disable_system_metrics(mim()),
+    Config;
 end_per_testcase(tracking_id_is_correctly_configured, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
     Config.
+
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -160,13 +175,16 @@ system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     all_event_have_the_same_client_id().
 
 tracking_id_is_correctly_configured(_Config) ->
-    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [google_analytics_tracking_id]),
+    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [dev_google_analytics_tracking_id]),
     case os:getenv("CI") of
         "true" ->
             ?assertEqual(?TRACKING_ID_CI, TrackingId);
         _ ->
             ?assertEqual(?TRACKING_ID, TrackingId)
     end.
+
+system_metrics_are_reported_to_additional_google_analytics(_Config) ->
+    mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -245,6 +263,18 @@ system_metrics_service_is_enabled(Node) ->
 system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
 
+configure_additional_tracking_id(Node) ->
+    TrackingIdArgs = [google_analytics_tracking_id, ?TRACKING_ID_ADDITIONAL],
+    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
+
+remove_additional_tracking_id(Node) ->
+    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_tracking_id ]).
+
+events_are_reported_to_additional_tracking_id() ->
+    Tab = ets:tab2list(?ETS_TABLE),
+    UniqueSortedTab = lists:usort([Tid ||#event{tid = Tid} <- Tab]),
+    2 == length(UniqueSortedTab).
+
 %%--------------------------------------------------------------------
 %% Cowboy handlers
 %%--------------------------------------------------------------------
@@ -268,6 +298,7 @@ str_to_event(Qs) ->
         end, StrParams),
     #event{
         cid = get_el(cid, Params),
+        tid = get_el(tid, Params),
         ec = get_el(ec, Params),
         ea = get_el(ea, Params),
         el = get_el(el, Params),

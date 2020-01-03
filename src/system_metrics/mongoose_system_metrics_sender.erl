@@ -11,28 +11,39 @@
 
 -spec send(string(), [report_struct()]) -> ok.
 send(ClientId, ReportStructs) ->
-    Reports = build_reports(ClientId, ReportStructs),
+    TrackingIds = get_tracking_id(),
+    Reports = build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs),
     send_reports(Reports),
     ok.
 
--spec build_reports(string(), [report_struct()]) -> [google_analytics_report()].
-build_reports(ClientId, ReportStructs) ->
-    TrackingId = get_tracking_id(),
+-spec build_reports_for_each_tracking_id(string(), list(), [report_struct()]) -> ok.
+build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs) ->
     lists:map(
-        fun(Report) -> 
+        fun(Tid) ->
+            build_reports(ClientId, Tid, ReportStructs)
+        end, TrackingIds).
+
+-spec build_reports(string(), string(), [report_struct()]) -> [google_analytics_report()].
+build_reports(ClientId, TrackingId, ReportStructs) ->
+    lists:map(
+        fun(Report) ->
             build_report(ClientId, TrackingId, Report)
         end, ReportStructs).
 
-send_reports(Reports) ->
+send_reports(ReportsList) ->
     Url = get_url(),
-    flush_reports(Url, Reports).
+    [flush_reports(Url, Reports) || Reports <- ReportsList].
 
 get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
 
 get_tracking_id() ->
-    ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID).
-
+    DevTrackingId = ejabberd_config:get_local_option_or_default(dev_google_analytics_tracking_id, ?TRACKING_ID),
+    AdditionalTrackingId = ejabberd_config:get_local_option(google_analytics_tracking_id),
+    case AdditionalTrackingId of
+        undefined -> [DevTrackingId];
+        AdditionalTrackingId -> [DevTrackingId, AdditionalTrackingId]
+    end.
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
 -spec flush_reports(url(), [google_analytics_report()]) -> {ok, term()} | {error, term()}.

@@ -112,11 +112,11 @@ maybe_create_table() ->
 metrics_module_config(Args) ->
     case os:getenv("CI") of
         "true" ->
-            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
+            ejabberd_config:add_local_option(dev_google_analytics_tracking_id, ?TRACKING_ID_CI),
             InitialReport = proplists:get_value(initial_report, Args, timer:seconds(20)),
             ReportAfter = proplists:get_value(report_after, Args, timer:minutes(5));
         _ ->
-            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
+            ejabberd_config:add_local_option(dev_google_analytics_tracking_id, ?TRACKING_ID),
             InitialReport= proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
             ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER)
     end,

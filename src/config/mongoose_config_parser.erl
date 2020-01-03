@@ -304,6 +304,8 @@ process_term(Term, State) ->
             add_option(services, Value, State);
         {google_analytics_url, Value} ->
             add_option(google_analytics_url, Value, State);
+        {google_analytics_tracking_id, Value} ->
+            add_option(google_analytics_tracking_id, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
