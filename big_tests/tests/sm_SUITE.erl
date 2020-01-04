@@ -907,10 +907,10 @@ unacknowledged_message_hook_offline(AliceSpec, Resource, ConnSteps, C2SPid) ->
 unacknowledged_message_hook_bounce(AliceSpec, Resource, ConnSteps, C2SPid) ->
     NewResource = <<"new_", Resource/binary>>,
     NewSpec = lists:keystore(resource, 1, AliceSpec, {resource, NewResource}),
-    start_hook_listener(NewResource),
     {ok, NewAlice, _} = escalus_connection:start(NewSpec, ConnSteps ++ [stream_resumption]),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    ct:sleep(500),
+    %% ensure second C2S is registered so all the messages are bounced properly
+    mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(AliceSpec)) end, 2),
     ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
     {NewResource, NewAlice}.
 
@@ -1285,21 +1285,25 @@ start_hook_listener(Resource) ->
     TestCasePid = self(),
     rpc(mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, Resource]).
 
-rpc_start_hook_handler(TestCasePid, Resource) ->
-    Handler = fun(Acc, Res) when Res =:= Resource ->
-                      Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
-                      El = mongoose_acc:element(Acc),
-                      TestCasePid ! {sm_test, Counter, Res, El},
-                      mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc);
-                 (Acc, _Res) ->
-                      Acc
+rpc_start_hook_handler(TestCasePid, User) ->
+    Handler = fun(Acc, Res) ->
+                  JID = mongoose_acc:to_jid(Acc),
+                  case {jid:nodeprep(User), jid:to_lus(JID)} of
+                      {LUser, {LUser, _}} ->
+                          Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
+                          El = mongoose_acc:element(Acc),
+                          TestCasePid ! {sm_test, Counter, Res, El},
+                          mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc);
+                      _ -> Acc
+                  end
               end,
     ejabberd_hooks:add(unacknowledged_message, <<"localhost">>, Handler, 50).
 
 verify_hook(Counter, Res, Timeout) ->
     receive
-        {sm_test, AccCounter, Resource, Stanza} = Msg when Res =:= Resource ->
+        {sm_test, AccCounter, Resource, Stanza} = Msg ->
             ?assertEqual(Counter, AccCounter, Msg),
+            ?assertEqual(Res, Resource, Msg),
             Stanza
     after Timeout ->
         timeout
