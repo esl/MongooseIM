@@ -41,7 +41,7 @@ groups() ->
          {stale_h, [], stale_h_test_cases()},
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
-         {unacknowledged_message_hook, [parallel, {repeat, 10}], unacknowledged_message_hook()}],
+         {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 
@@ -102,7 +102,7 @@ stream_mgmt_disabled_cases() ->
 
 unacknowledged_message_hook() ->
     [unacknowledged_message_hook_bounce,
-     unacknowledged_message_hook_offline,
+     %unacknowledged_message_hook_offline,
      unacknowledged_message_hook_resume].
 
 suite() ->
