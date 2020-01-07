@@ -278,9 +278,12 @@ remove_info_sends_message_to_the_session_owner(C) ->
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call remove_info from another process
-    spawn_link(fun() -> ejabberd_sm:remove_info(U, S, R, cc) end),
+    JID = jid:make_noprep(U,S,R),
+    spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
     %% The original process receives a message
-    receive {remove_session_info, User, Server, Resource, Key, _FromPid} ->
+    receive {remove_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             Key, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
