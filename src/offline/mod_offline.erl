@@ -371,12 +371,14 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
     TimeStamp = get_or_build_timestamp_from_packet(Packet),
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
+    PermanentFields = get_permanent_fields(Acc),
     Msg = #offline_msg{us = {LUser, LServer},
                        timestamp = TimeStamp,
                        expire = Expire,
                        from = From,
                        to = To,
-                       packet = jlib:remove_delay_tags(Packet)},
+                       packet = jlib:remove_delay_tags(Packet),
+                       permanent_fields = PermanentFields},
     Pid ! {Acc, Msg},
     mongoose_acc:set(offline, stored, true, Acc).
 
@@ -475,16 +477,16 @@ find_x_expire(TimeStamp, [El | Els]) ->
     end.
 
 pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline, messages, pop_offline_messages(User, Server), Acc).
+    mongoose_acc:append(offline, messages, offline_messages(Acc, User, Server), Acc).
 
-pop_offline_messages(User, Server) ->
+offline_messages(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     case pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:map(fun(R) ->
                 Packet = resend_offline_message_packet(Server, R),
-                compose_offline_message(R, Packet)
+                compose_offline_message(R, Packet, Acc)
               end, Rs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: pop_messages failed with ~p.", [LUser, LServer, Reason]),
@@ -524,8 +526,11 @@ is_expired_message(_TimeStamp, #offline_msg{expire=never}) ->
 is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
    ExpireTimeStamp < TimeStamp.
 
-compose_offline_message(#offline_msg{from=From, to=To}, Packet) ->
-    {route, From, To, Packet}.
+compose_offline_message(#offline_msg{from = From, to = To, permanent_fields = PermanentFields},
+                        Packet, Acc0) ->
+    Acc1 = set_permanent_fields(PermanentFields, Acc0),
+    Acc = mongoose_acc:update_stanza(#{element => Packet, from_jid => From, to_jid => To}, Acc1),
+    {route, From, To, Acc}.
 
 resend_offline_message_packet(Server,
         #offline_msg{timestamp=TimeStamp, packet = Packet}) ->
@@ -579,3 +584,12 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs1 = S div 1000000,
     Secs1 = S rem 1000000,
     {MegaSecs1, Secs1, 0}.
+
+get_permanent_fields(Acc) ->
+    [{NS, Key, mongoose_acc:get(NS, Key, Acc)} ||
+        {NS, Key} <- mongoose_acc:get_permanent_keys(Acc)].
+
+set_permanent_fields([], Acc) -> Acc;
+set_permanent_fields([{NS, Key, Value} | T], Acc) ->
+    NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
+    set_permanent_fields(T, NewAcc).

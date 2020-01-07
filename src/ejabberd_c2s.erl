@@ -2339,17 +2339,19 @@ resend_offline_messages(Acc, StateData) ->
                                    [StateData#state.user, StateData#state.server]),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(
-                       fun({route, From, To, Packet}, A) ->
-                           resend_offline_message(A, StateData, From, To, Packet, in)
+                       fun({route, From, To, MsgAcc}, A) ->
+                           resend_offline_message(A, StateData, From, To, MsgAcc, in)
                        end,
                        Acc1,
                        Rs),
     mongoose_acc:delete(offline, messages, Acc2). % they are gone from db backend and sent
 
 
-resend_offline_message(Acc0, StateData, From, To, Packet, in) ->
-    Acc = mongoose_acc:update_stanza(#{ element => Packet, from_jid => From, to_jid => To }, Acc0),
-    check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, in).
+resend_offline_message(Acc0, StateData, From, To, Acc, in) ->
+    Packet = mongoose_acc:element(Acc),
+    NewAcc = strip_c2s_fields(Acc),
+    check_privacy_and_route_or_ignore(NewAcc, StateData, From, To, Packet, in),
+    Acc0.
 
 
 -spec check_privacy_and_route_or_ignore(Acc :: mongoose_acc:t(),
