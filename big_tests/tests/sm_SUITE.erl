@@ -102,7 +102,7 @@ stream_mgmt_disabled_cases() ->
 
 unacknowledged_message_hook() ->
     [unacknowledged_message_hook_bounce,
-     %unacknowledged_message_hook_offline,
+     unacknowledged_message_hook_offline,
      unacknowledged_message_hook_resume].
 
 suite() ->
