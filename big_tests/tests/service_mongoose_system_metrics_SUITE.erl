@@ -37,6 +37,7 @@
          all_clustered_mongooses_report_the_same_client_id/1,
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
          system_metrics_are_reported_to_additional_google_analytics/1,
+         system_metrics_are_reported_to_configurable_google_analytics/1,
          tracking_id_is_correctly_configured/1
         ]).
 
@@ -54,6 +55,7 @@ all() ->
      all_clustered_mongooses_report_the_same_client_id,
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
      system_metrics_are_reported_to_additional_google_analytics,
+     system_metrics_are_reported_to_configurable_google_analytics,
      tracking_id_is_correctly_configured
     ].
 
@@ -108,8 +110,12 @@ init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     Config;
 init_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
     create_events_collection(),
-    configure_additional_tracking_id(mim()),
     enable_system_metrics(mim()),
+    configure_additional_tracking_id(mim()),
+    Config;
+init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, Config) ->
+    create_events_collection(),
+    enable_system_metrics_with_configurable_tracking_id(mim()),
     Config;
 init_per_testcase(tracking_id_is_correctly_configured, Config) ->
     create_events_collection(),
@@ -141,6 +147,10 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
 end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
     clear_events_collection(),
     remove_additional_tracking_id(mim()),
+    disable_system_metrics(mim()),
+    Config;
+end_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, Config) ->
+    clear_events_collection(),
     disable_system_metrics(mim()),
     Config;
 end_per_testcase(tracking_id_is_correctly_configured, Config) ->
@@ -185,6 +195,11 @@ tracking_id_is_correctly_configured(_Config) ->
 
 system_metrics_are_reported_to_additional_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true).
+
+
+system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
+    mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
+    mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -239,9 +254,12 @@ enable_system_metrics(Node, Timers) ->
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
     start_system_metrics_module(Node, Timers).
 
-start_system_metrics_module(Node, Timers) ->
+enable_system_metrics_with_configurable_tracking_id(Node) ->
+    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, "configurable_tracking_id"}]).
+
+start_system_metrics_module(Node, Args) ->
     distributed_helper:rpc(
-      Node, mongoose_service, start_service, [service_mongoose_system_metrics, Timers]).
+      Node, mongoose_service, start_service, [service_mongoose_system_metrics, Args]).
 
 disable_system_metrics(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
@@ -274,6 +292,15 @@ events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     UniqueSortedTab = lists:usort([Tid ||#event{tid = Tid} <- Tab]),
     2 == length(UniqueSortedTab).
+
+events_are_reported_to_configurable_tracking_id() ->
+    ConfigurableTrackingId = <<"configurable_tracking_id">>,
+    Tab = ets:tab2list(?ETS_TABLE),
+    lists:any(
+        fun(#event{tid = TrackingId}) ->
+            TrackingId == ConfigurableTrackingId
+        end, Tab).
+
 
 %%--------------------------------------------------------------------
 %% Cowboy handlers

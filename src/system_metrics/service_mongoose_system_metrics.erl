@@ -56,7 +56,8 @@ handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                     mongoose_system_metrics_sender:send(ClientId, Reports)
                 end),
             erlang:send_after(ReportAfter, self(), spawn_reporter),
-            {noreply, State#system_metrics_state{reporter_monitor = Monitor, reporter_pid = Pid}}
+            {noreply, State#system_metrics_state{reporter_monitor = Monitor,
+                                                 reporter_pid = Pid}}
     end;
 handle_info(spawn_reporter, #system_metrics_state{reporter_pid = Pid} = State) ->
     exit(Pid, kill),
@@ -120,6 +121,8 @@ metrics_module_config(Args) ->
             InitialReport= proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
             ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER)
     end,
+    AdditionalTrackingID = proplists:get_value(tracking_id, Args, undefined),
+    ejabberd_config:add_local_option(google_analytics_tracking_id, AdditionalTrackingID),
     {InitialReport, ReportAfter}.
 
 % %%-----------------------------------------
