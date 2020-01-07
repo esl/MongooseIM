@@ -16,7 +16,7 @@ send(ClientId, ReportStructs) ->
     send_reports(Reports),
     ok.
 
--spec build_reports_for_each_tracking_id(string(), list(), [report_struct()]) -> ok.
+-spec build_reports_for_each_tracking_id(string(), string(), [report_struct()]) -> ok.
 build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs) ->
     lists:map(
         fun(Tid) ->
