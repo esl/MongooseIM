@@ -204,12 +204,12 @@ max_prio(PrioRes) ->
 is_max_prio(Res, PrioRes) ->
     lists:member({max_prio(PrioRes), Res}, PrioRes).
 
-jids_minus_max_priority_resource(U, S, _R, CCResList, PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CCVersion}
+jids_minus_max_priority_resource(JID, CCResList, PrioRes) ->
+    [ {jid:replace_resource(JID, CCRes), CCVersion}
       || {CCVersion, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
 
-jids_minus_specific_resource(U, S, R, CCResList, _PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CCVersion}
+jids_minus_specific_resource(JID, R, CCResList, _PrioRes) ->
+    [ {jid:replace_resource(JID, CCRes), CCVersion}
       || {CCVersion, CCRes} <- CCResList, CCRes =/= R ].
 
 %% If the original user is the only resource in the list of targets
@@ -220,19 +220,19 @@ drop_singleton_jid(_JID, Targets)        -> Targets.
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
-    {U, S, R} = jid:to_lower(JID),
+    #jid{lresource = R} = JID,
     {PrioRes, CCResList} = get_cc_enabled_resources(JID),
     Targets = case is_bare_to(Direction, To, PrioRes) of
                   true -> jids_minus_max_priority_resource
-                            (U, S, R, CCResList, PrioRes);
-                  _    -> jids_minus_specific_resource(U, S, R, CCResList, PrioRes)
+                            (JID, CCResList, PrioRes);
+                  _    -> jids_minus_specific_resource(JID, R, CCResList, PrioRes)
               end,
     ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
            [Targets, PrioRes, CCResList]),
-    lists:map(fun({Dest, Version}) ->
-                      {_, _, Resource} = jid:to_lower(Dest),
+    lists:foreach(fun({Dest, Version}) ->
+                      #jid{lresource = Resource} = JID,
                       ?DEBUG("forwarding to ~ts", [Resource]),
-                      Sender = jid:make({U, S, <<>>}),
+                      Sender = jid:replace_resource(JID, <<>>),
                       New = build_forward_packet
                               (JID, Packet, Sender, Dest, Direction, Version),
                       ejabberd_router:route(Sender, Dest, New)

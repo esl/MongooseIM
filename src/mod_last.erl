@@ -223,7 +223,7 @@ on_presence_update(Acc, #jid{luser = LUser, lserver = LServer}, Status) ->
         E -> E
     end.
 
--spec store_last_info(jid:user(), jid:server(), non_neg_integer(),
+-spec store_last_info(jid:luser(), jid:lserver(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
     mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
