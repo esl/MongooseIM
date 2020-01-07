@@ -305,7 +305,7 @@ bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
 -spec disconnect_removed_user(mongoose_acc:t(), User :: jid:user(),
                               Server :: jid:server()) -> mongoose_acc:t().
 disconnect_removed_user(Acc, User, Server) ->
-    ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
+    ejabberd_sm:route(jid:make_noprep(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
                       Acc,
                       {broadcast, {exit, <<"User removed">>}}).
@@ -987,7 +987,6 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
                     end
                 end,
                 ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
-
     MaxSessions = get_max_user_sessions(LUser, LServer),
     case length(SIDs) =< MaxSessions of
         true -> ordsets:to_list(ReplacedPIDs);
@@ -1005,7 +1004,7 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
       Host :: jid:server().
 get_max_user_sessions(LUser, Host) ->
     case acl:match_rule(
-           Host, max_user_sessions, jid:make(LUser, Host, <<>>)) of
+           Host, max_user_sessions, jid:make_noprep(LUser, Host, <<>>)) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_SESSIONS
@@ -1048,7 +1047,7 @@ process_iq(_, From, To, Acc, Packet) ->
    ejabberd_router:route(To, From, Acc1, Err).
 
 
--spec force_update_presence({binary(), jid:server()}) -> 'ok'.
+-spec force_update_presence({jid:user(), jid:server()}) -> 'ok'.
 force_update_presence({LUser, LServer}) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     lists:foreach(fun(#session{sid = {_, Pid}}) ->

@@ -277,7 +277,7 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->
-            change_shaper(S, jid:make(<<>>, Server, <<>>)),
+            change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
             stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, false} ->
@@ -3209,7 +3209,7 @@ add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
     end.
 
 timestamp_xml(Server, Time) ->
-    FromJID = jid:make(<<>>, Server, <<>>),
+    FromJID = jid:make_noprep(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).
 
 defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undefined} = State)->
