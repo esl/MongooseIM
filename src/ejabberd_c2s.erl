@@ -3027,23 +3027,25 @@ re_route_packets(Buffer) ->
     ok.
 
 notify_unacknowledged_messages(#state{stream_mgmt_buffer = Buffer} = State) ->
-    NewBuffer = [notify_unacknowledged_msg(Acc, State) || Acc <- lists:reverse(Buffer)],
+    NewBuffer = [maybe_notify_unacknowledged_msg(Acc, State) || Acc <- lists:reverse(Buffer)],
     State#state{stream_mgmt_buffer = lists:reverse(NewBuffer)}.
 
 notify_unacknowledged_msg_if_in_resume_state(Acc,
                                              #state{stream_mgmt_resume_tref = TRef,
                                                     stream_mgmt = true} = State) when TRef =/= undefined ->
-    notify_unacknowledged_msg(Acc, State);
+    maybe_notify_unacknowledged_msg(Acc, State);
 notify_unacknowledged_msg_if_in_resume_state(Acc, _) ->
     Acc.
 
-notify_unacknowledged_msg(Acc, #state{resource = Res,
-                                      server   = Server}) ->
-
-    NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
-                                     Server, Acc, [Res]),
-    mongoose_acc:strip(NewAcc).
-
+maybe_notify_unacknowledged_msg(Acc, #state{resource = Res,
+                                            server   = Server}) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
+            NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
+                                             Server, Acc, [Res]),
+            mongoose_acc:strip(NewAcc);
+        _ -> Acc
+    end.
 
 finish_state(ok, StateName, StateData) ->
     fsm_next_state(StateName, StateData);

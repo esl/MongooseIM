@@ -874,18 +874,11 @@ unacknowledged_message_hook(TestCase, Config) ->
     escalus_connection:kill(NewAlice),
     wait_for_c2s_state_change(NewC2SPid, resume_session),
 
-    mongoose_helper:wait_until(
-        fun() ->
-            escalus:assert(is_chat_message, [<<"msg-1">>],
-                           wait_for_unacked_msg_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-2">>],
-                           wait_for_unacked_msg_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-3">>],
-                           wait_for_unacked_msg_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-4">>],
-                           wait_for_unacked_msg_hook(1, NewResource, 100)),
-            ok
-        end, ok),
+    escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-2">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-3">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-4">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
+    ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     escalus_connection:stop(Bob).
 
