@@ -68,7 +68,7 @@
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
--export_type([broadcast/0]).
+-export_type([broadcast/0, packet/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 
@@ -868,15 +868,6 @@ process_outgoing_stanza(Acc, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, Element}]),
     fsm_next_state(session_established, NState).
 
-process_outgoing_stanza(Acc, error, _Name, StateData) ->
-    case mongoose_acc:stanza_type(Acc) of
-        <<"error">> -> StateData;
-        <<"result">> -> StateData;
-        _ ->
-            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:jid_malformed()),
-            send_element(Acc1, Err, StateData),
-            StateData
-    end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     #jid{ user = User, server = Server, lserver = LServer } = FromJID = mongoose_acc:from_jid(Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence, LServer, Acc, []),
@@ -1754,7 +1745,7 @@ result_to_amp_event(_) -> delivery_failed.
     {ok | any(), mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza_no_ack(Acc, {_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_from_server_jid_safe(Acc, State, Stanza),
-    BufferedStateData = buffer_out_stanza(Packet, State),
+    BufferedStateData = buffer_out_stanza(Acc, Packet, State),
     {SendResult, Acc, BufferedStateData}.
 
 
@@ -2385,7 +2376,7 @@ resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateD
                          {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
                          {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
                          PacketTuple = {jid:from_binary(From), jid:from_binary(To), XMLPacket},
-                         BufferedStateData = buffer_out_stanza(PacketTuple, State),
+                         BufferedStateData = buffer_out_stanza(A1, PacketTuple, State),
                          % this one will be next to tackle
                          A2 = maybe_send_ack_request(A1, BufferedStateData),
                          {A2, BufferedStateData}
@@ -2533,8 +2524,8 @@ fsm_limit_opts(Opts) ->
 -spec bounce_messages(list()) -> 'ok'.
 bounce_messages(UnreadMessages) ->
     case get_msg(UnreadMessages) of
-        {ok, {route, From, To, El}, RemainedUnreadMessages} ->
-            ejabberd_router:route(From, To, El),
+        {ok, {route, From, To, Acc}, RemainedUnreadMessages} ->
+            ejabberd_router:route(From, To, Acc),
             bounce_messages(RemainedUnreadMessages);
         {ok, {store_session_info, User, Server, Resource, KV, _FromPid}, _} ->
             ejabberd_sm:store_info(User, Server, Resource, KV);
@@ -2546,26 +2537,23 @@ bounce_messages(UnreadMessages) ->
     end.
 
 %% Return the messages in reverse order than they were received in!
--spec flush_messages(list()) -> {N :: non_neg_integer(), Msgs :: [packet()]}.
+-spec flush_messages(list()) -> [mongoose_acc:t()].
 flush_messages(UnreadMessages) ->
-    flush_messages(0, [], UnreadMessages).
+    flush_messages([], UnreadMessages).
 
--spec flush_messages(N :: non_neg_integer(), Msgs :: [packet()], list()) ->
-    {N :: non_neg_integer(), Msgs :: [packet()]}.
-flush_messages(N, Acc, UnreadMessages) ->
+-spec flush_messages([mongoose_acc:t()], list()) -> [mongoose_acc:t()].
+flush_messages(Acc, UnreadMessages) ->
     case get_msg(UnreadMessages) of
-        {ok, {route, From, To, #xmlel{} = Packet}, RemainedUnreadMessages} ->
-            NewAcc = [{From, To, Packet} | Acc],
-            flush_messages(N + 1, NewAcc, RemainedUnreadMessages);
         {ok, {route, From, To, MongooseAcc}, RemainedUnreadMessages} ->
-            % TODO: SM buffer should hold acc, not xmlels
-            NewAcc = [{From, To, mongoose_acc:element(MongooseAcc)} | Acc],
-            flush_messages(N + 1, NewAcc, RemainedUnreadMessages);
+            El = mongoose_acc:element(MongooseAcc),
+            NewMongooseAcc = update_stanza(From, To, El, MongooseAcc),
+            NewAcc = [NewMongooseAcc | Acc],
+            flush_messages(NewAcc, RemainedUnreadMessages);
         {ok, _, RemainedUnreadMessages} ->
             % ignore this one, get the next message
-            flush_messages(N, Acc, RemainedUnreadMessages);
+            flush_messages(Acc, RemainedUnreadMessages);
         {error, no_messages} ->
-            {N, Acc}
+            Acc
     end.
 
 get_msg([H | T]) ->
@@ -2752,39 +2740,30 @@ ship_to_local_user(Acc, Packet, State) ->
     {ok | resume, mongoose_acc:t(), state()}.
 maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_state = active} = State) ->
     send_and_maybe_buffer_stanza(Acc, Packet, State);
-maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_buffer = Buffer} = State) ->
-    NewBuffer = [Packet | Buffer],
-    NewState = flush_or_buffer_packets(Acc, State#state{csi_buffer = NewBuffer}),
+maybe_csi_inactive_optimisation(Acc, {From,To,El}, #state{csi_buffer = Buffer} = State) ->
+    NewAcc = update_stanza(From, To, El, Acc),
+    NewBuffer = [NewAcc | Buffer],
+    NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
     {ok, Acc, NewState}.
 
-flush_or_buffer_packets(Acc, State) ->
+flush_or_buffer_packets(State) ->
     MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
                                          buffer_max, 20),
     case length(State#state.csi_buffer) > MaxBuffSize of
         true ->
-            flush_csi_buffer(Acc, State);
+            flush_csi_buffer(State);
         _ ->
             State
     end.
 
 -spec flush_csi_buffer(state()) -> state().
-flush_csi_buffer(State) ->
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             lserver => State#state.server,
-                             element => undefined, from_jid => undefined, to_jid => undefined}),
-    flush_csi_buffer(Acc, State).
-
--spec flush_csi_buffer(mongoose_acc:t(), state()) -> state().
-flush_csi_buffer(Acc, #state{csi_buffer = BufferOut} = State) ->
+flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
-    F = fun({From, To, El}, {_, A, OldState}) ->
-                Accum = mongoose_acc:update_stanza(#{from_jid => From,
-                                                     to_jid => To,
-                                                     element => El },
-                                                   A),
-                send_and_maybe_buffer_stanza_no_ack(Accum, {From, To, El}, OldState)
+    F = fun(Acc, {_, _, OldState}) ->
+            {From, To, El} = mongoose_acc:packet(Acc),
+            send_and_maybe_buffer_stanza_no_ack(Acc, {From, To, El}, OldState)
         end,
-    {_, _, NewState} = lists:foldr(F, {ok, Acc, State}, BufferOut),
+    {_, _, NewState} = lists:foldr(F, {ok, ok, State}, BufferOut),
     NewState#state{csi_buffer = []}.
 
 bounce_csi_buffer(#state{csi_buffer = []}) ->
@@ -2957,28 +2936,29 @@ stream_mgmt_ack(NIncoming) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
--spec buffer_out_stanza(packet(), state()) -> state().
-buffer_out_stanza(_Packet, #state{stream_mgmt = StreamMgmt} = S)
+-spec buffer_out_stanza(mongoose_acc:t(), packet(), state()) -> state().
+buffer_out_stanza(_Acc, _Packet, #state{stream_mgmt = StreamMgmt} = S)
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     S;
-buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
+buffer_out_stanza(_Acc, _Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
     S;
-buffer_out_stanza(Packet, #state{server = Server,
-                                 stream_mgmt_buffer = Buffer,
-                                 stream_mgmt_buffer_size = BufferSize,
-                                 stream_mgmt_buffer_max = BufferMax} = S) ->
+buffer_out_stanza(Acc, Packet, #state{server = Server,
+                                      stream_mgmt_buffer = Buffer,
+                                      stream_mgmt_buffer_size = BufferSize,
+                                      stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
     Timestamp = os:timestamp(),
-    NPacket = maybe_add_timestamp(Packet, Timestamp, Server),
-
+    {From, To, El} = maybe_add_timestamp(Packet, Timestamp, Server),
+    Acc1 = update_stanza(From, To, El, Acc),
     NS = case is_buffer_full(NewSize, BufferMax) of
              true ->
                  defer_resource_constraint_check(S);
              _ ->
                  S
          end,
+    Acc2 = notify_unacknowledged_msg_if_in_resume_state(Acc1, NS),
     NS#state{stream_mgmt_buffer_size = NewSize,
-             stream_mgmt_buffer = [NPacket | Buffer]}.
+             stream_mgmt_buffer = [Acc2 | Buffer]}.
 
 is_buffer_full(_BufferSize, infinity) ->
     false;
@@ -3040,9 +3020,32 @@ flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
     re_route_packets(Buffer).
 
 re_route_packets(Buffer) ->
-    [ejabberd_router:route(From, To, Packet)
-     || {From, To, Packet} <- lists:reverse(Buffer)],
+    [begin
+         {From, To, _El} = mongoose_acc:packet(Acc),
+         ejabberd_router:route(From, To, Acc)
+     end || Acc <- lists:reverse(Buffer)],
     ok.
+
+notify_unacknowledged_messages(#state{stream_mgmt_buffer = Buffer} = State) ->
+    NewBuffer = [maybe_notify_unacknowledged_msg(Acc, State) || Acc <- lists:reverse(Buffer)],
+    State#state{stream_mgmt_buffer = lists:reverse(NewBuffer)}.
+
+notify_unacknowledged_msg_if_in_resume_state(Acc,
+                                             #state{stream_mgmt_resume_tref = TRef,
+                                                    stream_mgmt = true} = State) when TRef =/= undefined ->
+    maybe_notify_unacknowledged_msg(Acc, State);
+notify_unacknowledged_msg_if_in_resume_state(Acc, _) ->
+    Acc.
+
+maybe_notify_unacknowledged_msg(Acc, #state{resource = Res,
+                                            server   = Server}) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
+            NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
+                                             Server, Acc, [Res]),
+            mongoose_acc:strip(NewAcc);
+        _ -> Acc
+    end.
 
 finish_state(ok, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
@@ -3059,7 +3062,8 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
               undefined ->
                   Seconds = timer:seconds(SD#state.stream_mgmt_resume_timeout),
                   TRef = erlang:send_after(Seconds, self(), resume_timeout),
-                  SD#state{stream_mgmt_resume_tref = TRef};
+                  NewState = SD#state{stream_mgmt_resume_tref = TRef},
+                  notify_unacknowledged_messages(NewState);
               _TRef ->
                   SD
           end,
@@ -3083,7 +3087,7 @@ maybe_resume_session(NextState, El, StateData) ->
       FromSMID :: {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found},
       StateData :: state(),
       NewState :: tuple().
-do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData) ->
+do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
         SID = {erlang:timestamp(), self()},
@@ -3108,12 +3112,10 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
                                                   NSD#state.stream_mgmt_in),
                     send_element_from_server_jid(NSD, Resumed),
-                    [send_element(mongoose_acc:new(#{ location => ?LOCATION,
-                                                      from_jid => FromJID,
-                                                      to_jid => ToJID,
-                                                      lserver => Server,
-                                                      element => Packet }), Packet, NSD)
-                     || {FromJID, ToJID, Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
+                    [begin
+                         Elem = mongoose_acc:element(Acc),
+                         send_element(Acc, Elem, NSD)
+                     end || Acc <- lists:reverse(NSD#state.stream_mgmt_buffer)],
 
                     NSD2 = flush_csi_buffer(NSD),
 
@@ -3195,12 +3197,10 @@ handover_session(SD, From)->
     {stop, {handover_session, From}, SD}.
 
 do_handover_session(SD, UnreadMessages) ->
-    {N, Messages} = flush_messages(UnreadMessages),
-    NewSize = N + SD#state.stream_mgmt_buffer_size,
-    NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,
+    Messages = flush_messages(UnreadMessages),
+    NewCsiBuffer = Messages ++ SD#state.csi_buffer,
     SD#state{authenticated = resumed,
-             stream_mgmt_buffer_size = NewSize,
-             stream_mgmt_buffer = NewBuffer}.
+             csi_buffer = NewCsiBuffer}.
 
 maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
@@ -3364,3 +3364,17 @@ maybe_hibernate(#state{hibernate_after = HA}) -> HA.
 
 make_c2s_info(_StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
     #{stream_mgmt_buffer_size => SMBufSize}.
+
+-spec update_stanza(jid:jid(), jid:jid(), exml:element(), mongoose_acc:t()) ->
+    mongoose_acc:t().
+update_stanza(From, To, #xmlel{} = Element, Acc) ->
+    LServer = mongoose_acc:lserver(Acc),
+    Params = #{lserver => LServer, element => Element,
+               from_jid => From, to_jid => To},
+    NewAcc = mongoose_acc:strip(Params, Acc),
+    strip_c2s_fields(NewAcc).
+
+-spec strip_c2s_fields(mongoose_acc:t()) -> mongoose_acc:t().
+strip_c2s_fields(Acc) ->
+    %% TODO: verify if we really need to strip down these 2 fields
+    mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
