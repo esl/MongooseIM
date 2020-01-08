@@ -3372,4 +3372,9 @@ update_stanza(From, To, #xmlel{} = Element, Acc) ->
     Params = #{lserver => LServer, element => Element,
                from_jid => From, to_jid => To},
     NewAcc = mongoose_acc:strip(Params, Acc),
-    mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], NewAcc).
+    strip_c2s_fields(NewAcc).
+
+-spec strip_c2s_fields(mongoose_acc:t()) -> mongoose_acc:t().
+strip_c2s_fields(Acc) ->
+    %% TODO: verify if we really need to strip down these 2 fields
+    mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).

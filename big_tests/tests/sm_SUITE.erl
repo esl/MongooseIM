@@ -41,7 +41,7 @@ groups() ->
          {stale_h, [], stale_h_test_cases()},
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
-         {unacknowledged_message_hook, [parallel, {repeat, 10}], unacknowledged_message_hook()}],
+         {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 
@@ -804,15 +804,46 @@ wait_for_resumption(Config) ->
     wait_for_c2s_state_change(C2SPid, resume_session).
 
 unacknowledged_message_hook_resume(Config) ->
-    unacknowledged_message_hook(?FUNCTION_NAME,Config).
+    unacknowledged_message_hook_common(fun unacknowledged_message_hook_resume/4, Config).
+
+unacknowledged_message_hook_resume(AliceSpec, Resource, SMID, _C2SPid) ->
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_stream_resumption(SMID, 1)),
+    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    {Resource, NewAlice}.
 
 unacknowledged_message_hook_bounce(Config) ->
-    unacknowledged_message_hook(?FUNCTION_NAME, Config).
+    unacknowledged_message_hook_common(fun unacknowledged_message_hook_bounce/4, Config).
+
+unacknowledged_message_hook_bounce(AliceSpec, Resource, _SMID, C2SPid) ->
+    ConnSteps = connection_steps_to_session() ++ [stream_resumption],
+    NewResource = <<"new_", Resource/binary>>,
+    NewSpec = lists:keystore(resource, 1, AliceSpec, {resource, NewResource}),
+    {ok, NewAlice, _} = escalus_connection:start(NewSpec, ConnSteps),
+    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    %% ensure second C2S is registered so all the messages are bounced properly
+    mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(AliceSpec)) end, 2),
+    ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
+    {NewResource, NewAlice}.
 
 unacknowledged_message_hook_offline(Config) ->
-    unacknowledged_message_hook(?FUNCTION_NAME, Config).
+    unacknowledged_message_hook_common(fun unacknowledged_message_hook_offline/4, Config).
 
-unacknowledged_message_hook(TestCase, Config) ->
+unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
+    ConnSteps = connection_steps_to_session() ++ [stream_resumption],
+    C2SRef = erlang:monitor(process, C2SPid),
+    %%reset the session, so old C2S process is stopped
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    %% wait for old C2S termination before send presence. other way
+    %% some of the latest unacknowledged messages can be bounced to
+    %% the new C2S process instead of going to the mod_offline storage.
+    %% looks like all the unacknowledged messages arrive to the new
+    %% C2S, but the message sequence is broken (the bounced messages
+    %% delivered before the messages from the mod_offline storage)
+    wait_for_process_termination(C2SRef),
+    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    {Resource, NewAlice}.
+
+unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     ConnSteps = connection_steps_to_session(),
 
     %% connect bob and alice
@@ -853,15 +884,7 @@ unacknowledged_message_hook(TestCase, Config) ->
     ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     %% alice comes back and receives unacked message
-    {NewResource, NewAlice} =
-        case TestCase of
-            unacknowledged_message_hook_resume ->
-                unacknowledged_message_hook_resume(AliceSpec, Resource, SMID);
-            unacknowledged_message_hook_offline ->
-                unacknowledged_message_hook_offline(AliceSpec, Resource, ConnSteps, C2SPid);
-            unacknowledged_message_hook_bounce ->
-                unacknowledged_message_hook_bounce(AliceSpec, Resource, ConnSteps, C2SPid)
-        end,
+    {NewResource, NewAlice} = RestartConnectionFN(AliceSpec, Resource, SMID, C2SPid),
 
     mongoose_helper:wait_until(
         fun() ->
@@ -881,35 +904,6 @@ unacknowledged_message_hook(TestCase, Config) ->
     ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     escalus_connection:stop(Bob).
-
-unacknowledged_message_hook_resume(AliceSpec, Resource, SMID) ->
-    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_stream_resumption(SMID, 1)),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    {Resource, NewAlice}.
-
-unacknowledged_message_hook_offline(AliceSpec, Resource, ConnSteps, C2SPid) ->
-    C2SRef = erlang:monitor(process, C2SPid),
-    %%reset the session, so old C2S process is stopped
-    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps ++ [stream_resumption]),
-    %% wait for old C2S termination before send presence. other way
-    %% some of the latest unacknowledged messages can be bounced to
-    %% the new C2S process instead of going to the mod_offline storage.
-    %% looks like all the unacknowledged messages arrive to the new
-    %% C2S, but the message sequence is broken (the bounced messages
-    %% delivered before the messages from the mod_offline storage)
-    wait_for_process_termination(C2SRef),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    {Resource, NewAlice}.
-
-unacknowledged_message_hook_bounce(AliceSpec, Resource, ConnSteps, C2SPid) ->
-    NewResource = <<"new_", Resource/binary>>,
-    NewSpec = lists:keystore(resource, 1, AliceSpec, {resource, NewResource}),
-    {ok, NewAlice, _} = escalus_connection:start(NewSpec, ConnSteps ++ [stream_resumption]),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    %% ensure second C2S is registered so all the messages are bounced properly
-    mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(AliceSpec)) end, 2),
-    ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
-    {NewResource, NewAlice}.
 
 resume_session(Config) ->
     AliceSpec = [{manual_ack, true}
