@@ -3304,7 +3304,7 @@ presence_can_deliver(_, false) ->
 presence_can_deliver({User, Server, <<>>}, true) ->
     ejabberd_sm:get_user_present_resources(jid:make_noprep(User, Server, <<>>)) =/= [];
 presence_can_deliver({User, Server, Resource}, true) ->
-    JID = jid:make(User, Server, Resource),
+    JID = jid:make_noprep(User, Server, Resource),
     case ejabberd_sm:get_session(JID) of
         {_SUser, _SID, SPriority, _SInfo} when SPriority /= undefined -> true;
         _ -> false
@@ -3339,7 +3339,7 @@ state_can_deliver({U, S, R}, SubOptions) ->
           JIDs       :: [jid:ljid()])
         -> [jid:ljid()].
 get_resource_state({U, S, R}, ShowValues, JIDs) ->
-    case ejabberd_sm:get_session_pid(jid:make(U, S, R)) of
+    case ejabberd_sm:get_session_pid(jid:make_noprep(U, S, R)) of
         none ->
             %% If no PID, item can be delivered
             lists:append([{U, S, R}], JIDs);
