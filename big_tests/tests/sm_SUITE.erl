@@ -41,7 +41,7 @@ groups() ->
          {stale_h, [], stale_h_test_cases()},
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
-         {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
+         {unacknowledged_message_hook, [parallel, {repeat, 10}], unacknowledged_message_hook()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 
@@ -841,16 +841,16 @@ unacknowledged_message_hook(TestCase, Config) ->
     wait_for_c2s_state_change(C2SPid, resume_session),
     1 = length(get_user_alive_resources(AliceSpec)),
 
-    escalus:assert(is_chat_message, [<<"msg-1">>], verify_hook(0, Resource, 100)),
-    escalus:assert(is_chat_message, [<<"msg-2">>], verify_hook(0, Resource, 100)),
-    ?assertEqual(timeout, verify_hook(0, Resource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(0, Resource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-2">>], wait_for_unacked_msg_hook(0, Resource, 100)),
+    ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     %% send some messages and check if c2s can handle it
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-3">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-4">>)),
-    escalus:assert(is_chat_message, [<<"msg-3">>], verify_hook(0, Resource, 100)),
-    escalus:assert(is_chat_message, [<<"msg-4">>], verify_hook(0, Resource, 100)),
-    ?assertEqual(timeout, verify_hook(0, Resource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-3">>], wait_for_unacked_msg_hook(0, Resource, 100)),
+    escalus:assert(is_chat_message, [<<"msg-4">>], wait_for_unacked_msg_hook(0, Resource, 100)),
+    ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     %% alice comes back and receives unacked message
     {NewResource, NewAlice} =
@@ -876,10 +876,14 @@ unacknowledged_message_hook(TestCase, Config) ->
 
     mongoose_helper:wait_until(
         fun() ->
-            escalus:assert(is_chat_message, [<<"msg-1">>], verify_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-2">>], verify_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-3">>], verify_hook(1, NewResource, 100)),
-            escalus:assert(is_chat_message, [<<"msg-4">>], verify_hook(1, NewResource, 100)),
+            escalus:assert(is_chat_message, [<<"msg-1">>],
+                           wait_for_unacked_msg_hook(1, NewResource, 100)),
+            escalus:assert(is_chat_message, [<<"msg-2">>],
+                           wait_for_unacked_msg_hook(1, NewResource, 100)),
+            escalus:assert(is_chat_message, [<<"msg-3">>],
+                           wait_for_unacked_msg_hook(1, NewResource, 100)),
+            escalus:assert(is_chat_message, [<<"msg-4">>],
+                           wait_for_unacked_msg_hook(1, NewResource, 100)),
             ok
         end, ok),
 
@@ -1286,10 +1290,11 @@ start_hook_listener(Resource) ->
     rpc(mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, Resource]).
 
 rpc_start_hook_handler(TestCasePid, User) ->
+    LUser=jid:nodeprep(User),
     Handler = fun(Acc, Res) ->
                   JID = mongoose_acc:to_jid(Acc),
-                  case {jid:nodeprep(User), jid:to_lus(JID)} of
-                      {LUser, {LUser, _}} ->
+                  case jid:to_lus(JID) of
+                      {LUser, _} ->
                           Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
                           El = mongoose_acc:element(Acc),
                           TestCasePid ! {sm_test, Counter, Res, El},
@@ -1299,7 +1304,7 @@ rpc_start_hook_handler(TestCasePid, User) ->
               end,
     ejabberd_hooks:add(unacknowledged_message, <<"localhost">>, Handler, 50).
 
-verify_hook(Counter, Res, Timeout) ->
+wait_for_unacked_msg_hook(Counter, Res, Timeout) ->
     receive
         {sm_test, AccCounter, Resource, Stanza} = Msg ->
             ?assertEqual(Counter, AccCounter, Msg),

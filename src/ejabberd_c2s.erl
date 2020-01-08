@@ -2956,7 +2956,7 @@ buffer_out_stanza(Acc, Packet, #state{server = Server,
              _ ->
                  S
          end,
-    Acc2 = notify_unacknowledged_msg(Acc1, NS),
+    Acc2 = notify_unacknowledged_msg_if_in_resume_state(Acc1, NS),
     NS#state{stream_mgmt_buffer_size = NewSize,
              stream_mgmt_buffer = [Acc2 | Buffer]}.
 
@@ -3030,18 +3030,19 @@ notify_unacknowledged_messages(#state{stream_mgmt_buffer = Buffer} = State) ->
     NewBuffer = [notify_unacknowledged_msg(Acc, State) || Acc <- lists:reverse(Buffer)],
     State#state{stream_mgmt_buffer = lists:reverse(NewBuffer)}.
 
-notify_unacknowledged_msg(Acc, #state{resource                = Res,
-                                      server                  = Server,
-                                      stream_mgmt             = SM,
-                                      stream_mgmt_resume_tref = ResumeTimer}) ->
-    case {SM, ResumeTimer} of
-        {false, _} -> Acc;
-        {true, undefined} -> Acc;
-        _ ->
-            NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
-                                             Server, Acc, [Res]),
-            mongoose_acc:strip(NewAcc)
-    end.
+notify_unacknowledged_msg_if_in_resume_state(Acc,
+                                             #state{stream_mgmt_resume_tref = TRef,
+                                                    stream_mgmt = true} = State) when TRef =/= undefined ->
+    notify_unacknowledged_msg(Acc, State);
+notify_unacknowledged_msg_if_in_resume_state(Acc, _) ->
+    Acc.
+
+notify_unacknowledged_msg(Acc, #state{resource = Res,
+                                      server   = Server}) ->
+
+    NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
+                                     Server, Acc, [Res]),
+    mongoose_acc:strip(NewAcc).
 
 
 finish_state(ok, StateName, StateData) ->
@@ -3059,7 +3060,7 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
               undefined ->
                   Seconds = timer:seconds(SD#state.stream_mgmt_resume_timeout),
                   TRef = erlang:send_after(Seconds, self(), resume_timeout),
-                  NewState=SD#state{stream_mgmt_resume_tref = TRef},
+                  NewState = SD#state{stream_mgmt_resume_tref = TRef},
                   notify_unacknowledged_messages(NewState);
               _TRef ->
                   SD
