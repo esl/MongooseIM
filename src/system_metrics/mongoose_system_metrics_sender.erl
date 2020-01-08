@@ -11,28 +11,42 @@
 
 -spec send(string(), [report_struct()]) -> ok.
 send(ClientId, ReportStructs) ->
-    Reports = build_reports(ClientId, ReportStructs),
+    TrackingIds = get_tracking_ids(),
+    Reports = build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs),
     send_reports(Reports),
     ok.
 
--spec build_reports(string(), [report_struct()]) -> [google_analytics_report()].
-build_reports(ClientId, ReportStructs) ->
-    TrackingId = get_tracking_id(),
+-spec build_reports_for_each_tracking_id(string(), string(), [report_struct()]) -> [google_analytics_report()].
+build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs) ->
     lists:map(
-        fun(Report) -> 
+        fun(Tid) ->
+            build_reports(ClientId, Tid, ReportStructs)
+        end, TrackingIds).
+
+-spec build_reports(string(), string(), [report_struct()]) -> [google_analytics_report()].
+build_reports(ClientId, TrackingId, ReportStructs) ->
+    lists:map(
+        fun(Report) ->
             build_report(ClientId, TrackingId, Report)
         end, ReportStructs).
 
-send_reports(Reports) ->
+send_reports(ReportsList) ->
     Url = get_url(),
-    flush_reports(Url, Reports).
+    lists:map(
+        fun(Reports) ->
+            flush_reports(Url, Reports)
+        end, ReportsList).
 
 get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
 
-get_tracking_id() ->
-    ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID).
-
+get_tracking_ids() ->
+    DevTrackingId = ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID),
+    ExtraTrackingId = ejabberd_config:get_local_option(extra_google_analytics_tracking_id),
+    case ExtraTrackingId of
+        undefined -> [DevTrackingId];
+        ExtraTrackingId -> [DevTrackingId, ExtraTrackingId]
+    end.
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
 -spec flush_reports(url(), [google_analytics_report()]) -> {ok, term()} | {error, term()}.
