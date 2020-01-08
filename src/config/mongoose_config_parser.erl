@@ -302,8 +302,6 @@ process_term(Term, State) ->
             add_option(cowboy_server_name, Value, State);
         {services, Value} ->
             add_option(services, Value, State);
-        {google_analytics_tracking_id, Value} ->
-            add_option(google_analytics_tracking_id, Value, State);
         {_Opt, _Val} ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)

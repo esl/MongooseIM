@@ -9,7 +9,7 @@
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, "UA-151671255-2").
 -define(TRACKING_ID_CI, "UA-151671255-1").
--define(TRACKING_ID_ADDITIONAL, "UA-151671255-3").
+-define(TRACKING_ID_EXTRA, "UA-151671255-3").
 
 -record(event, {
     cid = "",
@@ -185,7 +185,7 @@ system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     all_event_have_the_same_client_id().
 
 tracking_id_is_correctly_configured(_Config) ->
-    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [dev_google_analytics_tracking_id]),
+    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [google_analytics_tracking_id]),
     case os:getenv("CI") of
         "true" ->
             ?assertEqual(?TRACKING_ID_CI, TrackingId);
@@ -282,11 +282,11 @@ system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
 
 configure_additional_tracking_id(Node) ->
-    TrackingIdArgs = [google_analytics_tracking_id, ?TRACKING_ID_ADDITIONAL],
+    TrackingIdArgs = [extra_google_analytics_tracking_id, ?TRACKING_ID_EXTRA],
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
 
 remove_additional_tracking_id(Node) ->
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_tracking_id ]).
+    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),

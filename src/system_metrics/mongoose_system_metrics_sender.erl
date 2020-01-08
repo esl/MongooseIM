@@ -41,11 +41,11 @@ get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
 
 get_tracking_ids() ->
-    DevTrackingId = ejabberd_config:get_local_option_or_default(dev_google_analytics_tracking_id, ?TRACKING_ID),
-    AdditionalTrackingId = ejabberd_config:get_local_option(google_analytics_tracking_id),
-    case AdditionalTrackingId of
+    DevTrackingId = ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID),
+    ExtraTrackingId = ejabberd_config:get_local_option(extra_google_analytics_tracking_id),
+    case ExtraTrackingId of
         undefined -> [DevTrackingId];
-        AdditionalTrackingId -> [DevTrackingId, AdditionalTrackingId]
+        ExtraTrackingId -> [DevTrackingId, ExtraTrackingId]
     end.
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
