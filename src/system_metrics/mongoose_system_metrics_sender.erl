@@ -11,7 +11,7 @@
 
 -spec send(string(), [report_struct()]) -> ok.
 send(ClientId, ReportStructs) ->
-    TrackingIds = get_tracking_id(),
+    TrackingIds = get_tracking_ids(),
     Reports = build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs),
     send_reports(Reports),
     ok.
@@ -40,7 +40,7 @@ send_reports(ReportsList) ->
 get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
 
-get_tracking_id() ->
+get_tracking_ids() ->
     DevTrackingId = ejabberd_config:get_local_option_or_default(dev_google_analytics_tracking_id, ?TRACKING_ID),
     AdditionalTrackingId = ejabberd_config:get_local_option(google_analytics_tracking_id),
     case AdditionalTrackingId of
