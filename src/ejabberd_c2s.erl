@@ -3025,12 +3025,13 @@ notify_unacknowledged_msg_if_in_resume_state(Acc,
 notify_unacknowledged_msg_if_in_resume_state(Acc, _) ->
     Acc.
 
-maybe_notify_unacknowledged_msg(Acc, #state{resource = Res,
+maybe_notify_unacknowledged_msg(Acc, #state{user     = User,
+                                            resource = Res,
                                             server   = Server}) ->
     case mongoose_acc:stanza_name(Acc) of
         <<"message">> ->
             NewAcc = ejabberd_hooks:run_fold(unacknowledged_message,
-                                             Server, Acc, [Res]),
+                                             Server, Acc, [User, Server, Res]),
             mongoose_acc:strip(NewAcc);
         _ -> Acc
     end.

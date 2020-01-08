@@ -56,12 +56,10 @@ deps(_Host, Opts) ->
 start(Host, Opts) ->
     create_ets(Host),
     Backends = get_backends(Opts),
-    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
-    ejabberd_hooks:add(push_event, Host, ?MODULE, push_event, 90).
+    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}).
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ejabberd_hooks:delete(push_event, Host, ?MODULE, push_event, 90),
     ets:delete(ets_name(Host)).
 
 %%--------------------------------------------------------------------
