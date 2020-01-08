@@ -218,7 +218,8 @@ delete_old_users(Days, Users) ->
                       SecOlder :: non_neg_integer()) -> boolean().
 delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
     %% Check if the user is logged
-    case ejabberd_sm:get_user_resources(LUser, LServer) of
+    JID = jid:make(LUser, LServer, <<>>),
+    case ejabberd_sm:get_user_resources(JID) of
         [] -> delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder);
         _ -> false
     end.
@@ -263,11 +264,12 @@ ban_account(User, Host, ReasonText) ->
 
 -spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
 kick_sessions(User, Server, Reason) ->
+    JID = jid:make(User, Server, <<>>),
     lists:map(
         fun(Resource) ->
                 service_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
         end,
-        ejabberd_sm:get_user_resources(User, Server)).
+        ejabberd_sm:get_user_resources(JID)).
 
 
 -spec set_random_password(User, Server, Reason) -> Result when

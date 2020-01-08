@@ -46,6 +46,7 @@
          get_password/2,
          get_password_s/2,
          get_passterm_with_authmodule/2,
+         is_user_exists/1,
          is_user_exists/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
@@ -62,6 +63,7 @@
 -export([authorize_with_check_password/2]).
 
 -include("mongoose.hrl").
+-include("jlib.hrl").
 
 -export_type([authmodule/0,
               passterm/0]).
@@ -469,6 +471,11 @@ is_user_exists(<<"">>, _) ->
 is_user_exists(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
+    do_does_user_exist(LUser, LServer).
+
+-spec is_user_exists(JID :: jid:jid()) -> boolean().
+is_user_exists(JID) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
     do_does_user_exist(LUser, LServer).
 
 do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->

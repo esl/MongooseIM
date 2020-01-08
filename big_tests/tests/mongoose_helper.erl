@@ -351,16 +351,15 @@ get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    successful_rpc(Node, ejabberd_sm, get_session_pid,
-                            [Username, Server, Resource]).
+    JID = rpc(mim(), jid, make, [Username, Server, Resource]),
+    successful_rpc(Node, ejabberd_sm, get_session_pid, [JID]).
 
 get_session_info(RpcDetails, User) ->
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
     Resource = escalus_client:resource(User),
-
-    {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session,
-                          [Username, Server, Resource]),
+    JID = rpc(mim(), jid, make, [Username, Server, Resource]),
+    {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
     Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->

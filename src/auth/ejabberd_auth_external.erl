@@ -368,7 +368,8 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
                       Server :: jid:server()
                       ) -> online | never | mod_last_required | integer().
 get_last_access(User, Server) ->
-    case ejabberd_sm:get_user_resources(User, Server) of
+    JID = jid:make(User, Server, <<>>),
+    case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last_info(User, Server) of
                 mod_last_required ->

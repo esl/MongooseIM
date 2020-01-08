@@ -37,12 +37,10 @@
          close_session/4,
          store_info/2,
          remove_info/2,
-         remove_info/4,
          check_in_subscription/6,
          bounce_offline_message/4,
          disconnect_removed_user/3,
          get_user_resources/1,
-         get_user_resources/2,
          set_presence/6,
          unset_presence/5,
          close_session_unset_presence/5,
@@ -58,11 +56,9 @@
          force_update_presence/1,
          user_resources/2,
          get_session_pid/1,
-         get_session_pid/3,
          get_session/1,
-         get_session/3,
-         get_session_ip/3,
-         get_user_present_resources/2,
+         get_session_ip/1,
+         get_user_present_resources/1,
          get_raw_sessions/1,
          is_offline/1,
          get_user_present_pids/2
@@ -229,14 +225,13 @@ close_session(Acc, SID, JID, Reason) ->
 -spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.
 store_info(JID, {Key, _Value} = KV) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     case get_session(JID) of
         offline -> {error, offline};
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update its own record
-                    update_session(SID, LUser, LServer, LResource, SPriority,
+                    update_session(SID, JID, SPriority,
                                    lists:keystore(Key, 1, SInfo, KV)),
                     {ok, KV};
                 {_, Pid} ->
@@ -247,22 +242,16 @@ store_info(JID, {Key, _Value} = KV) ->
             end
     end.
 
--spec remove_info(jid:user(), jid:server(), jid:resource(), info_key()) ->
-    ok | {error, offline}.
-remove_info(User, Server, Resource, Key) ->
-    remove_info(jid:make(User, Server, Resource), Key).
-
 -spec remove_info(jid:jid(), info_key()) ->
     ok | {error, offline}.
 remove_info(JID, Key) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     case get_session(JID) of
         offline -> {error, offline};
         {_SUser, SID, SPriority, SInfo} ->
             case SID of
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update its own record
-                    update_session(SID, LUser, LServer, LResource, SPriority,
+                    update_session(SID, JID, SPriority,
                                    lists:keydelete(Key, 1, SInfo)),
                     ok;
                 {_, Pid} ->
@@ -317,17 +306,11 @@ get_user_resources(JID) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
--spec get_user_resources(User :: jid:user(), Server :: jid:server()) -> [binary()].
-get_user_resources(User, Server) ->
-    get_user_resources(jid:make(User, Server, <<>>)).
 
-
--spec get_session_ip(User, Server, Resource) -> undefined | {inet:ip_address(), integer()} when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource().
-get_session_ip(User, Server, Resource) ->
-    case get_session(User, Server, Resource) of
+-spec get_session_ip(JID) -> undefined | {inet:ip_address(), integer()} when
+      JID :: jid:jid().
+get_session_ip(JID) ->
+    case get_session(JID) of
         offline -> undefined;
         {_, _, _, Info} -> proplists:get_value(ip, Info)
     end.
@@ -346,13 +329,6 @@ get_session(JID) ->
              Session#session.priority,
              Session#session.info}
     end.
-
--spec get_session(User, Server, Resource) -> offline | ses_tuple() when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource().
-get_session(User, Server, Resource) ->
-    get_session(jid:make(User, Server, Resource)).
 
 -spec get_raw_sessions(jid:jid()) -> [session()].
 get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
@@ -412,13 +388,6 @@ get_session_pid(JID) ->
         _ ->
             none
     end.
-
--spec get_session_pid(User, Server, Resource) -> none | pid() when
-      User :: jid:user(),
-      Server :: jid:server(),
-      Resource :: jid:resource().
-get_session_pid(User, Server, Resource) ->
-    get_session_pid(jid:make(User, Server, Resource)).
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
@@ -614,14 +583,13 @@ set_session(SID, JID, Priority, Info) ->
                        info = Info},
     ejabberd_gen_sm:create_session(sm_backend(), LUser, LServer, LResource, Session).
 
--spec update_session(SID, User, Server, Resource, Prio, Info) -> ok | {error, any()} when
+-spec update_session(SID, JID, Prio, Info) -> ok | {error, any()} when
       SID :: sid() | 'undefined',
-      User :: jid:luser(),
-      Server :: jid:lserver(),
-      Resource :: jid:lresource(),
+      JID :: jid:jid(),
       Prio :: priority(),
       Info :: undefined | [any()].
-update_session(SID, LUser, LServer, LResource, Priority, Info) ->
+update_session(SID, JID, Priority, Info) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     US = {LUser, LServer},
     USR = {LUser, LServer, LResource},
     Session = #session{sid = SID,
@@ -733,7 +701,7 @@ do_route_no_resource_presence(_, _, _, _, _) ->
 do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
     case do_route_no_resource_presence(Type, From, To, Acc, El) of
         true ->
-            PResources = get_user_present_resources(To#jid.luser, To#jid.lserver),
+            PResources = get_user_present_resources(To),
             lists:foldl(fun({_, R}, A) ->
                             do_route(A, From, jid:replace_resource(To, R), El)
                         end,
@@ -868,9 +836,8 @@ route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
-    LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    case ejabberd_auth:is_user_exists(LUser, LServer) of
+    case ejabberd_auth:is_user_exists(To) of
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
@@ -925,10 +892,8 @@ get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
     [{S#session.priority, element(2, S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
--spec get_user_present_resources(LUser :: jid:user(),
-                                 LServer :: jid:server()
-                                ) -> [{priority(), binary()}].
-get_user_present_resources(LUser, LServer) ->
+-spec get_user_present_resources(jid:jid()) -> [{priority(), binary()}].
+get_user_present_resources(#jid{luser = LUser, lserver = LServer}) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [{S#session.priority, element(3, S#session.usr)} ||
         S <- clean_session_list(Ss), is_integer(S#session.priority)].
@@ -1084,7 +1049,8 @@ commands() ->
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
 user_resources(UserStr, ServerStr) ->
-    Resources = get_user_resources(list_to_binary(UserStr), list_to_binary(ServerStr)),
+    JID = jid:make(list_to_binary(UserStr), list_to_binary(ServerStr), <<"">>),
+    Resources = get_user_resources(JID),
     lists:sort(Resources).
 
 -spec sm_backend(backend()) -> string().

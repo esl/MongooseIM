@@ -352,9 +352,10 @@ build_list_users(Group, [{User, Server}|Users], Res) ->
 -spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),
         jid:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, U, S, Action) ->
+    JID = jid:make(LU, LS, <<>>),
     lists:foreach(fun(R) ->
                 push_roster_item(LU, LS, R, U, S, Action)
-        end, ejabberd_sm:get_user_resources(LU, LS)).
+        end, ejabberd_sm:get_user_resources(JID)).
 
 
 -spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),

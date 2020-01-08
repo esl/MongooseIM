@@ -228,17 +228,16 @@ add_virtual_pubsub_host(Host, VirtualHost) ->
     ok.
 maybe_remove_push_node_from_sessions_info(From, undefined) ->
     %% The node is undefined which means that a user wants to disable all push nodes
-    LUser = From#jid.luser,
-    LServer = From#jid.lserver,
-    AllResources = ejabberd_sm:get_user_present_resources(LUser, LServer),
-    [ejabberd_sm:remove_info(LUser, LServer, Resource, push_notifications) ||
-     {_, Resource} <- AllResources],
+    AllResources = ejabberd_sm:get_user_present_resources(From),
+    [begin
+         JID = jid:replace_resource(From, Resource),
+         ejabberd_sm:remove_info(JID, push_notifications)
+     end
+     || {_, Resource} <- AllResources],
     ok;
 maybe_remove_push_node_from_sessions_info(From, Node) ->
-    LUser = From#jid.luser,
-    LServer = From#jid.lserver,
     AllSessions = ejabberd_sm:get_raw_sessions(From),
-    find_and_remove_push_node(LUser, LServer, AllSessions, Node).
+    find_and_remove_push_node(From, AllSessions, Node).
 
 %%--------------------------------------------------------------------
 %% Helper functions
@@ -253,15 +252,15 @@ my_push_node(RawSession, Node) ->
             false
     end.
 
-find_and_remove_push_node(_LUser, _LServer, [], _Node) ->
+find_and_remove_push_node(_From, [], _Node) ->
     ok;
-find_and_remove_push_node(LUser, LServer, [RawSession | Rest], Node) ->
+find_and_remove_push_node(#jid{} = From, [RawSession | Rest], Node) ->
     case my_push_node(RawSession, Node) of
         true ->
             LResource  = mongoose_session:get_resource(RawSession),
-            ejabberd_sm:remove_info(LUser, LServer, LResource, push_notifications);
+            ejabberd_sm:remove_info(jid:replace_resource(From, LResource), push_notifications);
         false ->
-            find_and_remove_push_node(LUser, LServer, Rest, Node)
+            find_and_remove_push_node(From, Rest, Node)
     end.
 
 -spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().

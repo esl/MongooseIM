@@ -1066,7 +1066,7 @@ aggressively_pipelined_resume(Config) ->
 %% receive a response from the server, i.e. will have the same origin SID in mongoose_acc.
 %% Without proper handling, the reply would be rejected because the resumed session
 %% has new SID.
-replies_are_processed_by_resumed_session(Config) -> 
+replies_are_processed_by_resumed_session(Config) ->
     %% GIVEN a session and registered special IQ handler (added in init_per_testcase),
     %% that waits for old session process to terminate (at this point new process
     %% has fully taken over) and then actually sends the reply.
@@ -1077,7 +1077,7 @@ replies_are_processed_by_resumed_session(Config) ->
     SMH = escalus_connection:get_sm_h(Alice),
 
     %% WHEN a client sends IQ request to the special handler...
-    IQReq = escalus_stanza:iq_get(regression_ns(), []), 
+    IQReq = escalus_stanza:iq_get(regression_ns(), []),
     escalus:send(Alice, IQReq),
 
     %% ... goes down and session is resumed.
@@ -1140,7 +1140,7 @@ subscription_requests_are_buffered_properly(Config) ->
         % Alice DOESN'T receive:
         % * buffered subscription request because it is dropped by ejabberd_sm
         %   because it's treated like repeated sub request to bare JID, so it's not
-        %   processed by any sub req handler (like mod_roster) 
+        %   processed by any sub req handler (like mod_roster)
         SubReqAndInitialPresence = escalus:wait_for_stanzas(Alice2, 2),
         escalus:assert_many([AvailablePredFun, MsgPredFun], SubReqAndInitialPresence),
 
@@ -1367,7 +1367,7 @@ assert_no_offline_msgs() ->
     0 = mongoose_helper:total_offline_messages().
 
 wait_for_c2s_state_change(C2SPid, NewStateName) ->
-    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName, 
+    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName,
                                 #{name => get_c2s_state, time_left => timer:seconds(5)}).
 
 wait_for_c2s_unacked_count(C2SPid, Count) ->
@@ -1411,7 +1411,8 @@ wait_for_process_termination(C2SRef) ->
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
-    case rpc(mim(), ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
+    JID = rpc(mim(), jid, make, [U, S, Resource]),
+    case rpc(mim(), ejabberd_sm, get_session_pid, [JID]) of
         none ->
             {error, no_found};
         C2SPid ->
@@ -1420,7 +1421,8 @@ get_session_pid(UserSpec, Resource) ->
 
 get_user_alive_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
-    rpc(mim(), ejabberd_sm, get_user_resources, [U, S]).
+    JID = rpc(mim(), jid, make, [U, S, <<>>]),
+    rpc(mim(), ejabberd_sm, get_user_resources, [JID]).
 
 get_user_present_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
@@ -1488,19 +1490,17 @@ regression_handler(_From, _To, Acc, IQ) ->
         10000 ->
             error({c2s_not_stopped_after_timeout, Pid})
     end,
-
     %% We avoid another race condition - there is a short window where user session
     %% is not registered in ejabberd_sm: between old process termination and the moment
     %% when the new process stores new session in memory. It should be fixed separately.
-    wait_for_session(jid:to_lower(mongoose_acc:get(c2s, origin_jid, undefined, Acc)), 50, 100),
-
+    wait_for_session(mongoose_acc:get(c2s, origin_jid, undefined, Acc), 50, 100),
     {Acc, jlib:make_result_iq_reply(IQ)}.
 
-wait_for_session({LU, LS, LR} = LJID, Retries, SleepTime) ->
-    case ejabberd_sm:get_session(LU, LS, LR) of
+wait_for_session(JID, Retries, SleepTime) ->
+    case ejabberd_sm:get_session(JID) of
         offline ->
             timer:sleep(SleepTime),
-            wait_for_session(LJID, Retries - 1, SleepTime);
+            wait_for_session(JID, Retries - 1, SleepTime);
         _ ->
             ok
     end.

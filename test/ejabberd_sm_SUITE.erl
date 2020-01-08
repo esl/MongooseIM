@@ -405,8 +405,6 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
 
 given_session_opened(Sid, {U,S,R}, Priority, Info) ->
     JID = jid:make_noprep(U,S,R),
-    JID = #jid{user = U, server = S, resource = R,
-               luser = U, lserver = S, lresource = R},
     ejabberd_sm:open_session(Sid, JID, Priority, Info).
 
 when_session_opened(Sid, {U,S,R}, Priority, Info) ->
@@ -417,7 +415,8 @@ when_session_info_stored(U, S, R, {_,_}=KV) ->
     ejabberd_sm:store_info(JID, KV).
 
 when_session_info_removed(U, S, R, Key) ->
-    ejabberd_sm:remove_info(U, S, R, Key).
+    JID = jid:make_noprep(U,S,R),
+    ejabberd_sm:remove_info(JID, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).

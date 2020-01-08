@@ -96,51 +96,57 @@ send_message_headline(From, To, Subject, Body) ->
 %%      offline, the packet is sent to the bare JID.
 %% If the user is local and is online in several resources, the packet is sent
 %%      to all its resources.
--spec send_packet_all_resources(FromJIDStr :: binary(), ToJIDString :: binary(),
-                                exml:element()) -> {Res, string()} when
+-spec send_packet_all_resources(
+        FromJIDStr :: binary() | jid:jid(),
+        ToJIDString :: binary() | jid:jid(),
+        exml:element()) ->
+    {Res, string()} when
     Res :: bad_jid | ok.
-send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
-    FromJID = jid:from_binary(FromJIDString),
-    case FromJID of
+send_packet_all_resources(FromJIDString, ToJIDString, Packet) when is_binary(FromJIDString) ->
+    case jid:from_binary(FromJIDString) of
         error ->
             {bad_jid, "Sender JID is invalid"};
-        _ ->
-            ToJID = jid:from_binary(ToJIDString),
-            ToUser = ToJID#jid.user,
-            ToServer = ToJID#jid.server,
-            case ToJID#jid.resource of
-                <<"">> ->
-                    send_packet_all_resources(FromJID, ToUser, ToServer, Packet);
-                Res ->
-                    send_packet_all_resources(FromJID, ToUser, ToServer, Res, Packet)
-            end,
+        FromJID ->
+            send_packet_all_resources(FromJID, ToJIDString, Packet),
+            {ok, ""}
+    end;
+send_packet_all_resources(FromJID, ToJIDString, Packet) when is_binary(ToJIDString) ->
+    case jid:from_binary(ToJIDString) of
+        error ->
+            {bad_jid, "Receiver JID is invalid"};
+        ToJID ->
+            send_packet_all_resources(FromJID, ToJID, Packet),
+            {ok, ""}
+    end;
+send_packet_all_resources(#jid{} = FromJID, #jid{} = ToJID, Packet) ->
+    case ToJID#jid.resource of
+        <<"">> ->
+            send_packet_all_resources_2(FromJID, ToJID, Packet),
+            {ok, ""};
+        _Res ->
+            route_packet(FromJID, ToJID, Packet),
             {ok, ""}
     end.
 
 
-
--spec send_packet_all_resources(FromJID :: 'error' | jid:jid(),
-                                ToUser :: jid:user(),
-                                ToServer :: jid:server(),
-                                exml:element()) -> 'ok'.
-send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
-    case ejabberd_sm:get_user_resources(ToUser, ToServer) of
+-spec send_packet_all_resources_2(FromJID :: jid:jid(),
+                                  ToJID :: jid:jid(),
+                                  exml:element()) -> ok.
+send_packet_all_resources_2(FromJID, ToJID, Packet) ->
+    case ejabberd_sm:get_user_resources(ToJID) of
         [] ->
-            send_packet_all_resources(FromJID, ToUser, ToServer, <<"">>, Packet);
+            route_packet(FromJID, ToJID, Packet);
         ToResources ->
             lists:foreach(
-                fun(ToResource) ->
-                        send_packet_all_resources(FromJID, ToUser, ToServer,
-                                                  ToResource, Packet)
-                end,
-                ToResources)
+              fun(ToResource) ->
+                      route_packet(FromJID, jid:replace_resource(ToJID, ToResource), Packet)
+              end,
+              ToResources)
     end.
 
 
--spec send_packet_all_resources(jid:jid(), ToU :: binary(), ToS :: binary(),
-                                ToR :: binary(), exml:element()) -> mongoose_acc:t().
-send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
-    ToJID = jid:make(ToU, ToS, ToR),
+-spec route_packet(jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+route_packet(FromJID, ToJID, Packet) ->
     ejabberd_router:route(FromJID, ToJID, Packet).
 
 
@@ -164,7 +170,7 @@ build_packet(message_headline, [Subject, Body]) ->
                       Stanza :: binary()) -> {Res, string()} when
     Res :: user_does_not_exist | bad_stanza | ok.
 send_stanza_c2s(Username, Host, Resource, Stanza) ->
-    C2sPid = ejabberd_sm:get_session_pid(Username, Host, Resource),
+    C2sPid = ejabberd_sm:get_session_pid(jid:make(Username, Host, Resource)),
     case C2sPid of
         none ->
             {user_does_not_exist,

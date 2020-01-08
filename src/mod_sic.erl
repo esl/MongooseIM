@@ -52,19 +52,19 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_SIC).
 
 
-process_local_iq(#jid{user = User, server = Server, resource = Resource}, _To,
+process_local_iq(#jid{} = JID, _To,
                  Acc, #iq{type = 'get', sub_el = _SubEl} = IQ) ->
-    {Acc, get_ip({User, Server, Resource}, IQ)};
+    {Acc, get_ip(JID, IQ)};
 
 process_local_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
 
-process_sm_iq(#jid{user = User, server = Server, resource = Resource},
+process_sm_iq(#jid{user = User, server = Server} = JID,
               #jid{user = User, server = Server},
               Acc,
               #iq{type = 'get', sub_el = _SubEl} = IQ) ->
-    {Acc, get_ip({User, Server, Resource}, IQ)};
+    {Acc, get_ip(JID, IQ)};
 
 process_sm_iq(_From, _To, Acc, #iq{type = 'get', sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}};
@@ -72,9 +72,8 @@ process_sm_iq(_From, _To, Acc, #iq{type = 'get', sub_el = SubEl} = IQ) ->
 process_sm_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
-get_ip({User, Server, Resource},
-       #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
-    case ejabberd_sm:get_session_ip(User, Server, Resource) of
+get_ip(JID, #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
+    case ejabberd_sm:get_session_ip(JID) of
         {IP, Port} when is_tuple(IP) ->
             IQ#iq{
               type = 'result',

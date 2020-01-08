@@ -326,7 +326,7 @@ make_session_terminate_reason_el(ErrorCode, #sipmsg{class = {resp, ErrorCode, Bi
            children = [Reason, Details]}.
 
 maybe_route_to_all_sessions(From, To, Acc, Packet) ->
-    PResources = ejabberd_sm:get_user_present_resources(To#jid.luser, To#jid.lserver),
+    PResources = ejabberd_sm:get_user_present_resources(To),
     lists:foreach(
       fun({_, R}) ->
               ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)
