@@ -351,14 +351,14 @@ get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    JID = rpc(mim(), jid, make, [Username, Server, Resource]),
+    JID = rpc(Node, jid, make, [Username, Server, Resource]),
     successful_rpc(Node, ejabberd_sm, get_session_pid, [JID]).
 
 get_session_info(RpcDetails, User) ->
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
     Resource = escalus_client:resource(User),
-    JID = rpc(mim(), jid, make, [Username, Server, Resource]),
+    JID = rpc(RpcDetails, jid, make, [Username, Server, Resource]),
     {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
     Info.
 

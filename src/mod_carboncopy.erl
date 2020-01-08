@@ -40,7 +40,7 @@
          user_receive_packet/5,
          iq_handler2/4,
          iq_handler1/4,
-         remove_connection/3
+         remove_connection/5
         ]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
@@ -181,7 +181,8 @@ is_forwarded(SubTag) ->
         _ -> ignore
     end.
 
-remove_connection(Acc, JID, _Status) ->
+remove_connection(Acc, LUser, LServer, LResource, _Status) ->
+    JID = jid:make_noprep(LUser, LServer, LResource),
     disable(JID),
     Acc.
 
@@ -265,7 +266,7 @@ enable(JID, CC) ->
     KV = {?CC_KEY, cc_ver_to_int(CC)},
     case ejabberd_sm:store_info(JID, KV) of
         {ok, KV} -> ok;
-        _ -> {error, error}
+        {error, _} = Err -> Err
     end.
 
 disable(JID) ->

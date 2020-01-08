@@ -36,7 +36,7 @@
          stop/1,
          process_local_iq/4,
          process_sm_iq/4,
-         on_presence_update/3,
+         on_presence_update/5,
          store_last_info/4,
          get_last_info/2,
          count_active_users/2,
@@ -214,9 +214,9 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     mod_last_backend:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(map(), jid:jid(), Status :: binary()) ->
-    map() | {error, term()}.
-on_presence_update(Acc, #jid{luser = LUser, lserver = LServer}, Status) ->
+-spec on_presence_update(map(), jid:luser(), jid:lserver(), jid:lresource(),
+                         Status :: binary()) -> map() | {error, term()}.
+on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = erlang:system_time(second),
     case store_last_info(LUser, LServer, TimeStamp, Status) of
         ok -> Acc;
@@ -248,4 +248,4 @@ remove_user(Acc, User, Server) ->
 -spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
-    on_presence_update(Acc, jid:make_noprep(LUser, LServer, LResource), <<>>).
+    on_presence_update(Acc, LUser, LServer, LResource, <<>>).

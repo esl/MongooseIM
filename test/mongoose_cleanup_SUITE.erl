@@ -90,10 +90,10 @@ auth_anonymous(_Config) ->
 
 last(_Config) ->
     mod_last:start(?HOST, [{backend, mnesia}, {iqdisc, no_queue}]),
-    {U, S, R, JID, SID} = get_fake_session(),
+    {U, S, R, _JID, SID} = get_fake_session(),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,
-    #{} = mod_last:on_presence_update(#{}, JID, Status1),
+    #{} = mod_last:on_presence_update(#{}, U, S, R, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
     async_helper:wait_until(
       fun() ->

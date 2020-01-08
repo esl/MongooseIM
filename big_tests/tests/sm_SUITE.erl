@@ -1426,7 +1426,8 @@ get_user_alive_resources(UserSpec) ->
 
 get_user_present_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
-    rpc(mim(), ejabberd_sm, get_user_present_resources, [U, S]).
+    JID = rpc(mim(), jid, make, [U, S, <<>>]),
+    rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]).
 
 get_sid_by_stream_id(SMID) ->
     rpc(mim(), ?MOD_SM, get_sid, [SMID]).

@@ -46,7 +46,7 @@
          get_password/2,
          get_password_s/2,
          get_passterm_with_authmodule/2,
-         is_user_exists/1,
+         does_user_exist/1,
          is_user_exists/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
@@ -473,8 +473,8 @@ is_user_exists(User, Server) ->
     LServer = jid:nameprep(Server),
     do_does_user_exist(LUser, LServer).
 
--spec is_user_exists(JID :: jid:jid()) -> boolean().
-is_user_exists(JID) ->
+-spec does_user_exist(JID :: jid:jid()) -> boolean().
+does_user_exist(JID) ->
     #jid{luser = LUser, lserver = LServer} = JID,
     do_does_user_exist(LUser, LServer).
 

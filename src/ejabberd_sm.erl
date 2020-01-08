@@ -358,10 +358,10 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Status :: any(),
       Info :: 'undefined' | [any()].
 unset_presence(Acc, SID, JID, Status, Info) ->
-    #jid{lserver = LServer} = JID,
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, undefined, Info),
     ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
-                       [JID, Status]).
+                       [LUser, LServer, LResource, Status]).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
@@ -372,10 +372,10 @@ unset_presence(Acc, SID, JID, Status, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    #jid{lserver = LServer} = JID,
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
     ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc1,
-                       [JID, Status]).
+                       [LUser, LServer, LResource, Status]).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -837,7 +837,7 @@ route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
     LServer = To#jid.lserver,
-    case ejabberd_auth:is_user_exists(To) of
+    case ejabberd_auth:does_user_exist(To) of
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->

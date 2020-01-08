@@ -168,7 +168,7 @@ register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}
             error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
-attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = _ID, sub_el = _Child} = IQ) ->
+attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
     #jid{user = Username, lserver = UserDomain} = ClientJID,
     case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->

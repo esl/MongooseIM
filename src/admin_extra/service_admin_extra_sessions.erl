@@ -296,8 +296,8 @@ user_sessions_info(User, Host) ->
     JID = jid:make(User, Host, <<>>),
     Resources = ejabberd_sm:get_user_resources(JID),
     lists:foldl(fun(Res, Acc) ->
-                JID = jid:make(User, Host, Res),
-                case ejabberd_sm:get_session(JID) of
+                RJID = jid:replace_resource(JID, Res),
+                case ejabberd_sm:get_session(RJID) of
                     offline -> Acc;
                     Session -> [format_user_info(Session)|Acc]
                 end

@@ -93,8 +93,8 @@ prepare(ClientIn) ->
 
 -spec parse(binary()) -> [binary(), ...].
 parse(S) ->
-    binary:split(S, <<0>>, [global,trim]).
+    binary:split(S, <<0>>, [global, trim]).
 
 -spec parse_domain(binary()) -> [binary(), ...].
 parse_domain(S) ->
-    binary:split(S, <<$@>>, [global,trim]).
+    binary:split(S, <<$@>>, [global, trim]).
