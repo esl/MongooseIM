@@ -16,7 +16,7 @@ send(ClientId, ReportStructs) ->
     send_reports(Reports),
     ok.
 
--spec build_reports_for_each_tracking_id(string(), string(), [report_struct()]) -> ok.
+-spec build_reports_for_each_tracking_id(string(), string(), [report_struct()]) -> [google_analytics_report()].
 build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs) ->
     lists:map(
         fun(Tid) ->
@@ -32,7 +32,10 @@ build_reports(ClientId, TrackingId, ReportStructs) ->
 
 send_reports(ReportsList) ->
     Url = get_url(),
-    [flush_reports(Url, Reports) || Reports <- ReportsList].
+    lists:map(
+        fun(Reports) ->
+            flush_reports(Url, Reports)
+        end, ReportsList).
 
 get_url() ->
     ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).

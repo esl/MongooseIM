@@ -290,8 +290,8 @@ remove_additional_tracking_id(Node) ->
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
-    UniqueSortedTab = lists:usort([Tid ||#event{tid = Tid} <- Tab]),
-    2 == length(UniqueSortedTab).
+    SetTab = sets:from_list([Tid ||#event{tid = Tid} <- Tab]),
+    2 == sets:size(SetTab).
 
 events_are_reported_to_configurable_tracking_id() ->
     ConfigurableTrackingId = <<"configurable_tracking_id">>,
