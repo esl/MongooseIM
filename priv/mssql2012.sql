@@ -146,6 +146,7 @@ CREATE TABLE [dbo].[offline_message](
 	[username] [nvarchar](250) NOT NULL,
 	[from_jid] [nvarchar](250) NOT NULL,
 	[packet] [nvarchar](max) NOT NULL,
+	[permanent_fields] [varbinary](max),
  CONSTRAINT [PK_offline_message_id] PRIMARY KEY CLUSTERED
 (
 	[id] ASC

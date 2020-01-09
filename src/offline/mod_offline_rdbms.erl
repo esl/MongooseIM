@@ -79,17 +79,24 @@ fetch_messages(User, Server) ->
 rows_to_records(US, To, Rows) ->
     [row_to_record(US, To, Row) || Row <- Rows].
 
-row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
+row_to_record(US, To, {STimeStamp, SFrom, SPacket, SPermanentFields}) ->
     {ok, Packet} = exml:parse(SPacket),
     TimeStamp = usec:to_now(mongoose_rdbms:result_to_integer(STimeStamp)),
     From = jid:from_binary(SFrom),
+    PermanentFields = extract_permanent_fields(SPermanentFields),
     #offline_msg{us = US,
              timestamp = TimeStamp,
              expire = never,
              from = From,
              to = To,
-             packet = Packet}.
+             packet = Packet,
+             permanent_fields = PermanentFields}.
 
+extract_permanent_fields(null) ->
+    []; %% This is needed in transition period when upgrading to MongooseIM above 3.5.0
+extract_permanent_fields(Term) ->
+    Unescaped = mongoose_rdbms:unescape_binary(global, Term),
+    binary_to_term(Unescaped).
 
 write_messages(LUser, LServer, Msgs) ->
     SUser = mongoose_rdbms:escape_string(LUser),
@@ -112,13 +119,19 @@ write_all_messages_t(LServer, SUser, SServer, Msgs) ->
             {error, Reason}
     end.
 
-record_to_row(SUser, SServer, #offline_msg{
-        from = From, packet = Packet, timestamp = TimeStamp, expire = Expire}) ->
+record_to_row(SUser, SServer,
+              #offline_msg{from = From, packet = Packet, timestamp = TimeStamp,
+                           expire = Expire, permanent_fields = PermanentFields}) ->
     SFrom = mongoose_rdbms:escape_string(jid:to_binary(From)),
     SPacket = mongoose_rdbms:escape_string(exml:to_binary(Packet)),
     STimeStamp = encode_timestamp(TimeStamp),
     SExpire = maybe_encode_timestamp(Expire),
-    rdbms_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).
+    SFields = encode_permanent_fields(PermanentFields),
+    rdbms_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields).
+
+encode_permanent_fields(Fields) ->
+    Binary = term_to_binary(Fields),
+    mongoose_rdbms:escape_binary(global, Binary).
 
 remove_user(LUser, LServer) ->
     SUser   = mongoose_rdbms:escape_string(LUser),

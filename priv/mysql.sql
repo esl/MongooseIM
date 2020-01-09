@@ -297,7 +297,8 @@ CREATE TABLE offline_message(
   server    varchar(250)    NOT NULL,
   username  varchar(250)    NOT NULL,
   from_jid  varchar(250)    NOT NULL,
-  packet    mediumblob      NOT NULL
+  packet    mediumblob      NOT NULL,
+  permanent_fields    mediumblob
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);

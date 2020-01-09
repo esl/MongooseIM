@@ -42,7 +42,6 @@
 -include("mod_offline.hrl").
 
 -define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
--define(BATCHSIZE, 100).
 
 init(_Host, _Opts) ->
     mnesia:create_table(offline_msg,
@@ -50,6 +49,7 @@ init(_Host, _Opts) ->
                          {type, bag},
                          {attributes, record_info(fields, offline_msg)}]),
     mnesia:add_table_copy(offline_msg, node(), disc_only_copies),
+    upgrade_table(),
     ok.
 
 pop_messages(LUser, LServer) ->
@@ -173,3 +173,16 @@ remove_old_message(TimeStamp, Rec) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
+
+upgrade_table() ->
+    Fields = record_info(fields, offline_msg),
+    case mnesia:table_info(offline_msg, attributes) of
+        Fields ->
+            ok;
+        [us, timestamp, expire, from, to, packet] -> %% MongooseIM 3.5.0 and older
+            mnesia:transform_table(offline_msg, fun transform_from_3_5_0_to_next/1, Fields)
+    end.
+
+transform_from_3_5_0_to_next(Record) ->
+    erlang:append_element(Record, []).
+

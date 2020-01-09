@@ -134,46 +134,26 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
     mod_offline_backend:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
-    ejabberd_hooks:add(offline_message_hook, Host,
-                       ?MODULE, inspect_packet, 50),
-    ejabberd_hooks:add(resend_offline_messages_hook, Host,
-                       ?MODULE, pop_offline_messages, 50),
-    ejabberd_hooks:add(remove_user, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(disco_sm_features, Host,
-                       ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:add(disco_local_features, Host,
-                       ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:add(amp_determine_strategy, Host,
-                       ?MODULE, determine_amp_strategy, 30),
-    ejabberd_hooks:add(failed_to_store_message, Host,
-                       ?MODULE, amp_failed_event, 30),
-    ejabberd_hooks:add(get_personal_data, Host,
-                       ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:add(hooks(Host)),
     ok.
 
 stop(Host) ->
-    ejabberd_hooks:delete(offline_message_hook, Host,
-                          ?MODULE, inspect_packet, 50),
-    ejabberd_hooks:delete(resend_offline_messages_hook, Host,
-                          ?MODULE, pop_offline_messages, 50),
-    ejabberd_hooks:delete(remove_user, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-                          ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
-    ejabberd_hooks:delete(amp_determine_strategy, Host,
-                          ?MODULE, determine_amp_strategy, 30),
-    ejabberd_hooks:delete(failed_to_store_message, Host,
-                          ?MODULE, amp_failed_event, 30),
-    ejabberd_hooks:delete(get_personal_data, Host,
-                          ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:delete(hooks(Host)),
     stop_worker(Host),
     ok.
 
+hooks(Host) ->
+    [
+     {offline_message_hook, Host, ?MODULE, inspect_packet, 50},
+     {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 50},
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
+     {disco_sm_features, Host, ?MODULE, get_sm_features, 50},
+     {disco_local_features, Host, ?MODULE, get_sm_features, 50},
+     {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 30},
+     {failed_to_store_message, Host, ?MODULE, amp_failed_event, 30},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+    ].
 
 %% Server side functions
 %% ------------------------------------------------------------------
@@ -223,7 +203,6 @@ is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) ->
     MaxArchivedMsg = MaxOfflineMsgs - Len,
     %% Maybe do not need to count all messages in archive
     MaxArchivedMsg < mod_offline_backend:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1).
-
 
 
 get_max_user_messages(AccessRule, LUser, Host) ->
@@ -374,8 +353,8 @@ add_feature({result, Features}, Feature) ->
 add_feature(_, Feature) ->
     {result, [Feature]}.
 
-%% This function should be called only from hook
-%% Calling it directly is dangerous and my store unwanted message
+%% This function should be called only from a hook
+%% Calling it directly is dangerous and may store unwanted messages
 %% in the offline storage (f.e. messages of type error or groupchat)
 %% #rh
 inspect_packet(Acc, From, To, Packet) ->
@@ -389,29 +368,31 @@ inspect_packet(Acc, From, To, Packet) ->
 
 store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              Packet = #xmlel{children = Els}) ->
-    TimeStamp =
-    case exml_query:subelement(Packet, <<"delay">>) of
-        undefined ->
-            erlang:timestamp();
-        #xmlel{name = <<"delay">>} = DelayEl ->
-            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
-                <<"">> ->
-                    erlang:timestamp();
-                Stamp ->
-                    jlib:datetime_binary_to_timestamp(Stamp)
-            end
-    end,
-
+    TimeStamp = get_or_build_timestamp_from_packet(Packet),
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
+    PermanentFields = get_permanent_fields(Acc),
     Msg = #offline_msg{us = {LUser, LServer},
-             timestamp = TimeStamp,
-             expire = Expire,
-             from = From,
-             to = To,
-             packet = jlib:remove_delay_tags(Packet)},
+                       timestamp = TimeStamp,
+                       expire = Expire,
+                       from = From,
+                       to = To,
+                       packet = jlib:remove_delay_tags(Packet),
+                       permanent_fields = PermanentFields},
     Pid ! {Acc, Msg},
     mongoose_acc:set(offline, stored, true, Acc).
+
+-spec get_or_build_timestamp_from_packet(exml:element()) -> erlang:timestamp().
+get_or_build_timestamp_from_packet(Packet) ->
+    case exml_query:subelement(Packet, <<"delay">>) of
+        undefined -> erlang:timestamp();
+        #xmlel{name = <<"delay">>} = DelayEl ->
+            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
+                <<"">> -> erlang:timestamp();
+                Stamp -> jlib:datetime_binary_to_timestamp(Stamp)
+            end
+    end.
+
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
@@ -496,16 +477,16 @@ find_x_expire(TimeStamp, [El | Els]) ->
     end.
 
 pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline, messages, pop_offline_messages(User, Server), Acc).
+    mongoose_acc:append(offline, messages, offline_messages(Acc, User, Server), Acc).
 
-pop_offline_messages(User, Server) ->
+offline_messages(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     case pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:map(fun(R) ->
                 Packet = resend_offline_message_packet(Server, R),
-                compose_offline_message(R, Packet)
+                compose_offline_message(R, Packet, Acc)
               end, Rs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: pop_messages failed with ~p.", [LUser, LServer, Reason]),
@@ -545,8 +526,11 @@ is_expired_message(_TimeStamp, #offline_msg{expire=never}) ->
 is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
    ExpireTimeStamp < TimeStamp.
 
-compose_offline_message(#offline_msg{from=From, to=To}, Packet) ->
-    {route, From, To, Packet}.
+compose_offline_message(#offline_msg{from = From, to = To, permanent_fields = PermanentFields},
+                        Packet, Acc0) ->
+    Acc1 = set_permanent_fields(PermanentFields, Acc0),
+    Acc = mongoose_acc:update_stanza(#{element => Packet, from_jid => From, to_jid => To}, Acc1),
+    {route, From, To, Acc}.
 
 resend_offline_message_packet(Server,
         #offline_msg{timestamp=TimeStamp, packet = Packet}) ->
@@ -600,3 +584,12 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs1 = S div 1000000,
     Secs1 = S rem 1000000,
     {MegaSecs1, Secs1, 0}.
+
+get_permanent_fields(Acc) ->
+    [{NS, Key, mongoose_acc:get(NS, Key, Acc)} ||
+        {NS, Key} <- mongoose_acc:get_permanent_keys(Acc)].
+
+set_permanent_fields([], Acc) -> Acc;
+set_permanent_fields([{NS, Key, Value} | T], Acc) ->
+    NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
+    set_permanent_fields(T, NewAcc).

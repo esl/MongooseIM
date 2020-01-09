@@ -120,7 +120,8 @@ read_user_idx(LUser, LServer) ->
     IdxResult?INDEX_RESULTS.keys.
 
 write_msg(LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
-                                       timestamp = TimestampIn, expire = Expire}) ->
+                                       timestamp = TimestampIn, expire = Expire,
+                                       permanent_fields = PermanentFields}) ->
     Timestamp = usec:from_now(TimestampIn),
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, Timestamp), exml:to_binary(Packet)),
     MD = riakc_obj:get_update_metadata(Obj),
@@ -129,7 +130,8 @@ write_msg(LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
                         {?EXPIRE_IDX, [maybe_encode_timestamp(Expire)]}],
     MDWithIndexes = riakc_obj:set_secondary_index(MD, SecondaryIndexes),
     From = jid:to_binary(FromJID),
-    UserMetaData = [{<<"from">>, From}],
+    UserMetaData = [{<<"from">>, From},
+                    {<<"permanent_fields">>, term_to_binary(PermanentFields)}],
     MDWithUserData = set_obj_user_metadata(MDWithIndexes, UserMetaData),
     FinalObj = riakc_obj:update_metadata(Obj, MDWithUserData),
     mongoose_riak:put(FinalObj).
@@ -150,6 +152,7 @@ pop_msg(Key, LUser, LServer, To) ->
         [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
         [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
+        PermanentFields = extract_permanent_fields(MD),
 
         mongoose_riak:delete(bucket_type(LServer), Key),
 
@@ -158,7 +161,8 @@ pop_msg(Key, LUser, LServer, To) ->
                      expire = maybe_decode_timestamp(Expire),
                      from = jid:from_binary(From),
                      to = To,
-                     packet = Packet}
+                     packet = Packet,
+                     permanent_fields = PermanentFields}
 
     catch
         Error:Reason:StackTrace ->
@@ -167,6 +171,11 @@ pop_msg(Key, LUser, LServer, To) ->
             []
     end.
 
+extract_permanent_fields(MD) ->
+    case riakc_obj:get_user_metadata_entry(MD, <<"permanent_fields">>) of
+        notfound -> [];
+        Fields -> binary_to_term(Fields)
+    end.
 
 -spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->

@@ -591,7 +591,9 @@ set_meck(SMBackend) ->
         fun(sm_backend) -> SMBackend;
             (hosts) -> [<<"localhost">>] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_hooks, add, fun(_) -> ok end),
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
+
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     ok.

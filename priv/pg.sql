@@ -258,7 +258,8 @@ CREATE TABLE offline_message(
     server    varchar(250)    NOT NULL,
     username  varchar(250)    NOT NULL,
     from_jid  varchar(250)    NOT NULL,
-    packet    text            NOT NULL
+    packet    text            NOT NULL,
+    permanent_fields bytea
 );
 CREATE INDEX i_offline_message
     ON offline_message
