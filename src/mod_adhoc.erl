@@ -27,6 +27,7 @@
 -author('henoch@dtek.chalmers.se').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,

@@ -6,6 +6,7 @@
 -module(mod_amp).
 
 -behavior(gen_mod).
+-behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1]).
 -export([check_packet/2,

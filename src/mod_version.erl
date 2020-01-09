@@ -1,6 +1,7 @@
 -module(mod_version).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metric).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
