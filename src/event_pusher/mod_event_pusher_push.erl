@@ -23,51 +23,53 @@
 %% Exports
 %%--------------------------------------------------------------------
 
-%% gen_mod handlers
+%% gen_mod behaviour
 -export([start/2, stop/1]).
+
+%% mod_event_pusher behaviour
+-export([push_event/3]).
 
 %% Hooks and IQ handlers
 -export([iq_handler/4,
-         handle_publish_response/4,
-         remove_user/3,
-         push_event/3]).
+         remove_user/3]).
 
 %% Plugin utils
--export([cast/3, cast/4]).
+-export([cast/3]).
 -export([virtual_pubsub_hosts/1]).
--export([maybe_remove_push_node_from_sessions_info/2]).
+-export([disable_node/3]).
 
 %% Debug & testing
 -export([add_virtual_pubsub_host/2]).
 
 %% Types
+-type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
+-type pubsub_node() :: binary().
+-type form_field() :: {Name :: binary(), Value :: binary()}.
+-type form() :: [form_field()].
+
 -export_type([pubsub_node/0, form_field/0, form/0]).
 -export_type([publish_service/0]).
 
 %%--------------------------------------------------------------------
-%% Definitions
+%% DB backend behaviour definition
 %%--------------------------------------------------------------------
 
 -callback init(Host :: jid:server(), Opts :: list()) -> ok.
+
 -callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                  Node :: pubsub_node(), Form :: form()) ->
     ok | {error, Reason :: term()}.
+
 -callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
-                  Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
+                  Node :: pubsub_node()) ->
+    ok | {error, Reason :: term()}.
+
 -callback get_publish_services(User :: jid:jid()) ->
-    {ok, [publish_service()]} |
-    {error, Reason :: term()}.
-
-%% Types
--type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
--type pubsub_node()        :: binary().
--type form_field()  :: {Name :: binary(), Value :: binary()}.
--type form()        :: [form_field()].
+    {ok, [publish_service()]} | {error, Reason :: term()}.
 
 %%--------------------------------------------------------------------
-%% Module callbacks
+%% gen_mod callbacks
 %%--------------------------------------------------------------------
-
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
@@ -88,7 +90,6 @@ start(Host, Opts) ->
                                   iq_handler, IQDisc),
 
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 90),
-
     ok.
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -100,31 +101,25 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_PUSH),
 
     mongoose_wpool:stop(generic, Host, pusher_push),
-
     ok.
 
 %%--------------------------------------------------------------------
-%% Hooks
+%% mod_event_pusher callbacks
 %%--------------------------------------------------------------------
-
-push_event(Acc, Host, Event = #chat_event{type = chat, direction = in}) ->
-    do_push_event(Acc, Host, Event);
-push_event(Acc, Host, Event = #chat_event{type = groupchat, direction = out}) ->
-    do_push_event(Acc, Host, Event);
+-spec push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(),
+                 Event :: mod_event_pusher:event()) -> mongoose_acc:t().
+push_event(Acc, Host, Event = #chat_event{type = chat, direction = in, to = To}) ->
+    BareRecipient = jid:to_bare(To),
+    do_push_event(Acc, Host, Event, BareRecipient);
+push_event(Acc, Host, Event = #chat_event{type = groupchat, direction = out, to = To}) ->
+    BareRecipient = jid:to_bare(To),
+    do_push_event(Acc, Host, Event, BareRecipient);
 push_event(Acc, _, _) ->
     Acc.
 
-do_push_event(Acc, Host, #chat_event{from = From, to = To, packet = Packet}) ->
-    %% First condition means that we won't try to push messages without
-    %% <body/> element because it is required later in payload generation.
-    %% In such case we don't care about plugin's decision, so it is checked
-    %% as a second condition.
-    %% Messages with empty body will still be pushed.
-    exml_query:subelement(Packet, <<"body">>) /= undefined
-    andalso mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet)
-    andalso publish_message(Acc, From, To, Packet).
-
-%% Hook 'remove_user'
+%%--------------------------------------------------------------------
+%% Hooks and IQ handlers
+%%--------------------------------------------------------------------
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
@@ -143,131 +138,61 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
               {enable, BarePubSubJID, Node, FormFields} ->
                   maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ);
               {disable, BarePubsubJID, Node} ->
-                  ok = mod_event_pusher_push_backend:disable(
-                         jid:to_bare(From), BarePubsubJID, Node),
-                  maybe_remove_push_node_from_sessions_info(From, Node),
+                  ok = disable_node(From, BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
           end,
     {Acc, Res}.
 
-maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, IQ) ->
-    AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
-    case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
-        true ->
-            ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
-            ejabberd_sm:store_info(From, {push_notifications, {Node, FormFields}}),
-            IQ#iq{type = result, sub_el = []};
-        false ->
-            NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
-            IQ#iq{type = error, sub_el = NewSubEl}
-    end.
-
 %%--------------------------------------------------------------------
-%% Router callbacks
+%% Plugin utils API
 %%--------------------------------------------------------------------
+-spec disable_node(UserJID :: jid:jid(), BarePubSubJID :: jid:jid(),
+                   Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
+disable_node(UserJID, BarePubSubJID, Node) ->
+    BareUserJID = jid:to_bare(UserJID),
+    maybe_remove_push_node_from_sessions_info(BareUserJID, Node),
+    mod_event_pusher_push_backend:disable(BareUserJID, BarePubSubJID, Node).
 
--spec handle_publish_response(Recipient :: jid:jid(), PubsubJID :: jid:jid(),
-                              Node :: pubsub_node(), Result :: timeout | jlib:iq()) -> ok.
-handle_publish_response(_Recipient, _PubsubJID, _Node, timeout) ->
-    ok;
-handle_publish_response(_Recipient, _PubsubJID, _Node, #iq{type = result}) ->
-    ok;
-handle_publish_response(Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
-    [Error | _ ] = [Err || #xmlel{name = <<"error">>} = Err <- Els],
-    case exml_query:attr(Error, <<"type">>) of
-        <<"cancel">> ->
-            %% We disable the push node in case the error type is cancel
-            BareRecipient = jid:to_bare(Recipient),
-            maybe_remove_push_node_from_sessions_info(BareRecipient, Node),
-            mod_event_pusher_push_backend:disable(BareRecipient, PubsubJID, Node);
-        _ ->
-            ok
-    end.
-
-%%--------------------------------------------------------------------
-%% Module API
-%%--------------------------------------------------------------------
-
--spec publish_message(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> ok.
-publish_message(Acc, From, To, Packet) ->
-    ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
-
-    BareRecipient = jid:to_bare(To),
-    {ok, Services} = mod_event_pusher_push_backend:get_publish_services(BareRecipient),
-    mod_event_pusher_push_plugin:publish_notification(Acc, From, To, Packet, Services).
-
-%%--------------------------------------------------------------------
-%% Plugin utils
-%%--------------------------------------------------------------------
-
--spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), F :: function(), A :: [any()]) -> any().
 cast(Host, F, A) ->
-    cast(Host, ?MODULE, F, A).
-
--spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(Host, M, F, A) ->
-    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).
+    mongoose_wpool:cast(generic, Host, pusher_push, {erlang, apply, [F,A]}).
 
 -spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
 virtual_pubsub_hosts(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, []).
 
 %%--------------------------------------------------------------------
-%% Debug & testing
+%% Debug & testing API
 %%--------------------------------------------------------------------
-
 -spec add_virtual_pubsub_host(Host :: jid:server(), VirtualHost :: jid:server()) -> any().
 add_virtual_pubsub_host(Host, VirtualHost) ->
     VHosts0 = virtual_pubsub_hosts(Host),
     VHosts = lists:usort(gen_mod:make_subhosts(VirtualHost, Host) ++ VHosts0),
     gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
 
--spec maybe_remove_push_node_from_sessions_info(jid:jid(), pubsub_node() | undefined) ->
-    ok.
-maybe_remove_push_node_from_sessions_info(From, undefined) ->
-    %% The node is undefined which means that a user wants to disable all push nodes
-    AllResources = ejabberd_sm:get_user_present_resources(From),
-    [begin
-         JID = jid:replace_resource(From, Resource),
-         ejabberd_sm:remove_info(JID, push_notifications)
-     end
-     || {_, Resource} <- AllResources],
-    ok;
-maybe_remove_push_node_from_sessions_info(From, Node) ->
-    AllSessions = ejabberd_sm:get_raw_sessions(From),
-    find_and_remove_push_node(From, AllSessions, Node).
-
 %%--------------------------------------------------------------------
-%% Helper functions
+%% local functions
 %%--------------------------------------------------------------------
-
-my_push_node(RawSession, Node) ->
-    SInfo = mongoose_session:get_info(RawSession),
-    case lists:keyfind(push_notifications, 1, SInfo) of
-        {push_notifications, {Node, _}} ->
-            true;
-        _ ->
-            false
-    end.
-
-find_and_remove_push_node(_From, [], _Node) ->
-    ok;
-find_and_remove_push_node(#jid{} = From, [RawSession | Rest], Node) ->
-    case my_push_node(RawSession, Node) of
-        true ->
-            LResource  = mongoose_session:get_resource(RawSession),
-            ejabberd_sm:remove_info(jid:replace_resource(From, LResource), push_notifications);
-        false ->
-            find_and_remove_push_node(From, Rest, Node)
-    end.
-
 -spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
 expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
     ExpandedVHosts = lists:usort([SubHost || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []),
                                              SubHost <- gen_mod:make_subhosts(Spec, Host)]),
     gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, ExpandedVHosts).
+
+-spec do_push_event(mongoose_acc:t(), jid:server(), mod_event_pusher:event(), jid:jid()) ->
+    mongoose_acc:t().
+do_push_event(Acc, Host, Event, BareRecipient) ->
+    case mod_event_pusher_push_plugin:prepare_notification(Host, Acc, Event) of
+        skip -> Acc;
+        Payload ->
+            {ok, Services} = mod_event_pusher_push_backend:get_publish_services(BareRecipient),
+            FilteredService = mod_event_pusher_push_plugin:should_publish(Host, Acc, Event,
+                                                                          Services),
+            mod_event_pusher_push_plugin:publish_notification(Host, Acc, Event,
+                                                              Payload, FilteredService)
+    end.
 
 -spec parse_request(Request :: exml:element()) ->
     {enable, jid:jid(), pubsub_node(), form()} |
@@ -323,3 +248,53 @@ parse_form(Form) ->
             invalid_form
     end.
 
+-spec maybe_enable_node(jid:jid(), jid:jid(), pubsub_node(), form(), jlib:iq()) -> jlib:iq().
+maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, IQ) ->
+    AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
+    case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
+        true ->
+            ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
+            ejabberd_sm:store_info(From, {push_notifications, {Node, FormFields}}),
+            IQ#iq{type = result, sub_el = []};
+        false ->
+            NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
+            IQ#iq{type = error, sub_el = NewSubEl}
+    end.
+
+
+-spec maybe_remove_push_node_from_sessions_info(jid:jid(), pubsub_node() | undefined) ->
+    ok.
+maybe_remove_push_node_from_sessions_info(From, undefined) ->
+    %% The node is undefined which means that a user wants to disable all push nodes
+    AllResources = ejabberd_sm:get_user_present_resources(From),
+    [begin
+         JID = jid:replace_resource(From, Resource),
+         ejabberd_sm:remove_info(JID, push_notifications)
+     end || {_, Resource} <- AllResources],
+    ok;
+maybe_remove_push_node_from_sessions_info(From, Node) ->
+    AllSessions = ejabberd_sm:get_raw_sessions(From),
+    find_and_remove_push_node(From, AllSessions, Node).
+
+-spec find_and_remove_push_node(jid:jid(), [ejabberd_sm:session()], pubsub_node()) -> ok.
+find_and_remove_push_node(_From, [], _Node) ->
+    ok;
+find_and_remove_push_node(From, [RawSession | Rest], Node) ->
+    case my_push_node(RawSession, Node) of
+        true ->
+            LResource  = mongoose_session:get_resource(RawSession),
+            JID = jid:replace_resource(From, LResource),
+            ejabberd_sm:remove_info(JID, push_notifications);
+        false ->
+            find_and_remove_push_node(From, Rest, Node)
+    end.
+
+-spec my_push_node(ejabberd_sm:session(), pubsub_node()) -> boolean().
+my_push_node(RawSession, Node) ->
+    SInfo = mongoose_session:get_info(RawSession),
+    case lists:keyfind(push_notifications, 1, SInfo) of
+        {push_notifications, {Node, _}} ->
+            true;
+        _ ->
+            false
+    end.

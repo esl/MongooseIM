@@ -22,13 +22,16 @@
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 
+-type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
+-export_type([event/0]).
+
 -export([deps/2, start/2, stop/1, push_event/3]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> any().
+-callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> mongoose_acc:t().
 
 %%--------------------------------------------------------------------
 %% API
