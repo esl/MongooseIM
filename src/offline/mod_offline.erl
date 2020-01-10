@@ -594,7 +594,7 @@ set_permanent_fields([], Acc) -> Acc;
 set_permanent_fields([{NS, Key, Value} | T], Acc) ->
     NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
     set_permanent_fields(T, NewAcc).
-    
+
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

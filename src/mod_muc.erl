@@ -30,6 +30,7 @@
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start_link/2,
@@ -65,6 +66,8 @@
 %% Stats
 -export([online_rooms_number/0]).
 -export([hibernated_rooms_number/0]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -1189,3 +1192,7 @@ ensure_metrics(_Host) ->
     mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

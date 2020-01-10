@@ -5,6 +5,7 @@
 -module(mod_csi).
 -xep([{xep, 352}, {version, "0.2"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2]).
 -export([stop/1]).

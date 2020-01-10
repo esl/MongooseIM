@@ -39,6 +39,7 @@
 -xep([{xep, 83}, {version, "1.0"}]).
 -xep([{xep, 93}, {version, "1.2"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -72,6 +73,8 @@
          get_user_rosters_length/2]). % for testing
 
 -export([get_personal_data/2]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -1078,3 +1081,6 @@ item_to_map(#roster{} = Roster) ->
     #{jid => ContactJid, name => ContactName, subscription => Subs,
       groups => Groups, ask => Ask}.
 
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

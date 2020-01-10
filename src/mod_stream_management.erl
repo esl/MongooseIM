@@ -1,6 +1,7 @@
 -module(mod_stream_management).
 -xep([{xep, 198}, {version, "1.6"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% `gen_mod' callbacks
 -export([start/2,

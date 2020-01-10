@@ -29,6 +29,7 @@
 -xep([{xep, 16}, {version, "1.6"}]).
 -xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -38,6 +39,8 @@
          check_packet/6,
          remove_user/3,
          updated_list/3]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -689,3 +692,6 @@ roster_get_jid_info(Host, User, Server, LJID) ->
         {none, []},
         [User, Server, LJID]).
 
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

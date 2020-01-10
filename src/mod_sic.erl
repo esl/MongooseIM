@@ -28,6 +28,7 @@
 -author('karim.gemayel@process-one.net').
 -xep([{xep, 279}, {version, "0.2"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,

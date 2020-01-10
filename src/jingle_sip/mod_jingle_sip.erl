@@ -19,6 +19,7 @@
 -module(mod_jingle_sip).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include_lib("nksip/include/nksip.hrl").
 -include_lib("nksip/include/nksip_call.hrl").

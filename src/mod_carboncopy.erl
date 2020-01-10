@@ -27,7 +27,8 @@
 -module (mod_carboncopy).
 -author ('ecestari@process-one.net').
 -xep([{xep, 280}, {version, "0.10"}]).
--behavior(gen_mod).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start/2,

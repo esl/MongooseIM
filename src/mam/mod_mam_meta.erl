@@ -16,10 +16,13 @@
 
 -module(mod_mam_meta).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -type deps() :: #{module() => proplists:proplist()}.
 
 -export([start/2, stop/1, deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -257,3 +260,7 @@ parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
 
 -spec rdbms_simple_opts() -> list().
 rdbms_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
