@@ -36,9 +36,12 @@ get_modules() ->
     AllModules = lists:flatten(
                     lists:map(fun gen_mod:loaded_modules/1, Hosts)),
     ModulesToReport = filter_behaviour_implementations(AllModules,
-                                                     mongoose_module_metrics),
+                                                       mongoose_module_metrics),
     ModulesWithOpts = lists:flatten(
-                        lists:map(fun(Host) -> get_modules_metrics(Host, ModulesToReport) end, Hosts)),
+                        lists:map(
+                            fun(Host) ->
+                                get_modules_metrics(Host, ModulesToReport)
+                            end, Hosts)),
     lists:map(
         fun({Module, Opts}) ->
             report_module_with_opts(Module, Opts)
@@ -61,7 +64,7 @@ get_modules_metrics(Host, Modules) ->
         fun(M) ->
             case erlang:function_exported(M, config_metrics, 1) of
                 true -> {M, M:config_metrics(Host)};
-                false -> {M ,[]}
+                false -> {M ,[{none, none}]}
             end
         end, Modules).
 
