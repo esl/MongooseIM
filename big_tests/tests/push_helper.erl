@@ -78,7 +78,7 @@ become_available(Client, NumberOfUnreadMessages, Timeout) ->
     {ok, true} = wait_for_user_online(Client).
 
 is_online(LUser, LServer, LRes) ->
-    JID = rpc(mim(), jid, make_noprep, [LUser, LServer, LRes]),
+    JID = mongoose_helper:make_jid_noprep(LUser, LServer, LRes),
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]),
     case lists:keyfind(LRes, 2, PResources) of
         {_, LRes} ->
@@ -97,7 +97,7 @@ wait_for_user_online(Client) ->
                                #{sleep_time => 500, time_left => timer:seconds(20), name => is_online}).
 
 is_offline(LUser, LServer, LRes) ->
-    JID =  rpc(mim(), jid, make_noprep, [LUser, LServer, LRes]),
+    JID = mongoose_helper:make_jid_noprep(LUser, LServer, LRes),
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]),
     case lists:keyfind(LRes, 2, PResources) of
         false ->

@@ -717,9 +717,7 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
             AUsername = lbin(escalus_users:get_username(Config, alice)),
             Host = lbin(escalus_users:get_host(Config, alice)),
             Resource = <<"res1">>,
-            JID = distributed_helper:rpc(
-                    distributed_helper:mim(),
-                    jid, make, [AUsername, Host, Resource]),
+            JID = mongoose_helper:make_jid(AUsername, Host, Resource),
             SessionRecPid = rpc(ejabberd_sm, get_session, [JID]),
             {{AUsername, Host, Resource}, {_, Pid}, _, _} = SessionRecPid,
             %% maybe throws exception

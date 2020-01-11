@@ -1411,7 +1411,7 @@ wait_for_process_termination(C2SRef) ->
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
-    JID = rpc(mim(), jid, make, [U, S, Resource]),
+    JID = mongoose_helper:make_jid(U, S, Resource),
     case rpc(mim(), ejabberd_sm, get_session_pid, [JID]) of
         none ->
             {error, no_found};
@@ -1421,12 +1421,12 @@ get_session_pid(UserSpec, Resource) ->
 
 get_user_alive_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
-    JID = rpc(mim(), jid, make, [U, S, <<>>]),
+    JID = mongoose_helper:make_jid(U, S, <<>>),
     rpc(mim(), ejabberd_sm, get_user_resources, [JID]).
 
 get_user_present_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
-    JID = rpc(mim(), jid, make, [U, S, <<>>]),
+    JID = mongoose_helper:make_jid(U, S, <<>>),
     rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]).
 
 get_sid_by_stream_id(SMID) ->

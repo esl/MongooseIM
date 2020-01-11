@@ -25,6 +25,8 @@
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
+-export([make_jid/3]).
+-export([make_jid_noprep/3]).
 -export([get_session_pid/2]).
 -export([get_session_info/2]).
 -export([wait_for_route_message_count/2]).
@@ -346,19 +348,24 @@ inject_module(Node, Module, reload) ->
     successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 
 
+make_jid_noprep(User, Server, Resource) ->
+    rpc(mim(), jid, make_noprep, [User, Server, Resource]).
+
+make_jid(User, Server, Resource) ->
+    rpc(mim(), jid, make, [User, Server, Resource]).
 
 get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    JID = rpc(Node, jid, make, [Username, Server, Resource]),
+    JID = make_jid(Username, Server, Resource),
     successful_rpc(Node, ejabberd_sm, get_session_pid, [JID]).
 
 get_session_info(RpcDetails, User) ->
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
     Resource = escalus_client:resource(User),
-    JID = rpc(RpcDetails, jid, make, [Username, Server, Resource]),
+    JID = make_jid(Username, Server, Resource),
     {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
     Info.
 
