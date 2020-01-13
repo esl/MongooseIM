@@ -24,6 +24,7 @@
 -module(mod_offline_stub).
 -author('mongoose-im@erlang-solutions.com').
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
 -export([start/2,

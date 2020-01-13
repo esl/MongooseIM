@@ -14,6 +14,8 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -callback encode(term()) -> binary().
 -callback decode(binary()) -> term().

@@ -7,6 +7,8 @@
 -module(mod_mam_cassandra_arch).
 -behaviour(mongoose_cassandra).
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% ----------------------------------------------------------------------
 %% Exports

@@ -18,6 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
