@@ -17,6 +17,3 @@ opts_for_module(Host, Module, OptsToReport) ->
     catch
         _:_ -> {none, none}
     end.
-
-
-
