@@ -90,15 +90,14 @@ get_inbox_unread(Username, Server, InterlocutorJID) ->
                 Content :: binary(),
                 Count :: integer(),
                 MsgId :: binary(),
-                Timestamp :: erlang:timestamp().
+                Timestamp :: integer().
 set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    NumericTimestamp = usec:from_now(Timestamp),
     InsertParams = [LUsername, LServer, LToBareJid,
-                    Content, Count, MsgId, NumericTimestamp],
-    UpdateParams = [Content, Count, MsgId, NumericTimestamp],
+                    Content, Count, MsgId, Timestamp],
+    UpdateParams = [Content, Count, MsgId, Timestamp],
     UniqueKeyValues  = [LUsername, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(Server, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
@@ -138,9 +137,8 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
     BackendModule = rdbms_specific_backend(Server),
-    NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
-                                              Content, MsgId, NumericTimestamp),
+                                              Content, MsgId, Timestamp),
     %% psql will return {updated, {[UnreadCount]}}
     %% mssql and mysql will return {selected, {[Val]}}
     check_result(Res).

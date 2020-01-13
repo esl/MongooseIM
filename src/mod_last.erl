@@ -165,17 +165,18 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,
                                                              out),
-            {Acc1, make_response(IQ, SubEl, User, Server, Res)};
+            {Acc1, make_response(IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
 -spec make_response(jlib:iq(), SubEl :: 'undefined' | [exml:element()],
-                    jid:luser(), jid:lserver(), allow | deny) -> jlib:iq().
-make_response(IQ, SubEl, _, _, deny) ->
+                    jid:jid(), allow | deny) -> jlib:iq().
+make_response(IQ, SubEl, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
-make_response(IQ, SubEl, LUser, LServer, allow) ->
-    case ejabberd_sm:get_user_resources(LUser, LServer) of
+make_response(IQ, SubEl, JID, allow) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
+    case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last(LUser, LServer) of
                 {error, _Reason} ->
@@ -213,7 +214,7 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     mod_last_backend:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(map(), jid:user(), jid:server(), jid:resource(),
+-spec on_presence_update(map(), jid:luser(), jid:lserver(), jid:lresource(),
                          Status :: binary()) -> map() | {error, term()}.
 on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = erlang:system_time(second),
@@ -222,7 +223,7 @@ on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
         E -> E
     end.
 
--spec store_last_info(jid:user(), jid:server(), non_neg_integer(),
+-spec store_last_info(jid:luser(), jid:lserver(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
     mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
@@ -248,4 +249,3 @@ remove_user(Acc, User, Server) ->
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
     on_presence_update(Acc, LUser, LServer, LResource, <<>>).
-

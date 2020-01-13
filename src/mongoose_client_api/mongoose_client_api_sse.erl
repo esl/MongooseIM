@@ -18,14 +18,11 @@ init(_InitArgs, _LastEvtId, Req) ->
 
 maybe_init(true, Req, #{jid := JID} = State) ->
     SID = {os:timestamp(), self()},
-    User = JID#jid.user,
-    Server = JID#jid.server,
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
-
-    ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
-
-    {ok, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
+    NewJid = jid:replace_resource(JID, Resource),
+    ejabberd_sm:open_session(SID, NewJid, 1, []),
+    {ok, Req, State#{sid => SID, jid => NewJid}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method
     {shutdown, 200, #{}, <<>>, Req, State};
@@ -43,7 +40,7 @@ handle_info(_Msg, State) ->
     {nosend, State}.
 
 handle_msg(<<"message">>, Acc, El, State) ->
-    Timestamp = usec:from_now(os:timestamp()),
+    Timestamp = os:system_time(microsecond),
     Type = mongoose_acc:stanza_type(Acc),
     maybe_send_message_event(Type, El, Timestamp, State).
 
@@ -55,12 +52,12 @@ terminate(_Reson, _Req, State) ->
         undefined ->
             ok;
         SID ->
-            #jid{user = U, server = S, resource = R} = maps:get(jid, State),
+            JID = #jid{server = S} = maps:get(jid, State),
             Acc = mongoose_acc:new(
                     #{location => ?LOCATION,
                       lserver => S,
                       element => undefined}),
-            ejabberd_sm:close_session(Acc, SID, U, S, R, normal)
+            ejabberd_sm:close_session(Acc, SID, JID, normal)
     end,
     State.
 

@@ -362,7 +362,7 @@ make_arc_id(Client) ->
     User = escalus_client:username(Client),
     Server = escalus_client:server(Client),
     Bin = escalus_client:short_jid(Client),
-    Jid = mam_helper:rpc_apply(jid, make, [User, Server, <<"">>]),
+    Jid = mongoose_helper:make_jid(User, Server, <<>>),
     {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
 
 fill_room_archive(RoomID, Users) ->
@@ -371,7 +371,7 @@ fill_room_archive(RoomID, Users) ->
     Days = [Today - I || I <- lists:seq(0, 3)],
     Host = ct:get_config({hosts, mim, domain}),
     MUCLight = <<"muclight.", Host/binary>>,
-    RoomJID = mam_helper:rpc_apply(jid, make, [RoomID, MUCLight, <<>>]),
+    RoomJID = mongoose_helper:make_jid(RoomID, MUCLight, <<>>),
     RoomBinJID = <<RoomID/binary, "@", MUCLight/binary>>,
     RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [Host, RoomJID]),
     Room = {RoomBinJID, RoomJID, RoomArcID},

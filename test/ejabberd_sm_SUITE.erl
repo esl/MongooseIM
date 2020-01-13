@@ -4,6 +4,7 @@
 
 -include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
+-include("jid.hrl").
 -include_lib("session.hrl").
 -compile([export_all]).
 
@@ -109,7 +110,7 @@ end_per_testcase(_, Config) ->
     Config.
 
 open_session(C) ->
-    {Sid, USR} =  generate_random_user(<<"localhost">>),
+    {Sid, USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR).
 
@@ -253,9 +254,12 @@ store_info_sends_message_to_the_session_owner(C) ->
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
-    spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
+    JID = jid:make_noprep(U, S, R),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, {cc, undefined}) end),
     %% The original process receives a message
-    receive {store_session_info, User, Server, Resource, KV, _FromPid} ->
+    receive {store_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             KV, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
@@ -274,9 +278,12 @@ remove_info_sends_message_to_the_session_owner(C) ->
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call remove_info from another process
-    spawn_link(fun() -> ejabberd_sm:remove_info(U, S, R, cc) end),
+    JID = jid:make_noprep(U, S, R),
+    spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
     %% The original process receives a message
-    receive {remove_session_info, User, Server, Resource, Key, _FromPid} ->
+    receive {remove_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             Key, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
@@ -394,19 +401,22 @@ given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
 
 given_session_opened(Sid, {U, S, R}, Priority) ->
-    given_session_opened(Sid, {U,S,R}, Priority, []).
+    given_session_opened(Sid, {U, S, R}, Priority, []).
 
-given_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
+given_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:open_session(Sid, JID, Priority, Info).
 
-when_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    given_session_opened(Sid, {U,S,R}, Priority, Info).
+when_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    given_session_opened(Sid, {U, S, R}, Priority, Info).
 
 when_session_info_stored(U, S, R, {_,_}=KV) ->
-    ejabberd_sm:store_info(U, S, R, KV).
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:store_info(JID, KV).
 
 when_session_info_removed(U, S, R, Key) ->
-    ejabberd_sm:remove_info(U, S, R, Key).
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:remove_info(JID, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
@@ -535,7 +545,7 @@ try_to_reproduce_race_condition(Config) ->
                             end),
     SetterPid = spawn_link(fun() ->
                                    receive start -> ok end,
-                                   ejabberd_sm:store_info(U, S, R, {cc, undefined}),
+                                   when_session_info_stored(U, S, R, {cc, undefined}),
                                    Parent ! p2_done
                            end),
     %% Step2 setup mocking for some ejabbers_sm_mnesia functions

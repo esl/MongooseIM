@@ -35,9 +35,8 @@ null_strategy() ->
 
 %% Internals
 get_target_resources(MessageTarget) ->
-    {User, Server, Resource} = jid:to_lower(MessageTarget),
-    ResourceSession = ejabberd_sm:get_session(User, Server, Resource),
-    UserResources = ejabberd_sm:get_user_resources(User, Server),
+    ResourceSession = ejabberd_sm:get_session(MessageTarget),
+    UserResources = ejabberd_sm:get_user_resources(MessageTarget),
     {ResourceSession, UserResources}.
 
 deliver_strategy({offline, []}, initial_check) -> [none];

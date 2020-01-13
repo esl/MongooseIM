@@ -2678,11 +2678,11 @@ send_items(Host, Node, _Nidx, _Type, Options, LJID, _) ->
 
 dispatch_items({FromU, FromS, FromR} = From, {ToU, ToS, ToR} = To, Node,
                Options, Stanza) ->
-    C2SPid = case ejabberd_sm:get_session_pid(ToU, ToS, ToR) of
+    C2SPid = case ejabberd_sm:get_session_pid(jid:make(ToU, ToS, ToR)) of
                  ToPid when is_pid(ToPid) -> ToPid;
                  _ ->
                      R = user_resource(FromU, FromS, FromR),
-                     case ejabberd_sm:get_session_pid(FromU, FromS, R) of
+                     case ejabberd_sm:get_session_pid(jid:make(FromU, FromS, R)) of
                          FromPid when is_pid(FromPid) -> FromPid;
                          _ -> undefined
                      end
@@ -3302,9 +3302,10 @@ sub_option_can_deliver(_, _, _) -> true.
 presence_can_deliver(_, false) ->
     true;
 presence_can_deliver({User, Server, <<>>}, true) ->
-    ejabberd_sm:get_user_present_resources(User, Server) =/= [];
+    ejabberd_sm:get_user_present_resources(jid:make_noprep(User, Server, <<>>)) =/= [];
 presence_can_deliver({User, Server, Resource}, true) ->
-    case ejabberd_sm:get_session(User, Server, Resource) of
+    JID = jid:make_noprep(User, Server, Resource),
+    case ejabberd_sm:get_session(JID) of
         {_SUser, _SID, SPriority, _SInfo} when SPriority /= undefined -> true;
         _ -> false
     end.
@@ -3338,7 +3339,7 @@ state_can_deliver({U, S, R}, SubOptions) ->
           JIDs       :: [jid:ljid()])
         -> [jid:ljid()].
 get_resource_state({U, S, R}, ShowValues, JIDs) ->
-    case ejabberd_sm:get_session_pid(U, S, R) of
+    case ejabberd_sm:get_session_pid(jid:make_noprep(U, S, R)) of
         none ->
             %% If no PID, item can be delivered
             lists:append([{U, S, R}], JIDs);
@@ -3614,7 +3615,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
                      SubsByDepth, NotifyType, BaseStanza, SHIM),
     %% Handles implicit presence subscriptions
     SenderResource = user_resource(LUser, LServer, LResource),
-    case ejabberd_sm:get_session_pid(LUser, LServer, SenderResource) of
+    case ejabberd_sm:get_session_pid(jid:make(LUser, LServer, SenderResource)) of
         C2SPid when is_pid(C2SPid) ->
             NotificationType = get_option(NodeOptions, notification_type, headline),
             Stanza = add_message_type(BaseStanza, NotificationType),
@@ -3702,7 +3703,8 @@ process_jid_to_deliver(JIDs, SubID, NodeName, JIDToDeliver, {JIDsAcc, Recipients
     end.
 
 user_resources(User, Server) ->
-    ejabberd_sm:get_user_resources(User, Server).
+    JID = jid:make(User, Server, <<>>),
+    ejabberd_sm:get_user_resources(JID).
 
 user_resource(User, Server, <<>>) ->
     case user_resources(User, Server) of

@@ -4485,7 +4485,7 @@ load_already_registered_permanent_rooms(_Config) ->
         [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
 
     %% Read online room
-    RoomJID = rpc(mim(), jid, make, [Room, Host, <<>>]),
+    RoomJID = mongoose_helper:make_jid(Room, Host, <<>>),
     {ok, Pid} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
 
     %% Check if the pid read from mnesia matches the fake pid
@@ -4500,7 +4500,7 @@ create_already_registered_room(Config) ->
     %% Function has been mecked to register the room before it is started
     start_room(Config, Alice, Room, <<"aliceroom">>, default),
     %% Read the room
-    RoomJID = rpc(mim(), jid, make, [Room, Host, <<>>]),
+    RoomJID = mongoose_helper:make_jid(Room, Host, <<>>),
     {ok, Pid} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
     %% Check that the stored pid is the same as the mecked pid
     ?assert_equal(?FAKEPID, Pid).

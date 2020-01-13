@@ -86,7 +86,7 @@ count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     Reason :: term(),
     Count :: integer().
 remove_expired_messages(Host) ->
-    TimestampInt = usec:from_now(os:timestamp()),
+    TimestampInt = os:system_time(microsecond),
     {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?EXPIRE_IDX,
                                                  0, TimestampInt, []),
     Keys = Result?INDEX_RESULTS.keys,

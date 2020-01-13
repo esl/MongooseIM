@@ -78,9 +78,9 @@ user_present(Acc, #jid{} = UserJID) ->
 
 -spec user_not_present(mongoose_acc:t(), User :: jid:luser(), Server :: jid:lserver(),
                        Resource :: jid:lresource(), Status :: any()) -> mongoose_acc:t().
-user_not_present(Acc, User, Host, Resource, _Status) ->
-    UserJID = jid:make_noprep(User, Host, Resource),
-    mod_event_pusher:push_event(Acc, Host, #user_status_event{jid = UserJID, status = offline}),
+user_not_present(Acc, LUser, LHost, LResource, _Status) ->
+    UserJID = jid:make_noprep(LUser, LHost, LResource),
+    mod_event_pusher:push_event(Acc, LHost, #user_status_event{jid = UserJID, status = offline}),
     Acc.
 
 %%--------------------------------------------------------------------

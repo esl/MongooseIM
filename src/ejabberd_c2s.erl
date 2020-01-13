@@ -41,8 +41,8 @@
          get_subscribed/1,
          send_filtered/5,
          broadcast/4,
-         store_session_info/5,
-         remove_session_info/5,
+         store_session_info/3,
+         remove_session_info/3,
          get_info/1]).
 
 %% gen_fsm callbacks
@@ -123,12 +123,10 @@ del_aux_field(Key, #state{aux_fields = Opts} = State) ->
     State#state{aux_fields = Opts1}.
 
 
--spec get_subscription(From :: jid:jid() | jid:simple_jid(),
-                       State :: state()) -> 'both' | 'from' | 'none' | 'to'.
+-spec get_subscription(From :: jid:jid(), State :: state()) ->
+    both | from | 'none' | 'to'.
 get_subscription(From = #jid{}, StateData) ->
-    get_subscription(jid:to_lower(From), StateData);
-get_subscription(LFrom, StateData) ->
-    LBFrom = setelement(3, LFrom, <<>>),
+    {LFrom, LBFrom} = lowcase_and_bare(From),
     F = is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
     T = am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
     case {F, T} of
@@ -147,11 +145,11 @@ broadcast(FsmRef, Type, From, Packet) ->
 stop(FsmRef) ->
     p1_fsm_old:send_event(FsmRef, closed).
 
-store_session_info(FsmRef, User, Server, Resource, KV) ->
-    FsmRef ! {store_session_info, User, Server, Resource, KV, self()}.
+store_session_info(FsmRef, JID, KV) ->
+    FsmRef ! {store_session_info, JID, KV, self()}.
 
-remove_session_info(FsmRef, User, Server, Resource, Key) ->
-    FsmRef ! {remove_session_info, User, Server, Resource, Key, self()}.
+remove_session_info(FsmRef, JID, Key) ->
+    FsmRef ! {remove_session_info, JID, Key, self()}.
 
 
 %%%----------------------------------------------------------------------
@@ -279,7 +277,7 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->
-            change_shaper(S, jid:make(<<>>, Server, <<>>)),
+            change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
             stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, false} ->
@@ -584,7 +582,6 @@ wait_for_feature_after_auth({xmlstreamelement,
 wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND, sub_el = SubEl} = IQ ->
-            U = StateData#state.user,
             R1 = xml:get_path_s(SubEl, [{elem, <<"resource">>}, cdata]),
             R = case jid:resourceprep(R1) of
                     error -> error;
@@ -597,7 +594,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                     send_element_from_server_jid(StateData, Err),
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
-                    JID = jid:make(U, StateData#state.server, R),
+                    JID = jid:replace_resource(StateData#state.jid, R),
                     JIDEl = #xmlel{name = <<"jid">>,
                                    children = [#xmlcdata{content = jid:to_binary(JID)}]},
                     Res = IQ#iq{type = result,
@@ -745,7 +742,7 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = ejabberd_hooks:run_fold(roster_get_subscription_lists, S, Acc, [U, S]),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
@@ -757,7 +754,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
-    ReplacedPids = ejabberd_sm:open_session(SID, U, S, R, Info),
+    ReplacedPids = ejabberd_sm:open_session(SID, JID, Info),
 
     RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
     case RefsAndPids of
@@ -1098,11 +1095,11 @@ handle_info(check_buffer_full, StateName, StateData) ->
             fsm_next_state(StateName,
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
     end;
-handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateName, StateData) ->
-    ejabberd_sm:store_info(User, Server, Resource, KV),
+handle_info({store_session_info, JID, KV, _FromPid}, StateName, StateData) ->
+    ejabberd_sm:store_info(JID, KV),
     fsm_next_state(StateName, StateData);
-handle_info({remove_session_info, User, Server, Resource, Key, _FromPid}, StateName, StateData) ->
-    ejabberd_sm:remove_info(User, Server, Resource, Key),
+handle_info({remove_session_info, JID, Key, _FromPid}, StateName, StateData) ->
+    ejabberd_sm:remove_info(JID, Key),
     fsm_next_state(StateName, StateData);
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
@@ -1514,9 +1511,7 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
             ejabberd_sm:close_session_unset_presence(
               Acc,
               StateData#state.sid,
-              StateData#state.user,
-              StateData#state.server,
-              StateData#state.resource,
+              StateData#state.jid,
               <<"Replaced by new connection">>,
               replaced),
             Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
@@ -1544,9 +1539,7 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                        pres_invis = false} ->
                     ejabberd_sm:close_session(Acc,
                                               StateData#state.sid,
-                                              StateData#state.user,
-                                              StateData#state.server,
-                                              StateData#state.resource,
+                                              StateData#state.jid,
                                               normal);
                 _ ->
                     Packet = #xmlel{name = <<"presence">>,
@@ -1555,9 +1548,7 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                     ejabberd_sm:close_session_unset_presence(
                       Acc,
                       StateData#state.sid,
-                      StateData#state.user,
-                      StateData#state.server,
-                      StateData#state.resource,
+                      StateData#state.jid,
                       <<"">>,
                       normal),
                     Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
@@ -1775,8 +1766,7 @@ get_conn_type(StateData) ->
                              Acc :: mongoose_acc:t(),
                              State :: state()) -> mongoose_acc:t().
 process_presence_probe(From, To, Acc, StateData) ->
-    LFrom = jid:to_lower(From),
-    LBareFrom = setelement(3, LFrom, <<>>),
+    {LFrom, LBareFrom} = lowcase_and_bare(From),
     case StateData#state.pres_last of
         undefined ->
             Acc;
@@ -1870,9 +1860,7 @@ presence_update(Acc, From, StateData) ->
                     {auth_module, StateData#state.auth_module}],
             Acc1 = ejabberd_sm:unset_presence(Acc,
                                               StateData#state.sid,
-                                              StateData#state.user,
-                                              StateData#state.server,
-                                              StateData#state.resource,
+                                              StateData#state.jid,
                                               Status,
                                               Info),
             Acc2 = presence_broadcast(Acc1, StateData#state.pres_a, StateData),
@@ -2254,9 +2242,7 @@ update_priority(Acc, Priority, Packet, StateData) ->
             {auth_module, StateData#state.auth_module}],
     ejabberd_sm:set_presence(Acc,
                              StateData#state.sid,
-                             StateData#state.user,
-                             StateData#state.server,
-                             StateData#state.resource,
+                             StateData#state.jid,
                              Priority,
                              Packet,
                              Info).
@@ -2529,8 +2515,8 @@ bounce_messages(UnreadMessages) ->
         {ok, {route, From, To, Acc}, RemainedUnreadMessages} ->
             ejabberd_router:route(From, To, Acc),
             bounce_messages(RemainedUnreadMessages);
-        {ok, {store_session_info, User, Server, Resource, KV, _FromPid}, _} ->
-            ejabberd_sm:store_info(User, Server, Resource, KV);
+        {ok, {store_session_info, JID, KV, _FromPid}, _} ->
+            ejabberd_sm:store_info(JID, KV);
         {ok, _, RemainedUnreadMessages} ->
             % ignore this one, get the next message
             bounce_messages(RemainedUnreadMessages);
@@ -3104,11 +3090,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Info = [{ip, NSD#state.ip},
                         {conn, NSD#state.conn},
                         {auth_module, NSD#state.auth_module}],
-                ejabberd_sm:open_session(SID,
-                                         NSD#state.user,
-                                         NSD#state.server,
-                                         NSD#state.resource,
-                                         Priority, Info),
+                ejabberd_sm:open_session(SID, NSD#state.jid, Priority, Info),
                 ok = mod_stream_management:register_smid(SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
@@ -3191,9 +3173,7 @@ handover_session(SD, From)->
         #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
     ejabberd_sm:close_session(Acc,
                               SD#state.sid,
-                              SD#state.user,
-                              SD#state.server,
-                              SD#state.resource,
+                              SD#state.jid,
                               resumed),
     %the actual handover to be done on termination
     {stop, {handover_session, From}, SD}.
@@ -3229,7 +3209,7 @@ add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
     end.
 
 timestamp_xml(Server, Time) ->
-    FromJID = jid:make(<<>>, Server, <<>>),
+    FromJID = jid:make_noprep(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).
 
 defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undefined} = State)->
@@ -3280,12 +3260,14 @@ handle_sasl_success(State, Creds) ->
     send_element_from_server_jid(State, sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     AuthModule = mongoose_credentials:get(Creds, auth_module),
+    Server = State#state.server,
     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
               [State#state.socket, User, AuthModule]),
     NewState = State#state{ streamid = new_id(),
                             authenticated = true,
                             auth_module = AuthModule,
-                            user = User },
+                            user = User,
+                            jid = jid:make(User, Server, <<>>)},
     {wait_for_stream, NewState}.
 
 handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->

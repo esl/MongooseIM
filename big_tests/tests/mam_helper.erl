@@ -947,7 +947,7 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
     escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
 
 make_jid(U, S, R) ->
-    rpc_apply(jid, make, [U, S, R]).
+    mongoose_helper:make_jid(U, S, R).
 
 -spec backend() -> rdbms | riak | cassandra | false.
 backend() ->

@@ -59,6 +59,10 @@
 
 -export([do_route/4]).
 
+%% For testing only
+-export([get_iq_callback/1]).
+
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

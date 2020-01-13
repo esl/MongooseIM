@@ -550,18 +550,18 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
 process_item_els(Item, []) -> Item.
 
 push_item(User, Server, From, Item) ->
-    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>),
-                      jid:make(User, Server, <<"">>),
+    #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
+    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>), JID,
                       {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(Server) of
         true ->
-            push_item_version(Server, User, From, Item,
-                              roster_version(Server, jid:nodeprep(User)));
+            push_item_version(JID, Server, User, From, Item,
+                              roster_version(Server, LUser));
         false ->
             lists:foreach(fun (Resource) ->
                                   push_item(User, Server, Resource, From, Item)
                           end,
-                          ejabberd_sm:get_user_resources(User, Server))
+                          ejabberd_sm:get_user_resources(JID))
     end.
 
 push_item(User, Server, Resource, From, Item) ->
@@ -585,13 +585,13 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
                           jid:make(User, Server, Resource),
                           jlib:iq_to_xml(ResIQ)).
 
-push_item_version(Server, User, From, Item,
+push_item_version(JID, Server, User, From, Item,
                   RosterVersion) ->
     lists:foreach(fun (Resource) ->
                           push_item(User, Server, Resource, From, Item,
                                     RosterVersion)
                   end,
-                  ejabberd_sm:get_user_resources(User, Server)).
+                  ejabberd_sm:get_user_resources(JID)).
 
 -spec get_subscription_lists(Acc :: mongoose_acc:t(),
                              User :: binary(),

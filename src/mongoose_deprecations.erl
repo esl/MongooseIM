@@ -25,7 +25,7 @@
 -define(DEPRECATION_TAB, deprecations).         % ETS table name
 -define(DEFAULT_COOLDOWN_HOURS, 6).             % default cooldown time
 
--type deprecation_tag() :: atom().              % Specifies the deprecation
+-type deprecation_tag() :: any().              % Specifies the deprecation
 -type log_level() :: warning | error.
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 

@@ -168,8 +168,8 @@ register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}
             error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
-attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el = Child} = IQ) ->
-    #jid{user = Username, lserver = UserDomain, resource = Resource} = ClientJID,
+attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
+    #jid{user = Username, lserver = UserDomain} = ClientJID,
     case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
@@ -181,7 +181,7 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
             ResIQ = IQ#iq{type = result, sub_el = []},
             ejabberd_router:route(
               jid:make(<<>>, <<>>, <<>>),
-              jid:make(Username, UserDomain, Resource),
+              ClientJID,
               jlib:iq_to_xml(ResIQ)),
             ejabberd_auth:remove_user(Username, UserDomain),
             ignore;
@@ -475,7 +475,7 @@ parse_ip_netmask(IPStr, MaskStr) ->
 check_ip_access(_Source, []) ->
     allow;
 check_ip_access({User, Server, Resource}, IPAccess) ->
-    case ejabberd_sm:get_session_ip(User, Server, Resource) of
+    case ejabberd_sm:get_session_ip(jid:make(User, Server, Resource)) of
         {IPAddress, _PortNumber} -> check_ip_access(IPAddress, IPAccess);
         _ -> true
     end;

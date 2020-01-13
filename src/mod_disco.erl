@@ -359,16 +359,14 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
                    Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_sm_items(Acc, From,
-            #jid{user = User, server = Server} = To,
-            [], _Lang) ->
+get_sm_items(Acc, From, To, [], _Lang) ->
     Items = case Acc of
                 {result, Its} -> Its;
                 empty -> []
             end,
     Items1 = case is_presence_subscribed(From, To) of
                    true ->
-                       get_user_resources(User, Server);
+                       get_user_resources(To);
                    _ ->
                        []
                 end,
@@ -468,13 +466,14 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_user_resources(jid:user(), jid:server()) -> [exml:element()].
-get_user_resources(User, Server) ->
-    Rs = ejabberd_sm:get_user_resources(User, Server),
+-spec get_user_resources(jid:jid()) -> [exml:element()].
+get_user_resources(JID) ->
+    #jid{user = User, server = Server} = JID,
+    Rs = ejabberd_sm:get_user_resources(JID),
     lists:map(fun(R) ->
-                JID = jid:to_binary({User, Server, R}),
+                BJID = jid:to_binary({User, Server, R}),
                 #xmlel{name = <<"item">>,
-                       attrs = [{<<"jid">>, JID}, {<<"name">>, User}]}
+                       attrs = [{<<"jid">>, BJID}, {<<"name">>, User}]}
               end, lists:sort(Rs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
