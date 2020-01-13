@@ -32,8 +32,6 @@
 -xep([{xep, 115}, {version, "1.5"}]).
 
 -behaviour(gen_server).
-
-
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
