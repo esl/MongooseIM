@@ -23,7 +23,8 @@ get_reports(Fun) ->
 report_getters() ->
     [
         fun get_hosts_count/0,
-        fun get_modules/0
+        fun get_modules/0,
+        fun get_number_of_custom_modules/0
     ].
 
 get_hosts_count() ->
@@ -74,3 +75,14 @@ report_module_with_opts(Module, Opts) ->
             #{report_name => Module, key => OptKey, value => OptValue}
         end,Opts).
 
+get_number_of_custom_modules() ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    AllModules = lists:flatten(
+                    lists:map(fun gen_mod:loaded_modules/1, Hosts)),
+    GenMods = filter_behaviour_implementations(AllModules, gen_mod),
+    GenModsSet = sets:from_list(GenMods),
+    MetricsModule = filter_behaviour_implementations(AllModules,
+                                                     mongoose_module_metrics),
+    MetricsModuleSet = sets:from_list(MetricsModule),
+    CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
+    #{report_name => custom_modules, key => count, value => CountCustomMods}.

@@ -2,6 +2,7 @@
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/0, stop/0,
          start/2, stop/1,

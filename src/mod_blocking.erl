@@ -10,7 +10,7 @@
 
 -xep([{xep, 191}, {version, "1.2"}]).
 -behaviour(gen_mod).
--behaviour(mongoose_module_metric).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          process_iq_get/5,
