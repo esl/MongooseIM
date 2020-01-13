@@ -574,8 +574,7 @@ enable_push_for_user(User, Service, EnableOpts, Config) ->
     enable_push_for_user(User, Service, EnableOpts, {200, <<"OK">>}, Config).
 
 enable_push_for_user(User, Service, EnableOpts, MockResponse, Config) ->
-    PubsubJID = node_addr(Config),
-    Node = {_, NodeName} = pubsub_node(Config),
+    Node = {PubsubJID, NodeName} = pubsub_node_from_host(Config),
 
     DeviceToken = gen_token(),
 
@@ -649,29 +648,13 @@ lower(Bin) when is_binary(Bin) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-node_addr(Config) ->
+pubsub_node_from_host(Config) ->
     case ?config(pubsub_host, Config) of
-        virtual -> virtual_pubsub_host();
-        real -> real_pubsub_host()
+        virtual ->
+            pubsub_tools:pubsub_node_with_subdomain("virtual.");
+        real ->
+            pubsub_tools:pubsub_node()
     end.
-
-rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
-    <<Prefix/binary, "_", Suffix/binary>>.
-
-pubsub_node_name() ->
-    rand_name(<<"princely_musings">>).
-
-pubsub_node(Config) ->
-    {node_addr(Config), pubsub_node_name()}.
-
-virtual_pubsub_host() ->
-    Domain = domain(),
-    <<"virtual.", Domain/binary>>.
-
-real_pubsub_host() ->
-    Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
 
 getenv(VarName, Default) ->
     case os:getenv(VarName) of

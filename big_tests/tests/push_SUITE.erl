@@ -375,7 +375,7 @@ disable_node_enabled_in_session_removes_it_from_session_info(Config) ->
         Config, [{bob, 1}],
         fun(Bob) ->
             PubsubJID = pubsub_jid(Config),
-            NodeId = pubsub_node(),
+            NodeId = pubsub_tools:pubsub_node_name(),
 
             escalus:send(Bob, enable_stanza(PubsubJID, NodeId, [])),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
@@ -395,8 +395,8 @@ disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
         Config, [{bob, 2}],
         fun(Bob1, Bob2) ->
             PubsubJID = pubsub_jid(Config),
-            NodeId = pubsub_node(),
-            NodeId2 = pubsub_node(),
+            NodeId = pubsub_tools:pubsub_node_name(),
+            NodeId2 = pubsub_tools:pubsub_node_name(),
 
             escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
@@ -427,8 +427,8 @@ disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
         Config, [{bob, 2}],
         fun(Bob1, Bob2) ->
             PubsubJID = pubsub_jid(Config),
-            NodeId = pubsub_node(),
-            NodeId2 = pubsub_node(),
+            NodeId = pubsub_tools:pubsub_node_name(),
+            NodeId2 = pubsub_tools:pubsub_node_name(),
 
             escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
@@ -784,9 +784,6 @@ pubsub_jid(Config) ->
         virtual -> <<CaseNameBin/binary, ".hyperion">>;
         _ -> <<"pubsub@", CaseNameBin/binary>>
     end.
-
-pubsub_node() ->
-    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
