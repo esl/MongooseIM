@@ -108,10 +108,8 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 -spec push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(),
                  Event :: mod_event_pusher:event()) -> mongoose_acc:t().
-push_event(Acc, Host, Event = #chat_event{type = chat, direction = in, to = To}) ->
-    BareRecipient = jid:to_bare(To),
-    do_push_event(Acc, Host, Event, BareRecipient);
-push_event(Acc, Host, Event = #chat_event{type = groupchat, direction = out, to = To}) ->
+push_event(Acc, Host, Event = #chat_event{type = Type, direction = out, to = To}) when Type =:= groupchat;
+                                                                                       Type =:= chat ->
     BareRecipient = jid:to_bare(To),
     do_push_event(Acc, Host, Event, BareRecipient);
 push_event(Acc, _, _) ->

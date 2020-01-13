@@ -111,7 +111,7 @@ chat_type(Acc) ->
 -spec merge_acc(mongoose_acc:t(), mongoose_acc:t()) -> mongoose_acc:t().
 merge_acc(Acc, EventPusherAcc) ->
     NS = mongoose_acc:get(event_pusher, EventPusherAcc),
-    mongoose_acc:set(event_pusher, NS, Acc).
+    mongoose_acc:set_permanent(event_pusher, NS, Acc).
 
 -spec hooks(Host :: jid:server()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->

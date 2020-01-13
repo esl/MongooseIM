@@ -31,9 +31,10 @@
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
-should_publish(_Acc, #chat_event{to = To}, Services) ->
+should_publish(Acc, #chat_event{to = To}, Services) ->
+    PublishedServices = mongoose_acc:get(event_pusher,published_services,[], Acc),
     case should_publish(To) of
-        true -> Services;
+        true -> Services -- PublishedServices;
         false -> []
     end;
 should_publish(_Acc, _Event, _Services) -> [].
@@ -68,7 +69,8 @@ publish_notification(Acc, #chat_event{to = To}, Payload, Services) ->
                               publish_via_pubsub(Host, To, Service, Payload)
                       end
                   end, Services),
-    Acc.
+
+    mongoose_acc:append(event_pusher, published_services, Services, Acc).
 
 %%--------------------------------------------------------------------
 %% local functions
