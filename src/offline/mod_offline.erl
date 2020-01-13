@@ -61,6 +61,8 @@
 %% GDPR related
 -export([get_personal_data/2]).
 
+-export([config_metrics/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
