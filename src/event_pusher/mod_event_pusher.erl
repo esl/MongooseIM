@@ -22,13 +22,16 @@
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 
+-type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
+-export_type([event/0]).
+
 -export([deps/2, start/2, stop/1, push_event/3]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> any().
+-callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> mongoose_acc:t().
 
 %%--------------------------------------------------------------------
 %% API
@@ -56,12 +59,10 @@ deps(_Host, Opts) ->
 start(Host, Opts) ->
     create_ets(Host),
     Backends = get_backends(Opts),
-    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
-    ejabberd_hooks:add(push_event, Host, ?MODULE, push_event, 90).
+    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}).
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ejabberd_hooks:delete(push_event, Host, ?MODULE, push_event, 90),
     ets:delete(ets_name(Host)).
 
 %%--------------------------------------------------------------------

@@ -14,6 +14,8 @@
 
 -export([http_notifications_port/0, http_notifications_host/0]).
 
+-export([wait_for_user_offline/1]).
+
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 

@@ -89,9 +89,11 @@ suite() ->
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE),
+    start_execution_queue(),
     escalus:init_per_suite(Config).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    stop_execution_queue(),
     escalus:end_per_suite(Config).
 
 init_per_group(disco, Config) ->
@@ -151,9 +153,40 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 %% --------------------- Helpers ------------------------
+execution_queue() ->
+    receive
+        {Pid, Fun, Args} when is_pid(Pid), is_list(Args), is_function(Fun, length(Args)) ->
+            Ret = (catch apply(Fun, Args)),
+            Pid ! {ret, Ret},
+            execution_queue();
+        {Pid, stop} when is_pid(Pid) ->
+            Pid ! stopped
+    end.
+
+start_execution_queue() ->
+    register(execution_queue, spawn(fun execution_queue/0)).
+
+stop_execution_queue() ->
+    execution_queue ! {self(), stop},
+    receive
+        stopped -> ok
+    end.
+
+queue(F, A) -> queue(F, A, 5000).
+
+queue(F, A, Timeout) ->
+    execution_queue ! {self(), F, A},
+    receive
+        {ret, Ret} -> Ret
+    after Timeout ->
+        error({timeout, F, A, Timeout})
+    end.
 
 add_virtual_host_to_pusher(VirtualHost) ->
-    rpc(mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]).
+    %% this function is executed in parallel environment,
+    %% so to prevent race conditions queue rpc calls.
+    Args = [mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]],
+    queue(fun escalus_ejabberd:rpc/3, Args).
 
 ensure_pusher_module_and_save_old_mods(Config) ->
     PushOpts = [{backend, mongoose_helper:mnesia_or_rdbms_backend()}],

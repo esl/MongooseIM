@@ -1278,16 +1278,15 @@ start_hook_listener(Resource) ->
 
 rpc_start_hook_handler(TestCasePid, User) ->
     LUser=jid:nodeprep(User),
-    Handler = fun(Acc, Res) ->
-                  JID = mongoose_acc:to_jid(Acc),
-                  case jid:to_lus(JID) of
-                      {LUser, _} ->
-                          Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
-                          El = mongoose_acc:element(Acc),
-                          TestCasePid ! {sm_test, Counter, Res, El},
-                          mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc);
-                      _ -> Acc
-                  end
+    Handler = fun(Acc, U, S, R) ->
+                case jid:nodeprep(U) of
+                    LUser ->
+                        Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
+                        El = mongoose_acc:element(Acc),
+                        TestCasePid ! {sm_test, Counter, R, El},
+                        mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc);
+                    _ -> Acc
+                end
               end,
     ejabberd_hooks:add(unacknowledged_message, <<"localhost">>, Handler, 50).
 
