@@ -85,4 +85,4 @@ get_number_of_custom_modules() ->
                                                      mongoose_module_metrics),
     MetricsModuleSet = sets:from_list(MetricsModule),
     CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
-    #{report_name => custom_modules_names, key => sets:to_list(sets:subtract(GenModsSet, MetricsModuleSet)), value => CountCustomMods}.
+    #{report_name => custom_modules, key => count, value => CountCustomMods}.
