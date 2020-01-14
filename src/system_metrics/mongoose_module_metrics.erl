@@ -10,9 +10,9 @@ opts_for_module(Host, Module, OptsToReport) ->
     try
         Opts = gen_mod:opts_for_module(Host, Module),
         lists:map(
-        fun({OptToReport,DefaultValue}) ->
-                Value = proplists:get_value(OptToReport, Opts, DefaultValue),
-                {OptToReport, Value}
+            fun({OptToReport, DefaultValue}) ->
+                    Value = proplists:get_value(OptToReport, Opts, DefaultValue),
+                    {OptToReport, Value}
             end,OptsToReport)
     catch
         _:_ -> {none, none}
