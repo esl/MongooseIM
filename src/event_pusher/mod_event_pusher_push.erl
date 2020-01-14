@@ -84,6 +84,8 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [enable, disable, get_publish_services]),
     mod_event_pusher_push_backend:init(Host, Opts),
 
+    mod_event_pusher_push_plugin:init(Host),
+
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     mod_disco:register_feature(Host, ?NS_PUSH),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PUSH, ?MODULE,
