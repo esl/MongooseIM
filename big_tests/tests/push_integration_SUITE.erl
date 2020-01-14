@@ -9,8 +9,7 @@
 
 -define(MUCLIGHTHOST, <<"muclight.localhost">>).
 -define(RPC_SPEC, #{node => distributed_helper:mim()}).
-
-
+-define(SESSION_KEY, publish_service).
 
 -import(muc_light_helper,
         [
@@ -644,7 +643,7 @@ maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
 
     Fun2 = fun() ->
                    Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-                   lists:keyfind(push_notifications, 1, Info)
+                   lists:keyfind(?SESSION_KEY, 1, Info)
            end,
     mongoose_helper:wait_until(Fun2, false).
 
@@ -731,8 +730,7 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
 
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-
-    {push_notifications, {NodeName, Details}} = lists:keyfind(push_notifications, 1, Info),
+    {?SESSION_KEY, {_JID, NodeName, Details}} = lists:keyfind(?SESSION_KEY, 1, Info),
     ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
     ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
 
