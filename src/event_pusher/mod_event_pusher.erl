@@ -129,18 +129,18 @@ config_metrics(Host) ->
         Opts = gen_mod:opts_for_module(Host, ?MODULE),
         BackendsWithOpts = proplists:get_value(backends, Opts, none),
         Backends = proplists:get_keys(BackendsWithOpts),
-        ReturnList = lists:map(
-            fun(Backend) ->
-                case Backend of
-                    push ->
-                        PushOptions = proplists:get_value(push, BackendsWithOpts),
-                        PushBackend = atom_to_list(proplists:get_value(backend, PushOptions, mnesia)),
-                        [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
-                    Backend ->
-                        {backend, Backend}
-                end
-            end, Backends),
+        ReturnList = lists:map(pa:bin(fun get_backend/2, BackendsWithOpts), Backends),
         lists:flatten(ReturnList)
     catch
         _:_ -> [{none, none}]
+    end.
+
+get_backend(BackendsWithOpts, Backend) ->
+    case Backend of
+        push ->
+            PushOptions = proplists:get_value(push, BackendsWithOpts),
+            PushBackend = atom_to_list(proplists:get_value(backend, PushOptions, mnesia)),
+            [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
+        Backend ->
+            {backend, Backend}
     end.
