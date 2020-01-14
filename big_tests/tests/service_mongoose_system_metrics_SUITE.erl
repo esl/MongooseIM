@@ -124,7 +124,7 @@ init_per_testcase(tracking_id_is_correctly_configured, Config) ->
     Config;
 init_per_testcase(module_backend_is_reported, Config) ->
     create_events_collection(),
-    start_module(mim(), mod_vcard),
+    maybe_start_module(mim(), mod_vcard),
     enable_system_metrics(mim()),
     Config.
 
@@ -166,7 +166,6 @@ end_per_testcase(tracking_id_is_correctly_configured, Config) ->
 end_per_testcase(module_backend_is_reported, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
-    stop_module(mim(), mod_vcard),
     Config.
 
 
@@ -316,23 +315,18 @@ events_are_reported_to_configurable_tracking_id() ->
             TrackingId == ConfigurableTrackingId
         end, Tab).
 
-start_module(Node, Module) ->
+maybe_start_module(Node, Module) ->
     Host = <<"localhost">>,
-    Options = [{backend, riak}],
-    stop_module(Node, Module),
+    Options = [],
     distributed_helper:rpc(Node, gen_mod, start_module, [Host, Module, Options]).
-
-stop_module(Node, Module) ->
-    distributed_helper:rpc(Node, gen_mod, stop_module, [<<"localhost">>, Module]).
 
 mod_vcard_backend_is_reported() ->
     Module = <<"mod_vcard">>,
     EventAction = <<"backend">>,
-    Backend = <<"riak">>,
     Tab = ets:tab2list(?ETS_TABLE),
     lists:any(
-        fun(#event{ec = EC, ea = EA, el = EL}) ->
-            EC == Module andalso EA == EventAction andalso EL == Backend
+        fun(#event{ec = EC, ea = EA}) ->
+            EC == Module andalso EA == EventAction
         end, Tab).
 
 
