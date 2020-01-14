@@ -52,10 +52,10 @@ groups() ->
     G = [
          {pubsub_ful, [], basic_groups()},
          {pubsub_less, [], basic_groups()},
-         {integration_with_sm_and_offline_storage,[],
+         {integration_with_sm_and_offline_storage,[parallel],
           [
            no_duplicates_default_plugin,
-           sm_buffered_messages_notified_default_plugin
+           sm_unack_messages_notified_default_plugin
           ]},
 
          {pm_msg_notifications, [parallel],
@@ -203,7 +203,7 @@ no_duplicates_default_plugin(Config) ->
     escalus_connection:stop(NewAlice),
     mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 1000)),
 
     escalus_connection:stop(Bob).
 
@@ -213,7 +213,7 @@ get_number_of_offline_msgs(Spec) ->
     Server = proplists:get_value(server, Spec),
     mongoose_helper:total_offline_messages({Username, Server}).
 
-sm_buffered_messages_notified_default_plugin(Config) ->
+sm_unack_messages_notified_default_plugin(Config) ->
     ConnSteps = [start_stream, stream_features, maybe_use_ssl,
                  authenticate, bind, session, stream_management],
 
@@ -224,7 +224,8 @@ sm_buffered_messages_notified_default_plugin(Config) ->
     escalus_connection:get_stanza(Bob, presence),
     BobJID = bare_jid(Bob),
 
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    AliceSpec = [{manual_ack, false}, {stream_management, true} |
+                 escalus_fresh:create_fresh_user(Config, alice)],
     {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
@@ -234,11 +235,16 @@ sm_buffered_messages_notified_default_plugin(Config) ->
 
     #{device_token := FCMDevice} = enable_push_for_user(Alice, <<"fcm">>, [], Config),
 
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-0">>)),
+    escalus:assert(is_chat_message, [<<"msg-0">>], escalus_connection:get_stanza(Alice, msg)),
+
+    H = escalus_connection:get_sm_h(Alice),
+    escalus:send(Alice, escalus_stanza:sm_ack(H)),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
     SenderJID = muclight_conversation(Bob, RoomJID, <<"msg-2">>),
     escalus:assert(is_groupchat_message, [<<"msg-2">>], escalus_connection:get_stanza(Alice, msg)),
-    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice)),
 
     escalus_connection:stop(Alice),
     push_helper:wait_for_user_offline(Alice),
@@ -249,6 +255,8 @@ sm_buffered_messages_notified_default_plugin(Config) ->
                              [{body, <<"msg-1">>}, {unread_count, 1}, {badge, 1}]),
     assert_push_notification(Notification2, <<"fcm">>, [], SenderJID,
                              [{body, <<"msg-2">>}, {unread_count, 1}, {badge, 1}]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
 
     escalus_connection:stop(Bob).
 
@@ -729,8 +737,10 @@ assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
 
 wait_for_push_request(DeviceToken) ->
-    mongoose_push_mock:wait_for_push_request(DeviceToken).
+    mongoose_push_mock:wait_for_push_request(DeviceToken, 10000).
 
+wait_for_push_request(DeviceToken, Timeout) ->
+    mongoose_push_mock:wait_for_push_request(DeviceToken, Timeout).
 
 %% ----------------------------------
 %% Other helpers

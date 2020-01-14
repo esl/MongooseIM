@@ -5,7 +5,7 @@
 -export([port/0]).
 -export([init/2]).
 -export([subscribe/2]).
--export([wait_for_push_request/1]).
+-export([wait_for_push_request/2]).
 
 start(Config) ->
     application:ensure_all_started(cowboy),
@@ -32,11 +32,11 @@ stop() ->
 subscribe(Token, Response) ->
     ets:insert(mongoose_push_mock_subscribers, {Token, self(), Response}).
 
-wait_for_push_request(Token) ->
+wait_for_push_request(Token, Timeout) ->
     receive
         {push_request, Token, Body, Resp} ->
             {jiffy:decode(Body, [return_maps]), Resp}
-    after 10000 ->
+    after Timeout ->
               ct:fail("timeout_waiting_for_push_request")
     end.
 

@@ -32,7 +32,7 @@
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
 should_publish(Acc, #chat_event{to = To}, Services) ->
-    PublishedServices = mongoose_acc:get(event_pusher,published_services,[], Acc),
+    PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
     case should_publish(To) of
         true -> Services -- PublishedServices;
         false -> []
