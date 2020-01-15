@@ -194,7 +194,7 @@ no_duplicates_default_plugin(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
     mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
-    verify_notification(APNSDevice, <<"apns">>, BobJID, <<"msg-1">>),
+    verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
     {ok, NewAlice, _} = escalus_connection:start([{manual_ack, true} | AliceSpec],
                                                  ConnSteps ++ [stream_management]),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
@@ -249,8 +249,8 @@ sm_unack_messages_notified_default_plugin(Config) ->
     escalus_connection:stop(Alice),
     push_helper:wait_for_user_offline(Alice),
 
-    verify_notification(FCMDevice, <<"fcm">>, BobJID, <<"msg-1">>),
-    verify_notification(FCMDevice, <<"fcm">>, SenderJID, <<"msg-2">>),
+    verify_notification(FCMDevice, <<"fcm">>, [], [{SenderJID, <<"msg-2">>},
+                                                   {BobJID, <<"msg-1">>}]),
 
     ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
 
@@ -285,40 +285,47 @@ immediate_notification(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
-    {ok, C2SPid} = get_session_pid(Alice),
+    C2SPid = mongoose_helper:get_session_pid(Alice, distributed_helper:mim()),
     escalus_connection:kill(Alice),
 
-    verify_notification(FCMDevice, <<"fcm">>, BobJID, <<"msg-1">>),
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-1">>),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
-    verify_notification(FCMDevice, <<"fcm">>, BobJID, <<"msg-2">>),
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-2">>),
 
     ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 1000)),
 
     rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
 
-    verify_notification(APNSDevice, <<"apns">>, BobJID, <<"msg-1">>),
-    verify_notification(APNSDevice, <<"apns">>, BobJID, <<"msg-2">>),
+    verify_notification(APNSDevice, <<"apns">>, [], [{BobJID, <<"msg-1">>},
+                                                     {BobJID, <<"msg-2">>}]),
 
     ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
 
     escalus_connection:stop(Bob).
 
-get_session_pid(Client) ->
-    JID = mongoose_helper:make_jid(escalus_client:username(Client),
-                                   escalus_client:server(Client),
-                                   escalus_client:resource(Client)),
-    case rpc(?RPC_SPEC, ejabberd_sm, get_session_pid, [JID]) of
-        none ->
-            {error, no_found};
-        C2SPid ->
-            {ok, C2SPid}
-    end.
+verify_notification(DeviceToken, Service, EnableOpts, Jid, Msg) ->
+    verify_notification(DeviceToken, Service, EnableOpts, [{Jid, Msg}]).
 
-verify_notification(DeviceToken, Service, Jid, Msg) ->
-    {Notification, _} = wait_for_push_request(DeviceToken),
-    assert_push_notification(Notification, Service, [], Jid,
-                             [{body, Msg}, {unread_count, 1}, {badge, 1}]).
+verify_notification(DeviceToken, Service, EnableOpts, ParamsList) ->
+    PredGen = fun({Jid, Msg}) ->
+                  fun(Notification) ->
+                      try
+                          Expected = [{body, Msg}, {unread_count, 1}, {badge, 1}],
+                          assert_push_notification(Notification, Service, EnableOpts,
+                                                   Jid, Expected),
+                          true
+                      catch
+                          _:_ -> false
+                      end
+                  end
+              end,
+    Notifications = [begin
+                         {Notification, _} = wait_for_push_request(DeviceToken),
+                         Notification
+                     end || _ <- ParamsList],
+    ?assertEqual(true, escalus_utils:mix_match(PredGen, ParamsList, Notifications)).
+
 %%--------------------------------------------------------------------
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
