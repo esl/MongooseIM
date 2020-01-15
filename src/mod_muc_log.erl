@@ -29,6 +29,7 @@
 
 -behaviour(gen_server).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start_link/2,

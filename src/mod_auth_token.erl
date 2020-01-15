@@ -1,6 +1,7 @@
 -module(mod_auth_token).
 
--behavior(gen_mod).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
@@ -35,6 +36,8 @@
 -export([expiry_datetime/3,
          get_key_for_user/2,
          token_with_mac/1]).
+
+-export([config_metrics/1]).
 
 -export_type([period/0,
               sequence_no/0,
@@ -411,3 +414,7 @@ clean_tokens(Acc, User, Server) ->
                ok
     end,
     Acc.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 -xep([{xep, 77}, {version, "2.4"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,

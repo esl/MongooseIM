@@ -44,6 +44,7 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 -author('christophe.romain@process-one.net').
 
 -xep([{xep, 60}, {version, "1.13-1"}]).
@@ -99,6 +100,8 @@
 -export([process_packet/5]).
 
 -export([send_loop/1]).
+
+-export([config_metrics/1]).
 
 -define(PROCNAME, ejabberd_mod_pubsub).
 -define(LOOPNAME, ejabberd_mod_pubsub_loop).
@@ -4527,3 +4530,7 @@ make_error_reply(Packet, #xmlel{} = ErrorEl) ->
 make_error_reply(Packet, Error) ->
     ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
     jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

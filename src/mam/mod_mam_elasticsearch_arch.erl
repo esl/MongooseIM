@@ -20,6 +20,7 @@
 
 -behaviour(gen_mod).
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
 -export([start/2]).

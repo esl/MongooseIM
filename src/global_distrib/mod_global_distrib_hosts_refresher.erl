@@ -18,8 +18,10 @@
 -module(mod_global_distrib_hosts_refresher).
 -author("dominik.stanaszek@erlang-solutions.com").
 
--behavior(gen_server).
--behavior(gen_mod).
+-behaviour(gen_server).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -include("mongoose.hrl").
 
 %% API

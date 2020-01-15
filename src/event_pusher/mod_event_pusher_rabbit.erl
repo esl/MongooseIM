@@ -25,6 +25,7 @@
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 -behaviour(mod_event_pusher).
 
 %%%===================================================================

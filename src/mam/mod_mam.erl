@@ -29,6 +29,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam).
 -behavior(gen_mod).
+-behaviour(mongoose_module_metrics).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
 -xep([{xep, 313}, {version, "0.6"}]).
@@ -58,6 +59,8 @@
 -export([archive_message/8]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
+
+-export([config_metrics/1]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -679,3 +682,7 @@ is_archivable_message(Host, Dir, Packet) ->
     {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

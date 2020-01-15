@@ -6,6 +6,7 @@
 %%%===================================================================
 -module(mod_bosh).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
 -xep([{xep, 206}, {version, "1.4"}]).
@@ -32,6 +33,8 @@
 
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -480,3 +483,7 @@ maybe_set_max_hold(_, _) ->
 -spec cowboy_reply(non_neg_integer(), headers_list(), binary(), req()) -> req().
 cowboy_reply(Code, Headers, Body, Req) when is_list(Headers) ->
     cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

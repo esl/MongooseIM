@@ -12,6 +12,7 @@
 -module(mod_push_service_mongoosepush).
 -author('rafal.slota@erlang-solutions.com').
 -behavior(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -30,6 +31,8 @@
 
 %% Types
 -export_type([]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -180,3 +183,7 @@ make_notification(Notification, Options) ->
 -spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 call(Host, M, F, A) ->
     mongoose_wpool:call(generic, Host, mongoosepush_service, {M, F, A}).
+
+config_metrics(Host) ->
+    OptsToReport = [{api_version, ?DEFAULT_API_VERSION}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

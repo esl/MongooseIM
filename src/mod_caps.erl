@@ -32,8 +32,8 @@
 -xep([{xep, 115}, {version, "1.5"}]).
 
 -behaviour(gen_server).
-
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([read_caps/1, caps_stream_features/2,
          disco_features/5, disco_identity/5, disco_info/5,

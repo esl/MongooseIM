@@ -20,6 +20,7 @@
 
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([default_schema_definition/0, default_host/0]).
@@ -50,6 +51,8 @@
 
 %% For propEr
 -export([apply_rsm/3]).
+
+-export([config_metrics/1]).
 
 %%====================================================================
 %% API
@@ -620,3 +623,7 @@ maybe_forget_rooms([{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
 
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

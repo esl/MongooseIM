@@ -20,6 +20,7 @@
 -behaviour(gen_mod).
 -behaviour(ranch_protocol).
 -behaviour(gen_server).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

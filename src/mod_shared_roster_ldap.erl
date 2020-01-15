@@ -31,6 +31,8 @@
 
 -behaviour(gen_mod).
 
+-behaviour(mongoose_module_metrics).
+
 %% API
 -export([start_link/2, start/2, stop/1]).
 

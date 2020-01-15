@@ -4,7 +4,6 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, "UA-151671255-2").
@@ -38,7 +37,8 @@
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
          system_metrics_are_reported_to_additional_google_analytics/1,
          system_metrics_are_reported_to_configurable_google_analytics/1,
-         tracking_id_is_correctly_configured/1
+         tracking_id_is_correctly_configured/1,
+         module_backend_is_reported/1
         ]).
 
 -import(distributed_helper, [mim/0, mim2/0,
@@ -56,7 +56,8 @@ all() ->
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
      system_metrics_are_reported_to_additional_google_analytics,
      system_metrics_are_reported_to_configurable_google_analytics,
-     tracking_id_is_correctly_configured
+     tracking_id_is_correctly_configured,
+     module_backend_is_reported
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -120,6 +121,11 @@ init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, 
 init_per_testcase(tracking_id_is_correctly_configured, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
+    Config;
+init_per_testcase(module_backend_is_reported, Config) ->
+    create_events_collection(),
+    maybe_start_module(mim(), mod_vcard),
+    enable_system_metrics(mim()),
     Config.
 
 
@@ -154,6 +160,10 @@ end_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, C
     disable_system_metrics(mim()),
     Config;
 end_per_testcase(tracking_id_is_correctly_configured, Config) ->
+    clear_events_collection(),
+    disable_system_metrics(mim()),
+    Config;
+end_per_testcase(module_backend_is_reported, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
     Config.
@@ -200,6 +210,10 @@ system_metrics_are_reported_to_additional_google_analytics(_Config) ->
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
     mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
+
+module_backend_is_reported(_Config) ->
+    mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    mongoose_helper:wait_until(fun mod_vcard_backend_is_reported/0, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -299,6 +313,20 @@ events_are_reported_to_configurable_tracking_id() ->
     lists:any(
         fun(#event{tid = TrackingId}) ->
             TrackingId == ConfigurableTrackingId
+        end, Tab).
+
+maybe_start_module(Node, Module) ->
+    Host = <<"localhost">>,
+    Options = [],
+    distributed_helper:rpc(Node, gen_mod, start_module, [Host, Module, Options]).
+
+mod_vcard_backend_is_reported() ->
+    Module = <<"mod_vcard">>,
+    EventAction = <<"backend">>,
+    Tab = ets:tab2list(?ETS_TABLE),
+    lists:any(
+        fun(#event{ec = EC, ea = EA}) ->
+            EC == Module andalso EA == EventAction
         end, Tab).
 
 

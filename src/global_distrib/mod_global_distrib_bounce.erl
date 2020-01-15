@@ -19,6 +19,7 @@
 
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

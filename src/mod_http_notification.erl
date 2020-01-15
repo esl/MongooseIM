@@ -3,6 +3,7 @@
 -include("mongoose.hrl").
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([deps/2, start/2, stop/1]).
 

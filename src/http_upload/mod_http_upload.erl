@@ -17,6 +17,8 @@
 -module(mod_http_upload).
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -xep([{xep, 363}, {version, "0.2.5"}]).
 -xep([{xep, 363}, {version, "0.3.0"}]).
 
@@ -31,6 +33,8 @@
 
 %% Hook implementations
 -export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -272,3 +276,7 @@ is_nonempty_binary(_) -> false.
 -spec is_positive_integer(term()) -> boolean().
 is_positive_integer(X) when is_integer(X) -> X > 0;
 is_positive_integer(_) -> false.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, s3}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

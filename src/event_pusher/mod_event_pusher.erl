@@ -18,6 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
@@ -26,6 +27,8 @@
 -export_type([event/0]).
 
 -export([deps/2, start/2, stop/1, push_event/3]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -120,3 +123,24 @@ create_ets(Host) ->
                Pid -> Pid
            end,
     ets:new(ets_name(Host), [public, named_table, {read_concurrency, true}, {heir, Heir, testing}]).
+
+config_metrics(Host) ->
+    try
+        Opts = gen_mod:opts_for_module(Host, ?MODULE),
+        BackendsWithOpts = proplists:get_value(backends, Opts, none),
+        Backends = proplists:get_keys(BackendsWithOpts),
+        ReturnList = lists:map(pa:bind(fun get_backend/2, BackendsWithOpts), Backends),
+        lists:flatten(ReturnList)
+    catch
+        _:_ -> [{none, none}]
+    end.
+
+get_backend(BackendsWithOpts, Backend) ->
+    case Backend of
+        push ->
+            PushOptions = proplists:get_value(push, BackendsWithOpts),
+            PushBackend = atom_to_list(proplists:get_value(backend, PushOptions, mnesia)),
+            [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
+        Backend ->
+            {backend, Backend}
+    end.

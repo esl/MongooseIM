@@ -27,8 +27,9 @@
 -module(mod_ping).
 -author('bjc@kublai.com').
 
--behavior(gen_mod).
--behavior(gen_server).
+-behaviour(gen_mod).
+-behaviour(gen_server).
+-behaviour(mongoose_module_metrics).
 -xep([{xep, 199}, {version, "2.0"}]).
 -include("mongoose.hrl").
 -include("jlib.hrl").

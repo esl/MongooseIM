@@ -32,6 +32,7 @@
 -xep([{xep, 22}, {version, "1.4"}]).
 -xep([{xep, 85}, {version, "2.1"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -59,6 +60,8 @@
 
 %% GDPR related
 -export([get_personal_data/2]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -593,3 +596,7 @@ set_permanent_fields([], Acc) -> Acc;
 set_permanent_fields([{NS, Key, Value} | T], Acc) ->
     NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
     set_permanent_fields(T, NewAcc).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

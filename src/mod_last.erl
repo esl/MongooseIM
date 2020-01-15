@@ -30,6 +30,7 @@
 -xep([{xep, 12}, {version, "2.0"}]).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([
          start/2,
@@ -43,6 +44,8 @@
          remove_user/3,
          session_cleanup/5
         ]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 
@@ -249,3 +252,8 @@ remove_user(Acc, User, Server) ->
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
     on_presence_update(Acc, LUser, LServer, LResource, <<>>).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+

@@ -7,6 +7,7 @@
 -module(mod_time).
 -author('ludwik.bukowski@erlang-solutions.com').
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 -export([start/2, stop/1, process_local_iq/4]).
 -include("mongoose.hrl").
 -include("jlib.hrl").
