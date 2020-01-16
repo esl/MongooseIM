@@ -90,8 +90,8 @@ init([Type]) ->
     {reply, reply(), state()}.
 handle_call({start_pool, Host, Tag, WpoolOpts, ConnOpts}, _From,
             #state{type = Type, pools = Pools, monitors = Monitors} = State) ->
-    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p, conn_opts=~p",
-              [Type, Host, Tag, WpoolOpts, ConnOpts]),
+    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p",
+              [Type, Host, Tag, WpoolOpts]),
     case mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts]) of
         {_, Pid} = OkReply when is_pid(Pid) ->
             Ref = erlang:monitor(process, Pid),
