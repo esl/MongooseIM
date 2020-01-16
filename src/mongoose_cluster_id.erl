@@ -1,0 +1,165 @@
+-module(mongoose_cluster_id).
+
+-include("mongoose.hrl").
+
+-export([
+         start/0,
+         get_cached_cluster_id/0,
+         get_backend_cluster_id/0
+        ]).
+
+-record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
+-type cluster_id() :: binary().
+-type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
+-type mongoose_backend() :: rdbms
+                          | cassandra
+                          | elasticsearch
+                          | riak
+                          | mnesia.
+
+-spec start() -> maybe_cluster_id().
+start() ->
+    init_mnesia_cache(),
+    run_steps(
+      [fun get_backend_cluster_id/0,
+       fun make_and_set_new_cluster_id/0],
+      {error, no_cluster_id_yet}).
+
+-spec run_steps(ListOfFuns, MaybeCID) -> maybe_cluster_id() when
+      ListOfFuns :: [fun(() -> maybe_cluster_id())],
+      MaybeCID :: maybe_cluster_id().
+run_steps(_, {ok, ID}) when is_binary(ID) ->
+    cache_cluster_id(ID);
+run_steps([Fun | NextFuns], {error, _}) ->
+    run_steps(NextFuns, Fun());
+run_steps([], {error, _} = E) ->
+    E.
+
+%% Get cached version
+-spec get_cached_cluster_id() -> maybe_cluster_id().
+get_cached_cluster_id() ->
+    T = fun() -> mnesia:read(mongoose_cluster_id, cluster_id) end,
+    case mnesia:transaction(T) of
+        {atomic, [#mongoose_cluster_id{value = ClusterID}]} ->
+            {ok, ClusterID};
+        {atomic, []} ->
+            {error, cluster_id_not_in_mnesia};
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
+%% ====================================================================
+%% Internal getters and setters
+%% ====================================================================
+-spec get_backend_cluster_id() -> maybe_cluster_id().
+get_backend_cluster_id() ->
+    get_cluster_id_from_backend(which_backend_available()).
+
+-spec set_new_cluster_id(cluster_id()) -> maybe_cluster_id().
+set_new_cluster_id(ID) ->
+    set_new_cluster_id(ID, which_backend_available()).
+
+-spec make_and_set_new_cluster_id() -> maybe_cluster_id().
+make_and_set_new_cluster_id() ->
+    NewID = make_cluster_id(),
+    set_new_cluster_id(NewID).
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+init_mnesia_cache() ->
+    mnesia:create_table(mongoose_cluster_id,
+                        [{type, set},
+                         {record_name, mongoose_cluster_id},
+                         {attributes, record_info(fields, mongoose_cluster_id)},
+                         {disc_only_copies, [node()]}
+                        ]),
+    mnesia:add_table_copy(mongoose_cluster_id, node(), disc_only_copies).
+
+-spec make_cluster_id() -> cluster_id().
+make_cluster_id() ->
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+%% Which backend is enabled
+-spec which_backend_available() -> mongoose_backend().
+which_backend_available() ->
+    try
+        is_rdbms_enabled() andalso throw({backend, rdbms}),
+        is_cassandra_enabled() andalso throw({backend, cassandra}),
+        is_elasticsearch_enabled() andalso throw({backend, elasticsearch}),
+        is_riak_enabled() andalso throw({backend, riak}),
+        mnesia
+    catch
+        {backend, B} -> B
+    end.
+
+is_rdbms_enabled() ->
+    mongoose_rdbms:db_engine(<<>>) =/= undefined.
+is_cassandra_enabled() ->
+    mongoose_wpool:is_configured(cassandra).
+is_elasticsearch_enabled() ->
+    case catch mongoose_elasticsearch:health() of
+        {ok, _} -> true;
+        _ -> false
+    end.
+is_riak_enabled() ->
+    case catch mongoose_riak:list_buckets(<<"default">>) of
+        {ok, '_'} -> true;
+        _ -> false
+    end.
+
+-spec cache_cluster_id(cluster_id()) -> maybe_cluster_id().
+cache_cluster_id(ID) ->
+    set_new_cluster_id(ID, mnesia).
+
+-spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
+set_new_cluster_id(ID, rdbms) ->
+    SQLQuery = [<<"INSERT INTO mongoose_cluster_id(k,v) "
+                  "VALUES ('cluster_id',">>,
+                mongoose_rdbms:use_escaped(mongoose_rdbms:escape_string(ID)), ");"],
+    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+        {updated, 1} -> {ok, ID};
+        {error, _} = Err -> Err
+    catch
+        E:R:Stack ->
+            ?WARNING_MSG("issue=error_reading_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
+                         [E, R, Stack]),
+            {error, {E,R}}
+    end;
+set_new_cluster_id(_ID, cassandra) ->
+    {ok, <<>>};
+set_new_cluster_id(_ID, elasticsearch) ->
+    {ok, <<>>};
+set_new_cluster_id(_ID, riak) ->
+    {ok, <<>>};
+set_new_cluster_id(ID, mnesia) ->
+    T = fun() -> mnesia:write(#mongoose_cluster_id{key = cluster_id, value = ID}) end,
+    case mnesia:transaction(T) of
+        {atomic, ok} ->
+            {ok, ID};
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
+%% Get cluster ID
+-spec get_cluster_id_from_backend(mongoose_backend()) -> maybe_cluster_id().
+get_cluster_id_from_backend(rdbms) ->
+    SQLQuery = [<<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>],
+    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+        {selected, [{Row}]} -> {ok, Row};
+        {selected, []} -> {error, no_value_in_backend};
+        {error, _} = Err -> Err
+    catch
+        E:R:Stack ->
+            ?WARNING_MSG("issue=error_reading_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
+                         [E, R, Stack]),
+            {error, {E,R}}
+    end;
+get_cluster_id_from_backend(cassandra) ->
+    {ok, <<>>};
+get_cluster_id_from_backend(elasticsearch) ->
+    {ok, <<>>};
+get_cluster_id_from_backend(riak) ->
+    {ok, <<>>};
+get_cluster_id_from_backend(mnesia) ->
+    get_cached_cluster_id().

@@ -68,6 +68,7 @@ start(normal, _Args) ->
     ejabberd_rdbms:start(),
     lists:foreach(fun ejabberd_users:start/1, ?MYHOSTS),
     ejabberd_auth:start(),
+    mongoose_cluster_id:start(),
     start_services(),
     start_modules(),
     mongoose_metrics:init(),
