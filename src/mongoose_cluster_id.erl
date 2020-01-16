@@ -15,9 +15,6 @@
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
 -type mongoose_backend() :: rdbms
-                          | cassandra
-                          | elasticsearch
-                          | riak
                           | mnesia.
 
 -spec start() -> maybe_cluster_id().
@@ -88,9 +85,6 @@ make_cluster_id() ->
 which_backend_available() ->
     try
         is_rdbms_enabled() andalso throw({backend, rdbms}),
-        is_cassandra_enabled() andalso throw({backend, cassandra}),
-        is_elasticsearch_enabled() andalso throw({backend, elasticsearch}),
-        is_riak_enabled() andalso throw({backend, riak}),
         mnesia
     catch
         {backend, B} -> B
@@ -98,18 +92,6 @@ which_backend_available() ->
 
 is_rdbms_enabled() ->
     mongoose_rdbms:db_engine(<<>>) =/= undefined.
-is_cassandra_enabled() ->
-    mongoose_wpool:is_configured(cassandra).
-is_elasticsearch_enabled() ->
-    case catch mongoose_elasticsearch:health() of
-        {ok, _} -> true;
-        _ -> false
-    end.
-is_riak_enabled() ->
-    case catch mongoose_riak:list_buckets(<<"default">>) of
-        {ok, '_'} -> true;
-        _ -> false
-    end.
 
 -spec cache_cluster_id(cluster_id()) -> maybe_cluster_id().
 cache_cluster_id(ID) ->
@@ -129,12 +111,6 @@ set_new_cluster_id(ID, rdbms) ->
                          [E, R, Stack]),
             {error, {E,R}}
     end;
-set_new_cluster_id(_ID, cassandra) ->
-    {ok, <<>>};
-set_new_cluster_id(_ID, elasticsearch) ->
-    {ok, <<>>};
-set_new_cluster_id(_ID, riak) ->
-    {ok, <<>>};
 set_new_cluster_id(ID, mnesia) ->
     T = fun() -> mnesia:write(#mongoose_cluster_id{key = cluster_id, value = ID}) end,
     case mnesia:transaction(T) of
@@ -158,12 +134,6 @@ get_cluster_id_from_backend(rdbms) ->
                          [E, R, Stack]),
             {error, {E,R}}
     end;
-get_cluster_id_from_backend(cassandra) ->
-    {ok, <<>>};
-get_cluster_id_from_backend(elasticsearch) ->
-    {ok, <<>>};
-get_cluster_id_from_backend(riak) ->
-    {ok, <<>>};
 get_cluster_id_from_backend(mnesia) ->
     get_cached_cluster_id().
 
