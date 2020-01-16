@@ -1278,8 +1278,9 @@ start_hook_listener(Resource) ->
 
 rpc_start_hook_handler(TestCasePid, User) ->
     LUser=jid:nodeprep(User),
-    Handler = fun(Acc, U, S, R) ->
-                case jid:nodeprep(U) of
+    Handler = fun(Acc, Jid) ->
+                {U, _S, R} = jid:to_lower(Jid),
+                case U of
                     LUser ->
                         Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
                         El = mongoose_acc:element(Acc),

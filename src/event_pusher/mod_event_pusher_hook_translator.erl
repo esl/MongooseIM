@@ -27,7 +27,7 @@
          filter_local_packet/1,
          user_present/2,
          user_not_present/5,
-         unacknowledged_message/4]).
+         unacknowledged_message/2]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -88,8 +88,8 @@ user_not_present(Acc, LUser, LHost, LResource, _Status) ->
     NewAcc = mod_event_pusher:push_event(Acc, LHost, Event),
     merge_acc(Acc, NewAcc).
 
-unacknowledged_message(Acc, User, Server, Res) ->
-    Event = #unack_msg_event{to = jid:make(User, Server, Res)},
+unacknowledged_message(Acc, #jid{lserver = Server} = Jid) ->
+    Event = #unack_msg_event{to = Jid},
     NewAcc = mod_event_pusher:push_event(Acc, Server, Event),
     merge_acc(Acc, NewAcc).
 
