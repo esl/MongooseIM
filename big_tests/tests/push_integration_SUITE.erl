@@ -59,7 +59,8 @@ groups() ->
           ]},
          {enhanced_integration_with_sm,[],
           [
-              immediate_notification
+              immediate_notification,
+              double_notification_with_two_sessions_in_resume
           ]},
          {pm_msg_notifications, [parallel],
           [
@@ -204,7 +205,7 @@ no_duplicates_default_plugin(Config) ->
     escalus_connection:stop(NewAlice),
     mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
 
     escalus_connection:stop(Bob).
 
@@ -252,7 +253,7 @@ sm_unack_messages_notified_default_plugin(Config) ->
     verify_notification(FCMDevice, <<"fcm">>, [], [{SenderJID, <<"msg-2">>},
                                                    {BobJID, <<"msg-1">>}]),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500)),
 
     escalus_connection:stop(Bob).
 
@@ -293,14 +294,109 @@ immediate_notification(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
     verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-2">>),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
 
     rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
 
     verify_notification(APNSDevice, <<"apns">>, [], [{BobJID, <<"msg-1">>},
                                                      {BobJID, <<"msg-2">>}]),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500)),
+
+    escalus_connection:stop(Bob).
+
+double_notification_with_two_sessions_in_resume(Config) ->
+
+%%    This test case serves as a demonstration of doubled push notifications
+%%    which occur with multiple push devices and sessions in resume state
+
+%%    diagram presenting the test's logic
+%%    generated using https://www.sequencediagram.org/
+%%           title double notifications in 2 sessions in resume
+%%           BobSocket -> BobC2S: msg-1
+%%           participant Alice1C2S #red
+%%           participant Alice2C2S #blue
+%%           BobC2S -#red> Alice1C2S: msg-1
+%%           BobC2S -#blue> Alice2C2S: msg-1
+%%           note over Alice1C2S: connection dies
+%%           activate Alice1C2S
+%%           note over Alice2C2S: connection dies
+%%           activate Alice2C2S
+%%           Alice1C2S -#red> PushService: msg-1 (alice1 device)
+%%           deactivate Alice1C2S
+%%           Alice2C2S -#blue> PushService: msg-1 (alice2 device)
+%%           deactivate Alice2C2S
+%%           note over Alice1C2S: resumption t/o
+%%           activate Alice1C2S
+%%           Alice1C2S -#red> Alice2C2S: msg-1
+%%           activate Alice2C2S #red
+%%           deactivate Alice1C2S
+%%           destroyafter Alice1C2S
+%%           Alice2C2S -#red> PushService: msg-1 (alice2 device)
+%%           deactivate Alice2C2S
+%%           note over Alice2C2S: resumption t/o
+%%           activate Alice2C2S
+%%           Alice2C2S -#blue> PushService: msg-1 (alice1 device)
+%%           deactivate Alice2C2S
+%%           destroyafter Alice2C2S
+
+    ConnSteps = [start_stream, stream_features, maybe_use_ssl,
+                 authenticate, bind, session, stream_resumption],
+
+    %% connect bob
+    BobSpec = escalus_fresh:create_fresh_user(Config, bob),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
+    escalus_session:send_presence_available(Bob),
+    escalus_connection:get_stanza(Bob, presence),
+    BobJID = bare_jid(Bob),
+
+    %% connect two resources for alice
+    AliceSpec1 = [{manual_ack, false}, {stream_resumption, true} |
+                  escalus_fresh:create_fresh_user(Config, alice)],
+    AliceSpec2 = [{resource,<<"RES2">>} | AliceSpec1],
+
+    {ok, Alice1, _} = escalus_connection:start(AliceSpec1, ConnSteps),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec2, ConnSteps),
+
+    escalus_session:send_presence_available(Alice1),
+    escalus_connection:get_stanza(Alice1, presence),
+
+    escalus_session:send_presence_available(Alice2),
+    escalus_connection:get_stanza(Alice2, presence),
+
+    escalus_connection:get_stanza(Alice1, presence),
+    escalus_connection:get_stanza(Alice2, presence),
+
+    #{device_token := APNSDevice1} = enable_push_for_user(Alice1, <<"apns">>, [], Config),
+    #{device_token := APNSDevice2} = enable_push_for_user(Alice2, <<"apns">>, [], Config),
+
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice1), <<"msg-1">>)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice1, msg)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice2, msg)),
+
+    %% go into resume state, which should fire a hook which pushes notifications
+    C2SPid1 = mongoose_helper:get_session_pid(Alice1, distributed_helper:mim()),
+    escalus_connection:kill(Alice1),
+    C2SPid2 = mongoose_helper:get_session_pid(Alice2, distributed_helper:mim()),
+    escalus_connection:kill(Alice2),
+
+    verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    verify_notification(APNSDevice2, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 1)),
+
+    %% close xmpp stream for Alice1, which causes push notification for APNSDevice2
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid1, normal]),
+
+    verify_notification(APNSDevice2, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+
+    %% close xmpp stream for Alice2, which causes push notification for APNSDevice1
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid2, normal]),
+
+    verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 500)),
 
     escalus_connection:stop(Bob).
 
