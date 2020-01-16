@@ -117,8 +117,8 @@ push_event(Acc, Host, Event = #chat_event{direction = out, to = To,
                                                              Type =:= chat ->
     BareRecipient = jid:to_bare(To),
     do_push_event(Acc, Host, Event, BareRecipient);
-push_event(Acc, Host, Event = #unack_msg_event{user = U, server = S}) ->
-    BareRecipient = jid:make(U, S, <<"">>),
+push_event(Acc, Host, Event = #unack_msg_event{to = To}) ->
+    BareRecipient = jid:to_bare(To),
     do_push_event(Acc, Host, Event, BareRecipient);
 push_event(Acc, _, _) ->
     Acc.

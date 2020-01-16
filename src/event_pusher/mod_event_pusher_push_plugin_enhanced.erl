@@ -28,8 +28,7 @@
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
-should_publish(Acc, #unack_msg_event{user = U, server = S, resource = R}, _Services) ->
-    Jid = jid:make(U, S, R),
+should_publish(Acc, #unack_msg_event{to = Jid}, _Services) ->
     PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
     case ejabberd_sm:get_info(Jid, publish_service) of
         {ok, Service} -> [Service] -- PublishedServices;

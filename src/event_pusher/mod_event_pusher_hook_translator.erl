@@ -89,7 +89,7 @@ user_not_present(Acc, LUser, LHost, LResource, _Status) ->
     merge_acc(Acc, NewAcc).
 
 unacknowledged_message(Acc, User, Server, Res) ->
-    Event = #unack_msg_event{user = User, server = Server, resource = Res},
+    Event = #unack_msg_event{to = jid:make(User, Server, Res)},
     NewAcc = mod_event_pusher:push_event(Acc, Server, Event),
     merge_acc(Acc, NewAcc).
 
