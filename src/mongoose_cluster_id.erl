@@ -21,7 +21,8 @@
 start() ->
     init_mnesia_cache(),
     run_steps(
-      [fun get_backend_cluster_id/0,
+      [fun get_cached_cluster_id/0,
+       fun get_backend_cluster_id/0,
        fun make_and_set_new_cluster_id/0],
       {error, no_cluster_id_yet}).
 
@@ -29,7 +30,7 @@ start() ->
       ListOfFuns :: [fun(() -> maybe_cluster_id())],
       MaybeCID :: maybe_cluster_id().
 run_steps(_, {ok, ID}) when is_binary(ID) ->
-    cache_cluster_id(ID);
+    store_cluster_id(ID);
 run_steps([Fun | NextFuns], {error, _}) ->
     run_steps(NextFuns, Fun());
 run_steps([], {error, _} = E) ->
@@ -93,8 +94,9 @@ which_backend_available() ->
 is_rdbms_enabled() ->
     mongoose_rdbms:db_engine(<<>>) =/= undefined.
 
--spec cache_cluster_id(cluster_id()) -> maybe_cluster_id().
-cache_cluster_id(ID) ->
+-spec store_cluster_id(cluster_id()) -> maybe_cluster_id().
+store_cluster_id(ID) ->
+    is_rdbms_enabled() andalso set_new_cluster_id(ID, rdbms),
     set_new_cluster_id(ID, mnesia).
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
