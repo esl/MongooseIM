@@ -42,9 +42,7 @@ tests() ->
 
 groups() ->
     [
-     {mnesia, [],
-      [all_nodes_in_the_cluster_have_the_same_cluster_id,
-       id_persists_after_restart]},
+     {mnesia, [], [all_nodes_in_the_cluster_have_the_same_cluster_id]},
      {rdbms, [], tests()}
     ].
 

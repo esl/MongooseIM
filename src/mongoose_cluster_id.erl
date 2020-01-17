@@ -72,9 +72,9 @@ init_mnesia_cache() ->
                         [{type, set},
                          {record_name, mongoose_cluster_id},
                          {attributes, record_info(fields, mongoose_cluster_id)},
-                         {disc_only_copies, [node()]}
+                         {ram_copies, [node()]}
                         ]),
-    mnesia:add_table_copy(mongoose_cluster_id, node(), disc_only_copies).
+    mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies).
 
 -spec make_cluster_id() -> cluster_id().
 make_cluster_id() ->
