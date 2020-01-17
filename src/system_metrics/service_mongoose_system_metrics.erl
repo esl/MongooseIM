@@ -19,7 +19,6 @@
          handle_info/2,
          terminate/2]).
 
--record(service_mongoose_system_metrics, {key, value}).
 -record(system_metrics_state, {report_after, reporter_monitor = none, reporter_pid = none}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
@@ -110,20 +109,23 @@ maybe_create_table() ->
         ]),
     mnesia:add_table_copy(service_mongoose_system_metrics, node(), ram_copies).
 
+-spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer()}.
 metrics_module_config(Args) ->
-    case os:getenv("CI") of
-        "true" ->
-            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
-            InitialReport = proplists:get_value(initial_report, Args, timer:seconds(20)),
-            ReportAfter = proplists:get_value(report_after, Args, timer:minutes(5));
-        _ ->
-            ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
-            InitialReport= proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
-            ReportAfter = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER)
-    end,
+    {InitialReport, ReportAfter} = get_timeouts(Args, os:getenv("CI")),
     ExtraTrackingID = proplists:get_value(tracking_id, Args, undefined),
     ejabberd_config:add_local_option(extra_google_analytics_tracking_id, ExtraTrackingID),
     {InitialReport, ReportAfter}.
+
+get_timeouts(Args, "true") ->
+    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
+    I = proplists:get_value(initial_report, Args, timer:seconds(20)),
+    R = proplists:get_value(report_after, Args, timer:minutes(5)),
+    {I, R};
+get_timeouts(Args, _) ->
+    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
+    I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
+    R = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
+    {I, R}.
 
 % %%-----------------------------------------
 % %% Unused
