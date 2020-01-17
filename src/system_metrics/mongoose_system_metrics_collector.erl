@@ -27,7 +27,10 @@ report_getters() ->
         fun get_number_of_custom_modules/0,
         fun get_uptime/0,
         fun get_cluster_size/0,
-        fun get_version/0
+        fun get_version/0,
+        fun get_components/0,
+        fun get_api/0,
+        fun get_transport_mechanisms/0
     ].
 
 get_hosts_count() ->
@@ -102,8 +105,67 @@ get_cluster_size() ->
     [#{report_name => cluster, key => number_of_nodes, value => NodesNo}].
 
 get_version() ->
-    ok.
-%%get_loglevel() ->
-%%    Loglevels = ejabberd_loglevel:get(),
-%%    [{_Module, {_N, Loglevel}} | _T ] = Loglevels, % TODO which loglevel should be chosen?
-%%    [#{report_name => cluster, key => log_level_configured, value => Loglevel}].
+    case lists:keyfind(mongooseim, 1, application:which_applications()) of
+        false -> Version = none;
+        {_, _, Ver} -> Version = Ver
+    end,
+    #{report_name => cluster, key => mim_version, value => Version}.
+
+get_components() ->
+    Domains = ejabberd_router:dirty_get_all_domains(),
+    Hosts = ejabberd_config:get_global_option(hosts),
+    Components = lists:flatten(
+                    lists:map(
+                        fun(Host) ->
+                            check_components(Host, Domains)
+                        end, Hosts)),
+    LenComponents = length(Components),
+    #{report_name => cluster, key => number_of_components, value => LenComponents}.
+
+check_components(Host, Domains) ->
+    lists:flatten(
+        lists:map(
+            fun(Domain) ->
+                ejabberd_router:lookup_component(Domain, Host)
+            end, Domains)).
+
+get_api() ->
+    ModulesOptions = lists:flatten(get_service_option(ejabberd_cowboy, modules)),
+    ApiList = lists:usort(lists:map(
+                fun(Module)->
+                    element(3, Module)
+                end, ModulesOptions)),
+    [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
+
+get_service_option(Service, GetOpt) ->
+    Listen = ejabberd_config:get_local_option(listen),
+    lists:filtermap(
+        fun(Listener) ->
+            case lists:keyfind(Service, 2, [Listener]) of
+                false -> false;
+                {_, ejabberd_c2s, OptionsList} ->
+                    TlsModule = proplists:get_value(tls_module, OptionsList, fast_tls),
+                    {true, TlsModule};
+                {_, ejabberd_cowboy, OptionsList} ->
+                    Option = proplists:get_value(GetOpt, OptionsList),
+                    {true, Option};
+                _ -> false
+            end
+        end, Listen).
+
+get_transport_mechanisms() ->
+    ModulesOptions = lists:flatten(get_service_option(ejabberd_cowboy, modules)),
+    MaybeBosh = maybe_api(mod_bosh, ModulesOptions),
+    MaybeWebsockets = maybe_api(mod_websockets, ModulesOptions),
+    MaybeTLS = get_service_option(ejabberd_c2s, tls_module),
+    ReturnList = lists:flatten([MaybeBosh, MaybeWebsockets, MaybeTLS]),
+    [#{report_name => transport_mechanism,
+       key => Transport,
+       value => enabled} || Transport <- lists:usort(ReturnList)].
+
+maybe_api(Api, Modules) ->
+    case lists:keyfind(Api, 3, Modules) of
+        false -> [];
+        _Return -> Api
+    end.
+
