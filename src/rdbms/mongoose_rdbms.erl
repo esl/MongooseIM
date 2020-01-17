@@ -656,7 +656,7 @@ abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, St
 abort_on_driver_error({Reply, State}) ->
     {reply, Reply, State}.
 
--spec db_engine(Host :: server()) -> odbc | mysql | pgsql.
+-spec db_engine(Host :: server()) -> odbc | mysql | pgsql | undefined.
 db_engine(_Host) ->
     try mongoose_rdbms_backend:backend_name()
     catch error:undef -> undefined end.

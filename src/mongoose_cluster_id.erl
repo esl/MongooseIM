@@ -54,7 +54,7 @@ get_cached_cluster_id() ->
 %% ====================================================================
 -spec get_backend_cluster_id() -> maybe_cluster_id().
 get_backend_cluster_id() ->
-    get_cluster_id_from_backend(which_backend_available()).
+    get_backend_cluster_id(which_backend_available()).
 
 -spec set_new_cluster_id(cluster_id()) -> maybe_cluster_id().
 set_new_cluster_id(ID) ->
@@ -84,19 +84,14 @@ make_cluster_id() ->
 %% Which backend is enabled
 -spec which_backend_available() -> mongoose_backend().
 which_backend_available() ->
-    try
-        is_rdbms_enabled() andalso throw({backend, rdbms}),
-        mnesia
-    catch
-        {backend, B} -> B
+    case mongoose_rdbms:db_engine(<<>>) of
+        undefined -> mnesia;
+        _ -> rdbms
     end.
-
-is_rdbms_enabled() ->
-    mongoose_rdbms:db_engine(<<>>) =/= undefined.
 
 -spec store_cluster_id(cluster_id()) -> maybe_cluster_id().
 store_cluster_id(ID) ->
-    is_rdbms_enabled() andalso set_new_cluster_id(ID, rdbms),
+    which_backend_available() == rdbms andalso set_new_cluster_id(ID, rdbms),
     set_new_cluster_id(ID, mnesia).
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
@@ -109,7 +104,7 @@ set_new_cluster_id(ID, rdbms) ->
         {error, _} = Err -> Err
     catch
         E:R:Stack ->
-            ?WARNING_MSG("issue=error_reading_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
+            ?WARNING_MSG("issue=error_setting_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
                          [E, R, Stack]),
             {error, {E,R}}
     end;
@@ -123,8 +118,8 @@ set_new_cluster_id(ID, mnesia) ->
     end.
 
 %% Get cluster ID
--spec get_cluster_id_from_backend(mongoose_backend()) -> maybe_cluster_id().
-get_cluster_id_from_backend(rdbms) ->
+-spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
+get_backend_cluster_id(rdbms) ->
     SQLQuery = [<<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>],
     try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
         {selected, [{Row}]} -> {ok, Row};
@@ -132,25 +127,27 @@ get_cluster_id_from_backend(rdbms) ->
         {error, _} = Err -> Err
     catch
         E:R:Stack ->
-            ?WARNING_MSG("issue=error_reading_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
+            ?WARNING_MSG("issue=error_getting_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
                          [E, R, Stack]),
             {error, {E,R}}
     end;
-get_cluster_id_from_backend(mnesia) ->
+get_backend_cluster_id(mnesia) ->
     get_cached_cluster_id().
 
 clean_table() ->
     clean_table(which_backend_available()).
 
+-spec clean_table(mongoose_backend()) -> ok | {error, any()}.
 clean_table(rdbms) ->
-    SQLQuery = [<<"TRUNCATE mongoose_cluster_id;">>],
+    SQLQuery = [<<"TRUNCATE TABLE mongoose_cluster_id;">>],
     try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
-        {selected, []} -> ok;
+        {selected, _} -> ok;
+        {updated, _} -> ok;
         {error, _} = Err -> Err
     catch
         E:R:Stack ->
-            ?WARNING_MSG("issue=error_truncating_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
-                         [E, R, Stack]),
+            ?WARNING_MSG("issue=error_truncating_cluster_id_from_rdbms,
+                         class=~p, reason=~p, stack=~p", [E, R, Stack]),
             {error, {E,R}}
     end;
 clean_table(_) -> ok.
