@@ -8,6 +8,9 @@
          get_backend_cluster_id/0
         ]).
 
+% For testing purposes only
+-export([clean_table/0]).
+
 -record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
@@ -163,3 +166,19 @@ get_cluster_id_from_backend(riak) ->
     {ok, <<>>};
 get_cluster_id_from_backend(mnesia) ->
     get_cached_cluster_id().
+
+clean_table() ->
+    clean_table(which_backend_available()).
+
+clean_table(rdbms) ->
+    SQLQuery = [<<"TRUNCATE mongoose_cluster_id;">>],
+    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+        {selected, []} -> ok;
+        {error, _} = Err -> Err
+    catch
+        E:R:Stack ->
+            ?WARNING_MSG("issue=error_truncating_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
+                         [E, R, Stack]),
+            {error, {E,R}}
+    end;
+clean_table(_) -> ok.
