@@ -672,8 +672,9 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
             Error;
         Error ->
             SleepFor = rand:uniform(RetryAfter),
-            ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
-                       " Retrying in ~p seconds.", [Settings, Error, SleepFor]),
+            Backend = mongoose_rdbms_backend:backend_name(),
+            ?ERROR_MSG("connection attempt to ~s resulted in ~p."
+                       " Retrying in ~p seconds.", [Backend, Error, SleepFor]),
             timer:sleep(timer:seconds(SleepFor)),
             NextRetryDelay = RetryAfter * RetryAfter,
             connect(Settings, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
