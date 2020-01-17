@@ -42,12 +42,11 @@ init(Args) ->
     {InitialReport, ReportAfter} = metrics_module_config(Args),
     erlang:send_after(InitialReport, self(), spawn_reporter),
     {ok, #system_metrics_state{report_after = ReportAfter}}.
-    
+
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
                                                   reporter_pid = none} = State) ->
     case get_client_id() of
-        {error, no_client_id} -> {stop, no_client_id, State};
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
@@ -56,7 +55,8 @@ handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                 end),
             erlang:send_after(ReportAfter, self(), spawn_reporter),
             {noreply, State#system_metrics_state{reporter_monitor = Monitor,
-                                                 reporter_pid = Pid}}
+                                                 reporter_pid = Pid}};
+        {error, _} -> {stop, no_client_id, State}
     end;
 handle_info(spawn_reporter, #system_metrics_state{reporter_pid = Pid} = State) ->
     exit(Pid, kill),
@@ -73,41 +73,12 @@ handle_info(_Message, State) ->
 % %% Helpers
 % %%-----------------------------------------
 
-% trying to get client ID 20 times, because it seems fine
--spec get_client_id() -> {ok, client_id()} | {error, no_client_id}.
+-spec get_client_id() -> {ok, client_id()} | {error, any()}.
 get_client_id() ->
-    get_client_id(20).
-
-get_client_id(0) ->
-    {error, no_client_id};
-get_client_id(Counter) when Counter > 0 ->
-    T = fun() ->
-        case mnesia:read(service_mongoose_system_metrics, client_id) of
-            [] ->
-                ClientId = uuid:uuid_to_string(uuid:get_v4()),
-                mnesia:write(#service_mongoose_system_metrics{key = client_id, value = ClientId}),
-                ClientId;
-            [#service_mongoose_system_metrics{value = ClientId}] ->
-                ClientId
-        end
-    end,
-    case mnesia:transaction(T) of
-        {aborted, {no_exists, service_mongoose_system_metrics}} ->
-            maybe_create_table(),
-            get_client_id(Counter - 1);
-        {atomic, ClientId} ->
-            {ok, ClientId}
+    case mongoose_cluster_id:get_cached_cluster_id() of
+        {error, _} = Err -> Err;
+        {ok, ID} when is_binary(ID) -> {ok, binary_to_list(ID)}
     end.
-
-maybe_create_table() ->
-    mnesia:create_table(service_mongoose_system_metrics,
-        [
-            {type, set},
-            {record_name, service_mongoose_system_metrics},
-            {attributes, record_info(fields, service_mongoose_system_metrics)},
-            {ram_copies, [node()]}
-        ]),
-    mnesia:add_table_copy(service_mongoose_system_metrics, node(), ram_copies).
 
 -spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer()}.
 metrics_module_config(Args) ->
