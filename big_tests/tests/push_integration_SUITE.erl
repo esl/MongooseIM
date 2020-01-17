@@ -9,8 +9,7 @@
 
 -define(MUCLIGHTHOST, <<"muclight.localhost">>).
 -define(RPC_SPEC, #{node => distributed_helper:mim()}).
-
-
+-define(SESSION_KEY, publish_service).
 
 -import(muc_light_helper,
         [
@@ -45,7 +44,8 @@ basic_groups() ->
      {group, groupchat_notifications_with_inbox},
      {group, failure_cases_v3},
      {group, failure_cases_v2},
-     {group, integration_with_sm_and_offline_storage}
+     {group, integration_with_sm_and_offline_storage},
+     {group, enhanced_integration_with_sm}
     ].
 
 groups() ->
@@ -57,7 +57,11 @@ groups() ->
            no_duplicates_default_plugin,
            sm_unack_messages_notified_default_plugin
           ]},
-
+         {enhanced_integration_with_sm,[],
+          [
+              immediate_notification,
+              double_notification_with_two_sessions_in_resume
+          ]},
          {pm_msg_notifications, [parallel],
           [
            pm_msg_notify_on_apns_w_high_priority,
@@ -166,9 +170,9 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-%%--------------------------------------------------------------------
-%% GROUP integration_with_sm_and_offline_storage
-%%--------------------------------------------------------------------
+%%------------------------------------------------------------------------------------
+%% GROUP integration_with_sm_and_offline_storage & enhanced_integration_with_sm
+%%------------------------------------------------------------------------------------
 no_duplicates_default_plugin(Config) ->
     ConnSteps = [start_stream, stream_features, maybe_use_ssl,
                  authenticate, bind, session],
@@ -191,9 +195,7 @@ no_duplicates_default_plugin(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
     mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
-    {Notification, _} = wait_for_push_request(APNSDevice),
-    assert_push_notification(Notification, <<"apns">>, [], BobJID,
-                             [{body, <<"msg-1">>}, {unread_count, 1}, {badge, 1}]),
+    verify_notification(APNSDevice, <<"apns">>, [], BobJID, <<"msg-1">>),
     {ok, NewAlice, _} = escalus_connection:start([{manual_ack, true} | AliceSpec],
                                                  ConnSteps ++ [stream_management]),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
@@ -203,10 +205,9 @@ no_duplicates_default_plugin(Config) ->
     escalus_connection:stop(NewAlice),
     mongoose_helper:wait_until(fun() -> get_number_of_offline_msgs(AliceSpec) end, 1),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
 
     escalus_connection:stop(Bob).
-
 
 get_number_of_offline_msgs(Spec) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Spec)),
@@ -249,16 +250,177 @@ sm_unack_messages_notified_default_plugin(Config) ->
     escalus_connection:stop(Alice),
     push_helper:wait_for_user_offline(Alice),
 
-    {Notification1, _} = wait_for_push_request(FCMDevice),
-    {Notification2, _} = wait_for_push_request(FCMDevice),
-    assert_push_notification(Notification1, <<"fcm">>, [], BobJID,
-                             [{body, <<"msg-1">>}, {unread_count, 1}, {badge, 1}]),
-    assert_push_notification(Notification2, <<"fcm">>, [], SenderJID,
-                             [{body, <<"msg-2">>}, {unread_count, 1}, {badge, 1}]),
+    verify_notification(FCMDevice, <<"fcm">>, [], [{SenderJID, <<"msg-2">>},
+                                                   {BobJID, <<"msg-1">>}]),
 
-    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 1000)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500)),
 
     escalus_connection:stop(Bob).
+
+immediate_notification(Config) ->
+    ConnSteps = [start_stream, stream_features, maybe_use_ssl,
+                 authenticate, bind, session, stream_resumption],
+
+    %% connect bob and alice
+    BobSpec = escalus_fresh:create_fresh_user(Config, bob),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
+    escalus_connection:send(Bob, escalus_stanza:presence(<<"available">>)),
+    escalus_connection:get_stanza(Bob, presence),
+    BobJID = bare_jid(Bob),
+
+    AliceSpec = [{manual_ack, false}, {stream_management, true} |
+                 escalus_fresh:create_fresh_user(Config, alice)],
+    {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps),
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    escalus_connection:get_stanza(Alice, presence),
+
+    #{device_token := APNSDevice} = enable_push_for_user(Alice, <<"apns">>, [], Config),
+    #{device_token := FCMDevice} = enable_push_for_user(Alice, <<"fcm">>, [], Config),
+
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-0">>)),
+    escalus:assert(is_chat_message, [<<"msg-0">>], escalus_connection:get_stanza(Alice, msg)),
+
+    H = escalus_connection:get_sm_h(Alice),
+    escalus:send(Alice, escalus_stanza:sm_ack(H)),
+
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-1">>)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
+
+    C2SPid = mongoose_helper:get_session_pid(Alice, distributed_helper:mim()),
+    escalus_connection:kill(Alice),
+
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-1">>),
+
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice), <<"msg-2">>)),
+    verify_notification(FCMDevice, <<"fcm">>, [], BobJID, <<"msg-2">>),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice, 500)),
+
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid, normal]),
+
+    verify_notification(APNSDevice, <<"apns">>, [], [{BobJID, <<"msg-1">>},
+                                                     {BobJID, <<"msg-2">>}]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(FCMDevice, 500)),
+
+    escalus_connection:stop(Bob).
+
+double_notification_with_two_sessions_in_resume(Config) ->
+
+%%    This test case serves as a demonstration of doubled push notifications
+%%    which occur with multiple push devices and sessions in resume state
+
+%%    diagram presenting the test's logic
+%%    generated using https://www.sequencediagram.org/
+%%           title double notifications in 2 sessions in resume
+%%           BobSocket -> BobC2S: msg-1
+%%           participant Alice1C2S #red
+%%           participant Alice2C2S #blue
+%%           BobC2S -#red> Alice1C2S: msg-1
+%%           BobC2S -#blue> Alice2C2S: msg-1
+%%           note over Alice1C2S: connection dies
+%%           activate Alice1C2S
+%%           note over Alice2C2S: connection dies
+%%           activate Alice2C2S
+%%           Alice1C2S -#red> PushService: msg-1 (alice1 device)
+%%           deactivate Alice1C2S
+%%           Alice2C2S -#blue> PushService: msg-1 (alice2 device)
+%%           deactivate Alice2C2S
+%%           note over Alice1C2S: resumption t/o
+%%           activate Alice1C2S
+%%           Alice1C2S -#red> Alice2C2S: msg-1
+%%           activate Alice2C2S #red
+%%           deactivate Alice1C2S
+%%           destroyafter Alice1C2S
+%%           Alice2C2S -#red> PushService: msg-1 (alice2 device)
+%%           deactivate Alice2C2S
+%%           note over Alice2C2S: resumption t/o
+%%           activate Alice2C2S
+%%           Alice2C2S -#blue> PushService: msg-1 (alice1 device)
+%%           deactivate Alice2C2S
+%%           destroyafter Alice2C2S
+
+    ConnSteps = [start_stream, stream_features, maybe_use_ssl,
+                 authenticate, bind, session, stream_resumption],
+
+    %% connect bob
+    BobSpec = escalus_fresh:create_fresh_user(Config, bob),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
+    escalus_session:send_presence_available(Bob),
+    escalus_connection:get_stanza(Bob, presence),
+    BobJID = bare_jid(Bob),
+
+    %% connect two resources for alice
+    AliceSpec1 = [{manual_ack, false}, {stream_resumption, true} |
+                  escalus_fresh:create_fresh_user(Config, alice)],
+    AliceSpec2 = [{resource,<<"RES2">>} | AliceSpec1],
+
+    {ok, Alice1, _} = escalus_connection:start(AliceSpec1, ConnSteps),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec2, ConnSteps),
+
+    escalus_session:send_presence_available(Alice1),
+    escalus_connection:get_stanza(Alice1, presence),
+
+    escalus_session:send_presence_available(Alice2),
+    escalus_connection:get_stanza(Alice2, presence),
+
+    escalus_connection:get_stanza(Alice1, presence),
+    escalus_connection:get_stanza(Alice2, presence),
+
+    #{device_token := APNSDevice1} = enable_push_for_user(Alice1, <<"apns">>, [], Config),
+    #{device_token := APNSDevice2} = enable_push_for_user(Alice2, <<"apns">>, [], Config),
+
+    escalus_connection:send(Bob, escalus_stanza:chat_to(bare_jid(Alice1), <<"msg-1">>)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice1, msg)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice2, msg)),
+
+    %% go into resume state, which should fire a hook which pushes notifications
+    C2SPid1 = mongoose_helper:get_session_pid(Alice1, distributed_helper:mim()),
+    escalus_connection:kill(Alice1),
+    C2SPid2 = mongoose_helper:get_session_pid(Alice2, distributed_helper:mim()),
+    escalus_connection:kill(Alice2),
+
+    verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    verify_notification(APNSDevice2, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 1)),
+
+    %% close xmpp stream for Alice1, which causes push notification for APNSDevice2
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid1, normal]),
+
+    verify_notification(APNSDevice2, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice1, 500)),
+
+    %% close xmpp stream for Alice2, which causes push notification for APNSDevice1
+    rpc(?RPC_SPEC, sys, terminate, [C2SPid2, normal]),
+
+    verify_notification(APNSDevice1, <<"apns">>, [], [{BobJID, <<"msg-1">>}]),
+    ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 500)),
+
+    escalus_connection:stop(Bob).
+
+verify_notification(DeviceToken, Service, EnableOpts, Jid, Msg) ->
+    verify_notification(DeviceToken, Service, EnableOpts, [{Jid, Msg}]).
+
+verify_notification(DeviceToken, Service, EnableOpts, ParamsList) ->
+    PredGen = fun({Jid, Msg}) ->
+                  fun(Notification) ->
+                      try
+                          Expected = [{body, Msg}, {unread_count, 1}, {badge, 1}],
+                          assert_push_notification(Notification, Service, EnableOpts,
+                                                   Jid, Expected),
+                          true
+                      catch
+                          _:_ -> false
+                      end
+                  end
+              end,
+    Notifications = [begin
+                         {Notification, _} = wait_for_push_request(DeviceToken),
+                         Notification
+                     end || _ <- ParamsList],
+    ?assertEqual(true, escalus_utils:mix_match(PredGen, ParamsList, Notifications)).
 
 %%--------------------------------------------------------------------
 %% GROUP pm_msg_notifications
@@ -644,7 +806,7 @@ maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
 
     Fun2 = fun() ->
                    Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-                   lists:keyfind(push_notifications, 1, Info)
+                   lists:keyfind(?SESSION_KEY, 1, Info)
            end,
     mongoose_helper:wait_until(Fun2, false).
 
@@ -731,8 +893,7 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
 
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-
-    {push_notifications, {NodeName, Details}} = lists:keyfind(push_notifications, 1, Info),
+    {?SESSION_KEY, {_JID, NodeName, Details}} = lists:keyfind(?SESSION_KEY, 1, Info),
     ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
     ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
 
@@ -827,26 +988,36 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
                               {resume_timeout,1}]},
      {mod_offline, []} |
      required_modules(API, PubSubHost)];
+required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
+    [{mod_stream_management, [{ack_freq, never}]} |
+     required_modules(API, PubSubHost, mod_event_pusher_push_plugin_enhanced)];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
 
-required_modules(API, PubSubHost) ->
+required_modules(API, PubSubHost)->
+    required_modules(API, PubSubHost, undefined).
+
+required_modules(API, PubSubHost, PluginModule) ->
     VirtualHostOpt = case PubSubHost of
                          virtual -> [{virtual_pubsub_hosts, ["virtual.@HOSTS@"]}];
                          _ -> []
                      end,
+    PushOpts = case PluginModule of
+                   undefined -> VirtualHostOpt;
+                   _ -> [{plugin_module, PluginModule} | VirtualHostOpt]
+               end,
     PubSub = case PubSubHost of
                  virtual -> [];
                  _ ->
                      [{mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
-                         {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                         {nodetree, <<"dag">>},
-                         {host, "pubsub.@HOST@"}]}]
+                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                                    {nodetree, <<"dag">>},
+                                    {host, "pubsub.@HOST@"}]}]
              end,
-    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | VirtualHostOpt]},
+    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
     [
         {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-            {api_version, API}]},
+                                         {api_version, API}]},
         {mod_event_pusher, [{backends, [PushBackend]}]} |
         PubSub
     ].

@@ -42,7 +42,8 @@ should_publish(_Acc, _Event, _Services) -> [].
 -spec prepare_notification(Acc :: mongooseim_acc:t(),
                            Event :: mod_event_pusher:event()) ->
                               mod_event_pusher_push_plugin:push_payload() | skip.
-prepare_notification(Acc, #chat_event{to = To, from = From, packet = Packet}) ->
+prepare_notification(Acc, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     case exml_query:subelement(Packet, <<"body">>) of
         undefined -> skip;
         Body ->
@@ -50,15 +51,15 @@ prepare_notification(Acc, #chat_event{to = To, from = From, packet = Packet}) ->
             MessageCount = get_unread_count(Acc, To),
             SenderId = sender_id(From, Packet),
             push_content_fields(SenderId, BodyCData, MessageCount)
-    end;
-prepare_notification(_Acc, _Event) -> skip.
+    end.
 
 -spec publish_notification(Acc :: mongooseim_acc:t(),
                            Event :: mod_event_pusher:event(),
                            Payload :: mod_event_pusher_push_plugin:push_payload(),
                            Services :: [mod_event_pusher_push:publish_service()]) ->
                               mongooseim_acc:t().
-publish_notification(Acc, #chat_event{to = To}, Payload, Services) ->
+publish_notification(Acc, _, Payload, Services) ->
+    To = mongoose_acc:to_jid(Acc),
     #jid{lserver = Host} = To,
     VirtualPubsubHosts = mod_event_pusher_push:virtual_pubsub_hosts(Host),
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->

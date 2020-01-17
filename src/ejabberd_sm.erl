@@ -36,6 +36,7 @@
          open_session/3, open_session/4,
          close_session/4,
          store_info/2,
+         get_info/2,
          remove_info/2,
          check_in_subscription/6,
          bounce_offline_message/4,
@@ -272,6 +273,20 @@ store_info(JID, {Key, _Value} = KV) ->
                     %% Async operation
                     ejabberd_c2s:store_session_info(Pid, JID, KV),
                     {ok, KV}
+            end
+    end.
+
+-spec get_info(jid:jid(), info_key()) ->
+    {ok, any()} | {error, offline | not_set}.
+get_info(JID, Key) ->
+    case get_session(JID) of
+        offline -> {error, offline};
+        {_SUser, _SID, _SPriority, SInfo} ->
+            case lists:keyfind(Key, 1, SInfo) of
+                {Key, Value} ->
+                    {ok, Value};
+                _ ->
+                    {error, not_set}
             end
     end.
 

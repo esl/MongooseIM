@@ -50,7 +50,7 @@
 -spec init(Host :: jid:server()) -> ok.
 init(Host) ->
     PluginModule = plugin_module(Host),
-    {module, PluginModule} = code:ensure_loaded(PluginModule),
+    ensure_loaded(PluginModule),
     ok.
 
 -spec should_publish(Host :: jid:server(), Acc :: mongooseim_acc:t(),
@@ -90,3 +90,7 @@ plugin_module(Host, Func, Arity) ->
 plugin_module(Host) ->
     gen_mod:get_module_opt(Host, mod_event_pusher_push, plugin_module,
                            ?DEFAULT_PLUGIN_MODULE).
+
+-spec ensure_loaded(module()) -> {module, module()}.
+ensure_loaded(PluginModule) ->
+    {module, PluginModule} = code:ensure_loaded(PluginModule).
