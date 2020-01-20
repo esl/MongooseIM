@@ -70,13 +70,7 @@ start_link(Type) ->
 
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     ok = ensure_started(Type),
-    try
-        gen_server:call(name(Type), {start_pool, Host, Tag, PoolOpts, ConnOpts})
-    catch
-        _:_ ->
-            %% hide connection options
-            exit({"failed to start pool", Type, Host, Tag, PoolOpts})
-    end.
+    gen_server:call(name(Type), {start_pool, Host, Tag, PoolOpts, ConnOpts}).
 
 stop(Type, Host, Tag) ->
     gen_server:call(name(Type), {stop_pool, Host, Tag}).
