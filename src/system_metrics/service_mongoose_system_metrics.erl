@@ -8,6 +8,14 @@
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).
 -define(TRACKING_ID, "UA-151671255-2").
 -define(TRACKING_ID_CI, "UA-151671255-1").
+-define(MSG_REMOVED_FROM_CONFIG,
+        "Are you sure you don't want to report anything?"
+        "TODO: Explain this better"
+       ).
+-define(MSG_ACCEPT_TERMS_AND_CONDITIONS,
+        "Do you agree with reporting?"
+        "TODO: Explain this better"
+       ).
 
 -include("mongoose.hrl").
 
@@ -39,9 +47,13 @@ start_link(Args) ->
 
 -spec init(proplists:proplist()) -> {ok, system_metrics_state()}.
 init(Args) ->
-    {InitialReport, ReportAfter} = metrics_module_config(Args),
-    erlang:send_after(InitialReport, self(), spawn_reporter),
-    {ok, #system_metrics_state{report_after = ReportAfter}}.
+    case report_transparency(Args) of
+        skip -> ignore;
+        continue ->
+            {InitialReport, ReportAfter} = metrics_module_config(Args),
+            erlang:send_after(InitialReport, self(), spawn_reporter),
+            {ok, #system_metrics_state{report_after = ReportAfter}}
+    end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
@@ -97,6 +109,24 @@ get_timeouts(Args, _) ->
     I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     R = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
     {I, R}.
+
+-spec report_transparency(proplists:proplist()) -> skip | continue.
+report_transparency(Args) ->
+    case {manually_removed_from_config(Args),
+              explicit_no_report(Args),
+                  will_printout(Args)} of
+        {true, ____, ____} -> ?WARNING_MSG(?MSG_REMOVED_FROM_CONFIG, []), skip;
+        {____, true, ____} -> skip;
+        {____, ____, true} -> continue;
+        {____, ____, ____} -> ?WARNING_MSG(?MSG_ACCEPT_TERMS_AND_CONDITIONS, []), continue
+    end.
+
+manually_removed_from_config(Args) ->
+    proplists:get_value(removed_from_config, Args, false).
+explicit_no_report(Args) ->
+    proplists:get_value(no_report, Args, false).
+will_printout(Args) ->
+    proplists:get_value(report, Args, false).
 
 % %%-----------------------------------------
 % %% Unused

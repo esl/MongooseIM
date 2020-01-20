@@ -151,11 +151,20 @@ stop_modules() ->
 
 -spec start_services() -> ok.
 start_services() ->
-    Services = ejabberd_config:get_local_option_or_default(services, []),
     lists:foreach(
         fun({Service, Opts}) -> mongoose_service:ensure_loaded(Service, Opts) end,
-        Services
+        services_with_maybe_metrics()
     ).
+
+-spec services_with_maybe_metrics() -> [term()].
+services_with_maybe_metrics() ->
+    Services = ejabberd_config:get_local_option_or_default(services, []),
+    case proplists:is_defined(service_mongoose_system_metrics, Services) of
+        false ->
+            [{service_mongoose_system_metrics, [removed_from_config]} | Services];
+        true ->
+            Services
+    end.
 
 -spec stop_services() -> ok.
 stop_services() ->
