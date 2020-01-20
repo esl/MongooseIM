@@ -401,3 +401,8 @@ CREATE TABLE event_pusher_push_subscription (
  );
 
 CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
+
+CREATE TABLE mongoose_cluster_id (
+    k varchar(50) PRIMARY KEY,
+    v text
+);

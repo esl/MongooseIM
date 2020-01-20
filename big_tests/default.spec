@@ -79,6 +79,7 @@
 {suites, "tests", mongoose_cassandra_SUITE}.
 {suites, "tests", mongoose_elasticsearch_SUITE}.
 {suites, "tests", sasl_external_SUITE}.
+{suites, "tests", persistent_cluster_id_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
