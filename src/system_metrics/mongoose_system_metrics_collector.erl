@@ -30,7 +30,8 @@ report_getters() ->
         fun get_version/0,
         fun get_components/0,
         fun get_api/0,
-        fun get_transport_mechanisms/0
+        fun get_transport_mechanisms/0,
+        fun get_tls_options/0
     ].
 
 get_hosts_count() ->
@@ -40,19 +41,11 @@ get_hosts_count() ->
 
 get_modules() ->
     Hosts = ejabberd_config:get_global_option(hosts),
-    AllModules = lists:flatten(
-                    lists:map(fun gen_mod:loaded_modules/1, Hosts)),
+    AllModules = lists:flatten([gen_mod:loaded_modules(H) || H <- Hosts]),
     ModulesToReport = filter_behaviour_implementations(AllModules,
                                                        mongoose_module_metrics),
-    ModulesWithOpts = lists:flatten(
-                        lists:map(
-                            fun(Host) ->
-                                get_modules_metrics(Host, ModulesToReport)
-                            end, Hosts)),
-    lists:map(
-        fun({Module, Opts}) ->
-            report_module_with_opts(Module, Opts)
-        end, ModulesWithOpts).
+    ModsWithOpts = [get_modules_metrics(Host, ModulesToReport) || Host <- Hosts],
+    [report_module_with_opts(Mod, Opt) || {Mod, Opt} <- lists:flatten(ModsWithOpts)].
 
 filter_behaviour_implementations(Modules, Behaviour) ->
     lists:filter(
@@ -106,66 +99,77 @@ get_cluster_size() ->
 
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
-        false -> Version = none;
-        {_, _, Ver} -> Version = Ver
-    end,
-    #{report_name => cluster, key => mim_version, value => Version}.
+        {_, _, Version} ->
+            #{report_name => cluster, key => mim_version, value => Version};
+        _ ->
+            []
+    end.
 
 get_components() ->
     Domains = ejabberd_router:dirty_get_all_domains(),
-    Hosts = ejabberd_config:get_global_option(hosts),
-    Components = lists:flatten(
-                    lists:map(
-                        fun(Host) ->
-                            check_components(Host, Domains)
-                        end, Hosts)),
-    LenComponents = length(Components),
+    Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
+    LenComponents = length(lists:flatten(Components)),
     #{report_name => cluster, key => number_of_components, value => LenComponents}.
 
-check_components(Host, Domains) ->
-    lists:flatten(
-        lists:map(
-            fun(Domain) ->
-                ejabberd_router:lookup_component(Domain, Host)
-            end, Domains)).
-
 get_api() ->
-    ModulesOptions = lists:flatten(get_service_option(ejabberd_cowboy, modules)),
-    ApiList = lists:usort(lists:map(
-                fun(Module)->
-                    element(3, Module)
-                end, ModulesOptions)),
+    ServiceOptions = get_service_option(ejabberd_cowboy),
+    ModulesOptions = lists:flatten([ Mod || {modules, Mod} <- ServiceOptions]),
+    % Modules Option can have variable number of elements. To be more
+    % error-proof, extracting 3rd element instead of pattern matching.
+    ApiLists = lists:map(fun(Module)-> element(3, Module) end, ModulesOptions),
+    ApiList = lists:usort(ApiLists),
     [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
 
-get_service_option(Service, GetOpt) ->
+get_service_option(Service) ->
     Listen = ejabberd_config:get_local_option(listen),
-    lists:filtermap(
-        fun(Listener) ->
-            case lists:keyfind(Service, 2, [Listener]) of
-                false -> false;
-                {_, ejabberd_c2s, OptionsList} ->
-                    TlsModule = proplists:get_value(tls_module, OptionsList, fast_tls),
-                    {true, TlsModule};
-                {_, ejabberd_cowboy, OptionsList} ->
-                    Option = proplists:get_value(GetOpt, OptionsList),
-                    {true, Option};
-                _ -> false
-            end
-        end, Listen).
+    Result = [ Option || {_, S, Option} <- Listen, S == Service],
+    lists:flatten(Result).
 
 get_transport_mechanisms() ->
-    ModulesOptions = lists:flatten(get_service_option(ejabberd_cowboy, modules)),
-    MaybeBosh = maybe_api(mod_bosh, ModulesOptions),
-    MaybeWebsockets = maybe_api(mod_websockets, ModulesOptions),
-    MaybeTLS = get_service_option(ejabberd_c2s, tls_module),
-    ReturnList = lists:flatten([MaybeBosh, MaybeWebsockets, MaybeTLS]),
+    ServiceOptions = get_service_option(ejabberd_cowboy),
+    MaybeBosh  = maybe_api_configured(mod_bosh, ServiceOptions),
+    MaybeWebsockets = maybe_api_configured(mod_websockets, ServiceOptions),
+    MaybeTCP = is_tcp_configured(),
+    ReturnList = lists:flatten([MaybeBosh, MaybeWebsockets, MaybeTCP]),
     [#{report_name => transport_mechanism,
        key => Transport,
        value => enabled} || Transport <- lists:usort(ReturnList)].
 
-maybe_api(Api, Modules) ->
+maybe_api_configured(Api, ServiceOptions) ->
+    Modules = proplists:get_value(modules, ServiceOptions, []),
     case lists:keyfind(Api, 3, Modules) of
         false -> [];
         _Return -> Api
     end.
 
+get_tls_options() ->
+    TcpConfigured = is_tcp_configured(),
+    TlsOption = check_tls_option([starttls, starttls_required, tls]),
+    case {TcpConfigured, TlsOption} of
+        {tcp, {Option, SpecificOption}} ->
+            #{report_name => tls_option, key => Option, value => SpecificOption};
+        { _, _} ->
+            []
+    end.
+
+is_tcp_configured() ->
+    case [] =/= lists:usort(get_service_option(ejabberd_c2s)) of
+        true -> tcp;
+        false -> []
+    end.
+
+check_tls_option([]) ->
+    {none, none};
+check_tls_option([TlsOption | Tail]) ->
+    ServiceOptions = get_service_option(ejabberd_c2s),
+    case lists:member(TlsOption, ServiceOptions) of
+        true -> {TlsOption, check_tls_specific_option()};
+        _ ->  check_tls_option(Tail)
+    end.
+
+check_tls_specific_option() ->
+    ServiceOptions = get_service_option(ejabberd_c2s),
+    case lists:member({tls_module, just_tls}, ServiceOptions) of
+        true -> just_tls;
+        _ -> fast_tls
+    end.
