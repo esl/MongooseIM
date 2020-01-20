@@ -24,6 +24,7 @@
          is_loaded/1,
          assert_loaded/1,
          ensure_loaded/1,
+         ensure_loaded/2,
          purge_service/1,
          get_service_opts/1,
          loaded_services_with_opts/0
@@ -71,14 +72,14 @@ stop_service(Service) ->
 
 -spec ensure_loaded(service()) -> ok.
 ensure_loaded(Service) ->
-    case is_loaded(Service) of
-        true ->
-            ok;
-        false ->
-            Options = ejabberd_config:get_local_option_or_default(services, []),
-            start_service(Service, proplists:get_value(Service, Options)),
-            ok
-    end.
+    Options = ejabberd_config:get_local_option_or_default(services, []),
+    start_service(Service, proplists:get_value(Service, Options)),
+    ok.
+
+-spec ensure_loaded(service(), options()) -> ok.
+ensure_loaded(Service, Opts) ->
+    start_service(Service, Opts),
+    ok.
 
 -spec assert_loaded(service()) -> ok.
 assert_loaded(Service) ->
