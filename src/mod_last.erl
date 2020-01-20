@@ -133,15 +133,11 @@ process_local_iq(_From, _To, Acc,
 -spec get_node_uptime() -> non_neg_integer().
 get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
-        {_, _, _} = StartNow ->
-            erlang:system_time(second) - now_to_seconds(StartNow);
+        {node_start, Seconds} when is_integer(Seconds) ->
+            erlang:system_time(second) - Seconds;
         _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
-
--spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
-now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
 
 %%%
 %%% Serve queries about user last online
