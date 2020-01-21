@@ -179,9 +179,6 @@ init_per_testcase(module_backend_is_reported, Config) ->
 init_per_testcase(_TestcaseName, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
-    Config;
-init_per_testcase(_TestCase, Config) ->
-    create_events_collection(),
     Config.
 
 
@@ -214,9 +211,6 @@ end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Con
 end_per_testcase(_TestcaseName, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
-    Config;
-end_per_testcase(_TestCase, Config) ->
-    clear_events_collection(),
     Config.
 
 
@@ -286,29 +280,23 @@ transport_mechanisms_are_reported(_Config) ->
 
 just_removed_from_config_logs_question(_Config) ->
     %% WHEN
-    disable_system_metrics(mim()),
-    lager_ct_backend:capture(warning),
-    start_system_metrics_module(mim(), [removed_from_config]),
-    lager_ct_backend:stop_capture(),
+    Result = distributed_helper:rpc(
+               mim3(), service_mongoose_system_metrics, verify_if_configured, []),
     %% THEN
-    FilterFun = fun(_, Msg) ->
-                        re:run(Msg, "Are you sure") /= nomatch
-                end,
-    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
-    %% CLEAN
-    disable_system_metrics(mim()).
+    ?assertEqual(ignore, Result).
 
 in_config_unmodified_logs_request_for_agreement(_Config) ->
     %% WHEN
+    disable_system_metrics(mim()),
     lager_ct_backend:capture(warning),
     enable_system_metrics(mim()),
-    lager_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(_, Msg) ->
-                        re:run(Msg, "Do you agree with reporting") /= nomatch
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch
                 end,
     mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
     %% CLEAN
+    lager_ct_backend:stop_capture(),
     disable_system_metrics(mim()).
 
 in_config_with_explicit_no_report_goes_off_silently(_Config) ->
@@ -318,7 +306,7 @@ in_config_with_explicit_no_report_goes_off_silently(_Config) ->
     lager_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
-                        re:run(Msg, "metrics") /= nomatch;
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
                    (_,_) -> false
                 end,
     [] = lager_ct_backend:recv(FilterFun),
@@ -332,7 +320,7 @@ in_config_with_explicit_reporting_goes_on_silently(_Config) ->
     lager_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
-                        re:run(Msg, "metrics") /= nomatch;
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
                    (_,_) -> false
                 end,
     [] = lager_ct_backend:recv(FilterFun),

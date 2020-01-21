@@ -71,6 +71,7 @@ start(normal, _Args) ->
     mongoose_cluster_id:start(),
     start_services(),
     start_modules(),
+    service_mongoose_system_metrics:verify_if_configured(),
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
@@ -153,18 +154,8 @@ stop_modules() ->
 start_services() ->
     lists:foreach(
         fun({Service, Opts}) -> mongoose_service:ensure_loaded(Service, Opts) end,
-        services_with_maybe_metrics()
+        ejabberd_config:get_local_option_or_default(services, [])
     ).
-
--spec services_with_maybe_metrics() -> [term()].
-services_with_maybe_metrics() ->
-    Services = ejabberd_config:get_local_option_or_default(services, []),
-    case proplists:is_defined(service_mongoose_system_metrics, Services) of
-        false ->
-            [{service_mongoose_system_metrics, [removed_from_config]} | Services];
-        true ->
-            Services
-    end.
 
 -spec stop_services() -> ok.
 stop_services() ->
