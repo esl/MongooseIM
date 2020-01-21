@@ -116,9 +116,17 @@ get_api() ->
     ModulesOptions = lists:flatten([ Mod || {modules, Mod} <- ServiceOptions]),
     % Modules Option can have variable number of elements. To be more
     % error-proof, extracting 3rd element instead of pattern matching.
-    ApiLists = lists:map(fun(Module)-> element(3, Module) end, ModulesOptions),
-    ApiList = lists:usort(ApiLists),
+    AllApi = lists:map(fun(Module)-> element(3, Module) end, ModulesOptions),
+    ApiList = filter_unknown_api(lists:usort(AllApi)),
     [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
+
+filter_unknown_api(ApiList) ->
+    AllowedToReport = [ mongoose_api, mongoose_client_api_rooms_messages,
+                        mongoose_client_api_rooms_users, mongoose_client_api_rooms_config,
+                        mongoose_client_api_rooms ,mongoose_client_api_contacts,
+                        mongoose_client_api_messages, lasse_handler, mongoose_api_admin,
+                        mod_bosh, mod_websockets, mod_revproxy],
+    [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
 get_service_option(Service) ->
     Listen = ejabberd_config:get_local_option(listen),
