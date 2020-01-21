@@ -91,7 +91,6 @@ prep_stop(State) ->
     stop_services(),
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
-    timer:sleep(5000),
     lists:foreach(fun ejabberd_users:stop/1, ?MYHOSTS),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
@@ -181,7 +180,30 @@ broadcast_c2s_shutdown() ->
     lists:foreach(
       fun({_, C2SPid, _, _}) ->
           C2SPid ! system_shutdown
-      end, Children).
+      end, Children),
+    wait_until(fun() ->
+                       Res = supervisor:count_children(ejabberd_c2s_sup),
+                       proplists:get_value(active, Res)
+               end, 0).
+
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
+
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5), sleep_time => 100},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
+
+do_wait_until(_, _, #{time_left := TimeLeft}) when TimeLeft =< 0 ->
+    ok;
+do_wait_until(Fun, ExpectedValue, Opts) ->
+    case Fun() of
+        ExpectedValue -> {ok, ExpectedValue};
+        _OtherValue -> wait_and_continue(Fun, ExpectedValue, Opts)
+    end.
+
+wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
+    timer:sleep(SleepTime),
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).
 
 %%%
 %%% PID file
