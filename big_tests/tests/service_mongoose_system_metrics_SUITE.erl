@@ -38,12 +38,27 @@
          system_metrics_are_reported_to_additional_google_analytics/1,
          system_metrics_are_reported_to_configurable_google_analytics/1,
          tracking_id_is_correctly_configured/1,
-         module_backend_is_reported/1
+         module_backend_is_reported/1,
+         mongoose_version_is_reported/1,
+         cluster_uptime_is_reported/1,
+         xmpp_componenets_are_reported/1,
+         api_are_reported/1,
+         transport_mechanisms_are_reported/1
         ]).
 
 -import(distributed_helper, [mim/0, mim2/0,
                              require_rpc_nodes/1
                             ]).
+
+-import(component_helper, [connect_component/1,
+                           connect_component/2,
+                           disconnect_component/2,
+                           disconnect_components/2,
+                           connect_component_subdomain/1,
+                           spec/2,
+                           common/1,
+                           common/2,
+                           name/1]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -57,7 +72,12 @@ all() ->
      system_metrics_are_reported_to_additional_google_analytics,
      system_metrics_are_reported_to_configurable_google_analytics,
      tracking_id_is_correctly_configured,
-     module_backend_is_reported
+     module_backend_is_reported,
+     mongoose_version_is_reported,
+     cluster_uptime_is_reported,
+     xmpp_componenets_are_reported,
+     api_are_reported,
+     transport_mechanisms_are_reported
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -66,20 +86,22 @@ all() ->
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
+
     case system_metrics_service_is_enabled(mim()) of
         false ->
             ct:fail("service_mongoose_system_metrics is not running");
         true ->
             [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
             http_helper:start(8765, "/[...]", fun handler_init/1),
-            Config
+            Config1 = escalus:init_per_suite(Config),
+            ejabberd_node_utils:init(Config1)
     end.
 
 end_per_suite(Config) ->
     http_helper:stop(),
     Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
     [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
-    Config.
+    escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -118,13 +140,18 @@ init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, 
     create_events_collection(),
     enable_system_metrics_with_configurable_tracking_id(mim()),
     Config;
-init_per_testcase(tracking_id_is_correctly_configured, Config) ->
+init_per_testcase(xmpp_componenets_are_reported, Config) ->
     create_events_collection(),
+    Config1 = get_components(common(Config), Config),
     enable_system_metrics(mim()),
-    Config;
+    Config1;
 init_per_testcase(module_backend_is_reported, Config) ->
     create_events_collection(),
-    maybe_start_module(mim(), mod_vcard),
+    maybe_start_module(mod_vcard),
+    enable_system_metrics(mim()),
+    Config;
+init_per_testcase(_TestcaseName, Config) ->
+    create_events_collection(),
     enable_system_metrics(mim()),
     Config.
 
@@ -155,15 +182,7 @@ end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Con
     remove_additional_tracking_id(mim()),
     disable_system_metrics(mim()),
     Config;
-end_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, Config) ->
-    clear_events_collection(),
-    disable_system_metrics(mim()),
-    Config;
-end_per_testcase(tracking_id_is_correctly_configured, Config) ->
-    clear_events_collection(),
-    disable_system_metrics(mim()),
-    Config;
-end_per_testcase(module_backend_is_reported, Config) ->
+end_per_testcase(_TestcaseName, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
     Config.
@@ -206,7 +225,6 @@ tracking_id_is_correctly_configured(_Config) ->
 system_metrics_are_reported_to_additional_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true).
 
-
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
     mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
@@ -214,6 +232,25 @@ system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
 module_backend_is_reported(_Config) ->
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
     mongoose_helper:wait_until(fun mod_vcard_backend_is_reported/0, true).
+
+mongoose_version_is_reported(_Config) ->
+    mongoose_helper:wait_until(fun mongoose_version_is_reported/0, true).
+
+cluster_uptime_is_reported(_Config) ->
+    mongoose_helper:wait_until(fun cluster_uptime_is_reported/0, true).
+
+xmpp_componenets_are_reported(Config) ->
+    CompOpts = ?config(component1, Config),
+    {Component, Addr, _} = connect_component(CompOpts),
+    mongoose_helper:wait_until(fun xmpp_componenets_are_reported/0, true),
+    mongoose_helper:wait_until(fun more_than_one_component_is_reported/0, true),
+    disconnect_component(Component, Addr).
+
+api_are_reported(_Config) ->
+    mongoose_helper:wait_until(fun api_are_reported/0, true).
+
+transport_mechanisms_are_reported(_Config) ->
+    mongoose_helper:wait_until(fun transport_mechanisms_are_reported/0, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -315,20 +352,44 @@ events_are_reported_to_configurable_tracking_id() ->
             TrackingId == ConfigurableTrackingId
         end, Tab).
 
-maybe_start_module(Node, Module) ->
+maybe_start_module(Module) ->
     Host = <<"localhost">>,
     Options = [],
-    distributed_helper:rpc(Node, gen_mod, start_module, [Host, Module, Options]).
+    distributed_helper:rpc(mim(), gen_mod, start_module, [Host, Module, Options]).
 
-mod_vcard_backend_is_reported() ->
-    Module = <<"mod_vcard">>,
-    EventAction = <<"backend">>,
+feature_is_reported(EventCategory, EventAction) ->
     Tab = ets:tab2list(?ETS_TABLE),
     lists:any(
         fun(#event{ec = EC, ea = EA}) ->
-            EC == Module andalso EA == EventAction
+            EC == EventCategory andalso EA == EventAction
         end, Tab).
 
+mod_vcard_backend_is_reported() ->
+    feature_is_reported(<<"mod_vcard">>, <<"backend">>).
+
+mongoose_version_is_reported() ->
+    feature_is_reported(<<"cluster">>, <<"mim_version">>).
+
+cluster_uptime_is_reported() ->
+    feature_is_reported(<<"cluster">>, <<"uptime">>).
+
+xmpp_componenets_are_reported() ->
+    feature_is_reported(<<"cluster">>, <<"number_of_components">>).
+
+api_are_reported() ->
+    is_in_table(<<"http_api">>).
+
+transport_mechanisms_are_reported() ->
+    is_in_table(<<"transport_mechanism">>).
+
+more_than_one_component_is_reported() ->
+    Tab = ets:tab2list(?ETS_TABLE),
+    EventCategory = <<"cluster">>,
+    EventAction = <<"number_of_components">>,
+    lists:any(
+        fun(#event{ec = EC, ea = EA, el = EL}) ->
+             EC == EventCategory andalso EA == EventAction andalso EL > <<"0">>
+        end, Tab).
 
 %%--------------------------------------------------------------------
 %% Cowboy handlers
@@ -362,3 +423,7 @@ str_to_event(Qs) ->
 
 get_el(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
+
+get_components(Opts, Config) ->
+    Components = [component1, component2, vjud_component],
+    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
