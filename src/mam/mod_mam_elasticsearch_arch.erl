@@ -20,6 +20,7 @@
 
 -behaviour(gen_mod).
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
 -export([start/2]).
@@ -30,6 +31,8 @@
 -export([lookup_messages/3]).
 -export([remove_archive/4]).
 -export([archive_size/4]).
+
+-export([get_mam_pm_gdpr_data/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -52,6 +55,18 @@ start(Host, _Opts) ->
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     ok.
+
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, Owner) ->
+    BinOwner = mod_mam_utils:bare_jid(Owner),
+    Filter = #{term => #{owner => BinOwner}},
+    Sorting = #{mam_id => #{order => asc}},
+    SearchQuery = #{query => #{bool => #{filter => Filter}}, sort => Sorting},
+    {ok, #{<<"hits">> := #{<<"hits">> := Hits}}}
+        = mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery),
+    Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
+    Messages ++ Acc.
 
 %%-------------------------------------------------------------------
 %% ejabberd_gen_mam_archive callbacks
@@ -119,6 +134,10 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
                      ArchiveId :: mod_mam:archive_id(),
                      OwnerJid :: jid:jid()) -> Acc when Acc :: map().
 remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
+    remove_archive(Host, OwnerJid),
+    Acc.
+
+remove_archive(Host, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->
@@ -127,8 +146,7 @@ remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
             ?ERROR_MSG("event=remove_archive_failed server=~s user=~s reason=~1000p",
                        [Host, jid:to_binary(OwnerJid), Err]),
             ok
-    end,
-    Acc.
+    end.
 
 %%-------------------------------------------------------------------
 %% Helpers
@@ -139,7 +157,8 @@ hooks(Host) ->
     [{mam_archive_message, Host, ?MODULE, archive_message, 50},
      {mam_lookup_messages, Host, ?MODULE, lookup_messages, 50},
      {mam_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_remove_archive, Host, ?MODULE, remove_archive, 50}].
+     {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
 -spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Owner, MessageId) ->
@@ -257,6 +276,12 @@ hit_to_mam_message(#{<<"_source">> := JSON}) ->
 
     {ok, Stanza} = exml:parse(Packet),
     {MessageId, jid:from_binary(SourceBinJid), Stanza}.
+
+hit_to_gdpr_mam_message(#{<<"_source">> := JSON}) ->
+    MessageId = maps:get(<<"mam_id">>, JSON),
+    Packet = maps:get(<<"message">>, JSON),
+    SourceBinJid = maps:get(<<"source_jid">>, JSON),
+    {integer_to_binary(MessageId), SourceBinJid, Packet}.
 
 %% Usage of RSM affects the `"total"' value returned by ElasticSearch. Per RSM spec, the count
 %% returned by the query should represent the size of the whole result set, which in case of MAM

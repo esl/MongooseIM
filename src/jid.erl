@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(jid).
+-on_load(load/0).
 
 -export([make/3]).
 -export([make/1]).
@@ -65,29 +66,24 @@
              ]).
 
 -define(SANE_LIMIT, 1024).
+-define(XMPP_JID_SIZE_LIMIT, 3071).
+% Maximum JID size in octets (bytes) as defined in
+% https://tools.ietf.org/html/rfc7622#section-3.1
 
--spec make(User :: user(), Server :: server(),
-           Resource :: resource()) ->
-    jid()  | error.
-make(User, Server, Resource) ->
-    make_nodeprep(nodeprep(User), Server, Resource, {User, Server, Resource}).
-
-make_nodeprep(error, _, _, _) -> error;
-make_nodeprep(LUser,  Server, Resource, T) ->
-    make_nameprep(LUser, nameprep(Server), Resource, T).
-
-make_nameprep(_, error, _, _) -> error;
-make_nameprep(LUser,  LServer, Resource, T) ->
-    make_resourceprep(LUser, LServer, resourceprep(Resource), T).
-
-make_resourceprep(_, _, error, _) -> error;
-make_resourceprep(LUser,  LServer, LResource, {User, Server, Resource}) ->
-    #jid{user = User,
-        server = Server,
-        resource = Resource,
-        luser = LUser,
-        lserver = LServer,
-        lresource = LResource}.
+-spec make(User :: user(), Server :: server(), Res :: resource()) -> jid()  | error.
+make(User, Server, Res) ->
+    case {nodeprep(User), nameprep(Server), resourceprep(Res)} of
+        {error, _, _} -> error;
+        {_, error, _} -> error;
+        {_, _, error} -> error;
+        {LUser, LServer, LRes} ->
+            #jid{user = User,
+                 server = Server,
+                 resource = Res,
+                 luser = LUser,
+                 lserver = LServer,
+                 lresource = LRes}
+    end.
 
 -spec make(simple_jid()) ->  jid()  | error.
 make({User, Server, Resource}) ->
@@ -130,72 +126,25 @@ are_bare_equal(_, _) ->
     false.
 
 -spec from_binary(binary()) ->  error  | jid().
-from_binary(J) ->
-    binary_to_jid1(J, []).
+from_binary(J) when is_binary(J), byte_size(J) < ?XMPP_JID_SIZE_LIMIT ->
+    case from_binary_nif(J) of
+        {U, H, R} -> make(U, H, R);
+        error -> error
+    end;
+from_binary(_) ->
+    error.
 
--spec binary_to_jid1(binary(), [byte()]) -> 'error' | jid().
-binary_to_jid1(<<$@, _J/binary>>, []) ->
-    error;
-binary_to_jid1(<<$@, J/binary>>, N) ->
-    binary_to_jid2(J, lists:reverse(N), []);
-binary_to_jid1(<<$/, _J/binary>>, []) ->
-    error;
-binary_to_jid1(<<$/, J/binary>>, N) ->
-    binary_to_jid3(J, [], lists:reverse(N), []);
-binary_to_jid1(<<C, J/binary>>, N) ->
-    binary_to_jid1(J, [C | N]);
-binary_to_jid1(<<>>, []) ->
-    error;
-binary_to_jid1(<<>>, N) ->
-    make(<<>>, list_to_binary(lists:reverse(N)), <<>>).
+%% Original Erlang equivalent can be found in test/jid_SUITE.erl,
+%% together with `proper` generators to check for equivalence
+-spec from_binary_nif(binary()) ->  error | simple_jid().
+from_binary_nif(_) ->
+    erlang:nif_error(not_loaded).
 
-
-%% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(), [byte()], [byte()]) -> 'error' | jid().
-binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
-    error;
-binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
-    error;
-binary_to_jid2(<<$/, J/binary>>, N, S) ->
-    binary_to_jid3(J, N, lists:reverse(S), []);
-binary_to_jid2(<<C, J/binary>>, N, S) ->
-    binary_to_jid2(J, N, [C | S]);
-binary_to_jid2(<<>>, _N, []) ->
-    error;
-binary_to_jid2(<<>>, N, S) ->
-    make(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
-
-
--spec binary_to_jid3(binary(), [byte()], [byte()], [byte()]) -> 'error' | jid().
-binary_to_jid3(<<C, J/binary>>, N, S, R) ->
-    binary_to_jid3(J, N, S, [C | R]);
-binary_to_jid3(<<>>, N, S, R) ->
-    make(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
-
-
+%% Original Erlang equivalent can be found in test/jid_SUITE.erl,
+%% together with `proper` generators to check for equivalence
 -spec to_binary(simple_jid() | simple_bare_jid() | jid()) ->  binary().
-to_binary(Jid) when is_binary(Jid) ->
-    % sometimes it is used to format error messages
-    Jid;
-to_binary(#jid{user = User, server = Server, resource = Resource}) ->
-    to_binary({User, Server, Resource});
-to_binary({User, Server}) ->
-    to_binary({User, Server, <<>>});
-to_binary({Node, Server, Resource}) ->
-    S1 = case Node of
-             <<>> ->
-                 <<>>;
-             _ ->
-                 <<Node/binary, "@">>
-         end,
-    S2 = <<S1/binary, Server/binary>>,
-    S3 = case Resource of
-             <<>> ->
-                 S2;
-             _ ->
-                 <<S2/binary, "/", Resource/binary>>
-         end,
-    S3.
+to_binary(_) ->
+    erlang:nif_error(not_loaded).
 
 -spec is_nodename(<<>> | binary()) -> boolean().
 is_nodename(<<>>) ->
@@ -272,3 +221,22 @@ binary_to_bare(JID) when is_binary(JID) ->
         #jid{} = Result ->
             to_bare(Result)
     end.
+
+
+%%%===================================================================
+%%% Load NIF
+%%%===================================================================
+-spec load() -> any().
+load() ->
+    SoName = case code:priv_dir(mongooseim) of
+        {error, bad_name} ->
+            case filelib:is_dir(filename:join(["..", priv])) of
+                true ->
+                    filename:join(["..", priv, jid]);
+                _ ->
+                    filename:join([priv, jid])
+            end;
+        Dir ->
+            filename:join([Dir, lib, ?MODULE_STRING])
+    end,
+    erlang:load_nif(SoName, 0).

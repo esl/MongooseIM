@@ -9,6 +9,10 @@ This module implements [XEP-0049: Private XML Storage](http://xmpp.org/extension
 than one value in a single set request, otherwise you may end up with partially saved data. Backend returns the
 first error.
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"private">>`) - Riak bucket type.
+
 ### Example Configuration
 ```
 {mod_private, []}

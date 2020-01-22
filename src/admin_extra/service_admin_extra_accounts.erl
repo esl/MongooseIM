@@ -170,8 +170,7 @@ get_sha(AccountPass) ->
 
 -spec num_active_users(jid:server(), integer()) -> non_neg_integer().
 num_active_users(Host, Days) ->
-    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
-    TimeStamp = MegaSecs * 1000000 + Secs,
+    TimeStamp = erlang:system_time(second),
     TS = TimeStamp - Days * 86400,
     case catch mod_last:count_active_users(Host, TS) of
         {'EXIT', _Reason} ->
@@ -206,8 +205,7 @@ delete_old_users(Days, Users) ->
     SecOlder = Days*24*60*60,
 
     %% Get current time
-    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
-    TimeStampNow = MegaSecs * 1000000 + Secs,
+    TimeStampNow = erlang:system_time(second),
 
     %% Apply the remove function to every user in the list
     UsersRemoved = lists:filter(fun(User) ->
@@ -220,7 +218,8 @@ delete_old_users(Days, Users) ->
                       SecOlder :: non_neg_integer()) -> boolean().
 delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
     %% Check if the user is logged
-    case ejabberd_sm:get_user_resources(LUser, LServer) of
+    JID = jid:make(LUser, LServer, <<>>),
+    case ejabberd_sm:get_user_resources(JID) of
         [] -> delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder);
         _ -> false
     end.
@@ -265,11 +264,12 @@ ban_account(User, Host, ReasonText) ->
 
 -spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
 kick_sessions(User, Server, Reason) ->
+    JID = jid:make(User, Server, <<>>),
     lists:map(
         fun(Resource) ->
                 service_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
         end,
-        ejabberd_sm:get_user_resources(User, Server)).
+        ejabberd_sm:get_user_resources(JID)).
 
 
 -spec set_random_password(User, Server, Reason) -> Result when

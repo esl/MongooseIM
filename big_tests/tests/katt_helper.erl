@@ -70,7 +70,7 @@ start_apps([App|Tail]=All, Acc) ->
 
 blueprint(Name, Config) ->
     File = atom_to_list(Name) ++ ".apib",
-    filename:join([?config(data_dir, Config), File]).
+    filename:join([?config(mim_data_dir, Config), File]).
 
 failed_transactions(Results) ->
     lists:filtermap(fun

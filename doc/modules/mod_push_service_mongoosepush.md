@@ -25,7 +25,7 @@ It must be defined in [outgoing_pools setting](../advanced-configuration/outgoin
 ### Options
 
 * **pool_name** (atom, required) - name of the pool to use (as defined in `outgoing_pools`)
-* **api_version** (string, default: `v2`) - REST API version to be used.
+* **api_version** (string, default: `v3`) - REST API version to be used.
 * **max_http_connections** (integer, default: 100) - the maximum amount of concurrent http connections
 
 ### Example configuration
@@ -39,6 +39,6 @@ It must be defined in [outgoing_pools setting](../advanced-configuration/outgoin
 
 {mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http}
-        {api_version, "v2"}
+        {api_version, "v3"}
 ]}.
 ```

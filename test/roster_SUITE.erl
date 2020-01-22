@@ -30,7 +30,6 @@ all() -> [
 ].
 
 init_per_suite(C) ->
-    init_ets(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     ok = stringprep:start(),
@@ -55,6 +54,7 @@ init_per_testcase(_TC, C) ->
 end_per_testcase(_TC, C) ->
     mod_roster:remove_user(a(), host()),
     gen_mod:stop_module(host(), mod_roster),
+    delete_ets(),
     meck:unload(gen_iq_handler),
     C.
 
@@ -158,6 +158,12 @@ assert_state_old(Subscription, Ask) ->
 
 init_ets() ->
     catch ets:new(local_config, [named_table]),
+    catch ets:new(mongoose_services, [named_table]),
+    ok.
+
+delete_ets() ->
+    catch ets:delete(local_config),
+    catch ets:delete(mongoose_services),
     ok.
 
 a() -> <<"alice">>.

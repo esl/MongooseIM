@@ -53,10 +53,12 @@ main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
     Opts = apply_preset_enabled(args_to_opts(Args)),
     try
+        CTRunDirsBeforeRun = ct_run_dirs(),
         Results = run(Opts),
         %% Waiting for messages to be flushed
         timer:sleep(50),
-        ExitStatusByGroups = anaylyze_groups_runs(),
+        CTRunDirsAfterRun = ct_run_dirs(),
+        ExitStatusByGroups = exit_status_by_groups(CTRunDirsBeforeRun, CTRunDirsAfterRun, Results),
         ExitStatusByTestCases = process_results(Results),
         case ExitStatusByGroups of
             undefined ->
@@ -66,12 +68,11 @@ main(RawArgs) ->
                 io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
                 init:stop(ExitStatusByGroups)
         end
-    catch Type:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch Type:Reason:StackTrace ->
         io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
-                               [Type, Reason, Stacktrace]),
+                               [Type, Reason, StackTrace]),
         error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
-                               [Type, Reason, Stacktrace]),
+                               [Type, Reason, StackTrace]),
         %% Waiting for messages to be flushed
         timer:sleep(5000),
         init:stop("run_common_test:main/1 crashed")
@@ -143,7 +144,7 @@ tests_to_run(TestSpec) ->
     TestSpecFile = atom_to_list(TestSpec),
     [
      {spec, TestSpecFile}
-    ].
+    ] ++ ct_opts().
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -189,7 +190,8 @@ run_test(Test, PresetsToRun, CoverOpts) ->
             R
     end.
 
-get_ct_config([{spec, Spec}]) ->
+get_ct_config(Opts) ->
+    Spec = proplists:get_value(spec, Opts),
     Props = read_file(Spec),
     ConfigFile = case proplists:lookup(config, Props) of
         {config, [Config]} -> Config;
@@ -203,6 +205,7 @@ preset_names(Presets) ->
 
 do_run_quick_test(Test, CoverOpts) ->
     prepare_cover(Test, CoverOpts),
+    load_test_modules(Test),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -215,6 +218,7 @@ do_run_quick_test(Test, CoverOpts) ->
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     enable_preset(Name, Variables, Test, N, Tests),
+    load_test_modules(Test),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
@@ -265,7 +269,9 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
                               lists:keystore(Var, 1, Acc, {Var, Val})
                           end, Default, PresetVars),
-    NewCfgFile = bbmustache:render(Template, NewVars, [{key_type, atom}]),
+    %% Render twice to replace variables in variables
+    Tmp = bbmustache:render(Template, NewVars, [{key_type, atom}]),
+    NewCfgFile = bbmustache:render(Tmp, NewVars, [{key_type, atom}]),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
     call(Node, application, stop, [mongooseim]),
     call(Node, application, start, [mongooseim]),
@@ -280,9 +286,6 @@ call(Node, M, F, A) ->
         Result ->
             Result
     end.
-
-get_apps() ->
-    [mongooseim].
 
 prepare_cover(Test, true) ->
     io:format("Preparing cover~n"),
@@ -306,12 +309,17 @@ maybe_compile_cover([]) ->
     ok;
 maybe_compile_cover(Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
-    Apps = get_apps(),
     import_code_paths(hd(Nodes)),
+
+    cover:start(Nodes),
+    Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
+
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
-                    multicall(Nodes, mongoose_cover_helper, start, [Apps],
-                              cover_timeout())
+                            Results = cover:compile_beam_directory(Dir),
+                            Ok = [X || X = {ok, _} <- Results],
+                            NotOk = Results -- Ok,
+                            #{ok => length(Ok), failed => NotOk}
                         end),
     travis_fold("cover compiled output", fun() ->
             io:format("cover: compiled ~p~n", [Compiled])
@@ -322,20 +330,13 @@ maybe_compile_cover(Nodes) ->
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
     Nodes = get_mongoose_nodes(Test),
-    report_time("Export cover data from MongooseIM nodes", fun() ->
-            multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
-        end),
-    case os:getenv("KEEP_COVER_RUNNING") of
-        "1" ->
-            io:format("Skip stopping cover~n"),
-            ok;
-        _ ->
-            report_time("Stopping cover on MongooseIM nodes", fun() ->
-                            multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
-                    end)
-    end,
-    cover:start(),
+    analyze(Test, CoverOpts, Nodes).
+
+analyze(_Test, _CoverOpts, []) ->
+    ok;
+analyze(Test, CoverOpts, Nodes) ->
     deduplicate_cover_server_console_prints(),
+    %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
@@ -349,6 +350,15 @@ analyze(Test, CoverOpts) ->
             make_html(modules_to_analyze(CoverOpts));
         _ ->
             ok
+    end,
+    case os:getenv("KEEP_COVER_RUNNING") of
+        "1" ->
+            io:format("Skip stopping cover~n"),
+            ok;
+        _ ->
+            report_time("Stopping cover on MongooseIM nodes", fun() ->
+                        cover:stop([node()|Nodes])
+                    end)
     end.
 
 make_html(Modules) ->
@@ -430,7 +440,7 @@ bool_or_module_list(_) ->
     false.
 
 modules_to_analyze(true) ->
-    cover:imported_modules();
+    lists:usort(cover:imported_modules() ++ cover:modules());
 modules_to_analyze(ModuleList) when is_list(ModuleList) ->
     ModuleList.
 
@@ -498,13 +508,6 @@ exit_code({_, _, _, _}) ->
 print(Handle, Fmt, Args) ->
     io:format(Handle, Fmt, Args).
 
-multicall(Nodes, M, F, A, Timeout) ->
-    {Rs, [] = _BadNodes} = rpc:multicall(Nodes, M, F, A, Timeout),
-    Rs.
-
-cover_timeout() ->
-    timer:minutes(3).
-
 %% Source: https://gist.github.com/jbpotonnier/1310406
 group_by(F, L) ->
     lists:foldr(fun ({K, V}, D) -> dict:append(K, V, D) end,
@@ -556,7 +559,7 @@ travis_fold(Description, Fun) ->
 %% It allows cover:analyse/2 to find source file by calling
 %% Module:module_info(compiled).
 import_code_paths(FromNode) when is_atom(FromNode) ->
-    Paths = rpc:call(FromNode, code, get_path, []),
+    Paths = call(FromNode, code, get_path, []),
     code:add_paths(Paths).
 
 %% Gets result of file operation and prints filename, if we have any issues.
@@ -579,15 +582,69 @@ deduplicate_cover_server_console_prints() ->
     CoverPid = whereis(cover_server),
     dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
 
-anaylyze_groups_runs() ->
-    CTRunDirs = filelib:wildcard("ct_report/ct_run*"),
-    SortFun = fun(F1, F2) -> filelib:last_modified(F1) > filelib:last_modified(F2) end,
-    SortedCTRunDirs = lists:sort(SortFun, CTRunDirs),
-    LatestCTRun = hd(SortedCTRunDirs),
+ct_run_dirs() ->
+    filelib:wildcard("ct_report/ct_run*").
+
+exit_status_by_groups(CTRunDirsBeforeRun, CTRunDirsAfterRun, Results) ->
+    NewCTRunDirs = CTRunDirsAfterRun -- CTRunDirsBeforeRun,
+    case NewCTRunDirs of
+        [] ->
+            io:format("WARNING: ct_run directory has not been created~nResults ~p~n",  [Results]),
+            undefined;
+        [_] ->
+            anaylyze_groups_runs(hd(NewCTRunDirs))
+    end.
+
+anaylyze_groups_runs(LatestCTRun) ->
     case file:consult(LatestCTRun ++ "/all_groups.summary") of
         {ok, Terms} ->
             proplists:get_value(total_failed, Terms, undefined);
       {error, Error} ->
             error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
             undefined
+    end.
+
+
+ct_opts() ->
+    %% Tell Common Tests that it should not compile any more files
+    %% (they are compiled by rebar)
+    case os:getenv("SKIP_AUTO_COMPILE") of
+        "true" ->
+            [{auto_compile, false}];
+        _ ->
+            []
+    end.
+
+
+%% Common Tests does not try to use code autoloading feature
+%% for loading suites.
+%% So, if we want to use SKIP_AUTO_COMPILE, we need to put tests, where Common tests
+%% can find it. Or we can load modules instead (what we do here).
+load_test_modules(Opts) ->
+    Spec = proplists:get_value(spec, Opts),
+    %% Read test spec properties
+    Props = read_file(Spec),
+    Modules = lists:usort(test_modules(Props)),
+    [try_load_module(M) || M <- Modules].
+
+test_modules([H|T]) when is_tuple(H) ->
+    test_modules_list(tuple_to_list(H)) ++ test_modules(T);
+test_modules([_|T]) ->
+    test_modules(T);
+test_modules([]) ->
+    [].
+
+test_modules_list([suites, _, Suite|_]) ->
+    [Suite];
+test_modules_list([groups, _, Suite|_]) ->
+    [Suite];
+test_modules_list([cases, _, Suite|_]) ->
+    [Suite];
+test_modules_list(_) ->
+    [].
+
+try_load_module(Module) ->
+    case code:is_loaded(Module) of
+        true -> already_loaded;
+        _ -> code:load_file(Module)
     end.

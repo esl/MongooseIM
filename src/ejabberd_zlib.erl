@@ -81,7 +81,7 @@ recv_data2(ZlibSock, Packet) ->
             Res
     end.
 
--spec recv_data1(zlibsock(), iolist()) -> {'error', string()} | {'ok', binary()}.
+-spec recv_data1(zlibsock(), iolist()) -> {'error', atom()} | {'ok', binary()}.
 recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
     case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
         <<0, In/binary>> ->
@@ -90,7 +90,7 @@ recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSoc
             {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
--spec send(zlibsock(), iolist()) -> ok | {error, string()}.
+-spec send(zlibsock(), iolist()) -> ok | {error, atom()}.
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
      Packet) ->
     case port_control(Port, ?DEFLATE, Packet) of

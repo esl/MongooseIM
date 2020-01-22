@@ -65,7 +65,7 @@
                 stream_mgmt_in = 0,
                 stream_mgmt_id,
                 stream_mgmt_out_acked = 0,
-                stream_mgmt_buffer = [],
+                stream_mgmt_buffer = [] :: [mongoose_acc:t()],
                 stream_mgmt_buffer_size = 0,
                 stream_mgmt_buffer_max = ?STREAM_MGMT_CACHE_MAX,
                 stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ,
@@ -74,7 +74,7 @@
                 stream_mgmt_resumed_from,
                 stream_mgmt_constraint_check_tref,
                 csi_state = active :: mod_csi:state(),
-                csi_buffer = [],
+                csi_buffer = [] :: [mongoose_acc:t()],
                 hibernate_after = 0 :: non_neg_integer(),
                 replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}]
                 }).

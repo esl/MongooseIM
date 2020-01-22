@@ -240,6 +240,7 @@ CREATE TABLE mam_muc_message(
   -- A server-assigned UID that MUST be unique within the archive.
   id BIGINT NOT NULL,
   room_id INT NOT NULL,
+  sender_id INT NOT NULL,
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
@@ -248,6 +249,8 @@ CREATE TABLE mam_muc_message(
   PRIMARY KEY (room_id, id)
 );
 
+CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message USING BTREE (sender_id);
+
 CREATE TABLE offline_message(
     id SERIAL UNIQUE PRIMARY Key,
     timestamp BIGINT NOT NULL,
@@ -255,7 +258,8 @@ CREATE TABLE offline_message(
     server    varchar(250)    NOT NULL,
     username  varchar(250)    NOT NULL,
     from_jid  varchar(250)    NOT NULL,
-    packet    text            NOT NULL
+    packet    text            NOT NULL,
+    permanent_fields bytea
 );
 CREATE INDEX i_offline_message
     ON offline_message
@@ -387,3 +391,18 @@ CREATE TABLE pubsub_subscriptions (
 CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
 CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
 
+CREATE TABLE event_pusher_push_subscription (
+     owner_jid VARCHAR(250),
+     node VARCHAR(250),
+     pubsub_jid VARCHAR(250),
+     form JSON NOT NULL,
+     created_at BIGINT NOT NULL,
+     PRIMARY KEY(owner_jid, node, pubsub_jid)
+ );
+
+CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
+
+CREATE TABLE mongoose_cluster_id (
+    k varchar(50) PRIMARY KEY,
+    v text
+);

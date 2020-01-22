@@ -32,8 +32,13 @@
          del_roster_t/3,
          raw_to_record/2]).
 
--define(ROSTER_BUCKET(LServer), {<<"rosters">>, LServer}).
--define(VER_BUCKET(LServer), {<<"roster_versions">>, LServer}).
+-define(ROSTER_BUCKET(LServer),
+        {get_opt(LServer, bucket_type, <<"rosters">>), LServer}).
+-define(VER_BUCKET(LServer),
+        {get_opt(LServer, version_bucket_type, <<"roster_versions">>), LServer}).
+
+get_opt(LServer, Opt, Def) ->
+    gen_mod:get_module_opt(LServer, mod_roster, Opt, Def).
 
 -spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->

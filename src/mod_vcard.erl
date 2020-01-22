@@ -37,6 +37,7 @@
 -xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -61,7 +62,6 @@
 -export([process_local_iq/4,
          process_sm_iq/4,
          get_local_features/5,
-         remove_user/2,
          remove_user/3,
          set_vcard/3]).
 
@@ -73,6 +73,11 @@
 
 -export([config_change/4]).
 
+%% GDPR related
+-export([get_personal_data/2]).
+
+-export([config_metrics/1]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search           :: boolean(),
@@ -82,9 +87,6 @@
 
 -type error() :: error | {error, any()}.
 
-%%--------------------------------------------------------------------
-%% backend callbacks
-%%--------------------------------------------------------------------
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
@@ -123,6 +125,22 @@
 
 -optional_callbacks([tear_down/1]).
 
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Jid = jid:to_binary({LUser, LServer}),
+    Schema = ["jid", "vcard"],
+    Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
+                  {ok, Record} ->
+                      SerializedRecords = exml:to_binary(Record),
+                      [{Jid, SerializedRecords}];
+                  _ -> []
+              end,
+    [{vcard, Schema, Entries} | Acc].
+
 -spec default_search_fields() -> list().
 default_search_fields() ->
     [{<<"User">>, <<"user">>},
@@ -159,6 +177,7 @@ default_host() ->
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
+
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
@@ -235,7 +254,8 @@ hook_handlers() ->
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
      {disco_local_features, ?MODULE, get_local_features, 50},
      {host_config_update,   ?MODULE, config_change,      50},
-     {set_vcard,            ?MODULE, set_vcard,          50}].
+     {set_vcard,            ?MODULE, set_vcard,          50},
+     {get_personal_data,    ?MODULE, get_personal_data,  50}].
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
@@ -293,12 +313,20 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                 ok ->
                     IQ#iq{type = result,
                           sub_el = []};
-                {error, Reason} ->
+                {error, {invalid_input, Field}} ->
+                    Text = io_lib:format("Invalid input for vcard field ~s", [Field]),
+                    ReasonEl = mongoose_xmpp_errors:bad_request(<<"en">>, erlang:iolist_to_binary(Text)),
                     IQ#iq{type = error,
-                          sub_el = [VCARD, Reason]}
+                          sub_el = [VCARD, ReasonEl]
+                         };
+                {error, Reason} ->
+                    ?WARNING_MSG("issue=process_sm_iq_set_failed, "
+                                 "reason=~p", [Reason]),
+                    ReasonEl = mongoose_xmpp_errors:unexpected_request_cancel(),
+                    IQ#iq{type = error,
+                          sub_el = [VCARD, ReasonEl]}
             catch
-                E:R ->
-                    Stack = erlang:get_stacktrace(),
+                E:R:Stack ->
                     ?ERROR_MSG("issue=process_sm_iq_set_failed "
                                 "reason=~p:~p "
                                 "stacktrace=~1000p "
@@ -324,8 +352,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
             IQ#iq{type = error, sub_el = [SubEl, Reason]}
-        catch E:R ->
-            Stack = erlang:get_stacktrace(),
+        catch E:R:Stack ->
             ?ERROR_MSG("issue=process_sm_iq_get_failed "
                         "reason=~p:~p "
                         "stacktrace=~1000p "
@@ -343,8 +370,13 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
 
 unsafe_set_vcard(From, VCARD) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
-    {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
-    mod_vcard_backend:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
+    case parse_vcard(FromUser, FromVHost, VCARD) of
+        {ok, VcardSearch} ->
+            mod_vcard_backend:set_vcard(FromUser, FromVHost, VCARD, VcardSearch);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
 
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
@@ -383,13 +415,10 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    mod_vcard_backend:remove_user(LUser, LServer).
+    mod_vcard_backend:remove_user(LUser, LServer),
+    Acc.
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
@@ -652,10 +681,7 @@ search_result_get_jid(#xmlel{name = <<"item">>,
             undefined
     end.
 
-b2l(Binary) ->
-    binary_to_list(Binary).
-
-prepare_vcard_search_params(User, VHost, VCARD) ->
+parse_vcard(User, VHost, VCARD) ->
     FN       = xml:get_path_s(VCARD, [{elem, <<"FN">>}, cdata]),
     Family   = xml:get_path_s(VCARD, [{elem, <<"N">>},
                                       {elem, <<"FAMILY">>}, cdata]),
@@ -680,37 +706,55 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
                 <<"">> -> EMail2;
                 _ -> EMail1
             end,
+    try
+        LUser     = binary_to_list(jid:nodeprep(User)),
+        LFN       = prepare_index(<<"FN">>, FN),
+        LFamily   = prepare_index(<<"FAMILY">>, Family),
+        LGiven    = prepare_index(<<"GIVEN">>, Given),
+        LMiddle   = prepare_index(<<"MIDDLE">>, Middle),
+        LNickname = prepare_index_allow_emoji(<<"NICKNAME">>, Nickname),
+        LBDay     = prepare_index(<<"BDAY">>, BDay),
+        LCTRY     = prepare_index(<<"CTRY">>, CTRY),
+        LLocality = prepare_index(<<"LOCALITY">>, Locality),
+        LEMail    = prepare_index(<<"EMAIL">>, EMail),
+        LOrgName  = prepare_index(<<"ORGNAME">>, OrgName),
+        LOrgUnit  = prepare_index(<<"ORGUNIT">>, OrgUnit),
 
-    LUser     = jid:nodeprep(User),
-    LFN       = stringprep:tolower(FN),
-    LFamily   = stringprep:tolower(Family),
-    LGiven    = stringprep:tolower(Given),
-    LMiddle   = stringprep:tolower(Middle),
-    LNickname = stringprep:tolower(Nickname),
-    LBDay     = stringprep:tolower(BDay),
-    LCTRY     = stringprep:tolower(CTRY),
-    LLocality = stringprep:tolower(Locality),
-    LEMail    = stringprep:tolower(EMail),
-    LOrgName  = stringprep:tolower(OrgName),
-    LOrgUnit  = stringprep:tolower(OrgUnit),
+        US = {LUser, VHost},
 
-    US = {LUser, VHost},
+        {ok, #vcard_search{us        = US,
+                           user      = {User, VHost},
+                           luser     = LUser,
+                           fn        = FN,       lfn        = LFN,
+                           family    = Family,   lfamily    = LFamily,
+                           given     = Given,    lgiven     = LGiven,
+                           middle    = Middle,   lmiddle    = LMiddle,
+                           nickname  = Nickname, lnickname  = LNickname,
+                           bday      = BDay,     lbday      = LBDay,
+                           ctry      = CTRY,     lctry      = LCTRY,
+                           locality  = Locality, llocality  = LLocality,
+                           email     = EMail,    lemail     = LEMail,
+                           orgname   = OrgName,  lorgname   = LOrgName,
+                           orgunit   = OrgUnit,  lorgunit   = LOrgUnit
+                          }}
+    catch
+        throw:{invalid_input, FieldName} ->
+            {error, {invalid_input, FieldName}}
+    end.
 
-    {ok, #vcard_search{us        = US,
-                       user      = {User, VHost},
-                       luser     = b2l(LUser),
-                       fn        = FN,       lfn        = b2l(LFN),
-                       family    = Family,   lfamily    = b2l(LFamily),
-                       given     = Given,    lgiven     = b2l(LGiven),
-                       middle    = Middle,   lmiddle    = b2l(LMiddle),
-                       nickname  = Nickname, lnickname  = b2l(LNickname),
-                       bday      = BDay,     lbday      = b2l(LBDay),
-                       ctry      = CTRY,     lctry      = b2l(LCTRY),
-                       locality  = Locality, llocality  = b2l(LLocality),
-                       email     = EMail,    lemail     = b2l(LEMail),
-                       orgname   = OrgName,  lorgname   = b2l(LOrgName),
-                       orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
-                      }}.
+prepare_index(FieldName, Value) ->
+    case stringprep:tolower(Value) of
+        error ->
+            throw({invalid_input, FieldName});
+        LValue ->
+            binary_to_list(LValue)
+    end.
+
+prepare_index_allow_emoji(FieldName, Value) ->
+    {ok, Re} = re:compile(<<"[^[:alnum:][:space:][:punct:]]">>, [unicode, ucp]),
+    Sanitized = re:replace(Value, Re, <<"">>, [global]),
+    prepare_index(FieldName, Sanitized).
+
 
 -spec get_default_reported_fields(binary()) -> exml:element().
 get_default_reported_fields(Lang) ->
@@ -729,3 +773,7 @@ get_default_reported_fields(Lang) ->
                        ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
                        ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
                       ]}.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

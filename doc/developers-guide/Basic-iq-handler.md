@@ -73,15 +73,14 @@ The server may use one of the following strategies to handle incoming stanzas:
   be handled
 * `{queues, N}` spawns **N** processes. Every incoming stanza will be then
   handled by one of those processes
-* `pararell` registers the handler without spawning a new process, a new process will be spawned
-  for each incoming stanza
+* `parallel` registers the handler without spawning a new process, a new process
+  will be spawned for each incoming stanza
 
 
 ## Test your handler
 
 Go to `big_tests/tests` and create a test suite for your handler.
 Implement the test case for success and failure.
-Our IQ handler is enabled only for one domain, which is `localhost`.
 We will register two users, which are predefined in `$REPO/big_tests/test.config`:
 
 ```erlang
@@ -96,8 +95,9 @@ We will register two users, which are predefined in `$REPO/big_tests/test.config
     {password, <<"matygrysa">>}]},
 ```
 
-After sending an IQ stanza to `alice` we should get a result, but our IQ
-handler is not enabled for `localhost.bis` domain, so we should get an error.
+Our IQ handler will be enabled only for one domain, `localhost`.
+After sending an IQ stanza to `alice` we should get a result, but as our IQ
+handler is not enabled for `localhost.bis` domain, we should get an error.
 
 ```erlang
 -module(mod_iq_example_SUITE).
@@ -145,9 +145,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Domain, mod_iq_example, [no_opts]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Domain, mod_iq_example),
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
@@ -181,7 +185,7 @@ should_return_result(Config) ->
 
 should_return_error(Config) ->
     %% given
-    escalus:story(Config, [{alice_invalid_domain, 1}], fun(Alice) ->
+    escalus:story(Config, [{alice_bis, 1}], fun(Alice) ->
         %% when sending a request with unregistered server
         Req = escalus_stanza:iq_get(?EXAMPLE_NS, [#xmlel{name = <<"example">>}]),
         ct:pal("req: ~p", [Req]),
@@ -204,23 +208,6 @@ Go to `$REPO/_build/mim1/rel/mongooseim` and start one MongooseIM node.
 ```bash
 $ bin/mongooseim live
 ```
-
-The module has to be compiled and then started in order to test it.
-
-```erlang
-(mongooseim@localhost)> c(mod_iq_example).
-Recompiling /Users/zofiapolkowska/MongooseIM/_build/mim1/lib/mongooseim/src/mod_iq_example.erl
-{ok,mod_iq_example}
-(mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_iq_example).
-false
-(mongooseim@localhost)> gen_mod:start_module(<<"localhost">>, mod_iq_example, [no_opts]).
-{ok,{register_iq_handler,<<"localhost">>,
-                         <<"erlang-solutions.com:example">>,mod_iq_example,
-                         process_iq,no_queue}}
-(mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_iq_example).
-true
-```
-
 Open up a new terminal window, go to `$REPO` and use the [test runner](Testing-MongooseIM).
 Run single suite with the already started `mim1` node.
 

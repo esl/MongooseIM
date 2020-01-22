@@ -1,16 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
 %%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% @doc
-%%%
-%%% @end
 %%% Created : 20. Jul 2016 10:16
 %%%-------------------------------------------------------------------
--module(mongoose_api_common).
--author("ludwikbukowski").
--include("mongoose_api.hrl").
--include("mongoose.hrl").
-%%
+
 %% @doc MongooseIM REST API backend
 %%
 %% This module handles the client HTTP REST requests, then respectively convert
@@ -65,6 +58,11 @@
 %% with response code 201 so that it could represent now a new created resource.
 %% If error occured while executing the command, the appropriate reason is
 %% returned in response body.
+
+-module(mongoose_api_common).
+-author("ludwikbukowski").
+-include("mongoose_api.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([create_admin_url_path/1,
@@ -181,12 +179,11 @@ parse_request_body(Req) ->
         Params = create_params_proplist(Data),
         {Params, Req2}
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("issue=parse_request_body_failed "
                        "reason=~p:~p "
                        "stacktrace=~1000p",
-                       [Class, Reason, Stacktrace]),
+                       [Class, Reason, StackTrace]),
             {error, Reason}
     end.
 
@@ -201,12 +198,11 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
         ConvArgs = [{N, convert_arg(T, V)} || {N, T, V} <- AllArgVals, V =/= undefined],
         maps:from_list(ConvArgs)
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("issue=check_and_extract_args_failed "
                        "reason=~p:~p "
                        "stacktrace=~1000p",
-                       [Class, Reason, Stacktrace]),
+                       [Class, Reason, StackTrace]),
             {error, bad_request, Reason}
     end.
 
@@ -220,12 +216,11 @@ execute_command(ArgMap, Command, Entity) ->
     try
         do_execute_command(ArgMap, Command, Entity)
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("issue=execute_command_failed "
                        "reason=~p:~p "
                        "stacktrace=~1000p",
-                       [Class, Reason, Stacktrace]),
+                       [Class, Reason, StackTrace]),
             {error, bad_request, Reason}
     end.
 

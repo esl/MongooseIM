@@ -62,7 +62,8 @@
 %% A command's definition includes specification of it arguments; when
 %% it is called, arguments are check for compatibility. Examples of specs
 %% and compliant arguments:
-%%
+%% 
+%% ```
 %% a single type spec
 %% integer                          2
 %% binary                           <<"zzz">>
@@ -79,6 +80,7 @@
 %% {integer, binary, float}         {1, <<"2">>, 3.0}
 %% a tuple of named args
 %% {{x, integer}, {y, binary}}      {1, <<"bbb">>}
+%% '''
 %%
 %% Arg specification is used at call-time for control, and also for introspection
 %% (see list/1, list/2, mongoose_commands:get_command/2 and args/1)
@@ -242,7 +244,7 @@ list(U, Category, Action) ->
     list(U, Category, Action, any).
 
 %% @doc List commands, available for this user, filtered by category, action and subcategory
--spec list(caller(), binary() | any, atom(), binary() | any) -> [t()].
+-spec list(caller(), binary() | any, atom(), binary() | any | undefined) -> [t()].
 list(U, Category, Action, SubCategory) ->
     CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
@@ -355,9 +357,9 @@ execute_command(Caller, Command, Args) ->
             {error, denied, <<"Command not available for this user">>};
         caller_jid_mismatch ->
             {error, denied, <<"Caller ids do not match">>};
-        X:E ->
+        X:E:S ->
             ?ERROR_MSG("Caught ~p:~p while executing ~p stacktrace=~p",
-                       [X, E, Command#mongoose_command.name, erlang:get_stacktrace()]),
+                       [X, E, Command#mongoose_command.name, S]),
             {error, internal, term_to_binary(E)}
     end.
 

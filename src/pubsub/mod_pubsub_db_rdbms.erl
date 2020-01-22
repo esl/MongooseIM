@@ -65,6 +65,15 @@
          del_items/2
         ]).
 
+%% GDPR related
+-export([
+         get_user_payloads/2,
+         get_user_nodes/2,
+         get_user_subscriptions/2,
+         delete_user_subscriptions/1,
+         find_nodes_by_affiliated_user/1
+        ]).
+
 % For SQL queries
 -export([aff2int/1, sub2int/1]).
 
@@ -117,7 +126,6 @@ dirty(Fun, ErrorDebug) ->
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------
-
 %% TODO: Functions for direct #pubsub_access are currently inefficient for RDBMS
 %%       - refactor them or remove as many of them as possible from the API at some point
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
@@ -431,6 +439,7 @@ find_subnodes(Key, Nodes, Depth, Acc) ->
     {Subnodes, NewNodes} = maps:fold(MapTransformer, {[], []}, Map),
     NewAcc = [{Depth, NewNodes} | Acc],
     find_subnodes(Key, lists:flatten(Subnodes), Depth + 1, NewAcc).
+
 % ------------------- Affiliations --------------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
@@ -578,6 +587,46 @@ remove_all_items(Nidx) ->
     SQL = mod_pubsub_db_rdbms_sql:delete_all_items(Nidx),
     {updated, _} = mongoose_rdbms:sql_query_t(SQL),
     ok.
+
+% ------------------- GDPR-related --------------------------------
+
+get_user_payloads(LUser, LServer) ->
+    SQL = mod_pubsub_db_rdbms_sql:get_user_items(LUser, LServer),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, Items} ->
+            [[NodeName, ItemId, strip_payload(PayloadDB)] || {NodeName, ItemId, PayloadDB} <- Items]
+    end.
+
+get_user_nodes(LUser, LServer) ->
+    LJID = jid:to_binary({LUser, LServer, <<>>}),
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_owner(LJID),
+    {selected, Nodes} =  mongoose_rdbms:sql_query(global, SQL),
+    lists:map(fun tuple_to_list/1, Nodes).
+
+get_user_subscriptions(LUser, LServer) ->
+    SQL = mod_pubsub_db_rdbms_sql:get_user_subscriptions(LUser, LServer),
+    {selected, Nodes} =  mongoose_rdbms:sql_query(global, SQL),
+    lists:map(fun tuple_to_list/1, Nodes).
+
+strip_payload(PayloadDB) ->
+    PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
+    {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
+    exml:to_binary(Payload).
+
+-spec delete_user_subscriptions(jid:ljid()) -> ok.
+delete_user_subscriptions({ LU, LS, _ }) ->
+    SQL = mod_pubsub_db_rdbms_sql:delete_user_subscriptions(LU, LS),
+    {updated, _} = mongoose_rdbms:sql_query_t(SQL),
+    ok.
+
+find_nodes_by_affiliated_user({ LU, LS, _ }) ->
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_affiliated_user(LU, LS),
+    {selected, NodesWithAffs} = mongoose_rdbms:sql_query(global, SQL),
+    lists:map(fun decode_pubsub_node_with_aff_row/1, NodesWithAffs).
+
+decode_pubsub_node_with_aff_row(Row) ->
+    [Aff | NodeRow] = tuple_to_list(Row),
+    {decode_pubsub_node_row(list_to_tuple(NodeRow)), sql2aff(Aff)}.
 
 %%====================================================================
 %% Helpers
@@ -741,3 +790,4 @@ key_to_existing_atom({Key, Value}) when is_atom(Key)->
     {Key, Value};
 key_to_existing_atom({Key, Value}) ->
     {binary_to_existing_atom(Key, utf8), Value}.
+

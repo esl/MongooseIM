@@ -27,8 +27,7 @@
 -module(cyrsasl_digest).
 -author('alexey@sevcom.net').
 
--export([start/1,
-         stop/0,
+-export([mechanism/0,
          mech_new/2,
          mech_step/2]).
 
@@ -47,11 +46,9 @@
 
 -type state() :: #state{}.
 
-start(_Opts) ->
-    mongoose_fips:maybe_register_mech(<<"DIGEST-MD5">>, ?MODULE, digest).
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"DIGEST-MD5">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, state()}.

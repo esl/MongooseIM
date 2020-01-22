@@ -25,10 +25,12 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/3,
-         remove_archive/4]).
+         lookup_messages/3]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -229,14 +231,6 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
     when is_integer(ArcID) ->
     Result.
-
-%% #rh
--spec remove_archive(Acc :: map(), Host :: jid:server(),
-                     RoomId :: mod_mam:archive_id(),
-                     RoomJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, ArcID, _ArcJID)
-    when is_integer(ArcID) ->
-    Acc.
 
 %%====================================================================
 %% Internal functions

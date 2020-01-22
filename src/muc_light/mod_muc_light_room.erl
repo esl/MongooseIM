@@ -100,7 +100,7 @@ process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
 process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
     {_, RoomS} = RoomUS,
     {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(RoomUS),
-    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
+    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
@@ -109,7 +109,7 @@ process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, 
                                aff_users = AffUsers }};
 process_request({get, #info{} = InfoReq}, _From, _UserUS, {_, RoomS} = RoomUS, _Auth, _AffUsers) ->
     {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(RoomUS),
-    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
+    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
@@ -158,7 +158,7 @@ process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, Roo
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_utils:process_raw_config(
+    case mod_muc_light_room_config:apply_binary_kv(
            ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mongoose_bin:gen_from_timestamp(),

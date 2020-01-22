@@ -278,6 +278,7 @@ CREATE TABLE mam_muc_message(
   -- A server-assigned UID that MUST be unique within the archive.
   id BIGINT UNSIGNED NOT NULL,
   room_id INT UNSIGNED NOT NULL,
+  sender_id INT UNSIGNED NOT NULL,
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
@@ -287,6 +288,8 @@ CREATE TABLE mam_muc_message(
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
+CREATE INDEX i_mam_muc_message_sender_id USING BTREE ON mam_muc_message(sender_id);
+
 CREATE TABLE offline_message(
   id BIGINT UNSIGNED        NOT NULL AUTO_INCREMENT PRIMARY KEY,
   timestamp BIGINT UNSIGNED NOT NULL,
@@ -294,7 +297,8 @@ CREATE TABLE offline_message(
   server    varchar(250)    NOT NULL,
   username  varchar(250)    NOT NULL,
   from_jid  varchar(250)    NOT NULL,
-  packet    mediumblob      NOT NULL
+  packet    mediumblob      NOT NULL,
+  permanent_fields    mediumblob
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
@@ -429,3 +433,19 @@ CREATE TABLE pubsub_subscriptions (
 CREATE INDEX i_pubsub_subscriptions_lus_nidx USING BTREE ON pubsub_subscriptions(luser, lserver(50), nidx);
 CREATE INDEX i_pubsub_subscriptions_nidx USING BTREE ON pubsub_subscriptions(nidx);
 
+CREATE TABLE event_pusher_push_subscription (
+     owner_jid VARCHAR(250),
+     node VARCHAR(250),
+     pubsub_jid VARCHAR(250),
+     form JSON NOT NULL,
+     created_at BIGINT NOT NULL,
+     PRIMARY KEY(owner_jid, node, pubsub_jid)
+ ) CHARACTER SET utf8mb4
+   ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
+
+CREATE TABLE mongoose_cluster_id (
+    k varchar(50) PRIMARY KEY,
+    v text
+);

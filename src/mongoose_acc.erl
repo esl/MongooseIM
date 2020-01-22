@@ -27,6 +27,7 @@
          element/1,
          to_jid/1,
          from_jid/1,
+         packet/1,
          stanza_name/1,
          stanza_type/1,
          stanza_ref/1
@@ -35,15 +36,21 @@
 -export([update_stanza/2]).
 % Access to namespaced fields
 -export([
+         set/3,
          set/4,
+         set_permanent/3,
          set_permanent/4,
          append/4,
+         get_permanent_keys/1,
+         get/2,
          get/3,
          get/4,
-         delete/3
+         delete/3,
+         delete/2,
+         delete_many/3
         ]).
-% Strip and replace stanza
--export([strip/2]).
+% Strip with or without stanza replacement
+-export([strip/1, strip/2]).
 
 %% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
 %% truly unknown: before a client is authorized.
@@ -70,8 +77,9 @@
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
         non_strippable := sets:set(ns_key()),
-        {NS :: any(), Key :: any()} => Value :: any()
+        ns_key() => Value :: any()
        }.
+
 -export_type([t/0]).
 
 -type new_acc_params() :: #{
@@ -121,40 +129,57 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       non_strippable => sets:new()
      }.
 
+-spec ref(Acc :: t()) -> reference().
 ref(#{ mongoose_acc := true, ref := Ref }) ->
     Ref.
 
+-spec timestamp(Acc :: t()) -> erlang:timestamp().
 timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
     TS.
 
+-spec lserver(Acc :: t()) -> jid:lserver().
 lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
 
+-spec element(Acc :: t()) -> exml:element() | undefined.
 element(#{ mongoose_acc := true, stanza := #{ element := El } }) ->
     El;
 element(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec from_jid(Acc :: t()) -> jid:jid() | undefined.
 from_jid(#{ mongoose_acc := true, stanza := #{ from_jid := FromJID } }) ->
     FromJID;
 from_jid(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec to_jid(Acc :: t()) -> jid:jid() | undefined.
 to_jid(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID } }) ->
     ToJID;
 to_jid(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec packet(Acc :: t()) -> ejabberd_c2s:packet() | undefined.
+packet(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID,
+                                             from_jid := FromJID,
+                                             element := El } }) ->
+    {FromJID, ToJID, El};
+packet(#{ mongoose_acc := true }) ->
+    undefined.
+
+-spec stanza_name(Acc :: t()) -> binary() | undefined.
 stanza_name(#{ mongoose_acc := true, stanza := #{ name := Name } }) ->
     Name;
 stanza_name(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec stanza_type(Acc :: t()) -> binary() | undefined.
 stanza_type(#{ mongoose_acc := true, stanza := #{ type := Type } }) ->
     Type;
 stanza_type(#{ mongoose_acc := true }) ->
     undefined.
 
+-spec stanza_ref(Acc :: t()) -> reference() | undefined.
 stanza_ref(#{ mongoose_acc := true, stanza := #{ ref := StanzaRef } }) ->
     StanzaRef;
 stanza_ref(#{ mongoose_acc := true }) ->
@@ -169,6 +194,13 @@ update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
 set(NS, K, V, #{ mongoose_acc := true } = Acc) ->
     Acc#{ {NS, K} => V }.
 
+-spec set(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
+set(_, [], Acc) ->
+    Acc;
+set(NS, [{K, V} | T], Acc) ->
+    NewAcc = set(NS, K, V, Acc),
+    set(NS, T, NewAcc).
+
 %% .. while these are not.
 -spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
 set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
@@ -176,28 +208,66 @@ set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable
     NewNonStrippable = sets:add_element(Key, NonStrippable),
     Acc#{ Key => V, non_strippable => NewNonStrippable }.
 
+-spec set_permanent(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
+set_permanent(_, [], #{mongoose_acc := true} = Acc) ->
+    Acc;
+set_permanent(NS, [{K, V} | T], Acc) ->
+    NewAcc = set_permanent(NS, K, V, Acc),
+    set_permanent(NS, T, NewAcc).
+
 -spec append(NS :: any(), Key :: any(), Val :: any() | [any()], Acc :: t()) -> t().
 append(NS, Key, Val, Acc) ->
     OldVal = get(NS, Key, [], Acc),
     set(NS, Key, append(OldVal, Val), Acc).
 
+-spec get_permanent_keys(Acc :: t()) -> [ns_key()].
+get_permanent_keys(#{mongoose_acc := true, non_strippable := NonStrippable}) ->
+    sets:to_list(NonStrippable).
+
+-spec get(Namespace :: any(), Acc :: t()) -> [{K :: any(), V :: any()}].
+get(NS, #{mongoose_acc := true} = Acc) ->
+    Fn = fun({Namespace, K}, V, List) when Namespace =:= NS ->
+                [{K, V} | List];
+            (_, _, List) ->
+                List
+         end,
+    maps:fold(Fn, [], Acc).
+
+-spec get(Namespace :: any(), K :: any(), Acc :: t()) -> V :: any().
 get(NS, K, #{ mongoose_acc := true } = Acc) ->
     maps:get({NS, K}, Acc).
 
+-spec get(Namespace :: any(), K :: any(), Default :: any(), Acc :: t()) -> V :: any().
 get(NS, K, Default, #{ mongoose_acc := true } = Acc) ->
     maps:get({NS, K}, Acc, Default).
 
+-spec delete(Namespace :: any(), K :: any(), Acc :: t()) -> t().
 delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
     Key = {NS, K},
     Acc1 = maps:remove(Key, Acc0),
     Acc1#{ non_strippable => sets:del_element(Key, NonStrippable) }.
 
--spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
-strip(#{ lserver := NewLServer } = Params,
-      #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
+-spec delete_many(Namespace :: any(), [K :: any()], Acc :: t()) -> t().
+delete_many(_, [], Acc) ->
+    Acc;
+delete_many(NS, [K | T], Acc) ->
+    NewAcc = delete(NS, K, Acc),
+    delete_many(NS, T, NewAcc).
+
+-spec delete(Namespace :: any(), Acc :: t()) -> t().
+delete(NS, Acc) ->
+    KeyList = [K || {K, _} <- get(NS, Acc)],
+    delete_many(NS, KeyList, Acc).
+
+-spec strip(Acc :: t()) -> t().
+strip(#{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     NonStrippableL = sets:to_list(NonStrippable),
-    StrippedAcc = maps:with(NonStrippableL ++ default_non_strippable(), Acc),
-    StrippedAcc#{ lserver => NewLServer, stanza => stanza_from_params(Params) }.
+    maps:with(NonStrippableL ++ default_non_strippable(), Acc).
+
+-spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
+strip(#{ lserver := NewLServer } = Params, Acc) ->
+    StrippedAcc = strip(Acc),
+    StrippedAcc#{ lserver := NewLServer, stanza := stanza_from_params(Params) }.
 
 %% --------------------------------------------------------
 %% Internal functions
@@ -232,10 +302,11 @@ default_non_strippable() ->
      origin_pid,
      origin_location,
      origin_stanza,
+     stanza,
+     lserver,
      non_strippable
     ].
 
 -spec append(OldVal :: list(), Val :: list() | any()) -> list().
 append(OldVal, Val) when is_list(OldVal), is_list(Val) -> OldVal ++ Val;
 append(OldVal, Val) when is_list(OldVal) -> [Val | OldVal].
-

@@ -20,14 +20,22 @@
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
--export([successful_rpc/3, successful_rpc/4]).
--export([logout_user/2]).
+-export([successful_rpc/3, successful_rpc/4, successful_rpc/5]).
+-export([logout_user/2, logout_user/3]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
+-export([make_jid/3]).
+-export([make_jid_noprep/3]).
+-export([get_session_pid/2]).
+-export([get_session_info/2]).
+-export([wait_for_route_message_count/2]).
+-export([wait_for_pid_to_die/1]).
+-export([supports_sasl_module/1]).
 
 -import(distributed_helper, [mim/0,
-                             rpc/4]).
+                             rpc/4,
+                             rpc/5]).
 
 -spec is_rdbms_enabled(Host :: binary()) -> boolean().
 is_rdbms_enabled(Host) ->
@@ -218,22 +226,29 @@ successful_rpc(Module, Function, Args) ->
 
 -spec successful_rpc(Node :: atom(), M :: module(), F :: atom(), A :: list()) -> term().
 successful_rpc(Node, Module, Function, Args) ->
-    case rpc(Node, Module, Function, Args) of
+    successful_rpc(Node, Module, Function, Args, timer:seconds(5)).
+
+-spec successful_rpc(Node :: atom(), M :: module(), F :: atom(), A :: list(), timeout()) -> term().
+successful_rpc(Node, Module, Function, Args, Timeout) ->
+    case rpc(Node, Module, Function, Args, Timeout) of
         {badrpc, Reason} ->
             ct:fail({badrpc, Module, Function, Args, Reason});
         Result ->
             Result
     end.
 
+logout_user(Config, User) ->
+    Node = ct:get_config({hosts, mim, node}),
+    logout_user(Config, User, Node).
+
 %% This function is a version of escalus_client:stop/2
 %% that ensures that c2s process is dead.
 %% This allows to avoid race conditions.
-logout_user(Config, User) ->
+logout_user(Config, User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    Result = successful_rpc(ejabberd_sm, get_session_pid,
-                            [Username, Server, Resource]),
+    Result = get_session_pid(User, Node),
     case Result of
         none ->
             %% This case can be a side effect of some error, you should
@@ -273,12 +288,12 @@ wait_until(Fun, ExpectedValue, Opts) ->
                  name => timeout},
     do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
-do_wait_until(_Fun, _ExpectedValue, #{
+do_wait_until(_Fun, ExpectedValue, #{
                                       time_left := TimeLeft,
                                       history := History,
                                       name := Name
                                      }) when TimeLeft =< 0 ->
-    error({Name, lists:reverse(History)});
+    error({Name, ExpectedValue, lists:reverse(History)});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
@@ -298,12 +313,12 @@ wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
                                             history => [FunResult | History]}).
 
 wait_for_user(Config, User, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> 
-                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
+    mongoose_helper:wait_until(fun() ->
+                                escalus_users:verify_creation(escalus_users:create_user(Config, User))
                                end, ok,
 							   #{
-                                 sleep_time => 400, 
-                                 left_time => LeftTime, 
+                                 sleep_time => 400,
+                                 left_time => LeftTime,
                                  name => 'escalus_users:create_user'
                                 }).
 
@@ -332,3 +347,45 @@ inject_module(Node, Module, reload) ->
     {Mod, Bin, File} = code:get_object_code(Module),
     successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 
+
+make_jid_noprep(User, Server, Resource) ->
+    rpc(mim(), jid, make_noprep, [User, Server, Resource]).
+
+make_jid(User, Server, Resource) ->
+    rpc(mim(), jid, make, [User, Server, Resource]).
+
+get_session_pid(User, Node) ->
+    Resource = escalus_client:resource(User),
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    JID = make_jid(Username, Server, Resource),
+    successful_rpc(Node, ejabberd_sm, get_session_pid, [JID]).
+
+get_session_info(RpcDetails, User) ->
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    Resource = escalus_client:resource(User),
+    JID = make_jid(Username, Server, Resource),
+    {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
+    Info.
+
+wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
+    mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+
+count_route_messages(C2sPid) when is_pid(C2sPid) ->
+     {messages, Messages} = rpc:pinfo(C2sPid, messages),
+     length([Route || Route <- Messages, is_tuple(Route), route =:= element(1, Route)]).
+
+wait_for_pid_to_die(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    %% Wait for pid to die
+    receive
+        {'DOWN', MonitorRef, _, _, _} ->
+            ok
+        after 10000 ->
+            ct:fail({wait_for_pid_to_die_failed, Pid})
+    end.
+
+supports_sasl_module(Module) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    rpc(mim(), ejabberd_auth, supports_sasl_module, [Host, Module]).

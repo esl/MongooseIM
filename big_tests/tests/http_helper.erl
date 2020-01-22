@@ -17,6 +17,11 @@
 
 -export([start/3, stop/0, port/0, init/2]).
 
+-spec start(
+        non_neg_integer(),
+        string(),
+        fun((cowboy_req:req()) -> {ok, cowboy_req:req(), any()})) ->
+    {ok, pid()}.
 start(Port, Path, HandleFun) ->
     application:ensure_all_started(cowboy),
     Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, [HandleFun]}]}]),
@@ -30,7 +35,6 @@ port() ->
     ranch:get_port(http_helper_listener).
 
 %% Cowboy handler callbacks
-
 init(Req, [HandleFun] = State) ->
     Req2 = HandleFun(Req),
     {ok, Req2, State}.

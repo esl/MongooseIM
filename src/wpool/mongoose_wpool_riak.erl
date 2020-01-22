@@ -4,6 +4,7 @@
 -export([init/0]).
 -export([start/4]).
 -export([stop/2]).
+-export([is_supported_strategy/1]).
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
 
@@ -18,6 +19,9 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
 stop(_, _) ->
     ok.
 
+is_supported_strategy(available_worker) -> false;
+is_supported_strategy(_) -> true.
+
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     {_, RiakAddr} = mongoose_wpool_riak:get_riak_opt(address, ConnOpts),
     {_, RiakPort} = mongoose_wpool_riak:get_riak_opt(port, ConnOpts),
@@ -29,9 +33,9 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     [{worker, Worker} | WpoolOptsIn].
 
 
-%% @doc Gets a particular option from `Opts`. They're expressed as a list
-%% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
-%% exist the `Default` is returned.
+%% @doc Gets a particular option from `Opts'. They're expressed as a list
+%% of tuples where the first element is `OptKey'. If provided `OptKey' doesn't
+%% exist the `Default' is returned.
 -spec get_riak_opt(OptKey :: atom(), Opts :: [tuple()], Default :: tuple()) ->
                                    tuple().
 get_riak_opt(OptKey, Opts, Default) ->
@@ -44,7 +48,7 @@ get_riak_opt(OptKey, Opts) ->
 verify_if_riak_opt_exists(false, Default) -> Default;
 verify_if_riak_opt_exists(Opt, _) -> Opt.
 
-%% @docs Merges `AdditionalOpts` into `Opts` if a particular additional option
+%% @doc Merges `AdditionalOpts' into `Opts' if a particular additional option
 %% exists.
 -spec maybe_add_additional_opts(Opts :: [term()],
                                    AdditionalOpts :: [tuple()]) -> [term()].

@@ -6,7 +6,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Node implementation that proxies all published items to `push_notification` hook.
+%%% Node implementation that proxies all published items to `push_notification' hook.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(node_push).
@@ -18,7 +18,7 @@
 -include("pubsub.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         publish_item/9, node_to_path/1]).
+         publish_item/9, node_to_path/1, should_delete_when_owner_removed/0]).
 
 based_on() ->  node_flat.
 
@@ -62,7 +62,7 @@ features() ->
 
 publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
              PublishOptions) ->
-    Affiliation = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
+    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
     ElPayload = [El || #xmlel{} = El <- Payload],
 
     case is_allowed_to_publish(Model, Affiliation) of
@@ -78,17 +78,26 @@ do_publish_item(ServerHost, PublishOptions,
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            ejabberd_hooks:run(push_notifications, ServerHost,
-                               [ServerHost, NotificationForms, OptionMap]),
-            {result, default};
+            Result = ejabberd_hooks:run_fold(push_notifications, ServerHost, ok,
+                                             [ServerHost, NotificationForms, OptionMap]),
+            handle_push_hook_result(Result);
         _ ->
             {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
     end;
 do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
+handle_push_hook_result(ok) ->
+    {result, default};
+handle_push_hook_result({error, device_not_registered}) ->
+    {error, mod_pubsub:extended_error(mongoose_xmpp_errors:not_acceptable_cancel(), <<"device-not-registered">>)};
+handle_push_hook_result({error, _}) ->
+    {error, mod_pubsub:extended_error(mongoose_xmpp_errors:bad_request(), <<"faild-to-submit-push-notification">>)}.
+
 node_to_path(Node) ->
     node_flat:node_to_path(Node).
+
+should_delete_when_owner_removed() -> true.
 
 %%%
 %%% Internal

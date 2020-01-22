@@ -8,7 +8,7 @@ The following list shows those components as defined in
 
   * _XMPP Server_ in MongooseIM is enabled by module [mod_event_pusher_push][]
   * _App Server_ in MongooseIM is enabled by adding a `push` node type to [mod_pubsub][]'s configuration
-  * _XMPP Push Service_ is implemented as a [MongoosePush][] application
+  * _XMPP Push Service_ is implemented as a [MongoosePush][] application, the recommended version is 2.0.0 or above
 
 All these entities have to be enabled and properly configured in order to use push notifications.
 So let's get to it, shall we?
@@ -64,7 +64,7 @@ The minimal [mod_pubsub][]'s configuration looks as follows:
 
 ```erlang
 {mod_pubsub, [
-    {plugins, [<<"push">>]}}
+    {plugins, [<<"push">>]}
 ]}.
 ```
 
@@ -97,7 +97,7 @@ Then add `mod_push_service_mongoosepush` to the `modules` section in the config 
 
     {mod_push_service_mongoosepush, [
         {pool_name, mongoose_push_http},
-        {api_version, "v2"}]},
+        {api_version, "v3"}]},
 
     (...)
 ```
@@ -105,7 +105,7 @@ Then add `mod_push_service_mongoosepush` to the `modules` section in the config 
 First, we create the HTTP pool for communicating with [MongoosePush][].
 Here, we assume that [MongoosePush][] will be available on the localhost on port 8443 which is the default one.
 Next we enable [mod_push_service_mongoosepush][].
-First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API (currently only "_v2_" is supported).
+First option is the name of the HTTP pool to use and the second one is the version of [MongoosePush][]'s API ("_v2_" or "_v3_" are supported).
 
 And that's it, we've just completed the entire MongooseIM configuration.
 All we need to do now is to set up [MongoosePush][].
@@ -173,6 +173,19 @@ The client sends the following stanza to the server:
     id='create1'>
   <pubsub xmlns='http://jabber.org/protocol/pubsub'>
     <create node='punsub_node_for_my_private_iphone' type='push'/>
+    <configure>
+      <x xmlns='jabber:x:data' type='submit'>
+        <field var='FORM_TYPE' type='hidden'>
+          <value>http://jabber.org/protocol/pubsub#node_config</value>
+        </field>
+        <field var='pubsub#access_model'>
+          <value>whitelist</value>
+        </field>
+        <field var='pubsub#publish_model'>
+          <value>publishers</value>
+        </field>
+      </x>
+    </configure>
   </pubsub>
 </iq>
 ```
@@ -183,8 +196,30 @@ The most important and only distinction from the standard node creation is the `
 This denotes that you need a node that will handle your push notifications.
 Here we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
+It is also recommended and important from security perspective to configure the node with:
 
-After this step, you need to have the `pubsub` host (here `pubsub.mypubsub.com`) and the node name (here: `punsub_node_for_my_private_iphone`).
+* `access_model` set to `whitelist` so only affiliated users can access the node.
+* `publish_model` set to `publishers` so only users with `publisher` or `publisher_only` role can publish notifications.
+
+#### Adding server's JID to allowed publishers
+
+Push notifications to the push node are addressed from your server JID.
+If the push node was configured with the above recommended options, you need to allow your server's JID to publish notifications to that node.
+Considering your JID is `alice@mychat.com`, your server's JID is just `mychat.com`.
+The following stanza sent to the just created push node will allow your server JID to publish notifications:
+
+```xml
+<iq to='pubsub.mypubsub.com'
+    type='set'
+    id='wy6Hibg='
+    from='alice@mychat.com/resource'>
+	<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+		<affiliations node='punsub_node_for_my_private_iphone'>
+			<affiliation jid='mychat.com' affiliation='publish-only'/>
+		</affiliations>
+	</pubsub>
+</iq>
+```
 
 ### Enabling push notifications
 
@@ -202,6 +237,7 @@ To enable push notifications in the simplest configuration, just send the follow
       <field var='device_id'><value>your_pns_device_token</value></field>
       <field var='silent'><value>false</value></field>
       <field var='topic'><value>some_apns_topic</value></field>
+      <field var='priority'><value>some_priority</value></field>
     </x>
   </enable>
 </iq>
@@ -218,6 +254,9 @@ Those two options are the only ones required, but there are some others that are
   * `silent` - if set to `true`, all notifications will be "silent". This means that only data
   payload will be send to push notifications provider with no notification. The data payload will
    contain all notification fields as defined in [XEP-0357].
+  * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
+    This value will set the push notification priority. Please refer to FCM / APNS documentation for
+    more details on those values.
 
 ### Disabling push notifications
 

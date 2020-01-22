@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%
 %% @doc
-%% Backend for `mod_event_pusher` that supports RabbitMQ integration.
+%% Backend for `mod_event_pusher' that supports RabbitMQ integration.
 %% @end
 %%==============================================================================
 
@@ -25,6 +25,7 @@
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 -behaviour(mod_event_pusher).
 
 %%%===================================================================
@@ -194,7 +195,7 @@ user_topic_routing_key(JID, Topic) ->
 
 -spec presence_msg(JID :: jid:jid(), Status :: atom()) -> binary().
 presence_msg(JID, Status) ->
-    Msg = #{user_id => jid:to_binary(JID), present => is_user_online(Status)},
+    Msg = #{user_id => jid:to_binary(jid:to_lower(JID)), present => is_user_online(Status)},
     jiffy:encode(Msg).
 
 -spec chat_msg(From :: jid:jid(), To :: jid:jid(), UserMsg :: binary()) ->

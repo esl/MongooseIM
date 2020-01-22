@@ -4,5 +4,5 @@
 -record(chat_event, {type :: headline | normal | chat | groupchat,
                      direction :: in | out,
                      from :: jid:jid(), to :: jid:jid(), packet :: exml:element()}).
+-record(unack_msg_event, {to ::  jid:jid()}).
 
--type event() :: #user_status_event{} | #chat_event{}.

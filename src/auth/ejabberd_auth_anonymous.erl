@@ -30,9 +30,6 @@
 -export([
          start/1,
          stop/1,
-         allow_anonymous/1,
-         is_sasl_anonymous_enabled/1,
-         is_login_anonymous_enabled/1,
          anonymous_user_exist/2,
          allow_multiple_connections/1,
          register_connection/4,
@@ -53,7 +50,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         supports_password_type/2,
+         supports_sasl_module/2,
          get_vh_registered_users/2,
          get_vh_registered_users_number/1,
          get_vh_registered_users_number/2,
@@ -90,43 +87,25 @@ stop(Host) ->
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     ok.
 
-
-%% @doc Return true if anonymous is allowed for host or false otherwise
--spec allow_anonymous(Host :: jid:lserver()) -> boolean().
-allow_anonymous(Host) ->
-    lists:member(?MODULE, ejabberd_auth:auth_modules(Host)).
-
-
-%% @doc Return true if anonymous mode is enabled and if anonymous protocol is
-%% SASL anonymous protocol can be: sasl_anon|login_anon|both
+%% @doc Return true if SASL ANONYMOUS mechanism is enabled one the server
 -spec is_sasl_anonymous_enabled(Host :: jid:lserver()) -> boolean().
 is_sasl_anonymous_enabled(Host) ->
-    case allow_anonymous(Host) of
-        false -> false;
-        true ->
-            case anonymous_protocol(Host) of
-                sasl_anon -> true;
-                both      -> true;
-                _Other    -> false
-            end
+    case anonymous_protocol(Host) of
+        sasl_anon -> true;
+        both      -> true;
+        _Other    -> false
     end.
-
 
 %% @doc Return true if anonymous login is enabled on the server
-%% anonymous login can be use using standard authentication method (i.e. with
-%% clients that do not support anonymous login)
+%% anonymous login can be used with a standard authentication method
+%% (i.e. with clients that do not support anonymous login)
 -spec is_login_anonymous_enabled(Host :: jid:lserver()) -> boolean().
 is_login_anonymous_enabled(Host) ->
-    case allow_anonymous(Host) of
-        false -> false;
-        true  ->
-            case anonymous_protocol(Host) of
-                login_anon -> true;
-                both       -> true;
-                _Other     -> false
-            end
+    case anonymous_protocol(Host) of
+        login_anon -> true;
+        both       -> true;
+        _Other     -> false
     end.
-
 
 %% @doc Return the anonymous protocol to use: sasl_anon|login_anon|both
 %% defaults to login_anon
@@ -342,11 +321,12 @@ remove_user(_LUser, _LServer) ->
 remove_user(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
--spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, plain) -> true;
-supports_password_type(_, scram) -> true;
-supports_password_type(_, digest) -> true;
-supports_password_type(_, _) -> false.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(Host, cyrsasl_anonymous) -> is_sasl_anonymous_enabled(Host);
+supports_sasl_module(Host, cyrsasl_plain) -> is_login_anonymous_enabled(Host);
+supports_sasl_module(Host, cyrsasl_scram) -> is_login_anonymous_enabled(Host);
+supports_sasl_module(Host, cyrsasl_digest) -> is_login_anonymous_enabled(Host);
+supports_sasl_module(_, _) -> false.
 
 get_vh_registered_users_number(_LServer) -> 0.
 

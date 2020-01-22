@@ -20,7 +20,7 @@ all_tests() ->
      does_user_exist,
      get_password_returns_false_if_no_cache,
      get_password_s_returns_empty_bin_if_no_cache,
-     supported_password_types
+     supported_sasl_mechanisms
     ].
 
 init_per_suite(C) ->
@@ -71,9 +71,10 @@ get_password_returns_false_if_no_cache(_C) ->
 get_password_s_returns_empty_bin_if_no_cache(_C) ->
     <<"">> = ?AUTH_MOD:get_password_s(random_binary(8), domain()).
 
-supported_password_types(_C) ->
+supported_sasl_mechanisms(_C) ->
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
     [true, false, false, false] =
-        [?AUTH_MOD:supports_password_type(domain(), PT) || PT <- [plain, digest, scram, cert]].
+        [?AUTH_MOD:supports_sasl_module(domain(), Mod) || Mod <- Modules].
 
 given_user_registered() ->
     {U, P} = UP = gen_user(),

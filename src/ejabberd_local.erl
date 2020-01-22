@@ -59,6 +59,10 @@
 
 -export([do_route/4]).
 
+%% For testing only
+-export([get_iq_callback/1]).
+
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -138,12 +142,12 @@ process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)
     catch
-        _:Reason ->
+        _:Reason:StackTrace ->
             ?ERROR_MSG("event=routing_error,from=~ts,to=~ts,module=~p,"
                        "reason=~p,packet=~ts,stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, exml:to_binary(mongoose_acc:element(Acc)),
-                        erlang:get_stacktrace()])
+                        StackTrace])
     end.
 
 -spec route_iq(From :: jid:jid(),

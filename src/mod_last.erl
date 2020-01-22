@@ -30,6 +30,7 @@
 -xep([{xep, 12}, {version, "2.0"}]).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([
          start/2,
@@ -43,6 +44,8 @@
          remove_user/3,
          session_cleanup/5
         ]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 
@@ -130,15 +133,11 @@ process_local_iq(_From, _To, Acc,
 -spec get_node_uptime() -> non_neg_integer().
 get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
-        {_, _, _} = StartNow ->
-            now_to_seconds(p1_time_compat:timestamp()) - now_to_seconds(StartNow);
+        {node_start, Seconds} when is_integer(Seconds) ->
+            erlang:system_time(second) - Seconds;
         _Undefined ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
-
--spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
-now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
 
 %%%
 %%% Serve queries about user last online
@@ -165,17 +164,18 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,
                                                              out),
-            {Acc1, make_response(IQ, SubEl, User, Server, Res)};
+            {Acc1, make_response(IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
 -spec make_response(jlib:iq(), SubEl :: 'undefined' | [exml:element()],
-                    jid:luser(), jid:lserver(), allow | deny) -> jlib:iq().
-make_response(IQ, SubEl, _, _, deny) ->
+                    jid:jid(), allow | deny) -> jlib:iq().
+make_response(IQ, SubEl, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
-make_response(IQ, SubEl, LUser, LServer, allow) ->
-    case ejabberd_sm:get_user_resources(LUser, LServer) of
+make_response(IQ, SubEl, JID, allow) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
+    case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last(LUser, LServer) of
                 {error, _Reason} ->
@@ -185,7 +185,7 @@ make_response(IQ, SubEl, LUser, LServer, allow) ->
                     IQ#iq{type = error,
                         sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]};
                 {ok, TimeStamp, Status} ->
-                    TimeStamp2 = now_to_seconds(p1_time_compat:timestamp()),
+                    TimeStamp2 = erlang:system_time(second),
                     Sec = TimeStamp2 - TimeStamp,
                     IQ#iq{type = result,
                         sub_el =
@@ -213,16 +213,16 @@ get_last(LUser, LServer) ->
 count_active_users(LServer, Timestamp) ->
     mod_last_backend:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(map(), jid:user(), jid:server(), jid:resource(),
+-spec on_presence_update(map(), jid:luser(), jid:lserver(), jid:lresource(),
                          Status :: binary()) -> map() | {error, term()}.
 on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
-    TimeStamp = now_to_seconds(p1_time_compat:timestamp()),
+    TimeStamp = erlang:system_time(second),
     case store_last_info(LUser, LServer, TimeStamp, Status) of
         ok -> Acc;
         E -> E
     end.
 
--spec store_last_info(jid:user(), jid:server(), non_neg_integer(),
+-spec store_last_info(jid:luser(), jid:lserver(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
     mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
@@ -248,4 +248,8 @@ remove_user(Acc, User, Server) ->
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
     on_presence_update(Acc, LUser, LServer, LResource, <<>>).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
 

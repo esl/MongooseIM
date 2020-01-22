@@ -2,6 +2,7 @@
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/0, stop/0,
          start/2, stop/1,
@@ -379,7 +380,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                rsm => #rsm_in{direction = before, id = undefined}, % last msgs
                start_ts => undefined,
                end_ts => Before * 1000000,
-               now => p1_time_compat:os_system_time(micro_seconds),
+               now => os:system_time(microsecond),
                with_jid => WithJID,
                search_text => undefined,
                page_size => Limit,
@@ -391,8 +392,11 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     L.
 
 subscription(Caller, Other, Action) ->
-    Act = binary_to_existing_atom(Action, latin1),
+    Act = decode_action(Action),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+
+decode_action(<<"subscribe">>) -> subscribe;
+decode_action(<<"subscribed">>) -> subscribed.
 
 -spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->

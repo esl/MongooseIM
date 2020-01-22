@@ -35,9 +35,14 @@ while getopts ":p::s::e::c:" opt; do
 done
 
 source tools/travis-common-vars.sh
-source tools/travis-helpers.sh
 
-if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+if [ ${CIRCLECI} ]; then
+source tools/circleci-helpers.sh
+else
+source tools/travis-helpers.sh
+fi
+
+if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -120,6 +125,19 @@ print_running_nodes() {
     "$EPMDS" -names
 }
 
+maybe_pause_before_test() {
+  if [ "$PAUSE_BEFORE_BIG_TESTS" -gt 0 ] 2>/dev/null; then
+    local read_ret_val
+    tools/print-dots.sh start_countdown "$PAUSE_BEFORE_BIG_TESTS" "continue in" $$
+    read -es -p $'press enter to pause before the big_tests\n' -t "$PAUSE_BEFORE_BIG_TESTS"
+    read_ret_val="$?"
+    tools/print-dots.sh stop
+    [ "$read_ret_val" -ne 0 ] && { echo; return; }
+    echo "[PAUSED]"
+    read -es -p $'press enter to continue\n'
+  fi
+}
+
 run_tests() {
   maybe_run_small_tests
   SMALL_STATUS=$?
@@ -129,7 +147,11 @@ run_tests() {
   echo "Running big tests (big_tests)"
   echo "############################"
 
-  time ${TOOLS}/start-nodes.sh
+  rm -f /tmp/ct_summary
+
+  time ${TOOLS}/start-nodes.sh || { echo "Failed to start MongooseIM nodes"; return 1; }
+
+  maybe_pause_before_test
 
   run_test_preset
   BIG_STATUS=$?
@@ -160,6 +182,12 @@ run_tests() {
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
     print_running_nodes
+  fi
+
+  if [ -f /tmp/ct_summary ]; then
+      echo "Failed big cases:"
+      cat /tmp/ct_summary
+      echo ""
   fi
 
   # Do not stop nodes if big tests failed
@@ -205,6 +233,7 @@ elif [ "$PRESET" == "small_tests" ]; then
   RESULT=$?
   exit ${RESULT}
 else
-  [ x"$TLS_DIST" == xyes ] && enable_tls_dist
+  [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
+

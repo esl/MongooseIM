@@ -40,7 +40,7 @@ sign(Method, URI, Queries, Headers, UTCDateTime, Region, Service, SecretAccessKe
 
 
 %% @doc
-%% Composes an AWS scope string in the form of <date>/<region>/<service>/aws4_request
+%% Composes an AWS scope string in the form of `<date>/<region>/<service>/aws4_request'
 %% @end
 -spec compose_scope(UTCDateTime :: calendar:datetime(), Region :: binary(), Service :: binary())
                    -> Scope :: binary().

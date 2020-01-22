@@ -4,7 +4,7 @@
 %%% @doc SASL EXTERNAL implementation (XEP178)
 %%%
 %%% SASL EXTERNAL mechanism requires client's SSL certificate. the purpose of
-%%% this module is to parse the certificate & get authorization identity (if
+%%% this module is to parse the certificate and get authorization identity (if
 %%% any provided by the client). this module doesn't make authorization, it
 %%% only prepares all the data and provides it to auth. backend.
 %%%
@@ -27,31 +27,19 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([start/1, stop/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/2, mech_step/2]).
 
 -behaviour(cyrsasl).
-
 
 -callback verify_creds(Creds :: mongoose_credentials:t()) ->
     {ok, Username :: binary()} | {error, Error :: binary()}.
 
--type ignored() :: any().
--callback start() -> ignored().
--callback stop() -> ignored().
--optional_callbacks([start/0, stop/0]).
-
-
 -record(state, {creds :: mongoose_credentials:t()}).
 -type sasl_external_state() :: #state{}.
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"EXTERNAL">>, ?MODULE, cert),
-    start_all_modules(),
-    ok.
-
-stop() ->
-    stop_all_modules(),
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"EXTERNAL">>.
 
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
@@ -83,27 +71,6 @@ mech_step(#state{creds = Creds}, User) ->
 %%%=============================================================================
 %%%  local functions
 %%%=============================================================================
-start_all_modules() ->
-    Modules = [M || H <- ?MYHOSTS, {mod, M} <- get_verification_list(H)],
-    case code:ensure_modules_loaded(Modules) of
-        {error, Error} -> error(Error);
-        _ -> ok
-    end,
-    lists:map(fun start_module/1, Modules).
-
-stop_all_modules() ->
-    [stop_module(M) || H <- ?MYHOSTS, {mod, M} <- get_verification_list(H)].
-
-start_module(Module) -> run_module_fn(Module, start).
-
-stop_module(Module) -> run_module_fn(Module, stop).
-
-run_module_fn(Module, Fn) ->
-    case erlang:function_exported(Module, Fn, 0) of
-        true -> Module:Fn();
-        _ -> ok
-    end.
-
 get_common_name(Cert) ->
     case cert_utils:get_common_name(Cert) of
         error -> [];
@@ -127,7 +94,13 @@ do_mech_step(Creds) ->
             {error, Error};
         {ok, Name} ->
             NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
-            ejabberd_auth:authorize(NewCreds)
+            authorize(NewCreds)
+    end.
+
+authorize(Creds) ->
+    case ejabberd_auth:authorize(Creds) of
+        {ok, NewCreds} -> {ok, NewCreds};
+        {error, not_authorized} -> {error, <<"not-authorized">>}
     end.
 
 get_verification_list(Server) ->
@@ -200,14 +173,19 @@ auth_id_verification(Creds) ->
     verify_server(AuthId, Server).
 
 custom_verification(Module, Creds) ->
-    %% erlang:function_exported/3 returns false if module
-    %% is not loaded. assuming that all the modules are
-    %% loaded at startup. see start_all_modules/0 function
-    case erlang:function_exported(Module, verify_creds, 1) of
-        true ->
-            Module:verify_creds(Creds);
-        _ ->
-            ?ERROR_MSG("verify_cert is not exported mod:~p", [Module]),
+    try
+        case apply(Module, verify_creds, [Creds]) of
+            {ok, Username} when is_binary(Username) ->
+                {ok, Username};
+            {error, Error} when is_binary(Error) ->
+                {error, Error};
+            InvalidReturnValue ->
+                ?ERROR_MSG("~p:verify_cert/1 invalid return value: ~p", [Module, InvalidReturnValue]),
+                {error, <<"not-authorized">>}
+        end
+    catch
+        Class:Exception ->
+            ?ERROR_MSG("~p:verify_cert/1 crashed: ~p", [Module, {Class, Exception}]),
             {error, <<"not-authorized">>}
     end.
 

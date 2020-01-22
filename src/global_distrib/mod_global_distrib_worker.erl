@@ -14,6 +14,8 @@
 %% limitations under the License.
 %%==============================================================================
 
+%% Routing worker
+
 -module(mod_global_distrib_worker).
 -author('konrad.zemek@erlang-solutions.com').
 
@@ -51,8 +53,8 @@ handle_cast({route, {From, To, Acc, Packet}}, State) ->
     ejabberd_router:route(From, To, Acc, Packet),
     {noreply, State, ?TIMEOUT};
 handle_cast({data, Host, TransferTime, Stamp, Data}, State) ->
-    QueueTimeNative = p1_time_compat:monotonic_time() - Stamp,
-    QueueTimeUS = p1_time_compat:convert_time_unit(QueueTimeNative, native, micro_seconds),
+    QueueTimeNative = erlang:monotonic_time() - Stamp,
+    QueueTimeUS = erlang:convert_time_unit(QueueTimeNative, native, microsecond),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, QueueTimeUS),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_TRANSFER_TIME(Host), TransferTime),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), 1),

@@ -1,0 +1,422 @@
+version: 2.1
+
+orbs:
+  mim:
+    commands:
+      install_erlang:
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+        - run:
+            name: Install Erlang
+            command: |
+              sudo killall -9 apt-get || true && \
+              sudo apt-get install -y esl-erlang=<<parameters.otp_package>>
+      fetch_packages:
+        steps:
+        - run:
+            name: Install basic packages
+            command: |
+              sudo killall -9 apt-get || true && \
+              echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+              wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && \
+              sudo dpkg -i erlang-solutions_1.0_all.deb && \
+              sudo apt-get update && \
+              sudo apt-get install unixodbc-dev -y && \
+              sudo apt-get install unixodbc -y && \
+              sudo apt-get install tdsodbc -y && \
+              sudo apt-get install python-pip -y && \
+              sudo pip install --upgrade pip
+    jobs:
+      build:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+          build_prod:
+            type: boolean
+            description: When enabled, prod release will be generated besides the dev ones
+            default: false
+
+        environment:
+          SKIP_RELEASE: 1
+          SKIP_COV: 0
+        working_directory: ~/app
+
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp_package: <<parameters.otp_package>>
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+          - restore_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Get deps
+              command: |
+                tools/configure with-all
+                ./rebar3 get-deps
+          - save_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+              paths:
+                - ~/.cache/rebar3
+          - run: ./rebar3 compile
+          - run:
+              name: Make Certs
+              command: |
+                make certs
+          - run:
+              name: Generate development releases
+              command: ./tools/build-releases.sh
+          - run:
+              name: Generate prod release
+              command: |
+                # We cannot reuse releases generated in the previous step, because they are
+                # built with dev_mode enabled (so they use symlinks for deps)
+                if [ <<parameters.build_prod>> ]; then make rel; fi
+          - run:
+              name: Build Big Tests
+              command: |
+                tools/travis-build-tests.sh
+          - save_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+              paths: ./
+
+
+      dialyzer:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp_package: <<parameters.otp_package>>
+          - run:
+              name: Run Dialyzer
+              command: |
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
+
+      small_tests:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+        environment:
+          PRESET: small_tests
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp_package: <<parameters.otp_package>>
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Run Small Tests
+              command: |
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+          - run:
+              name: Coverage
+              when: on_success
+              command: |
+                echo "Success!"
+                sudo pip install codecov && codecov
+                ./rebar3 codecov analyze
+                codecov --disable=gcov --env PRESET
+          - run:
+              name: Upload results
+              when: always
+              command: |
+                  tools/circleci-prepare-log-dir.sh
+                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+
+
+      package:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          platform:
+            type: enum
+            enum: [centos7, debian_stretch]
+            description: Platform type
+        environment:
+          pkg_PLATFORM: <<parameters.platform>>
+          PRESET: pkg
+        steps:
+          - checkout
+          - run:
+              name: Build package
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
+      big_tests:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+          preset:
+            type: enum
+            enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
+                   elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
+            description: Preset to run
+            default: internal_mnesia
+          db:
+            type: string
+            description: Database to use
+            default: mnesia
+          tls_dist:
+            type: boolean
+            description: Erlang distribution with TLS enabled
+            default: false
+        environment:
+          MIX_ENV: test
+          PRESET: <<parameters.preset>>
+          DB: <<parameters.db>>
+          TLS_DIST: <<parameters.tls_dist>>
+          ELASTICSEARCH_VERSION: 5.6.9
+          CASSANDRA_VERSION: 3.9
+          TEST_SPEC: mam.spec
+          REDIS_VERSION: 3.2.10
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp_package: <<parameters.otp_package>>
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Setup database
+              command: |
+                tools/travis-setup-db.sh
+                if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
+                sudo tools/travis-setup-rmq.sh; tools/setup-redis.sh
+                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+          - run:
+              name: Run Big Tests
+              command: |
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+              no_output_timeout: 40m
+          - run:
+              name: Coverage
+              when: on_success
+              command: |
+                echo "Success!"
+                sudo pip install codecov && codecov
+                ./rebar3 codecov analyze
+                codecov --disable=gcov --env PRESET
+          - run:
+              name: Build Failed - Logs
+              when: on_fail
+              command: |
+                echo "Failure!"
+                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+          - run:
+              name: Upload results
+              when: always
+              command: |
+                  tools/circleci-prepare-log-dir.sh
+                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+      docker_image:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package installed
+        environment:
+        steps:
+          - checkout
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Execute Docker image build and upload
+              command: tools/circle-build-and-push-docker.sh
+
+filters: &all_tags
+  tags:
+    only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      # ============= PACKAGES =============
+      - mim/package:
+          name: centos7
+          platform: centos7
+          context: mongooseim-org
+          filters: *all_tags
+      - mim/package:
+          name: debian_stretch
+          platform: debian_stretch
+          context: mongooseim-org
+          filters: *all_tags
+      # ============= BASE BUILDS =============
+      - mim/build:
+          name: otp_21_3
+          otp_package: 1:21.3.8.6-1
+          context: mongooseim-org
+          filters: *all_tags
+      - mim/build:
+          name: otp_22
+          otp_package: 1:22.1.8-1
+          build_prod: true
+          context: mongooseim-org
+          filters: *all_tags
+      # ============= SMALL TESTS =============
+      - mim/small_tests:
+          name: small_tests_21_3
+          otp_package: 1:21.3.8.6-1
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+          filters: *all_tags
+      - mim/small_tests:
+          name: small_tests_22
+          otp_package: 1:22.1.8-1
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      # ============= DIALYZER =============
+      - mim/dialyzer:
+          name: dialyzer
+          otp_package: 1:22.1.8-1
+          context: mongooseim-org
+          filters: *all_tags
+      # ============= MOST RECENT VERSION TESTS =============
+      - mim/big_tests:
+          name: mysql_redis
+          otp_package: 1:22.1.8-1
+          preset: mysql_redis
+          db: mysql
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp_package: 1:22.1.8-1
+          preset: odbc_mssql_mnesia
+          db: mssql
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      - mim/big_tests:
+          name: internal_mnesia
+          otp_package: 1:22.1.8-1
+          preset: internal_mnesia
+          db: mnesia
+          tls_dist: true
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      - mim/big_tests:
+          name: elasticsearch_and_cassandra
+          otp_package: 1:22.1.8-1
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      - mim/big_tests:
+          name: riak_mnesia
+          otp_package: 1:22.1.8-1
+          preset: riak_mnesia
+          db: riak
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      - mim/big_tests:
+          name: pgsql_mnesia
+          otp_package: 1:22.1.8-1
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
+      # ============= 1 VERSION OLDER TESTS =============
+      - mim/big_tests:
+          name: ldap_mnesia
+          otp_package: 1:21.3.8.6-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+          filters: *all_tags
+      # ============= DOCKER IMAGE BUILD & UPLOAD =============
+      - mim/docker_image:
+          name: docker_build_and_ship
+          context: mongooseim-org
+          otp_package: 1:22.1.8-1
+          requires:
+            - ldap_mnesia
+            - pgsql_mnesia
+            - riak_mnesia
+            - elasticsearch_and_cassandra
+            - internal_mnesia
+            - mysql_redis
+            - mssql_mnesia
+            - dialyzer
+            - small_tests_22
+            - small_tests_21_3
+          filters: *all_tags

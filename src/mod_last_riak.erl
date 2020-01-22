@@ -8,6 +8,7 @@
 %%% MongooseIM, Copyright (C) 2014      Erlang Solutions Ltd.
 %%%
 %%%----------------------------------------------------------------------
+
 %%% @doc Riak backend for last activity XEP
 %%%
 %%% The backend uses the existing riak connection pool, which is "globally" defined in
@@ -15,20 +16,22 @@
 %%% function.
 %%%
 %%% The module follows the approach taken by the other riak backends - it creates
-%%% the following bucket {<<"last">>, <<"example.com">>} for each xmpp domain.
-%%% The <<"last">> bucket type has the following props :'{"props":{"last_write_wins":true}}'
+%%% the following bucket `{<<"last">>, <<"example.com">>}' for each xmpp domain.
+%%% The `<<"last">>' bucket type has the following props: `{"props":{"last_write_wins":true}}'
 %%%
 %%% Basically, there are 3 operations the backend need to provide set/get and count
 %%% the number of users which has been active since given date. However, the count
-%%% query can be only called using mongooseimctl.
+%%% query can be only called using `mongooseimctl'.
 %%%
 %%% Username is used as a key and the value is just a user status, which is just
 %%% a binary. Moreover, we have a secondary integer index on the timestamp, which
 %%% is used in the count active users query.
 %%%
+%%% ```
 %%% Data Layout:
 %%% KV: {Username:binary, Status:binary}
 %%% 2i: [Timestamp:integer]
+%%% '''
 %%%
 %%% Set/Get are rather simple operations - they map to riak's put/get functions.
 %%% The count query uses mapred task to calculate the number of users satisfying
@@ -39,7 +42,7 @@
 %%%
 %%% The pros and cons of the both approaches have been discussed here:
 %%% https://github.com/esl/MongooseIM/pull/567
-
+%%% @end
 -module(mod_last_riak).
 
 -behaviour(mod_last).
@@ -98,7 +101,8 @@ set_last_info(LUser, LServer, Timestamp, Status) ->
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser).
 
-bucket_type(LServer) -> {<<"last">>, LServer}.
+bucket_type(LServer) ->
+    {gen_mod:get_module_opt(LServer, mod_last, bucket_type, <<"last">>), LServer}.
 
 -spec infinity() -> non_neg_integer().
 infinity() ->

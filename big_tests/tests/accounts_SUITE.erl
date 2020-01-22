@@ -176,7 +176,7 @@ admin_notify(Config) ->
 
 
 null_password(Config) ->
-    [{alice, Details}] = escalus_users:get_users([alice]),
+    Details = escalus_fresh:freshen_spec(Config, alice),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, <<>>})},
     {error, _, Response} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, Response),

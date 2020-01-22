@@ -19,6 +19,7 @@
 -module(mod_jingle_sip).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include_lib("nksip/include/nksip.hrl").
 -include_lib("nksip/include/nksip_call.hrl").
@@ -147,10 +148,10 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
     try
       Result = translate_to_sip(JingleAction, Jingle, Acc),
       route_result(Result, From, To, IQ)
-    catch Class:Error ->
+    catch Class:Error:StackTrace ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
             ?ERROR_MSG("error=~p, while translating to sip, class=~p, stack_trace=~p",
-                       [Class, Error, erlang:get_stacktrace()])
+                       [Class, Error, StackTrace])
     end,
     mongoose_acc:set(hook, result, drop, Acc);
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
@@ -319,7 +320,7 @@ terminate_session_on_other_devices(SID, Acc) ->
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"cancel">>}]},
     JingleEl = jingle_sip_helper:jingle_element(SID, <<"session-terminate">>, [ReasonEl]),
-    PResources = ejabberd_sm:get_user_present_resources(From#jid.luser, From#jid.lserver),
+    PResources = ejabberd_sm:get_user_present_resources(From),
     lists:foreach(
       fun({_, R}) when R /= Res ->
               ToJID = jid:replace_resource(From, R),

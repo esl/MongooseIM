@@ -4,8 +4,8 @@
 setup() ->
     meck:new(ejabberd_sm),
     meck:expect(ejabberd_sm, close_session,
-                fun(_SID, _User, _Server, _Resource, _Reason) -> ok end),
-    meck:expect(ejabberd_sm, open_session, fun(_, _, _, _, _) -> [] end),
+                fun(Acc, _SID, _JID, _Reason) -> Acc end),
+    meck:expect(ejabberd_sm, open_session, fun(_, _, _) -> [] end),
 
     meck:new(ejabberd_socket),
     meck:expect(ejabberd_socket, close,
@@ -49,7 +49,10 @@ setup() ->
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
 
     meck:new(mongoose_metrics),
-    meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end).
+    meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end),
+
+    meck:new(gen_mod),
+    meck:expect(gen_mod, is_loaded, fun (_, _) -> true end).
 
 
 teardown() ->

@@ -6,6 +6,7 @@
 -module(mod_revproxy).
 -behaviour(gen_mod).
 -behaviour(cowboy_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([compile/1]).

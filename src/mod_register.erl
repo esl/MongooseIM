@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 -xep([{xep, 77}, {version, "2.4"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -69,7 +70,7 @@ clean_opts(Opts) ->
     lists:map(fun clean_opt/1, Opts).
 
 clean_opt({registration_watchers, Watchers}) ->
-    CleanWatchers = lists:map(fun ejabberd_binary:string_to_binary/1, Watchers),
+    CleanWatchers = lists:map(fun mongoose_bin:string_to_binary/1, Watchers),
     {registration_watchers, CleanWatchers};
 clean_opt(Item) ->
     Item.
@@ -168,8 +169,8 @@ register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}
             error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
-attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el = Child} = IQ) ->
-    #jid{user = Username, lserver = UserDomain, resource = Resource} = ClientJID,
+attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
+    #jid{user = Username, lserver = UserDomain} = ClientJID,
     case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
@@ -181,7 +182,7 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
             ResIQ = IQ#iq{type = result, sub_el = []},
             ejabberd_router:route(
               jid:make(<<>>, <<>>, <<>>),
-              jid:make(Username, UserDomain, Resource),
+              ClientJID,
               jlib:iq_to_xml(ResIQ)),
             ejabberd_auth:remove_user(Username, UserDomain),
             ignore;
@@ -354,8 +355,7 @@ check_timeout(Source) ->
               end,
     case is_integer(Timeout) of
         true ->
-            {MSec, Sec, _USec} = p1_time_compat:timestamp(),
-            Priority = -(MSec * 1000000 + Sec),
+            Priority = -(erlang:system_time(second)),
             CleanPriority = Priority + Timeout,
             F = fun() -> check_and_store_ip_entry(Source, Priority, CleanPriority) end,
 
@@ -476,7 +476,7 @@ parse_ip_netmask(IPStr, MaskStr) ->
 check_ip_access(_Source, []) ->
     allow;
 check_ip_access({User, Server, Resource}, IPAccess) ->
-    case ejabberd_sm:get_session_ip(User, Server, Resource) of
+    case ejabberd_sm:get_session_ip(jid:make(User, Server, Resource)) of
         {IPAddress, _PortNumber} -> check_ip_access(IPAddress, IPAccess);
         _ -> true
     end;

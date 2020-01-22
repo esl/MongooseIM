@@ -32,6 +32,24 @@ test_check_final_acc(#{ stanza := #{ type := <<"chat">> } } = Acc, _Jid, _From, 
 test_check_final_acc(Acc, _Jid, _From, _To, _El) ->
     Acc.
 
+save_my_jid(#{ stanza := #{ type := <<"chat">>} } = Acc, _State) ->
+    Me = mongoose_acc:get(c2s, origin_jid, Acc),
+    {_, Acc2} = cached_my_jid(Me, Acc),
+    Acc2;
+save_my_jid(Acc, _State) -> Acc.
+
+drop_if_jid_not_mine({F, T, #{ stanza := #{ type := <<"chat">> } } = Acc, P}) ->
+    %% since we are in filter_local_packet, means we are just about to deliver the message
+    %% sender-side processing is already completed and now we want the other guy values
+    case cached_my_jid(T, Acc) of
+        {T, Acc2} ->
+            {F, T, Acc2, P};
+        _ ->
+            drop
+    end;
+drop_if_jid_not_mine(X) ->
+    X.
+
 recreate_table() ->
     try ets:delete(test_message_index) catch _:_ -> ok end,
     ets:new(test_message_index, [named_table, public, {heir, whereis(ejabberd_c2s_sup), none}]).
@@ -53,3 +71,10 @@ alter_message({From, To, Acc, Packet}) ->
     PCh2 = lists:keyreplace(<<"body">>, 2, PCh, NewBody),
     {From, To, Acc, {xmlel, PName, PAttrs, PCh2}}.
 
+cached_my_jid(User, Acc) ->
+    case mongoose_acc:get(test, my_jid, undefined, Acc) of
+        undefined ->
+            {User, mongoose_acc:set(test, my_jid, User, Acc)};
+        Jid ->
+            {Jid, Acc}
+    end.

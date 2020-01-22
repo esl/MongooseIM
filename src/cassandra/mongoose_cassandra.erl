@@ -132,11 +132,7 @@ cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
 
 %% @doc Return timestamp in microseconds
 now_timestamp() ->
-    now_to_usec(os:timestamp()).
-
--spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
-now_to_usec({MSec, Sec, USec}) ->
-    (MSec*1000000 + Sec)*1000000 + USec.
+    os:system_time(microsecond).
 
 %% ====================================================================
 %% Internal functions

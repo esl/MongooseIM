@@ -30,7 +30,6 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
--define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -43,6 +42,7 @@
 all() ->
     [
      {group, session_replacement},
+     {group, security},
      %% these groups must be last, as they really... complicate configuration
      {group, fast_tls},
      {group, just_tls}
@@ -56,10 +56,13 @@ groups() ->
                             invalid_host,
                             invalid_stream_namespace,
                             deny_pre_xmpp_1_0_stream]},
-          {starttls, [], test_cases()},
+          {starttls, [], [should_fail_to_authenticate_without_starttls,
+                          should_not_send_other_features_with_starttls_required,
+                          auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
           {tls, [parallel], [auth_bind_pipelined_session,
-                             auth_bind_pipelined_auth_failure |
-                             generate_tls_vsn_tests() ++ cipher_test_cases()]},
+                             auth_bind_pipelined_auth_failure,
+                             should_pass_with_tlsv1_2
+                             | protocol_test_cases() ++ cipher_test_cases()]},
           {feature_order, [parallel], [stream_features_test,
                                        tls_authenticate,
                                        tls_compression_fail,
@@ -74,35 +77,42 @@ groups() ->
                                      same_resource_replaces_session,
                                      clean_close_of_replaced_session,
                                      replaced_session_cannot_terminate
-                                    ]}
+                                    ]},
+          {security, [], [
+                          return_proper_stream_error_if_service_is_not_hidden,
+                          close_connection_if_service_type_is_hidden
+                         ]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
 tls_groups()->
-    [{group, c2s_noproc},
-     {group, starttls},
+    [{group, starttls},
+     {group, c2s_noproc},
      {group, feature_order},
      {group, tls}].
 
-test_cases() ->
-    generate_tls_vsn_tests() ++
-    [should_fail_with_sslv3,
-     should_fail_to_authenticate_without_starttls,
-     should_not_send_other_features_with_starttls_required,
-     auth_bind_pipelined_starttls_skipped_error].
+protocol_test_cases() ->
+    [
+     should_fail_with_sslv3,
+     should_fail_with_tlsv1,
+     should_fail_with_tlsv1_1,
+     should_pass_with_tlsv1_2
+    ].
 
 cipher_test_cases() ->
     [
+     %% Server certificate is signed only with RSA for now, don't try to use ECDSA!
      clients_can_connect_with_advertised_ciphers,
-     'clients_can_connect_with_DHE-RSA-AES256-SHA',
-     'clients_can_connect_with_DHE-RSA-AES128-SHA',
-     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see mongooseim.cfg)
-     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'
+     % String cipher
+     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
+     %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
+     %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
+     %%      exclusively with just_tls on alternative port
+     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
     ].
 
-
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -126,6 +136,12 @@ init_per_group(c2s_noproc, Config) ->
                              fun mk_value_for_starttls_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
+init_per_group(session_replacement, Config) ->
+    config_ejabberd_node_tls(Config,
+                             fun mk_value_for_starttls_config_pattern/0),
+    ejabberd_node_utils:restart_application(mongooseim),
+    lager_ct_backend:start(),
+    Config;
 init_per_group(starttls, Config) ->
     config_ejabberd_node_tls(Config,
                              fun mk_value_for_starttls_required_config_pattern/0),
@@ -139,21 +155,16 @@ init_per_group(tls, Config) ->
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
-    [{c2s_port, 5222} | Config2];
+    [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(just_tls,Config)->
-    case catch list_to_integer(erlang:system_info(otp_release)) of
-        I when is_integer(I) andalso I>=19 ->
-            [{tls_module, just_tls} | Config];
-        _ -> {skip,"just_tls backend is supported only since OTP19"}
-    end;
+    [{tls_module, just_tls} | Config];
 init_per_group(fast_tls,Config)->
     [{tls_module, fast_tls} | Config];
 init_per_group(session_replacement, Config) ->
-    lager_ct_backend:start(),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -164,6 +175,10 @@ end_per_group(session_replacement, Config) ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
+    OptName = {hide_service_name, <<"localhost">>},
+    mongoose_helper:successful_rpc(ejabberd_config, add_local_option, [OptName, true]),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     S = escalus_users:get_server(Config, alice),
     OptKey = {replaced_wait_timeout, S},
@@ -172,16 +187,16 @@ init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
+    OptName = {hide_service_name, <<"localhost">>},
+    mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [OptName]),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     {_, OptKey} = lists:keyfind(opt_to_del, 1, Config),
     {atomic, _} = rpc(mim(), ejabberd_config, del_local_option, [OptKey]),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
-
-generate_tls_vsn_tests() ->
-    [list_to_existing_atom("should_pass_with_" ++ VSN)
-     || VSN <- ?TLS_VERSIONS].
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -234,31 +249,35 @@ deny_pre_xmpp_1_0_stream(Config) ->
     escalus_connection:stop(Conn).
 
 should_fail_with_sslv3(Config) ->
+    should_fail_with(Config, sslv3).
+
+should_fail_with_tlsv1(Config) ->
+    should_fail_with(Config, tlsv1).
+
+should_fail_with_tlsv1_1(Config) ->
+    should_fail_with(Config, 'tlsv1.1').
+
+should_fail_with(Config, Protocol) ->
+    %% Connection process is spawned with a link so besides the crash itself,
+    %%   we will receive an exit signal. We don't want to terminate the test due to this.
+    %% TODO: Investigate if this behaviour is not a ticking bomb which may affect other test cases.
+    process_flag(trap_exit, true),
     %% GIVEN
     UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
-    UserSpec1 = set_secure_connection_protocol(UserSpec0, sslv3),
+    UserSpec1 = set_secure_connection_protocol(UserSpec0, Protocol),
     %% WHEN
     try escalus_connection:start(UserSpec1) of
     %% THEN
         _ ->
-            error(client_connected_using_sslv3)
+            error({client_connected, Protocol})
     catch
-        error:_ ->
+        _C:_R ->
             ok
     end.
 
-should_pass_with_tlsv1(Config) ->
-    should_pass_with_tls(tlsv1, Config).
-
-'should_pass_with_tlsv1.1'(Config) ->
-    should_pass_with_tls('tlsv1.1', Config).
-
-'should_pass_with_tlsv1.2'(Config) ->
-    should_pass_with_tls('tlsv1.2', Config).
-
-should_pass_with_tls(Version, Config)->
+should_pass_with_tlsv1_2(Config) ->
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
+    UserSpec1 = set_secure_connection_protocol(UserSpec0, 'tlsv1.2'),
 
     %% WHEN
     Result = escalus_connection:start(UserSpec1),
@@ -298,26 +317,22 @@ should_not_send_other_features_with_starttls_required(Config) ->
 clients_can_connect_with_advertised_ciphers(Config) ->
     ?assert(length(ciphers_working_with_ssl_clients(Config)) > 0).
 
-'clients_can_connect_with_DHE-RSA-AES256-SHA'(Config) ->
-    ?assert(lists:member("DHE-RSA-AES256-SHA",
+'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384'(Config) ->
+    
+    ?assert(lists:member("ECDHE-RSA-AES256-GCM-SHA384",
                          ciphers_working_with_ssl_clients(Config))).
 
-'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
+'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'(Config) ->
     Port = case ?config(tls_module, Config) of
-               just_tls -> 5263; %mim3 secondary_c2s port
-               fast_tls -> 5233  %mim2 secondary_c2s port
+               just_tls -> ct:get_config({hosts, mim3, c2s_tls_port});
+               fast_tls -> ct:get_config({hosts, mim2, c2s_tls_port})
            end,
     Config1 = [{c2s_port, Port} | Config],
-    CiphersStr = os:cmd("openssl ciphers 'DHE-RSA-AES256-SHA'"),
+    CiphersStr = os:cmd("openssl ciphers 'ECDHE-RSA-AES256-GCM-SHA384'"),
     ct:pal("Available cipher suites for : ~s", [CiphersStr]),
     ct:pal("Openssl version: ~s", [os:cmd("openssl version")]),
-    ?assertEqual(["DHE-RSA-AES256-SHA"],
+    ?assertEqual(["ECDHE-RSA-AES256-GCM-SHA384"],
                  ciphers_working_with_ssl_clients(Config1)).
-
-'clients_can_connect_with_DHE-RSA-AES128-SHA'(Config) ->
-    ?assert(lists:member("DHE-RSA-AES128-SHA",
-                         ciphers_working_with_ssl_clients(Config))).
-
 
 reset_stream_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
@@ -401,7 +416,7 @@ compress_noproc(Config) ->
     end,
     ok.
 
-%% Tests featuress advertisement
+%% Tests features advertisement
 stream_features_test(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
     List = [start_stream, stream_features, {?MODULE, verify_features}],
@@ -617,13 +632,45 @@ replaced_session_cannot_terminate(Config) ->
 
     escalus_connection:stop(Alice2).
 
+return_proper_stream_error_if_service_is_not_hidden(_Config) ->
+    % GIVEN MongooseIM is running default configuration
+    % WHEN we send non-XMPP payload
+    % THEN the server replies with stream error xml-not-well-formed and closes the connection
+    SendMalformedDataStep = fun(Client, Features) ->
+                                    escalus_connection:send_raw(Client, <<"malformed">>),
+                                    {Client, Features}
+                            end,
+    {ok, Connection, _} = escalus_connection:start([], [SendMalformedDataStep]),
+    escalus_connection:receive_stanza(Connection, #{ assert => is_stream_start }),
+    StreamErrorAssertion = {is_stream_error, [<<"xml-not-well-formed">>, <<>>]},
+    escalus_connection:receive_stanza(Connection, #{ assert => StreamErrorAssertion }),
+    %% Sometimes escalus needs a moment to report the connection as closed
+    escalus_connection:wait_for_close(Connection, 5000).
+
+close_connection_if_service_type_is_hidden(_Config) ->
+    % GIVEN the option to hide service name is enabled
+    % WHEN we send non-XMPP payload
+    % THEN connection is closed without any response from the server
+    FailIfAnyDataReturned = fun(Reply) ->
+                                    ct:fail({unexpected_data, Reply})
+                            end,
+    Connection = escalus_tcp:connect(#{ on_reply => FailIfAnyDataReturned }),
+    Ref = monitor(process, Connection),
+    escalus_tcp:send(Connection, <<"malformed">>),
+    receive
+        {'DOWN', Ref, _, _, _} -> ok
+    after
+        5000 ->
+            ct:fail(connection_not_closed)
+    end.
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
 
 c2s_port(Config) ->
     case ?config(c2s_port, Config) of
-        undefined -> 5223;
+        undefined -> ct:get_config({hosts, mim, c2s_tls_port});
         Value -> Value
     end.
 

@@ -10,6 +10,7 @@
 
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
+-behaviour(mongoose_module_metrics).
 
 -callback should_make_req(Acc :: mongoose_acc:t(),
                           Dir :: in | out,

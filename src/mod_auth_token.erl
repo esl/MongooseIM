@@ -1,6 +1,7 @@
 -module(mod_auth_token).
 
--behavior(gen_mod).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
@@ -36,6 +37,8 @@
          get_key_for_user/2,
          token_with_mac/1]).
 
+-export([config_metrics/1]).
+
 -export_type([period/0,
               sequence_no/0,
               token/0,
@@ -62,7 +65,6 @@
       Owner :: jid:jid().
 
 -define(A2B(A), atom_to_binary(A, utf8)).
--define(B2A(B), binary_to_atom(B, utf8)).
 
 -define(I2B(I), integer_to_binary(I)).
 -define(B2I(B), binary_to_integer(B)).
@@ -299,8 +301,8 @@ token(Type, User) ->
                                T#token{sequence_no = ValidSeqNo}
                        end)
     catch
-        E:R -> ?ERROR_MSG("error creating token sequence number ~p~nstacktrace: ~p",
-                          [{E, R}, erlang:get_stacktrace()]),
+        E:R:S -> ?ERROR_MSG("error creating token sequence number ~p~nstacktrace: ~p",
+                            [{E, R}, S]),
                {error, {E, R}}
     end.
 
@@ -348,7 +350,7 @@ default_validity_period(refresh) -> {25, days}.
       Token :: token().
 get_token_as_record(BToken) ->
     [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
-    T = #token{type = ?B2A(BType),
+    T = #token{type = decode_token_type(BType),
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
                user_jid = jid:from_binary(User)},
     T1 = case {BType, Rest} of
@@ -363,6 +365,14 @@ get_token_as_record(BToken) ->
                          mac_signature = base16:decode(BMAC)}
          end,
     T1#token{token_body = join_fields(T1)}.
+
+-spec decode_token_type(binary()) -> token_type().
+decode_token_type(<<"access">>) ->
+    access;
+decode_token_type(<<"refresh">>) ->
+    refresh;
+decode_token_type(<<"provision">>) ->
+    provision.
 
 -spec get_key_for_user(token_type(), jid:jid()) -> binary().
 get_key_for_user(TokenType, User) ->
@@ -404,3 +414,7 @@ clean_tokens(Acc, User, Server) ->
                ok
     end,
     Acc.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

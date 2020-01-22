@@ -483,7 +483,7 @@ normal_state({route, From, Nick, _Acc,
              StateData) ->
     % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     MinPresenceInterval =
     trunc(gen_mod:get_module_opt(StateData#state.server_host,
                                  mod_muc, min_presence_interval, 0) * 1000000),
@@ -1550,7 +1550,7 @@ store_user_activity(JID, UserActivity, StateData) ->
       StateData#state.server_host,
       mod_muc, min_presence_interval, 0),
     Key = jid:to_lower(JID),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     Activity1 = clean_treap(StateData#state.activity, {1, -Now}),
     Activity =
     case treap:lookup(Key, Activity1) of
@@ -2412,11 +2412,6 @@ send_invitation(From, To, Reason, StateData=#state{host=Host,
     end,
     Packet = jlib:make_invitation(jid:to_bare(From), Password, Reason),
     ejabberd_router:route(RoomJID, To, Packet).
-
-
--spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
-now_to_usec({MSec, Sec, USec}) ->
-    (MSec*1000000 + Sec)*1000000 + USec.
 
 
 -spec change_nick(jid:jid(), binary(), state()) -> state().
@@ -3371,7 +3366,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     IsNameAccepted and IsDescAccepted.
 
 %% @doc Return false if:
-%% <<"the password for a password-protected room is blank">>
+%% `<<"the password for a password-protected room is blank">>'
 -spec is_password_settings_correct(exml:element(), state()) -> boolean().
 is_password_settings_correct(XEl, StateData) ->
     Config = StateData#state.config,
@@ -3734,7 +3729,7 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
-            ?SET_XOPT(maygetmemberlist, [binary_to_existing_atom(V, latin1) || V <- Val])
+            ?SET_XOPT(maygetmemberlist, [binary_to_role(V) || V <- Val])
     end;
 set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(logging, Val);
@@ -4413,7 +4408,7 @@ element_size(El) ->
 route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                               from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     MinMessageInterval = trunc(gen_mod:get_module_opt(StateData#state.server_host,
                                                       mod_muc, min_message_interval, 0) * 1000000),
     Size = element_size(Packet),

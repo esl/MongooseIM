@@ -100,7 +100,7 @@ Each flat option key starts with an option type:
 {[l,listener_opt,{8189,{127,0,0,1},tcp},ejabberd_service,password],"secret"}.
 {[l,all_metrics_are_global],false}.
 {[l,s2s_certfile],"priv/ssl/fake_server.pem"}.
-{[l,node_start],{1530,15976,143119}}.
+{[l,node_start],{node_start,143119}}.
 {[l,rdbms_pools],[]}.
 {[l,registration_timeout],infinity}.
 {[l,outgoing_s2s_port],5299}.

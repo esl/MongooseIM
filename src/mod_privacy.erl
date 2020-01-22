@@ -29,6 +29,7 @@
 -xep([{xep, 16}, {version, "1.6"}]).
 -xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -36,9 +37,10 @@
          process_iq_get/5,
          get_user_list/3,
          check_packet/6,
-         remove_user/2,
          remove_user/3,
          updated_list/3]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -416,15 +418,11 @@ is_type_match(group, Value, _JID, _Subscription, Groups) ->
     lists:member(Value, Groups).
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_privacy_backend:remove_user(LUser, LServer).
-
+    R = mod_privacy_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 updated_list(_, #userlist{name = SameName}, #userlist{name = SameName} = New) -> New;
 updated_list(_, Old, _) -> Old.
@@ -694,3 +692,6 @@ roster_get_jid_info(Host, User, Server, LJID) ->
         {none, []},
         [User, Server, LJID]).
 
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

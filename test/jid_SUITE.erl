@@ -26,7 +26,7 @@ all() -> [
          ].
 
 init_per_suite(C) ->
-    application:start(stringprep),
+    {ok, _} = application:ensure_all_started(stringprep),
     C.
 
 end_per_suite(C) ->
@@ -140,3 +140,91 @@ compare_bare_jids(_) ->
                     equals(jid:are_equal(jid:to_bare(AA), jid:to_bare(BB)),
                            jid:are_bare_equal(AA, BB))
                  end)).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Original code kept for documentation purposes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Some property based testing to check for equivalence
+prop_to() ->
+    ?FORALL(L, binary(), from_binary(L) =:= jid:from_binary(L)).
+
+prop_from() ->
+    ?FORALL(L, from_jid_gen(), to_binary(L) =:= jid:to_binary(L)).
+
+from_jid_gen() ->
+    oneof([
+            {jid_gen:username(), jid_gen:domain(), jid_gen:resource()},
+            {<<>>, jid_gen:domain(), jid_gen:resource()},
+            {jid_gen:username(), jid_gen:domain()},
+            {jid, jid_gen:username(), jid_gen:domain(), jid_gen:resource(),
+             jid_gen:username(), jid_gen:domain(), jid_gen:resource()}
+          ]).
+
+% Original code
+-spec from_binary(binary()) ->  error  | jid:jid().
+from_binary(J) ->
+    binary_to_jid1(J, []).
+
+-spec binary_to_jid1(binary(), [byte()]) -> 'error' | jid:jid().
+binary_to_jid1(<<$@, _J/binary>>, []) ->
+    error;
+binary_to_jid1(<<$@, J/binary>>, N) ->
+    binary_to_jid2(J, lists:reverse(N), []);
+binary_to_jid1(<<$/, _J/binary>>, []) ->
+    error;
+binary_to_jid1(<<$/, J/binary>>, N) ->
+    binary_to_jid3(J, [], lists:reverse(N), []);
+binary_to_jid1(<<C, J/binary>>, N) ->
+    binary_to_jid1(J, [C | N]);
+binary_to_jid1(<<>>, []) ->
+    error;
+binary_to_jid1(<<>>, N) ->
+    jid:make(<<>>, list_to_binary(lists:reverse(N)), <<>>).
+
+%% @doc Only one "@" is admitted per JID
+-spec binary_to_jid2(binary(), [byte()], [byte()]) -> 'error' | jid:jid().
+binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
+    error;
+binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
+    error;
+binary_to_jid2(<<$/, J/binary>>, N, S) ->
+    binary_to_jid3(J, N, lists:reverse(S), []);
+binary_to_jid2(<<C, J/binary>>, N, S) ->
+    binary_to_jid2(J, N, [C | S]);
+binary_to_jid2(<<>>, _N, []) ->
+    error;
+binary_to_jid2(<<>>, N, S) ->
+    jid:make(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
+
+-spec binary_to_jid3(binary(), [byte()], [byte()], [byte()]) -> 'error' | jid:jid().
+binary_to_jid3(<<C, J/binary>>, N, S, R) ->
+    binary_to_jid3(J, N, S, [C | R]);
+binary_to_jid3(<<>>, N, S, R) ->
+    jid:make(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
+
+-spec to_binary(jid:simple_jid() | jid:simple_bare_jid() | jid:jid()) ->  binary().
+to_binary(Jid) when is_binary(Jid) ->
+    % sometimes it is used to format error messages
+    Jid;
+to_binary(#jid{user = User, server = Server, resource = Resource}) ->
+    to_binary({User, Server, Resource});
+to_binary({User, Server}) ->
+    to_binary({User, Server, <<>>});
+to_binary({Node, Server, Resource}) ->
+    S1 = case Node of
+             <<>> ->
+                 <<>>;
+             _ ->
+                 <<Node/binary, "@">>
+         end,
+    S2 = <<S1/binary, Server/binary>>,
+    S3 = case Resource of
+             <<>> ->
+                 S2;
+             _ ->
+                 <<S2/binary, "/", Resource/binary>>
+         end,
+    S3.

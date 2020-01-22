@@ -13,6 +13,9 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_cache_user).
 
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 %% gen_mod handlers
 -export([start/2, stop/1]).
 

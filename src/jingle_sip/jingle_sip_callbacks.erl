@@ -47,8 +47,7 @@
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
                          [Class, Reason, StackTrace]),
             {error, request_not_parsable}
@@ -57,8 +56,7 @@ sip_invite(Req, Call) ->
 sip_reinvite(Req, Call) ->
     try
         sip_reinvite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch Class:Reason:StackTrace ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
                          [Class, Reason, StackTrace]),
             {error, request_not_parsable}
@@ -204,11 +202,11 @@ sip_dialog_update(_, _, _) ->
 %% @doc
 %% This function is called for every response to the SIP INVITE
 %% SIP response contains the same headers as request
-%% That's why we need to switch `from` and `to` when preparing and routing Jingle
+%% That's why we need to switch `from' and `to' when preparing and routing Jingle
 %% to the request originator
 %% interpreted status codes:
-%% * 180 and 183 - provisional respons - we can send `ringing` session-info
-%% * 200 - the invite was accepted we can sent `session-accepted` stanza
+%% * 180 and 183 - provisional respons - we can send `ringing' session-info
+%% * 200 - the invite was accepted we can sent `session-accepted' stanza
 %% * 487 - this is to confirm INVITE cancelation from the other side (no action in this case)
 %% * 603 - used to decline the INVITE by the reciving side
 %% * all error responses between 400 and 700 result in genering session-terminate reason
@@ -292,7 +290,7 @@ send_ringing_session_info(SIPMsg) ->
     mod_jingle_sip_backend:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
 
     RingingEl = #xmlel{name = <<"ringing">>,
-                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1:info">>}]},
+                       attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:info:1">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -328,7 +326,7 @@ make_session_terminate_reason_el(ErrorCode, #sipmsg{class = {resp, ErrorCode, Bi
            children = [Reason, Details]}.
 
 maybe_route_to_all_sessions(From, To, Acc, Packet) ->
-    PResources = ejabberd_sm:get_user_present_resources(To#jid.luser, To#jid.lserver),
+    PResources = ejabberd_sm:get_user_present_resources(To),
     lists:foreach(
       fun({_, R}) ->
               ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)

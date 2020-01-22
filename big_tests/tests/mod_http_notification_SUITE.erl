@@ -18,6 +18,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -40,14 +42,14 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 set_worker(Config) ->
-    set_modules(Config, [{worker_timeout, 500}, {host, "http://localhost:8000"}]).
+    set_modules(Config, [{worker_timeout, 500}, {host, http_notifications_host()}]).
 
 set_worker(Config, Prefix) ->
-    set_modules(Config, [{worker_timeout, 500}, {host, "http://localhost:8000"}, {path, Prefix}]).
+    set_modules(Config, [{worker_timeout, 500}, {host, http_notifications_host()}, {path, Prefix}]).
 
 set_modules(Config0, Opts) ->
     Config = dynamic_modules:save_modules(host(), Config0),
-    HTTPOpts = [{server, "http://localhost:8000"}],
+    HTTPOpts = [{server, http_notifications_host()}],
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
                                  [[{http, global, http_pool, PoolOpts, HTTPOpts}]]),
@@ -84,14 +86,14 @@ end_per_testcase(CaseName, Config) ->
 
 start_http_listener(simple_message, Prefix) ->
     Pid = self(),
-    http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end);
+    http_helper:start(http_notifications_port(), Prefix, fun(Req) -> process_notification(Req, Pid) end);
 start_http_listener(simple_message_no_listener, _) ->
     ok;
 start_http_listener(simple_message_failing_listener, Prefix) ->
-    http_helper:start(8000, Prefix, fun(Req) -> Req end);
+    http_helper:start(http_notifications_port(), Prefix, fun(Req) -> Req end);
 start_http_listener(proper_http_message_encode_decode, Prefix) ->
     Pid = self(),
-    http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end).
+    http_helper:start(http_notifications_port(), Prefix, fun(Req) -> process_notification(Req, Pid) end).
 
 process_notification(Req, Pid) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),

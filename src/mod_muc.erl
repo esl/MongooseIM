@@ -30,6 +30,7 @@
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start_link/2,
@@ -65,6 +66,8 @@
 %% Stats
 -export([online_rooms_number/0]).
 -export([hibernated_rooms_number/0]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -926,13 +929,13 @@ xfield(Type, Label, Var, Val, Lang) ->
 %% @doc Get a pseudo unique Room Name. The Room Name is generated as a hash of
 %%      the requester JID, the local time and a random salt.
 %%
-%%      <<"pseudo">> because we don't verify that there is not a room
-%%       with the returned Name already created, nor mark the generated Name
-%%       as <<"already used">>.  But in practice, it is unique enough. See
-%%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
+%%      `<<"pseudo">>' because we don't verify that there is not a room
+%%      with the returned Name already created, nor mark the generated Name
+%%      as `<<"already used">>'.  But in practice, it is unique enough. See
+%%      http://xmpp.org/extensions/xep-0045.html#createroom-unique
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
-        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
+        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, erlang:unique_integer(),
                                                          mongoose_bin:gen_from_crypto()]))}.
 
 
@@ -1189,3 +1192,7 @@ ensure_metrics(_Host) ->
     mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

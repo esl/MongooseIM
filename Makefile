@@ -48,6 +48,9 @@ etc/mongooseim.cfg:
 
 devrel: $(DEVNODES)
 
+print_devnodes:
+	@echo $(DEVNODES)
+
 $(DEVNODES): certs configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
@@ -56,15 +59,11 @@ $(DEVNODES): certs configure.out rel/vars.config
 certs:
 	cd tools/ssl && $(MAKE)
 
-xeplist: escript
+xeplist:
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)
 
 install: configure.out rel
 	@. ./configure.out && tools/install
 
-cover_report: /tmp/mongoose_combined.coverdata
-	$(RUN) erl -noshell -pa _build/default/lib/*/ebin \
-			-eval 'ecoveralls:travis_ci("$?"), init:stop()'
-
 elvis:
-	rebar3 as lint lint
+	$(REBAR) as lint lint

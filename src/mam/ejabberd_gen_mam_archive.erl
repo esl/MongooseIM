@@ -14,10 +14,16 @@
                           Params :: map()) -> Result when
       Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
--callback remove_archive(Acc :: map(), Host :: jid:server(),
-    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid()) -> map().
+-callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), jid:jid()) -> mam_pm_gdpr_data().
 
--type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.
+-callback get_mam_muc_gdpr_data(mam_muc_gdpr_data(), jid:jid()) -> mam_muc_gdpr_data().
 
--export_type([purge_single_message_result/0]).
+-optional_callbacks([get_mam_pm_gdpr_data/2,
+                     get_mam_muc_gdpr_data/2]).
+
+-type mam_pm_gdpr_data() :: [{MessageID :: bitstring(), FromJID :: bitstring(), Message :: bitstring()}].
+
+-type mam_muc_gdpr_data() :: [{MessageID :: bitstring(), Message :: bitstring()}].
+
+-export_type([mam_pm_gdpr_data/0, mam_muc_gdpr_data/0]).
 

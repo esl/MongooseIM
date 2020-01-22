@@ -5,7 +5,7 @@ If you want to use BOSH, you must enable it both in the `listen` section of `mon
 
 ### Options
 
-* `inactivity` (positive integer or `infinity`, default: 30): Maxmimum allowed inactivity time for a BOSH connection. Please note that a long-polling request is not considered to be an inactivity.
+* `inactivity` (positive integer or `infinity`, default: 30): Maximum allowed inactivity time for a BOSH connection. Please note that a long-polling request is not considered to be an inactivity.
 * `max_wait` (positive integer or `infinity`, default: `infinity`): This is the longest time (in seconds) that the connection manager will wait before responding to any request during the session.
 * `server_acks` (boolean, default: `false`): Enables/disables [acks](http://xmpp.org/extensions/xep-0124.html#ack-request) sent by server.
 * `backend` (atom, default: `mnesia`): Backend used for storing BOSH session data. `mnesia` is the only supported value.

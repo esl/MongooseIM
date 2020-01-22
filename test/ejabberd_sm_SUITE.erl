@@ -4,6 +4,7 @@
 
 -include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
+-include("jid.hrl").
 -include_lib("session.hrl").
 -compile([export_all]).
 
@@ -44,7 +45,7 @@ tests() ->
      get_vh_session_list,
      get_sessions_2,
      get_sessions_3,
-     update_session,
+     session_is_updated_when_created_twice,
      delete_session,
      clean_up,
      too_much_sessions,
@@ -56,7 +57,9 @@ tests() ->
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
      kv_can_be_updated_for_session,
+     kv_can_be_removed_for_session,
      store_info_sends_message_to_the_session_owner,
+     remove_info_sends_message_to_the_session_owner,
      cannot_reproduce_race_condition_in_store_info
     ].
 
@@ -69,7 +72,7 @@ init_per_group(redis, Config) ->
 
 init_redis_group(true, Config) ->
     Self = self(),
-    spawn(fun() ->
+    proc_lib:spawn(fun() ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
@@ -78,7 +81,7 @@ init_redis_group(true, Config) ->
                   Self ! ready,
                   receive stop -> ok end
           end),
-    receive ready -> ok end,
+    receive ready -> ok after timer:seconds(30) -> ct:fail(test_helper_not_ready) end,
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
@@ -107,7 +110,7 @@ end_per_testcase(_, Config) ->
     Config.
 
 open_session(C) ->
-    {Sid, USR} =  generate_random_user(<<"localhost">>),
+    {Sid, USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR).
 
@@ -154,7 +157,7 @@ get_sessions_3(C) ->
     end,
     true = lists:all(F, UserRes).
 
-update_session(C) ->
+session_is_updated_when_created_twice(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
     verify_session_opened(C, Sid, USR),
@@ -207,8 +210,8 @@ kv_can_be_stored_for_session(C) ->
 
     when_session_info_stored(U, S, R, {key2, newval}),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
-     = ?B(C):get_sessions(U,S).
+    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}],
+                 ?B(C):get_sessions(U,S)).
 
 kv_can_be_updated_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -217,14 +220,33 @@ kv_can_be_updated_for_session(C) ->
     when_session_info_stored(U, S, R, {key2, newval}),
     when_session_info_stored(U, S, R, {key2, override}),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
+    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, override}]}],
+                 ?B(C):get_sessions(U, S)).
+
+kv_can_be_removed_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
+     = ?B(C):get_sessions(U, S),
+
+    when_session_info_removed(U, S, R, key2),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U, S),
+
+    when_session_info_removed(U, S, R, key1),
+
+    [#session{sid = Sid, info = []}]
      = ?B(C):get_sessions(U, S).
 
 cannot_reproduce_race_condition_in_store_info(C) ->
     ok = try_to_reproduce_race_condition(C).
 
 store_info_sends_message_to_the_session_owner(C) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
@@ -232,9 +254,12 @@ store_info_sends_message_to_the_session_owner(C) ->
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
-    spawn_link(fun() -> ejabberd_sm:store_info(U, S, R, {cc, undefined}) end),
+    JID = jid:make_noprep(U, S, R),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, {cc, undefined}) end),
     %% The original process receives a message
-    receive {store_session_info, User, Server, Resource, KV, _FromPid} ->
+    receive {store_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             KV, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
@@ -242,6 +267,30 @@ store_info_sends_message_to_the_session_owner(C) ->
         ok
         after 5000 ->
             ct:fail("store_info_sends_message_to_the_session_owner=timeout")
+    end.
+
+remove_info_sends_message_to_the_session_owner(C) ->
+    SID = {erlang:timestamp(), self()},
+    U = <<"alice2">>,
+    S = <<"localhost">>,
+    R = <<"res1">>,
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    %% Create session in one process
+    ?B(C):create_session(U, S, R, Session),
+    %% but call remove_info from another process
+    JID = jid:make_noprep(U, S, R),
+    spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
+    %% The original process receives a message
+    receive {remove_session_info,
+             #jid{luser = User, lserver = Server, lresource = Resource},
+             Key, _FromPid} ->
+        ?eq(U, User),
+        ?eq(S, Server),
+        ?eq(R, Resource),
+        ?eq(cc, Key),
+        ok
+        after 5000 ->
+            ct:fail("remove_info_sends_message_to_the_session_owner=timeout")
     end.
 
 delete_session(C) ->
@@ -276,7 +325,7 @@ ensure_empty(C, N, Sessions) ->
             ensure_empty(C, N-1, ?B(C):get_sessions())
     end.
 
-too_much_sessions(C) ->
+too_much_sessions(_C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
     UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
     {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
@@ -294,7 +343,7 @@ too_much_sessions(C) ->
 
 
 
-unique_count(C) ->
+unique_count(_C) ->
     UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     USDict = get_unique_us_dict(UsersWithManyResources),
@@ -327,7 +376,8 @@ set_test_case_meck(MaxUserSessions) ->
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
     meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end).
+    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
+    meck:expect(ejabberd_hooks, run_fold, fun(_, _, Acc, _) -> Acc end).
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
@@ -340,26 +390,33 @@ get_fun_for_unique_count(ejabberd_sm_mnesia) ->
     end;
 get_fun_for_unique_count(ejabberd_sm_redis) ->
     fun() ->
+        %% The code below is on purpose, it's to crash with badarg reason
         length({error, timeout})
     end.
 
 make_sid() ->
-    {p1_time_compat:timestamp(), self()}.
+    {erlang:timestamp(), self()}.
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
 
 given_session_opened(Sid, {U, S, R}, Priority) ->
-    given_session_opened(Sid, {U,S,R}, Priority, []).
+    given_session_opened(Sid, {U, S, R}, Priority, []).
 
-given_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
+given_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:open_session(Sid, JID, Priority, Info).
 
-when_session_opened(Sid, {U,S,R}, Priority, Info) ->
-    given_session_opened(Sid, {U,S,R}, Priority, Info).
+when_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    given_session_opened(Sid, {U, S, R}, Priority, Info).
 
 when_session_info_stored(U, S, R, {_,_}=KV) ->
-    ejabberd_sm:store_info(U, S, R, KV).
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:store_info(JID, KV).
+
+when_session_info_removed(U, S, R, Key) ->
+    JID = jid:make_noprep(U, S, R),
+    ejabberd_sm:remove_info(JID, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
@@ -454,11 +511,22 @@ n(Node) ->
 
 
 is_redis_running() ->
-    [] =/= os:cmd("ps aux | grep '[r]edis'").
-
+    case eredis:start_link() of
+        {ok, Client} ->
+            Result = eredis:q(Client, [<<"PING">>], 5000),
+            eredis:stop(Client),
+            case Result of
+                {ok,<<"PONG">>} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 try_to_reproduce_race_condition(Config) ->
-    SID = {p1_time_compat:timestamp(), self()},
+    SID = {erlang:timestamp(), self()},
     U = <<"alice">>,
     S = <<"localhost">>,
     R = <<"res1">>,
@@ -477,7 +545,7 @@ try_to_reproduce_race_condition(Config) ->
                             end),
     SetterPid = spawn_link(fun() ->
                                    receive start -> ok end,
-                                   ejabberd_sm:store_info(U, S, R, {cc, undefined}),
+                                   when_session_info_stored(U, S, R, {cc, undefined}),
                                    Parent ! p2_done
                            end),
     %% Step2 setup mocking for some ejabbers_sm_mnesia functions
@@ -533,7 +601,9 @@ set_meck(SMBackend) ->
         fun(sm_backend) -> SMBackend;
             (hosts) -> [<<"localhost">>] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_hooks, add, fun(_) -> ok end),
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
+
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     ok.

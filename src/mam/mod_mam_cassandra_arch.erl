@@ -7,6 +7,8 @@
 -module(mod_mam_cassandra_arch).
 -behaviour(mongoose_cassandra).
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -22,6 +24,9 @@
 
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0]).
+
+%gdpr
+-export([get_mam_pm_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -91,6 +96,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 stop_pm(Host) ->
@@ -103,6 +109,7 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -113,6 +120,7 @@ prepared_queries() ->
      {insert_offset_hint_query, insert_offset_hint_query_cql()},
      {prev_offset_query, prev_offset_query_cql()},
      {insert_query, insert_query_cql()},
+     {fetch_user_messages_query, fetch_user_messages_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
      {remove_archive_offsets_query, remove_archive_offsets_query_cql()}
@@ -126,10 +134,9 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 archive_size(Size, Host, _UserID, UserJID) when is_integer(Size) ->
-    PoolName = pool_name(UserJID),
     Borders = Start = End = WithJID = undefined,
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-    calc_count(PoolName, UserJID, Host, Filter).
+    calc_count(pool_name(), UserJID, Host, Filter).
 
 
 %% ----------------------------------------------------------------------
@@ -170,9 +177,8 @@ archive_message2(_Result, _Host, MessID,
     write_messages(LocJID, Messages).
 
 write_messages(UserJID, Messages) ->
-    PoolName = pool_name(UserJID),
     MultiParams = [message_to_params(M) || M <- Messages],
-    mongoose_cassandra:cql_write_async(PoolName, UserJID, ?MODULE, insert_query, MultiParams).
+    mongoose_cassandra:cql_write_async(pool_name(), UserJID, ?MODULE, insert_query, MultiParams).
 
 message_to_params(#mam_message{
                      id         = MessID,
@@ -197,12 +203,16 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
 
-remove_archive(Acc, _Host, _UserID, UserJID) ->
+remove_archive(Acc, Host, _UserID, UserJID) ->
+    remove_archive(Host, UserJID),
+    Acc.
+
+remove_archive(Host, UserJID) ->
+    ensure_params_loaded(Host),
+    PoolName = pool_name(),
     BUserJID = bare_jid(UserJID),
-    PoolName = pool_name(UserJID),
     Params = #{user_jid => BUserJID},
     %% Wait until deleted
-
     DeleteFun =
         fun(Rows, _AccIn) ->
                 mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE,
@@ -212,9 +222,7 @@ remove_archive(Acc, _Host, _UserID, UserJID) ->
         end,
 
     mongoose_cassandra:cql_foldl(PoolName, UserJID, ?MODULE,
-                                 select_for_removal_query, Params, DeleteFun, []),
-    Acc.
-
+                                 select_for_removal_query, Params, DeleteFun, []).
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
@@ -230,13 +238,11 @@ lookup_messages(_Result, Host,
                   search_text := undefined, page_size := PageSize,
                   is_simple := IsSimple}) ->
     try
-        PoolName = pool_name(UserJID),
-        lookup_messages2(PoolName, Host,
+        lookup_messages2(pool_name(), Host,
                          UserJID, RSM, Borders,
                          Start, End, WithJID,
                          PageSize, IsSimple)
-    catch _Type:Reason ->
-            S = erlang:get_stacktrace(),
+    catch _Type:Reason:S ->
             {error, {Reason, S}}
     end.
 
@@ -430,6 +436,18 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, JID) ->
+    BinJID = jid:to_binary(jid:to_lower(JID)),
+    FilterMap = #{user_jid => BinJID, with_jid => <<"">>},
+    Rows = fetch_user_messages(pool_name(), JID, FilterMap),
+    Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
+    Messages ++ Acc.
+
+rows_to_gdpr_mam_message(#{message := Data, id:= Id, from_jid:=FromJid}) ->
+    {Id, FromJid, exml:to_binary(stored_binary_to_packet(Data))}.
+
 %% Offset is not supported
 %% Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<"res1">>, <<binary>>}'.
@@ -455,6 +473,11 @@ extract_messages(PoolName, UserJID, _Host, Filter, IMax, true) ->
     Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     lists:reverse(Rows).
+
+fetch_user_messages(PoolName, UserJID, FilterMap) ->
+    QueryName = fetch_user_messages_query,
+    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, FilterMap),
+    Rows.
 
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
@@ -711,6 +734,12 @@ list_message_ids_cql(Filter) ->
         "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
         " ORDER BY id LIMIT ?".
 
+fetch_user_messages_cql() ->
+    "SELECT id, from_jid, message FROM mam_message "
+    "WHERE user_jid = ? AND with_jid = ? "
+    "ORDER BY id".
+
+
 
 %% ----------------------------------------------------------------------
 %% Optimizations
@@ -727,6 +756,14 @@ stored_binary_to_packet(Bin) ->
 
 %% ----------------------------------------------------------------------
 %% Dynamic params module
+
+ensure_params_loaded(Host) ->
+    case code:is_loaded(mod_mam_cassandra_arch_params) of
+        false ->
+            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+            compile_params_module(Params);
+        _ -> ok
+    end.
 
 %% compile_params_module([
 %%      {db_message_format, module()}
@@ -760,6 +797,7 @@ params_helper(Params) ->
 db_message_format() ->
     mod_mam_cassandra_arch_params:db_message_format().
 
--spec pool_name(jid:jid()) -> term().
-pool_name(_UserJid) ->
+-spec pool_name() -> term().
+pool_name() ->
     mod_mam_cassandra_arch_params:pool_name().
+

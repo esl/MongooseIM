@@ -155,15 +155,13 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
 set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
-    catch Type:Error ->
-            Stacktrace = erlang:get_stacktrace(),
+    catch Type:Error:StackTrace ->
             ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
-                       [Type, Error, Stacktrace]),
+                       [Type, Error, StackTrace]),
             {error, Error}
     end.
 
 set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    PoolName = pool_name(UserJID),
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     %% Force order of operations using timestamps
     %% http://stackoverflow.com/questions/30317877/cassandra-batch-statement-execution-order
@@ -176,7 +174,7 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     DelQuery = {del_prefs_ts_query, [DelParams]},
     SetQuery = {set_prefs_ts_query, MultiParams},
     Queries = [DelQuery, SetQuery],
-    Res = [mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, Query, Params)
+    Res = [mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, Query, Params)
            || {Query, Params} <- Queries],
     ?DEBUG("issue=set_prefs1, result=~p", [Res]),
     ok.
@@ -191,39 +189,36 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
                -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
-    PoolName = pool_name(UserJID),
     Params = #{user_jid => BUserJID},
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
+    {ok, Rows} = mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE,
                                              get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(any(), jid:server(), mod_mam:archive_id(),
-                     jid:jid()) -> any().
+-spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
+    mongoose_acc:t().
 remove_archive(Acc, _Host, _UserID, UserJID) ->
-    PoolName = pool_name(UserJID),
+    remove_archive(UserJID),
+    Acc.
+
+remove_archive(UserJID) ->
+    ensure_params_loaded(UserJID#jid.lserver),
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
     Params = #{'[timestamp]' => Now, user_jid => BUserJID},
-    mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, del_prefs_ts_query, [Params]),
-    Acc.
+    mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, del_prefs_ts_query, [Params]).
 
 
 -spec query_behaviour(jid:server(), UserJID :: jid:jid(), BUserJID :: binary() | string(),
                       BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
+query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID)
+  when BRemJID == BRemBareJID ->
+    Params = #{user_jid => BUserJID, remote_jid => BRemBareJID},
+    mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE, get_behaviour_bare_query, Params);
 query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
-    PoolName = pool_name(UserJID),
-    case BRemJID of
-        BRemBareJID ->
-            Params = #{user_jid => BUserJID, remote_jid => BRemBareJID},
-            mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                        get_behaviour_bare_query, Params);
-        _ ->
-            Params = #{user_jid => BUserJID, start_remote_jid => BRemJID,
-                       end_remote_jid => BRemBareJID},
-            mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                        get_behaviour_full_query, Params)
-    end.
+    Params = #{user_jid => BUserJID, start_remote_jid => BRemJID,
+               end_remote_jid => BRemBareJID},
+    mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE, get_behaviour_full_query, Params).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -263,6 +258,14 @@ decode_prefs_rows([#{remote_jid := JID, behaviour := <<"N">>} | Rows],
 %% ----------------------------------------------------------------------
 %% Dynamic params module
 
+ensure_params_loaded(Host) ->
+      case code:is_loaded(mod_mam_cassandra_prefs_params) of
+          false ->
+              Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+              compile_params_module(Params);
+          _ -> ok
+      end.
+
 compile_params_module(Params) ->
     CodeStr = params_helper(Params),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
@@ -276,6 +279,6 @@ params_helper(Params) ->
                                       [proplists:get_value(pool_name, Params, default)
                                       ]))).
 
--spec pool_name(jid:jid()) -> term().
-pool_name(_UserJID) ->
-    mod_mam_cassandra_prefs_params:pool_name().
+-spec pool_name() -> term().
+pool_name() -> mod_mam_cassandra_prefs_params:pool_name().
+

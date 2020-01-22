@@ -13,6 +13,7 @@ RIAK_PORT=${RIAK_PORT:-"8098"}
 RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
 RIAK_PASSWORD="${RIAK_PASSWORD:-mongooseim_secret}"
 RIAK_SECURITY=${RIAK_SECURITY:-"enabled"}
+SETUP_BUCKET_TYPES=${SETUP_BUCKET_TYPES:-true}
 
 RIAK_VCARD_SCHEMA_PATH=${RIAK_VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
 RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
@@ -39,28 +40,27 @@ curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_VCARD_SCHEMA_PATH}
 
-wait_for_http_status "200" $RIAK_HOST/search/schema/vcard
-
-echo "Creating vcard search index"
-curl -v -XPUT $RIAK_HOST/search/index/vcard \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"vcard"}'
-
-wait_for_http_status "200"  $RIAK_HOST/search/index/vcard
 
 echo "Creating mam schema"
 curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_MAM_SCHEMA_PATH}
 
-wait_for_http_status "200"  $RIAK_HOST/search/schema/mam
+wait_for_http_status "200" $RIAK_HOST/search/schema/vcard
+wait_for_http_status "200" $RIAK_HOST/search/schema/mam
+
+echo "Creating vcard search index"
+curl -v -XPUT $RIAK_HOST/search/index/vcard \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"vcard"}'
 
 echo "Creating mam index"
 curl -v -XPUT $RIAK_HOST/search/index/mam \
     -H 'Content-Type: application/json' \
     -d '{"schema":"mam"}'
 
-wait_for_http_status "200"  $RIAK_HOST/search/index/mam
+wait_for_http_status "200" $RIAK_HOST/search/index/vcard
+wait_for_http_status "200" $RIAK_HOST/search/index/mam
 
 # Allow to pass RIAK_ADMIN as an env variable.
 # Use riak-admin as a default command.
@@ -81,6 +81,7 @@ if [ "$RIAK_SECURITY" == "enabled" ]; then
     $RIAK_ADMIN security grant $RIAK_USER_PERMISSIONS on any to ejabberd
 fi
 
+if [ "$SETUP_BUCKET_TYPES" == "true" ]; then
 $RIAK_ADMIN bucket-type create users '{"props":{"datatype":"map"}}'
 $RIAK_ADMIN bucket-type activate users
 
@@ -113,6 +114,7 @@ $RIAK_ADMIN bucket-type activate privacy_lists_names
 
 $RIAK_ADMIN bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
 $RIAK_ADMIN bucket-type activate privacy_lists
+fi
 
 
 if [ "$RIAK_SECURITY" == "enabled" ]; then

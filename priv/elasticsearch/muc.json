@@ -8,6 +8,9 @@
 				"room": {
 					"type": "keyword"
 				},
+				"from_jid" : {
+					"type": "keyword"
+				},
 				"source_jid": {
 					"type": "keyword"
 				},

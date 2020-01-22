@@ -17,25 +17,35 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
+        - nohup ./tools/travis-pull-db.sh > travis-pull-db.log 2>&1 < /dev/null &
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
         # Always use git protocol for github - tiny optimization
         - git config --global url."git://github".insteadOf https://github
 install:
+        # Make full build for Cron builds
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_COMPILE"     || ./tools/cache-build.sh restore
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh restore
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_COMPILE"     || ./tools/cache-certs.sh restore
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
-        - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
           ## Certs are needed by some tests in small_tests
         - test 1 = "$SKIP_COMPILE" || make certs
-        - test 1 = "$SKIP_RELEASE" || make devrel
+        - test 1 = "$SKIP_RELEASE" || ./tools/build-releases.sh
         - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
         - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
+          # Update cache if needed and if build step succeded.
+        - test 1 = "$SKIP_COMPILE" || ./tools/cache-build.sh store
+        - test 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh store
+        - test 1 = "$SKIP_COMPILE" || ./tools/cache-certs.sh store
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then JUST_INSTALL=1 tools/travis-upload-to-gdrive.sh; fi
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
         - if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
 script:
-    - KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
+    - SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -44,17 +54,8 @@ after_failure:
         - tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
-after_success:
-        # env variables help to distinguish CI builds
-        # It takes less time without gcov
-        - test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
-        - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
-        - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
-        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
-            then tools/travis-build-and-push-docker.sh;
-          fi
-
 after_script:
+        - cat travis-pull-db.log
         # Upload logs to s3 for debugging
         - test 1 = "$SKIP_REPORT_UPLOAD" ||
             tools/travis-prepare-log-dir.sh
@@ -74,39 +75,35 @@ services:
 branches:
         only:
                 - master
-                - stable
                 - /^rel\-\d+\.\d+$/
                 - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
 otp_release:
-        - 19.3
+        - 22.0
+
 env:
   global:
     - RUN_SMALL_TESTS=false
   matrix:
       # When changing jobs, update EXAMPLES in tools/test-runner.sh
     - PRESET=small_tests RUN_SMALL_TESTS=true SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG="with-all" TLS_DIST=true
+    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG="with-odbc"
     - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis with-amqp_client"
-    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
-    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
+    - PRESET=riak_mnesia DB=riak REL_CONFIG="with-riak"
+    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG="with-none"
     - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
       REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
       ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
+    - PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
       # In case you want to test with another ODBC driver, uncomment this
       # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 
 
 matrix:
   include:
-    - otp_release: 21.1
-      env: PRESET=dialyzer_only
-           SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-    - otp_release: 20.0
-      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
-           RUN_SMALL_TESTS=true
-    - otp_release: 21.0
-      env: PRESET=riak_mnesia DB=riak REL_CONFIG="with-riak with-jingle-sip" RUN_SMALL_TESTS=true
+    - otp_release: 21.3
+      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql" RUN_SMALL_TESTS=true
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=centos7
            SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
@@ -120,18 +117,22 @@ notifications:
     webhooks:
         # trigger Buildtime Trend Service to parse Travis CI log
         - https://buildtimetrend.herokuapp.com/travis
-        - https://tide.erlang-solutions.com/api/travis_ci/events
     on_start: always
 
 cache:
         directories:
                 - $HOME/.cache/rebar3
+                - $HOME/.cache/mim_builds
+                - $HOME/.cache/mim_tests
+                - $HOME/.cache/mim_certs
+                - /tmp/go/bin
 
-deploy:
-  provider: releases
-  api-key: $GITHUB_TOKEN
-  skip_cleanup: true
-  file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
-  on:
-    tags: true
-    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
+
+# deploy:
+#   provider: releases
+#   api-key: $GITHUB_TOKEN
+#   skip_cleanup: true
+#   file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+#   on:
+#     tags: true
+#     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"

@@ -70,6 +70,7 @@ MongooseIM uses a dedicated data structure to accumulate data related to stanza 
 It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when stanza is leaving MongooseIM.
 
 If a Mongoose accumulator is passed to a hook, handlers should store their return values in one of 3 ways:
+
 * If it is a one-off value which doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:set(hook, result, Value, Acc)`.
 * If the value is to be passed on to be reused within the current processing context, use `mongoose_acc:set(Namespace, Key, Value, Acc)`.
 * If the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:set_permanent(Namespace, Key, Value, Acc)`.
@@ -94,7 +95,7 @@ This is deprecated and some day will be removed.
 ### Error handling in hooks
 
 Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
-Fro that reason hook don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
+For that reason hook don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
 
 In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with unmodified accumulator.
 If there is no handlers registered for a given hook, the `run_fold` call has simply no effect.

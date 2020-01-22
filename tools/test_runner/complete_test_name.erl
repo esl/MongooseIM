@@ -18,12 +18,11 @@ all(Module) ->
         All ->
             All
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             io:format(standard_error,
                       "all_call_failed suite=~p reason=~p:~p~n "
                       "stacktrace=~p~n",
-                      [Module, Class, Reason, Stacktrace]),
+                      [Module, Class, Reason, StackTrace]),
             []
     end.
 
@@ -41,12 +40,11 @@ call_groups(Module) ->
         Groups ->
             Groups
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             io:format(standard_error,
                       "groups_call_failed suite=~p reason=~p:~p~n "
                       "stacktrace=~p~n",
-                      [Module, Class, Reason, Stacktrace]),
+                      [Module, Class, Reason, StackTrace]),
             []
     end.
 

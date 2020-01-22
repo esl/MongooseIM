@@ -91,7 +91,7 @@ esc_int(Int) ->
 
 prepare_upsert_params(Publisher, Payload) ->
     PayloadXML = #xmlel{name = <<"item">>, children = Payload},
-    CreatedAt = usec:from_now(os:timestamp()),
+    CreatedAt = os:system_time(microsecond),
     BinaryPayload = exml:to_binary(PayloadXML),
     ModifiedLUser = Publisher#jid.luser,
     ModifiedLServer = Publisher#jid.lserver,

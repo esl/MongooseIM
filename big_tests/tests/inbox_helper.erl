@@ -13,17 +13,21 @@
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
          get_inbox/2, get_inbox/3,
+         reset_inbox/2,
          get_result_el/2,
          get_inbox_form_stanza/0,
          make_inbox_stanza/0,
          make_inbox_stanza/1,
          make_inbox_stanza/2,
+         make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
+         assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
+         assert_invalid_reset_inbox/4,
          assert_message_content/3
         ]).
 % 1-1 helpers
@@ -41,6 +45,7 @@
          leave_room/3,
          make_members/3,
          mark_last_muclight_message/2,
+         mark_last_muclight_message/3,
          nick/1,
          verify_is_none_aff_change/2,
          wait_for_groupchat_msg/1
@@ -55,6 +60,7 @@
 -import(muc_light_helper, [lbin/1]).
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
+-define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 -define(ROOM, <<"testroom1">>).
 -define(ROOM2, <<"testroom2">>).
 -define(ROOM3, <<"testroom3">>).
@@ -116,14 +122,14 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
     try
         check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
     catch
-        _:Reason ->
+        _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
                        inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
                        expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
                        query_params => QueryOpts,
                        check_params => CheckOpts,
                        error => Reason,
-                       stacktrace => erlang:get_stacktrace() })
+                       stacktrace => StackTrace })
     end.
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
@@ -138,7 +144,6 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
                                              content = Content, verify = Fun}, JIDVerifyFun) ->
     FromJid = ensure_conv_binary_jid(From),
     ToJid = ensure_conv_binary_jid(To),
-    Unread = get_unread_count(Message),
     escalus:assert(is_message, Message),
     Unread = get_unread_count(Message),
     [InnerMsg] = get_inner_msg(Message),
@@ -250,6 +255,37 @@ make_inbox_stanza(GetParams, Verify) ->
     GetIQ#xmlel{children = [QueryTag]}.
 
 
+-spec reset_inbox(
+        escalus:client(),
+        jid:jid() | escalus:client() | atom() | binary() | string())
+        -> ok.
+reset_inbox(From, To) ->
+        ResetStanza = make_reset_inbox_stanza(To),
+        escalus:send(From, ResetStanza),
+        Result = escalus:wait_for_stanza(From),
+        ?assert(escalus_pred:is_iq_result(ResetStanza, Result)),
+        ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
+                                                             ?NS_ESL_INBOX_CONVERSATION}])).
+
+-spec make_reset_inbox_stanza(undefined | escalus:client() | binary()) -> exml:element().
+make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"jid">>, InterlocutorJid}
+                      ]}]);
+make_reset_inbox_stanza(undefined) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}
+                      ]}]);
+make_reset_inbox_stanza(InterlocutorJid) ->
+    make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
+
 -spec check_jid_fun(IsCaseSensitive :: boolean(), CheckResource :: boolean()) -> jid_verify_fun().
 check_jid_fun(true, true) ->
     fun(InnerMsg, Expected, El) -> Expected = exml_query:attr(InnerMsg, El) end;
@@ -320,12 +356,18 @@ given_conversations_between(From, ToList) ->
                         Ord = integer_to_binary(N),
                         ToClient = lists:nth(N, ToList),
                         Body = <<"Msg ", Ord/binary>>,
-                        Msg = escalus_stanza:chat_to(ToClient, Body),
+                        Msg0 = escalus_stanza:chat_to(ToClient, Body),
+                        Msg = escalus_stanza:setattr(Msg0, <<"xmlns">>, ?NS_JABBER_CLIENT),
                         escalus:send(From, Msg),
                         Incoming = escalus:wait_for_stanza(ToClient),
                         escalus:assert(is_chat_message, Incoming),
+                        VerifyXMLNSFun
+                            = fun(_, InnerMsg) ->
+                                      ?NS_JABBER_CLIENT = exml_query:attr(InnerMsg, <<"xmlns">>)
+                              end,
                         NewConv = #conv{ from = From, to = ToClient,
-                                         content = Body, time_after = server_side_time() },
+                                         content = Body, time_after = server_side_time(),
+                                         verify = VerifyXMLNSFun },
                         Convs#{
                           From := [NewConv#conv{ unread = 0 } | FromConvs],
                           ToClient => [NewConv#conv{ unread = 1 }]
@@ -573,13 +615,23 @@ send_and_mark_msg(From, To) ->
     escalus:send(To, ChatMarker),
     Msg.
 
+assert_has_no_stanzas(UsersList) when is_list(UsersList) ->
+    lists:foreach(fun(User) -> ?assertNot(escalus_client:has_stanzas(User)) end, UsersList);
+assert_has_no_stanzas(User) ->
+    ?assertNot(escalus_client:has_stanzas(User)).
+
+assert_invalid_reset_inbox(From, To, Field, Value) ->
+    ResetStanza = make_reset_inbox_stanza(To),
+    assert_invalid_form(From, ResetStanza, Field, Value).
+
 assert_invalid_inbox_form_value_error(User, Field, Value) ->
     Stanza = inbox_helper:make_inbox_stanza( #{ Field => Value }, false),
+    assert_invalid_form(User, Stanza, Field, Value).
+
+assert_invalid_form(User, Stanza, Field, Value) ->
     escalus:send(User, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(User, 1),
     escalus_pred:is_iq_error(ResIQ),
-    FieldRes = <<"field=",Field/binary>>,
-    ValueRes = <<"value=", Value/binary>>,
     ErrorMsg = get_error_message(ResIQ),
     assert_message_content(ErrorMsg, Field, Value).
 

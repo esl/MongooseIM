@@ -1,18 +1,15 @@
 -module(cyrsasl_oauth).
 -author('adrian.stachurski@erlang-solutions.com').
 
--export([start/1, stop/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/2, mech_step/2]).
 
 -behaviour(cyrsasl).
 
 -record(state, {creds}).
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"X-OAUTH">>, ?MODULE, plain),
-    ok.
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"X-OAUTH">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.

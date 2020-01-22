@@ -34,6 +34,13 @@
                       {service, mongoose_service:service()}
                      ].
 
+-type module_deps_list() :: [
+                              {module(), dep_arguments(), gen_mod_deps:hardness()} |
+                              {module(), gen_mod_deps:hardness()}
+                             ].
+
+-type service_deps_list() :: [atom()].
+
 -export_type([deps_list/0]).
 
 -export([
@@ -54,6 +61,7 @@
          set_module_opt/4,
          set_module_opts/3,
          get_module_opts/2,
+         make_subhosts/2,
          get_opt_subhost/3,
          get_opt_subhost/4,
          get_module_opt_subhost/3,
@@ -140,22 +148,21 @@ start_module_for_host(Host, Module, Opts0) ->
             _ -> {ok, Res}
         end
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             del_module_mnesia(Host, Module),
             ets:delete(ejabberd_modules, {Module, Host}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
                                       "host ~p~n options: ~p~n ~p: ~p~n~p",
                                       [Module, Host, Opts, Class, Reason,
-                                       Stacktrace]),
+                                       StackTrace]),
             ?CRITICAL_MSG(ErrorText, []),
             case is_mim_or_ct_running() of
                 true ->
-                    erlang:raise(Class, Reason, Stacktrace);
+                    erlang:raise(Class, Reason, StackTrace);
                 false ->
                     ?CRITICAL_MSG("mongooseim initialization was aborted "
                                   "because a module start failed.~n"
-                                  "The trace is ~p.", [erlang:get_stacktrace()]),
+                                  "The trace is ~p.", [StackTrace]),
                     timer:sleep(3000),
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                                               1, 199))
@@ -356,20 +363,34 @@ set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     set_module_opt(Host, Module, Opt, Value).
 
+-spec make_subhost(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> jid:server().
+make_subhost(Spec, Host) ->
+    re:replace(Spec, "@HOST@", Host, [global, {return, binary}]).
+
+-spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> [jid:server()].
+make_subhosts(Spec, Host) ->
+    [make_subhost(S, Host) || S <- expand_hosts(Spec)].
+
+-spec expand_hosts(iodata()) -> [iodata()].
+expand_hosts(Spec) ->
+    case re:run(Spec, "@HOSTS@") of
+        nomatch -> [Spec];
+        {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
+    end.
 
 -spec get_opt_subhost(jid:server(), list(), list() | binary()) -> jid:server().
 get_opt_subhost(Host, Opts, Default) ->
     get_opt_subhost(Host, host, Opts, Default).
 
 -spec get_opt_subhost(jid:server(), atom(), list(), list() | binary()) -> jid:server().
-    get_opt_subhost(Host, OptName, Opts, Default) ->
+get_opt_subhost(Host, OptName, Opts, Default) ->
     Val = get_opt(OptName, Opts, Default),
-    re:replace(Val, "@HOST@", Host, [global, {return, binary}]).
+    make_subhost(Val, Host).
 
 -spec get_module_opt_subhost(jid:server(), module(), list() | binary()) -> jid:server().
 get_module_opt_subhost(Host, Module, Default) ->
-    Subject = get_module_opt(Host, Module, host, Default),
-    re:replace(Subject, "@HOST@", Host, [global, {return, binary}]).
+    Spec = get_module_opt(Host, Module, host, Default),
+    make_subhost(Spec, Host).
 
 -spec loaded_modules(jid:server()) -> [module()].
 loaded_modules(Host) ->
@@ -455,19 +476,20 @@ clear_opts(Module, Opts0) ->
     end.
 
 -spec get_deps(Host :: jid:server(), Module :: module(),
-               Opts :: proplists:proplist()) -> deps_list().
+               Opts :: proplists:proplist()) -> module_deps_list().
 get_deps(Host, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
     case erlang:function_exported(Module, deps, 2) of
         true ->
-            Module:deps(Host, Opts);
+            Deps = Module:deps(Host, Opts),
+            lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
         _ ->
             []
     end.
 
--spec get_required_services(jid:server(), module(), proplists:proplist()) -> [atom()].
+-spec get_required_services(jid:server(), module(), proplists:proplist()) -> service_deps_list().
 get_required_services(Host, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false

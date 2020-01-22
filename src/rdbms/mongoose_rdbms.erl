@@ -219,7 +219,7 @@ sql_call(Host, Msg) ->
 
 -spec sql_call0(Host :: server(), Msg :: rdbms_msg()) -> any().
 sql_call0(Host, Msg) ->
-    Timestamp = p1_time_compat:monotonic_time(milli_seconds),
+    Timestamp = erlang:monotonic_time(millisecond),
     mongoose_wpool:call(rdbms, Host, {sql_cmd, Msg, Timestamp}).
 
 -spec get_db_info(Target :: server() | pid()) ->
@@ -484,7 +484,7 @@ print_state(State) ->
                          {reply, Reply :: any(), state()} | {stop, Reason :: term(), state()} |
                          {noreply, state()}.
 run_sql_cmd(Command, _From, State, Timestamp) ->
-    Now = p1_time_compat:monotonic_time(milli_seconds),
+    Now = erlang:monotonic_time(millisecond),
     case Now - Timestamp of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
             abort_on_driver_error(outer_op(Command, State));
@@ -542,18 +542,7 @@ inner_transaction(F, _State) ->
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
     put_state(State),
-    Result = try
-                 F()
-             catch
-                 throw:ThrowResult ->
-                     ThrowResult;
-                 Class:Other ->
-                     Stacktrace = erlang:get_stacktrace(),
-                     ?ERROR_MSG("issue=outer_transaction_failed "
-                                "reason=~p:~p stacktrace=~1000p",
-                                [Class, Other, Stacktrace]),
-                     {'EXIT', Other}
-          end,
+    {Result, StackTrace} = apply_transaction_function(F),
     NewState = erase_state(),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
@@ -571,7 +560,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         iolist_to_binary(SqlQuery),
-                        erlang:get_stacktrace(), NewState]),
+                        StackTrace, NewState]),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
@@ -582,7 +571,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "stacktrace=~1000p "
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
-                        erlang:get_stacktrace(), NewState]),
+                        StackTrace, NewState]),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {'EXIT', Reason} ->
@@ -593,6 +582,20 @@ outer_transaction(F, NRestarts, _Reason, State) ->
             %% Commit successful outer txn
             sql_query_internal([<<"commit;">>], NewState),
             {{atomic, Res}, NewState}
+    end.
+
+-spec apply_transaction_function(F :: fun()) -> {any(), list()}.
+apply_transaction_function(F) ->
+    try
+        {F(), []}
+    catch
+        throw:ThrowResult:StackTrace ->
+            {ThrowResult, StackTrace};
+        Class:Other:StackTrace ->
+            ?ERROR_MSG("issue=outer_transaction_failed "
+                       "reason=~p:~p stacktrace=~1000p",
+                       [Class, Other, StackTrace]),
+            {{'EXIT', Other}, StackTrace}
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef}) ->
@@ -619,13 +622,12 @@ sql_dirty_internal(F, State) ->
 sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
-          catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+          catch Class:Reason:StackTrace ->
             ?ERROR_MSG("event=sql_execute_failed "
                         "statement_name=~p reason=~p:~p "
                         "params=~1000p stacktrace=~1000p",
-                       [Name, Class, Reason, Params, Stacktrace]),
-            erlang:raise(Class, Reason, Stacktrace)
+                       [Name, Class, Reason, Params, StackTrace]),
+            erlang:raise(Class, Reason, StackTrace)
           end,
     {Res, NewState}.
 
@@ -654,7 +656,7 @@ abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, St
 abort_on_driver_error({Reply, State}) ->
     {reply, Reply, State}.
 
--spec db_engine(Host :: server()) -> odbc | mysql | pgsql.
+-spec db_engine(Host :: server()) -> odbc | mysql | pgsql | undefined.
 db_engine(_Host) ->
     try mongoose_rdbms_backend:backend_name()
     catch error:undef -> undefined end.
@@ -670,8 +672,9 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
             Error;
         Error ->
             SleepFor = rand:uniform(RetryAfter),
-            ?ERROR_MSG("Database connection attempt with ~p resulted in ~p."
-                       " Retrying in ~p seconds.", [Settings, Error, SleepFor]),
+            Backend = mongoose_rdbms_backend:backend_name(),
+            ?ERROR_MSG("Connection attempt to ~s resulted in ~p."
+                       " Retrying in ~p seconds.", [Backend, Error, SleepFor]),
             timer:sleep(timer:seconds(SleepFor)),
             NextRetryDelay = RetryAfter * RetryAfter,
             connect(Settings, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)

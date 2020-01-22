@@ -17,10 +17,14 @@
 %%%===================================================================
 -module(ejabberd_cowboy).
 -behavior(gen_server).
+-behavior(cowboy_middleware).
 
 %% ejabberd_listener API
 -export([socket_type/0,
          start_listener/2]).
+
+%% cowboy_middleware API
+-export([execute/2]).
 
 %% gen_server API
 -export([start_link/1]).
@@ -50,6 +54,7 @@
 -callback cowboy_router_paths(path(), options()) -> implemented_result().
 
 -record(cowboy_state, {ref, opts = []}).
+
 %%--------------------------------------------------------------------
 %% ejabberd_listener API
 %%--------------------------------------------------------------------
@@ -106,6 +111,20 @@ handler({Port, IP, tcp}) ->
     [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)].
 
 %%--------------------------------------------------------------------
+%% cowboy_middleware callback
+%%--------------------------------------------------------------------
+
+-spec execute(cowboy_req:req(), cowboy_middleware:env()) ->
+    {ok, cowboy_req:req(), cowboy_middleware:env()}.
+execute(Req, Env) ->
+    case ejabberd_config:get_local_option(cowboy_server_name) of
+        undefined ->
+            {ok, Req, Env};
+        ServerName ->
+            {ok, cowboy_req:set_resp_header(<<"server">>, ServerName, Req), Env}
+    end.
+
+%%--------------------------------------------------------------------
 %% Internal Functions
 %%--------------------------------------------------------------------
 
@@ -134,6 +153,7 @@ do_start_cowboy(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(Modules)),
     ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
                     gen_mod:get_opt(protocol_options, Opts, [])],
+    ok = trails_store(Modules),
     case catch start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
@@ -152,15 +172,23 @@ start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) ->
     cowboy_start_https(Ref, TransportOpts#{socket_opts => SocketOptsWithSSL}, ProtocolOpts).
 
 cowboy_start_http(Ref, TransportOpts, ProtocolOpts) ->
-    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    ProtoOpts = add_common_middleware(make_env_map(maps:from_list(ProtocolOpts))),
     cowboy:start_clear(Ref, TransportOpts, ProtoOpts).
 
 cowboy_start_https(Ref, TransportOpts, ProtocolOpts) ->
-    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    ProtoOpts = add_common_middleware(make_env_map(maps:from_list(ProtocolOpts))),
     cowboy:start_tls(Ref, TransportOpts, ProtoOpts).
 
-make_env_map(Map = #{env := Env}) ->
-    Map#{env => maps:from_list(Env)}.
+make_env_map(Map = #{ env := Env }) ->
+    Map#{ env => maps:from_list(Env) }.
+
+% We need to insert our middleware just before `cowboy_handler`,
+% so the injected response header is taken into account.
+add_common_middleware(Map = #{ middlewares := Middlewares }) ->
+    {Ms1, Ms2} = lists:splitwith(fun(Middleware) -> Middleware /= cowboy_handler end, Middlewares),
+    Map#{ middlewares := Ms1 ++ [?MODULE | Ms2] };
+add_common_middleware(Map) ->
+    Map#{ middlewares => [cowboy_router, ?MODULE, cowboy_handler] }.
 
 reload_dispatch(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
@@ -255,3 +283,36 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
         Value ->
             TransportOpts#{Key => Value}
     end.
+
+%% -------------------------------------------------------------------
+%% @private
+%% @doc
+%% Store trails, this need for generate swagger documentation
+%% Add to Trails each of modules where used trails behaviour
+%% The modules must be added into `mongooseim.cfg`in `swagger` section
+%% @end
+%% -------------------------------------------------------------------
+trails_store(Modules) ->
+    try
+        trails:store(trails:trails(collect_trails(Modules, [])))
+    catch Class:Exception ->
+        ?WARNING_MSG("Trails Call: [~p:~p/0] catched ~p:~p~n", [?MODULE, trails_store, Class, Exception])
+    end.
+
+%% -------------------------------------------------------------------
+%% @private
+%% @doc
+%% Helper of store trails for collect trails modules
+%% @end
+%% -------------------------------------------------------------------
+collect_trails([], Acc) ->
+    Acc;
+collect_trails([{Host, BasePath, Module} | T], Acc) ->
+    collect_trails([{Host, BasePath, Module, []} | T], Acc);
+collect_trails([{_, _, Module, _} | T], Acc) ->
+    case erlang:function_exported(Module, trails, 0) of
+      true ->
+          collect_trails(T, [Module | Acc]);
+      _ ->
+          collect_trails(T, Acc)
+  end.

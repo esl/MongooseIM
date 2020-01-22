@@ -7,9 +7,14 @@
     [ejabberd_sm:session()].
 -callback get_sessions(jid:user(), jid:server(), jid:resource()
                       ) -> [ejabberd_sm:session()].
--callback create_session(_User :: jid:user(),
-                         _Server :: jid:server(),
-                         _Resource :: jid:resource(),
+-callback create_session(_User :: jid:luser(),
+                         _Server :: jid:lserver(),
+                         _Resource :: jid:lresource(),
+                         Session :: ejabberd_sm:session()) ->
+    ok | {error, term()}.
+-callback update_session(_User :: jid:luser(),
+                         _Server :: jid:lserver(),
+                         _Resource :: jid:lresource(),
                          Session :: ejabberd_sm:session()) ->
     ok | {error, term()}.
 -callback delete_session(ejabberd_sm:sid(),
@@ -21,7 +26,7 @@
 -callback unique_count() -> integer().
 
 -export([start/2, get_sessions/1, get_sessions/2, get_sessions/3,
-         get_sessions/4, create_session/5, delete_session/5, cleanup/2,
+         get_sessions/4, create_session/5, update_session/5, delete_session/5, cleanup/2,
          total_count/1, unique_count/1]).
 
 -spec start(module(), list()) -> any().
@@ -55,6 +60,13 @@ get_sessions(Mod, User, Server, Resource) ->
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(Mod, User, Server, Resource, Session) ->
     Mod:create_session(User, Server, Resource, Session).
+
+-spec update_session(Mod :: module(), User :: jid:luser(),
+                     Server :: jid:lserver(),
+                     Resource :: jid:lresource(),
+                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+update_session(Mod, User, Server, Resource, Session) ->
+    Mod:update_session(User, Server, Resource, Session).
 
 -spec delete_session(Mod :: module(), Sid :: ejabberd_sm:sid(),
                      User :: jid:user(),

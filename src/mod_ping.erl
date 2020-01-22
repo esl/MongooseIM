@@ -27,8 +27,9 @@
 -module(mod_ping).
 -author('bjc@kublai.com').
 
--behavior(gen_mod).
--behavior(gen_server).
+-behaviour(gen_mod).
+-behaviour(gen_server).
+-behaviour(mongoose_module_metrics).
 -xep([{xep, 199}, {version, "2.0"}]).
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -53,7 +54,8 @@
          user_online/4,
          user_offline/5,
          user_send/4,
-         user_keep_alive/2]).
+         user_keep_alive/2,
+         user_ping_response/4]).
 
 -record(state, {host = <<"">>,
                 send_pings = ?DEFAULT_SEND_PINGS,
@@ -87,6 +89,7 @@ stop_ping(Host, JID) ->
 %% gen_mod callbacks
 %%====================================================================
 start(Host, Opts) ->
+    ensure_metrics(Host),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     PingSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                 transient, 2000, worker, [?MODULE]},
@@ -126,26 +129,12 @@ init([Host, Opts]) ->
                 timers = dict:new()}}.
 
 maybe_add_hooks_handlers(Host, true) ->
-    ejabberd_hooks:add(sm_register_connection_hook, Host,
-                       ?MODULE, user_online, 100),
-    ejabberd_hooks:add(sm_remove_connection_hook, Host,
-                       ?MODULE, user_offline, 100),
-    ejabberd_hooks:add(user_send_packet, Host,
-                       ?MODULE, user_send, 100),
-    ejabberd_hooks:add(user_sent_keep_alive, Host,
-                       ?MODULE, user_keep_alive, 100);
+    ejabberd_hooks:add(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
 terminate(_Reason, #state{host = Host}) ->
-    ejabberd_hooks:delete(sm_remove_connection_hook, Host,
-                          ?MODULE, user_offline, 100),
-    ejabberd_hooks:delete(sm_register_connection_hook, Host,
-                          ?MODULE, user_online, 100),
-    ejabberd_hooks:delete(user_send_packet, Host,
-                          ?MODULE, user_send, 100),
-    ejabberd_hooks:delete(user_sent_keep_alive, Host,
-                          ?MODULE, user_keep_alive, 100),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
     mod_disco:unregister_feature(Host, ?NS_PING).
@@ -166,8 +155,7 @@ handle_cast({iq_pong, JID, timeout}, State) ->
     ejabberd_hooks:run(user_ping_timeout, State#state.host, [JID]),
     case State#state.timeout_action of
         kill ->
-            #jid{user = User, server = Server, resource = Resource} = JID,
-            case ejabberd_sm:get_session_pid(User, Server, Resource) of
+            case ejabberd_sm:get_session_pid(JID) of
                 Pid when is_pid(Pid) ->
                     ejabberd_c2s:stop(Pid);
                 _ ->
@@ -186,9 +174,13 @@ handle_info({timeout, _TRef, {ping, JID}},
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
+    T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, Response) ->
+                TDelta = erlang:monotonic_time(millisecond) - T0,
+                NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host,
+                                                 Acc, [JID, Response, TDelta]),
                 gen_server:cast(Pid, {iq_pong, JID, Response}),
-                Acc
+                NewAcc
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -208,13 +200,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Hook callbacks
 %%====================================================================
-iq_ping(_From, _To, Acc, #iq{type = Type, sub_el = SubEl} = IQ) ->
-    case {Type, SubEl} of
-        {get, #xmlel{name = <<"ping">>}} ->
-            {Acc, IQ#iq{type = result, sub_el = []}};
-        _ ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}
-    end.
+iq_ping(_From, _To, Acc, #iq{type = get, sub_el = #xmlel{ name = <<"ping">> }} = IQ) ->
+    {Acc, IQ#iq{type = result, sub_el = []}};
+iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}.
 
 user_online(Acc, _SID, JID, _Info) ->
     start_ping(JID#jid.lserver, JID),
@@ -232,9 +221,33 @@ user_keep_alive(Acc, JID) ->
     start_ping(JID#jid.lserver, JID),
     Acc.
 
+-spec user_ping_response(Acc :: mongoose_acc:t(),
+                         JID :: jid:jid(),
+                         Response :: timeout | jlib:iq(),
+                         TDelta :: pos_integer()) -> mongoose_acc:t().
+user_ping_response(Acc, #jid{server = Server}, timeout, _TDelta) ->
+    mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1),
+    Acc;
+user_ping_response(Acc, #jid{server = Server}, _Response, TDelta) ->
+    mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
+    mongoose_metrics:update(Server, [mod_ping, ping_response], 1),
+    Acc.
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
+hooks(Host) ->
+    [{sm_register_connection_hook, Host, ?MODULE, user_online, 100},
+     {sm_remove_connection_hook, Host, ?MODULE, user_offline, 100},
+     {user_send_packet, Host, ?MODULE, user_send, 100},
+     {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
+     {user_ping_response, Host, ?MODULE, user_ping_response, 100}].
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response], spiral),
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_timeout], spiral),
+    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_time], histogram).
+
 add_timer(JID, Interval, Timers) ->
     LJID = jid:to_lower(JID),
     NewTimers = case dict:find(LJID, Timers) of

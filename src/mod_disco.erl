@@ -29,6 +29,7 @@
 -xep([{xep, 30}, {version, "2.4"}]).
 -xep([{xep, 157}, {version, "1.0"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -359,16 +360,14 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
                    Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_sm_items(Acc, From,
-            #jid{user = User, server = Server} = To,
-            [], _Lang) ->
+get_sm_items(Acc, From, To, [], _Lang) ->
     Items = case Acc of
                 {result, Its} -> Its;
                 empty -> []
             end,
     Items1 = case is_presence_subscribed(From, To) of
                    true ->
-                       get_user_resources(User, Server);
+                       get_user_resources(To);
                    _ ->
                        []
                 end,
@@ -394,7 +393,8 @@ is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
                             element => undefined }),
     A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
     Roster = mongoose_acc:get(roster, items, [], A2),
-    lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->
+    lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
+                      {TUser, TServer} = jid:to_lus(JID),
                       LUser == TUser andalso LServer == TServer andalso S /= none
               end,
               Roster)
@@ -467,13 +467,14 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_user_resources(jid:user(), jid:server()) -> [exml:element()].
-get_user_resources(User, Server) ->
-    Rs = ejabberd_sm:get_user_resources(User, Server),
+-spec get_user_resources(jid:jid()) -> [exml:element()].
+get_user_resources(JID) ->
+    #jid{user = User, server = Server} = JID,
+    Rs = ejabberd_sm:get_user_resources(JID),
     lists:map(fun(R) ->
-                JID = jid:to_binary({User, Server, R}),
+                BJID = jid:to_binary({User, Server, R}),
                 #xmlel{name = <<"item">>,
-                       attrs = [{<<"jid">>, JID}, {<<"name">>, User}]}
+                       attrs = [{<<"jid">>, BJID}, {<<"name">>, User}]}
               end, lists:sort(Rs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
