@@ -15,7 +15,7 @@ groups() ->
     [{standard, [parallel], standard_test_cases()},
      {use_common_name, [parallel], use_common_name_test_cases()},
      {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases()},
-     {demo_verificatio_module, [parallel], demo_verification_module_test_cases()},
+     {demo_verification_module, [parallel], demo_verification_module_test_cases()},
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
      {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
      {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
@@ -36,7 +36,7 @@ base_groups() ->
     [{group, standard},
      {group, use_common_name},
      {group, allow_just_user_identity},
-     {group, demo_verificatio_module}].
+     {group, demo_verification_module}].
 
 standard_test_cases() ->
     [
@@ -119,7 +119,7 @@ init_per_group(use_common_name, Config) ->
 init_per_group(allow_just_user_identity, Config) ->
     modify_config_and_restart("allow_just_user_identity", Config),
     Config;
-init_per_group(demo_verificatio_module, Config) ->
+init_per_group(demo_verification_module, Config) ->
     modify_config_and_restart("[{mod, cyrsasl_external_verification}]", Config),
     Config;
 init_per_group(self_signed_certs_allowed, Config) ->

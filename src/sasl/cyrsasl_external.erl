@@ -111,10 +111,8 @@ get_common_name(Cert) ->
     end.
 
 get_xmpp_addresses(Cert) ->
-    case cert_utils:get_xmpp_addresses(Cert) of
-        [] -> [{xmpp_addresses, []}];
-        XmmpAddresses -> [{xmpp_addresses, XmmpAddresses}]
-    end.
+    XmmpAddresses = cert_utils:get_xmpp_addresses(Cert),
+    [{xmpp_addresses, XmmpAddresses}].
 
 maybe_add_auth_id(Creds, <<"">>) ->
     Creds;
