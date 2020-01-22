@@ -39,7 +39,7 @@
  {<<"erlcloud">>,{pkg,<<"erlcloud">>,<<"3.2.13">>},0},
  {<<"exml">>,
   {git,"https://github.com/esl/exml.git",
-       {ref,"a307e83669ad0a8d96ea3f2be9da36417efb94fc"}},
+       {ref,"6ca4f88ddc66517b430dbbc348772275e98a2608"}},
   0},
  {<<"exometer_core">>,
   {git,"https://github.com/esl/exometer_core.git",
