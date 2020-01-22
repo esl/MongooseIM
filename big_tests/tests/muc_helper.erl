@@ -188,12 +188,19 @@ disco_service_story(Config) ->
                             [ct:get_config({hosts, mim, domain})], Stanza)
     end).
 
-disco_features_story(Config) ->
+disco_features_story(Config, Features) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, stanza_get_features()),
         Stanza = escalus:wait_for_stanza(Alice),
-        has_features(Stanza),
+        has_features(Stanza, Features),
         escalus:assert(is_stanza_from, [muc_host()], Stanza)
+    end).
+
+disco_info_story(Config, Features) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Stanza = escalus:send_iq_and_wait_for_result(
+                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
+        has_features(Stanza, Features)
     end).
 
 fresh_room_name(Username) ->
@@ -212,7 +219,7 @@ stanza_get_features() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
 
-has_features(#xmlel{children = [ Query ]}) ->
+has_features(#xmlel{children = [ Query ]}, Features) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
     %%  to='hag66@shakespeare.lit/pda'
@@ -228,8 +235,8 @@ has_features(#xmlel{children = [ Query ]}) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    true = lists:member(?NS_MUC, exml_query:paths(Query, [{element, <<"feature">>},
-                                                          {attr, <<"var">>}])).
+    Features = exml_query:paths(Query, [{element, <<"feature">>},
+                                        {attr, <<"var">>}]).
 
 assert_valid_affiliation(<<"owner">>) -> ok;
 assert_valid_affiliation(<<"admin">>) -> ok;
