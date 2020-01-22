@@ -6,6 +6,8 @@
 -export([maps_foreach/2]).
 -export([pairs_foreach/2]).
 -export([maps_or_pairs_foreach/2]).
+%% Busy Wait
+-export([wait_until/2, wait_until/3]).
 
 -include("mongoose.hrl").
 
@@ -71,3 +73,24 @@ maps_or_pairs_foreach(Fun, Map) when is_map(Map) ->
     maps_foreach(Fun, Map);
 maps_or_pairs_foreach(Fun, List) when is_list(List) ->
     pairs_foreach(Fun, List).
+
+
+%% Busy wait
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
+
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5), sleep_time => 100},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
+
+do_wait_until(_, _, #{time_left := TimeLeft}) when TimeLeft =< 0 ->
+    ok;
+do_wait_until(Fun, ExpectedValue, Opts) ->
+    case Fun() of
+        ExpectedValue -> {ok, ExpectedValue};
+        _OtherValue -> wait_and_continue(Fun, ExpectedValue, Opts)
+    end.
+
+wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
+    timer:sleep(SleepTime),
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).
