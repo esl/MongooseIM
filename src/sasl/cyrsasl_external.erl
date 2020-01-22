@@ -1,6 +1,5 @@
 %%%=============================================================================
-%%% @copyright (C) 1999-2019, Erlang Solutions Ltd
-%%% @author Denys Gonchar <denys.gonchar@erlang-solutions.com>
+%%% @copyright (C) 1999-2020, Erlang Solutions Ltd
 %%% @doc SASL EXTERNAL implementation (XEP178)
 %%%
 %%% SASL EXTERNAL mechanism requires client's SSL certificate. the purpose of
@@ -8,7 +7,8 @@
 %%% any provided by the client). this module doesn't make authorization, it
 %%% only prepares all the data and provides it to auth. backend.
 %%%
-%%% the next extra fields are added to mongoose_credentials record:
+%%% the next extra fields are added to the mongoose_credentials record by this
+%%% module:
 %%%   * pem_cert        - certificate in PEM format
 %%%   * der_cert        - certificate in DER format
 %%%   * common_name     - CN field (bitstring) of the client's cert (if available)
@@ -19,8 +19,6 @@
 %%% @end
 %%%=============================================================================
 -module(cyrsasl_external).
--copyright("2018, Erlang Solutions Ltd.").
--author('denys.gonchar@erlang-solutions.com').
 
 -xep([{xep, 178}, {version, "1.1"}, {comment, "partially implemented."}]).
 

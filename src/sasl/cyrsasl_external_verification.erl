@@ -1,11 +1,15 @@
 %%%=============================================================================
-%%% @copyright (C) 1999-2019, Erlang Solutions Ltd
-%%% @author Denys Gonchar <denys.gonchar@erlang-solutions.com>
+%%% @copyright (C) 1999-2020, Erlang Solutions Ltd
 %%% @doc cyrsasl external verification backend
 %%%
-%%% this module is added for demo & testing purposes only.
+%%% this module is added only for the demo and testing purposes.
 %%%
-%%% the next extra fields are added to mongoose_credentials record by cyrsasl_external:
+%%% if your custom verification backend requires any initialisation/termination
+%%% logic, it can be added by implementation of 'gen_mod' or 'mongoose_service'
+%%% behaviour.
+%%%
+%%% the next extra fields are added to the mongoose_credentials record by
+%%% the cyrsasl_external module:
 %%%   * pem_cert        - certificate in PEM format
 %%%   * der_cert        - certificate in DER format
 %%%   * common_name     - CN field (bitstring) of the client's cert (if available)
@@ -13,13 +17,17 @@
 %%%                       the client's certificate (empty list if not available)
 %%%   * auth_id         - authorization identity (bare jid, if provided by the client)
 %%%
+%%% this verification module picks user name of a JID provided in one of the following
+%%% sources:
+%%%   * auth_id (if provided by the client)
+%%%   * xmpp_addresses (ignored if list is empty or contains more than one JID)
+%%%   * common_name
+%%% sources are checked in the same order as mentioned in the list above, the first
+%%% successful source is selected. the server part of the JID is verified and it must
+%%% correspond to the host were user is trying to connect.
 %%% @end
-%%% Created : 17. Apr 2019 11:49
-%%%-------------------------------------------------------------------
+%%%=============================================================================
 -module(cyrsasl_external_verification).
--copyright("2018, Erlang Solutions Ltd.").
--author('denys.gonchar@erlang-solutions.com').
-
 -behaviour(cyrsasl_external).
 
 %% API
