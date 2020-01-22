@@ -71,6 +71,7 @@ start(normal, _Args) ->
     mongoose_cluster_id:start(),
     start_services(),
     start_modules(),
+    service_mongoose_system_metrics:verify_if_configured(),
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
@@ -152,7 +153,7 @@ stop_modules() ->
 -spec start_services() -> ok.
 start_services() ->
     lists:foreach(
-        fun({Service, _}) -> mongoose_service:ensure_loaded(Service) end,
+        fun({Service, Opts}) -> mongoose_service:ensure_loaded(Service, Opts) end,
         ejabberd_config:get_local_option_or_default(services, [])
     ).
 

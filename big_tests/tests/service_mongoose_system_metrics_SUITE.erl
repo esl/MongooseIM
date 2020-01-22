@@ -22,6 +22,7 @@
 -export([
          all/0,
          suite/0,
+         groups/0,
          init_per_suite/1,
          end_per_suite/1,
          init_per_group/2,
@@ -46,7 +47,14 @@
          transport_mechanisms_are_reported/1
         ]).
 
--import(distributed_helper, [mim/0, mim2/0,
+-export([
+         just_removed_from_config_logs_question/1,
+         in_config_unmodified_logs_request_for_agreement/1,
+         in_config_with_explicit_no_report_goes_off_silently/1,
+         in_config_with_explicit_reporting_goes_on_silently/1
+        ]).
+
+-import(distributed_helper, [mim/0, mim2/0, mim3/0,
                              require_rpc_nodes/1
                             ]).
 
@@ -77,7 +85,18 @@ all() ->
      cluster_uptime_is_reported,
      xmpp_componenets_are_reported,
      api_are_reported,
-     transport_mechanisms_are_reported
+     transport_mechanisms_are_reported,
+     {group, log_transparency}
+    ].
+
+groups() ->
+    [
+     {log_transparency, [], [
+                             just_removed_from_config_logs_question,
+                             in_config_unmodified_logs_request_for_agreement,
+                             in_config_with_explicit_no_report_goes_off_silently,
+                             in_config_with_explicit_reporting_goes_on_silently
+                            ]}
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -106,9 +125,16 @@ end_per_suite(Config) ->
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+init_per_group(log_transparency, Config) ->
+    lager_ct_backend:start(),
+    lager_ct_backend:capture(warning),
+    Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(log_transparency, Config) ->
+    lager_ct_backend:stop_capture(),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -251,6 +277,55 @@ api_are_reported(_Config) ->
 
 transport_mechanisms_are_reported(_Config) ->
     mongoose_helper:wait_until(fun transport_mechanisms_are_reported/0, true).
+
+just_removed_from_config_logs_question(_Config) ->
+    %% WHEN
+    Result = distributed_helper:rpc(
+               mim3(), service_mongoose_system_metrics, verify_if_configured, []),
+    %% THEN
+    ?assertEqual(ignore, Result).
+
+in_config_unmodified_logs_request_for_agreement(_Config) ->
+    %% WHEN
+    disable_system_metrics(mim()),
+    lager_ct_backend:capture(warning),
+    enable_system_metrics(mim()),
+    %% THEN
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch
+                end,
+    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
+    %% CLEAN
+    lager_ct_backend:stop_capture(),
+    disable_system_metrics(mim()).
+
+in_config_with_explicit_no_report_goes_off_silently(_Config) ->
+    %% WHEN
+    lager_ct_backend:capture(warning),
+    start_system_metrics_module(mim(), [no_report]),
+    lager_ct_backend:stop_capture(),
+    %% THEN
+    FilterFun = fun(warning, Msg) ->
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
+                   (_,_) -> false
+                end,
+    [] = lager_ct_backend:recv(FilterFun),
+    %% CLEAN
+    disable_system_metrics(mim()).
+
+in_config_with_explicit_reporting_goes_on_silently(_Config) ->
+    %% WHEN
+    lager_ct_backend:capture(warning),
+    start_system_metrics_module(mim(), [report]),
+    lager_ct_backend:stop_capture(),
+    %% THEN
+    FilterFun = fun(warning, Msg) ->
+                        re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
+                   (_,_) -> false
+                end,
+    [] = lager_ct_backend:recv(FilterFun),
+    %% CLEAN
+    disable_system_metrics(mim()).
 
 %%--------------------------------------------------------------------
 %% Helpers

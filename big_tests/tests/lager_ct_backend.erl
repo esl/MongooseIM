@@ -16,7 +16,7 @@
         receivers := [{pid(), lager:log_level()}]
        }.
 
--type filter_fun() :: fun((lager:log_leverl(), binary()) -> boolean()).
+-type filter_fun() :: fun((lager:log_level(), binary()) -> boolean()).
 
 %% ------------------------------------------------------------
 %% API for tests

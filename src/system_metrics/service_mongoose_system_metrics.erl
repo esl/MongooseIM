@@ -19,10 +19,23 @@
          handle_info/2,
          terminate/2]).
 
+-export([verify_if_configured/0]).
+
 -record(system_metrics_state, {report_after, reporter_monitor = none, reporter_pid = none}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
+
+-spec verify_if_configured() -> ok | ignore.
+verify_if_configured() ->
+    Services = ejabberd_config:get_local_option_or_default(services, []),
+    case proplists:is_defined(?MODULE, Services) of
+        false ->
+            ?WARNING_MSG(msg_removed_from_config(), []),
+            ignore;
+        true ->
+            ok
+    end.
 
 -spec start(proplists:proplist()) -> {ok, pid()}.
 start(Args) ->
@@ -39,9 +52,13 @@ start_link(Args) ->
 
 -spec init(proplists:proplist()) -> {ok, system_metrics_state()}.
 init(Args) ->
-    {InitialReport, ReportAfter} = metrics_module_config(Args),
-    erlang:send_after(InitialReport, self(), spawn_reporter),
-    {ok, #system_metrics_state{report_after = ReportAfter}}.
+    case report_transparency(Args) of
+        skip -> ignore;
+        continue ->
+            {InitialReport, ReportAfter} = metrics_module_config(Args),
+            erlang:send_after(InitialReport, self(), spawn_reporter),
+            {ok, #system_metrics_state{report_after = ReportAfter}}
+    end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
@@ -98,6 +115,21 @@ get_timeouts(Args, _) ->
     R = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
     {I, R}.
 
+-spec report_transparency(proplists:proplist()) -> skip | continue.
+report_transparency(Args) ->
+    case {explicit_no_report(Args), explicit_gathering_agreement(Args)} of
+        {true, ____} -> skip;
+        {____, true} -> continue;
+        {____, ____} ->
+            ?WARNING_MSG(msg_accept_terms_and_conditions(), []),
+            continue
+    end.
+
+explicit_no_report(Args) ->
+    proplists:get_value(no_report, Args, false).
+explicit_gathering_agreement(Args) ->
+    proplists:get_value(report, Args, false).
+
 % %%-----------------------------------------
 % %% Unused
 % %%-----------------------------------------
@@ -108,3 +140,22 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 terminate(_Reason, _State) ->
    ok.
+
+%%-----------------------------------------
+%% Internal
+%%-----------------------------------------
+msg_removed_from_config() ->
+    <<"We're sorry to hear you don't want to share the system's metrics with us. "
+      "These metrics would enable us to improve MongooseIM and know where to focus our efforts. "
+      "To stop being notified, you can add this to the services section of your config file: \n"
+      "    '{services_mongoose_system_metrics, [no_report]}' \n"
+      "For more info on how to customise, read, enable, and disable the metrics visit: \n"
+      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
+      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
+
+msg_accept_terms_and_conditions() ->
+    <<"We are gathering the MongooseIM system's metrics to analyse the trends and needs of our users, "
+      "improve MongooseIM, and know where to focus our efforts. "
+      "For more info on how to customise, read, enable, and disable these metrics visit: \n"
+      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
+      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
