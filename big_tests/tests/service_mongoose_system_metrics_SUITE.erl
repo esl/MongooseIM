@@ -42,7 +42,7 @@
          module_backend_is_reported/1,
          mongoose_version_is_reported/1,
          cluster_uptime_is_reported/1,
-         xmpp_componenets_are_reported/1,
+         xmpp_components_are_reported/1,
          api_are_reported/1,
          transport_mechanisms_are_reported/1
         ]).
@@ -83,7 +83,7 @@ all() ->
      module_backend_is_reported,
      mongoose_version_is_reported,
      cluster_uptime_is_reported,
-     xmpp_componenets_are_reported,
+     xmpp_components_are_reported,
      api_are_reported,
      transport_mechanisms_are_reported,
      {group, log_transparency}
@@ -166,7 +166,7 @@ init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, 
     create_events_collection(),
     enable_system_metrics_with_configurable_tracking_id(mim()),
     Config;
-init_per_testcase(xmpp_componenets_are_reported, Config) ->
+init_per_testcase(xmpp_components_are_reported, Config) ->
     create_events_collection(),
     Config1 = get_components(common(Config), Config),
     enable_system_metrics(mim()),
@@ -265,10 +265,10 @@ mongoose_version_is_reported(_Config) ->
 cluster_uptime_is_reported(_Config) ->
     mongoose_helper:wait_until(fun cluster_uptime_is_reported/0, true).
 
-xmpp_componenets_are_reported(Config) ->
+xmpp_components_are_reported(Config) ->
     CompOpts = ?config(component1, Config),
     {Component, Addr, _} = connect_component(CompOpts),
-    mongoose_helper:wait_until(fun xmpp_componenets_are_reported/0, true),
+    mongoose_helper:wait_until(fun xmpp_components_are_reported/0, true),
     mongoose_helper:wait_until(fun more_than_one_component_is_reported/0, true),
     disconnect_component(Component, Addr).
 
@@ -448,7 +448,7 @@ mongoose_version_is_reported() ->
 cluster_uptime_is_reported() ->
     feature_is_reported(<<"cluster">>, <<"uptime">>).
 
-xmpp_componenets_are_reported() ->
+xmpp_components_are_reported() ->
     feature_is_reported(<<"cluster">>, <<"number_of_components">>).
 
 api_are_reported() ->

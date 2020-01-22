@@ -107,12 +107,12 @@ metrics_module_config(Args) ->
 get_timeouts(Args, "true") ->
     ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
     I = proplists:get_value(initial_report, Args, timer:seconds(20)),
-    R = proplists:get_value(report_after, Args, timer:minutes(5)),
+    R = proplists:get_value(periodic_report, Args, timer:minutes(5)),
     {I, R};
 get_timeouts(Args, _) ->
     ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
     I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
-    R = proplists:get_value(report_after, Args, ?DEFAULT_REPORT_AFTER),
+    R = proplists:get_value(periodic_report, Args, ?DEFAULT_REPORT_AFTER),
     {I, R}.
 
 -spec report_transparency(proplists:proplist()) -> skip | continue.
