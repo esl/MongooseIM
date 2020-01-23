@@ -270,6 +270,7 @@ This is the perfect place to plug in custom security control.
 * sm_filter_offline_message
 * sm_register_connection_hook
 * sm_remove_connection_hook
+* unacknowledged_message
 * unregister_command
 * unregister_subhost
 * unset_presence_hook
