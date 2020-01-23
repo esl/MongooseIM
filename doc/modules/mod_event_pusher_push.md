@@ -150,7 +150,11 @@ callback returns `true`.
 ```
 -spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
 ```
+* `prepare_notification/2` - 
 
+```-spec prepare_notification(Host :: jid:server(), Acc :: mongooseim_acc:t(),
+                              Event :: mod_event_pusher:event()) -> push_payload() | skip.
+```
 * `publish_notification/5` - does the actual push.
   By default it pushes to the registered pubsub nodes (or executes the internal hook in case of a publish to a virtual domain).
 
