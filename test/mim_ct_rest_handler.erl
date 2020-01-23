@@ -49,12 +49,11 @@ handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"check_password">>, {U, S, P},
     Result = mim_ct_rest:check_password(U, S, P),
     reply(Req, State, 200, list_to_binary(atom_to_list(Result)));
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"get_password">>, {U, S, _P}, _, _} = State) ->
-    case mim_ct_rest:get_password(U, S) of
-        false ->
-            reply(Req, State, 404, <<>>);
-        Password ->
-            reply(Req, State, 200, Password)
-    end;
+    {RetCode,Password} = get_password_or_certs(U, S),
+    reply(Req, State, RetCode, Password);
+handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"get_certs">>, {U, S, _P}, _, _} = State) ->
+    {RetCode, PemCerts} = get_password_or_certs(U, S),
+    reply(Req, State, RetCode, PemCerts);
 handle(Req, {<<"GET">>, <<"/auth/", _/binary>>, <<"user_exists">>, {U, S, _P}, _, _} = State) ->
     Result = mim_ct_rest:user_exists(U, S),
     reply(Req, State, 200, list_to_binary(atom_to_list(Result)));
@@ -93,3 +92,11 @@ reply(Req, State, Code, Payload) ->
 remove_to_code(not_found) -> 404;
 remove_to_code(not_allowed) -> 403;
 remove_to_code(ok) -> 204.
+
+get_password_or_certs(U, S) ->
+    case mim_ct_rest:get_password(U, S) of
+        false ->
+            {404, <<>>};
+        PasswordOrPemCerts ->
+            {200, PasswordOrPemCerts}
+    end.

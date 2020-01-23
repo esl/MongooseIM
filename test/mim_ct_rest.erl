@@ -20,9 +20,16 @@
          remove_user/2, remove_user_validate/3, register/3]).
 -export([do/1]).
 
+-record(user, {
+            name :: {User :: binary(), Server :: binary()},
+            password :: binary()
+        }).
+
+-type user() :: #user{}.
+
 -record(state, {
           basic_auth = <<>> :: binary(),
-          users = [] :: [{{User :: binary(), Server :: binary()}, Password :: binary()}],
+          users = [] :: [user()],
           rest_listeners = [] :: [pid()],
           fail_once = false :: boolean() | middle
          }).
@@ -132,27 +139,28 @@ handle_call(consume_fail, _From, State) ->
 handle_call(get_basic_auth, _From, State) ->
     {reply, State#state.basic_auth, State};
 handle_call({check_password, U, S, P}, _From, State) ->
-    case lists:keyfind({U, S}, 1, State#state.users) of
-        {_, P} -> {reply, true, State};
+    case lists:keyfind({U, S}, #user.name, State#state.users) of
+        #user{password = P} -> {reply, true, State};
         _ -> {reply, false, State}
     end;
 handle_call({get_password, U, S}, _From, State) ->
-    Pass = case lists:keyfind({U, S}, 1, State#state.users) of
+    Pass = case lists:keyfind({U, S}, #user.name, State#state.users) of
                false -> false;
-               {_, P} -> P
+               #user{password = P} -> P
            end,
     {reply, Pass, State};
 handle_call({user_exists, U, S}, _From, State) ->
-    {reply, lists:keyfind({U, S}, 1, State#state.users) =/= false, State};
+    {reply, lists:keyfind({U, S}, #user.name, State#state.users) =/= false, State};
 handle_call({set_password, U, S, P}, _From, #state{ users = Users } = State) ->
-    {reply, ok, State#state{ users = lists:keystore({U, S}, 1, Users, {{U, S}, P}) }};
+    NewUser = #user{name = {U, S}, password = P},
+    {reply, ok, State#state{ users = lists:keystore({U, S}, #user.name, Users, NewUser) }};
 handle_call({remove_user, U, S}, _From, State) ->
-    {reply, ok, State#state{ users = lists:keydelete({U, S}, 1, State#state.users) }};
+    {reply, ok, State#state{ users = lists:keydelete({U, S}, #user.name, State#state.users) }};
 handle_call({remove_user_validate, U, S, P}, _From, #state{ users = Users } = State) ->
-    {Reply, StateN} = case lists:keyfind({U, S}, 1, Users) of
-                          {_, P} ->
+    {Reply, StateN} = case lists:keyfind({U, S}, #user.name, Users) of
+                          #user{password = P} ->
                               {ok, State#state{ users = lists:keydelete(
-                                                          {U, S}, 1, Users) }};
+                                                          {U, S}, #user.name, Users) }};
                           false ->
                               {not_found, State};
                           _ ->
@@ -160,9 +168,11 @@ handle_call({remove_user_validate, U, S, P}, _From, #state{ users = Users } = St
                       end,
     {reply, Reply, StateN};
 handle_call({register, U, S, P}, _From, #state{ users = Users } = State) ->
-    case lists:keyfind({U, S}, 1, Users) of
-        {_, _} -> {reply, conflict, State};
-        false -> {reply, ok, State#state{ users = [{{U, S}, P} | Users] }}
+    case lists:keyfind({U, S}, #user.name, Users) of
+        #user{} -> {reply, conflict, State};
+        false ->
+            NewUser = #user{name = {U, S}, password = P},
+            {reply, ok, State#state{users = [NewUser | Users]}}
     end;
 handle_call({do, Fun}, _From, State) ->
     {reply, Fun(), State};

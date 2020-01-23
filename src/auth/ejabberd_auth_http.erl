@@ -54,7 +54,16 @@ supports_sasl_module(_, _) -> false.
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
 authorize(Creds) ->
-    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
+    case mongoose_credentials:get(Creds, der_cert, undefined) of
+        undefined -> ejabberd_auth:authorize_with_check_password(?MODULE, Creds);
+        DerCert ->
+            {LServer, LUser} = get_server_and_user_name(Creds),
+            case verify_cert(LUser, LServer, DerCert) of
+                true -> {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)};
+                false -> {error, not_authorized}
+            end
+    end.
+
 
 -spec check_password(jid:luser(), jid:lserver(), binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
@@ -249,6 +258,21 @@ verify_scram_password(LUser, LServer, Password) ->
         _ ->
             {error, not_exists}
     end.
+
+verify_cert(LUser, LServer, DerCert) ->
+    case make_req(get, <<"get_certs">>, LUser, LServer, <<"">>) of
+        {ok, PemCert} ->
+            UserCert = {'Certificate', DerCert, not_encrypted},
+            [] =/= [Cert || Cert <- public_key:pem_decode(PemCert), Cert =:= UserCert];
+        _ -> false
+    end.
+
+get_server_and_user_name(Creds) ->
+    User = mongoose_credentials:get(Creds, username),
+    LUser = jid:nodeprep(User),
+    LUser == error andalso error({nodeprep_error, User}),
+    LServer = mongoose_credentials:lserver(Creds),
+    {LServer, LUser}.
 
 stop(_Host) ->
     ok.

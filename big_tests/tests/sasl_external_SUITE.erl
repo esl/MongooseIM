@@ -18,6 +18,7 @@ groups() ->
      {standard, [parallel], standard_test_cases()},
      {use_common_name, [parallel], use_common_name_test_cases()},
      {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases()},
+     {demo_verification_module, [parallel], demo_verification_module_test_cases()},
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
      {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
      {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
@@ -38,7 +39,8 @@ base_groups() ->
     [{group, standard},
      {group, standard_keep_auth},
      {group, use_common_name},
-     {group, allow_just_user_identity}].
+     {group, allow_just_user_identity},
+     {group, demo_verification_module}].
 
 standard_test_cases() ->
     [
@@ -63,6 +65,14 @@ allow_just_user_identity_test_cases() ->
     [
      cert_no_xmpp_addrs_just_use_identity
     ].
+
+demo_verification_module_test_cases()->
+    [cert_no_xmpp_addrs_just_use_identity,
+     cert_one_xmpp_addrs_no_identity,
+     cert_with_jid_cn_no_xmpp_addrs_no_identity,
+     cert_with_jid_cn_many_xmpp_addrs_no_identity,
+     cert_more_xmpp_addrs_no_identity_fails,
+     cert_no_xmpp_addrs_no_identity].
 
 self_signed_certs_allowed_test_cases() ->
     [self_signed_cert_is_allowed_with_tls,
@@ -121,6 +131,9 @@ init_per_group(use_common_name, Config) ->
     Config;
 init_per_group(allow_just_user_identity, Config) ->
     modify_config_and_restart("allow_just_user_identity", Config),
+    Config;
+init_per_group(demo_verification_module, Config) ->
+    modify_config_and_restart("[{mod, cyrsasl_external_verification}]", Config),
     Config;
 init_per_group(self_signed_certs_allowed, Config) ->
     modify_config_and_restart("standard", Config),
@@ -207,6 +220,18 @@ cert_one_xmpp_addrs_no_identity_not_registered(C) ->
 
 cert_with_cn_no_xmpp_addrs_no_identity(C) ->
     User = username("john", C),
+    UserSpec = generate_user_tcp(C, User),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+    escalus_connection:stop(Client).
+
+cert_with_jid_cn_no_xmpp_addrs_no_identity(C) ->
+    User = "john@localhost",
+    UserSpec = generate_user_tcp(C, User),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+    escalus_connection:stop(Client).
+
+cert_with_jid_cn_many_xmpp_addrs_no_identity(C) ->
+    User = "grace@localhost",
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
@@ -331,12 +356,14 @@ no_cert_fails_to_authenticate(_C) ->
 
 generate_certs(C) ->
     CA = [#{cn => "not-alice", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
-    #{cn => "kate", xmpp_addrs => ["kate@localhost", "kate@fed1"]},
+          #{cn => "kate", xmpp_addrs => ["kate@localhost", "kate@fed1"]},
           #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
           #{cn => "greg", xmpp_addrs => ["greg@localhost"]},
           #{cn => "john", xmpp_addrs => undefined},
+          #{cn => "john@localhost", xmpp_addrs => undefined},
           #{cn => "not-mike", xmpp_addrs => undefined},
-          #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
+          #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
+          #{cn => "grace@localhost", xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
     SelfSigned = [ M#{cn => CN ++ "-self-signed", signed => self, xmpp_addrs => replace_addrs(Addrs)}
                    || M = #{ cn := CN , xmpp_addrs := Addrs} <- CA],
     CertSpecs = CA ++ SelfSigned,

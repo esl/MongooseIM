@@ -24,6 +24,7 @@
 -define(DOMAIN2, <<"localhost2">>).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
+-define(CERT_PATH, "../../../../tools/ssl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -34,8 +35,9 @@ all() ->
 
 groups() ->
     [
+     {cert_auth, cert_auth()},
      {auth_requests_plain, [sequence], all_tests()},
-     {auth_requests_scram, [sequence], all_tests()}
+     {auth_requests_scram, [sequence], [{group,cert_auth} | all_tests()]}
     ].
 
 all_tests() ->
@@ -47,6 +49,13 @@ all_tests() ->
      is_user_exists,
      remove_user,
      supported_sasl_mechanisms
+    ].
+
+cert_auth() ->
+    [
+        cert_auth_fail,
+        cert_auth_success,
+        cert_auth_nonexistent
     ].
 
 suite() ->
@@ -85,6 +94,16 @@ end_per_suite(Config) ->
     ok = mim_ct_rest:stop(),
     Config.
 
+init_per_group(cert_auth, Config) ->
+    try
+        {ok, Cert1} = file:read_file(?CERT_PATH ++ "/mongooseim/cert.pem"),
+        {ok, Cert2} = file:read_file(?CERT_PATH ++ "/ca/cacert.pem"),
+        [{'Certificate', DerBin, not_encrypted} | _] = public_key:pem_decode(Cert2),
+        [{der_cert, DerBin}, {pem_cert1, Cert1}, {pem_cert2, Cert2} | Config]
+    catch
+        _:E ->
+            {skip, {E, ?CERT_PATH, element(2, file:get_cwd())}}
+    end;
 init_per_group(GroupName, Config) ->
     Config2 = lists:keystore(scram_group, 1, Config,
                              {scram_group, GroupName == auth_requests_scram}),
@@ -94,6 +113,8 @@ init_per_group(GroupName, Config) ->
     meck_cleanup(),
     Config2.
 
+end_per_group(cert_auth, Config) ->
+    Config;
 end_per_group(_GroupName, Config) ->
     mim_ct_rest:remove_user(<<"alice">>, ?DOMAIN1),
     mim_ct_rest:remove_user(<<"bob">>, ?DOMAIN1),
@@ -103,6 +124,18 @@ init_per_testcase(remove_user, Config) ->
     meck_config(Config),
     mim_ct_rest:register(<<"toremove1">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
     mim_ct_rest:register(<<"toremove2">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
+    Config;
+init_per_testcase(cert_auth_fail, Config) ->
+    meck_config(Config),
+    Cert = proplists:get_value(pem_cert1, Config),
+    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN1, Cert),
+    Config;
+init_per_testcase(cert_auth_success, Config) ->
+    meck_config(Config),
+    Cert1 = proplists:get_value(pem_cert1, Config),
+    Cert2 = proplists:get_value(pem_cert2, Config),
+    SeveralCerts = <<Cert1/bitstring, Cert2/bitstring>>,
+    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN1, SeveralCerts),
     Config;
 init_per_testcase(_CaseName, Config) ->
     meck_config(Config),
@@ -115,6 +148,14 @@ end_per_testcase(try_register, Config) ->
 end_per_testcase(remove_user, Config) ->
     mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN1),
     mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN1),
+    meck_cleanup(),
+    Config;
+end_per_testcase(cert_auth_fail, Config) ->
+    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN1),
+    meck_cleanup(),
+    Config;
+end_per_testcase(cert_auth_success, Config) ->
+    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN1),
     meck_cleanup(),
     Config;
 end_per_testcase(_CaseName, Config) ->
@@ -181,11 +222,29 @@ supported_sasl_mechanisms(Config) ->
     [true, DigestSupported, true, false] =
         [ejabberd_auth_http:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
+cert_auth_fail(Config) ->
+    Creds = creds_with_cert(Config, <<"cert_user">>),
+    {error, not_authorized} = ejabberd_auth_http:authorize(Creds).
+
+cert_auth_success(Config) ->
+    Creds = creds_with_cert(Config, <<"cert_user">>),
+    {ok, _} = ejabberd_auth_http:authorize(Creds).
+
+cert_auth_nonexistent(Config) ->
+    Creds = creds_with_cert(Config, <<"nonexistent">>),
+    {error, not_authorized} = ejabberd_auth_http:authorize(Creds).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+creds_with_cert(Config, Username) ->
+    Cert = proplists:get_value(der_cert, Config),
+    NewCreds = mongoose_credentials:new(?DOMAIN1),
+    mongoose_credentials:extend(NewCreds, [{der_cert, Cert},
+                                           {username, Username}]).
 
 meck_config(Config) ->
+    meck:unload(),
     ScramOpts = case lists:keyfind(scram_group, 1, Config) of
                     {_, true} -> [{password_format, scram}];
                     _ -> []
