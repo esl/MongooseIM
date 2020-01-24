@@ -26,7 +26,7 @@ Information collected is automatically anonymised before it is being processed f
 
 # How a report looks like?
 Sample report showing metrics for the mod_vcard backends from the Google Analytics can be found below.
-![System metrics sample report](system_metrics_report.png)
+![System metrics sample report][system_metrics_report]
 
 Based on such report we can see the frequency of different backends being used with mod_vcard.
 
@@ -43,8 +43,8 @@ For more details regarding service configuration, please see [Services](Services
 The data that is gathered
 
 
-
 # [WIP] Data Sharing Policy
 We will not share any information with furhter third parties
 
 
+[system_metrics_report]: system_metrics_report.png
