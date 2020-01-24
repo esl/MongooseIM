@@ -3,7 +3,8 @@ A service is similar to a module, but while a module is started for every virtua
 Service configuration is similar to a module configuration, e.g.:
 ```
 {services, [
-            {service_admin_extra, [{submods, [node, accounts, sessions]}]}
+            {service_admin_extra, [{submods, [node, accounts, sessions]}]},
+            {service_mongoose_system_metrics, [report, {intial_report, 300000}, {periodic_report, 108000000}]}
            ]
 }.
 ```
@@ -11,7 +12,7 @@ Service configuration is similar to a module configuration, e.g.:
 
 ## Service list
 
-As of version 2.2, only one module is a "service provider".
+As of version 3.6, only two modules are categorised as "service provider".
 Eventually the modules which are not host-specific will be refactored to be services.
 
 ### service_admin_extra
@@ -31,6 +32,34 @@ Provides additional commands to mongooseimctl script.
     * `vcard`: Adds `get_vcard`, `get_vcard2`, `get_vcard2_multi`, `set_vcard`, `set_vcard2`, `set_vcard2_multi`
     * `gdpr`: Adds `retrieve_personal_data`
 
-### Example configuration
+#### Example configuration
 ` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `
 
+### service_mongoose_system_metrics
+
+MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and know where to focus our efforts.
+See [System Metrics Privacy Policy](System-Metrics-Privacy-Policy.md) for more details.
+
+#### Options
+* `report` (default: disabled) - Explicit acknowledgement that the metrics are gathered and reported. Enabling this option is silencing the notification reminder that metrics are gathered.
+* `no_report` (default: disabled) - When this option is set, System Metrics Service is not started and metrics are not collected. Having this option configured, stops the notification warning that the functionality is not being used.
+* `intial_report`:
+    * **Description:** Time delay counted when the service is started after which first metrics report is created and sent.
+    * **Syntax:** `{initial_report, Delay}`
+    * **Default:** 300000ms (5min).
+    * **Example:** `{intial_report, 300000}`
+* `periodic_report`:
+    * **Description:** Time delay for periodic update report to be created and sent.
+    * **Syntax:**`{periodic_report, Delay}`
+    * **Default:** 108000000ms (3h)
+    * **Example:** `{periodic_report, 108000000}`
+* `tracking_id`:
+    * **Description:** TTracking ID to forward the reported metrics so that they can be viewed in Google Analytics dashboard.
+    * **Syntax:**`{tracking_id, TrackingID}`
+    * **Default:** disabled
+    * **Example:** `{tracking_id, UA-123456789}`
+
+Removing the `service_mongoose_system_metrics` entry from list of services will result in the service not being started. Metrics will not be collected and shared.
+
+#### Example configuration
+ ` {service_mongoose_system_metrics, [report, {intial_report, 300000}, {periodic_report, 108000000}]} `
