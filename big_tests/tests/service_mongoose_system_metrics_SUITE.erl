@@ -8,7 +8,7 @@
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, "UA-151671255-2").
 -define(TRACKING_ID_CI, "UA-151671255-1").
--define(TRACKING_ID_EXTRA, "UA-151671255-3").
+-define(TRACKING_ID_EXTRA, "UA-EXTRA-TRACKING-ID").
 
 -record(event, {
     cid = "",
