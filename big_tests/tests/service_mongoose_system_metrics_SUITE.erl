@@ -417,11 +417,11 @@ remove_additional_tracking_id(Node) ->
     mongoose_helper:successful_rpc(
         Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
 
-    remove_service_from_config(Service) ->
-            Services = distributed_helper:rpc(
-                           mim3(),ejabberd_config, get_local_option_or_default, [services, []]),
-            NewServices = proplists:delete(Service, Services),
-            distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
+remove_service_from_config(Service) ->
+        Services = distributed_helper:rpc(
+                       mim3(),ejabberd_config, get_local_option_or_default, [services, []]),
+        NewServices = proplists:delete(Service, Services),
+        distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
