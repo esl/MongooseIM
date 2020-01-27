@@ -21,10 +21,6 @@ set -e
 
 case "$1" in
     purge)
-	if which deluser >/dev/null ; then
-	    deluser $NAME 2>/dev/null || true
-	    delgroup $NAME 2>/dev/null || true
-	fi
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
