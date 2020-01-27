@@ -64,6 +64,7 @@ pages:
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
+      - 'System Metrics Privacy Policy': 'operation-and-maintenance/System-Metrics-Privacy-Policy.md'
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
       - 'Known issues': 'operation-and-maintenance/known-issues.md'
   - "Developer's guide":
