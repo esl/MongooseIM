@@ -279,6 +279,8 @@ transport_mechanisms_are_reported(_Config) ->
     mongoose_helper:wait_until(fun transport_mechanisms_are_reported/0, true).
 
 just_removed_from_config_logs_question(_Config) ->
+    disable_system_metrics(mim3()),
+    remove_service_from_config(service_mongoose_system_metrics),
     %% WHEN
     Result = distributed_helper:rpc(
                mim3(), service_mongoose_system_metrics, verify_if_configured, []),
@@ -381,7 +383,7 @@ enable_system_metrics(Node, Timers) ->
     start_system_metrics_module(Node, Timers).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, "configurable_tracking_id"}]).
+    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, ?TRACKING_ID_EXTRA}]).
 
 start_system_metrics_module(Node, Args) ->
     distributed_helper:rpc(
@@ -412,15 +414,22 @@ configure_additional_tracking_id(Node) ->
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
 
 remove_additional_tracking_id(Node) ->
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
+    mongoose_helper:successful_rpc(
+        Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
+
+    remove_service_from_config(Service) ->
+            Services = distributed_helper:rpc(
+                           mim3(),ejabberd_config, get_local_option_or_default, [services, []]),
+            NewServices = proplists:delete(Service, Services),
+            distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     SetTab = sets:from_list([Tid ||#event{tid = Tid} <- Tab]),
-    2 == sets:size(SetTab).
+    2 >= sets:size(SetTab).
 
 events_are_reported_to_configurable_tracking_id() ->
-    ConfigurableTrackingId = <<"configurable_tracking_id">>,
+    ConfigurableTrackingId = <<?TRACKING_ID_EXTRA>>,
     Tab = ets:tab2list(?ETS_TABLE),
     lists:any(
         fun(#event{tid = TrackingId}) ->
