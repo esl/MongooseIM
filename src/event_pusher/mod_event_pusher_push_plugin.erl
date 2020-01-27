@@ -25,15 +25,21 @@
          publish_notification/5]).
 
 
+%% @doc used for filtering push notifications. A push notification is triggered for a given
+%% message only if this callback returns `true`.
 -callback should_publish(Acc :: mongooseim_acc:t(),
                          Event :: mod_event_pusher:event(),
                          Services :: [mod_event_pusher_push:publish_service()]) ->
     [mod_event_pusher_push:publish_service()].
 
+%% @doc a separate interface for rejecting the event publishing (e.g. when
+%% message doesn't have a body) or creating push notification payload.
 -callback prepare_notification(Acc :: mongooseim_acc:t(),
                                Event :: mod_event_pusher:event()) ->
     push_payload() | skip.
 
+%% @doc does the actual push. By default it pushes to the registered pubsub
+%% nodes (or executes the internal hook in case of a publish to a virtual domain).
 -callback publish_notification(Acc :: mongooseim_acc:t(),
                                Event :: mod_event_pusher:event(),
                                Payload :: push_payload(),
