@@ -4,7 +4,9 @@ Service configuration is similar to a module configuration, e.g.:
 ```
 {services, [
             {service_admin_extra, [{submods, [node, accounts, sessions]}]},
-            {service_mongoose_system_metrics, [report, {intial_report, 300000}, {periodic_report, 108000000}]}
+            {service_mongoose_system_metrics, [report,
+                                               {intial_report, 300000},
+                                               {periodic_report, 108000000}]}
            ]
 }.
 ```
@@ -62,4 +64,11 @@ See [System Metrics Privacy Policy](System-Metrics-Privacy-Policy.md) for more d
 Removing the `service_mongoose_system_metrics` entry from list of services will result in the service not being started. Metrics will not be collected and shared.
 
 #### Example configuration
- ` {service_mongoose_system_metrics, [report, {intial_report, 300000}, {periodic_report, 108000000}]} `
+```
+{service_mongoose_system_metrics, [
+                                   report,
+                                   {intial_report, 300000},
+                                   {periodic_report, 108000000}
+                                  ]
+}.
+```
