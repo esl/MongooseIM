@@ -49,7 +49,7 @@ These reporting intervals can be changed depending on the configuration paramete
 
 # How to configure this service?
 This functionality is provided as a "service".
-For more details regarding service configuration, please see [Services](/advanced-configuration/Services) section.
+For more details regarding service configuration, please see [Services](../advanced-configuration/Services.md) section.
 
 # How to configure additional and private Tracking ID in Google Analytics?
 The data that is gathered and forwarded to Google Analytics.
@@ -78,7 +78,7 @@ New Tracking ID can be added to the list of options
 }
 ```
 
-For more details regarding service configuration, please see [Services](/advanced-configuration/Services) section.
+For more details regarding service configuration, please see [Services](../advanced-configuration/Services.md) section.
 
 # Data Sharing Policy
 For more information on how Google Analytics collects and processes data, please see [Google Privacy & Terms](https://policies.google.com/technologies/partner-sites).
@@ -88,4 +88,4 @@ Insight of statistical significance regarding our findings from bulk data collec
 
 [system_metrics_report]: system_metrics_report.png
 [how-to-configure-tracking-id]: #how-to-configure-additional-and-private-tracking-id-in-google-analytics
-[service_mongoose_system_metrics]:/advanced-configuration/Services#service_mongoose_system_metrics
+[service_mongoose_system_metrics]:../advanced-configuration/Services.md#service_mongoose_system_metrics

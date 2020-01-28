@@ -40,7 +40,7 @@ Provides additional commands to mongooseimctl script.
 ### service_mongoose_system_metrics
 
 MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and know where to focus our efforts.
-See [System Metrics Privacy Policy](/operation-and-maintenance/System-Metrics-Privacy-Policy) for more details.
+See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
 
 #### Options
 * `report` (default: disabled) - Explicit acknowledgement that the metrics are gathered and reported.
