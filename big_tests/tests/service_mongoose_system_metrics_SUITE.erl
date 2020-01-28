@@ -419,7 +419,7 @@ remove_additional_tracking_id(Node) ->
 
 remove_service_from_config(Service) ->
         Services = distributed_helper:rpc(
-                       mim3(),ejabberd_config, get_local_option_or_default, [services, []]),
+                       mim3(), ejabberd_config, get_local_option_or_default, [services, []]),
         NewServices = proplists:delete(Service, Services),
         distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
 
