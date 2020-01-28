@@ -1,6 +1,6 @@
 -module(mongoose_system_metrics_collector).
 
--type report_struct() :: 
+-type report_struct() ::
     #{
         report_name := term(),
         key := term(),
@@ -91,7 +91,7 @@ get_uptime() ->
     UptimeSeconds = Uptime div 1000,
     {D, {H, M, S}} = calendar:seconds_to_daystime(UptimeSeconds),
     Formatted = io_lib:format("~4..0B-~2..0B:~2..0B:~2..0B", [D,H,M,S]),
-    [#{report_name => cluster, key => uptime, value => Formatted}].
+    [#{report_name => cluster, key => uptime, value => list_to_binary(Formatted)}].
 
 get_cluster_size() ->
     NodesNo = length(nodes()) + 1,
@@ -100,7 +100,7 @@ get_cluster_size() ->
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
         {_, _, Version} ->
-            #{report_name => cluster, key => mim_version, value => Version};
+            #{report_name => cluster, key => mim_version, value => list_to_binary(Version)};
         _ ->
             []
     end.

@@ -78,6 +78,8 @@ build_report(ClientId, TrackingId, #{report_name := EventCategory, key := EventA
         "&el=", LstEventLabel],
     string:join(LstLine, "").
 
+term_to_string(Term) when is_binary(Term) ->
+    term_to_string(binary_to_list(Term));
 term_to_string(Term) ->
     R = io_lib:format("~p",[Term]),
     lists:flatten(R).
