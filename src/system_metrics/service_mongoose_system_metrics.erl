@@ -6,7 +6,11 @@
 
 -define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).
+-ifdef(PROD_NODE).
+-define(TRACKING_ID, "UA-151671255-3").
+-else.
 -define(TRACKING_ID, "UA-151671255-2").
+-endif.
 -define(TRACKING_ID_CI, "UA-151671255-1").
 
 -include("mongoose.hrl").
