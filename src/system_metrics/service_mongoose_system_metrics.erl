@@ -68,7 +68,8 @@ handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
                     Reports = mongoose_system_metrics_collector:collect(),
-                    mongoose_system_metrics_sender:send(ClientId, Reports)
+                    mongoose_system_metrics_sender:send(ClientId, Reports),
+                    mongoose_system_metrics_file:save(Reports)
                 end),
             erlang:send_after(ReportAfter, self(), spawn_reporter),
             {noreply, State#system_metrics_state{reporter_monitor = Monitor,
@@ -121,7 +122,7 @@ report_transparency(Args) ->
         {true, ____} -> skip;
         {____, true} -> continue;
         {____, ____} ->
-            ?WARNING_MSG(msg_accept_terms_and_conditions(), []),
+            ?WARNING_MSG(msg_accept_terms_and_conditions(), [mongoose_system_metrics_file:location()]),
             continue
     end.
 
@@ -158,4 +159,5 @@ msg_accept_terms_and_conditions() ->
       "improve MongooseIM, and know where to focus our efforts. "
       "For more info on how to customise, read, enable, and disable these metrics visit: \n"
       "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
-      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
+      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
+      "The last sent report is also written to a file ~s">>.
