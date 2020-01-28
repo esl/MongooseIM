@@ -38,6 +38,7 @@
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
          system_metrics_are_reported_to_additional_google_analytics/1,
          system_metrics_are_reported_to_configurable_google_analytics/1,
+         system_metrics_are_reported_to_a_json_file/1,
          tracking_id_is_correctly_configured/1,
          module_backend_is_reported/1,
          mongoose_version_is_reported/1,
@@ -59,14 +60,9 @@
                             ]).
 
 -import(component_helper, [connect_component/1,
-                           connect_component/2,
                            disconnect_component/2,
-                           disconnect_components/2,
-                           connect_component_subdomain/1,
                            spec/2,
-                           common/1,
-                           common/2,
-                           name/1]).
+                           common/1]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -79,6 +75,7 @@ all() ->
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
      system_metrics_are_reported_to_additional_google_analytics,
      system_metrics_are_reported_to_configurable_google_analytics,
+     system_metrics_are_reported_to_a_json_file,
      tracking_id_is_correctly_configured,
      module_backend_is_reported,
      mongoose_version_is_reported,
@@ -254,6 +251,17 @@ system_metrics_are_reported_to_additional_google_analytics(_Config) ->
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
     mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
+
+system_metrics_are_reported_to_a_json_file(_Config) ->
+    ReportFilePath = distributed_helper:rpc(mim(), mongoose_system_metrics_file, location, []),
+    ReportLastModified = distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath]),
+    Fun = fun() ->
+        ReportLastModified < distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath])
+    end,
+    mongoose_helper:wait_until(Fun, true),
+    %% now we read the content of the file and check if it's a valid JSON
+    {ok, File} = distributed_helper:rpc(mim(), file, read_file, [ReportFilePath]),
+    jiffy:decode(File).
 
 module_backend_is_reported(_Config) ->
     mongoose_helper:wait_until(fun modules_are_reported/0, true),

@@ -33,6 +33,7 @@
          clear_custom/0, clear_custom/1]).
 
 -export([get_log_files/0]).
+-export([dir/0]).
 
 -include("mongoose.hrl").
 
@@ -121,4 +122,11 @@ clear_custom(Module) when is_atom(Module) ->
 
 get_log_files() ->
     [lager_util:expand_path(File) || {{lager_file_backend, File}, _, _} <- lager_config:global_get(handlers)].
+
+-spec dir() -> string().
+dir() ->
+    case application:get_env(lager, log_root) of
+        {ok, LogDir} -> LogDir;
+        _ -> ""
+    end.
 
