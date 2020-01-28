@@ -151,13 +151,15 @@ msg_removed_from_config() ->
       "To stop being notified, you can add this to the services section of your config file: \n"
       "    '{services_mongoose_system_metrics, [no_report]}' \n"
       "For more info on how to customise, read, enable, and disable the metrics visit: \n"
-      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
+      "- MongooseIM docs - \n"
+      "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
       "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
 
 msg_accept_terms_and_conditions() ->
     <<"We are gathering the MongooseIM system's metrics to analyse the trends and needs of our users, "
       "improve MongooseIM, and know where to focus our efforts. "
       "For more info on how to customise, read, enable, and disable these metrics visit: \n"
-      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
+      "- MongooseIM docs - \n"
+      "      https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
       "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
       "The last sent report is also written to a file ~s">>.

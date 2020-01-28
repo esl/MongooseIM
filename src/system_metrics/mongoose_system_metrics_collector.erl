@@ -42,7 +42,7 @@ get_hosts_count() ->
 get_modules() ->
     Hosts = ejabberd_config:get_global_option(hosts),
     AllModules = lists:flatten([gen_mod:loaded_modules(H) || H <- Hosts]),
-    ModulesToReport = filter_behaviour_implementations(AllModules,
+    ModulesToReport = filter_behaviour_implementations(lists:usort(AllModules),
                                                        mongoose_module_metrics),
     ModsWithOpts = [get_modules_metrics(Host, ModulesToReport) || Host <- Hosts],
     [report_module_with_opts(Mod, Opt) || {Mod, Opt} <- lists:flatten(ModsWithOpts)].
