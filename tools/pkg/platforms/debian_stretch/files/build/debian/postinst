@@ -18,15 +18,15 @@ set -e
 # the debian-policy package
 
 NAME="mongooseim"
-PKG_ROOT="/usr/lib/${NAME}/"
+PKG_ROOT="/usr/lib/${NAME}"
 
 MIM_CTL="/usr/bin/mongooseimctl"
 
-ETC_DIR="/etc/${NAME}/"
+ETC_DIR="/etc/${NAME}"
 
-VAR_LIB="/var/lib/${NAME}/"
-VAR_LOCK="/var/lock/${NAME}/"
-VAR_LOG="/var/log/${NAME}/"
+VAR_LIB="/var/lib/${NAME}"
+VAR_LOCK="/var/lock/${NAME}"
+VAR_LOG="/var/log/${NAME}"
 
 . /usr/share/debconf/confmodule
 
