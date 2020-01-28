@@ -14,7 +14,7 @@ Service configuration is similar to a module configuration, e.g.:
 
 ## Service list
 
-Currently, only two modules are categorised as "service provider".
+Currently, only two modules are categorised as a "service provider".
 Eventually the modules which are not host-specific will be refactored to be services.
 
 ### service_admin_extra
@@ -39,7 +39,7 @@ Provides additional commands to mongooseimctl script.
 
 ### service_mongoose_system_metrics
 
-MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and know where to focus our efforts.
+MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
 See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
 
 #### Options
@@ -48,12 +48,12 @@ Enabling this option is silencing the notification reminder that metrics are gat
 * `no_report` (default: disabled) - When this option is set, System Metrics Service is not started and metrics are not collected.
 Having this option enabled, stops the notification warning that the functionality is not being used.
 * `intial_report`:
-    * **Description:** Time delay counted when the service is started after which first metrics report is created and sent.
+    * **Description:** Time delay counted when the service is started after which the first metrics report is created and sent.
     * **Syntax:** `{initial_report, Delay}`
     * **Default:** 300000ms (5min).
     * **Example:** `{intial_report, 300000}`
 * `periodic_report`:
-    * **Description:** Time delay for periodic update report to be created and sent.
+    * **Description:** Time delay for a periodic update report to be created and sent.
     * **Syntax:**`{periodic_report, Delay}`
     * **Default:** 108000000ms (3h)
     * **Example:** `{periodic_report, 108000000}`
@@ -66,7 +66,7 @@ Having this option enabled, stops the notification warning that the functionalit
 Removing the `service_mongoose_system_metrics` entry from list of services will result in the service not being started.
 Metrics will not be collected and shared.
 It will generate a notification that the feature is not being used.
-The notification can be silenced by setting explicit `no_report` option.
+The notification can be silenced by setting the `no_report` option explicitly.
 
 #### Example configuration
 ```

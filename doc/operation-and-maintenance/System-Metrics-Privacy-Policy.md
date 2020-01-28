@@ -1,18 +1,18 @@
 # Introduction
-MongooseIM system metrics are gathered to analyse the trends and needs of our users, improve MongooseIM, and know where to focus our efforts.
-This section is devoted to explaining on how customise, read, enable and disable collecting of the system metrics.
+MongooseIM system metrics are gathered to analyse the trends and needs of our users, improve MongooseIM, and let us know where to focus our efforts.
+This section is devoted to explaining how to customise, read, enable and disable collecting of the system metrics.
 
 # Consent
-To ensure the transparency of the functionality being enabled, a log message is generated on every MongooseIM node start (unless metrics service is configured with the `report` option).
-The user is being notified that the metrics are gathered and has the right to withdraw the consent at any time without limiting functionalities of the product.
+To ensure transparency, a log message is generated on every MongooseIM node start (unless the metrics service is configured with the `report` option) to show that the functionality is enabled.
+The user is being notified that the metrics are gathered and has the right to withdraw the consent at any time without limiting the functionality of the product.
 For more information on how to disable this feature, please see the [Services][service_mongoose_system_metrics] section.
 
 # What information is being gathered?
-While developing this feature it is crucial for us to be fully transparent as to what information is being gathered.
-In general, we capture information on how MongooseIM is being used, its version and with what feature set.
-We only report the names of known modules and APIs that are part of opensource and count customisations without disclosing any details.
-The user can view all the information that is shared in two different ways. Log file `system_metrics_report.json` contains the most recent report that was sent.
-Moreover, the user can configure the Tracking ID to use their own Google Analytics account and have a view on their MongooseIM status in that dashboard.
+When introducing this feature, it is crucial for us to be fully transparent as to what information is being gathered.
+In general, we capture information on how MongooseIM is being used, its version and the chosen feature set.
+We only report the names of known modules and APIs that are part of the opensource product. All additional customisations are simply counted without disclosing any specific details.
+The user can view all the information that is shared in two different ways. The log file `system_metrics_report.json` contains the most recent report that was sent.
+Additionally, the user can configure the Tracking ID to use their own Google Analytics account and have a view of their MongooseIM status in that dashboard.
 For more information on how to set up the Tracking ID, please see [How to configure additional and private Tracking ID in Google Analytics][how-to-configure-tracking-id].
 
 The full list of information that is being gathered can be seen below:
@@ -31,9 +31,9 @@ See [About Geographical Data](https://support.google.com/analytics/answer/616048
 
 # How the information is being used?
 The information collected is automatically anonymised before it is being processed any further.
-Each MongooseIM is generating random a Client ID that is being attached to the reports.
-The data collected has only statistical relevance and aims to help us understand the needs of our users.
-Knowing how our product is used will point us into the direction on how should we focus further efforts while developing the product.
+Each MongooseIM is randomly generating a Client ID that is being attached to the reports.
+The collected data has only statistical relevance and aims to help us understand the needs of our users.
+Knowing how our product is used will allow us to identify the core value it brings to the users. It will point out the direction in which to expand it and show us how to target our further efforts developing it.
 
 # How a report looks like?
 A sample report showing metrics for the mod_vcard backends from Google Analytics can be found below.
@@ -43,7 +43,7 @@ Based on such report we can see the frequency of different backends being used w
 
 # How often the metrics are reported?
 Metrics are reported first shortly after the system startup and later at regular intervals.
-These timers are configuration parameters `initial_report` and `periodic_report`.
+These timers are configurable using the `initial_report` and `periodic_report` parameters.
 The default values are 5 minutes for the initial report and 3 hours for the periodic one.
 These reporting intervals can be changed depending on the configuration parameters.
 
@@ -52,8 +52,8 @@ This functionality is provided as a "service".
 For more details regarding service configuration, please see [Services](../advanced-configuration/Services.md) section.
 
 # How to configure additional and private Tracking ID in Google Analytics?
-The data that is gathered and forwarded to Google Analytics.
-The user can add custom Google Analytics Tracking ID in the MongooseIM configuration and see all incoming events that are related their own system metrics being reported.
+The data is gathered and forwarded to Google Analytics.
+The user can add custom Google Analytics Tracking ID in the MongooseIM configuration and see all incoming events that are related to their own system metrics.
 For more details on how to create or sign in to the Google Analytics account, please see [Get Started with Analytics.](https://support.google.com/analytics/answer/1008015?hl=en&ref_topic=3544906)
 
 Tracking ID is a property identification code that all collected data is associated with.
@@ -61,7 +61,7 @@ It is determining the destination where the collected data is sent.
 To create a new Tracking ID, please follow the steps below:
 
 * Go to the `Admin` tab of your user dashboard.
-* Create new account with `+ Create Account`.
+* Create a new account with `+ Create Account`.
 * Add new property with `+ Create Property`.
     * Within the new property go to `Tracking Info > Tracking Code`.
     * Tracking ID can be found in the top left corner of the section and has following format UA-XXXX-Y.
