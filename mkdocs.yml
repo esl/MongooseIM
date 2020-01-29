@@ -17,6 +17,7 @@ pages:
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
       - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
+      - 'How to Set up Push Notifications on the client side': 'user-guide/push-notifications/Push-notifications-client-side.md'
       - 'How to Set up MongoosePush': 'user-guide/push-notifications/With-MongoosePush.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
