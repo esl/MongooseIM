@@ -85,6 +85,12 @@ orbs:
                 # built with dev_mode enabled (so they use symlinks for deps)
                 if [ <<parameters.build_prod>> ]; then make rel; fi
           - run:
+              name: Cat rel config
+              command: |
+                # We cannot reuse releases generated in the previous step, because they are
+                # built with dev_mode enabled (so they use symlinks for deps)
+                if [ <<parameters.build_prod>> ]; then cat _build/prod/rel/mongooseim/etc/mongooseim.cfg; fi
+          - run:
               name: Build Big Tests
               command: |
                 tools/travis-build-tests.sh
