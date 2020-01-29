@@ -4,6 +4,8 @@ MONGOOSE_TGZ=mongooseim.tar.gz
 
 BUILD_PATH=_build/prod/rel/mongooseim
 
+cat ${BUILD_PATH}/etc/mongooseim.cfg
+
 tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH}
 
 export BUILDS=`pwd`
