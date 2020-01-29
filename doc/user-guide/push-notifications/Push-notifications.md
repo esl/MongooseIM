@@ -45,7 +45,7 @@ It allows your clients to enable push notifications via a local PubSub,
 and the IQ stanza is routed internally.
 
 A direct connection to a push service (e.g. MongoosePush) must be configured on the same MongooseIM
-node, check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
+node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
 ```erlang
 {mod_pubsub, [{plugins, [<<"push">>]}]}, % mandatory minimal config
@@ -80,7 +80,7 @@ anything unique. In order to ensure uniqueness the APNS/FCM token can be used. N
 must be provided [as a publish option](https://xmpp.org/extensions/xep-0357.html#example-9) anyway.
 
 A direct connection to a push service (e.g. MongoosePush) must be configured on the same MongooseIM
-node, check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
+node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
 ```Erlang
 {mod_event_pusher, [
@@ -89,7 +89,7 @@ node, check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
             {backend, mnesia}, % optional
             {wpool, [{workers, 200}]}, % optional
             {plugin_module, mod_event_pusher_push_plugin_defaults}, % optional
-            {virtual_pubsub_hosts, ["virtual.@HOST@"]}
+            {virtual_pubsub_hosts, ["virtual.@HOSTS@"]}
         ]}
     ]}
 ]}
@@ -98,13 +98,13 @@ node, check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 #### Advantages
 * No need to use PubSub at all
 * More efficient (PubSub has a considerable impact on heavily loaded systems)
-* Simpler client-side usage — Read about the [client side configuration here][client-side].
+* Simpler client-side usage — Read about the [client side configuration here][client-side]
 
 #### Drawbacks
-* If the client application is build to create the push PubSub node, this might require a migration
+* If the client application is built to create the push PubSub node, this might require a migration
   for such client — as he attempts to create the node, the server will answer with an IQ error
-  stanza if the domain is not shadowed (using `virtual_pubsub_hosts`). If migrating the client side
-  is a problem, there's a solution for that [in the module section][mod_event_pusher_push_plugin]
+  stanza. If migrating the client side is a problem, there's a solution for that
+  [in the module section][mod_event_pusher_push_plugin]
 
 #### Virtual PubSub hosts
 

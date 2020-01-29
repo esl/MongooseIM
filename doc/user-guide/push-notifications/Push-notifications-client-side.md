@@ -1,7 +1,7 @@
 ## Using push notifications on the client side
 
 There are just a few things the XMPP client application needs to receive the push notifications.
-Depending on whether you plan to use PubSub-full or PubSub-less configuration some of the steps may be unnecessary.
+Depending on whether you plan to use PubSub-full or PubSub-less configuration, some of the steps may be unnecessary.
 
 ### Registering with a Push Service provider
 
@@ -23,7 +23,7 @@ server. If you're running a PubSub-less configuration, skip to [this point](#ena
 
 #### Creating a new push node
 In this example `mypubsub.com` is a domain of the MongooseIM server that has [mod_pubsub][] enabled
-with the `push` node support.  The client sends the following stanza to the server:
+with the `push` node support. The client sends the following stanza to the server:
 
 ```xml
 <iq type='set'
@@ -67,7 +67,7 @@ can publish notifications.
 
 #### Adding the server's JID to allowed publishers
 
-Push notifications to the push node are addressed from your server JID.
+Push notifications to the push node are addressed from your server's JID.
 If the push node was configured with the above recommended options, you need to allow your server's
 JID to publish notifications to that node.
 Considering your JID is `alice@mychat.com`, your server's JID is just `mychat.com`.
@@ -110,9 +110,10 @@ To enable push notifications in the simplest configuration, just send the follow
 ```
 
 We have now enabled push notifications to be send to the `pubsub.mypubsub.com` domain
-on the node `punsub_node_for_my_private_iphone` created previously.
-In `publish-options` we have passed the service name we are using (`apns` or `fcm`)
-and the device token (here: `your_pns_device_token`) that you received from you push notification
+on the node `punsub_node_for_my_private_iphone` created previously, or in the case of PubSub-less,
+for whatever unique node name we give here, for example any variation of the token obtained from
+_APNS_ or _FCM_. In `publish-options` we have passed the service name we are using (`apns` or `fcm`)
+and the device token (here: `your_pns_device_token`) that you received from your push notification
 service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider)).
 Those two options are the only ones required, but there are some others that are optional:
 
@@ -124,9 +125,9 @@ Those two options are the only ones required, but there are some others that are
     provider for more info.
   * `topic` - currently only used with _APNS_. The value is passed to _APNS_ as `topic` header.  For
     more information please refer to _APNS_ documentation.
-  * `silent` - if set to `true`, all notifications will be "silent". This means that only data
-    payload will be send to push notifications provider with no notification. The data payload will
-    contain all notification fields as defined in [XEP-0357].
+  * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
+    payload will be send to the push notifications provider with no notification. The data payload
+    will contain all notification fields as defined in [XEP-0357].
   * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
     This value will set the push notification priority. Please refer to FCM / APNS documentation for
     more details on those values.
@@ -147,8 +148,8 @@ This may be used to disable push notifications on all your devices.
 
 ### Communication overview
 
-One picture is worth a thousand words, hence, here you have two diagrams
-to show the typical communication when using push notifications:
+One picture is worth a thousand words, so here are two diagrams
+showing the typical communication when using push notifications:
 
 #### PubSub-full:
 

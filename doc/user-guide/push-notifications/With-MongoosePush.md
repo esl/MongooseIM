@@ -73,7 +73,7 @@ docker run -v `pwd`/priv:/opt/app/priv \
   -e PUSH_FCM_APP_KEY="MY_FCM_SECRET_TOKEN" \
   -e PUSH_HTTPS_CERTFILE="/opt/app/priv/ssl/rest_cert.pem" \
   -e PUSH_HTTPS_KEYFILE="/opt/app/priv/ssl/rest_key.pem" \
-  -it --rm mongooseim/mongoose-push:latest
+  -it --rm mongooseim/mongoose-push:2.0.0
 ```
 
 If you don't want to use either _APNS_ or _FCM_, you simply need to pass `PUSH_APNS_ENABLED=0` or
