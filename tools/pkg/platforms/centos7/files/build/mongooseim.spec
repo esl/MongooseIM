@@ -13,7 +13,7 @@ License: %{_license}
 Group: "Development/Languages"
 BuildArch: @ARCH@
 BuildRoot: %{_topdir}/BUILDROOT/%{name}-%{version}.@ARCH@
-BuildRequires:  esl-erlang >= 18.3, esl-erlang <= 20.3
+BuildRequires:  esl-erlang >= 21.3, esl-erlang <= 22.3
 BuildRequires:  expat-devel
 BuildRequires:	chrpath
 Requires(pre): shadow-utils
@@ -22,11 +22,11 @@ Vendor: %{_vendor}
 
 %description
 MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large
-installations. Specifically designed for enterprise purposes, it is 
-fault-tolerant, can utilize resources of multiple clustered machines and easily 
+installations. Specifically designed for enterprise purposes, it is
+fault-tolerant, can utilize resources of multiple clustered machines and easily
 scale in need of more capacity (by just adding a box/VM).
 
-%pre 
+%pre
 getent group mongooseim >/dev/null || groupadd mongooseim
 getent passwd mongooseim >/dev/null || adduser -g mongooseim mongooseim
 exit 0

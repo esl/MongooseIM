@@ -18,7 +18,7 @@ RUN apt-get install -y git \
                        zlib1g-dev \
                        locales \
                        unixodbc-dev \
-                       esl-erlang=1:19.3.6
+                       esl-erlang=1:22.1.8-1
 
 # fix locales
 RUN locale-gen en_US.UTF-8
