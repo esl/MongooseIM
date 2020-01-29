@@ -86,3 +86,4 @@ MongooseIM instance.
 
 [MongoosePush]: https://github.com/esl/MongoosePush
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
+[mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md

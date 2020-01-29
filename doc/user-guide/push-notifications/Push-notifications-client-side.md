@@ -1,16 +1,7 @@
 ## Using push notifications on the client side
 
 There are just a few things the XMPP client application needs to receive the push notifications.
-One picture is worth a thousand words, hence, here you have two diagrams to follow:
-
-#### PubSub-full:
-
- ![](pubsub_full_push_notifications_example_message_flow.png)
-
-#### PubSub-less:
-
- ![](pubsub_less_push_notifications_example_message_flow.png)
-
+Depending on whether you plan to use PubSub-full or PubSub-less configuration some of the steps may be unnecessary.
 
 ### Registering with a Push Service provider
 
@@ -153,6 +144,19 @@ Disabling push notifications is very simple. Just send the following stanza to y
 You may skip the `node='punsub_node_for_my_private_iphone'` to globally disable push notifications
 on all nodes that are registered with your `JID`.
 This may be used to disable push notifications on all your devices.
+
+### Communication overview
+
+One picture is worth a thousand words, hence, here you have two diagrams
+to show the typical communication when using push notifications:
+
+#### PubSub-full:
+
+ ![](pubsub_full_push_notifications_example_message_flow.png)
+
+#### PubSub-less:
+
+ ![](pubsub_less_push_notifications_example_message_flow.png)
 
 [mod_event_pusher_push]: ../../modules/mod_event_pusher_push.md
 [mod_pubsub]: ../../modules/mod_pubsub.md
