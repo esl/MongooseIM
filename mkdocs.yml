@@ -16,7 +16,8 @@ pages:
       - 'Release/Installation configuration': 'user-guide/release_config.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
-      - 'How to Set up MongoosePush': 'user-guide/Push-notifications.md'
+      - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
+      - 'How to Set up MongoosePush': 'user-guide/push-notifications/With-MongoosePush.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
       - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
