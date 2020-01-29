@@ -104,7 +104,7 @@ node, check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 * If the client application is build to create the push PubSub node, this might require a migration
   for such client — as he attempts to create the node, the server will answer with an IQ error
   stanza if the domain is not shadowed (using `virtual_pubsub_hosts`). If migrating the client side
-  is a problem, there's a solution for that in the following section.
+  is a problem, there's a solution for that [in the module section][mod_event_pusher_push_plugin]
 
 #### Virtual PubSub hosts
 
@@ -144,6 +144,7 @@ the _XMPP Push Service_.
 [mod_event_pusher]: ../../modules/mod_event_pusher.md
 [mod_event_pusher_push]: ../../modules/mod_event_pusher_push.md
 [mod_event_pusher_push_plugin]: ../../modules/mod_event_pusher_push.md#plugin-module
+[mod_event_pusher_push_migration]: ../../modules/mod_event_pusher_push.md#migration-from-xep-0357-to-virtual-hosts
 [mod_event_pusher_push_virtual_hosts]: ../../modules/mod_event_pusher_push.md#virtual-pubsub-hosts
 [mod_pubsub]: ../../modules/mod_pubsub.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md

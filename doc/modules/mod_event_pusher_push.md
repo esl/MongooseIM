@@ -70,6 +70,18 @@ the value of `virtual_pubsub_hosts` option. `pubsub.@HOST@` is the default domai
 ]}
 ```
 
+#### Advantages
+* Versatility: PubSub-less and PubSub-full mechanisms can be configured with different domains and
+  therefore give fine-grained control over the push notification handling
+* Takes advantage of the PubSub-less efficiency when told to do so
+* Fully compliant with [XEP-0357][] and therefore with most 3rd party client libraries
+* Ideal for migrations to PubSub-less deployments.
+
+#### Drawbacks
+* More complex configuration on the server side
+* Pays the PubSub performance penalty when the PubSub path is taken
+
+
 ## Plugin module
 
 You can also control the format of the "sender" of the push notification (which ultimately becomes
