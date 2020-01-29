@@ -1,3 +1,98 @@
+# [MongooseIM 3.6.0](https://github.com/esl/MongooseIM/releases/tag/3.6.0) - 2020-01-29
+
+## Highlights
+
+- Push notifications improvements
+    - Possibility to configure push notifications without real PubSub
+    - Immediate push notifications to disconnected device in resume state
+- Gathering of system metrics
+- Support for the last two major OTP versions only: 21 and 22
+- Performance improvements
+
+There were some changes to the database schema so please take a look at [Migration guide](doc/migrations/3.5.0_3.6.0.md) when upgrading from a previous version.
+
+## All changes
+
+### Added
+
+- System metrics gathering (#2523, #2532, #2550, #2571, #2578, #2580, #2586, #2591, #2594, #2598, #2601, #2603, #2607, #2610, #2612)
+- MAM disco#info to MUC and MUCLight rooms (#2272)
+- Chat markers support for the room's REST API (#2274)
+- Possibility to close malicious connections without revealing service details (#2304)
+- Ping response time metrics (#2527)
+- Emoji support in VCard's nickname field (#2539)
+- Swagger documentation hosted by MongooseIM (#2543, #2556)
+- Persistent fields from accumulator to offline storage (#2587)
+    - This requires a new column in RDBMS, see the migration guide
+
+### Changed
+
+- Push notifications
+    - Immediate push notification to a connection in resume state (#2018, #2593)
+    - RDBMS backend for `mod_event_pusher_push` (#2526)
+    - PubSub-less push notifications (#2554)
+    - Integration with MongoosePush API v3 (#2549)
+    - Expired device_id removal (#2555)
+    - Details from the push enable stanza are stored in session info now (#2568)
+    - The push notification's priority can be set with enable stanza (#2569)
+    - An `unacknowledged_message` hook is fired when a session is in resume state and a new message arrives (#2589)
+    - Documentation update and rework (#2611)
+- Riak bucket types are now configurable (#2490)
+- Dependencies update:
+    - `lager`: 3.8.0
+    - `cowboy`: 2.7.0
+    - `epgsql`: 4.3.0
+    - `mysql`: 1.5.1
+    - `cache_tab`: 1.0.20
+    - `stringprep`: 1.0.17
+    - `erlcloud`: 3.2.13
+    - `jwerl`: 1.1.0
+    - `observer_cli`: 1.5.3
+    - `amqp_client`: 3.8.0
+    - `wpool`: 4.0.1
+- SASL mechanism management simplification (#2519)
+- MUCLight room config simplification and unification (#2536)
+- Performance improvements:
+    - jid parsing in NIF (#2544)
+    - use built-in base64 encoding (#2547)
+    - C/C++ optimisations (#2604)
+- ejabberd_sm improvements (#2566, #2582)
+
+### Removed
+- `get_stactrace` calls (#2494)
+- Support for MAM v0.3 (#2496)
+- Usage of `p1_time_compat` (#2498)
+- `mod_push` (#2553)
+
+### Other
+
+- Pass the original accumulator when sending out a stanza (#2158, #2528)
+- Remove sender related data from the accumulator before passing it further (#2510)
+- Do not allow `riak` and `redis` pools to use the incompatible `available worker` strategy (#2243)
+- Fix for connection crash when the client enables stream management but it's not available (#2482)
+- Fix for REST API crash when user's JID is empty (#2543)
+- Return `Bad Request` status when malformed JSON is passed to REST API (#2557)
+- Possibility to call external HTTP auth backend to get valid user's certificates (#2044)
+- Fix for last activity error iq responses (#2570)
+- Fix c2s message bouncing issue (#2579)
+- Fix for wrong namespace in ringing stanza (#2584)
+- Fix warning for .deb packages (#2609)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-10-04..2020-01-29%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-10-04&to=2020-01-29&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222019-10-04..2020-01-29%22%20sort%3Acreated-asc%20)
+
+## Special thanks to our contributors:
+- [@vkatsuba](https://github.com/vkatsuba) (#2542, #2543, #2556, #2557)
+- [@jzskca](https://github.com/jzskca) (#2272)
+- [@kaniini](https://github.com/kaniini) (#2488)
+- [@tomaszwojcikowski](https://github.com/tomaszwojcikowski) (#2584)
+- [@ivanov-aleksander](https://github.com/ivanov-aleksander) (esl/mongooseim-docker#27, esl/mongooseim-docker#28, esl/mongooseim-docker#29, esl/mongooseim-docker#30)
+
 # [MongooseIM 3.5.0](https://github.com/esl/MongooseIM/releases/tag/3.5.0) - 2019-10-03
 
 ## Highlights
