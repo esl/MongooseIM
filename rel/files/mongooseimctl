@@ -20,7 +20,7 @@ ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
 EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
 
-EJABBERD_STATUS_PATH="${EJABBERD_STATUS_PATH:-$RUNNER_BASE_DIR/var/status}"
+EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
 
 COOKIE_ARG=`grep -e '^-setcookie' "$EJABBERD_VMARGS_PATH"`
