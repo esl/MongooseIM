@@ -56,7 +56,7 @@ ctl_path(Node, Config) ->
 
 -spec init(ct_config()) -> ct_config().
 init(Config) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     init(Node, Config).
 
 init(Node, Config) ->
@@ -69,8 +69,8 @@ node_cwd(Node, Config) ->
 
 -spec restart_application(atom()) -> ok.
 restart_application(ApplicationName) ->
-    Node = ct:get_config({hosts, mim, node}),
-    restart_application(Node, ApplicationName).
+    Node = distributed_helper:mim(),
+    restart_application(Node#{timeout => timer:seconds(30)}, ApplicationName).
 
 -spec restart_application(node(), atom()) -> ok.
 restart_application(Node, ApplicationName) ->
@@ -100,7 +100,7 @@ restore_config_file(Node, Config) ->
 
 -spec call_fun(module(), atom(), []) -> term() | {badrpc, term()}.
 call_fun(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     call_fun(Node, M, F, A).
 
 -spec call_fun(distributed_helper:rpc_spec() | node(), module(), atom(), []) ->
