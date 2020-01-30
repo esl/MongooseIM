@@ -188,7 +188,8 @@ all_mam_testcases() ->
     ].
 
 init_per_suite(Config) ->
-    Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
+    #{node := MimNode} = distributed_helper:mim(),
+    Config1 = [{{ejabberd_cwd, MimNode}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
     muc_helper:load_muc(muc_domain()),
     escalus:init_per_suite(Config1).
 
@@ -416,7 +417,7 @@ pubsub_required_modules(Plugins) ->
                      }].
 
 is_mim2_started() ->
-    Node = distributed_helper:mim2(),
+    #{node := Node} = distributed_helper:mim2(),
     case net_adm:ping(Node) of
         pong -> true;
         _ -> false
@@ -465,7 +466,7 @@ remove_vcard(Config) ->
         AliceSetResultStanza
             = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
         escalus:assert(is_iq_result, AliceSetResultStanza),
-        
+
         {0, _} = unregister(Alice, Config),
 
         assert_personal_data_via_rpc(Alice, [{vcard,["jid","vcard"],[]}])
@@ -1527,12 +1528,12 @@ retrieve_logs(Config) ->
             User = string:to_lower(binary_to_list(escalus_client:username(Alice))),
             Domain = string:to_lower(binary_to_list(escalus_client:server(Alice))),
             JID = string:to_upper(binary_to_list(escalus_client:short_jid(Alice))),
-            MIM2Node = distributed_helper:mim2(),
-            mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2Node]),
+            #{node := MIM2NodeName} = MIM2Node = distributed_helper:mim2(),
+            mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
             mongoose_helper:successful_rpc(MIM2Node, error_logger, error_msg,
                                            ["event=disturbance_in_the_force, jid=~s", [JID]]),
             Dir = request_and_unzip_personal_data(User, Domain, Config),
-            Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2Node) ++ ".txt"),
+            Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2NodeName) ++ ".txt"),
             {ok, Content} = file:read_file(Filename),
             {match, _} = re:run(Content, "disturbance_in_the_force")
         end).
