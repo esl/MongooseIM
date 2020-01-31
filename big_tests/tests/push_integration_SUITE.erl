@@ -8,7 +8,7 @@
 -include_lib("inbox.hrl").
 
 -define(MUCLIGHTHOST, <<"muclight.localhost">>).
--define(RPC_SPEC, #{node => distributed_helper:mim()}).
+-define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
 -import(muc_light_helper,
