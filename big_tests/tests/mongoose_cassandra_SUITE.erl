@@ -22,7 +22,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
-                             rpc/5]).
+                             rpc/4]).
 
 %%.
 %%' Preprocessor directives
@@ -244,7 +244,8 @@ call(F, A) ->
     call(mongoose_cassandra, F, A).
 
 call(M, F, A) ->
-    rpc(mim(), M, F, A, timer:minutes(1)).
+    RPCSpec = mim(),
+    rpc(RPCSpec#{timeout => timer:minutes(1)}, M, F, A).
 
 cql_args(Config, Args) ->
     [?config(pool, Config), undefined, ?MODULE | Args].
