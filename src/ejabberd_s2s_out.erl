@@ -118,14 +118,15 @@
 %% Specified in miliseconds. Default value is 5 minutes.
 -define(MAX_RETRY_DELAY, 300000).
 
--define(STREAM_HEADER,
-        <<"<?xml version='1.0'?>"
-        "<stream:stream "
-        "xmlns:stream='http://etherx.jabber.org/streams' "
-        "xmlns='jabber:server' "
-        "xmlns:db='jabber:server:dialback' "
-        "from='~s' "
-        "to='~s'~s>">>
+-define(STREAM_HEADER(From, To, Other),
+        <<"<?xml version='1.0'?>",
+          "<stream:stream "
+          "xmlns:stream='http://etherx.jabber.org/streams' "
+          "xmlns='jabber:server' "
+          "xmlns:db='jabber:server:dialback' "
+          "from='", (From)/binary, "' ",
+          "to='", (To)/binary, "' ",
+          (Other)/binary, ">">>
        ).
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
@@ -236,10 +237,8 @@ open_socket(init, StateData) ->
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
                                            streamid = new_id()},
-            send_text(NewStateData, list_to_binary(
-                                      io_lib:format(?STREAM_HEADER,
-                                                    [StateData#state.myname, StateData#state.server,
-                                                     Version]))),
+            send_text(NewStateData,
+                      ?STREAM_HEADER(StateData#state.myname, StateData#state.server, Version)),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
         {error, _Reason} ->
             ?INFO_MSG("s2s connection: ~s -> ~s (remote server not found)",
@@ -485,10 +484,8 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     ?DEBUG("auth: ~p", [{StateData#state.myname,
                                          StateData#state.server}]),
                     send_text(StateData,
-                              list_to_binary(
-                                io_lib:format(?STREAM_HEADER,
-                                              [StateData#state.myname, StateData#state.server,
-                                               <<" version='1.0'">>]))),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
+                                              <<" version='1.0'">>)),
                     {next_state, wait_for_stream,
                      StateData#state{streamid = new_id(),
                                      authenticated = true
@@ -559,10 +556,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                                    tls_options = TLSOpts2
                                                   },
                     send_text(NewStateData,
-                      list_to_binary(
-                        io_lib:format(?STREAM_HEADER,
-                                      [StateData#state.myname, StateData#state.server,
-                                       <<" version='1.0'">>]))),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
+                                <<" version='1.0'">>)),
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
