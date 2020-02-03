@@ -88,11 +88,15 @@ export LIB_DIR="$PREFIX/usr/lib/mongooseim"
 export LOG_DIR="$PREFIX/var/log/mongooseim"
 export MDB_DIR="$PREFIX/var/lib/mongooseim"
 export LOCK_DIR="$PREFIX/var/lock/mongooseim"
+export PID_DIR="$PREFIX/var/lib/mongooseim"
+export STATUS_DIR="$PREFIX/var/lib/mongooseim"
 {mongooseim_runner_user, "erszcz"}.
 {mongooseim_script_dir, "/tmp/mim-sandbox-system/usr/lib/mongooseim/bin"}.
 {mongooseim_etc_dir, "/tmp/mim-sandbox-system/etc/mongooseim"}.
 {mongooseim_log_dir, "/tmp/mim-sandbox-system/var/log/mongooseim"}.
 {mongooseim_mdb_dir, "/tmp/mim-sandbox-system/var/lib/mongooseim"}.
+{mongooseim_pid_dir, "/tmp/mim-sandbox-system/var/lib/mongooseim"}.
+{mongooseim_status_dir, "/tmp/mim-sandbox-system/var/lib/mongooseim"}.
 {mongooseim_mdb_dir_toggle, []}.
 {mongooseim_lock_dir, "/tmp/mim-sandbox-system/var/lock/mongooseim"}.
 ```
@@ -140,6 +144,8 @@ var/lib/mongooseim/roster_version.DCD
 var/lib/mongooseim/schema.DAT
 var/lib/mongooseim/vcard.DAT
 var/lib/mongooseim/vcard_search.DCD
+var/lib/mongooseim/pid
+var/lib/mongooseim/status
 var/log/mongooseim/crash.log
 var/log/mongooseim/ejabberd.log
 var/log/mongooseim/erlang.log.1
