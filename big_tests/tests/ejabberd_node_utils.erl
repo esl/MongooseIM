@@ -80,30 +80,30 @@ restart_application(Node, ApplicationName) ->
 
 -spec backup_config_file(ct_config()) -> ct_config().
 backup_config_file(Config) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     backup_config_file(Node, Config).
 
--spec backup_config_file(node(), ct_config()) -> ct_config().
-backup_config_file(Node, Config) ->
-    {ok, _} = call_fun(Node, file, copy, [current_config_path(Node, Config),
-                                          backup_config_path(Node, Config)]).
+-spec backup_config_file(distributed_helper:rpc_spec(), ct_config()) -> ct_config().
+backup_config_file(#{node := Node} = RPCSpec, Config) ->
+    {ok, _} = call_fun(RPCSpec, file, copy, [current_config_path(Node, Config),
+                                             backup_config_path(Node, Config)]).
 
 -spec restore_config_file(ct_config()) -> 'ok'.
 restore_config_file(Config) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     restore_config_file(Node, Config).
 
--spec restore_config_file(node(), ct_config()) -> 'ok'.
-restore_config_file(Node, Config) ->
-    ok = call_fun(Node, file, rename, [backup_config_path(Node, Config),
-                                       current_config_path(Node, Config)]).
+-spec restore_config_file(distributed_helper:rpc_spec(), ct_config()) -> 'ok'.
+restore_config_file(#{node := Node} = RPCSpec, Config) ->
+    ok = call_fun(RPCSpec, file, rename, [backup_config_path(Node, Config),
+                                          current_config_path(Node, Config)]).
 
 -spec call_fun(module(), atom(), []) -> term() | {badrpc, term()}.
 call_fun(M, F, A) ->
     Node = distributed_helper:mim(),
     call_fun(Node, M, F, A).
 
--spec call_fun(distributed_helper:rpc_spec() | node(), module(), atom(), []) ->
+-spec call_fun(distributed_helper:rpc_spec(), module(), atom(), []) ->
     term() | {badrpc, term()}.
 call_fun(Node, M, F, A) ->
     distributed_helper:rpc(Node, M, F, A).
@@ -148,13 +148,13 @@ file_exists(Node, Filename) ->
       ConfigVariable :: atom(),
       Value :: string().
 modify_config_file(CfgVarsToChange, Config) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     modify_config_file(Node, "vars.config", CfgVarsToChange, Config).
 
--spec modify_config_file(node(), string(), [{ConfigVariable, Value}], ct_config()) -> ok when
+-spec modify_config_file(distributed_helper:rpc_spec(), string(), [{ConfigVariable, Value}], ct_config()) -> ok when
       ConfigVariable :: atom(),
       Value :: string().
-modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
+modify_config_file(#{node := Node} = RPCSpec, VarsFile, CfgVarsToChange, Config) ->
     CurrentCfgPath = current_config_path(Node, Config),
     {ok, CfgTemplate} = file:read_file(config_template_path(Config)),
     CfgVarsPath = config_vars_path("vars.config", Config),
@@ -177,7 +177,7 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
     %% Render twice to replace variables in variables
     UpdatedCfgFileTmp = bbmustache:render(CfgTemplate, UpdatedCfgVars, [{key_type, atom}]),
     UpdatedCfgFile = bbmustache:render(UpdatedCfgFileTmp, UpdatedCfgVars, [{key_type, atom}]),
-    ok = ejabberd_node_utils:call_fun(Node, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
+    ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
 
 -spec get_cwd(node(), ct_config()) -> string().
 get_cwd(Node, Config) ->

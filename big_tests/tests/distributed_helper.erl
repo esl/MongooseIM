@@ -103,17 +103,11 @@ cluster_op_timeout() ->
 %% my_test(Config) ->
 %%    ...
 %%    ?dh:rpc(#{node => mongooseim@localhost}, ejabberd_sm, get_full_session_list, []),
-%%    %% or even use an atom, but please do NOT!
-%%    ?dh:rpc(mongooseim@localhost, ejabberd_sm, get_full_session_list, []),
 %%    ...
 %% '''
 %% @end
 -spec rpc(Spec, _, _, _) -> any() when
-      Spec :: rpc_spec() | node().
-rpc(Node, M, F, A) when is_atom(Node) ->
-    % TODO: review once https://github.com/esl/MongooseIM/pull/2533 is done
-    % ct:pal("rpc/4: use RPCSpec :: #{node := Node} instead of just Node :: atom()"),
-    rpc(#{node => Node}, M, F, A);
+      Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
