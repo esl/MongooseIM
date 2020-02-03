@@ -76,7 +76,7 @@
         origin_stanza := binary() | undefined,
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
-        non_strippable := sets:set(ns_key()),
+        non_strippable := [ns_key()],
         ns_key() => Value :: any()
        }.
 
@@ -126,7 +126,10 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       origin_stanza => ElementBin,
       stanza => Stanza,
       lserver => LServer,
-      non_strippable => sets:new()
+      %% The non_strippable elements must be unique.
+      %% This used to be represented with the sets module, but as the number of elements inserted
+      %% was too small, sets were themselves an overhead, and also annoying when printing
+      non_strippable => []
      }.
 
 -spec ref(Acc :: t()) -> reference().
@@ -205,7 +208,7 @@ set(NS, [{K, V} | T], Acc) ->
 -spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
 set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     Key = {NS, K},
-    NewNonStrippable = sets:add_element(Key, NonStrippable),
+    NewNonStrippable = [Key | lists:delete(Key, NonStrippable)],
     Acc#{ Key => V, non_strippable => NewNonStrippable }.
 
 -spec set_permanent(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
@@ -222,7 +225,7 @@ append(NS, Key, Val, Acc) ->
 
 -spec get_permanent_keys(Acc :: t()) -> [ns_key()].
 get_permanent_keys(#{mongoose_acc := true, non_strippable := NonStrippable}) ->
-    sets:to_list(NonStrippable).
+    NonStrippable.
 
 -spec get(Namespace :: any(), Acc :: t()) -> [{K :: any(), V :: any()}].
 get(NS, #{mongoose_acc := true} = Acc) ->
@@ -245,7 +248,7 @@ get(NS, K, Default, #{ mongoose_acc := true } = Acc) ->
 delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
     Key = {NS, K},
     Acc1 = maps:remove(Key, Acc0),
-    Acc1#{ non_strippable => sets:del_element(Key, NonStrippable) }.
+    Acc1#{ non_strippable => lists:delete(Key, NonStrippable) }.
 
 -spec delete_many(Namespace :: any(), [K :: any()], Acc :: t()) -> t().
 delete_many(_, [], Acc) ->
@@ -261,8 +264,7 @@ delete(NS, Acc) ->
 
 -spec strip(Acc :: t()) -> t().
 strip(#{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
-    NonStrippableL = sets:to_list(NonStrippable),
-    maps:with(NonStrippableL ++ default_non_strippable(), Acc).
+    maps:with(NonStrippable ++ default_non_strippable(), Acc).
 
 -spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
 strip(#{ lserver := NewLServer } = Params, Acc) ->
