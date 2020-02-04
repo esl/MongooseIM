@@ -7,11 +7,11 @@
 
 -compile(export_all).
 
--deprecated({rpc,5}).
-
 -type rpc_spec() :: #{node := node(),
                       cookie => atom(),
                       timeout => non_neg_integer()}.
+
+-export_type([rpc_spec/0]).
 
 is_sm_distributed() ->
     Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
@@ -25,8 +25,9 @@ add_node_to_cluster(Config) ->
     add_node_to_cluster(Node2, Config).
 
 add_node_to_cluster(Node, Config) ->
-    ClusterMember = mim(),
-    ok = rpc(Node, mongoose_cluster, join, [ClusterMember], cluster_op_timeout()),
+    ClusterMemberNode = maps:get(node, mim()),
+    ok = rpc(Node#{timeout => cluster_op_timeout()},
+             mongoose_cluster, join, [ClusterMemberNode]),
     verify_result(Node, add),
     Config.
 
@@ -35,7 +36,7 @@ remove_node_from_cluster(_Config) ->
     remove_node_from_cluster(Node, _Config).
 
 remove_node_from_cluster(Node, _Config) ->
-    ok = rpc(Node, mongoose_cluster, leave, [], cluster_op_timeout()),
+    ok = rpc(Node#{timeout => cluster_op_timeout()}, mongoose_cluster, leave, []),
     verify_result(Node, remove),
     ok.
 
@@ -59,16 +60,16 @@ do_verify_result(Node, Op) ->
     DbNodes1 = rpc(Node, mnesia, system_info, [running_db_nodes]),
     DbNodes2 = rpc(VerifyNode, mnesia, system_info, [running_db_nodes]),
     Checks = [{Node, DbNodes2, should_belong(Op)},
-        {VerifyNode, DbNodes1, should_belong(Op)},
-        {Node, DbNodes1, true},
-        {VerifyNode, DbNodes2, true}],
-    Results = [case lists:member(Element, List) of
-         ShouldBelong ->
-             [];
-         _ ->
-             ct:log("~p has ~p~n~p has ~p~n", [Node, DbNodes1, VerifyNode, DbNodes2]),
-             [Check]
-     end || Check = {Element, List, ShouldBelong} <- Checks],
+              {VerifyNode, DbNodes1, should_belong(Op)},
+              {Node, DbNodes1, true},
+              {VerifyNode, DbNodes2, true}],
+    Results = [case lists:member(maps:get(node, CurrentNode), RunningNodes) of
+                   ShouldBelong ->
+                       [];
+                   _ ->
+                       ct:log("~p has ~p~n~p has ~p~n", [Node, DbNodes1, VerifyNode, DbNodes2]),
+                       [Check]
+               end || Check = {CurrentNode, RunningNodes, ShouldBelong} <- Checks],
     lists:append(Results).
 
 should_belong(add) -> true;
@@ -100,17 +101,11 @@ cluster_op_timeout() ->
 %% my_test(Config) ->
 %%    ...
 %%    ?dh:rpc(#{node => mongooseim@localhost}, ejabberd_sm, get_full_session_list, []),
-%%    %% or even use an atom, but please do NOT!
-%%    ?dh:rpc(mongooseim@localhost, ejabberd_sm, get_full_session_list, []),
 %%    ...
 %% '''
 %% @end
 -spec rpc(Spec, _, _, _) -> any() when
-      Spec :: rpc_spec() | node().
-rpc(Node, M, F, A) when is_atom(Node) ->
-    % TODO: review once https://github.com/esl/MongooseIM/pull/2533 is done
-    % ct:pal("rpc/4: use RPCSpec :: #{node := Node} instead of just Node :: atom()"),
-    rpc(#{node => Node}, M, F, A);
+      Spec :: rpc_spec().
 rpc(#{} = RPCSpec, M, F, A) ->
     Node = maps:get(node, RPCSpec),
     Cookie = maps:get(cookie, RPCSpec, erlang:get_cookie()),
@@ -119,16 +114,6 @@ rpc(#{} = RPCSpec, M, F, A) ->
         {badrpc, Reason} -> error({badrpc, Reason}, [RPCSpec, M, F, A]);
         Result -> Result
     end.
-
-%% @deprecated Use rpc/4 instead.
--spec rpc(Spec, _, _, _, TimeOut) -> any() when
-      Spec :: rpc_spec() | node(),
-      TimeOut :: non_neg_integer().
-rpc(Node, M, F, A, TimeOut) ->
-    RPCSpec = #{node => Node,
-                cookie => ct:get_config(ejabberd_cookie),
-                timeout => TimeOut},
-    rpc(RPCSpec, M, F, A).
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
 %%
@@ -153,18 +138,22 @@ require_rpc_nodes(Nodes) ->
     [ {require, {hosts, Node, node}} || Node <- Nodes ].
 
 %% @doc Shorthand for hosts->mim->node from `test.config'.
+-spec mim() -> rpc_spec().
 mim() ->
-    get_or_fail({hosts, mim, node}).
+    #{node => get_or_fail({hosts, mim, node})}.
 
+-spec mim2() -> rpc_spec().
 mim2() ->
-    get_or_fail({hosts, mim2, node}).
+    #{node => get_or_fail({hosts, mim2, node})}.
 
+-spec mim3() -> rpc_spec().
 mim3() ->
-    get_or_fail({hosts, mim3, node}).
+    #{node => get_or_fail({hosts, mim3, node})}.
 
 %% @doc Shorthand for hosts->fed->node from `test.config'.
+-spec fed() -> rpc_spec().
 fed() ->
-    get_or_fail({hosts, fed, node}).
+    #{node => get_or_fail({hosts, fed, node})}.
 
 get_or_fail(Key) ->
     Val = ct:get_config(Key),

@@ -190,7 +190,5 @@ delete_user(User, Config) ->
     {User, UserSpec} = escalus_users:get_user_by_name(User),
     escalus_users:delete_user(Config, {User, UserSpec}).
 
-default_node(Config) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Node == undefined andalso error(node_undefined, [Config]),
-    Node.
+default_node(_Config) ->
+    mim().

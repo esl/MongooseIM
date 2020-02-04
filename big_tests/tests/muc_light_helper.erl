@@ -8,10 +8,8 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
--import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
-                             rpc/4,
-                             rpc/5]).
+                             rpc/4]).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -248,7 +246,8 @@ stanza_aff_set(Room, AffUsers) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
 clear_db() ->
-    rpc(mim(), mod_muc_light_db_backend, force_clear, [], timer:seconds(15)).
+    Node = mim(),
+    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light_db_backend, force_clear, []).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
@@ -256,5 +255,5 @@ ver(Int) ->
 
 -spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
 set_mod_config(K, V, Host) ->
-        true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
+        true = rpc(mim(), gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
 

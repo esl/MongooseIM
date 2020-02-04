@@ -23,27 +23,27 @@
          reload_through_ctl/2,
          restart_ejabberd_node/1]).
 
--import(distributed_helper, [rpc/4, rpc/5]).
+-import(distributed_helper, [rpc/4]).
 
 -define(CTL_RELOAD_OUTPUT_PREFIX,
         "done").
 
-backup_ejabberd_config_file(Node, Config) ->
-    {ok, _} = rpc(Node, file, copy, [node_cfg(Node, current, Config),
-                                     node_cfg(Node, backup, Config)]).
+backup_ejabberd_config_file(#{node := Node} = RPCSpec, Config) ->
+    {ok, _} = rpc(RPCSpec, file, copy, [node_cfg(Node, current, Config),
+                                        node_cfg(Node, backup, Config)]).
 
-restore_ejabberd_config_file(Node, Config) ->
-    ok = rpc(Node, file, rename, [node_cfg(Node, backup, Config),
-                                  node_cfg(Node, current, Config)]).
+restore_ejabberd_config_file(#{node := Node} = RPCSpec, Config) ->
+    ok = rpc(RPCSpec, file, rename, [node_cfg(Node, backup, Config),
+                                     node_cfg(Node, current, Config)]).
 
 restart_ejabberd_node(Node) ->
     %% Node restarts might take a long time -> long timeout.
-    ok = rpc(Node, application, stop, [mongooseim], timer:seconds(10)),
-    ok = rpc(Node, application, start, [mongooseim], timer:seconds(10)).
+    ok = rpc(Node#{timeout => timer:seconds(10)}, application, stop, [mongooseim]),
+    ok = rpc(Node#{timeout => timer:seconds(10)}, application, start, [mongooseim]).
 
-reload_through_ctl(Node, Config) ->
+reload_through_ctl(#{node := Node} = RPCSpec, Config) ->
     ReloadCmd = node_ctl(Node, Config) ++ " reload_local",
-    OutputStr = rpc(Node, os, cmd, [ReloadCmd]),
+    OutputStr = rpc(RPCSpec, os, cmd, [ReloadCmd]),
     ok = verify_reload_output(ReloadCmd, OutputStr).
 
 verify_reload_output(ReloadCmd, OutputStr) ->

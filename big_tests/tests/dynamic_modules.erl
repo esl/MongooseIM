@@ -42,6 +42,8 @@ stop(Domain, Mod) ->
     Node = escalus_ct:get_config(ejabberd_node),
     stop(Node, Domain, Mod).
 
+stop(#{node := Node}, Domain, Mod) ->
+    stop(Node, Domain, Mod);
 stop(Node, Domain, Mod) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     IsLoaded = escalus_rpc:call(Node, gen_mod, is_loaded, [Domain, Mod], 5000, Cookie),
@@ -61,6 +63,8 @@ start(Domain, Mod, Args) ->
     Node = escalus_ct:get_config(ejabberd_node),
     start(Node, Domain, Mod, Args).
 
+start(#{node := Node}, Domain, Mod, Args) ->
+    start(Node, Domain, Mod, Args);
 start(Node, Domain, Mod, Args) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of

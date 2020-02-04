@@ -33,9 +33,7 @@
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
 
--import(distributed_helper, [mim/0,
-                             rpc/4,
-                             rpc/5]).
+-import(distributed_helper, [mim/0, rpc/4]).
 
 -spec is_rdbms_enabled(Host :: binary()) -> boolean().
 is_rdbms_enabled(Host) ->
@@ -224,13 +222,21 @@ forget_persistent_rooms() ->
 successful_rpc(Module, Function, Args) ->
     successful_rpc(mim(), Module, Function, Args).
 
--spec successful_rpc(Node :: atom(), M :: module(), F :: atom(), A :: list()) -> term().
-successful_rpc(Node, Module, Function, Args) ->
-    successful_rpc(Node, Module, Function, Args, timer:seconds(5)).
+-spec successful_rpc(Spec, M, F, A) -> term() when
+      Spec :: distributed_helper:rpc_spec(),
+      M :: module(),
+      F :: atom(),
+      A :: list().
+successful_rpc(#{} = Spec, Module, Function, Args) ->
+    successful_rpc(Spec, Module, Function, Args, timer:seconds(5)).
 
--spec successful_rpc(Node :: atom(), M :: module(), F :: atom(), A :: list(), timeout()) -> term().
-successful_rpc(Node, Module, Function, Args, Timeout) ->
-    case rpc(Node, Module, Function, Args, Timeout) of
+-spec successful_rpc(Spec, M, F, A, timeout()) -> term() when
+      Spec :: distributed_helper:rpc_spec(),
+      M :: module(),
+      F :: atom(),
+      A :: list().
+successful_rpc(#{} = Spec, Module, Function, Args, Timeout) ->
+    case rpc(Spec#{timeout => Timeout}, Module, Function, Args) of
         {badrpc, Reason} ->
             ct:fail({badrpc, Module, Function, Args, Reason});
         Result ->
@@ -238,7 +244,7 @@ successful_rpc(Node, Module, Function, Args, Timeout) ->
     end.
 
 logout_user(Config, User) ->
-    Node = ct:get_config({hosts, mim, node}),
+    Node = distributed_helper:mim(),
     logout_user(Config, User, Node).
 
 %% This function is a version of escalus_client:stop/2
@@ -316,7 +322,7 @@ wait_for_user(Config, User, LeftTime) ->
     mongoose_helper:wait_until(fun() ->
                                 escalus_users:verify_creation(escalus_users:create_user(Config, User))
                                end, ok,
-							   #{
+                               #{
                                  sleep_time => 400,
                                  left_time => LeftTime,
                                  name => 'escalus_users:create_user'

@@ -136,10 +136,11 @@ cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost(_Config) ->
     %%  it stops the node, deletes everything related to mnesia from the system,
     %%  the hardcore way, removing folders from the OS and so on, and restarts the node.
     %%  Assuming this works correctly, then we can be sure that "mnesia files were lost".
+    Node = mim(),
     ok = distributed_helper:rpc(
-           mim(), mongoose_cluster, leave, [], timer:seconds(30)),
+           Node#{timeout => timer:seconds(30)}, mongoose_cluster, leave, []),
     {ok, SecondID} = mongoose_helper:successful_rpc(
-               mim(), mongoose_cluster_id, get_cached_cluster_id, []),
+               Node, mongoose_cluster_id, get_cached_cluster_id, []),
     ?assertEqual(FirstID, SecondID).
 
 

@@ -161,7 +161,7 @@ init_per_group(rebalancing, Config) ->
 init_per_group(advertised_endpoints, Config) ->
     lists:foreach(fun({NodeName, _, _}) ->
                           Node = ct:get_config(NodeName),
-                          mongoose_helper:inject_module(Node, ?MODULE, reload)
+                          mongoose_helper:inject_module(#{node => Node}, ?MODULE, reload)
                   end, get_hosts()),
     mock_inet_on_each_node(),
     init_per_group_generic(
@@ -648,13 +648,13 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
 
               %% Stop connection and wait for process to die
               EveNode = ct:get_config({hosts, reg, node}),
-              mongoose_helper:logout_user(Config, Eve, EveNode),
+              mongoose_helper:logout_user(Config, Eve, #{node => EveNode}),
 
               FromEve = escalus_client:wait_for_stanza(Alice),
 
               %% Pause Alice until Eve is reconnected
               AliceNode = ct:get_config({hosts, mim, node}),
-              C2sPid = mongoose_helper:get_session_pid(Alice, AliceNode),
+              C2sPid = mongoose_helper:get_session_pid(Alice, #{node => AliceNode}),
               ok = rpc(asia_node, sys, suspend, [C2sPid]),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
@@ -729,7 +729,7 @@ do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResum
 
               %% Stop connection and wait for process to die
               EveNode = ct:get_config({hosts, reg, node}),
-              C2sPid = mongoose_helper:get_session_pid(Eve, EveNode),
+              C2sPid = mongoose_helper:get_session_pid(Eve, #{node => EveNode}),
               ok = rpc(asia_node, sys, suspend, [C2sPid]),
 
               escalus_client:send(Alice, chat_with_seqnum(bare_client(Eve), <<"Hi from Europe1!">>)),
@@ -1048,7 +1048,7 @@ listen_endpoint(Port) when is_integer(Port) ->
 
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
-    mongoose_helper:successful_rpc(Node, M, F, A, timer:seconds(30)).
+    mongoose_helper:successful_rpc(#{node => Node}, M, F, A, timer:seconds(30)).
 
 hide_node(NodeName, Config) ->
     NodesKey = ?config(nodes_key, Config),
@@ -1308,9 +1308,10 @@ wait_for_domain(Node, Domain) ->
 %% That call would only return, when all messages in erlang message queue
 %% are processed.
 wait_for_registration(Client, Node) ->
-    mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(Client, Node)) end, true,
+    RPCSpec = #{node => Node},
+    mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(Client, RPCSpec)) end, true,
                                #{name => wait_for_session}),
-    C2sPid = mongoose_helper:get_session_pid(Client, Node),
+    C2sPid = mongoose_helper:get_session_pid(Client, RPCSpec),
     rpc:call(node(C2sPid), ejabberd_c2s, get_info, [C2sPid]),
     ok.
 

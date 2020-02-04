@@ -18,7 +18,7 @@
     disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
--define(RPC_SPEC, #{node => distributed_helper:mim()}).
+-define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
 %%--------------------------------------------------------------------
