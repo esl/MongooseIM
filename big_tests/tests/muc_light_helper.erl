@@ -9,8 +9,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(distributed_helper, [mim/0,
-                             rpc/4,
-                             rpc/5]).
+                             rpc/4]).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].

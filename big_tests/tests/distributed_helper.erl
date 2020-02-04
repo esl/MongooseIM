@@ -7,8 +7,6 @@
 
 -compile(export_all).
 
--deprecated({rpc,5}).
-
 -type rpc_spec() :: #{node := node(),
                       cookie => atom(),
                       timeout => non_neg_integer()}.
@@ -116,16 +114,6 @@ rpc(#{} = RPCSpec, M, F, A) ->
         {badrpc, Reason} -> error({badrpc, Reason}, [RPCSpec, M, F, A]);
         Result -> Result
     end.
-
-%% @deprecated Use rpc/4 instead.
--spec rpc(Spec, _, _, _, TimeOut) -> any() when
-      Spec :: rpc_spec() | node(),
-      TimeOut :: non_neg_integer().
-rpc(Node, M, F, A, TimeOut) ->
-    RPCSpec = #{node => Node,
-                cookie => ct:get_config(ejabberd_cookie),
-                timeout => TimeOut},
-    rpc(RPCSpec, M, F, A).
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
 %%
