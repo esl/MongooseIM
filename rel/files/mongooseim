@@ -11,10 +11,10 @@ RUNNER_LOG_DIR="{{mongooseim_log_dir}}"
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER={{mongooseim_runner_user}}
 
-EJABBERD_PID_PATH="${EJABBERD_PID_PATH:-$RUNNER_BASE_DIR/var/pid}"
+EJABBERD_PID_PATH="{{mongooseim_pid_dir}}/pid"
 export EJABBERD_PID_PATH="$EJABBERD_PID_PATH"
 
-EJABBERD_STATUS_PATH="${EJABBERD_STATUS_PATH:-$RUNNER_BASE_DIR/var/status}"
+EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
 
 EJABBERD_SO_PATH=`ls -dt "$RUNNER_BASE_DIR"/lib/mongooseim-*/priv/lib | head -1`
