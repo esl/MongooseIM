@@ -36,8 +36,7 @@
 -behaviour(mongoose_module_metrics).
 
 -export([read_caps/1, caps_stream_features/2,
-         disco_features/5, disco_identity/5, disco_info/5,
-         get_features/2]).
+         disco_features/5, disco_identity/5, disco_info/5]).
 
 %% gen_mod callbacks
 -export([start/2, start_link/2, stop/1]).
@@ -103,14 +102,14 @@ get_features_list(Host, Caps) ->
         Features -> Features
     end.
 
-get_features(_Host, nothing) -> [];
-get_features(Host, #caps{node = Node, version = Version,
-                         exts = Exts}) ->
+-spec get_features(jid:lserver(), nothing | caps()) -> unknown | list().
+get_features(_LHost, nothing) -> [];
+get_features(LHost, #caps{node = Node, version = Version, exts = Exts}) ->
     SubNodes = [Version | Exts],
     lists:foldl(fun (SubNode, Acc) ->
                         NodePair = {Node, SubNode},
                         case cache_tab:lookup(caps_features, NodePair,
-                                              caps_read_fun(Host, NodePair))
+                                              caps_read_fun(LHost, NodePair))
                         of
                             {ok, Features} when is_list(Features) ->
                                 Features ++ Acc;
@@ -126,23 +125,17 @@ get_features(Host, #caps{node = Node, version = Version,
 
 read_caps(Els) -> read_caps(Els, nothing).
 
-read_caps([#xmlel{name = <<"c">>, attrs = Attrs}
-           | Tail],
-          Result) ->
+read_caps([#xmlel{name = <<"c">>, attrs = Attrs} | Tail], Result) ->
     case xml:get_attr_s(<<"xmlns">>, Attrs) of
         ?NS_CAPS ->
             Node = xml:get_attr_s(<<"node">>, Attrs),
             Version = xml:get_attr_s(<<"ver">>, Attrs),
             Hash = xml:get_attr_s(<<"hash">>, Attrs),
             Exts = mongoose_bin:tokens(xml:get_attr_s(<<"ext">>, Attrs), <<" ">>),
-            read_caps(Tail,
-                      #caps{node = Node, hash = Hash, version = Version,
-                            exts = Exts});
+            read_caps(Tail, #caps{node = Node, hash = Hash, version = Version, exts = Exts});
         _ -> read_caps(Tail, Result)
     end;
-read_caps([#xmlel{name = <<"x">>, attrs = Attrs}
-           | Tail],
-          Result) ->
+read_caps([#xmlel{name = <<"x">>, attrs = Attrs} | Tail], Result) ->
     case xml:get_attr_s(<<"xmlns">>, Attrs) of
         ?NS_MUC_USER -> nothing;
         _ -> read_caps(Tail, Result)
@@ -153,18 +146,16 @@ read_caps([], Result) -> Result.
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc,
-                 #jid{luser = User, lserver = Server} = From,
-                 #jid{luser = User, lserver = Server,
-                      lresource = <<"">>},
-                 #xmlel{name = <<"presence">>, attrs = Attrs,
-                        children = Els}) ->
+                 #jid{luser = User, lserver = LServer} = From,
+                 #jid{luser = User, lserver = LServer, lresource = <<"">>},
+                 #xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case Type == <<"">> orelse Type == <<"available">> of
         true ->
             case read_caps(Els) of
                 nothing -> Acc;
                 #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Acc, Server, From, Caps, [Version | Exts])
+                    feature_request(Acc, LServer, From, Caps, [Version | Exts])
             end;
         false -> Acc
     end;
@@ -172,9 +163,8 @@ user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
 -spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
-user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
-                    #xmlel{name = <<"presence">>, attrs = Attrs,
-                           children = Els}) ->
+user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
+                    #xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case (not lists:member(From#jid.lserver, ?MYHOSTS))
          andalso ((Type == <<"">>) or (Type == <<"available">>)) of
@@ -182,7 +172,7 @@ user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
             case read_caps(Els) of
                 nothing -> Acc;
                 #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Acc, Server, From, Caps, [Version | Exts])
+                    feature_request(Acc, LServer, From, Caps, [Version | Exts])
             end;
         false -> Acc
     end;
@@ -262,7 +252,7 @@ c2s_presence_in(C2SState,
                     end,
             ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState);
-       false -> C2SState
+        false -> C2SState
     end.
 
 upsert_caps(LFrom, From, To, Caps, Rs) ->
@@ -280,14 +270,14 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
-c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
+c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
             ?DEBUG("Look for CAPS for ~p in ~p (res: ~p)", [To, C2SState, Rs]),
             LTo = jid:to_lower(To),
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->
-                    Drop = not lists:member(Feature, get_features_list(Host, Caps)),
+                    Drop = not lists:member(Feature, get_features_list(LHost, Caps)),
                     {stop, Drop};
                 none ->
                     {stop, true}
@@ -296,18 +286,17 @@ c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
     end;
 c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
-c2s_broadcast_recipients(InAcc, Host, C2SState,
-                         {pep_message, Feature}, _From, _Packet) ->
+c2s_broadcast_recipients(InAcc, LHost, C2SState, {pep_message, Feature}, _From, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            filter_recipients_by_caps(InAcc, Feature, Host, Rs);
+            filter_recipients_by_caps(InAcc, Feature, LHost, Rs);
         _ -> InAcc
     end;
 c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
 
-filter_recipients_by_caps(InAcc, Feature, Host, Rs) ->
+filter_recipients_by_caps(InAcc, Feature, LHost, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
-                          case lists:member(Feature, get_features_list(Host, Caps)) of
+                          case lists:member(Feature, get_features_list(LHost, Caps)) of
                               true -> [USR | Acc];
                               false -> Acc
                           end
@@ -398,24 +387,21 @@ terminate(_Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--spec feature_request(mongoose_acc:t(), jid:server(), jid:jid(), caps(), [binary()]) ->
+-spec feature_request(mongoose_acc:t(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
-feature_request(Acc, Host, From, Caps,
-                [SubNode | Tail] = SubNodes) ->
+feature_request(Acc, LHost, From, Caps, [SubNode | Tail] = SubNodes) ->
     Node = Caps#caps.node,
     NodePair = {Node, SubNode},
-    case cache_tab:lookup(caps_features, NodePair,
-                          caps_read_fun(Host, NodePair))
-    of
+    case cache_tab:lookup(caps_features, NodePair, caps_read_fun(LHost, NodePair)) of
         {ok, Fs} when is_list(Fs) ->
-            feature_request(Acc, Host, From, Caps, Tail);
+            feature_request(Acc, LHost, From, Caps, Tail);
         Other ->
             NeedRequest = case Other of
-                              {ok, TS} -> now_ts() >= TS + (?BAD_HASH_LIFETIME);
+                              {ok, TS} -> os:system_time(second) >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
             F = fun (_From, _To, Acc1, IQReply) ->
-                        feature_response(Acc1, IQReply, Host, From, Caps,
+                        feature_response(Acc1, IQReply, LHost, From, Caps,
                                          SubNodes)
                 end,
             case NeedRequest of
@@ -429,24 +415,23 @@ feature_request(Acc, Host, From, Caps,
                                                <<Node/binary, "#",
                                                  SubNode/binary>>}],
                                          children = []}]},
-                    cache_tab:insert(caps_features, NodePair, now_ts(),
-                                     caps_write_fun(Host, NodePair, now_ts())),
-                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F),
+                    cache_tab:insert(caps_features, NodePair, os:system_time(second),
+                                     caps_write_fun(LHost, NodePair, os:system_time(second))),
+                    ejabberd_local:route_iq(jid:make_noprep(<<"">>, LHost, <<"">>), From, Acc, IQ, F),
                     Acc;
-               false -> feature_request(Acc, Host, From, Caps, Tail)
+               false -> feature_request(Acc, LHost, From, Caps, Tail)
             end
     end;
-feature_request(Acc, Host, From, Caps, []) ->
+feature_request(Acc, LHost, From, Caps, []) ->
     %% feature_request is never executed with empty SubNodes list
     %% so if we end up here, it means the caps are known
-    ejabberd_hooks:run_fold(caps_recognised, Host, Acc,
-                            [From, self(), get_features_list(Host, Caps)]).
+    ejabberd_hooks:run_fold(caps_recognised, LHost, Acc,
+                            [From, self(), get_features_list(LHost, Caps)]).
 
--spec feature_response(mongoose_acc:t(), jlib:iq(), jid:server(), jid:jid(), caps(), [binary()]) ->
+-spec feature_response(mongoose_acc:t(), jlib:iq(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
-feature_response(Acc, #iq{type = result,
-                     sub_el = [#xmlel{children = Els}]},
-                 Host, From, Caps, [SubNode | SubNodes]) ->
+feature_response(Acc, #iq{type = result, sub_el = [#xmlel{children = Els}]},
+                 LHost, From, Caps, [SubNode | SubNodes]) ->
     NodePair = {Caps#caps.node, SubNode},
     case check_hash(Caps, Els) of
         true ->
@@ -459,16 +444,14 @@ feature_response(Acc, #iq{type = result,
                                      Els),
             cache_tab:insert(caps_features, NodePair,
                              Features,
-                             caps_write_fun(Host, NodePair, Features));
+                             caps_write_fun(LHost, NodePair, Features));
         false -> ok
     end,
-    feature_request(Acc, Host, From, Caps, SubNodes);
-feature_response(Acc, _IQResult, Host, From, Caps,
-                 [_SubNode | SubNodes]) ->
-    feature_request(Acc, Host, From, Caps, SubNodes).
+    feature_request(Acc, LHost, From, Caps, SubNodes);
+feature_response(Acc, _IQResult, LHost, From, Caps, [_SubNode | SubNodes]) ->
+    feature_request(Acc, LHost, From, Caps, SubNodes).
 
-caps_read_fun(Host, Node) ->
-    LServer = jid:nameprep(Host),
+caps_read_fun(LServer, Node) ->
     DBType = db_type(LServer),
     caps_read_fun(LServer, Node, DBType).
 
@@ -480,8 +463,7 @@ caps_read_fun(_LServer, Node, mnesia) ->
             end
     end.
 
-caps_write_fun(Host, Node, Features) ->
-    LServer = jid:nameprep(Host),
+caps_write_fun(LServer, Node, Features) ->
     DBType = db_type(LServer),
     caps_write_fun(LServer, Node, Features, DBType).
 
@@ -626,10 +608,6 @@ gb_trees_fold_iter(F, Acc, Iter) ->
             gb_trees_fold_iter(F, NewAcc, NewIter);
         _ -> Acc
     end.
-
-now_ts() ->
-    {MS, S, _US} = os:timestamp(),
-    MS * 1000000 + S.
 
 is_valid_node(Node) ->
     case mongoose_bin:tokens(Node, <<"#">>) of
