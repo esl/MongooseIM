@@ -24,6 +24,7 @@
 % But it increases memory usage.
 {highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.
 {mod_amp, ""}.
+{mod_mongoose_hooks_sanity_check, ""}.
 {ejabberd_service, ",{8888, ejabberd_service, [\n"
                  "                {access, all},\n"
                  "                {shaper_rule, fast},\n"
