@@ -12,6 +12,8 @@ PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
 
+GIT_REF=$(git rev-parse --short HEAD)
+
 while getopts ":p::s::e::c:" opt; do
   case $opt in
     p)
@@ -215,7 +217,7 @@ build_pkg () {
   local platform=$1
   cd tools/pkg
   ./build $platform
-  ./run $platform
+  ./run $platform $GIT_REF
   set +e
 }
 

@@ -1,46 +1,54 @@
 #!/usr/bin/env bash
-COMMIT=$1
-REV=$2
 set -e
 
-HOSTNAME=`hostname`
-ARCH="x86_64"
+git_ref=$1
+revision=$2
+repo_url=$3
+specfile_down_erl_vsn=$4
+specfile_up_erl_vsn=$5
 
-MONGOOSEIM_REPO=${MONGOOSEIM_REPO:-https://github.com/esl/mongooseim.git}
+arch="x86_64"
+package_name_arch="amd64"
 
-wget http://packages.erlang-solutions.com/erlang-solutions-1.0-1.noarch.rpm
-sudo rpm -Uvh --replacepkgs erlang-solutions-1.0-1.noarch.rpm
-
-git clone ${MONGOOSEIM_REPO} mongooseim
+git clone "$repo_url" mongooseim
 cd mongooseim
-git checkout ${COMMIT}
+git checkout "$git_ref"
 
-VER=$(cat VERSION)
+version=$(cat VERSION)
+commit_sha=$(git rev-parse --short HEAD)
 
+# Adjust package revision to requirements:
+# https://twiki.cern.ch/twiki/bin/view/Main/RPMAndDebVersioning
+if git show-ref --verify "refs/tags/$git_ref" &>/dev/null && $version == "$git_ref"; then
+    package_revision="${revision}"
+elif git show-ref --verify "refs/heads/$git_ref" &>/dev/null; then
+    package_revision="${revision}.${git_ref}.${commit_sha}"
+else
+    package_revision="${revision}.${commit_sha}"
+fi
+package_version="${version}-${package_revision}"
 
-export ERL_TOP=`pwd`
-sudo groupadd mongooseim
-sudo adduser -g mongooseim mongooseim
-mkdir -p rpmbuild/{RPMS,SOURCES,SPECS,SRPMS,BUILD,BUILDROOT/mongooseim-${VER}-${REV}.${ARCH}/}
-chmod 777 -R rpmbuild
-cp ../mongooseim.spec rpmbuild/SPECS/mongooseim.spec
+cd ..
 
-sed -i "s#@ARCH@#${ARCH}#" rpmbuild/SPECS/mongooseim.spec
+# below commands are adjusted to defaults of rpmdev-setuptree and rpmbuild commands
+rpmdev-setuptree
+cp ./mongooseim.spec ~/rpmbuild/SPECS/.
+cp ./mongooseim.service ~/rpmbuild/SOURCES/mongooseim.service
 
-sudo yum-builddep rpmbuild/SPECS/mongooseim.spec -y
-sudo yum erase rpm-build -y
-sudo yum install rpm-build -y
+cp -r ./mongooseim ~/rpmbuild/BUILD/mongooseim-$version
 
-cp ../rpmmacros.in            $HOME/.rpmmacros
-sed -i "s#@ARCH@#${ARCH}#"    $HOME/.rpmmacros
-sed -i "s#@VSN@#${VER}#"      $HOME/.rpmmacros
-sed -i "s#@REVISION@#${REV}#" $HOME/.rpmmacros
+rpmbuild -bb \
+    --define "version ${version}" \
+    --define "release ${package_revision}" \
+    --define "architecture ${arch}" \
+    --define "esl_erlang_ver_up ${specfile_up_erl_vsn}" \
+    --define "esl_erlang_ver_down ${specfile_down_erl_vsn}" \
+    ~/rpmbuild/SPECS/mongooseim.spec
 
-./tools/configure with-all user=mongooseim prefix=/ system=yes
-sed -i "s#PREFIX=\"/\"#PREFIX=\"rpmbuild/BUILDROOT/mongooseim-${VER}-${REV}.${ARCH}/\"#" configure.out
-source configure.out
-make install
+source /etc/os-release
+os=$ID
+os_version=$VERSION_ID
+package_os_file_name=${os}~${os_version}
 
-rpmbuild -bb rpmbuild/SPECS/mongooseim.spec
-
-mv rpmbuild/RPMS/${ARCH}/mongooseim-${VER}-${REV}.${ARCH}.rpm ../mongooseim-${VER}-${REV}~${HOSTNAME}.${ARCH}.rpm
+mv ~/rpmbuild/RPMS/$arch/*.rpm \
+    "/root/rpm/mongooseim_${package_version}~${package_os_file_name}_${package_name_arch}.rpm"
