@@ -264,9 +264,14 @@ send_message(From, To, Body) ->
     Packet = build_packet(message_chat, Body),
     F = jid:from_binary(From),
     T = jid:from_binary(To),
-    ejabberd_hooks:run(user_send_packet,
-                       F#jid.lserver,
-                       [F, T, Packet]),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => F#jid.lserver,
+                              element => Packet,
+                              from_jid => F,
+                              to_jid => T }),
+    ejabberd_hooks:run_fold(user_send_packet,
+                            F#jid.lserver, Acc,
+                            [F, T, Packet]),
     %% privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     ok.
