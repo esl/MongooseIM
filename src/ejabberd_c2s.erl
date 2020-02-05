@@ -1918,7 +1918,7 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                           get_priority_from_presence(OldPresence)
                   end,
     NewPriority = get_priority_from_presence(Packet),
-    Timestamp = calendar:now_to_universal_time(os:timestamp()),
+    Timestamp = calendar:universal_time(),
     Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
 
     NewStateData = StateData#state{pres_last = Packet,
