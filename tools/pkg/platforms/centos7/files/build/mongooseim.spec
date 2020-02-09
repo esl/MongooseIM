@@ -34,9 +34,9 @@ sed -i 's#RUNNER_USER=root#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/lib/mon
 
 # Removed due to not specified python version in shbang
 # https://fedoraproject.org/wiki/Changes/Make_ambiguous_python_shebangs_error
-rm %{buildroot}/usr/lib/mongooseim/lib/re2-1.7.5/c_src/re2/re2/make_unicode_casefold.py
-rm %{buildroot}/usr/lib/mongooseim/lib/re2-1.7.5/c_src/re2/re2/make_unicode_groups.py
-rm %{buildroot}/usr/lib/mongooseim/lib/re2-1.7.5/c_src/re2/benchlog/benchplot.py
+rm %{buildroot}/usr/lib/mongooseim/lib/re2-*/c_src/re2/re2/make_unicode_casefold.py
+rm %{buildroot}/usr/lib/mongooseim/lib/re2-*/c_src/re2/re2/make_unicode_groups.py
+rm %{buildroot}/usr/lib/mongooseim/lib/re2-*/c_src/re2/benchlog/benchplot.py
 
 install -p -D -m 0644 %{SOURCE0} %{buildroot}%{_unitdir}/mongooseim.service
 
