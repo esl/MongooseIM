@@ -166,10 +166,14 @@ orbs:
         parameters:
           platform:
             type: enum
-            enum: [centos7, debian_stretch]
+            enum: [centos_7, debian_stretch]
             description: Platform type
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
         environment:
           pkg_PLATFORM: <<parameters.platform>>
+          ESL_ERLANG_PCK_VER: <<parameters.otp_package>>
           PRESET: pkg
         steps:
           - checkout
@@ -295,8 +299,9 @@ workflows:
     jobs:
       # ============= PACKAGES =============
       - mim/package:
-          name: centos7
-          platform: centos7
+          name: centos_7
+          platform: centos_7
+          otp_package: 22.1.8-2
           context: mongooseim-org
           filters: *all_tags
       - mim/package:
