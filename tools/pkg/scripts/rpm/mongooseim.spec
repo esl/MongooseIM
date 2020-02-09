@@ -12,7 +12,7 @@ Source0:           mongooseim.service
 
 BuildArch:         %{architecture}
 
-BuildRequires:     esl-erlang >= %{esl_erlang_ver_down}, esl-erlang <= %{esl_erlang_ver_up}
+BuildRequires:     esl-erlang >= %{erlang_min_vsn}
 
 %description
 MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large
@@ -21,7 +21,7 @@ fault-tolerant, can utilize resources of multiple clustered machines and easily
 scale in need of more capacity (by just adding a box/VM).
 
 %prep
-%setup -T -D
+%setup -T -D -n mongooseim
 cp %{SOURCE0} .
 
 %install

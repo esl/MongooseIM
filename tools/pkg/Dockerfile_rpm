@@ -1,0 +1,62 @@
+# vi: ft=dockerfile
+ARG dockerfile_platform
+
+FROM $dockerfile_platform AS builder
+
+# Install the build dependencies
+RUN yum install -y epel-release
+RUN yum --setopt=obsoletes=0 install -y \
+    lsof \
+    gcc \
+    rpm-build \
+    make automake \
+    gcc-c++ \
+    kernel-devel \
+    openssl \
+    openssl-devel \
+    yum-utils \
+    unixODBC-devel \
+    rpmdevtools \
+    git
+
+# Fix locale setup
+# See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8
+
+ARG erlang_version
+
+RUN curl -O https://packages.erlang-solutions.com/erlang-solutions-2.0-1.noarch.rpm && \
+    rpm -Uvh erlang-solutions-2.0-1.noarch.rpm && \
+    yum install -y "esl-erlang-$erlang_version"
+
+# Copy source code and put building files in proper directories according to
+# defaults of `rpmdev-setuptree` and `rpmbuild` commands
+RUN rpmdev-setuptree
+WORKDIR /root/rpmbuild
+COPY . ./BUILD/mongooseim
+RUN rm -rf ./BUILD/mongooseim/_build
+RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.spec ./SPECS/.
+RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \
+       ./SOURCES/mongooseim.service
+
+ARG version
+ARG revision
+ARG min_erl_vsn
+
+RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision \
+    $min_erl_vsn
+
+# Create image for sharing and validation of built package
+FROM $dockerfile_platform
+
+# Copy built package from previous image and install it with required dependencies
+RUN yum install -y epel-release sudo nc && yum -y clean all
+WORKDIR /root/
+COPY --from=builder /root/mongooseim*.rpm .
+RUN yum -y update; yum install -y mongooseim*.rpm
+
+# Sample check if MiM works
+RUN mongooseimctl start && sleep 60 && nc -z localhost 5222 && mongooseimctl stop
+
+RUN mkdir /built_packages
+CMD mv /root/mongooseim*.rpm /built_packages
