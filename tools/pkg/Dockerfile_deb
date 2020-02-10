@@ -37,7 +37,7 @@ RUN apt-get update && apt-get -y install openssl netcat && apt-get -y clean
 WORKDIR /root/
 COPY --from=builder /root/*.deb .
 
-# Instll mongooseim with required dependencies
+# Install mongooseim with required dependencies
 RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
 
 # Simple check if MiM works
