@@ -5,19 +5,7 @@ FROM $dockerfile_platform AS builder
 
 # Install the build dependencies
 RUN yum install -y epel-release
-RUN yum --setopt=obsoletes=0 install -y \
-    lsof \
-    gcc \
-    rpm-build \
-    make automake \
-    gcc-c++ \
-    kernel-devel \
-    openssl \
-    openssl-devel \
-    yum-utils \
-    unixODBC-devel \
-    rpmdevtools \
-    git
+RUN yum install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc gcc-c++ openssl openssl-devel
 
 # Fix locale setup
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
