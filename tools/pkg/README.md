@@ -33,7 +33,6 @@ To build a package run:
     --version $VERSION \
     --revision $REVISION \
     --erlang_version $ERLANG_VERSION \
-    --minimal_erlang_version $MINIMAL_ERLANG_VERSION \
     --dockerfile_path "$DOCKERFILE_PATH" \
     --context_path $CONTEXT_PATH \
     --built_packages_directory "$BUILT_PACKAGES_DIRECTORY"
@@ -48,10 +47,8 @@ file will be suitable),
 * `$REVISION` - a revision of a package (should be increased each time a package
 is built for the same source code but with the usage of changed build scripts),
 * `$ERLANG_VERSION` - a version of the esl-erlang package which should be used
-while compiling MongooseIM (please remember of concerning the esl-erlang package
-revision - e.g. proper version 22.2.5-2),
-* `$MINIMAL_ERLANG_VERSION` - minimal Erlang version which is suitable to compile
-MongooseIM (can be found in `rebar.config` file),
+while compiling MongooseIM (please remember about concerning minimal erlang version
+specified in the `rebar.config` file and the esl-erlang package revision - e.g. 22.2.5-2),
 * `DOCKERFILE_PATH` - a dockerfile path which should be used to built a package
 for given platform (e.g. path of `Dockerfile_rpm` for `centos_7`),
 * `CONTEXT_PATH` - a root directory of the MongooseIM project (during building

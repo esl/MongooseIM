@@ -12,7 +12,7 @@ Source0:           mongooseim.service
 
 BuildArch:         %{architecture}
 
-BuildRequires:     esl-erlang >= %{erlang_min_vsn}
+BuildRequires:     esl-erlang
 
 %description
 MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large
