@@ -229,7 +229,7 @@ build_pkg () {
   version=$(cat "${project_root}/VERSION")
   commit_sha=$(git rev-parse --short HEAD)
   # Do not add commit hash to package revision if package is built for tag
-  if [[ "$(git describe --exact-match --tags HEAD)" == "$version" ]]; then
+  if [[ "$(git describe --exact-match --tags HEAD 2>/dev/null)" == "$version" ]]; then
       revision="1"
   else
       revision="1.${commit_sha}"
