@@ -254,7 +254,7 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh stop
   exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
-  build_pkg $pkg_PLATFORM $ESL_ERLANG_PCK_VER
+  build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
   time run_small_tests
   RESULT=$?

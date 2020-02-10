@@ -173,7 +173,7 @@ orbs:
             description: Version of the Erlang package to install
         environment:
           pkg_PLATFORM: <<parameters.platform>>
-          ESL_ERLANG_PCK_VER: <<parameters.otp_package>>
+          ESL_ERLANG_PKG_VER: <<parameters.otp_package>>
           PRESET: pkg
         steps:
           - checkout
