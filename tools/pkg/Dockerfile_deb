@@ -47,8 +47,11 @@ COPY --from=builder /root/*.deb .
 # Instll mongooseim with required dependencies
 RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
 
-# Sample check if MiM works
-RUN mongooseimctl start && sleep 60 && nc -z localhost 5222 && mongooseimctl stop
+# Simple check if MiM works
+COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
+RUN mongooseimctl start && \
+    ./wait-for-it.sh -h localhost -p 5222 -t 60 && \
+    mongooseimctl stop
 
 RUN mkdir /built_packages
 CMD mv /root/mongooseim*.deb /built_packages

@@ -106,7 +106,7 @@ matrix:
       env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql" RUN_SMALL_TESTS=true
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=centos_7
-           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 ESL_ERLANG_PCK_VER=22.1.8-2
+           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 ESL_ERLANG_PKG_VER=22.1.8-2
            SKIP_COV=1 SKIP_REPORT_UPLOAD=1
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=debian_stretch ESL_ERLANG_PCK_VER=22.1.8-1
