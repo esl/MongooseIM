@@ -307,6 +307,7 @@ workflows:
       - mim/package:
           name: debian_stretch
           platform: debian_stretch
+          otp_package: 22.1.8-1
           context: mongooseim-org
           filters: *all_tags
       # ============= BASE BUILDS =============
