@@ -6,7 +6,7 @@ context, commands contained in a dockerfile and building scripts. The process of
 building the package runs during docker image building. Copying of the ready
 package takes place after running the docker image containing it.
 
-Source code version used for building a package is set by check outing desired
+Source code version used for building a package is set by checking out the desired
 git reference in the project.
 
 Contents:
@@ -49,7 +49,7 @@ is built for the same source code but with the usage of changed build scripts),
 * `$ERLANG_VERSION` - a version of the esl-erlang package which should be used
 while compiling MongooseIM (please remember about concerning minimal erlang version
 specified in the `rebar.config` file and the esl-erlang package revision - e.g. 22.2.5-2),
-* `DOCKERFILE_PATH` - a dockerfile path which should be used to built a package
+* `DOCKERFILE_PATH` - a dockerfile path which should be used to build a package
 for given platform (e.g. path of `Dockerfile_rpm` for `centos_7`),
 * `CONTEXT_PATH` - a root directory of the MongooseIM project (during building
 whole source code is copied to a building docker image container and the `_build`
