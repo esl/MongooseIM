@@ -89,9 +89,9 @@ These options will only have effect when the `rdbms` backend is used:
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-  * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
-  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+    * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
+    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 * **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `rdbms` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
