@@ -13,7 +13,6 @@ adduser --quiet --system --shell /bin/sh --group mongooseim
 
 apt-get update
 
-apt-get install libexpat1-dev libz-dev -y
 rm -rf /usr/lib/erlang/man/man3/cerff.3.gz /usr/lib/erlang/man/man3/cerfl.3.gz /usr/lib/erlang/man/man3/cerfcl.3.gz /usr/lib/erlang/man/man3/cerfcf.3.gz /usr/lib/erlang/man/man3/cerfcf.3.gz /usr/lib/erlang/man/man1/x86_64-linux-gnu-gcov-tool.1.gz  /usr/lib/erlang/man/man1/ocamlbuild.native.1.gz  /usr/lib/erlang/man/man1/gcov-tool.1.gz /usr/lib/erlang/man/man1/ocamlbuild.byte.1.gz
 
 sed -i '1 s/^.*$/\#\!\/bin\/bash/' tools/install

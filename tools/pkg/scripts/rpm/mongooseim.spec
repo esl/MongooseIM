@@ -12,6 +12,14 @@ Source0:           mongooseim.service
 
 BuildArch:         %{architecture}
 
+BuildRequires:     git
+BuildRequires:     make
+BuildRequires:     zlib-devel
+BuildRequires:     unixODBC-devel
+BuildRequires:     gcc
+BuildRequires:     gcc-c++
+BuildRequires:     openssl
+BuildRequires:     openssl-devel
 BuildRequires:     esl-erlang
 
 %description
