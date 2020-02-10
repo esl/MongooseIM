@@ -217,7 +217,6 @@ build_pkg () {
   local platform=$1
   local esl_erlang_pkg_vsn=$2
   local project_root=$(git rev-parse --show-toplevel)
-  local min_erl_vsn=$(grep "require_min_otp_vsn" "${project_root}/rebar.config" | tr -d -c 0-9)
 
   if [[ $platform == centos* ]]; then
       local dockerfile_name="Dockerfile_rpm"
@@ -241,7 +240,6 @@ build_pkg () {
     --version $version \
     --revision $revision \
     --erlang_version $esl_erlang_pkg_vsn \
-    --minimal_erlang_version $min_erl_vsn \
     --dockerfile_path "$project_root/tools/pkg/$dockerfile_name" \
     --context_path $project_root \
     --built_packages_directory "$project_root/tools/pkg/packages"

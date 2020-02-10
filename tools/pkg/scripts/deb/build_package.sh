@@ -3,7 +3,6 @@ set -e
 
 version=$1
 revision=$2
-min_erl_vsn=$3
 
 arch="amd64"
 
@@ -29,7 +28,6 @@ cp -r ../deb/mongooseim.service mongooseim/etc/systemd/system/
 
 
 sed -i "s#@ARCH@#${arch}#" mongooseim/DEBIAN/control
-sed -i "s#@MIN_ERL_VSN@#${min_erl_vsn}#" mongooseim/DEBIAN/control
 sed -i "s#@VER@#${version}#" mongooseim/DEBIAN/control
 sed -i "s#@VER@#${version}#" mongooseim/DEBIAN/changelog
 

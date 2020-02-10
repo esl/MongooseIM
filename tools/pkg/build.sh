@@ -22,14 +22,13 @@ usage() {
 	  --version <version>
 	  --revision <revision>
 	  --erlang_version <erlang_version>
-	  --minimal_erlang_version <minimal_erlang_version>
 	  --dockerfile_path <dockerfile_path>
 	  --context_path <context_path>
 	  --built_packages_directory <built_packages_directory>"
 }
 
 # Require valid number of parameters
-if [ $len -ne 16 ]; then
+if [ $len -ne 14 ]; then
     usage && exit 1
 fi
 
@@ -52,10 +51,6 @@ for (( i = 0; i < $len - 1; i++ )); do
         --erlang_version)
             is_flag_or_empty "$next_arg" && param_error "$arg" && exit 1
             erlang_version="${next_arg}"
-            ;;
-        --minimal_erlang_version)
-            is_flag_or_empty "$next_arg" && param_error "$arg" && exit 1
-            minimal_erlang_version="${next_arg}"
             ;;
         --dockerfile_path)
             is_flag_or_empty "$next_arg" && param_error "$arg" && exit 1
@@ -83,7 +78,6 @@ docker build -t mongooseim-${platform}:${version}-${revision} \
     --build-arg version=${version} \
     --build-arg revision=${revision} \
     --build-arg erlang_version=${erlang_version} \
-    --build-arg min_erl_vsn=${minimal_erlang_version} \
     -f ${dockerfile_path} \
     $context_path
 

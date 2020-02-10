@@ -33,9 +33,8 @@ RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
 
 ARG version
 ARG revision
-ARG min_erl_vsn
 
-RUN ./deb/build_package.sh $version $revision $min_erl_vsn
+RUN ./deb/build_package.sh $version $revision
 
 # Create image for sharing and validation of built package
 FROM $dockerfile_platform
