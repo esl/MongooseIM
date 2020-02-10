@@ -82,7 +82,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo yum install git make zlib-devel unixODBC-devel gcc gcc-c++ erlang
+$ sudo yum install git make zlib-devel openssl-devel unixODBC-devel gcc gcc-c++ erlang
 ```
 
 Now, please proceed to the "Building" section.
@@ -92,7 +92,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo apt install git make zlib1g-dev unixodbc-dev gcc g++ erlang
+$ sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
 ```
 
 Now, please proceed to the "Building" section.
