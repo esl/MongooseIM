@@ -90,7 +90,6 @@ prep_stop(State) ->
     stop_services(),
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
-    timer:sleep(5000),
     lists:foreach(fun ejabberd_users:stop/1, ?MYHOSTS),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
@@ -180,7 +179,12 @@ broadcast_c2s_shutdown() ->
     lists:foreach(
       fun({_, C2SPid, _, _}) ->
           C2SPid ! system_shutdown
-      end, Children).
+      end, Children),
+    mongoose_lib:wait_until(
+      fun() ->
+              Res = supervisor:count_children(ejabberd_c2s_sup),
+              proplists:get_value(active, Res)
+      end, 0).
 
 %%%
 %%% PID file

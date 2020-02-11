@@ -62,7 +62,7 @@ default_local_option(max_fsm_queue) -> 100.
 
 default_global_option(hosts) ->  [<<"localhost">>];
 default_global_option({access, c2s_shaper, global}) ->  [];
-default_global_option(language) ->  [<<"en">>].
+default_global_option(language) ->  <<"en">>.
 
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
 mcred_get(dummy_creds, auth_module) -> auuuthmodule.

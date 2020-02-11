@@ -198,8 +198,8 @@ to_lus(#jid{luser = U, lserver = S}) ->
 to_lus({U, S, _}) ->
     {U, S}.
 
--spec to_bare(simple_jid()  | jid()) ->
-                 simple_jid()  | jid().
+-spec to_bare(simple_jid()) -> simple_jid();
+             (jid()) -> jid().
 to_bare(#jid{} = JID) ->
     JID#jid{resource = <<>>, lresource = <<>>};
 to_bare({U, S, _R}) ->

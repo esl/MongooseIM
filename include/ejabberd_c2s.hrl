@@ -141,10 +141,3 @@
 %% This is the timeout to apply between event when starting a new
 %% session:
 -define(C2S_OPEN_TIMEOUT, 60000).
-
--define(STREAM_HEADER,
-        "<?xml version='1.0'?>"
-        "<stream:stream xmlns='jabber:client' "
-        "xmlns:stream='http://etherx.jabber.org/streams' "
-        "id='~s' from='~s'~s~s>"
-       ).

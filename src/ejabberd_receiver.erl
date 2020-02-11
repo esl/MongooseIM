@@ -304,23 +304,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 -spec activate_socket(state()) -> 'ok' | {'tcp_closed', _}.
-activate_socket(#state{socket = Socket,
-                       sock_mod = SockMod}) ->
-    PeerName =
-        case SockMod of
-            gen_tcp ->
-                inet:setopts(Socket, [{active, once}]),
-                inet:peername(Socket);
-            _ ->
-                SockMod:setopts(Socket, [{active, once}]),
-                SockMod:peername(Socket)
-        end,
-    case PeerName of
-        {error, _Reason} ->
-            self() ! {tcp_closed, Socket};
-        {ok, _} ->
-            ok
-    end.
+activate_socket(#state{socket = Socket, sock_mod = gen_tcp}) ->
+    inet:setopts(Socket, [{active, once}]),
+    PeerName = inet:peername(Socket),
+    resolve_peername(PeerName, Socket);
+activate_socket(#state{socket = Socket, sock_mod = SockMod}) ->
+    SockMod:setopts(Socket, [{active, once}]),
+    PeerName = SockMod:peername(Socket),
+    resolve_peername(PeerName, Socket).
+
+resolve_peername({ok, _}, _Socket) ->
+    ok;
+resolve_peername({error, _Reason}, Socket) ->
+    self() ! {tcp_closed, Socket}.
 
 -spec deactivate_socket(state()) -> 'ok' | {'error', _}.
 deactivate_socket(#state{socket = Socket,
@@ -337,18 +333,15 @@ deactivate_socket(#state{socket = Socket,
 process_data([], State) ->
     activate_socket(State),
     State;
+process_data(Els, #state{c2s_pid = undefined} = State) when is_list(Els) ->
+    State;
 process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
   when element(1, Element) == xmlel;
        element(1, Element) == xmlstreamstart;
-      element(1, Element) == xmlstreamelement;
+       element(1, Element) == xmlstreamelement;
        element(1, Element) == xmlstreamend ->
-    case C2SPid of
-        undefined ->
-            State;
-        _ ->
-            catch gen_fsm_compat:send_event(C2SPid, element_wrapper(Element)),
-            process_data(Els, State)
-    end;
+    catch gen_fsm_compat:send_event(C2SPid, element_wrapper(Element)),
+    process_data(Els, State);
 %% Data processing for connectors receivind data as string.
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,

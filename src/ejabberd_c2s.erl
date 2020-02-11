@@ -1676,18 +1676,20 @@ send_header(StateData, Server, Version, Lang)
     (StateData#state.sockmod):send_xml(StateData#state.socket, Header);
 send_header(StateData, Server, Version, Lang) ->
     VersionStr = case Version of
-                    <<>> -> [];
-                     _ -> [" version='", Version, "'"]
+                    <<>> -> <<>>;
+                     _ -> <<" version='", (Version)/binary, "'">>
                  end,
     LangStr = case Lang of
-                  <<>> -> [];
-                  _ -> [" xml:lang='", Lang, "'"]
+                  <<>> -> <<>>;
+                  _ when is_binary(Lang) -> <<" xml:lang='", (Lang)/binary, "'">>
               end,
-    Header = list_to_binary(io_lib:format(?STREAM_HEADER,
-                                          [StateData#state.streamid,
-                                           Server,
-                                           VersionStr,
-                                           LangStr])),
+    Header = <<"<?xml version='1.0'?>",
+               "<stream:stream xmlns='jabber:client' ",
+               "xmlns:stream='http://etherx.jabber.org/streams' ",
+               "id='", (StateData#state.streamid)/binary, "' ",
+               "from='", (Server)/binary, "'",
+               (VersionStr)/binary,
+               (LangStr)/binary, ">">>,
     send_text(StateData, Header).
 
 -spec maybe_send_trailer_safe(State :: state()) -> any().
@@ -1918,7 +1920,7 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                           get_priority_from_presence(OldPresence)
                   end,
     NewPriority = get_priority_from_presence(Packet),
-    Timestamp = calendar:now_to_universal_time(os:timestamp()),
+    Timestamp = calendar:universal_time(),
     Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
 
     NewStateData = StateData#state{pres_last = Packet,
