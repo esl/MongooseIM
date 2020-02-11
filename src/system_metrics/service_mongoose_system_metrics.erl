@@ -6,7 +6,11 @@
 
 -define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).
+-ifdef(PROD_NODE).
+-define(TRACKING_ID, "UA-151671255-3").
+-else.
 -define(TRACKING_ID, "UA-151671255-2").
+-endif.
 -define(TRACKING_ID_CI, "UA-151671255-1").
 
 -include("mongoose.hrl").
@@ -68,7 +72,8 @@ handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
                     Reports = mongoose_system_metrics_collector:collect(),
-                    mongoose_system_metrics_sender:send(ClientId, Reports)
+                    mongoose_system_metrics_sender:send(ClientId, Reports),
+                    mongoose_system_metrics_file:save(Reports)
                 end),
             erlang:send_after(ReportAfter, self(), spawn_reporter),
             {noreply, State#system_metrics_state{reporter_monitor = Monitor,
@@ -121,7 +126,7 @@ report_transparency(Args) ->
         {true, ____} -> skip;
         {____, true} -> continue;
         {____, ____} ->
-            ?WARNING_MSG(msg_accept_terms_and_conditions(), []),
+            ?WARNING_MSG(msg_accept_terms_and_conditions(), [mongoose_system_metrics_file:location()]),
             continue
     end.
 
@@ -150,12 +155,15 @@ msg_removed_from_config() ->
       "To stop being notified, you can add this to the services section of your config file: \n"
       "    '{services_mongoose_system_metrics, [no_report]}' \n"
       "For more info on how to customise, read, enable, and disable the metrics visit: \n"
-      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
+      "- MongooseIM docs - \n"
+      "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
       "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
 
 msg_accept_terms_and_conditions() ->
     <<"We are gathering the MongooseIM system's metrics to analyse the trends and needs of our users, "
       "improve MongooseIM, and know where to focus our efforts. "
       "For more info on how to customise, read, enable, and disable these metrics visit: \n"
-      "- MongooseIM docs - https://mongooseim.readthedocs.io/en/latest/ \n"
-      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
+      "- MongooseIM docs - \n"
+      "      https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
+      "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
+      "The last sent report is also written to a file ~s">>.

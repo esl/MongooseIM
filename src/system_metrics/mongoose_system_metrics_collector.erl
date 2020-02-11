@@ -1,6 +1,6 @@
 -module(mongoose_system_metrics_collector).
 
--type report_struct() :: 
+-type report_struct() ::
     #{
         report_name := term(),
         key := term(),
@@ -42,7 +42,7 @@ get_hosts_count() ->
 get_modules() ->
     Hosts = ejabberd_config:get_global_option(hosts),
     AllModules = lists:flatten([gen_mod:loaded_modules(H) || H <- Hosts]),
-    ModulesToReport = filter_behaviour_implementations(AllModules,
+    ModulesToReport = filter_behaviour_implementations(lists:usort(AllModules),
                                                        mongoose_module_metrics),
     ModsWithOpts = [get_modules_metrics(Host, ModulesToReport) || Host <- Hosts],
     [report_module_with_opts(Mod, Opt) || {Mod, Opt} <- lists:flatten(ModsWithOpts)].
@@ -91,7 +91,7 @@ get_uptime() ->
     UptimeSeconds = Uptime div 1000,
     {D, {H, M, S}} = calendar:seconds_to_daystime(UptimeSeconds),
     Formatted = io_lib:format("~4..0B-~2..0B:~2..0B:~2..0B", [D,H,M,S]),
-    [#{report_name => cluster, key => uptime, value => Formatted}].
+    [#{report_name => cluster, key => uptime, value => list_to_binary(Formatted)}].
 
 get_cluster_size() ->
     NodesNo = length(nodes()) + 1,
@@ -100,7 +100,7 @@ get_cluster_size() ->
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
         {_, _, Version} ->
-            #{report_name => cluster, key => mim_version, value => Version};
+            #{report_name => cluster, key => mim_version, value => list_to_binary(Version)};
         _ ->
             []
     end.

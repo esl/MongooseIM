@@ -339,9 +339,11 @@ get_diffs(L1, L2) ->
     lists:zip(L1, L2).
 
 ensure_nodes_not_clustered(Config) ->
-    Nodes1 = rpc(mim(), mnesia, system_info, [running_db_nodes]),
-    Nodes = [Node || Node <- Nodes1, Node =/= mim()],
-    [distributed_helper:remove_node_from_cluster(N, Config) || N <- Nodes],
+    #{node := Node1Name} = RPCNode = mim(),
+    Nodes1 = rpc(RPCNode, mnesia, system_info, [running_db_nodes]),
+
+    Nodes = [Node || Node <- Nodes1, Node =/= Node1Name],
+    [distributed_helper:remove_node_from_cluster(#{node => N}, Config) || N <- Nodes],
     Config ++ [{nodes_clustered, Nodes}].
 
 ensure_nodes_clustered(Config) ->

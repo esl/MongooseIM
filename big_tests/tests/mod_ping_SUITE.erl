@@ -47,10 +47,10 @@ suite() ->
     escalus:suite().
 
 ping_interval() ->
-    6.
+    2.
 
 ping_req_timeout() ->
-    3.
+    1.
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
@@ -146,7 +146,6 @@ active(ConfigIn) ->
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                Domain = ct:get_config({hosts, mim, domain}),
                 wait_ping_interval(0.75),
                 escalus_client:send(Alice, escalus_stanza:ping_request(Domain)),
                 escalus:assert(is_iq_result, escalus_client:wait_for_stanza(Alice)),

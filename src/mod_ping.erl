@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -62,7 +61,7 @@
                 ping_interval = ?DEFAULT_PING_INTERVAL,
                 timeout_action = none,
                 ping_req_timeout = ?DEFAULT_PING_REQ_TIMEOUT,
-                timers = dict:new()}).
+                timers = maps:new()}).
 
 -type state() :: #state{}.
 
@@ -126,7 +125,7 @@ init([Host, Opts]) ->
                 ping_interval = timer:seconds(PingInterval),
                 timeout_action = TimeoutAction,
                 ping_req_timeout = timer:seconds(PingReqTimeout),
-                timers = dict:new()}}.
+                timers = maps:new()}}.
 
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(hooks(Host));
@@ -182,7 +181,7 @@ handle_info({timeout, _TRef, {ping, JID}},
                 gen_server:cast(Pid, {iq_pong, JID, Response}),
                 NewAcc
         end,
-    From = jid:make(<<"">>, State#state.host, <<"">>),
+    From = jid:make_noprep(<<>>, State#state.host, <<>>),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => State#state.host,
                               from_jid => From,
@@ -250,23 +249,23 @@ ensure_metrics(Host) ->
 
 add_timer(JID, Interval, Timers) ->
     LJID = jid:to_lower(JID),
-    NewTimers = case dict:find(LJID, Timers) of
-                    {ok, OldTRef} ->
-                        cancel_timer(OldTRef),
-                        dict:erase(LJID, Timers);
-                    _ ->
+    NewTimers = case maps:find(LJID, Timers) of
+                    {ok, OldRef} ->
+                        cancel_timer(OldRef),
+                        maps:remove(LJID, Timers);
+                    error ->
                         Timers
                 end,
     TRef = erlang:start_timer(Interval, self(), {ping, JID}),
-    dict:store(LJID, TRef, NewTimers).
+    NewTimers#{LJID => TRef}.
 
 del_timer(JID, Timers) ->
     LJID = jid:to_lower(JID),
-    case dict:find(LJID, Timers) of
+    case maps:find(LJID, Timers) of
         {ok, TRef} ->
             cancel_timer(TRef),
-            dict:erase(LJID, Timers);
-        _ ->
+            maps:remove(LJID, Timers);
+        error ->
             Timers
     end.
 

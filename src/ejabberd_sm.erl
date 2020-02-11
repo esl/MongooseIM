@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 -module(ejabberd_sm).
@@ -838,7 +837,7 @@ is_privacy_allow(From, To, Acc, Packet) ->
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
     User = To#jid.user,
-    Server = To#jid.server,
+    Server = To#jid.lserver,
     {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User, PrivacyList,
                                                      To, in),
     allow == Res.

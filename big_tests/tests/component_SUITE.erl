@@ -524,7 +524,7 @@ get_components(Opts, Config) ->
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 add_domain(Config) ->
-    Node = default_node(Config),
+    Node = default_node(),
     Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
     backup_ejabberd_config_file(Node, Config),
     ejabberd_node_utils:modify_config_file([Hosts], Config),
@@ -532,7 +532,7 @@ add_domain(Config) ->
     ok.
 
 restore_domain(Config) ->
-    Node = default_node(Config),
+    Node = default_node(),
     restore_ejabberd_config_file(Node, Config),
     restart_ejabberd_node(Node),
     Config.
@@ -547,7 +547,5 @@ cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
 
-default_node(Config) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Node == undefined andalso error(node_undefined, [Config]),
-    Node.
+default_node() ->
+    distributed_helper:mim().

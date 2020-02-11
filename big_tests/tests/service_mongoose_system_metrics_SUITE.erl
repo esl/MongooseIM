@@ -8,7 +8,7 @@
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, "UA-151671255-2").
 -define(TRACKING_ID_CI, "UA-151671255-1").
--define(TRACKING_ID_EXTRA, "UA-151671255-3").
+-define(TRACKING_ID_EXTRA, "UA-EXTRA-TRACKING-ID").
 
 -record(event, {
     cid = "",
@@ -38,6 +38,7 @@
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
          system_metrics_are_reported_to_additional_google_analytics/1,
          system_metrics_are_reported_to_configurable_google_analytics/1,
+         system_metrics_are_reported_to_a_json_file/1,
          tracking_id_is_correctly_configured/1,
          module_backend_is_reported/1,
          mongoose_version_is_reported/1,
@@ -59,14 +60,9 @@
                             ]).
 
 -import(component_helper, [connect_component/1,
-                           connect_component/2,
                            disconnect_component/2,
-                           disconnect_components/2,
-                           connect_component_subdomain/1,
                            spec/2,
-                           common/1,
-                           common/2,
-                           name/1]).
+                           common/1]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -79,6 +75,7 @@ all() ->
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
      system_metrics_are_reported_to_additional_google_analytics,
      system_metrics_are_reported_to_configurable_google_analytics,
+     system_metrics_are_reported_to_a_json_file,
      tracking_id_is_correctly_configured,
      module_backend_is_reported,
      mongoose_version_is_reported,
@@ -255,6 +252,17 @@ system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
     mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
 
+system_metrics_are_reported_to_a_json_file(_Config) ->
+    ReportFilePath = distributed_helper:rpc(mim(), mongoose_system_metrics_file, location, []),
+    ReportLastModified = distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath]),
+    Fun = fun() ->
+        ReportLastModified < distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath])
+    end,
+    mongoose_helper:wait_until(Fun, true),
+    %% now we read the content of the file and check if it's a valid JSON
+    {ok, File} = distributed_helper:rpc(mim(), file, read_file, [ReportFilePath]),
+    jiffy:decode(File).
+
 module_backend_is_reported(_Config) ->
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
     mongoose_helper:wait_until(fun mod_vcard_backend_is_reported/0, true).
@@ -279,6 +287,8 @@ transport_mechanisms_are_reported(_Config) ->
     mongoose_helper:wait_until(fun transport_mechanisms_are_reported/0, true).
 
 just_removed_from_config_logs_question(_Config) ->
+    disable_system_metrics(mim3()),
+    remove_service_from_config(service_mongoose_system_metrics),
     %% WHEN
     Result = distributed_helper:rpc(
                mim3(), service_mongoose_system_metrics, verify_if_configured, []),
@@ -381,7 +391,7 @@ enable_system_metrics(Node, Timers) ->
     start_system_metrics_module(Node, Timers).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, "configurable_tracking_id"}]).
+    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, ?TRACKING_ID_EXTRA}]).
 
 start_system_metrics_module(Node, Args) ->
     distributed_helper:rpc(
@@ -412,15 +422,22 @@ configure_additional_tracking_id(Node) ->
     {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
 
 remove_additional_tracking_id(Node) ->
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
+    mongoose_helper:successful_rpc(
+        Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
+
+remove_service_from_config(Service) ->
+        Services = distributed_helper:rpc(
+                       mim3(), ejabberd_config, get_local_option_or_default, [services, []]),
+        NewServices = proplists:delete(Service, Services),
+        distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     SetTab = sets:from_list([Tid ||#event{tid = Tid} <- Tab]),
-    2 == sets:size(SetTab).
+    2 >= sets:size(SetTab).
 
 events_are_reported_to_configurable_tracking_id() ->
-    ConfigurableTrackingId = <<"configurable_tracking_id">>,
+    ConfigurableTrackingId = <<?TRACKING_ID_EXTRA>>,
     Tab = ets:tab2list(?ETS_TABLE),
     lists:any(
         fun(#event{tid = TrackingId}) ->

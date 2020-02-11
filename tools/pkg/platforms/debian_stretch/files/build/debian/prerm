@@ -19,7 +19,6 @@ set -e
 
 case "$1" in
     remove)
-    rm -rf /usr/lib/$NAME/lib/ejabberd-2.1.8+mim-1.3.1/priv/snmp/db/*
     ;;
 
     upgrade|deconfigure)

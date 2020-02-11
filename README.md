@@ -64,6 +64,7 @@ Check out our test results:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://mongooseim.readthedocs.io/en/latest/](https://mongooseim.readthedocs.io/en/latest/).
 
 Latest releases:
+* [3.6.0](https://mongooseim.readthedocs.io/en/3.6.0/)
 * [3.5.0](https://mongooseim.readthedocs.io/en/3.5.0/)
 * [3.4.0](https://mongooseim.readthedocs.io/en/3.4.0/)
 * [3.3.0](https://mongooseim.readthedocs.io/en/3.3.0/)
@@ -86,7 +87,7 @@ When developing new features/modules, please make sure you add basic documentati
 
 * [Tutorials](https://mongooseim.readthedocs.io/en/latest/user-guide/How-to-build/). Learn how to:
     * [Build MongooseIM from source code](doc/user-guide/How-to-build.md)
-    * [Set up MongoosePush](doc/user-guide/Push-notifications.md)
+    * [Set up MongoosePush](doc/user-guide/push-notifications/Push-notifications.md)
     * [Set up MongooseICE](doc/user-guide/ICE_tutorial.md)
     * [Build an iOS messaging app](doc/user-guide/iOS_tutorial.md)
 * [User Guide](https://mongooseim.readthedocs.io/en/latest/user-guide/Get-to-know-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.

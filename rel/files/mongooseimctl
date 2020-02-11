@@ -8,7 +8,7 @@ RUNNER_USER="{{mongooseim_runner_user}}"
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec sudo -u "$RUNNER_USER" -i "$0" "$@"
+    exec runuser -l "$RUNNER_USER" -c "$0 $@"
 fi
 
 EJABBERD_DIR="${RUNNER_SCRIPT_DIR%/*}"
@@ -20,7 +20,7 @@ ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
 EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
 
-EJABBERD_STATUS_PATH="${EJABBERD_STATUS_PATH:-$RUNNER_BASE_DIR/var/status}"
+EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
 
 COOKIE_ARG=`grep -e '^-setcookie' "$EJABBERD_VMARGS_PATH"`

@@ -126,7 +126,7 @@ delete(Role, Path, Cred, Body) ->
 -spec make_request(request_params()) ->
     {{Number :: binary(), Text :: binary()},
      Headers :: [{binary(), binary()}],
-     Body :: map() | binary()}. 
+     Body :: map() | binary()}.
 make_request(#{ return_headers := true } = Params) ->
     NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
     case fusco_request(NormalizedParams) of
@@ -191,9 +191,9 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     fusco_cp:stop(Client),
     Result.
 
--spec get_port(Role :: role(), Server :: atom()) -> Port :: integer().
-get_port(Role, Server) -> 
-    Listeners = rpc(Server, ejabberd_config, get_local_option, [listen]),
+-spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec()) -> Port :: integer().
+get_port(Role, Node) ->
+    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] =
         lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
     case PortIpNet of
@@ -202,9 +202,9 @@ get_port(Role, Server) ->
         Port -> Port
     end.
 
--spec get_ssl_status(Role :: role(), Server :: atom()) -> boolean().
-get_ssl_status(Role, Server) ->
-    Listeners = rpc(Server, ejabberd_config, get_local_option, [listen]),
+-spec get_ssl_status(Role :: role(), Server :: distributed_helper:rpc_spec()) -> boolean().
+get_ssl_status(Role, Node) ->
+    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
     [{_PortIpNet, _Module, Opts}] =
         lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     lists:keymember(ssl, 1, Opts).

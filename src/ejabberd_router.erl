@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -122,10 +121,13 @@ route(From, To, #xmlel{} = Packet) ->
     % (called by broadcasting)
     route(From, To, Acc);
 route(From, To, Acc) ->
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-           [From, To, Acc]),
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc]),
     El = mongoose_acc:element(Acc),
-    route(From, To, Acc, El, routing_modules_list()).
+    RoutingModules = routing_modules_list(),
+    NewAcc = route(From, To, Acc, El, RoutingModules),
+    ?DEBUG("Routing using modules ~p resulted in ~p",
+           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    NewAcc.
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
@@ -138,9 +140,12 @@ route(From, To, Acc, El) ->
     Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
                                          to_jid => To,
                                          element => El }, Acc),
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-        [From, To, Acc1]),
-    route(From, To, Acc1, El, routing_modules_list()).
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc1]),
+    RoutingModules = routing_modules_list(),
+    NewAcc = route(From, To, Acc1, El, RoutingModules),
+    ?DEBUG("Routing using modules ~p resulted in ~p",
+           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    NewAcc.
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -516,7 +521,6 @@ route(From, To, Acc, Packet, []) ->
     mongoose_metrics:update(global, routingErrors, 1),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
-    ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
         {'EXIT', {Reason, StackTrace}} ->
             ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
@@ -526,10 +530,8 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
                           StackTrace]),
             mongoose_acc:append(router, result, {error, {M, Reason}}, Acc);
         drop ->
-            ?DEBUG("filter dropped packet", []),
             mongoose_acc:append(router, result, {drop, M}, Acc);
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
-            ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
                 {'EXIT', {Reason, StackTrace}} ->
                     ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
@@ -539,10 +541,8 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
                                   StackTrace]),
                     mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc);
                 done ->
-                    ?DEBUG("routing done", []),
                     mongoose_acc:append(router, result, {done, M}, NAcc);
                 {From, To, NAcc1, Packet} ->
-                    ?DEBUG("routing skipped", []),
                     route(From, To, NAcc1, Packet, Tail)
             end
     end.

@@ -60,9 +60,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
                            {Acc0, mongoose_acc:stanza_name(Acc0), mongoose_acc:stanza_type(Acc0)}
                    end,
     % check if it is there, if not then set default and run a hook
-    FromBin = jid:to_binary(From),
-    ToBin = jid:to_binary(To),
-    Key = {cached_check, Server, User, FromBin, ToBin, Name, Type, Dir},
+    Key = {cached_check, Server, User, From, To, Name, Type, Dir},
     case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,

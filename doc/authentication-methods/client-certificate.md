@@ -53,6 +53,7 @@ For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNA
 You need to enable one of the following authentication backends by using the [`auth_method` option](../Advanced-configuration.md#authentication) in the MongooseIM configuration file.
 
 * `pki` - accepts user credentials,
+* `http` - accepts user credentials if the provided certificate is [known and valid](../authentication-backends/HTTP-authentication-module.md#method-get_certs)
 * `ldap` - accepts user credentials if a corresponding user account exists in LDAP.
 
 ### Self-signed certificates
