@@ -1,0 +1,50 @@
+# vi: ft=dockerfile
+ARG dockerfile_platform
+
+FROM $dockerfile_platform AS builder
+
+# Install build deps
+RUN apt-get update
+RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev
+
+RUN apt-get -y update && apt-get -y install curl gnupg && \
+        curl -O http://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && \
+        dpkg -i erlang-solutions_2.0_all.deb && apt-get update
+ARG erlang_version
+RUN apt-get install -y esl-erlang=1:$erlang_version
+
+
+# Fix locales
+RUN locale-gen en_US.UTF-8
+
+# Copy source code and put building files
+WORKDIR /root/
+COPY . ./mongooseim
+RUN rm -rf ./mongooseim/_build
+
+RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
+
+ARG version
+ARG revision
+
+RUN ./deb/build_package.sh $version $revision
+
+# Create image for sharing and validation of built package
+FROM $dockerfile_platform
+
+# Copy built package from previous image and install it with required dependencies
+RUN apt-get update && apt-get -y install openssl netcat && apt-get -y clean
+WORKDIR /root/
+COPY --from=builder /root/*.deb .
+
+# Install mongooseim with required dependencies
+RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
+
+# Simple check if MiM works
+COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
+RUN mongooseimctl start && \
+    ./wait-for-it.sh -h localhost -p 5222 -t 60 && \
+    mongooseimctl stop
+
+RUN mkdir /built_packages
+CMD mv /root/mongooseim*.deb /built_packages

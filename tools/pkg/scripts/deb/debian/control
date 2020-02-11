@@ -2,8 +2,8 @@ Source: mongooseim
 Section: net
 Priority: extra
 Maintainer: Erlang Solutions <packages@erlang-solutions.com>
-Build-Depends: debhelper (>= 8.0.0), libexpat1-dev (>= 2.0.1), libssl-dev (>= 0.9.8), libpam0g-dev (>= 1.1.1), esl-erlang (>=1:15) | erlang (>=1:15), sudo (>= 1.8.0)
-Version: 2.1.1
+Build-Depends: debhelper (>= 8.0.0), git, make, zlib1g-dev, libssl-dev, unixodbc-dev, gcc, g++,  esl-erlang
+Version: @VER@
 Standards-Version: 3.9.2
 Homepage: http://erlang-solutions.com
 #Vcs-Git: git://git.debian.org/collab-maint/mongooseim.git

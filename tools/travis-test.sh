@@ -212,10 +212,37 @@ enable_tls_dist () {
 
 build_pkg () {
   set -e
-  local platform=$1
   cd tools/pkg
-  ./build $platform
-  ./run $platform
+
+  local platform=$1
+  local esl_erlang_pkg_vsn=$2
+  local project_root=$(git rev-parse --show-toplevel)
+
+  if [[ $platform == centos* ]]; then
+      local dockerfile_name="Dockerfile_rpm"
+  elif [[ $platform == debian* ]] || [[ $platform == ubuntu* ]]; then
+      local dockerfile_name="Dockerfile_deb"
+  else
+      echo "No dockerfile for given platform" && exit 1
+  fi
+
+  version=$(cat "${project_root}/VERSION")
+  commit_sha=$(git rev-parse --short HEAD)
+  # Do not add commit hash to package revision if package is built for tag
+  if [[ "$(git describe --exact-match --tags HEAD 2>/dev/null)" == "$version" ]]; then
+      revision="1"
+  else
+      revision="1.${commit_sha}"
+  fi
+
+  ./build.sh \
+    --platform $platform \
+    --version $version \
+    --revision $revision \
+    --erlang_version $esl_erlang_pkg_vsn \
+    --dockerfile_path "$project_root/tools/pkg/$dockerfile_name" \
+    --context_path $project_root \
+    --built_packages_directory "$project_root/tools/pkg/packages"
   set +e
 }
 
@@ -227,7 +254,7 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh stop
   exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
-  build_pkg $pkg_PLATFORM
+  build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
   time run_small_tests
   RESULT=$?
