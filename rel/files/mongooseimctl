@@ -8,7 +8,7 @@ RUNNER_USER="{{mongooseim_runner_user}}"
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec runuser -l "$RUNNER_USER" -c "$0 $@"
+    exec runuser -l "$RUNNER_USER" -c "$0 $*"
 fi
 
 EJABBERD_DIR="${RUNNER_SCRIPT_DIR%/*}"
