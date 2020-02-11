@@ -36,7 +36,6 @@ RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision
 FROM $dockerfile_platform
 
 # Copy built package from previous image and install it with required dependencies
-RUN yum install -y epel-release sudo nc && yum -y clean all
 WORKDIR /root/
 COPY --from=builder /root/mongooseim*.rpm .
 RUN yum -y update; yum install -y mongooseim*.rpm
