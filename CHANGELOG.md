@@ -1,3 +1,27 @@
+# [MongooseIM 3.6.1](https://github.com/esl/MongooseIM/releases/tag/3.6.1) - 2020-02-11
+
+## Highlights
+
+- Tooling and packages improvements
+
+## All changes
+
+### Changed
+
+- Use `runuser` instead of `sudo` in scripts managing MongooseIM (#2617)
+- Install pid and status directory explicitly (#2618)
+- Massive rework of scripts building .deb and .rpm packages (#2626, #2629)
+- Remove redundant time conversions in shapers (#2545)
+- Small performance improvements (#2621)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.1)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222020-01-30..2020-02-11%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-01-30&to=2020-02-11&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-01-30..2020-02-11%22%20sort%3Acreated-asc%20)
+
 # [MongooseIM 3.6.0](https://github.com/esl/MongooseIM/releases/tag/3.6.0) - 2020-01-29
 
 ## Highlights
