@@ -77,7 +77,6 @@ PLATFORM="debian_stretch"
 VERSION=$(cat "${PROJECT_ROOT}/VERSION")
 REVISION="1"
 ERLANG_VERSION="22.2.5-1"
-MINIMAL_ERLANG_VERSION=$(grep "require_min_otp_vsn" "${PROJECT_ROOT}/rebar.config" | tr -d -c 0-9)
 DOCKERFILE_PATH="$PROJECT_ROOT/tools/pkg/Dockerfile_deb"
 CONTEXT_PATH=$PROJECT_ROOT
 BUILT_PACKAGES_DIRECTORY="$PROJECT_ROOT/tools/pkg/packages"
