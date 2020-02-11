@@ -38,9 +38,6 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
 
-
-
-
 ## Download packages
 
 For a quick start just download:
@@ -64,6 +61,7 @@ Check out our test results:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://mongooseim.readthedocs.io/en/latest/](https://mongooseim.readthedocs.io/en/latest/).
 
 Latest releases:
+* [3.6.1](https://mongooseim.readthedocs.io/en/3.6.1/)
 * [3.6.0](https://mongooseim.readthedocs.io/en/3.6.0/)
 * [3.5.0](https://mongooseim.readthedocs.io/en/3.5.0/)
 * [3.4.0](https://mongooseim.readthedocs.io/en/3.4.0/)
