@@ -44,9 +44,9 @@ RUN yum -y update; yum install -y mongooseim*.rpm
 
 # Simple check if MiM works
 COPY --from=builder /root/rpmbuild/BUILD/mongooseim/tools/wait-for-it.sh .
-RUN mongooseimctl start && \
-    ./wait-for-it.sh -h localhost -p 5222 -t 60 && \
-    mongooseimctl stop
+COPY --from=builder /root/rpmbuild/BUILD/mongooseim/tools/pkg/scripts/smoke_test.sh .
+
+RUN ./smoke_test.sh
 
 RUN mkdir /built_packages
 CMD mv /root/mongooseim*.rpm /built_packages

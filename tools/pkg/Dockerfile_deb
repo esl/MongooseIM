@@ -34,7 +34,7 @@ RUN ./deb/build_package.sh $version $revision
 FROM $dockerfile_platform
 
 # Copy built package from previous image and install it with required dependencies
-RUN apt-get update && apt-get -y install openssl netcat && apt-get -y clean
+RUN apt-get update && apt-get -y install openssl procps netcat && apt-get -y clean
 WORKDIR /root/
 COPY --from=builder /root/*.deb .
 
@@ -43,9 +43,9 @@ RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
 
 # Simple check if MiM works
 COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
-RUN mongooseimctl start && \
-    ./wait-for-it.sh -h localhost -p 5222 -t 60 && \
-    mongooseimctl stop
+COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_test.sh .
+
+RUN ./smoke_test.sh
 
 RUN mkdir /built_packages
 CMD mv /root/mongooseim*.deb /built_packages
