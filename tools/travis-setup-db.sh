@@ -143,6 +143,7 @@ elif [ "$db" = 'pgsql' ]; then
     cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
     docker run -d \
            -e SQL_TEMP_DIR=/tmp/sql \
+           -e POSTGRES_PASSWORD=password \
            $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
            $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/postgresql/data) \
            $(mount_ro_volume ${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
