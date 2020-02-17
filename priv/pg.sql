@@ -278,6 +278,32 @@ CREATE TABLE muc_light_rooms(
     PRIMARY KEY (lserver, luser)
 );
 
+CREATE TABLE muc_rooms(
+    id BIGSERIAL            NOT NULL UNIQUE,
+    muc_host VARCHAR(250)   NOT NULL,
+    room VARCHAR(250)       NOT NULL,
+    options JSON            NOT NULL,
+    PRIMARY KEY (muc_host, room)
+);
+
+CREATE TABLE muc_room_aff(
+    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    resource VARCHAR(250)   NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_room_aff_id ON muc_room_aff (room_id);
+
+CREATE TABLE muc_registered(
+    muc_host VARCHAR(250)   NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    nick VARCHAR(250)       NOT NULL,
+    PRIMARY KEY (muc_host, luser, lserver)
+);
+
 CREATE TABLE muc_light_occupants(
     room_id BIGINT          NOT NULL REFERENCES muc_light_rooms(id),
     luser VARCHAR(250)      NOT NULL,
