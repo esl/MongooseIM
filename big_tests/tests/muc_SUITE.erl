@@ -2933,7 +2933,8 @@ disco_rooms(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         true = has_room(room_address(<<"alicesroom">>), Stanza),
         true = has_room(room_address(<<"persistentroom">>), Stanza),
-        escalus:assert(is_stanza_from, [muc_host()], Stanza)
+        escalus:assert(is_stanza_from, [muc_host()], Stanza),
+        ok = rpc(mim(), mod_muc, forget_room, [domain(), Host, Room])
     end).
 
 disco_info(Config) ->
