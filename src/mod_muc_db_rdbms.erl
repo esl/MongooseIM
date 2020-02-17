@@ -31,31 +31,6 @@
 -type aff() :: atom().
 
 
-%% ------------------------ Conversions ------------------------
-
--spec aff_atom2db(aff()) -> string().
-aff_atom2db(owner) -> "1";
-aff_atom2db({owner, _}) -> "1";
-aff_atom2db(member) -> "2";
-aff_atom2db({member, _}) -> "2";
-aff_atom2db(admin) -> "3";
-aff_atom2db({admin, _}) -> "3";
-aff_atom2db(outcast) -> "4";
-aff_atom2db({outcast, _}) -> "4";
-aff_atom2db(_Other) -> "5".
-
--spec aff_db2atom(binary() | pos_integer()) -> aff().
-aff_db2atom(1) -> owner;
-aff_db2atom(2) -> member;
-aff_db2atom(3) -> admin;
-aff_db2atom(4) -> outcast;
-aff_db2atom(5) -> none;
-aff_db2atom(Bin) -> aff_db2atom(mongoose_rdbms:result_to_integer(Bin)).
-
--spec bin(integer() | binary()) -> binary().
-bin(Int) when is_integer(Int) -> integer_to_binary(Int);
-bin(Bin) when is_binary(Bin) -> Bin.
-
 -spec init(server_host(), ModuleOpts :: list()) -> ok.
 init(ServerHost, _Opts) ->
     rdbms_queries:prepare_upsert(ServerHost, muc_nick_upsert, muc_registered,
@@ -71,9 +46,8 @@ store_room(ServerHost, MucHost, RoomName, Opts) ->
     Affs = proplists:get_value(affiliations, Opts),
     NewOpts = proplists:delete(affiliations, Opts),
     EncodedOpts = jiffy:encode({NewOpts}),
-    {atomic, Res} = mongoose_rdbms:sql_transaction(
-        ServerHost, fun() ->
-        store_room_transaction(ServerHost, MucHost, RoomName, EncodedOpts, Affs) end),
+    {atomic, Res} = mongoose_rdbms:sql_transaction(ServerHost,
+        fun() -> store_room_transaction(ServerHost, MucHost, RoomName, EncodedOpts, Affs) end),
     Res.
 
 store_room_transaction(ServerHost, MucHost, RoomName, Opts, Affs) ->
@@ -83,23 +57,23 @@ store_room_transaction(ServerHost, MucHost, RoomName, Opts, Affs) ->
             mongoose_rdbms:sql_query_t("ROLLBACK;"),
             {error, Reason};
         {updated, _ } ->
-            {selected, [{RoomID}]} = mongoose_rdbms:sql_query(ServerHost,
-                                          select_room_id(MucHost, RoomName)),
+            {selected, [{RoomID}]} = mongoose_rdbms:sql_query(
+                                       ServerHost, select_room_id(MucHost, RoomName)),
             store_aff(RoomID, Affs),
             ok;
         _Other ->
-                mongoose_rdbms:sql_query_t("ROLLBACK;"),
-                {error, unexpected}
+            mongoose_rdbms:sql_query_t("ROLLBACK;"),
+            {error, unexpected}
     end.
 
-store_aff( _, undefined) ->
-     ok;
+store_aff(_, undefined) ->
+    ok;
 store_aff(RoomID, Affs) ->
     lists:foreach(
-        fun({{UserU, UserS, Resource}, Aff}) ->
-            {updated, _} = mongoose_rdbms:sql_query_t(
-                insert_aff(RoomID, UserU, UserS, Resource, Aff))
-            end, Affs).
+      fun({{UserU, UserS, Resource}, Aff}) ->
+              {updated, _} = mongoose_rdbms:sql_query_t(
+                               insert_aff(RoomID, UserU, UserS, Resource, Aff))
+      end, Affs).
 
 get_full_options(ServerHost, Opts, RoomID) ->
     {selected, Affs} = mongoose_rdbms:sql_query(ServerHost, select_aff(RoomID)),
@@ -113,20 +87,19 @@ get_full_options(ServerHost, Opts, RoomID) ->
 restore_room(ServerHost, MucHost, RoomName) ->
     case mongoose_rdbms:sql_query(ServerHost, select_room(MucHost, RoomName)) of
         {selected, [{RoomID, Opts}]} ->
-                    FullOpts = get_full_options(ServerHost, Opts, RoomID),
-                    {ok, FullOpts};
+            FullOpts = get_full_options(ServerHost, Opts, RoomID),
+            {ok, FullOpts};
         {selected, []} ->
             {error, room_not_found};
         Other ->
             {error, Other}
-     end.
+    end.
 
 -spec forget_room(server_host(), muc_host(), mod_muc:room()) ->
     ok | {error, term()}.
 forget_room(ServerHost, MucHost, RoomName) ->
-    {atomic, _Res}
-        = mongoose_rdbms:sql_transaction(ServerHost,
-            fun() -> forget_room_transaction(ServerHost, MucHost, RoomName) end),
+    {atomic, _Res} = mongoose_rdbms:sql_transaction(ServerHost,
+        fun() -> forget_room_transaction(ServerHost, MucHost, RoomName) end),
     ok.
 
 forget_room_transaction(ServerHost, MucHost, RoomName) ->
@@ -151,8 +124,7 @@ get_rooms(ServerHost, MucHost) ->
         Other -> {error, Other}
     end.
 
--spec can_use_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) ->
-    boolean().
+-spec can_use_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) -> boolean().
 can_use_nick(ServerHost, MucHost, Jid, Nick) ->
     {UserU, UserS} = jid:to_lus(Jid),
     SelectQuery = select_nick_user(MucHost, UserS, Nick),
@@ -186,7 +158,7 @@ store_nick_transaction(ServerHost, MucHost, Jid, Nick, true) ->
     UpdateParams = [Nick],
     UniqueKeyValues  = [MucHost, LU, LS],
     case rdbms_queries:execute_upsert(ServerHost, muc_nick_upsert,
-                                       InsertParams, UpdateParams, UniqueKeyValues) of
+                                      InsertParams, UpdateParams, UniqueKeyValues) of
         {updated, _} -> ok;
         Error -> Error
     end.
@@ -201,6 +173,8 @@ unset_nick(ServerHost, MucHost, Jid) ->
         T -> {error, T}
     end.
 
+%% ------------------------ Queries ------------------------
+-spec insert_room(jid:lserver(), jid:luser(), room_opts()) -> iolist().
 insert_room(MucHost, RoomName, Opts) ->
     ["INSERT INTO muc_rooms (muc_host, room, options)"
      " VALUES (", ?ESC(MucHost), ", ", ?ESC(RoomName), ",", ?ESC(Opts) ,")"].
@@ -210,38 +184,72 @@ insert_room(MucHost, RoomName, Opts) ->
 insert_aff(RoomID, UserU, UserS, Res, Aff) ->
     ["INSERT INTO muc_room_aff (room_id, luser, lserver, resource, aff)"
      " VALUES(", bin(RoomID), ", ", ?ESC(UserU), ", ", ?ESC(UserS), ", ",
-      ?ESC(Res), ", ", aff_atom2db(Aff), ")"].
+     ?ESC(Res), ", ", aff_atom2db(Aff), ")"].
 
+-spec select_aff(integer() | binary()) -> iolist().
 select_aff(RoomID) ->
     ["SELECT luser, lserver, resource, aff FROM muc_room_aff WHERE room_id = ",
      bin(RoomID)].
 
+-spec select_room_id(jid:lserver(), jid:luser()) -> iolist().
 select_room_id(MucHost, RoomName) ->
     ["SELECT id FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost),
-    " AND room = ", ?ESC(RoomName)].
+     " AND room = ", ?ESC(RoomName)].
 
+-spec select_room(jid:lserver(), jid:luser()) -> iolist().
 select_room(MucHost, RoomName) ->
     ["SELECT id, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost),
-    " AND room = ", ?ESC(RoomName)].
+     " AND room = ", ?ESC(RoomName)].
 
+-spec delete_affs(integer() | binary()) -> iolist().
 delete_affs(RoomID) ->
-     ["DELETE FROM muc_room_aff WHERE room_id = ", bin(RoomID)].
+    ["DELETE FROM muc_room_aff WHERE room_id = ", bin(RoomID)].
 
+-spec delete_room(jid:lserver(), jid:luser()) -> iolist().
 delete_room(MucHost, RoomName) ->
     ["DELETE FROM muc_rooms"
      " WHERE muc_host = ", ?ESC(MucHost), " AND room = ", ?ESC(RoomName)].
 
+-spec select_rooms(jid:lserver()) -> iolist().
 select_rooms(MucHost) ->
     ["SELECT id, room, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost)].
 
+-spec select_nick_user(jid:lserver(), jid:luser(), mod_muc:nick()) -> iolist().
 select_nick_user(MucHost, UserS, Nick) ->
     ["SELECT luser FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
-    " AND lserver = ", ?ESC(UserS), "AND nick =", ?ESC(Nick)].
+     " AND lserver = ", ?ESC(UserS), "AND nick =", ?ESC(Nick)].
 
+-spec select_nick(jid:lserver(), jid:luser(), jid:lserver()) -> iolist().
 select_nick(MucHost, UserU, UserS) ->
     ["SELECT nick FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
-    " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
+     " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
 
+-spec delete_nick(jid:lserver(), jid:luser(), jid:lserver()) -> iolist().
 delete_nick(MucHost, UserU, UserS) ->
     ["DELETE FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
      " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
+
+
+%% ------------------------ Conversions ------------------------
+-spec aff_atom2db(aff()) -> string().
+aff_atom2db(owner) -> "1";
+aff_atom2db({owner, _}) -> "1";
+aff_atom2db(member) -> "2";
+aff_atom2db({member, _}) -> "2";
+aff_atom2db(admin) -> "3";
+aff_atom2db({admin, _}) -> "3";
+aff_atom2db(outcast) -> "4";
+aff_atom2db({outcast, _}) -> "4";
+aff_atom2db(_Other) -> "5".
+
+-spec aff_db2atom(binary() | pos_integer()) -> aff().
+aff_db2atom(1) -> owner;
+aff_db2atom(2) -> member;
+aff_db2atom(3) -> admin;
+aff_db2atom(4) -> outcast;
+aff_db2atom(5) -> none;
+aff_db2atom(Bin) -> aff_db2atom(mongoose_rdbms:result_to_integer(Bin)).
+
+-spec bin(integer() | binary()) -> binary().
+bin(Int) when is_integer(Int) -> integer_to_binary(Int);
+bin(Bin) when is_binary(Bin) -> Bin.
