@@ -215,7 +215,7 @@ insert_aff(RoomID, UserU, UserS, Res, Aff) ->
 
 select_aff(RoomID) ->
     ["SELECT luser, lserver, resource, aff FROM muc_room_aff WHERE room_id = ",
-     ?ESC(RoomID)].
+     bin(RoomID)].
 
 select_room_id(MucHost, RoomName) ->
     ["SELECT id FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost),
