@@ -57,7 +57,11 @@ bin(Int) when is_integer(Int) -> integer_to_binary(Int);
 bin(Bin) when is_binary(Bin) -> Bin.
 
 -spec init(server_host(), ModuleOpts :: list()) -> ok.
-init(_ServerHost, _Opts) ->
+init(ServerHost, _Opts) ->
+    rdbms_queries:prepare_upsert(ServerHost, muc_nick_upsert, muc_registered,
+                                 [<<"muc_host">>, <<"luser">>, <<"lserver">>, <<"nick">>],
+                                 [<<"nick">>],
+                                 [<<"muc_host">>, <<"luser">>, <<"lserver">>]),
     ok.
 
 -spec store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
@@ -155,7 +159,7 @@ can_use_nick(ServerHost, MucHost, Jid, Nick) ->
     SelectQuery = select_nick_user(MucHost, UserS, Nick),
     case mongoose_rdbms:sql_query(ServerHost, SelectQuery) of
         {selected, []} -> true;
-        {selected, [U]} -> U == UserU
+        {selected, [{U}]} -> U == UserU
     end.
 
 %% Get nick associated with jid client_jid() across muc_host() domain
@@ -166,41 +170,37 @@ get_nick(ServerHost, MucHost, Jid) ->
     SelectQuery = select_nick(MucHost, UserU, UserS),
     case mongoose_rdbms:sql_query(ServerHost, SelectQuery) of
         {selected, []} -> {error, not_registered};
-        {selected, [Nick]} -> {ok, Nick}
+        {selected, [{Nick}]} -> {ok, Nick}
     end.
 
 %% Register nick
--spec set_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) ->
-    ok | {error, conflict} | {error, term()}.
+-spec set_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) -> ok | {error, term()}.
 set_nick(ServerHost, MucHost, Jid, Nick) when is_binary(Nick), Nick =/= <<>> ->
     CanUseNick = can_use_nick(ServerHost, MucHost, Jid, Nick),
-   {atomic, Res}
-        = mongoose_rdbms:sql_transaction(
-            ServerHost, fun() ->
-                store_nick_transaction(ServerHost, MucHost, Jid, Nick, CanUseNick) end),
-    Res.
+    store_nick_transaction(ServerHost, MucHost, Jid, Nick, CanUseNick).
 
 store_nick_transaction(_ServerHost, _MucHost, _Jid, _Nick, false) ->
     {error, conflict};
 store_nick_transaction(ServerHost, MucHost, Jid, Nick, true) ->
-    LUS = jid:to_lus(Jid),
-    case catch mongoose_rdbms:sql_query(ServerHost, insert_nick( MucHost, LUS, Nick)) of
-        {aborted, Reason} ->
-                mongoose_rdbms:sql_query_t("ROLLBACK;"),
-                ?ERROR_MSG("event=set_nick_failed jid=~ts nick=~ts reason=~1000p",
-                    [jid:to_binary(Jid), Nick, Reason]),
-                {error, Reason};
-        {updated, _ } ->
-            ok
+    {LU, LS} = jid:to_lus(Jid),
+    InsertParams = [MucHost, LU, LS, Nick],
+    UpdateParams = [Nick],
+    UniqueKeyValues  = [MucHost, LU, LS],
+    case rdbms_queries:execute_upsert(ServerHost, muc_nick_upsert,
+                                       InsertParams, UpdateParams, UniqueKeyValues) of
+        {updated, _} -> ok;
+        Error -> Error
     end.
 
 %% Unregister nick
 %% Unregistered nicks can be used by someone else
--spec unset_nick(server_host(), muc_host(), client_jid()) ->
-    ok | {error, term()}.
+-spec unset_nick(server_host(), muc_host(), client_jid()) -> ok | {error, term()}.
 unset_nick(ServerHost, MucHost, Jid) ->
     {UserU, UserS} = jid:to_lus(Jid),
-    mongoose_rdbms:sql_query(ServerHost, delete_nick(MucHost, UserU, UserS)).
+    case mongoose_rdbms:sql_query(ServerHost, delete_nick(MucHost, UserU, UserS)) of
+        {updated, N} when 0 =< N, N =< 1 -> ok;
+        T -> {error, T}
+    end.
 
 insert_room(MucHost, RoomName, Opts) ->
     ["INSERT INTO muc_rooms (muc_host, room, options)"
@@ -235,11 +235,6 @@ delete_room(MucHost, RoomName) ->
 select_rooms(MucHost) ->
     ["SELECT id, room, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost)].
 
-insert_nick(MucHost, {UserU, UserS}, Nick) ->
-    ["INSERT INTO muc_registered (muc_host, luser, lserver, nick)"
-     " VALUES (", ?ESC(MucHost), ", ", ?ESC(UserU), ",", ?ESC(UserS),
-     ",", ?ESC(Nick), ")"].
-
 select_nick_user(MucHost, UserS, Nick) ->
     ["SELECT luser FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
     " AND lserver = ", ?ESC(UserS), "AND nick =", ?ESC(Nick)].
@@ -249,5 +244,5 @@ select_nick(MucHost, UserU, UserS) ->
     " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
 
 delete_nick(MucHost, UserU, UserS) ->
-       ["DELETE FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
-         " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
+    ["DELETE FROM muc_registered WHERE muc_host = ", ?ESC(MucHost),
+     " AND luser = ", ?ESC(UserU), "AND lserver =", ?ESC(UserS)].
