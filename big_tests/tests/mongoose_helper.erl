@@ -214,9 +214,13 @@ stop_online_rooms() ->
     ok.
 
 forget_persistent_rooms() ->
-    rpc(mim(), mnesia, clear_table, [muc_room]),
-    rpc(mim(), mnesia, clear_table, [muc_registered]),
-    ok.
+    Host = ct:get_config({hosts, mim, domain}),
+    {ok, Rooms} = rpc(mim(), mod_muc_db_backend, get_rooms, [Host, muc_helper:muc_host()]),
+    lists:foreach(
+     fun({muc_room, {RoomName, MucHost}, _Opts}) ->
+             rpc(mim(), mod_muc, forget_room, [Host, MucHost, RoomName])
+     end,
+     Rooms).
 
 -spec successful_rpc(M :: atom(), F :: atom(), A :: list()) -> term().
 successful_rpc(Module, Function, Args) ->

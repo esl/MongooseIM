@@ -144,10 +144,9 @@ get_rooms(ServerHost, MucHost) ->
     SelectRooms = select_rooms(MucHost),
     case mongoose_rdbms:sql_query(ServerHost, SelectRooms) of
         {selected, Reply} ->
-            Return = [{MucHost,{RoomName, ServerHost},
-                        get_full_options(ServerHost,Opts, RoomID)}
-                                ||{RoomID, RoomName, Opts} <- Reply],
-                % Return = [{MucHost, {RoomName, ServerHost}, Opts} || {RoomName, {Opts}} <- ReplyDecodedOpts],
+            Return = [#muc_room{name_host = {RoomName, MucHost},
+                                opts = get_full_options(ServerHost, Opts, RoomID)}
+                                || {RoomID, RoomName, Opts} <- Reply],
             {ok, Return};
         Other -> {error, Other}
     end.

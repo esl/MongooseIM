@@ -10,8 +10,6 @@
 
 -type verify_fun() :: fun((Incoming :: #xmlel{}) -> any()).
 
--define(MUC_HOST, <<"muc.localhost">>).
-
 -export_type([verify_fun/0]).
 
 -spec foreach_occupant(
@@ -66,7 +64,7 @@ unload_muc() ->
     dynamic_modules:stop(<<"localhost">>, mod_muc_log).
 
 muc_host() ->
-    ?MUC_HOST.
+    <<"muc.localhost">>.
 
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
@@ -144,7 +142,7 @@ create_instant_room(Host, Room, From, Nick, Opts) ->
         [Host, Room1, From, Nick, Opts]).
 
 destroy_room(Config) ->
-    destroy_room(?MUC_HOST, ?config(room, Config)).
+    destroy_room(muc_host(), ?config(room, Config)).
 
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
@@ -172,10 +170,10 @@ stanza_to_room(Stanza, Room, Nick) ->
     escalus_stanza:to(Stanza, room_address(Room, Nick)).
 
 room_address(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
+    <<Room/binary, "@", (muc_host())/binary>>.
 
 room_address(Room, Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+    <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
 
 given_fresh_room(Config, UserSpec, RoomOpts) ->
     Username = proplists:get_value(username, UserSpec),

@@ -28,7 +28,8 @@
                              rpc/4]).
 
 -import(muc_helper,
-        [load_muc/1,
+        [muc_host/0,
+         load_muc/1,
          unload_muc/0,
          muc_host/0,
          start_room/5,
@@ -44,15 +45,12 @@
          fresh_room_name/0,
          fresh_room_name/1,
          disco_features_story/2,
-         given_fresh_room/3,
          room_address/2,
          room_address/1,
-         stanza_get_features/0,
          disco_service_story/1,
          story_with_room/4
          ]).
 
--define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
@@ -530,7 +528,7 @@ init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     dynamic_modules:start(domain(), mod_mam_muc,
                           [{backend, rdbms},
-                           {host, binary_to_list(?MUC_HOST)}]),
+                           {host, binary_to_list(muc_host())}]),
     escalus:init_per_testcase(CaseName, Config);
 
 init_per_testcase(CaseName, Config) ->
@@ -4968,20 +4966,20 @@ stanza_get_services(_Config) ->
 
 get_nick_form_iq() ->
     GetIQ = escalus_stanza:iq_get(<<"jabber:iq:register">>, []),
-    escalus_stanza:to(GetIQ, ?MUC_HOST).
+    escalus_stanza:to(GetIQ, muc_host()).
 
 change_nick_form_iq(Nick) ->
     NS = <<"jabber:iq:register">>,
     NickField = form_field({<<"nick">>, Nick, <<"text-single">>}),
     Form = stanza_form([NickField], NS),
     SetIQ = escalus_stanza:iq_set(NS, [Form]),
-    escalus_stanza:to(SetIQ, ?MUC_HOST).
+    escalus_stanza:to(SetIQ, muc_host()).
 
 remove_nick_form_iq() ->
     NS = <<"jabber:iq:register">>,
     RemoveEl = #xmlel{name = <<"remove">>},
     SetIQ = escalus_stanza:iq_set(NS, [RemoveEl]),
-    escalus_stanza:to(SetIQ, ?MUC_HOST).
+    escalus_stanza:to(SetIQ, muc_host()).
 
 set_nick(User, Nick) ->
     escalus:send_iq_and_wait_for_result(User, change_nick_form_iq(Nick)).
