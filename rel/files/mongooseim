@@ -24,7 +24,7 @@ export EJABBERD_CONFIG_PATH
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec runuser -l "$RUNNER_USER" -c "$0 $@"
+    exec runuser -l "$RUNNER_USER" -c "$0 $*"
 fi
 
 # Make sure CWD is set to runner base dir
