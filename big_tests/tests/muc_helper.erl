@@ -46,11 +46,12 @@ foreach_recipient(Users, VerifyFun) ->
 load_muc(Host) ->
     %% Stop modules before trying to start them
     unload_muc(),
+    Backend = muc_backend(),
     %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
                           %% XXX TODO Uncomment, when mod_muc_db_rdbms is written
-                          %{backend, Backend},
+                           {backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},
                            {hibernated_room_timeout, 2000},
@@ -66,6 +67,9 @@ unload_muc() ->
 
 muc_host() ->
     ?MUC_HOST.
+
+muc_backend() ->
+    mongoose_helper:mnesia_or_rdbms_backend().
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
