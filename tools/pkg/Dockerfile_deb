@@ -18,9 +18,10 @@ RUN apt-get install -y esl-erlang=1:$erlang_version
 RUN locale-gen en_US.UTF-8
 
 # Copy source code and put building files
+# The .dockerignore file in root dir ensures only needed files
+# including not commited changes are used to build the package
 WORKDIR /root/
 COPY . ./mongooseim
-RUN rm -rf ./mongooseim/_build
 
 RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
 

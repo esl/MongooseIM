@@ -19,10 +19,12 @@ RUN curl -O https://packages.erlang-solutions.com/erlang-solutions-2.0-1.noarch.
 
 # Copy source code and put building files in proper directories according to
 # defaults of `rpmdev-setuptree` and `rpmbuild` commands
+# The .dockerignore file in root dir ensures only needed files
+# including not commited changes are used to build the package
 RUN rpmdev-setuptree
 WORKDIR /root/rpmbuild
 COPY . ./BUILD/mongooseim
-RUN rm -rf ./BUILD/mongooseim/_build
+
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.spec ./SPECS/.
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \
        ./SOURCES/mongooseim.service
