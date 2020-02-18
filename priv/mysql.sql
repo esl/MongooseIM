@@ -344,6 +344,33 @@ CREATE TABLE muc_light_blocking(
 
 CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
 
+CREATE TABLE muc_rooms(
+    id SERIAL,
+    muc_host VARCHAR(250)   NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
+    options JSON            NOT NULL,
+    PRIMARY KEY (muc_host, room_name)
+);
+
+CREATE TABLE muc_room_aff(
+    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    resource VARCHAR(250)   NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_room_aff_id ON muc_room_aff (room_id);
+
+CREATE TABLE muc_registered(
+    muc_host VARCHAR(250)   NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    nick VARCHAR(250)       NOT NULL,
+    PRIMARY KEY (muc_host, luser, lserver)
+);
+
+
 CREATE TABLE inbox (
     luser VARCHAR(250)               NOT NULL,
     lserver VARCHAR(250)             NOT NULL,

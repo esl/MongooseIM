@@ -217,7 +217,7 @@ forget_room(ServerHost, Host, Name) ->
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            ejabberd_hooks:run(forget_room, Host, [Host, Name]);
+            ejabberd_hooks:run(forget_room, ServerHost, [Host, Name]);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -1076,8 +1076,8 @@ get_vh_rooms(Host) ->
 
 -spec get_persistent_vh_rooms(jid:server()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
-    Host = mongoose_subhosts:get_host(MucHost),
-    case mod_muc_db_mnesia:get_rooms(Host, MucHost) of
+    {ok, Host} = mongoose_subhosts:get_host(MucHost),
+    case mod_muc_db_backend:get_rooms(Host, MucHost) of
         {ok, List} ->
             List;
         {error, _} ->

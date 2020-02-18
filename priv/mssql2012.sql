@@ -616,3 +616,29 @@ CREATE TABLE mongoose_cluster_id (
     k varchar(50) NOT NULL PRIMARY KEY,
     v text
 );
+
+CREATE TABLE muc_rooms(
+    id BIGINT IDENTITY(1,1) NOT NULL UNIQUE,
+    muc_host VARCHAR(250)   NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
+    options VARCHAR(MAX)    NOT NULL,
+    PRIMARY KEY (muc_host, room_name)
+);
+
+CREATE TABLE muc_room_aff(
+    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    resource VARCHAR(250)   NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_room_aff_id ON muc_room_aff (room_id);
+
+CREATE TABLE muc_registered(
+    muc_host VARCHAR(250)   NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    nick VARCHAR(250)       NOT NULL,
+    PRIMARY KEY (muc_host, luser, lserver)
+);
