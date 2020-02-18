@@ -59,7 +59,7 @@ run_initial_check(Acc, _C2SState) ->
 
 
 -spec check_packet(mongoose_acc:t() | exml:element(), amp_event()) ->
-    mongoose_acc:t() | exml:element() | drop.
+    mongoose_acc:t() | exml:element().
 check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
     % it is called this way only from ejabberd_c2s:send_and_maybe_buffer_stanza/3, line 1666
     % maybe Paweł Chrząszcz knows why and can advise what to do about it
@@ -73,7 +73,7 @@ check_packet(Acc, Event) ->
     check_packet(Acc, mongoose_acc:from_jid(Acc), Event).
 
 -spec check_packet(exml:element()|mongoose_acc:t(), jid:jid(), amp_event()) ->
-    exml:element() | mongoose_acc:t() | drop.
+    exml:element() | mongoose_acc:t().
 check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => From#jid.lserver,

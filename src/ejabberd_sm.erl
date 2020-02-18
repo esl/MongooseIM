@@ -219,7 +219,7 @@ route(From, To, Acc, El) ->
 -spec open_session(SID, JID, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
-      Info :: 'undefined' | [any()],
+      Info :: info(),
       ReplacedPids :: [pid()].
 open_session(SID, JID, Info) ->
     open_session(SID, JID, undefined, Info).
@@ -228,13 +228,12 @@ open_session(SID, JID, Info) ->
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Priority :: integer() | undefined,
-      Info :: 'undefined' | [any()],
+      Info :: info(),
       ReplacedPids :: [pid()].
 open_session(SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(JID),
-    ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
-                       [SID, JID, Info]),
+    mongoose_hooks:sm_register_connection_hook(JID#jid.lserver, SID, JID, Info),
     ReplacedPIDs.
 
 -spec close_session(Acc, SID, JID, Reason) -> Acc1 when
@@ -252,8 +251,7 @@ close_session(Acc, SID, JID, Reason) ->
                    []
            end,
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
-    ejabberd_hooks:run_fold(sm_remove_connection_hook, JID#jid.lserver, Acc,
-                            [SID, JID, Info, Reason]).
+    mongoose_hooks:sm_remove_connection_hook(JID#jid.lserver, Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.
@@ -330,10 +328,7 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
       To :: jid:jid(),
       Packet :: exml:element().
 bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
-    Acc1 = ejabberd_hooks:run_fold(xmpp_bounce_message,
-                            Server,
-                            Acc,
-                            []),
+    Acc1 = mongoose_hooks:xmpp_bounce_message(Server, Acc),
     {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
     Acc3 = ejabberd_router:route(To, From, Acc2, Err),
     {stop, Acc3}.
@@ -389,12 +384,11 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
       JID :: jid:jid(),
       Prio :: 'undefined' | integer(),
       Presence :: any(),
-      Info :: 'undefined' | [any()].
+      Info :: info().
 set_presence(Acc, SID, JID, Priority, Presence, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, Priority, Info),
-    ejabberd_hooks:run_fold(set_presence_hook, LServer, Acc,
-                       [LUser, LServer, LResource, Presence]).
+    mongoose_hooks:set_presence_hook(LServer, Acc, LUser, LResource, Presence).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
@@ -402,27 +396,25 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
-      Status :: any(),
-      Info :: 'undefined' | [any()].
+      Status :: binary(),
+      Info :: info().
 unset_presence(Acc, SID, JID, Status, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, undefined, Info),
-    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
-                       [LUser, LServer, LResource, Status]).
+    mongoose_hooks:unset_presence_hook(LServer, Acc, LUser, LResource, Status).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
       Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
-      Status :: any(),
+      Status :: binary(),
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
-    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc1,
-                       [LUser, LServer, LResource, Status]).
+    mongoose_hooks:unset_presence_hook(LServer, Acc1, LUser, LResource, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -618,7 +610,7 @@ code_change(_OldVsn, State, _Extra) ->
       SID :: sid() | 'undefined',
       JID :: jid:jid(),
       Prio :: priority(),
-      Info :: undefined | [any()].
+      Info :: info().
 set_session(SID, JID, Priority, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     US = {LUser, LServer},
@@ -634,7 +626,7 @@ set_session(SID, JID, Priority, Info) ->
       SID :: sid() | 'undefined',
       JID :: jid:jid(),
       Prio :: priority(),
-      Info :: undefined | [any()].
+      Info :: info().
 update_session(SID, JID, Priority, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     US = {LUser, LServer},
@@ -662,8 +654,8 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = ejabberd_hooks:run_fold(sm_broadcast, To#jid.lserver, Acc,
-                                           [From, To, Broadcast, length(CurrentPids)]),
+            Acc1 = mongoose_hooks:sm_broadcast(To#jid.lserver, Acc, From, To,
+                                               Broadcast, length(CurrentPids)),
             ?DEBUG("bc_to=~p~n", [CurrentPids]),
             BCast = {broadcast, Payload},
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
@@ -709,11 +701,9 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
-            Res = ejabberd_hooks:run_fold(
-                        roster_in_subscription,
-                        To#jid.lserver,
-                        Acc,
-                        [To#jid.user, To#jid.server, From, Type, Reason]),
+            Res = mongoose_hooks:roster_in_subscription(To#jid.lserver,
+                                         Acc,
+                                         To#jid.user, To#jid.server, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
@@ -761,10 +751,6 @@ do_route_no_resource(<<"message">>, _, From, To, Acc, El) ->
     route_message(From, To, Acc, El);
 do_route_no_resource(<<"iq">>, _, From, To, Acc, El) ->
     process_iq(From, To, Acc, El);
-do_route_no_resource(<<"broadcast">>, _, From, To, Acc, El) ->
-    %% Backward compatibility
-    ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Acc]),
-    broadcast_packet(From, To, Acc, El);
 do_route_no_resource(_, _, _, _, Acc, _) ->
     Acc.
 
@@ -776,8 +762,8 @@ do_route_no_resource(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
-    Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
-                   false, [From, To, Packet]),
+    Drop = mongoose_hooks:sm_filter_offline_message(To#jid.lserver,
+                                                    false, From, To, Packet),
     case Drop of
         false ->
             route_message(From, To, Acc, Packet);
@@ -796,19 +782,6 @@ do_route_offline(_, _, _, _, Acc, _) ->
     ?DEBUG("packet droped~n", []),
     Acc.
 
-%% Backward compatibility
--spec broadcast_packet(From :: jid:jid(),
-                       To :: jid:jid(),
-                       Acc :: mongoose_acc:t(),
-                       El :: exml:element()) -> mongoose_acc:t().
-broadcast_packet(From, To, Acc, El) ->
-    lists:foldl(
-      fun(A, R) ->
-              do_route(A,
-                       From,
-                       jid:replace_resource(To, R),
-                       El)
-      end, Acc, get_user_resources(To)).
 
 %% @doc The default list applies to the user as a whole,
 %% and is processed if there is no active list set
@@ -822,8 +795,7 @@ broadcast_packet(From, To, Acc, El) ->
 is_privacy_allow(From, To, Acc, Packet) ->
     User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                                          #userlist{}, [User, Server]),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, User),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 
@@ -875,10 +847,7 @@ route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
     LServer = To#jid.lserver,
-    ejabberd_hooks:run_fold(offline_groupchat_message_hook,
-        LServer,
-        Acc,
-        [From, To, Packet]);
+    mongoose_hooks:offline_groupchat_message_hook(LServer, Acc, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;
@@ -888,15 +857,9 @@ route_message_by_type(_, From, To, Acc, Packet) ->
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
-                    ejabberd_hooks:run_fold(offline_message_hook,
-                        LServer,
-                        Acc,
-                        [From, To, Packet]);
+                    mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet);
                 false ->
-                    ejabberd_hooks:run_fold(failed_to_store_message,
-                                            LServer,
-                                            Acc,
-                                            [From, Packet])
+                    mongoose_hooks:failed_to_store_message(LServer, Acc, From, Packet)
             end;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(
