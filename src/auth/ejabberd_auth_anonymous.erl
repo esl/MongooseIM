@@ -153,10 +153,10 @@ remove_connection(SID, LUser, LServer) ->
 
 
 %% @doc Register connection
--spec register_connection(Acc :: map(),
+-spec register_connection(Acc,
                           SID :: ejabberd_sm:sid(),
                           JID :: jid:jid(),
-                          Info :: list()) -> map().
+                          Info :: list()) -> Acc when Acc :: any().
 register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
