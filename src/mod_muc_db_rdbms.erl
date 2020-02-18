@@ -17,14 +17,14 @@
 
 %% Defines which RDBMS pool to use
 %% Parent host of the MUC service
--type server_host() :: ejabberd:server().
+-type server_host() :: jid:server().
 
 %% Host of MUC service
--type muc_host() :: ejabberd:server().
+-type muc_host() :: jid:server().
 
 %% User's JID. Can be on another domain accessable over FED.
 %% Only bare part (user@host) is important.
--type client_jid() :: ejabberd:jid().
+-type client_jid() :: jid:jid().
 
 -type room_opts() :: [{OptionName :: atom(), OptionValue :: term()}].
 
@@ -42,23 +42,24 @@ init(ServerHost, _Opts) ->
 -spec store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
     ok | {error, term()}.
 store_room(ServerHost, MucHost, RoomName, Opts) ->
-    forget_room(ServerHost, MucHost, RoomName),
     Affs = proplists:get_value(affiliations, Opts),
     NewOpts = proplists:delete(affiliations, Opts),
     EncodedOpts = jiffy:encode({NewOpts}),
     {atomic, Res} = mongoose_rdbms:sql_transaction(ServerHost,
-        fun() -> store_room_transaction(ServerHost, MucHost, RoomName, EncodedOpts, Affs) end),
+        fun() ->
+                forget_room_transaction(MucHost, RoomName),
+                store_room_transaction(MucHost, RoomName, EncodedOpts, Affs)
+        end),
     Res.
 
-store_room_transaction(ServerHost, MucHost, RoomName, Opts, Affs) ->
+store_room_transaction(MucHost, RoomName, Opts, Affs) ->
     InsertRoom = insert_room(MucHost, RoomName, Opts),
     case catch mongoose_rdbms:sql_query_t(InsertRoom) of
         {aborted, Reason} ->
             mongoose_rdbms:sql_query_t("ROLLBACK;"),
             {error, Reason};
         {updated, _ } ->
-            {selected, [{RoomID}]} = mongoose_rdbms:sql_query(
-                                       ServerHost, select_room_id(MucHost, RoomName)),
+            {selected, [{RoomID}]} = mongoose_rdbms:sql_query_t(select_room_id(MucHost, RoomName)),
             store_aff(RoomID, Affs),
             ok;
         _Other ->
@@ -99,11 +100,11 @@ restore_room(ServerHost, MucHost, RoomName) ->
     ok | {error, term()}.
 forget_room(ServerHost, MucHost, RoomName) ->
     {atomic, _Res} = mongoose_rdbms:sql_transaction(ServerHost,
-        fun() -> forget_room_transaction(ServerHost, MucHost, RoomName) end),
+        fun() -> forget_room_transaction(MucHost, RoomName) end),
     ok.
 
-forget_room_transaction(ServerHost, MucHost, RoomName) ->
-    case mongoose_rdbms:sql_query(ServerHost, select_room_id( MucHost, RoomName)) of
+forget_room_transaction(MucHost, RoomName) ->
+    case mongoose_rdbms:sql_query_t(select_room_id( MucHost, RoomName)) of
         {selected, [{RoomID}]} ->
             {updated, _} = mongoose_rdbms:sql_query_t(delete_affs(RoomID)),
             {updated, _} = mongoose_rdbms:sql_query_t(delete_room(MucHost, RoomName)),
