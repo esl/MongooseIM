@@ -347,9 +347,9 @@ CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserve
 CREATE TABLE muc_rooms(
     id SERIAL,
     muc_host VARCHAR(250)   NOT NULL,
-    room VARCHAR(250)       NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
     options JSON            NOT NULL,
-    PRIMARY KEY (muc_host, room)
+    PRIMARY KEY (muc_host, room_name)
 );
 
 CREATE TABLE muc_room_aff(

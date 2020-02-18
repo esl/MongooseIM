@@ -281,9 +281,9 @@ CREATE TABLE muc_light_rooms(
 CREATE TABLE muc_rooms(
     id BIGSERIAL            NOT NULL UNIQUE,
     muc_host VARCHAR(250)   NOT NULL,
-    room VARCHAR(250)       NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
     options JSON            NOT NULL,
-    PRIMARY KEY (muc_host, room)
+    PRIMARY KEY (muc_host, room_name)
 );
 
 CREATE TABLE muc_room_aff(

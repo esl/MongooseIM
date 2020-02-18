@@ -176,7 +176,7 @@ unset_nick(ServerHost, MucHost, Jid) ->
 %% ------------------------ Queries ------------------------
 -spec insert_room(jid:lserver(), jid:luser(), room_opts()) -> iolist().
 insert_room(MucHost, RoomName, Opts) ->
-    ["INSERT INTO muc_rooms (muc_host, room, options)"
+    ["INSERT INTO muc_rooms (muc_host, room_name, options)"
      " VALUES (", ?ESC(MucHost), ", ", ?ESC(RoomName), ",", ?ESC(Opts) ,")"].
 
 -spec insert_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
@@ -194,12 +194,12 @@ select_aff(RoomID) ->
 -spec select_room_id(jid:lserver(), jid:luser()) -> iolist().
 select_room_id(MucHost, RoomName) ->
     ["SELECT id FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost),
-     " AND room = ", ?ESC(RoomName)].
+     " AND room_name = ", ?ESC(RoomName)].
 
 -spec select_room(jid:lserver(), jid:luser()) -> iolist().
 select_room(MucHost, RoomName) ->
     ["SELECT id, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost),
-     " AND room = ", ?ESC(RoomName)].
+     " AND room_name = ", ?ESC(RoomName)].
 
 -spec delete_affs(integer() | binary()) -> iolist().
 delete_affs(RoomID) ->
@@ -208,11 +208,11 @@ delete_affs(RoomID) ->
 -spec delete_room(jid:lserver(), jid:luser()) -> iolist().
 delete_room(MucHost, RoomName) ->
     ["DELETE FROM muc_rooms"
-     " WHERE muc_host = ", ?ESC(MucHost), " AND room = ", ?ESC(RoomName)].
+     " WHERE muc_host = ", ?ESC(MucHost), " AND room_name = ", ?ESC(RoomName)].
 
 -spec select_rooms(jid:lserver()) -> iolist().
 select_rooms(MucHost) ->
-    ["SELECT id, room, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost)].
+    ["SELECT id, room_name, options FROM muc_rooms WHERE muc_host = ", ?ESC(MucHost)].
 
 -spec select_nick_user(jid:lserver(), jid:luser(), mod_muc:nick()) -> iolist().
 select_nick_user(MucHost, UserS, Nick) ->
