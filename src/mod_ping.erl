@@ -204,6 +204,9 @@ iq_ping(_From, _To, Acc, #iq{type = get, sub_el = #xmlel{ name = <<"ping">> }} =
 iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}.
 
+-spec user_online(Acc, _SID, JID, _Info) -> Acc when
+                  Acc :: any(),
+                  JID :: jid:jid().
 user_online(Acc, _SID, JID, _Info) ->
     start_ping(JID#jid.lserver, JID),
     Acc.
