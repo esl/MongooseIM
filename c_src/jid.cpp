@@ -142,4 +142,8 @@ static ErlNifFunc jid_nif_funcs[] = {
     {"from_binary_nif", 1, from_binary_nif}
 };
 
-ERL_NIF_INIT(jid, jid_nif_funcs, NULL, NULL, NULL, NULL);
+static int upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ERL_NIF_TERM load_info) {
+    return 0;
+};
+
+ERL_NIF_INIT(jid, jid_nif_funcs, NULL, NULL, upgrade, NULL);
