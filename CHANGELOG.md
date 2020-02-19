@@ -1,3 +1,22 @@
+# [MongooseIM 3.6.2](https://github.com/esl/MongooseIM/releases/tag/3.6.2) - 2020-02-20
+
+## Highlights
+
+- Tooling and packages improvements
+
+## All changes
+
+### Changed
+
+- Fix a bug in mongooseimctl run as a different user as the current one (#2631)
+- .deb and .rpm build and test scripts improvements (#2629, #2633)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.2)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222020-02-12..2020-02-20%22+)
+
+
 # [MongooseIM 3.6.1](https://github.com/esl/MongooseIM/releases/tag/3.6.1) - 2020-02-11
 
 ## Highlights
