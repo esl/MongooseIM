@@ -145,17 +145,24 @@ stop(Host) ->
     ok.
 
 hooks(Host) ->
-    [
-     {offline_message_hook, Host, ?MODULE, inspect_packet, 50},
-     {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 50},
-     {remove_user, Host, ?MODULE, remove_user, 50},
-     {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
-     {disco_sm_features, Host, ?MODULE, get_sm_features, 50},
-     {disco_local_features, Host, ?MODULE, get_sm_features, 50},
-     {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 30},
-     {failed_to_store_message, Host, ?MODULE, amp_failed_event, 30},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
-    ].
+    DefaultHooks = [
+        {offline_message_hook, Host, ?MODULE, inspect_packet, 50},
+        {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 50},
+        {remove_user, Host, ?MODULE, remove_user, 50},
+        {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
+        {disco_sm_features, Host, ?MODULE, get_sm_features, 50},
+        {disco_local_features, Host, ?MODULE, get_sm_features, 50},
+        {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 30},
+        {failed_to_store_message, Host, ?MODULE, amp_failed_event, 30},
+        {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+    ],
+    case gen_mod:get_module_opt(Host, ?MODULE, store_groupchat_messages, false) of
+        true ->
+            GroupChatHook = {offline_groupchat_message_hook,
+                             Host, ?MODULE, inspect_packet, 50},
+            [GroupChatHook | DefaultHooks];
+        _ -> DefaultHooks
+    end.
 
 %% Server side functions
 %% ------------------------------------------------------------------
@@ -357,7 +364,7 @@ add_feature(_, Feature) ->
 
 %% This function should be called only from a hook
 %% Calling it directly is dangerous and may store unwanted messages
-%% in the offline storage (f.e. messages of type error or groupchat)
+%% in the offline storage (e.g. messages of type error)
 %% #rh
 inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(Acc, From, To, Packet) of
