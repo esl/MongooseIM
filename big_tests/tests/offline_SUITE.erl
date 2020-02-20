@@ -45,7 +45,8 @@ init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(with_groupchat, C) ->
-    Modules = [{mod_offline, [{store_groupchat_messages, true}]}],
+    Modules = [{mod_offline, [{store_groupchat_messages, true}]},
+               {mod_muc_light, [{backend, mongoose_helper:mnesia_or_rdbms_backend()}]}],
     Config = dynamic_modules:save_modules(domain(), C),
     dynamic_modules:ensure_modules(domain(), Modules),
     Config;
@@ -106,15 +107,18 @@ groupchat_message_is_not_stored(Config) ->
 
 groupchat_message_is_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->
+        CreateRoomStanza = muc_light_helper:stanza_create_room(undefined, [],
+                                                               [{Bob, member}]),
         logout(FreshConfig, Bob),
-        AliceJid = escalus_client:full_jid(Alice),
-        escalus:send(Alice, escalus_stanza:message
-        (AliceJid, Bob, <<"groupchat">>, <<"msgtxt">>)),
+        escalus:send(Alice, CreateRoomStanza),
+        AffMsg = escalus:wait_for_stanza(Alice),
+        RoomJID = exml_query:attr(AffMsg, <<"from">>),
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, <<"msgtxt">>)),
         NewBob = login_send_presence(FreshConfig, bob),
-        Stanzas = escalus:wait_for_stanzas(NewBob, 2),
-        escalus_new_assert:mix_match
-        ([is_presence, is_groupchat(<<"msgtxt">>)],
-         Stanzas)
+        Stanzas = escalus:wait_for_stanzas(NewBob, 3),
+        escalus_new_assert:mix_match([is_presence, is_affiliation(),
+                                      is_groupchat(<<"msgtxt">>)],
+                                     Stanzas)
             end,
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
@@ -187,6 +191,13 @@ is_chat(Content) ->
 
 is_groupchat(Content) ->
     fun(Stanza) -> escalus_pred:is_groupchat_message(Content, Stanza) end.
+
+is_affiliation() ->
+    fun(Stanza) ->
+        AffiliationNS = <<"urn:xmpp:muclight:0#affiliations">>,
+        [] =/= exml_query:subelements_with_name_and_ns(Stanza, <<"x">>,
+                                                       AffiliationNS)
+    end.
 
 %%%===================================================================
 %%% Helpers
