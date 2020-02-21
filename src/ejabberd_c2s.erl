@@ -1970,10 +1970,7 @@ presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet,
                      State :: state()) -> {mongoose_acc:t(), state()}.
 presence_track(Acc, StateData) ->
     To = mongoose_acc:to_jid(Acc),
-    From = mongoose_acc:from_jid(Acc),
     LTo = jid:to_lower(To),
-    User = StateData#state.user,
-    Server = StateData#state.server,
     case mongoose_acc:stanza_type(Acc) of
         <<"unavailable">> ->
             Acc1 = check_privacy_and_route(Acc, StateData),
@@ -1988,33 +1985,17 @@ presence_track(Acc, StateData) ->
             {Acc1, StateData#state{pres_i = I,
                                    pres_a = A}};
         <<"subscribe">> ->
-            Acc2 = mongoose_hooks:roster_out_subscription(
-                                           Server,
-                                           Acc,
-                                           User, To, subscribe),
-            Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
-            {Acc3, StateData};
+            Acc1 = process_presence_subscription_and_route(Acc, subscribe, StateData),
+            {Acc1, StateData};
         <<"subscribed">> ->
-            Acc2 = mongoose_hooks:roster_out_subscription(
-                                           Server,
-                                           Acc,
-                                           User, To, subscribed),
-            Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
-            {Acc3, StateData};
+            Acc1 = process_presence_subscription_and_route(Acc, subscribed, StateData),
+            {Acc1, StateData};
         <<"unsubscribe">> ->
-            Acc2 = mongoose_hooks:roster_out_subscription(
-                                           Server,
-                                           Acc,
-                                           User, To, unsubscribe),
-            Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
-            {Acc3, StateData};
+            Acc1 = process_presence_subscription_and_route(Acc, unsubscribe, StateData),
+            {Acc1, StateData};
         <<"unsubscribed">> ->
-            Acc2 = mongoose_hooks:roster_out_subscription(
-                                           Server,
-                                           Acc,
-                                           User,To, unsubscribed),
-            Acc3 = check_privacy_and_route(Acc2, jid:to_bare(From), StateData),
-            {Acc3, StateData};
+            Acc1 = process_presence_subscription_and_route(Acc, unsubscribed, StateData),
+            {Acc1, StateData};
         <<"error">> ->
             Acc1 = check_privacy_and_route(Acc, StateData),
             {Acc1, StateData};
@@ -2028,6 +2009,19 @@ presence_track(Acc, StateData) ->
             {Acc1, StateData#state{pres_i = I,
                                    pres_a = A}}
     end.
+
+-spec process_presence_subscription_and_route(Acc :: mongoose_acc:t(),
+                                              Type :: subscribe | subscribed | unsubscribe | unsubscribed,
+                                              StateData :: state()) -> mongoose_acc:t().
+process_presence_subscription_and_route(Acc, Type, StateData) ->
+    From = mongoose_acc:from_jid(Acc),
+    User = StateData#state.user,
+    Server = StateData#state.server,
+    To = mongoose_acc:to_jid(Acc),
+    Acc1 = mongoose_hooks:roster_out_subscription(Server,
+                                                  Acc,
+                                                  User, To, Type),
+    check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
                               StateData :: state()) -> mongoose_acc:t().
