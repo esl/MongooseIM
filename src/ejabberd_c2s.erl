@@ -859,7 +859,6 @@ process_outgoing_stanza(Acc, StateData) ->
     ToJID = mongoose_acc:to_jid(Acc),
     Element = mongoose_acc:element(Acc),
     NState = process_outgoing_stanza(Acc, ToJID, Element#xmlel.name, StateData),
-    mongoose_hooks:c2s_loop_debug({xmlstreamelement, Element}),
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
@@ -1102,19 +1101,16 @@ handle_info(Info, StateName, StateData) ->
 handle_incoming_message({send_text, Text}, StateName, StateData) ->
     % it seems to be sometimes, by event sent from s2s
     send_text(StateData, Text),
-    mongoose_hooks:c2s_loop_debug(Text),
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                lserver => StateData#state.server,
                                element => undefined }),
-    Acc1 = mongoose_hooks:c2s_loop_debug(Acc0, {broadcast, Broadcast}),
     ?DEBUG("event=broadcast,data=~p", [Broadcast]),
-    {Acc2, Res} = handle_routed_broadcast(Acc1, Broadcast, StateData),
-    handle_broadcast_result(Acc2, Res, StateName, StateData);
-handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
-    Acc1 = mongoose_hooks:c2s_loop_debug(Acc0, {route, From, To}),
-    process_incoming_stanza_with_conflict_check(From, To, Acc1, StateName, StateData);
+    {Acc1, Res} = handle_routed_broadcast(Acc, Broadcast, StateData),
+    handle_broadcast_result(Acc1, Res, StateName, StateData);
+handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
+    process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
