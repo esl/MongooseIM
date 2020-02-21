@@ -65,7 +65,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     Key = {cached_check, Server, User, From, To, Name, Type, Dir},
     case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
-            Acc1 = mongoose_hooks:privacy_check_packet(Server, Acc, User, PrivacyList,
+            Acc1 = mongoose_hooks:privacy_check_packet(Server, Acc, User, Server, PrivacyList,
                                                        {From, To, Name, Type}, Dir),
             Res = mongoose_acc:get(hook, result, Acc1),
             {mongoose_acc:set(privacy, Key, Res, Acc1), Res};

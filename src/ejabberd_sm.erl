@@ -388,7 +388,7 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
 set_presence(Acc, SID, JID, Priority, Presence, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, Priority, Info),
-    mongoose_hooks:set_presence_hook(LServer, Acc, LUser, LResource, Presence).
+    mongoose_hooks:set_presence_hook(LServer, Acc, LUser, LServer, LResource, Presence).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
@@ -401,7 +401,7 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
 unset_presence(Acc, SID, JID, Status, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, undefined, Info),
-    mongoose_hooks:unset_presence_hook(LServer, Acc, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(LServer, Acc, LUser, LServer, LResource, Status).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
@@ -414,7 +414,7 @@ unset_presence(Acc, SID, JID, Status, Info) ->
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
-    mongoose_hooks:unset_presence_hook(LServer, Acc1, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(LServer, Acc1, LUser, LServer, LResource, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -795,7 +795,7 @@ do_route_offline(_, _, _, _, Acc, _) ->
 is_privacy_allow(From, To, Acc, Packet) ->
     User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, User),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, User, Server),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 

@@ -343,7 +343,7 @@ stream_start_features_after_auth(#state{server = Server} = S) ->
     fsm_next_state(wait_for_feature_after_auth, S).
 
 maybe_roster_versioning_feature(Server) ->
-    mongoose_hooks:roster_get_versioning_feature(Server).
+    mongoose_hooks:roster_get_versioning_feature(Server, Server).
 
 stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
@@ -391,7 +391,7 @@ maybe_sasl_mechanisms(#state{server = Server} = S) ->
     end.
 
 hook_enabled_features(Server) ->
-    mongoose_hooks:c2s_stream_features(Server).
+    mongoose_hooks:c2s_stream_features(Server, Server).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
@@ -741,12 +741,12 @@ do_open_session(Acc, JID, StateData) ->
 
 do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U),
+    Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U, S),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
-    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U),
+    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U, S),
     SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
@@ -1118,7 +1118,8 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
                               to_jid => To,
                               lserver => To#jid.lserver,
                               element => Packet }),
-    Drop = mongoose_hooks:c2s_filter_packet(StateData#state.server, true, StateData,
+    Drop = mongoose_hooks:c2s_filter_packet(StateData#state.server, true,
+                                            StateData#state.server, StateData,
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
@@ -1144,7 +1145,7 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     %% this version is used only by mod_pubsub, which does things the old way
     Recipients = mongoose_hooks:c2s_broadcast_recipients(StateData#state.server,
                                                         [],
-                                                        StateData, Type, From, Packet),
+                                                        StateData#state.server, StateData, Type, From, Packet),
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
@@ -1939,7 +1940,7 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                   Acc3 = mongoose_hooks:roster_get_subscription_lists(
                                                  StateData#state.server,
                                                  Acc2,
-                                                 StateData#state.user),
+                                                 StateData#state.user, StateData#state.server),
                   {_, _, Pending} = mongoose_acc:get(roster, subscription_lists,
                                                      {[], [], []}, Acc3),
                   Acc4 = resend_offline_messages(Acc3, StateData),
@@ -2020,7 +2021,7 @@ process_presence_subscription_and_route(Acc, Type, StateData) ->
     To = mongoose_acc:to_jid(Acc),
     Acc1 = mongoose_hooks:roster_out_subscription(Server,
                                                   Acc,
-                                                  User, To, Type),
+                                                  User, Server, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
@@ -2303,7 +2304,7 @@ resend_offline_messages(Acc, StateData) ->
     Acc1 = mongoose_hooks:resend_offline_messages_hook(
                                    StateData#state.server,
                                    Acc,
-                                   StateData#state.user),
+                                   StateData#state.user, StateData#state.server),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(
                        fun({route, From, To, MsgAcc}, A) ->
@@ -2388,7 +2389,7 @@ process_unauthenticated_stanza(StateData, El) ->
             Res = mongoose_hooks:c2s_unauthenticated_iq(
                                           StateData#state.server,
                                           empty,
-                                          IQ, StateData#state.ip),
+                                          StateData#state.server, IQ, StateData#state.ip),
             case Res of
                 empty ->
                     % The only reasonable IQ's here are auth and register IQ's
@@ -2456,7 +2457,7 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP, _Port}) ->
-    mongoose_hooks:check_bl_c2s(false, IP).
+    mongoose_hooks:check_bl_c2s(global, false, IP).
 
 
 %% @doc Check from attributes.
@@ -3262,11 +3263,11 @@ handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
             IP = peerip(State#state.sockmod, Sock),
             ?INFO_MSG("(~w) Failed authentication for ~s@~s from IP ~s (~w)",
                       [Sock, Username, Server, jlib:ip_to_list(IP), IP]),
-            mongoose_hooks:auth_failed(Server, Username),
+            mongoose_hooks:auth_failed(Server, Username, Server),
             send_element_from_server_jid(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State};
         {error, Error} ->
-            mongoose_hooks:auth_failed(Server, unknown),
+            mongoose_hooks:auth_failed(Server, unknown, Server),
             send_element_from_server_jid(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State}
     end.

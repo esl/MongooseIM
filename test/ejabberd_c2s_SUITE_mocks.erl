@@ -35,7 +35,6 @@ setup() ->
     meck:new(ejabberd_hooks),
     meck:expect(ejabberd_hooks, run, fun(_, _) -> ok end),
     meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
-    meck:expect(ejabberd_hooks, run_fold, fun hookfold/3),
     meck:expect(ejabberd_hooks, run_fold, fun hookfold/4),
 
     meck:new(ejabberd_config),
@@ -67,8 +66,7 @@ default_global_option(language) ->  <<"en">>.
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
 mcred_get(dummy_creds, auth_module) -> auuuthmodule.
 
-hookfold(check_bl_c2s, _, _) -> false.
-
+hookfold(check_bl_c2s, _, _, _) -> false;
 hookfold(roster_get_versioning_feature, _, _, _) -> [];
 hookfold(roster_get_subscription_lists, _, A, _) -> A;
 hookfold(privacy_get_user_list, _, A, _) -> A;
