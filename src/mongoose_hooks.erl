@@ -3,8 +3,6 @@
 -export([auth_failed/2,
          c2s_broadcast_recipients/6,
          c2s_filter_packet/6,
-         c2s_loop_debug/1,
-         c2s_loop_debug/2,
          c2s_preprocessing_hook/3,
          c2s_presence_in/5,
          c2s_stream_features/1,
@@ -75,18 +73,6 @@ c2s_filter_packet(Server, Drop, State, Feature, To, Packet) ->
                             Server,
                             Drop,
                             [Server, State, Feature, To, Packet]).
-
--spec c2s_loop_debug(Info) -> Result when
-    Info :: any(),
-    Result :: any().
-c2s_loop_debug(Info) ->
-    ejabberd_hooks:run(c2s_loop_debug, [Info]).
--spec c2s_loop_debug(Acc, Info) -> Result when
-    Acc :: mongoose_acc:t(),
-    Info :: any(),
-    Result :: any().
-c2s_loop_debug(Acc, Info) ->
-    ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [Info]).
 
 -spec c2s_preprocessing_hook(Server, Acc, State) -> Result when
     Server :: jid:server(),
