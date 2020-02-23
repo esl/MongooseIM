@@ -315,7 +315,7 @@ remove_info(JID, Key) ->
       Type :: any(),
       Reason :: any().
 check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
-    case ejabberd_auth:is_user_exists(User, Server) of
+    case ejabberd_auth:is_user_exists(jid:make(User, Server, <<>>)) of
         true ->
             Acc;
         false ->

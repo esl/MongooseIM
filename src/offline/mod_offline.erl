@@ -255,8 +255,7 @@ srv_name(Host) ->
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        _FromJID, ToJID, _Packet, initial_check) ->
-    #jid{luser = LUser, lserver = LServer} = ToJID,
-    ShouldBeStored = ejabberd_auth:is_user_exists(LUser, LServer),
+    ShouldBeStored = ejabberd_auth:is_user_exists(ToJID),
     case ShouldBeStored of
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy

@@ -115,7 +115,7 @@ check_password(<<>>, _) ->
     false;
 check_password(User, Password) ->
     #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
-    Creds0 = mongoose_credentials:new(Server),
+    Creds0 = mongoose_credentials:new_from_stringprepped(Server),
     Creds1 = mongoose_credentials:set(Creds0, username, RawUser),
     Creds2 = mongoose_credentials:set(Creds1, password, Password),
     case ejabberd_auth:authorize(Creds2) of

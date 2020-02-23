@@ -168,22 +168,21 @@ register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}
             error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
-attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
-    #jid{user = Username, lserver = UserDomain} = ClientJID,
+attempt_cancelation(#jid{} = ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
     case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
             %% XML stream is closed (the call to
-            %% `ejabberd_auth:remove_user/2' does
+            %% `ejabberd_auth:remove_user/1' does
             %% this): as it is, when canceling a
             %% registration, there is no way to deal
             %% with failure.
             ResIQ = IQ#iq{type = result, sub_el = []},
             ejabberd_router:route(
-              jid:make(<<>>, <<>>, <<>>),
+              jid:make_noprep(<<>>, <<>>, <<>>),
               ClientJID,
               jlib:iq_to_xml(ResIQ)),
-            ejabberd_auth:remove_user(Username, UserDomain),
+            ejabberd_auth:remove_user(ClientJID),
             ignore;
         false ->
             error_response(IQ, mongoose_xmpp_errors:not_allowed())
@@ -198,14 +197,14 @@ inband_registration_and_cancelation_allowed(Server, JID) ->
 process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
-        case From of
-            #jid{user = User, lserver = Server} ->
-                case ejabberd_auth:is_user_exists(User, Server) of
+    case From of
+        #jid{luser = LUser} ->
+                case ejabberd_auth:is_user_exists(From) of
                     true ->
-                        {true, [#xmlcdata{content = User}],
+                        {true, [#xmlcdata{content = LUser}],
                          [#xmlel{name = <<"registered">>}]};
                     false ->
-                        {false, [#xmlcdata{content = User}], []}
+                        {false, [#xmlcdata{content = LUser}], []}
                 end;
             _ ->
                 {false, [], []}
@@ -222,9 +221,9 @@ process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
                                        #xmlel{name = <<"password">>}
                                        | QuerySubels]}]}.
 
-try_register_or_set_password(User, Server, Password, #jid{ user = User, lserver = Server },
+try_register_or_set_password(User, Server, Password, #jid{user = User, lserver = Server} = UserJID,
                              IQ, SubEl, _Source, Lang) ->
-    try_set_password(User, Server, Password, IQ, SubEl, Lang);
+    try_set_password(UserJID, Password, IQ, SubEl, Lang);
 try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
     case check_timeout(Source) of
         true ->
@@ -240,10 +239,10 @@ try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, L
     end.
 
 %% @doc Try to change password and return IQ response
-try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
-    case is_strong_password(Server, Password) of
+try_set_password(#jid{lserver = LServer} = UserJID, Password, IQ, SubEl, Lang) ->
+    case is_strong_password(LServer, Password) of
         true ->
-            case ejabberd_auth:set_password(User, Server, Password) of
+            case ejabberd_auth:set_password(UserJID, Password) of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, empty_password} ->
@@ -277,11 +276,10 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
             end
     end.
 
-verify_password_and_register(#jid{ user = User, server = Server } = JID,
-                             Password, SourceRaw, Lang) ->
-    case is_strong_password(Server, Password) of
+verify_password_and_register(#jid{lserver = LServer} = JID, Password, SourceRaw, Lang) ->
+    case is_strong_password(LServer, Password) of
         true ->
-            case ejabberd_auth:try_register(User, Server, Password) of
+            case ejabberd_auth:try_register(JID, Password) of
                 {error, exists} ->
                     {error, mongoose_xmpp_errors:conflict()};
                 {error, invalid_jid} ->
@@ -300,14 +298,13 @@ verify_password_and_register(#jid{ user = User, server = Server } = JID,
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
     end.
 
-send_welcome_message(JID) ->
-    Host = JID#jid.lserver,
+send_welcome_message(#jid{lserver = Host} = JID) ->
     case gen_mod:get_module_opt(Host, ?MODULE, welcome_message, {"", ""}) of
         {"", ""} ->
             ok;
         {Subj, Body} ->
             ejabberd_router:route(
-              jid:make(<<>>, Host, <<>>),
+              jid:make_noprep(<<>>, Host, <<>>),
               JID,
               #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
                      children = [#xmlel{name = <<"subject">>,
@@ -318,8 +315,7 @@ send_welcome_message(JID) ->
             ok
     end.
 
-send_registration_notifications(UJID, Source) ->
-    Host = UJID#jid.lserver,
+send_registration_notifications(#jid{lserver = Host} = UJID, Source) ->
     case gen_mod:get_module_opt(Host, ?MODULE, registration_watchers, []) of
         [] -> ok;
         JIDs when is_list(JIDs) ->
@@ -342,7 +338,7 @@ send_registration_notification(JIDBin, Host, Body) ->
                              attrs = [{<<"type">>, <<"chat">>}],
                              children = [#xmlel{name = <<"body">>,
                                                 children = [#xmlcdata{content = Body}]}]},
-            ejabberd_router:route(jid:make(<<>>, Host, <<>>), JID, Message)
+            ejabberd_router:route(jid:make_noprep(<<>>, Host, <<>>), JID, Message)
     end.
 
 check_timeout(undefined) ->
@@ -410,8 +406,7 @@ write_time({{Y, Mo, D}, {H, Mi, S}}) ->
     io_lib:format("~w-~.2.0w-~.2.0w ~.2.0w:~.2.0w:~.2.0w",
                   [Y, Mo, D, H, Mi, S]).
 
-is_strong_password(Server, Password) ->
-    LServer = jid:nameprep(Server),
+is_strong_password(LServer, Password) ->
     case gen_mod:get_module_opt(LServer, ?MODULE, password_strength, 0) of
         Entropy when is_number(Entropy), Entropy == 0 ->
             true;

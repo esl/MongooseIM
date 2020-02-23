@@ -673,7 +673,7 @@ do_request(Path, Method, Body, {headers, Headers}) ->
 
 request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
     setup(client_module()),
-    meck:expect(ejabberd_auth, check_password, fun(_, _, _) -> Authorized end),
+    meck:expect(ejabberd_auth, check_password, fun(_, _) -> Authorized end),
     Body = maybe_add_body(BodyData),
     AuthHeader = maybe_add_auth_header(Auth),
     AcceptHeader = maybe_add_accepted_headers(Method),

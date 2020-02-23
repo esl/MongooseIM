@@ -155,7 +155,7 @@ admin_notify(Config) ->
     [Username2, _Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
-    rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    rpc(mim(), ejabberd_auth, try_register, [make_jid(AdminU, AdminS), AdminP]),
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
         escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
@@ -186,12 +186,12 @@ null_password(Config) ->
     {username, Name} = lists:keyfind(username, 1, Details),
     {server, Server} = lists:keyfind(server, 1, Details),
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    false = rpc(mim(), ejabberd_auth, is_user_exists, [Name, Server]).
+    false = rpc(mim(), ejabberd_auth, is_user_exists, [make_jid(Name, Server)]).
 
 check_unregistered(Config) ->
     [{_, UserSpec}] = escalus_users:get_users([bob]),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    false = rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
+    false = rpc(mim(), ejabberd_auth, is_user_exists, [make_jid(Username, Server)]).
 
 bad_request_registration_cancelation(Config) ->
 
@@ -361,7 +361,7 @@ bad_cancelation_stanza() ->
 user_exists(Name, Config) ->
     {Name, Client} = escalus_users:get_user_by_name(Name),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
-    rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
+    rpc(mim(), ejabberd_auth, is_user_exists, [make_jid(Username, Server)]).
 
 reload_mod_register_option(Config, Key, Value) ->
     Host = domain(),
@@ -386,4 +386,5 @@ watcher(Watcher) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-			
+make_jid(U, S) ->
+    rpc(mim(), jid, make, [U, S, <<>>]).

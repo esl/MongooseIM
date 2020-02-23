@@ -30,7 +30,6 @@
 
 -import(mongoose_api_common, [action_to_method/1,
                               method_to_action/1,
-                              error_code/1,
                               process_request/4,
                               error_response/4,
                               parse_request_body/1]).
@@ -153,9 +152,8 @@ do_authorize({basic, User, Password}, Req, State) ->
 do_authorize(_, Req, State) ->
     make_unauthorized_response(Req, State).
 
-do_check_password(#jid{luser = User, lserver = Server} = JID,
-    Password, Req, State) ->
-    case ejabberd_auth:check_password(User, Server, Password) of
+do_check_password(#jid{} = JID, Password, Req, State) ->
+    case ejabberd_auth:check_password(JID, Password) of
         true ->
             {true, Req, State#http_api_state{entity = jid:to_binary(JID)}};
         _ ->

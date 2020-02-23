@@ -1,6 +1,7 @@
 -module(mongoose_credentials).
 
 -export([new/1,
+         new_from_stringprepped/1,
          lserver/1,
          get/2, get/3,
          set/3,
@@ -29,6 +30,9 @@ new(Server) ->
         LServer when is_binary(LServer) ->
             #mongoose_credentials{lserver = LServer}
     end.
+
+new_from_stringprepped(LServer) when is_binary(LServer) ->
+    #mongoose_credentials{lserver = LServer}.
 
 -spec lserver(t()) -> jid:lserver().
 lserver(#mongoose_credentials{lserver = S}) -> S.

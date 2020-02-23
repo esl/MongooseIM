@@ -26,7 +26,7 @@ setup() ->
     meck:expect(cyrsasl, listmech, fun(_) -> [] end),
 
     meck:new(mongoose_credentials),
-    meck:expect(mongoose_credentials, new, fun(_) -> ok end),
+    meck:expect(mongoose_credentials, new_from_stringprepped, fun(_) -> ok end),
     meck:expect(mongoose_credentials, get,
                 fun(dummy_creds, sasl_success_response, undefined) ->
                     undefined end),

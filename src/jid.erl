@@ -70,7 +70,7 @@
 % Maximum JID size in octets (bytes) as defined in
 % https://tools.ietf.org/html/rfc7622#section-3.1
 
--spec make(User :: user(), Server :: server(), Res :: resource()) -> jid()  | error.
+-spec make(User :: user(), Server :: server(), Res :: resource()) -> jid() | error.
 make(User, Server, Res) ->
     case {nodeprep(User), nameprep(Server), resourceprep(Res)} of
         {error, _, _} -> error;

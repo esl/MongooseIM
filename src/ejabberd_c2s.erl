@@ -323,7 +323,7 @@ stream_start_negotiate_features(#state{} = S) ->
     end.
 
 stream_start_features_before_auth(#state{server = Server} = S) ->
-    Creds = maybe_add_cert(mongoose_credentials:new(Server), S),
+    Creds = maybe_add_cert(mongoose_credentials:new_from_stringprepped(Server), S),
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
     send_element_from_server_jid(S, stream_features(determine_features(SockMod, S))),

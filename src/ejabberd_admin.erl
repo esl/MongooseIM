@@ -331,7 +331,7 @@ register(Host, Password) ->
                                       | {'exists', io_lib:chars()}
                                       | {'ok', io_lib:chars()}.
 register(User, Host, Password) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    case ejabberd_auth:try_register(jid:make(User, Host, <<>>), Password) of
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
@@ -353,7 +353,7 @@ generate_user() ->
 -spec unregister(User :: jid:user(),
                  Host :: jid:server()) -> {'ok', []}.
 unregister(User, Host) ->
-    ejabberd_auth:remove_user(User, Host),
+    ejabberd_auth:remove_user(jid:make(User, Host, <<>>)),
     {ok, ""}.
 
 -spec registered_users(Host :: jid:server()) -> [jid:user()].
@@ -435,7 +435,7 @@ registrator_proc(Manager, Result) ->
                                  {null_password, jid:user()} |
                                  {bad_csv, binary()}.
 do_register([User, Host, Password]) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    case ejabberd_auth:try_register(jid:make(User, Host, <<>>), Password) of
         {error, Reason} -> {Reason, User};
         _ -> {ok, User}
     end;
