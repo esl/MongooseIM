@@ -3,7 +3,8 @@
 %% API
 
 -export([is_rdbms_enabled/1,
-        mnesia_or_rdbms_backend/0]).
+         mnesia_or_rdbms_backend/0,
+         get_backend_name/1]).
 
 -export([auth_modules/0]).
 
@@ -128,9 +129,14 @@ get_backend(Module) ->
     Backend -> Backend
   end.
 
-generic_count(mod_offline_backend, {User, Server}) ->
-    rpc(mim(), mod_offline_backend, count_offline_messages, [User, Server, 100]).
+get_backend_name(Module) ->
+    case rpc(mim(), Module, backend_name, []) of
+        {badrpc, _Reason} -> false;
+        Backend -> Backend
+    end.
 
+generic_count(mod_offline_backend, {LUser, LServer}) ->
+    rpc(mim(), mod_offline_backend, count_offline_messages, [LUser, LServer, 100]).
 
 generic_count(Module) ->
     case get_backend(Module) of
