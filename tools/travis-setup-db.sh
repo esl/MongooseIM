@@ -108,8 +108,6 @@ if [ "$db" = 'mysql' ]; then
     cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
     openssl rsa -in ${SSLDIR}/mongooseim/key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     chmod a+r ${SQL_TEMP_DIR}/fake_key.pem
-    # mysql_native_password is needed until mysql-otp implements caching-sha2-password
-    # https://github.com/mysql-otp/mysql-otp/issues/83
     docker run -d \
         -e SQL_TEMP_DIR=/tmp/sql \
         -e MYSQL_ROOT_PASSWORD=secret \
@@ -123,7 +121,7 @@ if [ "$db" = 'mysql' ]; then
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
-        mysql --default-authentication-plugin=mysql_native_password
+        mysql
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
