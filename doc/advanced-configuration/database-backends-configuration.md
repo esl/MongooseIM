@@ -88,16 +88,13 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 
 **Version notice**
 
-The required minimum version of MySQL is `5.5.14`. For versions `5.7.8` and older, add the following options to your MySQL configuration file:
+The required minimum version of MySQL is `5.7.9`.
+This is mainly to benefit from the JSON data type and the default settings which works out of the box with MongooseIM.
 
-```bash
-innodb_large_prefix=true
-innodb_file_format=BARRACUDA
-innodb_file_format_max=BARRACUDA
-innodb_file_per_table=true
-```
+### MySQL 8
 
-For versions `5.7.9` and newer, all of the above options are set correctly by default.
+In case of using MySQL version 8 and MongooseIM `3.6.2` or older the `mysql_native_password` authentication plugin must be used as the default one.
+Newer versions of MongooseIM works correctly with MySQL 8 and its default auth plugins.
 
 ## PostgreSQL
 
