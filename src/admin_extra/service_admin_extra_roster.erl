@@ -26,16 +26,15 @@
 -module(service_admin_extra_roster).
 -author('badlop@process-one.net').
 -export([
-    commands/0,
-
-    add_rosteritem/7,
-    delete_rosteritem/4,
-    process_rosteritems/5,
-    get_roster/2,
-    push_roster/3,
-    push_roster_all/1,
-    push_alltoall/2
-    ]).
+         commands/0,
+         add_rosteritem/7,
+         delete_rosteritem/4,
+         process_rosteritems/5,
+         get_roster/2,
+         push_roster/3,
+         push_roster_all/1,
+         push_alltoall/2
+        ]).
 
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").

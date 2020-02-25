@@ -18,12 +18,12 @@
 %%%
 %%%----------------------------------------------------------------------
 
--record(roster, {usj,
-                 us,
-                 jid,
-                 name = <<>>,
+-record(roster, {usj :: {jid:luser(), jid:lserver(), jid:simple_jid()},
+                 us :: {jid:luser(), jid:lserver()},
+                 jid :: jid:simple_jid(),
+                 name = <<>> :: binary(),
                  subscription = none :: both | from | to | none | remove,
-                 ask = none,
+                 ask = none :: subscribe | unsubscribe | in | out | both | none,
                  groups = [],
                  askmessage = <<>>,
                  xs = []}).
