@@ -360,11 +360,8 @@ add_contact(Caller, JabberID, Name) ->
 
 add_contact(Caller, Other, Name, Groups) ->
     case parse_from_to(Caller, Other) of
-        {ok, CallerJid, _OtherJid} ->
-            case mod_roster:set_roster_entry(CallerJid, jid_to_binary(Other), Name, Groups) of
-                ok -> ok;
-                error -> {error, internal, "set roster entry failed"}
-            end;
+        {ok, CallerJid, OtherJid} ->
+            mod_roster:set_roster_entry(CallerJid, OtherJid, Name, Groups);
         E ->
             E
     end.
@@ -383,17 +380,19 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
 
 delete_contact(Caller, Other) ->
     case parse_from_to(Caller, Other) of
-        {ok, CallerJid, _OtherJid} ->
-            case jid_exists(CallerJid, jid_to_binary(Other)) of
+        {ok, CallerJid, OtherJid} ->
+            case jid_exists(CallerJid, OtherJid) of
                 false -> error;
                 true ->
-                    mod_roster:remove_from_roster(CallerJid, jid_to_binary(Other))
-            end
+                    mod_roster:remove_from_roster(CallerJid, OtherJid)
+            end;
+        E ->
+            E
     end.
 
--spec jid_exists(jid:jid(), binary()) -> boolean().
-jid_exists(UserJid, Contact) ->
-    Res = mod_roster:get_roster_entry(UserJid#jid.luser, UserJid#jid.lserver, Contact),
+-spec jid_exists(jid:jid(), jid:jid()) -> boolean().
+jid_exists(CallerJid, OtherJid) ->
+    Res = mod_roster:get_roster_entry(CallerJid, OtherJid),
     Res =/= does_not_exist.
 
 registered_commands() ->
@@ -553,8 +552,3 @@ parse_jid(Jid) when is_binary(Jid) ->
         error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
         B -> B
     end.
-
-jid_to_binary(#jid{} = Jid) -> jid:to_binary(Jid);
-jid_to_binary(B) when is_binary(B) -> B;
-jid_to_binary(undefined) -> undefined.
-

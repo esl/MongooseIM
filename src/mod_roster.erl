@@ -46,15 +46,13 @@
          process_local_iq/4,
          get_user_roster/2,
          get_subscription_lists/3,
+         get_roster_entry/2,
          get_roster_entry/3,
-         get_roster_entry/4,
-         get_roster_entry_t/3,
-         get_roster_entry_t/4,
          get_roster/2,
          item_to_map/1,
          in_subscription/6,
          out_subscription/5,
-         set_items/3,
+         set_items/2,
          set_roster_entry/4,
          remove_user/2, % for tests
          remove_user/3,
@@ -62,13 +60,12 @@
          get_jid_info/4,
          item_to_xml/1,
          get_versioning_feature/2,
-         roster_versioning_enabled/1,
          roster_version/2
-         ]).
+        ]).
 
 -export([remove_test_user/2,
          transaction/2,
-         process_subscription_transaction/6,
+         process_subscription_transaction/5,
          get_user_rosters_length/2]). % for testing
 
 -export([get_personal_data/2]).
@@ -226,18 +223,14 @@ hooks(Host) ->
      {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
      {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
 
-get_roster_entry(LUser, LServer, Jid) ->
-    mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
+get_roster_entry(#jid{luser = LUser, lserver = LServer}, Jid) ->
+    mod_roster_backend:get_roster_entry(LUser, LServer, jid_arg_to_lower(Jid)).
 
-get_roster_entry(LUser, LServer, Jid, full) ->
-    mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid), full).
+get_roster_entry(#jid{luser = LUser, lserver = LServer}, Jid, full) ->
+    mod_roster_backend:get_roster_entry(LUser, LServer, jid_arg_to_lower(Jid), full).
 
-get_roster_entry_t(LUser, LServer, Jid) ->
-    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
-
-get_roster_entry_t(LUser, LServer, Jid, full) ->
-    mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer,
-                                          jid_arg_to_lower(Jid), full).
+get_roster_entry_t(#jid{luser = LUser, lserver = LServer}, Jid, full) ->
+    mod_roster_backend:get_roster_entry_t(LUser, LServer, jid_arg_to_lower(Jid), full).
 
 -spec jid_arg_to_lower(JID :: jid:simple_jid() | jid:jid() | binary()) ->
     error | jid:simple_jid().
@@ -461,29 +454,24 @@ process_item_set(_From, _To, _) -> ok.
 
 -spec do_process_item_set(error | jid:jid(), jid:jid(), jid:jid(), exml:element()) -> ok.
 do_process_item_set(error, _, _, _) -> ok;
-do_process_item_set(JID1,
-                    #jid{user = User, luser = LUser, lserver = LServer} = From,
-                    To,
+do_process_item_set(#jid{} = JID1, #jid{} = From, #jid{} = To,
                     #xmlel{attrs = Attrs, children = Els}) ->
-    LJID = jid:to_lower(JID1),
     MakeItem2 = fun(Item) ->
                     Item1 = process_item_attrs(Item, Attrs),
                     process_item_els(Item1, Els)
                 end,
-    set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2).
+    set_roster_item(JID1, From, To, MakeItem2).
 
 %% @doc this is run when a roster item is to be added, updated or removed
 %% the interface of this func could probably be a bit simpler
--spec set_roster_item(User :: binary(),
-                      LUser :: binary(),
-                      LServer :: binary(),
-                      LJID :: jid:simple_jid() | error,
-                      From ::jid:jid(),
-                      To ::jid:jid(),
+-spec set_roster_item(JID1 :: jid:jid(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
                       MakeItem2 :: fun( (roster()) -> roster())) -> ok.
-set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
-    F = fun () ->
-                Item = case get_roster_entry(LUser, LServer, LJID) of
+set_roster_item(JID1, #jid{luser = LUser, lserver = LServer} = From, To, MakeItem2) ->
+    LJID = jid:to_lower(JID1),
+    F = fun() ->
+                Item = case get_roster_entry(From, LJID) of
                            does_not_exist ->
                                #roster{usj = {LUser, LServer, LJID},
                                        us = {LUser, LServer},
@@ -505,7 +493,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
         end,
     case transaction(LServer, F) of
         {atomic, {OldItem, NewItem}} ->
-            push_item(User, LServer, To, NewItem),
+            push_item(From, To, NewItem),
             case NewItem#roster.subscription of
                 remove ->
                     send_unsubscribing_presence(From, OldItem), ok;
@@ -520,7 +508,7 @@ process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
         error ->
             process_item_attrs(Item, Attrs);
         JID1 ->
-            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
+            JID = jid:to_lower(JID1),
             process_item_attrs(Item#roster{jid = JID}, Attrs)
     end;
 process_item_attrs(Item, [{<<"name">>, Val} | Attrs]) ->
@@ -553,26 +541,29 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
-push_item(User, Server, From, Item) ->
-    #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
-    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>), JID,
+push_item(#jid{luser = LUser, lserver = LServer} = JID, From, Item) ->
+    ejabberd_sm:route(jid:make_noprep(<<>>, <<>>, <<>>), JID,
                       {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
-    case roster_versioning_enabled(Server) of
+    case roster_versioning_enabled(LServer) of
         true ->
-            push_item_version(JID, Server, User, From, Item,
-                              roster_version(Server, LUser));
+            push_item_version(JID, From, Item, roster_version(LServer, LUser));
         false ->
-            lists:foreach(fun (Resource) ->
-                                  push_item(User, Server, Resource, From, Item)
+            lists:foreach(fun(Resource) ->
+                                  push_item_without_version(JID, Resource, From, Item)
                           end,
                           ejabberd_sm:get_user_resources(JID))
     end.
 
-push_item(User, Server, Resource, From, Item) ->
+push_item_without_version(#jid{lserver = Server} = JID, Resource, From, Item) ->
     mongoose_hooks:roster_push(Server, ok, From, Item),
-    push_item(User, Server, Resource, From, Item, not_found).
+    push_item_final(jid:replace_resource(JID, Resource), From, Item, not_found).
 
-push_item(User, Server, Resource, From, Item, RosterVersion) ->
+push_item_version(JID, From, Item, RosterVersion) ->
+    lists:foreach(fun(Resource) ->
+                          push_item_final(jid:replace_resource(JID, Resource), From, Item, RosterVersion)
+                  end, ejabberd_sm:get_user_resources(JID)).
+
+push_item_final(JID, From, Item, RosterVersion) ->
     ExtraAttrs = case RosterVersion of
                      not_found -> [];
                      _ -> [{<<"ver">>, RosterVersion}]
@@ -585,26 +576,14 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
                 [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
                         children = [item_to_xml(Item)]}]},
-    ejabberd_router:route(From,
-                          jid:make(User, Server, Resource),
-                          jlib:iq_to_xml(ResIQ)).
-
-push_item_version(JID, Server, User, From, Item,
-                  RosterVersion) ->
-    lists:foreach(fun (Resource) ->
-                          push_item(User, Server, Resource, From, Item,
-                                    RosterVersion)
-                  end,
-                  ejabberd_sm:get_user_resources(JID)).
+    ejabberd_router:route(From, JID, jlib:iq_to_xml(ResIQ)).
 
 -spec get_subscription_lists(Acc :: mongoose_acc:t(),
                              User :: binary(),
                              Server :: binary()) -> mongoose_acc:t().
 get_subscription_lists(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+    #jid{luser = LUser, lserver = LServer} = JID = jid:make(User, Server, <<>>),
     Items = mod_roster_backend:get_subscription_lists(Acc, LUser, LServer),
-    JID = jid:make(User, Server, <<>>),
     SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
     mongoose_acc:set(roster, subscription_lists, SubLists, Acc).
 
@@ -683,11 +662,11 @@ out_subscription(Acc, User, Server, JID, Type) ->
     mongoose_acc:set(hook, result, Res, Acc).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+    JID = jid:make(User, Server, <<>>),
+    LServer = case JID of #jid{lserver = LS} -> LS; error -> error end,
     LJID = jid:to_lower(JID1),
-    TransactionFun = fun() -> process_subscription_transaction(Direction, LUser, LServer,
-                                                               LJID, Type, Reason) end,
+    TransactionFun =
+        fun() -> process_subscription_transaction(Direction, JID, LJID, Type, Reason) end,
     case transaction(LServer, TransactionFun) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
@@ -696,13 +675,13 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                     PresenceStanza = #xmlel{name = <<"presence">>,
                                             attrs = [{<<"type">>, autoreply_to_type(AutoReply)}],
                                             children = []},
-                    ejabberd_router:route(jid:make(User, Server, <<"">>), JID1, PresenceStanza)
+                    ejabberd_router:route(JID, JID1, PresenceStanza)
             end,
             case Push of
                 {push, #roster{ subscription = none, ask = in }} ->
                     true;
                 {push, Item} ->
-                    push_item(User, Server, jid:make(User, Server, <<"">>), Item),
+                    push_item(JID, JID, Item),
                     true;
                 none -> false
             end;
@@ -712,11 +691,13 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
 autoreply_to_type(subscribed) -> <<"subscribed">>;
 autoreply_to_type(unsubscribed) -> <<"unsubscribed">>.
 
-process_subscription_transaction(Direction, LUser, LServer, LJID, Type, Reason) ->
-    Item = case mod_roster_backend:get_roster_entry_t(LUser, LServer, LJID, full) of
+process_subscription_transaction(Direction, JID, LJID, Type, Reason) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
+    Item = case get_roster_entry_t(JID, LJID, full) of
                does_not_exist ->
                    #roster{usj = {LUser, LServer, LJID},
-                       us = {LUser, LServer}, jid = LJID};
+                           us = {LUser, LServer},
+                           jid = LJID};
                R -> R
            end,
     NewState = case Direction of
@@ -867,21 +848,24 @@ get_user_rosters_length(User, Server) ->
 
 %% Used only by tests
 remove_user(User, Server) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => <<_/binary>> = jid:nameprep(Server),
-                              element => undefined }),
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             lserver => <<_/binary>> = jid:nameprep(Server),
+                             element => undefined}),
     remove_user(Acc, User, Server).
 
 remove_user(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    mod_roster_backend:remove_user(LUser, LServer),
-    Acc1.
+    case jid:make(User, Server, <<>>) of
+        #jid{luser = LUser, lserver = LServer} = JID ->
+            Acc1 = try_send_unsubscription_to_rosteritems(Acc, JID),
+            mod_roster_backend:remove_user(LUser, LServer),
+            Acc1;
+        error ->
+            Acc
+    end.
 
-try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+try_send_unsubscription_to_rosteritems(Acc, JID) ->
     try
-        send_unsubscription_to_rosteritems(Acc, LUser, LServer)
+        send_unsubscription_to_rosteritems(Acc, JID)
     catch
         E:R:S ->
             ?LOG_WARNING(#{what => roster_unsubcribe_failed,
@@ -892,14 +876,13 @@ try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
-send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+send_unsubscription_to_rosteritems(Acc, JID) ->
+    #jid{luser = LUser, lserver = LServer} = JID,
     Acc1 = get_user_roster(Acc, {LUser, LServer}),
     RosterItems = mongoose_acc:get(roster, items, [], Acc1),
-    From = jid:make({LUser, LServer, <<"">>}),
-    lists:foreach(fun (RosterItem) ->
-                          send_unsubscribing_presence(From, RosterItem)
-                  end,
-                  RosterItems),
+    lists:foreach(fun(RosterItem) ->
+                          send_unsubscribing_presence(JID, RosterItem)
+                  end, RosterItems),
     Acc1.
 
 %% @spec (From::jid(), Item::roster()) -> any()
@@ -924,49 +907,30 @@ send_presence_type(From, To, Type) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-set_items(User, Server, SubEl) ->
+set_items(#jid{luser = LUser, lserver = LServer}, SubEl) ->
     #xmlel{children = Els} = SubEl,
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
     F = fun () ->
-                lists:foreach(fun (El) ->
+                lists:foreach(fun(El) ->
                                       process_item_set_t(LUser, LServer, El)
-                              end,
-                              Els)
+                              end, Els)
         end,
     transaction(LServer, F).
 
 %% @doc add a contact to roster, or update
--spec set_roster_entry(jid:jid(), binary(), binary(), [binary()]) -> ok|error.
-set_roster_entry(UserJid, ContactBin, Name, Groups) ->
-    set_roster_entry(UserJid, ContactBin, Name, Groups, unchanged).
+-spec set_roster_entry(jid:jid(), jid:jid() | error, binary(), [binary()]) -> ok | error.
+set_roster_entry(UserJid, ContactJid, Name, Groups) ->
+    set_roster_entry(UserJid, ContactJid, Name, Groups, unchanged).
 
 -spec set_roster_entry(UserJid ::jid:jid(),
-                       ContactBin :: binary(),
+                       ContactJid :: jid:jid(),
                        Name :: binary() | unchanged,
                        Groups :: [binary()] | unchanged,
-                       NewSubscription :: remove | unchanged) -> ok|error.
-set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
-    LUser = UserJid#jid.luser,
-    LServer = UserJid#jid.lserver,
-    JID1 = jid:from_binary(ContactBin),
-    case JID1 of
-        error -> error;
-        _ ->
-            LJID = jid:to_lower(JID1),
-            MakeItem = fun(Item) ->
-                            modify_roster_item(Item, Name, Groups, NewSubscription)
-                        end,
-            set_roster_item(
-                LUser, % User
-                LUser, % LUser
-                LServer, % LServer
-                LJID, % LJID
-                UserJid, % From
-                UserJid, % To
-                MakeItem
-            )
-    end.
+                       NewSubscription :: remove | unchanged) -> ok | error.
+set_roster_entry(UserJid, ContactJid, Name, Groups, NewSubscription) ->
+    MakeItem = fun(Item) ->
+                       modify_roster_item(Item, Name, Groups, NewSubscription)
+               end,
+    set_roster_item(ContactJid, UserJid, UserJid, MakeItem).
 
 modify_roster_item(Item, Name, Groups, NewSubscription) ->
     Item1 = case Name of
@@ -984,10 +948,9 @@ modify_roster_item(Item, Name, Groups, NewSubscription) ->
 
 %% @doc remove from roster - in practice it means changing
 %% subscription state to 'remove'
--spec remove_from_roster(UserJid ::jid:jid(),
-                         ContactBin :: binary()) -> ok|error.
-remove_from_roster(UserJid, ContactBin) ->
-    set_roster_entry(UserJid, ContactBin, unchanged, unchanged, remove).
+-spec remove_from_roster(UserJid ::jid:jid(), ContactJid :: jid:jid()) -> ok | error.
+remove_from_roster(UserJid, ContactJid) ->
+    set_roster_entry(UserJid, ContactJid, unchanged, unchanged, remove).
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     mod_roster_backend:update_roster_t(LUser, LServer, LJID, Item).
@@ -1048,11 +1011,12 @@ process_item_attrs_ws(Item, []) ->
                    Server :: jid:lserver(),
                    JID ::jid:jid() | jid:ljid()) -> {subscription_state(), [binary()]}.
 get_jid_info(_, User, Server, JID) ->
-    case get_roster_entry(User, Server, JID, full) of
+    ToJID = jid:make(User, Server, <<>>),
+    case get_roster_entry(ToJID, JID, full) of
         error -> {none, []};
         does_not_exist ->
             LRJID = jid:to_bare(jid:to_lower(JID)),
-            case get_roster_entry(User, Server, LRJID, full) of
+            case get_roster_entry(ToJID, LRJID, full) of
                 error -> {none, []};
                 does_not_exist -> {none, []};
                 R -> {R#roster.subscription, R#roster.groups}

@@ -67,7 +67,7 @@ end_per_testcase(_TC, C) ->
 roster_old(_C) ->
     R1 = get_roster_old(),
     ?assertEqual(length(R1), 0),
-    mod_roster:set_items(a(), host(), addbob_stanza()),
+    mod_roster:set_items(alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     subscription(out, subscribe),
     assert_state_old(none, out),
@@ -76,7 +76,7 @@ roster_old(_C) ->
 roster_old_with_filter(_C) ->
     R1 = get_roster_old(),
     ?assertEqual(0, length(R1)),
-    mod_roster:set_items(a(), host(), addbob_stanza()),
+    mod_roster:set_items(alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     subscription(in, subscribe),
     R2 = get_roster_old(),
@@ -86,29 +86,29 @@ roster_old_with_filter(_C) ->
     ok.
 
 roster_new(_C) ->
-    R1 = mod_roster:get_roster_entry(a(), host(), bob()),
+    R1 = mod_roster:get_roster_entry(alice_jid(), bob()),
     ?assertEqual(does_not_exist, R1),
-    mod_roster:set_items(a(), host(), addbob_stanza()),
+    mod_roster:set_items(alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     ct:pal("get_roster_old(): ~p", [get_roster_old()]),
-    R2 = mod_roster:get_roster_entry(a(), host(), bob()),
+    R2 = mod_roster:get_roster_entry(alice_jid(), bob()),
     ?assertMatch(#roster{}, R2), % is not guaranteed to contain full info
-    R3 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    R3 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
     assert_state(R3, none, none, [<<"friends">>]),
     subscription(out, subscribe),
-    R4 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    R4 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
     assert_state(R4, none, out, [<<"friends">>]).
 
 
 roster_case_insensitive(_C) ->
-    mod_roster:set_items(a(), host(), addbob_stanza()),
+    mod_roster:set_items(alice_jid(), addbob_stanza()),
     R1 = get_roster_old(),
     ?assertEqual(1, length(R1)),
     R2 = get_roster_old(ae()),
     ?assertEqual(1, length(R2)),
-    R3 = mod_roster:get_roster_entry(a(), host(), bob(), full),
+    R3 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
     assert_state(R3, none, none, [<<"friends">>]),
-    R3 = mod_roster:get_roster_entry(ae(), host(), bob(), full),
+    R3 = mod_roster:get_roster_entry(alicE_jid(), bob(), full),
     assert_state(R3, none, none, [<<"friends">>]),
     ok.
 
@@ -125,8 +125,7 @@ assert_state(Rentry, Subscription, Ask, Groups) ->
 subscription(Direction, Type) ->
     LBob = jid:to_lower(jid:from_binary(bob())),
     TFun = fun() -> mod_roster:process_subscription_transaction(Direction,
-                                                                a(),
-                                                                host(),
+                                                                alice_jid(),
                                                                 LBob,
                                                                 Type,
                                                                 <<"">>)
@@ -165,6 +164,12 @@ delete_ets() ->
     catch ets:delete(local_config),
     catch ets:delete(mongoose_services),
     ok.
+
+alice_jid() ->
+    jid:make(a(), host(), <<>>).
+
+alicE_jid() ->
+    jid:make(ae(), host(), <<>>).
 
 a() -> <<"alice">>.
 ae() -> <<"alicE">>.
