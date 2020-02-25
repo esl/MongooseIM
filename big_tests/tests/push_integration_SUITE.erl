@@ -471,7 +471,7 @@ assert_push_notification(Notification, Service, EnableOpts, SenderJID, Expected)
 
             case proplists:get_value(<<"click_action">>, EnableOpts) of
                 undefined ->
-                    ?assertMatch(#{<<"click_action">> := null}, Alert);
+                    ?assertEqual(error, maps:find(<<"click_action">>, Alert));
                 Activity ->
                     ?assertMatch(#{<<"click_action">> := Activity}, Alert)
             end;

@@ -156,29 +156,34 @@ parse_api_version(_) ->
     {error, not_supported}.
 
 %% Create notification for API v2 and v3
-make_notification(Notification, Options = #{<<"silent">> := <<"true">>}) ->
-    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
-    {ok, #{
-        service => maps:get(<<"service">>, Options),
-        mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        topic => maps:get(<<"topic">>, Options, null),
-        data => Notification#{<<"message-count">> => MessageCount},
-        priority => maps:get(<<"priority">>, Options, normal)
-    }};
 make_notification(Notification, Options) ->
-    {ok, #{
-        service => maps:get(<<"service">>, Options),
-        mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        alert => #{
-            body => maps:get(<<"last-message-body">>, Notification),
-            title => maps:get(<<"last-message-sender">>, Notification),
-            tag => maps:get(<<"last-message-sender">>, Notification),
-            badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
-            click_action => maps:get(<<"click_action">>, Options, null)
-        },
-        topic => maps:get(<<"topic">>, Options, null),
-        priority => maps:get(<<"priority">>, Options, normal)
-    }}.
+    RequiredParameters = #{service => maps:get(<<"service">>, Options)},
+    %% The full list of supported optional parameters can be found here:
+    %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
+    %%
+    %% Note that <<"tags">> parameter is explicitely excluded to avoid any
+    %% security issues. User should not be allowed to select pools other than
+    %% prod and dev (see <<"mode">> parameter description).
+    OptionalKeys = [<<"mode">>, <<"priority">>, <<"topic">>,
+                    <<"mutable_content">>, <<"time_to_live">>],
+    OptionalParameters = maps:with(OptionalKeys, Options),
+    NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
+
+    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
+
+    DataOrAlert = case Options of
+                      #{<<"silent">> := <<"true">>} ->
+                          Data = Notification#{<<"message-count">> := MessageCount},
+                          #{data => Data};
+                      _ ->
+                          BasicAlert = #{body => maps:get(<<"last-message-body">>, Notification),
+                                         title => maps:get(<<"last-message-sender">>, Notification),
+                                         tag => maps:get(<<"last-message-sender">>, Notification),
+                                         badge => MessageCount},
+                          OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
+                          #{alert => maps:merge(BasicAlert, OptionalAlert)}
+                  end,
+    {ok, maps:merge(NotificationParams, DataOrAlert)}.
 
 -spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 call(Host, M, F, A) ->
