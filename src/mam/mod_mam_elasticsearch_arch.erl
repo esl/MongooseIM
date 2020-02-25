@@ -84,7 +84,7 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
         {error, _} = Err ->
             ?ERROR_MSG("event=archive_message_failed server=~s user=~s remote=~s mess_id=~p reason=~1000p",
                        [Host, Owner, Remote, MessageId, Err]),
-            ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+            mongoose_hooks:mam_drop_message(Host, ok),
             Err
     end.
 

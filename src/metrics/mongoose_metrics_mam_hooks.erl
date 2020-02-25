@@ -122,8 +122,8 @@ mam_drop_message(Acc, Host) ->
     Acc.
 
 %% #rh
--spec mam_drop_iq(Acc :: map(), Host :: jid:server(), _To :: jid:jid(),
-    _IQ :: jlib:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
+-spec mam_drop_iq(Acc :: mongoose_acc:t(), Host :: jid:server(), _To :: jid:jid(),
+    _IQ :: jlib:iq(), _Action :: any(), _Reason :: any()) -> Acc :: mongoose_acc:t().
 mam_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
     mongoose_metrics:update(Host, modMamDroppedIQ, 1),
     Acc.
