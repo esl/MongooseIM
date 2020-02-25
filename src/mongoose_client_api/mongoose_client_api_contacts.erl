@@ -191,6 +191,6 @@ to_binary(S) ->
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->
-    FJid = jid:from_binary(CJid),
-    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+    #jid{} = FJid = jid:from_binary(CJid),
+    Res = mod_roster:get_roster_entry(FJid, Jid),
     Res =/= does_not_exist.

@@ -227,7 +227,7 @@ commands() ->
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
     ejabberd_sm:route(
-      jid:make(<<"">>, <<"">>, <<"">>),
+      jid:make_noprep(<<>>, <<>>, <<>>),
       J,
       {broadcast, {exit, <<"kicked">>}}),
     <<"kicked">>.
@@ -324,8 +324,8 @@ delete_contact(Caller, JabberID) ->
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->
-    FJid = jid:from_binary(CJid),
-    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+    #jid{} = FJid = jid:from_binary(CJid),
+    Res = mod_roster:get_roster_entry(FJid, Jid),
     Res =/= does_not_exist.
 
 registered_commands() ->
