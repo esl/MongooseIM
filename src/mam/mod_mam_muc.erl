@@ -120,7 +120,7 @@
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
     Schema = ["id", "message"],
-    Entries = ejabberd_hooks:run_fold(get_mam_muc_gdpr_data, LServer, [], [JID]),
+    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, [], JID),
     [{mam_muc, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
@@ -256,8 +256,8 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
                     handle_error_iq(Acc, Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
-                                                   [Host, To, IQ, Action, max_delay_reached]),
+                    Acc1 = mongoose_hooks:mam_muc_drop_iq(Host, Acc, To, IQ,
+                                                          Action, max_delay_reached),
                     {Acc1, return_max_delay_reached_error_iq(IQ)}
             end;
         false -> {Acc, return_action_not_allowed_error_iq(IQ)}
@@ -432,14 +432,13 @@ handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq
 
 -spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
 archive_id_int(Host, ArcJID = #jid{}) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_id, Host, undefined, [Host, ArcJID]).
+    mongoose_hooks:mam_muc_archive_id(Host, undefined, ArcJID).
 
 
 -spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
                   -> integer().
 archive_size(Host, ArcID, ArcJID = #jid{}) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_size, Host, 0, [Host, ArcID, ArcJID]).
-
+    mongoose_hooks:mam_muc_archive_size(Host, 0, ArcID, ArcJID).
 
 -spec get_behaviour(jid:server(), mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid(),
@@ -447,8 +446,7 @@ archive_size(Host, ArcID, ArcJID = #jid{}) ->
 get_behaviour(Host, ArcID,
               LocJID = #jid{},
               RemJID = #jid{}, DefaultBehaviour) ->
-    ejabberd_hooks:run_fold(mam_muc_get_behaviour, Host, DefaultBehaviour,
-                            [Host, ArcID, LocJID, RemJID]).
+    mongoose_hooks:mam_muc_get_behaviour(Host, DefaultBehaviour, ArcID, LocJID, RemJID).
 
 
 -spec set_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
@@ -456,8 +454,8 @@ get_behaviour(Host, ArcID,
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    ejabberd_hooks:run_fold(mam_muc_set_prefs, Host, {error, not_implemented},
-                            [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
+    mongoose_hooks:mam_muc_set_prefs(Host, {error, not_implemented},
+                                     ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs).
 
 
 %% @doc Load settings from the database.
@@ -465,14 +463,12 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    ejabberd_hooks:run_fold(mam_muc_get_prefs, Host,
-                            {GlobalDefaultMode, [], []},
-                            [Host, ArcID, ArcJID]).
+    mongoose_hooks:mam_muc_get_prefs(Host, {GlobalDefaultMode, [], []}, ArcID, ArcJID).
 
 -spec remove_archive(jid:server(), mod_mam:archive_id() | undefined,
                      jid:jid()) -> 'ok'.
 remove_archive(Host, ArcID, ArcJID = #jid{}) ->
-    ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
+    mongoose_hooks:mam_muc_remove_archive(Host, ok, ArcID, ArcJID),
     ok.
 
 
@@ -493,8 +489,7 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
-                                    [Host, Params])
+            mongoose_hooks:mam_muc_lookup_messages(Host, {ok, {0, 0, []}}, Params)
     end.
 
 
@@ -503,8 +498,8 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
                       SenderJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
                       packet()) -> any().
 archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
-                            [Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet]).
+    mongoose_hooks:mam_muc_archive_message(Host, ok, MessID, ArcID,
+                                           LocJID, SenderJID, SrcJID, Dir, Packet).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -548,8 +543,7 @@ message_row_to_ext_id({MessID, _, _}) ->
 -spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 handle_error_iq(Acc, Host, To, Action, {error, Reason, IQ}) ->
-    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
-                       [Host, To, IQ, Action, Reason]),
+    Acc1 = mongoose_hooks:mam_muc_drop_iq(Host, Acc, To, IQ, Action, Reason),
     {Acc1, IQ};
 handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
     {Acc, IQ}.

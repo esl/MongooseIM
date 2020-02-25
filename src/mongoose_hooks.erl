@@ -1,3 +1,8 @@
+%%% @doc Hooks wrapper providing clear specification for a hook caller
+%%%
+%%% Every hook has its own function in this module with specs as accurate as
+%%% possible. This helps to have a static analyzation of the hooks callers to
+%%% make sure they pass the expected arguments.
 -module(mongoose_hooks).
 
 -export([auth_failed/2,
@@ -38,6 +43,33 @@
          user_send_packet/5,
          xmpp_bounce_message/2,
          xmpp_send_element/3]).
+
+-export([mam_drop_iq/6,
+         mam_archive_id/3,
+         mam_archive_size/4,
+         mam_get_behaviour/5,
+         mam_set_prefs/7,
+         mam_get_prefs/4,
+         mam_remove_archive/4,
+         mam_lookup_messages/3,
+         mam_archive_message/9,
+         mam_drop_message/2,
+         mam_drop_messages/3,
+         mam_flush_messages/3]).
+
+-export([mam_muc_drop_iq/6,
+         mam_muc_archive_id/3,
+         mam_muc_archive_size/4,
+         mam_muc_get_behaviour/5,
+         mam_muc_set_prefs/7,
+         mam_muc_get_prefs/4,
+         mam_muc_remove_archive/4,
+         mam_muc_lookup_messages/3,
+         mam_muc_archive_message/9,
+         mam_muc_flush_messages/3]).
+
+-export([get_mam_pm_gdpr_data/3,
+         get_mam_muc_gdpr_data/3]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
@@ -416,6 +448,9 @@ user_receive_packet(Server, Acc, JID, From, To, El) ->
 user_sent_keep_alive(Server, JID) ->
     ejabberd_hooks:run_fold(user_sent_keep_alive, Server, ok, [JID]).
 
+%%% @doc A hook called when a user sends an XMPP stanza
+%%% The hook's handler is expected to accept four parameters: `Acc`, `From`, `To` and `Packet`
+%%% The arguments and the return value types correspond to the following spec.
 -spec user_send_packet(LServer, Acc, From, To, Packet) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
@@ -443,3 +478,289 @@ xmpp_bounce_message(Server, Acc) ->
     Result :: mongoose_acc:t().
 xmpp_send_element(Server, Acc, El) ->
     ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]).
+
+%% MAM related hooks
+
+%%% @doc The `mam_drop_iq` hooks is called when a MAM related IQ was dropped by the server.
+-spec mam_drop_iq(HookServer, Acc, To, IQ, Action, Reason) -> ok when
+      HookServer :: jid:lserver(),
+      Acc :: mongoose_acc:t(),
+      To :: jid:jid(),
+      IQ :: jlib:iq(),
+      Action :: mam_iq:action(),
+      Reason :: term().
+mam_drop_iq(HookServer, Acc, To, IQ, Action, Reason) ->
+    ejabberd_hooks:run_fold(mam_drop_iq, HookServer, Acc, [HookServer, To, IQ, Action, Reason]).
+
+%%% @doc The `mam_archive_id` hook is called to determine the id of an archive for a particular user or entity.
+%%% The hook handler is expected to accept the following arguments:
+%%% * Acc with an initial value of `undefined`
+%%% * Host as passed in the `HooksServer` variable
+%%% * OwnerJID
+%%%
+%%% and to return an integer value corresponding to the given owner's archive.
+%%%
+%%% If a MAM backend doesn't support or doesn't require archive IDs,
+%%% `undefined` may be returned.
+-spec mam_archive_id(HookServer, InitialValue, OwnerJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: undefined,
+      OwnerJID :: jid:jid(),
+      Result :: undefined | mod_mam:archive_id().
+mam_archive_id(HookServer, InitialValue, OwnerJID) ->
+    ejabberd_hooks:run_fold(mam_archive_id, HookServer, InitialValue, [HookServer, OwnerJID]).
+
+%%% @doc The `mam_archive_size` hook is called to determine the size of the archive for a given JID
+%%%
+-spec mam_archive_size(HookServer, InitialValue, ArchiveID, OwnerJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: 0,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      OwnerJID :: jid:jid(),
+      Result :: integer().
+mam_archive_size(HookServer, InitialValue, ArchiveID, OwnerJID) ->
+    ejabberd_hooks:run_fold(mam_archive_size, HookServer, InitialValue, [HookServer, ArchiveID, OwnerJID]).
+
+%%% @doc The `mam_get_behaviour` hooks is called to determine if a message should be archived or not based on a given pair of JIDs.
+%%%
+-spec mam_get_behaviour(HookServer, DefaultBehaviour, ArchiveID, OwnerJID, RemoteJID) -> Result when
+      HookServer :: jid:lserver(),
+      DefaultBehaviour :: always,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      OwnerJID :: jid:jid(),
+      RemoteJID :: jid:jid(),
+      Result :: mod_mam:archive_behaviour().
+mam_get_behaviour(HookServer, DefaultBehaviour, ArchiveID, OwnerJID, RemoteJID) ->
+    ejabberd_hooks:run_fold(mam_get_behaviour, HookServer, DefaultBehaviour,
+                            [HookServer, ArchiveID, OwnerJID, RemoteJID]).
+
+%%% @doc The `mam_set_prefs` hook is called to set a user's archive preferences.
+%%%
+%%% It's possible to set which JIDs are always or never allowed in the archive
+-spec mam_set_prefs(HookServer, InitialValue, ArchiveId, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {error, not_implemented},
+      ArchiveId :: undefined | mod_mam:archive_id(),
+      OwnerJID :: jid:jid(),
+      DefaultMode :: mod_mam:archive_behaviour(),
+      AlwaysJIDs :: [jid:literal_jid()],
+      NeverJIDs :: [jid:literel_jid()],
+      Result :: any().
+mam_set_prefs(HookServer, InitialValue, ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    ejabberd_hooks:run_fold(mam_set_prefs, HookServer, InitialValue,
+                            [HookServer, ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
+
+%%% @doc The `mam_get_prefs` hook is called to read the archive settings for a given user.
+-spec mam_get_prefs(HookServer, InitialValue, ArchiveID, OwnerJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {mod_mam:archive_behaviour(), [], []},
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      OwnerJID :: jid:jid(),
+      Result :: mod_mam:preference() | {error, Reason :: term()}.
+mam_get_prefs(HookServer, InitialValue, ArchiveID, OwnerJID) ->
+    ejabberd_hooks:run_fold(mam_get_prefs, HookServer,
+                            InitialValue,
+                            [HookServer, ArchiveID, OwnerJID]).
+
+%%% @doc The `mam_remove_archive` hook is called in order to remove the entire archive for a particular user
+-spec mam_remove_archive(HookServer, InitialValue, ArchiveID, OwnerJID) -> any() when
+      HookServer :: jid:lserver(),
+      InitialValue :: ok,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      OwnerJID :: jid:jid().
+mam_remove_archive(HookServer, InitialValue, ArchiveID, OwnerJID) ->
+    ejabberd_hooks:run_fold(mam_remove_archive, HookServer, InitialValue,
+                            [HookServer, ArchiveID, OwnerJID]).
+
+%%% @doc The `mam_lookup_messages` hook is to retrive archived messages for given search parameters
+-spec mam_lookup_messages(HookServer, InitialValue, Params) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {ok, {0, 0, []}},
+      Params :: map(),
+      Result :: {ok, mod_mam:lookup_result()}.
+mam_lookup_messages(HookServer, InitialValue, Params) ->
+    ejabberd_hooks:run_fold(mam_lookup_messages, HookServer, InitialValue,
+                            [HookServer, Params]).
+
+%%% @doc The `mam_archive_message` hook is called in order to store the message in the archive.
+-spec mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+    Result when
+    HookServer :: jid:lserver(),
+    InitialValue :: ok,
+    MessageID :: mod_mam:message_id(),
+    ArchiveID :: undefined | mod_mam:archive_id(),
+    OwnerJID :: jid:jid(),
+    RemoteJID :: jid:jid(),
+    SenderJID :: jid:jid(),
+    Dir :: incoming | outgoing,
+    Packet :: term(),
+    Result :: ok | {error, timeout}.
+mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+    ejabberd_hooks:run_fold(mam_archive_message, HookServer, InitialValue,
+                            [HookServer, MessageID, ArchiveID, OwnerJID,
+                             RemoteJID, SenderJID, Dir, Packet]).
+
+%%% @doc The `mam_drop_message` hook is called when message archive failed.
+%%%
+%%% For those MAM backends which perform synchronous writes of messages the hook is called when there was an error while writing the message.
+%%% In case of backends performing asynchronous writes,
+%%% this hook is called when the process responsible for async and bulk writes died when talking to it.
+-spec mam_drop_message(HookServer :: jid:lserver(), InitialValue :: ok) -> ok.
+mam_drop_message(HookServer, InitialValue) ->
+    ejabberd_hooks:run_fold(mam_drop_message, HookServer, InitialValue, [HookServer]).
+
+%%% @doc The `mam_drop_messages` hook is called when the async bulk write operation failed
+-spec mam_drop_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.
+mam_drop_messages(HookServer, InitialValue, MessageCount) ->
+    ejabberd_hooks:run_fold(mam_drop_messages, HookServer, InitialValue, [HookServer, MessageCount]).
+
+%%% @doc The `mam_flush_messages` hook is run after the async bulk write happens despite the write operation's result
+-spec mam_flush_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.
+mam_flush_messages(HookServer, InitialValue, MessageCount) ->
+    ejabberd_hooks:run_fold(mam_flush_messages, HookServer, InitialValue, [HookServer, MessageCount]).
+
+%% MAM MUC related hooks
+
+%%% @doc The `mam_muc_drop_iq` hooks is called when a MAM related IQ was dropped by the server.
+-spec mam_muc_drop_iq(HookServer, Acc, To, IQ, Action, Reason) -> ok when
+      HookServer :: jid:lserver(),
+      Acc :: mongoose_acc:t(),
+      To :: jid:jid(),
+      IQ :: jlib:iq(),
+      Action :: mam_iq:action(),
+      Reason :: term().
+mam_muc_drop_iq(HookServer, Acc, To, IQ, Action, Reason) ->
+    ejabberd_hooks:run_fold(mam_muc_drop_iq, HookServer, Acc, [HookServer, To, IQ, Action, Reason]).
+
+%%% @doc The `mam_muc_archive_id` hook is called to determine the archive ID for a particular room.
+%%% The hook handler is expected to accept the following arguments:
+%%% * Acc with initial value `undefined`
+%%% * Host as passed in `HooksServer` variable
+%%% * OwnerJID
+%%%
+%%% and return an integer value corresponding to the given owner's archive.
+%%%
+%%% If a MAM backend doesn't support or doesn't require archive IDs,
+%%% `undefined` may be returned.
+-spec mam_muc_archive_id(HookServer, InitialValue, OwnerJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: undefined,
+      OwnerJID :: jid:jid(),
+      Result :: undefined | mod_mam:archive_id().
+mam_muc_archive_id(HookServer, InitialValue, OwnerJID) ->
+    ejabberd_hooks:run_fold(mam_muc_archive_id, HookServer, InitialValue, [HookServer, OwnerJID]).
+
+%%% @doc The `mam_muc_archive_size` hook is called to determine the archive's size for a given room.
+%%%
+-spec mam_muc_archive_size(HookServer, InitialValue, ArchiveID, RoomJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: 0,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      RoomJID :: jid:jid(),
+      Result :: integer().
+mam_muc_archive_size(HookServer, InitialValue, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_fold(mam_muc_archive_size, HookServer, InitialValue, [HookServer, ArchiveID, RoomJID]).
+
+%%% @doc The `mam_muc_get_behaviour` hooks is called to determine if a message should be archived or not based on the given room and user JIDs.
+%%%
+-spec mam_muc_get_behaviour(HookServer, DefaultBehaviour, ArchiveID, RoomJID, RemoteJID) -> Result when
+      HookServer :: jid:lserver(),
+      DefaultBehaviour :: always,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      RoomJID :: jid:jid(),
+      RemoteJID :: jid:jid(),
+      Result :: mod_mam:archive_behaviour().
+mam_muc_get_behaviour(HookServer, DefaultBehaviour, ArchiveID, RoomJID, RemoteJID) ->
+    ejabberd_hooks:run_fold(mam_muc_get_behaviour, HookServer, DefaultBehaviour,
+                            [HookServer, ArchiveID, RoomJID, RemoteJID]).
+
+%%% @doc The `mam_muc_set_prefs` hook is called to set a room's archive preferences.
+%%%
+%%% It's possible to set which JIDs are always or never allowed in the archive
+-spec mam_muc_set_prefs(HookServer, InitialValue, ArchiveId, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {error, not_implemented},
+      ArchiveId :: undefined | mod_mam:archive_id(),
+      RoomJID :: jid:jid(),
+      DefaultMode :: mod_mam:archive_behaviour(),
+      AlwaysJIDs :: [jid:literal_jid()],
+      NeverJIDs :: [jid:literel_jid()],
+      Result :: any().
+mam_muc_set_prefs(HookServer, InitialValue, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    ejabberd_hooks:run_fold(mam_muc_set_prefs, HookServer, InitialValue,
+                            [HookServer, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
+
+%%% @doc The `mam_muc_get_prefs` hook is called to read the archive settings for a given room.
+-spec mam_muc_get_prefs(HookServer, InitialValue, ArchiveID, RoomJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {mod_mam:archive_behaviour(), [], []},
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      RoomJID :: jid:jid(),
+      Result :: mod_mam:preference() | {error, Reason :: term()}.
+mam_muc_get_prefs(HookServer, InitialValue, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_fold(mam_muc_get_prefs, HookServer,
+                            InitialValue,
+                            [HookServer, ArchiveID, RoomJID]).
+
+%%% @doc The `mam_muc_remove_archive` hook is called in order to remove the entire archive for a particular user
+-spec mam_muc_remove_archive(HookServer, InitialValue, ArchiveID, RoomJID) -> any() when
+      HookServer :: jid:lserver(),
+      InitialValue :: ok,
+      ArchiveID :: undefined | mod_mam:archive_id(),
+      RoomJID :: jid:jid().
+mam_muc_remove_archive(HookServer, InitialValue, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_fold(mam_muc_remove_archive, HookServer, InitialValue,
+                            [HookServer, ArchiveID, RoomJID]).
+
+%%% @doc The `mam_muc_lookup_messages` hook is to retrieve archived MUC messages for any given search parameters
+-spec mam_muc_lookup_messages(HookServer, InitialValue, Params) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {ok, {0, 0, []}},
+      Params :: map(),
+      Result :: {ok, mod_mam:lookup_result()}.
+mam_muc_lookup_messages(HookServer, InitialValue, Params) ->
+    ejabberd_hooks:run_fold(mam_muc_lookup_messages, HookServer, InitialValue,
+                            [HookServer, Params]).
+
+%%% @doc The `mam_muc_archive_message` hook is called in order to store the MUC message in the archive.
+-spec mam_muc_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+    Result when
+    HookServer :: jid:lserver(),
+    InitialValue :: ok,
+    MessageID :: mod_mam:message_id(),
+    ArchiveID :: undefined | mod_mam:archive_id(),
+    OwnerJID :: jid:jid(),
+    RemoteJID :: jid:jid(),
+    SenderJID :: jid:jid(),
+    Dir :: incoming | outgoing,
+    Packet :: term(),
+    Result :: ok | {error, timeout}.
+mam_muc_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+    ejabberd_hooks:run_fold(mam_muc_archive_message, HookServer, InitialValue,
+                            [HookServer, MessageID, ArchiveID, OwnerJID,
+                             RemoteJID, SenderJID, Dir, Packet]).
+
+%%% @doc The `mam_muc_flush_messages` hook is run after the async bulk write happens for MUC messages despite the result of the write
+-spec mam_muc_flush_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.
+mam_muc_flush_messages(HookServer, InitialValue, MessageCount) ->
+    ejabberd_hooks:run_fold(mam_muc_flush_messages, HookServer, InitialValue, [HookServer, MessageCount]).
+
+%% GDRP related hooks
+
+%%% @doc `get_mam_pm_gdpr_data` hook is called to provide a user's archive for GDPR purposes
+-spec get_mam_pm_gdpr_data(HookServer, InitialValue, JID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: [],
+      JID :: jid:jid(),
+      Result :: ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(HookServer, InitialValue, JID) ->
+    ejabberd_hooks:run_fold(get_mam_pm_gdpr_data, HookServer, InitialValue, [JID]).
+
+%%% @doc `get_mam_muc_gdpr_data` hook is called to provide a user's archive for GDPR purposes
+-spec get_mam_muc_gdpr_data(HookServer, InitialValue, JID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: [],
+      JID :: jid:jid(),
+      Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(HookServer, InitialValue, JID) ->
+    ejabberd_hooks:run_fold(get_mam_muc_gdpr_data, HookServer, InitialValue, [JID]).
