@@ -46,6 +46,7 @@
          get_password_s/2,
          get_passterm_with_authmodule/2,
          does_user_exist/1,
+         is_user_exists/1,
          is_user_exists/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
@@ -461,6 +462,14 @@ do_get_passterm_with_authmodule(LUser, LServer) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
+-spec is_user_exists(JID :: jid:jid()) -> boolean().
+is_user_exists(#jid{luser = <<>>}) ->
+    false;
+is_user_exists(#jid{luser = LUser, lserver = LServer}) ->
+    do_does_user_exist(LUser, LServer);
+is_user_exists(error) ->
+    false.
+
 -spec is_user_exists(User :: jid:user(),
                      Server :: jid:server()) -> boolean().
 is_user_exists(<<"">>, _) ->
@@ -471,8 +480,7 @@ is_user_exists(User, Server) ->
     do_does_user_exist(LUser, LServer).
 
 -spec does_user_exist(JID :: jid:jid()) -> boolean().
-does_user_exist(JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
+does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
     do_does_user_exist(LUser, LServer).
 
 do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
