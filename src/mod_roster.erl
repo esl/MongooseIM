@@ -247,6 +247,8 @@ jid_arg_to_lower(Jid) when is_binary(Jid) ->
 jid_arg_to_lower(Jid) ->
     jid:to_lower(Jid).
 
+-spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_iq(From, To, Acc, IQ) ->
     #iq{sub_el = SubEl} = IQ,
     #jid{lserver = LServer} = From,
@@ -257,6 +259,8 @@ process_iq(From, To, Acc, IQ) ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]}}
     end.
 
+-spec process_local_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq()}.
 process_local_iq(From, To, Acc, #iq{type = Type} = IQ) ->
     case Type of
         set ->
@@ -270,9 +274,11 @@ roster_hash(Items) ->
          R = #roster{groups = Grs} <- Items],
     sha:sha1_hex(term_to_binary(lists:sort(L))).
 
+-spec roster_versioning_enabled(jid:lserver()) -> boolean().
 roster_versioning_enabled(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, versioning, false).
 
+-spec roster_version_on_db(jid:lserver()) -> boolean().
 roster_version_on_db(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, store_current_id, false).
 
@@ -319,21 +325,19 @@ write_roster_version(LUser, LServer, InTransaction) ->
 %%     - roster versioning is used by server and client,
 %%       BUT the server isn't storing versions on db OR
 %%     - the roster version from client don't match current version.
+-spec process_iq_get(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
 process_iq_get(From, To, IQ) ->
     mongoose_iq:try_to_handle_iq(From, To, IQ, fun do_process_iq_get/3).
 
-do_process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
-    LServer = From#jid.lserver,
+-spec do_process_iq_get(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
+do_process_iq_get(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     AttrVer = exml_query:attr(SubEl, <<"ver">>), %% type binary() | undefined
     VersioningRequested = is_binary(AttrVer),
     VersioningEnabled = roster_versioning_enabled(LServer),
     VersionOnDb = roster_version_on_db(LServer),
-    Strategy = choose_get_user_roster_strategy(
-                 VersioningRequested, VersioningEnabled, VersionOnDb),
-    {ItemsToSend, VersionToSend} =
-        get_user_roster_based_on_version(Strategy, AttrVer, From, To),
-    IQ#iq{type = result,
-          sub_el = create_sub_el(ItemsToSend, VersionToSend)}.
+    Strategy = choose_get_user_roster_strategy(VersioningRequested, VersioningEnabled, VersionOnDb),
+    {ItemsToSend, VersionToSend} = get_user_roster_based_on_version(Strategy, AttrVer, From, To),
+    IQ#iq{type = result, sub_el = create_sub_el(ItemsToSend, VersionToSend)}.
 
 -spec choose_get_user_roster_strategy(VersioningRequested :: boolean(),
                                       VersioningEnabled :: boolean(),
@@ -370,8 +374,7 @@ get_user_roster_db_versioning(RequestedVersion, From, To)
 
 get_user_roster_hash_versioning(RequestedVersion, From, To)
     when is_binary(RequestedVersion) ->
-    RosterItems = get_roster_old(To#jid.lserver, From#jid.luser,
-                                 From#jid.lserver),
+    RosterItems = get_roster_old(To#jid.lserver, From#jid.luser, From#jid.lserver),
     case roster_hash(RosterItems) of
         RequestedVersion ->
             {false, false};
@@ -397,9 +400,7 @@ create_sub_el(Items, Version) ->
                      {<<"ver">>, Version}],
             children = Items}].
 
--spec get_user_roster(mongoose_acc:t(),
-                      {jid:luser(), jid:lserver()}) ->
-    mongoose_acc:t().
+-spec get_user_roster(mongoose_acc:t(), {jid:luser(), jid:lserver()}) -> mongoose_acc:t().
 get_user_roster(Acc, {LUser, LServer}) ->
     case mongoose_acc:get(roster, show_full_roster, false, Acc) of
         true ->
@@ -445,17 +446,20 @@ item_to_xml(Item) ->
     #xmlel{name = <<"item">>, attrs = Attrs4,
            children = SubEls}.
 
+-spec process_iq_set(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
     mongoose_hooks:roster_set(LServer, ok, From, To, SubEl),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
 
+-spec process_item_set(jid:jid(), jid:jid(), exml:element()) -> ok.
 process_item_set(From, To, #xmlel{attrs = Attrs} = El) ->
     JID1 = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
     do_process_item_set(JID1, From, To, El);
 process_item_set(_From, _To, _) -> ok.
 
+-spec do_process_item_set(error | jid:jid(), jid:jid(), jid:jid(), exml:element()) -> ok.
 do_process_item_set(error, _, _, _) -> ok;
 do_process_item_set(JID1,
                     #jid{user = User, luser = LUser, lserver = LServer} = From,
@@ -665,8 +669,7 @@ transaction(LServer, F) ->
                       Reason :: any()) ->
     mongoose_acc:t().
 in_subscription(Acc, User, Server, JID, Type, Reason) ->
-    Res = process_subscription(in, User, Server, JID, Type,
-                               Reason),
+    Res = process_subscription(in, User, Server, JID, Type, Reason),
     mongoose_acc:set(hook, result, Res, Acc).
 
 -spec out_subscription(Acc:: mongoose_acc:t(),

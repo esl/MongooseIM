@@ -23,7 +23,7 @@
                  jid,
                  name = <<>>,
                  subscription = none :: both | from | to | none | remove,
-                 ask = none,
+                 ask = none :: subscribe | unsubscribe | in | out | both | none,
                  groups = [],
                  askmessage = <<>>,
                  xs = []}).
