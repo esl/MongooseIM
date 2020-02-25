@@ -173,7 +173,7 @@ archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
-                    ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+                    mongoose_hooks:mam_drop_message(Host, ok),
                     {error, timeout}
             end
     end.
@@ -258,13 +258,12 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
+            mongoose_hooks:mam_drop_messages(Host, ok, MessageCount),
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
     spawn_link(fun() ->
-                       ejabberd_hooks:run(mam_muc_flush_messages, Host,
-                                          [Host, MessageCount])
+                       mongoose_hooks:mam_muc_flush_messages(Host, ok, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
