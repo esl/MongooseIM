@@ -158,8 +158,14 @@ parse_api_version(_) ->
 %% Create notification for API v2 and v3
 make_notification(Notification, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
-    OptionalKeys = [<<"mode">>, <<"priority">>, <<"time_to_live">>,
-                    <<"mutable_content">>, <<"topic">>, <<"tags">>],
+    %% The full list of supported optional parameters can be found here:
+    %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
+    %%
+    %% Note that <<"tags">> parameter is explicitely excluded to avoid any
+    %% security issues. User should not be allowed to select pools other than
+    %% prod and dev (see <<"mode">> parameter description).
+    OptionalKeys = [<<"mode">>, <<"priority">>, <<"topic">>,
+                    <<"mutable_content">>, <<"time_to_live">>],
     OptionalParameters = maps:with(OptionalKeys, Options),
     NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
 
