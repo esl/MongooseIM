@@ -8,7 +8,7 @@ Also `mod_muc_log` is a logging submodule.
 ### Options
 * `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under.
  `@HOST@` is replaced with each served domain.
-* `backend` (atom, default: `mnesia`): Storage backend. Currently only `mnesia` is supported.
+* `backend` (atom, default: `mnesia`): Storage backend, `mnesia` and `rdbms` are supported.
 * `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
 * `access_create` (atom, default: `all`): Who is allowed to create rooms.
 * `access_admin` (atom, default: `none`): Who is the administrator in all rooms.
