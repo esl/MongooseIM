@@ -411,7 +411,7 @@ search_group_info(State, Group) ->
                         end
                 end,
     AuthChecker = case State#state.auth_check of
-                      true -> fun ejabberd_auth:is_user_exists/2;
+                      true -> fun(U, S) -> ejabberd_auth:is_user_exists(jid:make(U, S, <<>>)) end;
                       _ -> fun (_U, _S) -> true end
                   end,
     Host = State#state.host,

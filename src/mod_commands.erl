@@ -242,22 +242,26 @@ registered_users(Host) ->
     [jid:to_binary(US) || US <- SUsers].
 
 register(Host, User, Password) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:try_register(JID, Password) of
         {error, exists} ->
-            String = io_lib:format("User ~s@~s already registered at node ~p",
-                                   [User, Host, node()]),
+            String = io_lib:format("User ~s already registered at node ~p",
+                                   [jid:to_binary(JID), node()]),
             throw({exists, String});
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
             throw({error, String});
         _ ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered",
-                                         [User, Host]))
+            <<"User ", (jid:to_binary(JID))/binary, "successfully registered">>
     end.
 
 unregister(Host, User) ->
-    ejabberd_auth:remove_user(User, Host),
+    case jid:make(User, Host, <<>>) of
+        #jid{} = JID ->
+            ejabberd_auth:remove_user(JID);
+        error -> ok
+    end,
     <<"">>.
 
 send_message(From, To, Body) ->
@@ -349,7 +353,8 @@ get_recent_messages(Caller, With, Before, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    ejabberd_auth:set_password(User, Host, Password),
+    JID = jid:make(User, Host, <<>>),
+    ejabberd_auth:set_password(JID, Password),
     ok.
 
 record_to_map({Id, From, Msg}) ->

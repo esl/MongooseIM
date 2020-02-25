@@ -123,9 +123,10 @@ commands() ->
 -spec get_vcard(jid:user(), jid:server(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            get_vcard_content(User, Host, [Name]);
+            get_vcard_content(JID, [Name]);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -133,9 +134,10 @@ get_vcard(User, Host, Name) ->
 -spec get_vcard(jid:user(), jid:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            get_vcard_content(User, Host, [Name, Subname]);
+            get_vcard_content(JID, [Name, Subname]);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -143,9 +145,10 @@ get_vcard(User, Host, Name, Subname) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            set_vcard_content(User, Host, [Name], SomeContent);
+            set_vcard_content(JID, [Name], SomeContent);
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -153,9 +156,10 @@ set_vcard(User, Host, Name, SomeContent) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()], [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            set_vcard_content(User, Host, [Name, Subname], SomeContent);
+            set_vcard_content(JID, [Name, Subname], SomeContent);
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -172,10 +176,10 @@ get_module_resource(Server) ->
     end.
 
 
--spec get_vcard_content(jid:user(), jid:server(), any())
-                       -> {error, string()} | list(binary()).
-get_vcard_content(User, Server, Data) ->
-    JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
+-spec get_vcard_content(jid:jid(), any()) ->
+    {error, string()} | list(binary()).
+get_vcard_content(#jid{lserver = LServer} = NoResJID, Data) ->
+    JID = jid:replace_resource(NoResJID, list_to_binary(get_module_resource(LServer))),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => JID,
@@ -203,12 +207,11 @@ get_vcard([Data1, Data2], A1) ->
 get_vcard([Data], A1) ->
     exml_query:subelements(A1, Data).
 
--spec set_vcard_content(jid:user(), jid:server(), Data :: [binary()],
+-spec set_vcard_content(jid:jid(), Data :: [binary()],
                         ContentList :: binary() | [binary()]) -> {ok, string()}.
-set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
-    set_vcard_content(U, S, D, [SomeContent]);
-set_vcard_content(User, Server, Data, ContentList) ->
-    JID = jid:make(User, Server, <<>>),
+set_vcard_content(JID, D, SomeContent) when is_binary(SomeContent) ->
+    set_vcard_content(JID, D, [SomeContent]);
+set_vcard_content(JID, Data, ContentList) ->
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => JID,

@@ -254,9 +254,8 @@ srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
-                       _FromJID, ToJID, _Packet, initial_check) ->
-    ShouldBeStored = ejabberd_auth:is_user_exists(ToJID),
-    case ShouldBeStored of
+                       _FromJID, #jid{} = ToJID, _Packet, initial_check) ->
+    case ejabberd_auth:is_user_exists(ToJID) of
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;

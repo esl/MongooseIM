@@ -198,13 +198,13 @@ process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
     case From of
-        #jid{luser = LUser} ->
+        #jid{user = User} ->
                 case ejabberd_auth:is_user_exists(From) of
                     true ->
-                        {true, [#xmlcdata{content = LUser}],
+                        {true, [#xmlcdata{content = User}],
                          [#xmlel{name = <<"registered">>}]};
                     false ->
-                        {false, [#xmlcdata{content = LUser}], []}
+                        {false, [#xmlcdata{content = User}], []}
                 end;
             _ ->
                 {false, [], []}

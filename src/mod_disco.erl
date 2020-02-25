@@ -380,10 +380,10 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
-is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
-                       #jid{luser=LUser, lserver=LServer} = _To) ->
+is_presence_subscribed(#jid{luser = User, lserver = Server} = _From,
+                       #jid{luser = LUser, lserver = LServer} = _To) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
-                            lserver => From#jid.lserver,
+                            lserver => Server,
                             element => undefined }),
     A2 = mongoose_hooks:roster_get(Server, A, User, Server),
     Roster = mongoose_acc:get(roster, items, [], A2),
@@ -430,8 +430,8 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                       To :: jid:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [exml:element()].
-get_sm_identity(Acc, _From, #jid{luser = LUser, lserver = LServer}, _Node, _Lang) ->
-    Acc ++ case ejabberd_auth:is_user_exists(LUser, LServer) of
+get_sm_identity(Acc, _From, #jid{} = UserJID, _Node, _Lang) ->
+    Acc ++ case ejabberd_auth:is_user_exists(UserJID) of
                true ->
                    [#xmlel{name = <<"identity">>,
                            attrs = [{<<"category">>, <<"account">>},

@@ -154,24 +154,23 @@ do_authorize_loop([M | Modules], Creds) ->
 
 
 %% @doc Check if the user and password can login in server.
--spec check_password(JID :: jid:jid(),
-                     Password :: binary()) -> boolean().
+-spec check_password(JID :: jid:jid() | error, Password :: binary()) -> boolean().
 check_password(error, _Password) ->
     false;
-check_password(JID, Password) ->
+check_password(#jid{} = JID, Password) ->
     case check_password_with_authmodule(JID, Password) of
         {true, _AuthModule} -> true;
         false -> false
     end.
 
 %% @doc Check if the user and password can login in server.
--spec check_password(JID :: jid:jid(),
+-spec check_password(JID :: jid:jid() | error,
                      Password :: binary(),
                      Digest :: binary(),
-                     DigestGen :: fun()) -> boolean().
+                     DigestGen :: fun((binary()) -> binary())) -> boolean().
 check_password(error, _, _, _) ->
     false;
-check_password(JID, Password, Digest, DigestGen) ->
+check_password(#jid{} = JID, Password, Digest, DigestGen) ->
     case check_password_with_authmodule(JID, Password, Digest, DigestGen) of
         {true, _AuthModule} -> true;
         false -> false
@@ -180,42 +179,17 @@ check_password(JID, Password, Digest, DigestGen) ->
 %% @doc Check if the user and password can login in server.
 %% The user can login if at least an authentication method accepts the user
 %% and the password.
--spec check_password_with_authmodule(JID :: jid:jid(),
-                                     Password :: binary()
-                                     ) -> 'false' | {'true', authmodule()}.
-check_password_with_authmodule(JID, Password) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_check_password_with_authmodule(LUser, LServer, Password).
-
--spec do_check_password_with_authmodule(LUser :: jid:luser(),
-                                        LServer :: jid:lserver(),
-                                        Password :: binary()
-                                       ) -> 'false' | {'true', authmodule()}.
-do_check_password_with_authmodule(LUser, LServer, _)
-    when LUser =:= error; LServer =:= error ->
-    false;
-do_check_password_with_authmodule(LUser, LServer, Password) ->
+-spec check_password_with_authmodule(JID :: jid:jid(), Password :: binary()) ->
+    false | {true, authmodule()}.
+check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password) ->
     check_password_loop(auth_modules(LServer), [LUser, LServer, Password]).
 
 -spec check_password_with_authmodule(JID :: jid:jid(),
                                      Password :: binary(),
                                      Digest :: binary(),
-                                     DigestGen :: fun()
+                                     DigestGen :: fun((binary()) -> binary())
                                      ) -> 'false' | {'true', authmodule()}.
-check_password_with_authmodule(JID, Password, Digest, DigestGen) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen).
-
--spec do_check_password_with_authmodule(LUser :: jid:luser(),
-                                        LServer :: jid:lserver(),
-                                        Password :: binary(),
-                                        Digest :: binary(),
-                                        DigestGen :: fun()
-                                     ) -> 'false' | {'true', authmodule()}.
-do_check_password_with_authmodule(LUser, LServer, _, _, _)
-    when LUser =:= error; LServer =:= error ->
-    false;
-do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen) ->
+check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(LServer), [LUser, LServer, Password,
                                                Digest, DigestGen]).
 
@@ -237,24 +211,19 @@ do_check_password_loop([AuthModule | AuthModules], Args) ->
             do_check_password_loop(AuthModules, Args)
     end.
 
--spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
+-spec check_digest(binary(), fun((binary()) -> binary()), binary(), binary()) -> boolean().
 check_digest(<<>>, _, <<>>, _) ->
     false; %%empty digest and password
 check_digest(Digest, DigestGen, _Password, Passwd) ->
     Digest == DigestGen(Passwd).
 
--spec set_password(JID :: jid:jid(),
-                   Password :: binary()
-                  ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
+-spec set_password(JID :: jid:jid(), Password :: binary()) ->
+    ok | {error, empty_password | not_allowed | invalid_jid}.
 set_password(_, <<"">>) ->
     {error, empty_password};
-set_password(JID, Password) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_set_password(LUser, LServer, Password).
-
-do_set_password(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
+set_password(error, _) ->
     {error, invalid_jid};
-do_set_password(LUser, LServer, Password) ->
+set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
     lists:foldl(
       fun(M, {error, _}) ->
               M:set_password(LUser, LServer, Password);
@@ -263,13 +232,12 @@ do_set_password(LUser, LServer, Password) ->
       end, {error, not_allowed}, auth_modules(LServer)).
 
 
--spec try_register(JID :: jid:jid(),
-                   Password :: binary()
-                   ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
-try_register(error, <<"">>) ->
-    {error, invalid_jid};
+-spec try_register(JID :: jid:jid(), Password :: binary()) ->
+    ok | {error, exists | not_allowed | invalid_jid | null_password}.
 try_register(_, <<"">>) ->
     {error, null_password};
+try_register(error, _) ->
+    {error, invalid_jid};
 try_register(JID, Password) ->
     Exists = is_user_exists(JID),
     do_try_register_if_does_not_exist(Exists, JID, Password).
@@ -312,8 +280,7 @@ dirty_get_registered_users() ->
 
 
 %% @doc Registered users list do not include anonymous users logged
--spec get_vh_registered_users(Server :: jid:server()
-                             ) -> [jid:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jid:server()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(Server) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer).
@@ -327,8 +294,8 @@ do_get_vh_registered_users(LServer) ->
       end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users(Server :: jid:server(),
-                              Opts :: [any()]) -> [jid:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jid:server(), Opts :: [any()]) ->
+    [jid:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer, Opts).
@@ -342,8 +309,7 @@ do_get_vh_registered_users(LServer, Opts) ->
         end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users_number(Server :: jid:server()
-                                    ) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:server()) -> integer().
 get_vh_registered_users_number(Server) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users_number(LServer).
@@ -358,8 +324,7 @@ do_get_vh_registered_users_number(LServer) ->
             end, auth_modules(LServer))).
 
 
--spec get_vh_registered_users_number(Server :: jid:server(),
-                                     Opts :: list()) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:server(), Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users_number(LServer, Opts).
@@ -375,73 +340,58 @@ do_get_vh_registered_users_number(LServer, Opts) ->
 
 
 %% @doc Get the password of the user.
--spec get_password(JID :: jid:jid()) -> binary() | false.
-get_password(JID) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_get_password(LUser, LServer).
-
-do_get_password(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    false;
-do_get_password(LUser, LServer) ->
+-spec get_password(JID :: jid:jid() | error) -> binary() | false.
+get_password(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, false) ->
             M:get_password(LUser, LServer);
             (_M, Password) ->
                 Password
-        end, false, auth_modules(LServer)).
+        end, false, auth_modules(LServer));
+get_password(error) ->
+    false.
 
 
--spec get_password_s(JID :: jid:jid()) -> binary().
-get_password_s(JID) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_get_password_s(LUser, LServer).
-
-do_get_password_s(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    <<"">>;
-do_get_password_s(LUser, LServer) ->
+-spec get_password_s(JID :: jid:jid() | error) -> binary().
+get_password_s(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, <<"">>) ->
             M:get_password_s(LUser, LServer);
             (_M, Password) ->
                 Password
-        end, <<"">>, auth_modules(LServer)).
+        end, <<"">>, auth_modules(LServer));
+get_password_s(error) ->
+    <<"">>.
 
 %% @doc Get the password(like thing) of the user and the auth module.
--spec get_passterm_with_authmodule(jid:jid()) -> R when
+-spec get_passterm_with_authmodule(error | jid:jid()) -> R when
       R :: {passterm(), authmodule()}
          | {'false', 'none'}.
-get_passterm_with_authmodule(JID) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_get_passterm_with_authmodule(LUser, LServer).
-
-do_get_passterm_with_authmodule(LUser, LServer)
-    when LUser =:= error; LServer =:= error ->
-    {false, none};
-do_get_passterm_with_authmodule(LUser, LServer) ->
+get_passterm_with_authmodule(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, {false, _}) ->
             {M:get_password(LUser, LServer), M};
             (_M, {Password, AuthModule}) ->
                 {Password, AuthModule}
-        end, {false, none}, auth_modules(LServer)).
+        end, {false, none}, auth_modules(LServer));
+get_passterm_with_authmodule(error) ->
+    {false, none}.
 
-%% @doc Returns true if the user exists in the DB or if an anonymous user is
-%% logged under the given name
--spec is_user_exists(JID :: jid:jid()) -> boolean().
+%% @doc Returns true if the user exists in the DB
+%% or if an anonymous user is logged under the given name
+%% The difference between `is_user_exists/1` and `does_user_exist/1` is that
+%% the former is less string with the input parameters,
+%% and the latter is timed and counted within metrics.
+-spec is_user_exists(JID :: jid:jid() | error) -> boolean().
 is_user_exists(#jid{luser = <<>>}) ->
     false;
-is_user_exists(#jid{luser = LUser, lserver = LServer}) ->
-    do_does_user_exist(LUser, LServer);
+is_user_exists(#jid{} = JID) ->
+    does_user_exist(JID);
 is_user_exists(error) ->
     false.
 
 -spec does_user_exist(JID :: jid:jid()) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
-    do_does_user_exist(LUser, LServer).
-
-do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    false;
-do_does_user_exist(LUser, LServer) ->
     timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]).
 
 does_user_exist_timed(LUser, LServer) ->
@@ -461,21 +411,14 @@ does_user_exist_timed(LUser, LServer) ->
 
 %% Check if the user exists in all authentications module except the module
 %% passed as parameter
--spec is_user_exists_in_other_modules(Module :: authmodule(),
-                                      JID :: jid:jid()
-                                      ) -> boolean() | 'maybe'.
-is_user_exists_in_other_modules(Module, JID) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_does_user_exist_in_other_modules(Module, LUser, LServer).
-
-do_does_user_exist_in_other_modules(_, LUser, LServer)
-    when LUser =:= error; LServer =:= error ->
-    false;
-do_does_user_exist_in_other_modules(Module, LUser, LServer) ->
+-spec is_user_exists_in_other_modules(Module :: authmodule(), JID :: jid:jid() | error) ->
+    boolean() | 'maybe'.
+is_user_exists_in_other_modules(Module, #jid{luser = LUser, lserver = LServer}) ->
     does_user_exist_in_other_modules_loop(
         auth_modules(LServer)--[Module],
-        LUser, LServer).
-
+        LUser, LServer);
+is_user_exists_in_other_modules(_M, error) ->
+    false.
 
 does_user_exist_in_other_modules_loop([], _User, _Server) ->
     false;
@@ -495,14 +438,9 @@ does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(JID :: jid:jid()) -> ok | error | {error, not_allowed}.
-remove_user(JID) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_remove_user(LUser, LServer).
-
-do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    error;
-do_remove_user(LUser, LServer) ->
+-spec remove_user(JID :: jid:jid()) -> ok | {error, not_allowed};
+                 (error) -> error.
+remove_user(#jid{luser = LUser, lserver = LServer}) ->
     AuthModules = auth_modules(LServer),
     RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
     case lists:any(fun(El) -> El == ok end, RemoveResult) of
@@ -516,23 +454,17 @@ do_remove_user(LUser, LServer) ->
             ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
                        [LUser, LServer, AuthModules]),
             {error, not_allowed}
-    end.
+    end;
+remove_user(error) -> error.
 
 %% @doc Try to remove user if the provided password is correct.
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
 %% if no method returns 'ok' then it returns the error message
 %% indicated by the last method attempted.
--spec remove_user(JID :: jid:jid(),
-                  Password :: binary()
-                  ) -> ok | not_exists | not_allowed | bad_request | error.
-remove_user(JID, Password) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    do_remove_user(LUser, LServer, Password).
-
-do_remove_user(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
-    error;
-do_remove_user(LUser, LServer, Password) ->
+-spec remove_user(JID :: jid:jid(), Password :: binary()) ->
+    ok | not_exists | not_allowed | bad_request | error.
+remove_user(#jid{luser = LUser, lserver = LServer}, Password) ->
     R = lists:foldl(
         fun(_M, ok = Res) ->
             Res;
@@ -549,7 +481,8 @@ do_remove_user(LUser, LServer, Password) ->
         _ ->
             none
     end,
-    R.
+    R;
+remove_user(error, _) -> error.
 
 %% @doc Calculate informational entropy.
 -spec entropy(iolist()) -> float().
@@ -678,35 +611,6 @@ get_type_information(_IOContent, [Digit, Printable, LowLetter, HiLetter, _Other]
 %       " is deprecated, please use the #jid{} equivalent instead",
 %       [{log_level, warning}]),
 %     check_password(jid:make(User, Server, <<>>), Password, Digest, DigestGen).
-
-% %% @doc Check if the user and password can login in server.
-% %% The user can login if at least an authentication method accepts the user
-% %% and the password.
-% -spec check_password_with_authmodule(User :: binary(),
-%                                      Server :: binary(),
-%                                      Password :: binary()
-%                                      ) -> 'false' | {'true', authmodule()}.
-% check_password_with_authmodule(User, Server, Password) ->
-%     mongoose_deprecations:log(
-%       {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-%       "The function ejabberd_auth:check_password_with_authmodule/3"
-%       " is deprecated, please use the #jid{} equivalent instead",
-%       [{log_level, warning}]),
-%     check_password_with_authmodule(jid:make(User, Server, <<>>), Password).
-
-% -spec check_password_with_authmodule(User :: binary(),
-%                                      Server :: binary(),
-%                                      Password :: binary(),
-%                                      Digest :: binary(),
-%                                      DigestGen :: fun()
-%                                      ) -> 'false' | {'true', authmodule()}.
-% check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
-%     mongoose_deprecations:log(
-%       {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-%       "The function ejabberd_auth:check_password_with_authmodule/5"
-%       " is deprecated, please use the #jid{} equivalent instead",
-%       [{log_level, warning}]),
-%     check_password_with_authmodule(jid:make(User, Server, <<>>), Password, Digest, DigestGen).
 
 % -spec set_password(User :: jid:user(),
 %                    Server :: jid:server(),

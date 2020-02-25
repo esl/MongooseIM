@@ -220,9 +220,9 @@ check_password(LUser, LServer, Password) ->
 check_password(LUser, LServer, _Password, _Digest, _DigestGen) ->
     %% We refuse login for registered accounts (They cannot logged but
     %% they however are "reserved")
-    case ejabberd_auth:is_user_exists_in_other_modules(?MODULE,
-                                                       LUser, LServer) of
-        %% If user exists in other module, reject anonymous authentication
+    case ejabberd_auth:is_user_exists_in_other_modules(
+           ?MODULE, jid:make_noprep(LUser, LServer, <<>>)) of
+        %% If user exists in other module, reject anonnymous authentication
         true  -> false;
         %% If we are not sure whether the user exists in other module, reject anon auth
         maybe  -> false;

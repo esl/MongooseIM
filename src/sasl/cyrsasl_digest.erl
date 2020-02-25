@@ -99,7 +99,7 @@ authorize_if_uri_valid(State, KeyVals, Nonce) ->
 maybe_authorize(UserName, KeyVals, Nonce, State) ->
     AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
     LServer = mongoose_credentials:lserver(State#state.creds),
-    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
+    case ejabberd_auth:get_passterm_with_authmodule(jid:make(UserName, LServer, <<>>)) of
         {false, _} ->
             {error, <<"not-authorized">>, UserName};
         {Passwd, AuthModule} ->

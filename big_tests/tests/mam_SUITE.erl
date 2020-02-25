@@ -2850,13 +2850,14 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  ok = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+  JID = mongoose_helper:make_jid(AdminU, AdminS, <<>>),
+  ok = rpc(mim(), ejabberd_auth, try_register, [JID, AdminP]),
   %% admin user already registered
   true = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, AdminS]),
   false = rpc(mim(), ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
   false = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
   %% cleanup
-  ok = rpc(mim(), ejabberd_auth, remove_user, [AdminU, AdminS]).
+  ok = rpc(mim(), ejabberd_auth, remove_user, [JID]).
 
 %% This function supports only one device, one user.
 %% We don't send initial presence to avoid presence broadcasts between resources

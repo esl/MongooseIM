@@ -375,7 +375,8 @@ verify_format(GroupName, {_User, Props}) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Props)),
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
-    SPassword = rpc(mim(), ejabberd_auth, get_password, [Username, Server]),
+    JID = mongoose_helper:make_jid(Username, Server, <<>>),
+    SPassword = rpc(mim(), ejabberd_auth, get_password, [JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->

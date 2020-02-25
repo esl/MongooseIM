@@ -31,6 +31,7 @@ new(Server) ->
             #mongoose_credentials{lserver = LServer}
     end.
 
+-spec new_from_stringprepped(jid:lserver()) -> mongoose_credentials:t().
 new_from_stringprepped(LServer) when is_binary(LServer) ->
     #mongoose_credentials{lserver = LServer}.
 

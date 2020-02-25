@@ -41,6 +41,7 @@
 
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
+-include("jlib.hrl").
 
 %%%
 %%% Register commands
@@ -101,9 +102,10 @@ commands() ->
 -spec set_password(jid:user(), jid:server(), binary()) ->
     {error, string()} | {ok, string()}.
 set_password(User, Host, Password) ->
-    case ejabberd_auth:set_password(User, Host, Password) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:set_password(JID, Password) of
         ok ->
-            {ok, io_lib:format("Password for user ~s@~s successfully changed", [User, Host])};
+            {ok, io_lib:format("Password for user ~s successfully changed", [jid:to_binary(JID)])};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -111,28 +113,30 @@ set_password(User, Host, Password) ->
 -spec check_password(jid:user(), jid:server(), binary()) ->  {Res, string()} when
     Res :: ok | incorrect | user_does_not_exist.
 check_password(User, Host, Password) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            case ejabberd_auth:check_password(User, Host, Password) of
+            case ejabberd_auth:check_password(JID, Password) of
                 true ->
-                    {ok, io_lib:format("Password '~s' for user ~s@~s is correct",
-                                       [Password, User, Host])};
+                    {ok, io_lib:format("Password '~s' for user ~s is correct",
+                                       [Password, jid:to_binary(JID)])};
                 false ->
-                    {incorrect, io_lib:format("Password '~s' for user ~s@~s is incorrect",
-                                              [Password, User, Host])}
+                    {incorrect, io_lib:format("Password '~s' for user ~s is incorrect",
+                                              [Password, jid:to_binary(JID)])}
             end;
         false ->
             {user_does_not_exist,
-            io_lib:format("Password '~s' for user ~s@~s is incorrect because this user does not"
+            io_lib:format("Password '~s@~s' for user ~s is incorrect because this user does not"
                           " exist", [Password, User, Host])}
     end.
 
 -spec check_account(jid:user(), jid:server()) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 check_account(User, Host) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            {ok, io_lib:format("User ~s@~s exists", [User, Host])};
+            {ok, io_lib:format("User ~s exists", [jid:to_binary(JID)])};
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -142,7 +146,7 @@ check_account(User, Host) ->
                           Hash :: binary(), Method :: string()) ->
     {error, string()} | {ok, string()} | {incorrect, string()}.
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
-    AccountPass = ejabberd_auth:get_password_s(User, Host),
+    AccountPass = ejabberd_auth:get_password_s(jid:make(User, Host, <<>>)),
     AccountPassHash = case HashMethod of
         "md5" -> get_md5(AccountPass);
         "sha" -> get_sha(AccountPass);
@@ -219,15 +223,15 @@ delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
     %% Check if the user is logged
     JID = jid:make(LUser, LServer, <<>>),
     case ejabberd_sm:get_user_resources(JID) of
-        [] -> delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder);
+        [] -> delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder);
         _ -> false
     end.
 
--spec delete_old_user_if_nonactive_long_enough(LUser :: jid:luser(),
-                                               LServer :: jid:lserver(),
+-spec delete_old_user_if_nonactive_long_enough(JID :: jid:jid(),
                                                TimeStampNow :: non_neg_integer(),
                                                SecOlder :: non_neg_integer()) -> boolean().
-delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder) ->
+delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
+    {LUser, LServer} = jid:to_lus(JID),
     case mod_last:get_last_info(LUser, LServer) of
         {ok, TimeStamp, _Status} ->
             %% get his age
@@ -240,45 +244,44 @@ delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder)
                 %% older:
                 false ->
                     %% remove the user
-                    ejabberd_auth:remove_user(LUser, LServer),
+                    ejabberd_auth:remove_user(JID),
                     true
             end;
         not_found ->
-            ejabberd_auth:remove_user(LUser, LServer),
+            ejabberd_auth:remove_user(JID),
             true
     end.
 
 -spec ban_account(jid:user(), jid:server(), binary() | string()) ->
     {ok, string()} | {error, string()}.
 ban_account(User, Host, ReasonText) ->
+    JID = jid:make(User, Host, <<>>),
     Reason = service_admin_extra_sessions:prepare_reason(ReasonText),
-    kick_sessions(User, Host, Reason),
-    case set_random_password(User, Host, Reason) of
+    kick_sessions(JID, Reason),
+    case set_random_password(JID, Reason) of
         ok ->
-            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s",
-                               [User, Host, ReasonText])};
+            {ok, io_lib:format("User ~s successfully banned with reason: ~s",
+                               [jid:to_binary(JID), ReasonText])};
         {error, ErrorReason} ->
             {error, ErrorReason}
     end.
 
--spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
-kick_sessions(User, Server, Reason) ->
-    JID = jid:make(User, Server, <<>>),
+-spec kick_sessions(jid:jid(), binary()) -> [mongoose_acc:t()].
+kick_sessions(#jid{luser = LUser, lserver = LServer} = JID, Reason) ->
     lists:map(
         fun(Resource) ->
-                service_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
+                service_admin_extra_sessions:kick_this_session(LUser, LServer, Resource, Reason)
         end,
         ejabberd_sm:get_user_resources(JID)).
 
 
--spec set_random_password(User, Server, Reason) -> Result when
-      User :: jid:user(),
-      Server :: jid:server(),
+-spec set_random_password(JID, Reason) -> Result when
+      JID :: jid:jid(),
       Reason :: binary(),
       Result :: 'ok' | {error, any()}.
-set_random_password(User, Server, Reason) ->
+set_random_password(JID, Reason) ->
     NewPass = build_random_password(Reason),
-    ejabberd_auth:set_password(User, Server, NewPass).
+    ejabberd_auth:set_password(JID, NewPass).
 
 
 -spec build_random_password(Reason :: binary()) -> binary().

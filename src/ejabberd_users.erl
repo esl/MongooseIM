@@ -71,7 +71,7 @@ start_link(ProcName, Host) ->
 
 
 -spec does_user_exist(LUser :: jid:luser(),
-                     LServer :: jid:lserver() | string()) -> boolean().
+                      LServer :: jid:lserver() | string()) -> boolean().
 does_user_exist(LUser, LServer) ->
     case does_cached_user_exist(LUser, LServer) of
         true -> true;
@@ -173,7 +173,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec does_stored_user_exist(jid:luser(), jid:lserver()) -> boolean().
 does_stored_user_exist(LUser, LServer) ->
-    ejabberd_auth:is_user_exists(LUser, LServer)
+    ejabberd_auth:is_user_exists(jid:make(LUser, LServer, <<>>))
     andalso not is_anonymous_user(LUser, LServer).
 
 

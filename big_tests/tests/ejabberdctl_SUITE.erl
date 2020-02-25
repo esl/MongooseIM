@@ -206,7 +206,8 @@ end_per_testcase(delete_old_users, Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
-                rpc(mim(), ejabberd_auth, try_register, [Username, Domain, Pass])
+                JID = mongoose_helper:make_jid(Username, Domain, <<>>),
+                rpc(mim(), ejabberd_auth, try_register, [JID, Pass])
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
@@ -1128,7 +1129,8 @@ set_last(User, Domain, TStamp) ->
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({User, Domain}) ->
-                rpc(mim(), ejabberd_auth, remove_user, [User, Domain])
+                JID = mongoose_helper:make_jid(User, Domain, <<>>),
+                rpc(mim(), ejabberd_auth, remove_user, [JID])
         end, get_registered_users()).
 
 %%-----------------------------------------------------------------

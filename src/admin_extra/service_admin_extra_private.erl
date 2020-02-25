@@ -68,16 +68,16 @@ commands() ->
 -spec private_get(jid:user(), jid:server(), binary(), binary()) ->
     {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    JID = jid:make(Username, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            do_private_get(Username, Host, Element, Ns);
+            do_private_get(JID, Element, Ns);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [Username, Host])}
     end.
 
-do_private_get(Username, Host, Element, Ns) ->
-    From = jid:make(Username, Host, <<"">>),
-    To = jid:make(Username, Host, <<"">>),
+do_private_get(JID, Element, Ns) ->
+    From = To = JID,
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
                   attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
@@ -108,18 +108,18 @@ private_set(Username, Host, ElementString) ->
 
 
 private_set2(Username, Host, Xml) ->
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    JID = jid:make(Username, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            do_private_set2(Username, Host, Xml);
+            do_private_set2(JID, Xml);
         false ->
-            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [Username, Host])}
+            {user_does_not_exist, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
 
-do_private_set2(Username, Host, Xml) ->
+do_private_set2(#jid{lserver = Host} = JID, Xml) ->
     case is_private_module_loaded(Host) of
         true ->
-            From = jid:make(Username, Host, <<"">>),
-            To = jid:make(Username, Host, <<"">>),
+            From = To = JID,
             IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
                   #xmlel{ name = <<"query">>,
                           attrs = [{<<"xmlns">>, ?NS_PRIVATE}],

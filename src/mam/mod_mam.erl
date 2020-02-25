@@ -461,10 +461,10 @@ handle_get_message_form(_From=#jid{lserver = Host}, _ArcJID=#jid{}, IQ=#iq{}) ->
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
-    #jid{luser = LUser, lserver = LServer} = ToJID,
+    #jid{lserver = LServer} = ToJID,
     ShouldBeStored = is_archivable_message(LServer, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
-        andalso ejabberd_auth:is_user_exists(LUser, LServer),
+        andalso ejabberd_auth:is_user_exists(ToJID),
     case ShouldBeStored of
         true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy

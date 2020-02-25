@@ -82,9 +82,10 @@ put_user(Data, Bindings) ->
 delete_user(Bindings) ->
     Host = gen_mod:get_opt(host, Bindings),
     Username = gen_mod:get_opt(username, Bindings),
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    JID = jid:make(Username, Host, <<>>),
+    case ejabberd_auth:is_user_exists(JID) of
         true ->
-            maybe_delete_user(Username, Host);
+            maybe_delete_user(JID);
         false ->
             {error, not_found}
     end.
@@ -93,25 +94,26 @@ delete_user(Bindings) ->
 %% internal functions
 %%--------------------------------------------------------------------
 maybe_register_user(Username, Host, Password) ->
-    case ejabberd_auth:try_register(Username, Host, Password) of
+    JID = jid:make(Username, Host, <<>>),
+    case ejabberd_auth:try_register(JID, Password) of
         {error, not_allowed} ->
             ?ERROR;
         {error, exists} ->
-            maybe_change_password(Username, Host, Password);
+            maybe_change_password(JID, Password);
         _ ->
             ok
     end.
 
-maybe_change_password(Username, Host, Password) ->
-    case ejabberd_auth:set_password(Username, Host, Password) of
+maybe_change_password(JID, Password) ->
+    case ejabberd_auth:set_password(JID, Password) of
         {error, _} ->
             ?ERROR;
         ok ->
             ok
     end.
 
-maybe_delete_user(Username, Host) ->
-    case ejabberd_auth:remove_user(Username, Host) of
+maybe_delete_user(JID) ->
+    case ejabberd_auth:remove_user(JID) of
         ok ->
             ok;
         _ ->

@@ -199,7 +199,7 @@ kick_session(User, Server, Resource, ReasonText) ->
         Reason :: binary()) -> mongoose_acc:t().
 kick_this_session(User, Server, Resource, Reason) ->
     ejabberd_sm:route(
-        jid:make(<<"">>, <<"">>, <<"">>),
+        jid:make_noprep(<<>>, <<>>, <<>>),
         jid:make(User, Server, Resource),
         {broadcast, {exit, Reason}}).
 

@@ -148,7 +148,7 @@ get_vcard(LUser, LServer) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
     {ok, State} = gen_server:call(Proc, get_state),
     LServer = State#state.serverhost,
-    case ejabberd_auth:is_user_exists(LUser, LServer) of
+    case ejabberd_auth:is_user_exists(jid:make_noprep(LUser, LServer, <<>>)) of
         true ->
             VCardMap = State#state.vcard_map,
             case find_ldap_user(LUser, State) of
@@ -408,7 +408,7 @@ attrs_to_item_xml(Attrs, #state{uids = UIDs} = State) ->
 make_user_item_if_exists(Username, Attrs,
                          #state{serverhost = LServer, search_reported = SearchReported,
                                 vcard_map = VCardMap, binary_search_fields = BinFields}) ->
-    case ejabberd_auth:is_user_exists(Username, LServer) of
+    case ejabberd_auth:is_user_exists(jid:make(Username, LServer, <<>>)) of
         true ->
             RFields = lists:map(fun ({_, VCardName}) ->
                                         {VCardName, map_vcard_attr(VCardName, Attrs, VCardMap,
