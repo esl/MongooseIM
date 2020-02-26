@@ -5,7 +5,7 @@
          c2s_filter_packet/6,
          c2s_preprocessing_hook/3,
          c2s_presence_in/5,
-         c2s_stream_features/1,
+         c2s_stream_features/2,
          c2s_unauthenticated_iq/4,
          c2s_update_presence/2,
          check_bl_c2s/2,
@@ -21,7 +21,7 @@
          privacy_updated_list/4,
          resend_offline_messages_hook/3,
          roster_get_subscription_lists/3,
-         roster_get_versioning_feature/1,
+         roster_get_versioning_feature/2,
          roster_in_subscription/7,
          roster_out_subscription/5,
          session_opening_allowed_for_user/3,
@@ -92,11 +92,12 @@ c2s_preprocessing_hook(Server, Acc, State) ->
 c2s_presence_in(Server, State, From, To, Packet) ->
     ejabberd_hooks:run_fold(c2s_presence_in, Server, State, [{From, To, Packet}]).
 
--spec c2s_stream_features(Server) -> Result when
+-spec c2s_stream_features(Server, Acc) -> Result when
     Server :: jid:server(),
+    Acc :: [exml:element()],
     Result :: [exml:element()].
-c2s_stream_features(Server) ->
-    ejabberd_hooks:run_fold(c2s_stream_features, Server, [], [Server]).
+c2s_stream_features(Server, Acc) ->
+    ejabberd_hooks:run_fold(c2s_stream_features, Server, Acc, [Server]).
 
 -spec c2s_unauthenticated_iq(Server, Acc, IQ, IP) -> Result when
     Server :: jid:server(),
@@ -264,12 +265,13 @@ resend_offline_messages_hook(Server, Acc, User) ->
 roster_get_subscription_lists(Server, Acc, User) ->
     ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [User, Server]).
 
--spec roster_get_versioning_feature(Server) -> Result when
+-spec roster_get_versioning_feature(Server, Acc) -> Result when
     Server :: jid:server(),
+    Acc :: [exml:element()],
     Result :: [exml:element()].
-roster_get_versioning_feature(Server) ->
+roster_get_versioning_feature(Server, Acc) ->
     ejabberd_hooks:run_fold(roster_get_versioning_feature,
-                            Server, [], [Server]).
+                            Server, Acc, [Server]).
 
 -spec roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) -> Result when
     LServer :: jid:lserver(),

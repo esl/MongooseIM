@@ -343,7 +343,7 @@ stream_start_features_after_auth(#state{server = Server} = S) ->
     fsm_next_state(wait_for_feature_after_auth, S).
 
 maybe_roster_versioning_feature(Server) ->
-    mongoose_hooks:roster_get_versioning_feature(Server).
+    mongoose_hooks:roster_get_versioning_feature(Server, []).
 
 stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
@@ -391,7 +391,7 @@ maybe_sasl_mechanisms(#state{server = Server} = S) ->
     end.
 
 hook_enabled_features(Server) ->
-    mongoose_hooks:c2s_stream_features(Server).
+    mongoose_hooks:c2s_stream_features(Server, []).
 
 starttls(TLSRequired)
   when TLSRequired =:= required;
