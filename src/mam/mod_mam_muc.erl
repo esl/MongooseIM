@@ -303,20 +303,19 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_room_owner(User, Room) ->
-    ejabberd_hooks:run_fold(is_muc_room_owner, Room#jid.lserver, false, [Room, User]).
+    mongoose_hooks:is_muc_room_owner(Room#jid.lserver, false, Room, User).
 
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_user_identity_hidden(User, Room) ->
-    case ejabberd_hooks:run_fold(can_access_identity, Room#jid.lserver, false, [Room, User]) of
-        CanAccess when is_boolean(CanAccess) -> not CanAccess;
-        _ -> true
+    case mongoose_hooks:can_access_identity(Room#jid.lserver, false, Room, User) of
+        CanAccess when is_boolean(CanAccess) -> not CanAccess
     end.
 
 -spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
-    ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
+    mongoose_hooks:can_access_room(Room#jid.lserver, false, Room, User).
 
 -spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(), jlib:iq()) ->
                            jlib:iq() | {error, any(), jlib:iq()} | ignore.
