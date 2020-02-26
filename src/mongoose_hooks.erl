@@ -44,6 +44,13 @@
          xmpp_bounce_message/2,
          xmpp_send_element/3]).
 
+-export([roster_get_jid_info/4]).
+
+-export([is_muc_room_owner/4,
+         can_access_identity/4,
+         can_access_room/4,
+         muc_room_pid/3]).
+
 -export([mam_drop_iq/6,
          mam_archive_id/3,
          mam_archive_size/4,
@@ -478,6 +485,70 @@ xmpp_bounce_message(Server, Acc) ->
     Result :: mongoose_acc:t().
 xmpp_send_element(Server, Acc, El) ->
     ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]).
+
+%% Roster related hooks
+
+%%% @doc The `roster_get_jid_info` hook is called to determine the state of subscription between a given pair of users.
+%%% The hooks handler needs to expect following arguments
+%%% * Acc with initial value of {none, []},
+%%% * LUser, a stringprepd username part of the roster's owner
+%%% * LServer, a stringprepd server part of the roster's owner (same value as HookServer)
+%%% * RemoteBareJID, a bare JID of the other user
+%%%
+%%% The arguments and the return value types correspond to the following spec.
+-spec roster_get_jid_info(HookServer, InitialValue, LUser, RemoteJID) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: {mod_roster:subscription_state(), []},
+      LUser :: jid:luser(),
+      RemoteJID :: jid:jid() | jid:simple_jid(),
+      Result :: {mod_roster:subscription_state(), [binary()]}.
+roster_get_jid_info(HookServer, InitialValue, LUser, RemBareJID) ->
+    ejabberd_hooks:run_fold(roster_get_jid_info, HookServer, InitialValue,
+                            [LUser, HookServer, RemBareJID]).
+
+%% MUC related hooks
+
+%%% @doc The `is_muc_room_owner` hooks is called to determine if a given user is a room's owner.
+%%%
+%%% The hook's handler needs to expect following arguments `Acc`, `Room`, `User`.
+%%% The arguemtns and the return value types correspond the following spec.
+-spec is_muc_room_owner(HookServer, Acc, Room, User) -> Result when
+      HookServer :: jid:lserver(),
+      Acc :: boolean(),
+      Room :: jid:jid(),
+      User :: jid:jid(),
+      Result :: boolean().
+is_muc_room_owner(HookServer, Acc, Room, User) ->
+    ejabberd_hooks:run_fold(is_muc_room_owner, HookServer, Acc, [Room, User]).
+
+%%% @doc The `can_access_identity` hook is called to determine if a given user can see the real identity of people in a room.
+-spec can_access_identity(HookServer, Acc, Room, User) -> Result when
+      HookServer :: jid:lserver(),
+      Acc :: boolean(),
+      Room :: jid:jid(),
+      User :: jid:jid(),
+      Result :: boolean().
+can_access_identity(HookServer, Acc, Room, User) ->
+    ejabberd_hooks:run_fold(can_access_identity, HookServer, Acc, [Room, User]).
+
+%%% @doc The `muc_room_pid` hooks is called to get a pid for a given room's JID
+-spec muc_room_pid(HookServer, InitialValue, Room) -> Result when
+      HookServer :: jid:lserver(),
+      InitialValue :: undefined,
+      Room :: jid:jid(),
+      Result :: undefined | {ok, processless | pid()} | {error, not_found}.
+muc_room_pid(HookServer, InitialValue, Room) ->
+    ejabberd_hooks:run_fold(muc_room_pid, HookServer, InitialValue, [Room]).
+
+%%% @doc The `can_access_room` hook is called to determine if a given user can access a room.
+-spec can_access_room(HookServer, Acc, Room, User) -> Result when
+      HookServer :: jid:lserver(),
+      Acc :: boolean(),
+      Room :: jid:jid(),
+      User :: jid:jid(),
+      Result :: boolean().
+can_access_room(HookServer, Acc, Room, User) ->
+    ejabberd_hooks:run_fold(can_access_room, HookServer, Acc, [Room, User]).
 
 %% MAM related hooks
 
