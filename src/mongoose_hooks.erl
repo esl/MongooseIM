@@ -78,6 +78,13 @@
 -export([get_mam_pm_gdpr_data/3,
          get_mam_muc_gdpr_data/3]).
 
+-export([find_s2s_bridge/3,
+         s2s_allow_host/3,
+         s2s_connect_hook/3,
+         s2s_receive_packet/2,
+         s2s_stream_features/2,
+         s2s_send_packet/5]).
+
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
     Username :: jid:user() | unknown,
@@ -835,3 +842,56 @@ get_mam_pm_gdpr_data(HookServer, InitialValue, JID) ->
       Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(HookServer, InitialValue, JID) ->
     ejabberd_hooks:run_fold(get_mam_muc_gdpr_data, HookServer, InitialValue, [JID]).
+
+%% S2S related hooks
+
+-spec find_s2s_bridge(Acc, Name, Server) -> Result when
+    Acc :: any(),
+    Name :: any(),
+    Server :: jid:server(),
+    Result :: any().
+find_s2s_bridge(Acc, Name, Server) ->
+    ejabberd_hooks:run_fold(find_s2s_bridge, Acc, [Name, Server]).
+
+-spec s2s_allow_host(MyHost, Allow, S2SHost) -> Result when
+    MyHost :: jid:server(),
+    Allow :: allow,
+    S2SHost :: jid:server(),
+    Result :: allow | deny.
+s2s_allow_host(MyHost, Allow, S2SHost) ->
+    ejabberd_hooks:run_fold(s2s_allow_host, MyHost, Allow, [MyHost, S2SHost]).
+
+-spec s2s_connect_hook(Name, Acc, Server) -> Result when
+    Name :: any(),
+    Acc :: any(),
+    Server :: jid:server(),
+    Result :: any().
+s2s_connect_hook(Name, Acc, Server) ->
+    ejabberd_hooks:run_fold(s2s_connect_hook, Name, Acc, [Server]).
+
+-spec s2s_send_packet(Server, Acc, From, To, Packet) -> Result when
+    Server :: jid:server(),
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: mongoose_acc:t().
+s2s_send_packet(Server, Acc, From, To, Packet) ->
+    ejabberd_hooks:run_fold(s2s_send_packet,
+                            Server,
+                            Acc,
+                            [From, To, Packet]).
+
+-spec s2s_stream_features(Server, Acc) -> Result when
+    Server :: jid:server(),
+    Acc :: [exml:element()],
+    Result :: [exml:element()].
+s2s_stream_features(Server, Acc) ->
+    ejabberd_hooks:run_fold(s2s_stream_features, Server, Acc, [Server]).
+
+-spec s2s_receive_packet(LServer, Acc) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    Result :: mongoose_acc:t().
+s2s_receive_packet(LServer, Acc) ->
+    ejabberd_hooks:run_fold(s2s_receive_packet, LServer, Acc, []).
