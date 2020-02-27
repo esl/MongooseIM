@@ -276,10 +276,9 @@ do_route(From, To, Acc, Packet) ->
                                                   Attrs),
             NewPacket = Packet#xmlel{attrs = NewAttrs},
             #jid{lserver = MyServer} = From,
-            Acc1 = ejabberd_hooks:run_fold(s2s_send_packet,
-                                           MyServer,
-                                           Acc,
-                                           [From, To, Packet]),
+            Acc1 = mongoose_hooks:s2s_send_packet(MyServer,
+                                                  Acc,
+                                                  From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
             done;
         {aborted, _Reason} ->
@@ -550,8 +549,7 @@ allow_host1(MyHost, S2SHost) ->
             case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
                 deny -> false;
                 _ ->
-                    ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
-                                            allow, [MyHost, S2SHost]) /= deny
+                    mongoose_hooks:s2s_allow_host(MyHost, allow, S2SHost) /= deny
             end
     end.
 
