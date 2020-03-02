@@ -29,6 +29,15 @@
 %% Internal
 -export([start_accept_loop/3, accept_loop/4]).
 
+-type connection_details() :: #{
+        proxy        := boolean(),
+        version      := 1 | 2,
+        src_address  := inet:ip_address() | binary(),
+        src_port     := inet:port_number(),
+        dest_address := inet:ip_address() | binary(),
+        dest_port    := inet:port_number()
+       }.
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -88,6 +97,8 @@ accept_loop(ListenSocket, Module, Opts, ProxyProtocol) ->
             ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol)
     end.
 
+-spec do_accept(gen_tcp:socket(), boolean()) ->
+    {ok, gen_tcp:socket(), connection_details()} | {error, term()}.
 do_accept(ListenSocket, ProxyProtocol) ->
     case gen_tcp:accept(ListenSocket) of
         {ok, Socket} when ProxyProtocol ->
@@ -104,13 +115,14 @@ do_accept(ListenSocket, ProxyProtocol) ->
             Other
     end.
 
+-spec read_proxy_header(gen_tcp:socket()) -> {ok, gen_tcp:socket(), map()}.
 read_proxy_header(Socket) ->
     {ok, ProxyInfo} = ranch_tcp:recv_proxy_header(Socket, 1000),
     {ok, Socket, #{proxy => true,
                    src_address => maps:get(src_address, ProxyInfo),
                    srd_port => maps:get(src_port, ProxyInfo),
-                   dest_port => maps:get(dest_port, ProxyInfo),
                    dest_address => maps:get(dest_address, ProxyInfo),
+                   dest_port => maps:get(dest_port, ProxyInfo),
                    version => maps:get(version, ProxyInfo)
                   }}.
 

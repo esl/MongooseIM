@@ -61,59 +61,66 @@
 %% Description:
 %%--------------------------------------------------------------------
 -spec start(atom() | tuple(), ejabberd:sockmod(),
-    Socket :: port(), Opts :: [{atom(), _}]) -> ok.
+            Socket :: port(), Opts :: [{atom(), _}]) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
-            {ReceiverMod, Receiver, RecRef} =
-                case catch SockMod:custom_receiver(Socket) of
-                    {receiver, RecMod, RecPid} ->
-                        {RecMod, RecPid, RecMod};
-                    _ ->
-                        RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
-                        {ejabberd_receiver, RecPid, RecPid}
-                end,
-            SocketData = #socket_state{sockmod = SockMod,
-                                       socket = Socket,
-                                       receiver = RecRef},
-            %% set receiver as socket's controlling process before
-            %% the M:start/2 call, that is required for c2s legacy
-            %% TLS connection support.
-            case SockMod:controlling_process(Socket, Receiver) of
+            start_xml_stream(Module, SockMod, Socket, Opts);
+        independent ->
+            ok;
+        raw ->
+            start_raw_stream(Module, SockMod, Socket, Opts)
+    end.
+
+-spec start_raw_stream(atom() | tuple(), ejabberd:sockmod(),
+                       Socket :: port(), Opts :: [{atom(), _}]) -> ok.
+start_raw_stream(Module, SockMod, Socket, Opts) ->
+    case Module:start({SockMod, Socket}, Opts) of
+        {ok, Pid} ->
+            case SockMod:controlling_process(Socket, Pid) of
                 ok ->
-                    case Module:start({?MODULE, SocketData}, Opts) of
-                        {ok, Pid} ->
-                            ReceiverMod:become_controller(Receiver, Pid);
-                        {error, _Reason} ->
-                            SockMod:close(Socket),
-                            case ReceiverMod of
-                                ejabberd_receiver ->
-                                    ReceiverMod:close(Receiver);
-                                _ ->
-                                    ok
-                            end
-                    end;
+                    ok;
                 {error, _Reason} ->
                     SockMod:close(Socket)
             end;
-
-        independent ->
-            ok;
-
-        raw ->
-            case Module:start({SockMod, Socket}, Opts) of
-                {ok, Pid} ->
-                    case SockMod:controlling_process(Socket, Pid) of
-                        ok ->
-                            ok;
-                        {error, _Reason} ->
-                            SockMod:close(Socket)
-                    end;
-                {error, _Reason} ->
-                    SockMod:close(Socket)
-            end
+        {error, _Reason} ->
+            SockMod:close(Socket)
     end.
 
+-spec start_xml_stream(atom() | tuple(), ejabberd:sockmod(),
+                       Socket :: port(), Opts :: [{atom(), _}]) -> ok.
+start_xml_stream(Module, SockMod, Socket, Opts) ->
+    {ReceiverMod, Receiver, RecRef} =
+        case catch SockMod:custom_receiver(Socket) of
+            {receiver, RecMod, RecPid} ->
+                {RecMod, RecPid, RecMod};
+            _ ->
+                RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
+                {ejabberd_receiver, RecPid, RecPid}
+        end,
+    SocketData = #socket_state{sockmod = SockMod,
+                               socket = Socket,
+                               receiver = RecRef},
+    %% set receiver as socket's controlling process before
+    %% the M:start/2 call, that is required for c2s legacy
+    %% TLS connection support.
+    case SockMod:controlling_process(Socket, Receiver) of
+        ok ->
+            case Module:start({?MODULE, SocketData}, Opts) of
+                {ok, Pid} ->
+                    ReceiverMod:become_controller(Receiver, Pid);
+                {error, _Reason} ->
+                    SockMod:close(Socket),
+                    case ReceiverMod of
+                        ejabberd_receiver ->
+                            ReceiverMod:close(Receiver);
+                        _ ->
+                            ok
+                    end
+            end;
+        {error, _Reason} ->
+            SockMod:close(Socket)
+    end.
 
 -type option_value() :: 'asn1' | 'cdr' | 'false' | 'fcgi' | 'http' | 'http_bin'
                       | 'line' | 'once' | 'raw' | 'sunrm' | 'tpkt' | 'true'

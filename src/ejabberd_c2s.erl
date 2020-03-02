@@ -78,12 +78,11 @@
 -spec start(_, list())
 -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
-    ?SUPERVISOR_START.
-
+    ?SUPERVISOR_START(SockData, Opts).
 
 start_link(SockData, Opts) ->
-    p1_fsm_old:start_link(ejabberd_c2s, [SockData, Opts],
-                        fsm_limit_opts(Opts) ++ ?FSMOPTS).
+    p1_fsm_old:start_link(
+      ejabberd_c2s, [SockData, Opts], ?FSMOPTS ++ fsm_limit_opts(Opts)).
 
 socket_type() ->
     xml_stream.
@@ -2396,8 +2395,8 @@ process_unauthenticated_stanza(StateData, El) ->
     end.
 
 
--spec peerip(SockMod :: ejabberd:sockmod(), inet:socket())
--> undefined | {inet:ip_address(), inet:port_number()}.
+-spec peerip(SockMod :: ejabberd:sockmod(), inet:socket()) ->
+    undefined | {inet:ip_address(), inet:port_number()}.
 peerip(SockMod, Socket) ->
     IP = case SockMod of
              gen_tcp -> inet:peername(Socket);
