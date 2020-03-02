@@ -845,6 +845,7 @@ get_mam_muc_gdpr_data(HookServer, InitialValue, JID) ->
 
 %% S2S related hooks
 
+%%% @doc `find_s2s_bridge' hook is called to find a s2s bridge to a foreign protocol when opening a socket to a different XMPP server fails.
 -spec find_s2s_bridge(Acc, Name, Server) -> Result when
     Acc :: any(),
     Name :: any(),
@@ -853,6 +854,9 @@ get_mam_muc_gdpr_data(HookServer, InitialValue, JID) ->
 find_s2s_bridge(Acc, Name, Server) ->
     ejabberd_hooks:run_fold(find_s2s_bridge, Acc, [Name, Server]).
 
+%%% @doc `s2s_allow_host' hook is called to check whether a server should be allowed to be connected to.
+%%%
+%%% A handler can decide that a server should not be allowed and pass this information to the caller.
 -spec s2s_allow_host(MyHost, Allow, S2SHost) -> Result when
     MyHost :: jid:server(),
     Allow :: allow,
@@ -861,6 +865,7 @@ find_s2s_bridge(Acc, Name, Server) ->
 s2s_allow_host(MyHost, Allow, S2SHost) ->
     ejabberd_hooks:run_fold(s2s_allow_host, MyHost, Allow, [MyHost, S2SHost]).
 
+%%% @doc `s2s_connect_hook' hook is called when a s2s connection is established.
 -spec s2s_connect_hook(Name, Acc, Server) -> Result when
     Name :: any(),
     Acc :: any(),
@@ -869,6 +874,7 @@ s2s_allow_host(MyHost, Allow, S2SHost) ->
 s2s_connect_hook(Name, Acc, Server) ->
     ejabberd_hooks:run_fold(s2s_connect_hook, Name, Acc, [Server]).
 
+%%% @doc `s2s_send_packet' hook is called when a message is routed.
 -spec s2s_send_packet(Server, Acc, From, To, Packet) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
@@ -882,6 +888,7 @@ s2s_send_packet(Server, Acc, From, To, Packet) ->
                             Acc,
                             [From, To, Packet]).
 
+%%% @doc `s2s_stream_features' hook is used to extract the stream management features supported by the server.
 -spec s2s_stream_features(Server, Acc) -> Result when
     Server :: jid:server(),
     Acc :: [exml:element()],
@@ -889,6 +896,7 @@ s2s_send_packet(Server, Acc, From, To, Packet) ->
 s2s_stream_features(Server, Acc) ->
     ejabberd_hooks:run_fold(s2s_stream_features, Server, Acc, [Server]).
 
+%%% @doc `s2s_receive_packet' hook is called when an incoming stanza is routed by the server.
 -spec s2s_receive_packet(LServer, Acc) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),

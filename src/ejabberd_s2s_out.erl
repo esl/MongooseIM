@@ -114,7 +114,7 @@
 -define(TCP_SEND_TIMEOUT, 15000).
 
 %% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in miliseconds. Default value is 5 minutes.
+%% Specified in milliseconds. Default value is 5 minutes.
 -define(MAX_RETRY_DELAY, 300000).
 
 -define(STREAM_HEADER(From, To, Other),
@@ -979,7 +979,7 @@ get_addr_port(Server) ->
             [{Server, outgoing_s2s_port()}];
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
-            %% for simplicity (higher weigths are overvalued)
+            %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
@@ -1157,7 +1157,7 @@ wait_before_reconnect(StateData) ->
                                                     queue = queue:new()}}.
 
 
-%% @doc Get the maximum allowed delay for retry to reconnect (in miliseconds).
+%% @doc Get the maximum allowed delay for retry to reconnect (in milliseconds).
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
 get_max_retry_delay() ->

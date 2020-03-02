@@ -369,11 +369,9 @@ choose_pid(From, Pids) ->
                 [] -> Pids;
                 Ps -> Ps
             end,
-    % Use sticky connections based on the JID of the sender (whithout
-    % the resource to ensure that a muc room always uses the same
-    % connection)
-    Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)),
-                    Pids1),
+    % Use sticky connections based on the JID of the sender
+    % (without the resource to ensure that a muc room always uses the same connection)
+    Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)), Pids1),
     ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
     Pid.
 

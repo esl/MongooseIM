@@ -201,9 +201,9 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                 _ ->
                     send_element(StateData,
                                  #xmlel{name = <<"stream:features">>,
-                                        children = SASL ++ StartTLS ++
-                                                           mongoose_hooks:s2s_stream_features(Server,
-                                                                                              [])}),
+                                        children = SASL ++
+                                                   StartTLS ++
+                                                   mongoose_hooks:s2s_stream_features(Server, [])}),
                     {next_state, wait_for_feature_request, StateData#state{server = Server}}
             end;
         {<<"jabber:server">>, _, Server, true} when
