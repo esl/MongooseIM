@@ -37,6 +37,7 @@
         dest_address := inet:ip_address() | binary(),
         dest_port    := inet:port_number()
        }.
+-export_type([connection_details/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -89,7 +90,8 @@ accept_loop(ListenSocket, Module, Opts, ProxyProtocol) ->
         {ok, Socket, ConnectionDetails} ->
             ?INFO_MSG("event=accepted_tcp_connection, socket=~w, details=~p",
                       [Socket, ConnectionDetails]),
-            ejabberd_socket:start(Module, gen_tcp, Socket, Opts),
+            ejabberd_socket:start(
+              Module, gen_tcp, Socket, [{connection_details, ConnectionDetails} | Opts]),
             ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol);
         {error, Reason} ->
             ?INFO_MSG("event=tcp_accept_failed, socket=~w, reason=~w",

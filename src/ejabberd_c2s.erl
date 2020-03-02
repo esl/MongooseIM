@@ -1722,7 +1722,7 @@ new_id() ->
     mongoose_bin:gen_from_crypto().
 
 %% Copied from ejabberd_socket.erl
--record(socket_state, {sockmod, socket, receiver}).
+-record(socket_state, {sockmod, socket, receiver, connection_details}).
 
 -spec get_conn_type(state()) -> conntype().
 get_conn_type(StateData) ->

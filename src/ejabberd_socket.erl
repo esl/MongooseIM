@@ -49,7 +49,8 @@
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),
                        socket     :: term(),
-                       receiver   :: pid() | atom() | tuple()
+                       receiver   :: pid() | atom() | tuple(),
+                       connection_details :: mongoose_tcp_listener:connection_details()
                       }).
 -type socket_state() :: #socket_state{}.
 
@@ -98,9 +99,15 @@ start_xml_stream(Module, SockMod, Socket, Opts) ->
                 RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
                 {ejabberd_receiver, RecPid, RecPid}
         end,
+    ConnectionDetails =
+        case lists:keyfind(connection_details, 1, Opts) of
+            {_, CD} -> CD;
+            _ -> throw(connection_details_not_available)
+        end,
     SocketData = #socket_state{sockmod = SockMod,
                                socket = Socket,
-                               receiver = RecRef},
+                               receiver = RecRef,
+                               connection_details = ConnectionDetails},
     %% set receiver as socket's controlling process before
     %% the M:start/2 call, that is required for c2s legacy
     %% TLS connection support.
@@ -144,9 +151,15 @@ connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
             Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, Opts),
+            {ok, {SrcAddr, SrcPort}} = inet:sockname(Socket),
             SocketData = #socket_state{sockmod = gen_tcp,
                                        socket = Socket,
-                                       receiver = Receiver},
+                                       receiver = Receiver,
+                                       connection_details = #{proxy => false,
+                                                              src_address => SrcAddr,
+                                                              src_port => SrcPort,
+                                                              dest_address => Addr,
+                                                              dest_port => Port}},
             Pid = self(),
             case gen_tcp:controlling_process(Socket, Receiver) of
                 ok ->
@@ -265,20 +278,20 @@ close(SocketData) ->
 
 
 -spec sockname(socket_state()) -> mongoose_transport:peername_return().
+sockname(#socket_state{connection_details = #{dest_address := DestAddr,
+                                              dest_port := DestPort}}) ->
+    {ok, {DestAddr, DestPort}};
+sockname(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
+    inet:sockname(Socket);
 sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
-    case SockMod of
-        gen_tcp ->
-            inet:sockname(Socket);
-        _ ->
-            SockMod:sockname(Socket)
-    end.
+    SockMod:sockname(Socket).
 
 
 -spec peername(socket_state()) -> mongoose_transport:peername_return().
+peername(#socket_state{connection_details = #{src_address := SrcAddr,
+                                              src_port := SrcPort}}) ->
+    {ok, {SrcAddr, SrcPort}};
+peername(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
+    inet:peername(Socket);
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
-    case SockMod of
-        gen_tcp ->
-            inet:peername(Socket);
-        _ ->
-            SockMod:peername(Socket)
-    end.
+    SockMod:peername(Socket).
