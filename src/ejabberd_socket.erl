@@ -43,7 +43,8 @@
          get_peer_certificate/1,
          close/1,
          sockname/1,
-         peername/1]).
+         peername/1,
+         get_socket/1]).
 
 -include("mongoose.hrl").
 
@@ -295,3 +296,7 @@ peername(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
     inet:peername(Socket);
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
     SockMod:peername(Socket).
+
+-spec get_socket(socket_state()) -> term().
+get_socket(#socket_state{socket = Socket}) ->
+    Socket.

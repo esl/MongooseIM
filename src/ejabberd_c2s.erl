@@ -1721,16 +1721,13 @@ send_and_maybe_buffer_stanza_no_ack(Acc, {_, _, Stanza} = Packet, State) ->
 new_id() ->
     mongoose_bin:gen_from_crypto().
 
-%% Copied from ejabberd_socket.erl
--record(socket_state, {sockmod, socket, receiver, connection_details}).
-
 -spec get_conn_type(state()) -> conntype().
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
         ejabberd_tls -> c2s_tls;
         ejabberd_zlib ->
-            case ejabberd_zlib:get_sockmod((StateData#state.socket)#socket_state.socket) of
+            case ejabberd_zlib:get_sockmod(ejabberd_socket:get_socket(StateData#state.socket)) of
                 gen_tcp -> c2s_compressed;
                 ejabberd_tls -> c2s_compressed_tls
             end;
