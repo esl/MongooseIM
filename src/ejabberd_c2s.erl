@@ -2398,11 +2398,7 @@ process_unauthenticated_stanza(StateData, El) ->
 -spec peerip(SockMod :: ejabberd:sockmod(), inet:socket()) ->
     undefined | {inet:ip_address(), inet:port_number()}.
 peerip(SockMod, Socket) ->
-    IP = case SockMod of
-             gen_tcp -> inet:peername(Socket);
-             _ -> mongoose_transport:peername(SockMod, Socket)
-         end,
-    case IP of
+    case mongoose_transport:peername(SockMod, Socket) of
         {ok, IPOK} -> IPOK;
         _ -> undefined
     end.
