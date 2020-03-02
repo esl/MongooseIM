@@ -10,7 +10,7 @@ all() ->
     [mnesia_offline_table_can_be_upgraded_from_3_5_to_next].
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     C.

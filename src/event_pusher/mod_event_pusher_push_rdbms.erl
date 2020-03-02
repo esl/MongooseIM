@@ -10,7 +10,7 @@
 -behavior(mod_event_pusher_push).
 
 -include("mongoose.hrl").
--include("jid.hrl").
+-include_lib("jid/include/jid.hrl").
 %%--------------------------------------------------------------------
 %% Exports
 %%--------------------------------------------------------------------

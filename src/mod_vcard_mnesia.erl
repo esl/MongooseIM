@@ -127,7 +127,7 @@ filter_fields([], Match, _VHost) ->
     Match;
 filter_fields([{SVar, [Val]} | Ds], Match, VHost)
   when is_binary(Val) and (Val /= <<"">>) ->
-    LVal = stringprep:tolower(Val),
+    LVal = jid:str_tolower(Val),
     NewMatch =
         case SVar of
             <<"user">> -> Match#vcard_search{luser = make_val(LVal)};

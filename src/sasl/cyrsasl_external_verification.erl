@@ -33,8 +33,7 @@
 %% API
 -export([verify_creds/1]).
 
--include("jid.hrl").
-
+-include_lib("jid/include/jid.hrl").
 
 -spec verify_creds(Creds :: mongoose_credentials:t()) ->
     {ok, Username :: binary()} | {error, Error :: binary()}.

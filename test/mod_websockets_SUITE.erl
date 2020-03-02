@@ -50,7 +50,7 @@ end_per_testcase(_, C) ->
 setup() ->
     meck:unload(),
     application:ensure_all_started(cowboy),
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     application:ensure_all_started(lager),
     meck:new(supervisor, [unstick, passthrough, no_link]),
     meck:new(gen_mod,[unstick, passthrough, no_link]),
@@ -79,7 +79,7 @@ teardown() ->
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     application:stop(cowboy),
     application:stop(lager),
-    %% Do not stop stringprep, Erlang 21 does not like to reload nifs
+    %% Do not stop jid, Erlang 21 does not like to reload nifs
     ok.
 
 ping_test(_Config) ->

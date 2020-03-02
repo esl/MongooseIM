@@ -255,7 +255,7 @@ eldap_pool_search(EldapID, Base, EldapFilter, Deref, Attrs, NoResultRes) ->
 
 ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     Attrs = lists:map(fun ({VCardName, _, _}) ->
-                              {stringprep:tolower(VCardName),
+                              {jid:str_tolower(VCardName),
                                map_vcard_attr(VCardName, Attributes, VCardMap,
                                               UD)}
                       end,

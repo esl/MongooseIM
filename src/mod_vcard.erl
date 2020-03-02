@@ -742,7 +742,7 @@ parse_vcard(User, VHost, VCARD) ->
     end.
 
 prepare_index(FieldName, Value) ->
-    case stringprep:tolower(Value) of
+    case jid:str_tolower(Value) of
         error ->
             throw({invalid_input, FieldName});
         LValue ->

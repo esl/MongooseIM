@@ -365,10 +365,10 @@ inject_module(Node, Module, reload) ->
 
 
 make_jid_noprep(User, Server, Resource) ->
-    rpc(mim(), jid, make_noprep, [User, Server, Resource]).
+    jid:make_noprep(User, Server, Resource).
 
 make_jid(User, Server, Resource) ->
-    rpc(mim(), jid, make, [User, Server, Resource]).
+    jid:make(User, Server, Resource).
 
 get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),

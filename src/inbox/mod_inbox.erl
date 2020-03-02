@@ -11,7 +11,6 @@
 -behaviour(mongoose_module_metrics).
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
--include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 -include("mongoose_logger.hrl").

@@ -52,7 +52,7 @@ check_password_5(_Config) ->
                                                <<"digest">>, fun() -> true end).
 
 authorize(_Config) ->
-    stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     Creds = mongoose_credentials:new(?DOMAIN),
     {ok, _Creds2} = ejabberd_auth_dummy:authorize(Creds).
 

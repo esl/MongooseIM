@@ -383,7 +383,7 @@ add_sec_websocket_protocol_header(Req) ->
      end.
 
 case_insensitive_match(LowerPattern, [Case | Cases]) ->
-    LowerCase = stringprep:tolower(Case),
+    LowerCase = jid:str_tolower(Case),
     case LowerCase of
         LowerPattern ->
             {matched, Case};
