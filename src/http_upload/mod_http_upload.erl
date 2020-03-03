@@ -122,8 +122,10 @@ get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
+-spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
+                      From :: jid:jid(), To :: jid:jid(),
+                      Node :: binary(), ejabberd:lang())
+                     -> {result, [exml:element()]} | {error, any()}.
 get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
     Item = #xmlel{name  = <<"item">>,
                   attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},

@@ -71,11 +71,11 @@ hooks(Host) ->
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
 %%-------------------------------------------------------------------------
 
--spec get_local_commands(Acc :: [exml:element()],
+-spec get_local_commands(Acc :: {result, [exml:element()]} | {error, any()} | empty,
                          From :: jid:jid(),
                          To :: jid:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
+                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()} | empty.
 get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
     case Display of
@@ -136,7 +136,7 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
                          From :: jid:jid(),
                          To :: jid:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
+                         ejabberd:lang()) -> [exml:element()].
 get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
@@ -157,7 +157,7 @@ get_local_identity(Acc, _From, _To, _Node, _Lang) ->
                      From :: jid:jid(),
                      To :: jid:jid(),
                      NS :: binary(),
-                     ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
+                     ejabberd:lang()) -> [exml:element()].
 get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
@@ -168,11 +168,11 @@ get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(Acc :: [exml:element()],
+-spec get_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
                          From :: jid:jid(),
                          To :: jid:jid(),
                          NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
+                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
 get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
     Feats = case Acc of
                 {result, I} -> I;
@@ -190,11 +190,11 @@ get_local_features(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: [exml:element()],
+-spec get_sm_features(Acc :: {result, [exml:element()]} | {error, any()} | empty,
                              From :: jid:jid(),
                              To :: jid:jid(),
                              NS :: binary(),
-                             ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
+                             ejabberd:lang()) -> {result, [exml:element()]} | {error, any()} | empty.
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
     Feats = case Acc of
                 {result, I} -> I;
@@ -244,7 +244,7 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
     end.
 
 
--spec ping_item(Acc :: [exml:element()],
+-spec ping_item(Acc :: {result, [exml:element()]},
                 From :: jid:jid(),
                 To :: jid:jid(),
                 ejabberd:lang()) -> {result, [exml:element()]}.
