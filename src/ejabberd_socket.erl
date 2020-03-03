@@ -152,7 +152,10 @@ connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
             Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, Opts),
-            {ok, {SrcAddr, SrcPort}} = inet:sockname(Socket),
+            {SrcAddr, SrcPort} = case inet:sockname(Socket) of
+                                     {ok, {A, P}} ->  {A, P};
+                                     {error, _} -> {unknown, unknown}
+                                 end,
             SocketData = #socket_state{sockmod = gen_tcp,
                                        socket = Socket,
                                        receiver = Receiver,

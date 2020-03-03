@@ -31,7 +31,7 @@
 
 -type connection_details() :: #{
         proxy        := boolean(),
-        version      := 1 | 2,
+        version      => 1 | 2,
         src_address  := inet:ip_address() | binary(),
         src_port     := inet:port_number(),
         dest_address := inet:ip_address() | binary(),
