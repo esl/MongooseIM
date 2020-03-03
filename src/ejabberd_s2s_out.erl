@@ -114,7 +114,7 @@
 -define(TCP_SEND_TIMEOUT, 15000).
 
 %% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in miliseconds. Default value is 5 minutes.
+%% Specified in milliseconds. Default value is 5 minutes.
 -define(MAX_RETRY_DELAY, 300000).
 
 -define(STREAM_HEADER(From, To, Other),
@@ -242,10 +242,9 @@ open_socket(init, StateData) ->
         {error, _Reason} ->
             ?INFO_MSG("s2s connection: ~s -> ~s (remote server not found)",
                       [StateData#state.myname, StateData#state.server]),
-            case ejabberd_hooks:run_fold(find_s2s_bridge,
-                                         undefined,
-                                         [StateData#state.myname,
-                                          StateData#state.server]) of
+            case mongoose_hooks:find_s2s_bridge(undefined,
+                                                StateData#state.myname,
+                                                StateData#state.server) of
                 {Mod, Fun, Type} ->
                     ?INFO_MSG("found a bridge to ~s for: ~s -> ~s",
                               [Type, StateData#state.myname,
@@ -372,9 +371,9 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     ?INFO_MSG("Connection established: ~s -> ~s with TLS=~p",
                               [StateData#state.myname, StateData#state.server,
                                StateData#state.tls_enabled]),
-                    ejabberd_hooks:run(s2s_connect_hook,
-                                       [StateData#state.myname,
-                                        StateData#state.server]),
+                    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
+                                                    ok,
+                                                    StateData#state.server),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
                 {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
@@ -980,7 +979,7 @@ get_addr_port(Server) ->
             [{Server, outgoing_s2s_port()}];
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
-            %% for simplicity (higher weigths are overvalued)
+            %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
@@ -1158,7 +1157,7 @@ wait_before_reconnect(StateData) ->
                                                     queue = queue:new()}}.
 
 
-%% @doc Get the maximum allowed delay for retry to reconnect (in miliseconds).
+%% @doc Get the maximum allowed delay for retry to reconnect (in milliseconds).
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
 get_max_retry_delay() ->
@@ -1303,9 +1302,9 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
     send_queue(StateData, StateData#state.queue),
     ?INFO_MSG("Connection established: ~s -> ~s",
               [StateData#state.myname, StateData#state.server]),
-    ejabberd_hooks:run(s2s_connect_hook,
-                       [StateData#state.myname,
-                        StateData#state.server]),
+    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
+                                    ok,
+                                    StateData#state.server),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
 handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when
