@@ -41,8 +41,10 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
+-spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
+                      From :: jid:jid(), To :: jid:jid(),
+                      Node :: binary(), ejabberd:lang())
+                     -> {result, [exml:element()]} | {error, any()} | empty.
 get_disco_items({result, Nodes}, From, To, <<"">>, _Lang) ->
     Domains = domains_for_disco(To#jid.lserver, From),
     ?DEBUG("event=domains_fetched_for_disco,domains=\"~p\",input_nodes=\"~p\"",
