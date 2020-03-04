@@ -162,10 +162,7 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Host = To#jid.lserver,
 
-    case ejabberd_hooks:run_fold(disco_local_items,
-                                 Host,
-                                 empty,
-                                 [From, To, Node, Lang]) of
+    case mongoose_hooks:disco_local_items(Host, empty, From, To, Node, Lang) of
         {result, Items} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
@@ -183,16 +180,15 @@ process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Identity = ejabberd_hooks:run_fold(disco_local_identity,
-                                       Host,
-                                       [],
-                                       [From, To, Node, Lang]),
-    Info = ejabberd_hooks:run_fold(disco_info, Host, [],
-                                   [Host, ?MODULE, Node, Lang]),
-    case ejabberd_hooks:run_fold(disco_local_features,
-                                 Host,
-                                 empty,
-                                 [From, To, Node, Lang]) of
+    Identity = mongoose_hooks:disco_local_identity(Host,
+                                                   [],
+                                                   From, To, Node, Lang),
+    Info = mongoose_hooks:disco_info(Host,
+                                     [],
+                                     ?MODULE, Node, Lang),
+    case mongoose_hooks:disco_local_features(Host,
+                                             empty,
+                                             From, To, Node, Lang) of
         {result, Features} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
@@ -334,10 +330,9 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
         true ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            case ejabberd_hooks:run_fold(disco_sm_items,
-                                         Host,
-                                         empty,
-                                         [From, To, Node, Lang]) of
+            case mongoose_hooks:disco_sm_items(Host,
+                                               empty,
+                                               From, To, Node, Lang) of
                 {result, Items} ->
                     ANode = make_node_attr(Node),
                     {Acc, IQ#iq{type = result,
@@ -386,11 +381,11 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
-                       #jid{luser=LUser, lserver=LServer} = To) ->
+                       #jid{luser=LUser, lserver=LServer} = _To) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => From#jid.lserver,
                             element => undefined }),
-    A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
+    A2 = mongoose_hooks:roster_get(Server, A, User),
     Roster = mongoose_acc:get(roster, items, [], A2),
     lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
                       {TUser, TServer} = jid:to_lus(JID),
@@ -409,14 +404,12 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
         true ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = ejabberd_hooks:run_fold(disco_sm_identity,
-                                               Host,
-                                               [],
-                                               [From, To, Node, Lang]),
-            case ejabberd_hooks:run_fold(disco_sm_features,
-                                         Host,
-                                         empty,
-                                         [From, To, Node, Lang]) of
+            Identity = mongoose_hooks:disco_sm_identity(Host,
+                                                        [],
+                                                        From, To, Node, Lang),
+            case mongoose_hooks:disco_sm_features(Host,
+                                                  empty,
+                                                  From, To, Node, Lang) of
                 {result, Features} ->
                     ANode = make_node_attr(Node),
                     {Acc, IQ#iq{type = result,
@@ -437,22 +430,22 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                       To :: jid:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [exml:element()].
-get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
-    Acc ++  case ejabberd_auth:is_user_exists(LUser, LServer) of
-        true ->
-           [#xmlel{name = <<"identity">>,
-                   attrs = [{<<"category">>, <<"account">>},
-  {<<"type">>, <<"registered">>}]}];
-       _ ->
-           []
+get_sm_identity(Acc, _From, #jid{luser = LUser, lserver = LServer}, _Node, _Lang) ->
+    Acc ++ case ejabberd_auth:is_user_exists(LUser, LServer) of
+               true ->
+                   [#xmlel{name = <<"identity">>,
+                           attrs = [{<<"category">>, <<"account">>},
+                                    {<<"type">>, <<"registered">>}]}];
+               _ ->
+                   []
            end.
 
 
--spec get_sm_features(empty | any(),
+-spec get_sm_features(empty | {result, [exml:element()]} | {error, any()},
                       From :: jid:jid(),
                       To :: jid:jid(),
                       Node :: binary(),
-                      Lang :: ejabberd:lang()) -> any().
+                      Lang :: ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
 get_sm_features(empty, From, To, _Node, _Lang) ->
     #jid{luser = LFrom, lserver = LSFrom} = From,
     #jid{luser = LTo, lserver = LSTo} = To,

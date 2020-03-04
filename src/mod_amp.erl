@@ -93,6 +93,11 @@ check_packet(Acc, #jid{lserver = Host} = From, Event) ->
             Acc
     end.
 
+-spec add_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
+                         From :: jid:jid(),
+                         To :: jid:jid(),
+                         NS :: binary(),
+                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
     {result, Features};

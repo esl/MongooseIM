@@ -68,7 +68,7 @@
          in_subscription/6, out_subscription/5,
          on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
-         disco_local_items/5, disco_sm_identity/5,
+         disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
 
 %% exported iq handlers
@@ -355,7 +355,6 @@ hooks() ->
      {sm_remove_connection_hook, on_user_offline, 75},
      {disco_local_identity, disco_local_identity, 75},
      {disco_local_features, disco_local_features, 75},
-     {disco_local_items, disco_local_items, 75},
      {presence_probe_hook, presence_probe, 80},
      {roster_in_subscription, in_subscription, 50},
      {roster_out_subscription, out_subscription, 50},
@@ -548,7 +547,7 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           _From  ::jid:jid(),
           To     ::jid:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: binary())
+          Lang   :: ejabberd:lang())
         -> [exml:element()].
 disco_local_identity(Acc, _From, To, Node, Lang) ->
     LServer = To#jid.lserver,
@@ -577,12 +576,12 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [exml:element()],
+          Acc :: {result, [exml:element()]} | empty | {error, any()},
           _From  ::jid:jid(),
           To     ::jid:jid(),
-          Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: binary())
-        -> [binary(), ...].
+          Node   :: <<>> | mod_pubsub:nodeId() | binary(),
+          Lang   :: ejabberd:lang())
+        -> {result, [exml:element()]} | empty | {error, any()}.
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
     Feats = case Acc of
@@ -593,18 +592,13 @@ disco_local_features(Acc, _From, To, <<>>, _Lang) ->
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
-disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
-
 -spec disco_sm_identity(
-        Acc  :: empty | [exml:element()],
-          From ::jid:jid(),
-          To   ::jid:jid(),
+        Acc :: [exml:element()],
+          From :: jid:jid(),
+          To :: jid:jid(),
           Node :: mod_pubsub:nodeId(),
-          Lang :: binary())
+          Lang :: ejabberd:lang())
         -> [exml:element()].
-disco_sm_identity(empty, From, To, Node, Lang) ->
-    disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
@@ -640,12 +634,12 @@ disco_identity(Host, Node, From) ->
     end.
 
 -spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]},
+        Acc  :: empty | {result, Features::[Feature::binary()]} | {error, any()},
           From ::jid:jid(),
           To   ::jid:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> {result, Features::[Feature::binary()]}.
+        -> {result, Features::[Feature::binary()]} | {error, any()}.
 disco_sm_features(empty, From, To, Node, Lang) ->
     disco_sm_features({result, []}, From, To, Node, Lang);
 disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
