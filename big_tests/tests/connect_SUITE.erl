@@ -43,6 +43,7 @@ all() ->
     [
      {group, session_replacement},
      {group, security},
+     {group, incorrect_behaviors},
      %% these groups must be last, as they really... complicate configuration
      {group, fast_tls},
      {group, just_tls}
@@ -81,7 +82,8 @@ groups() ->
           {security, [], [
                           return_proper_stream_error_if_service_is_not_hidden,
                           close_connection_if_service_type_is_hidden
-                         ]}
+                         ]},
+          {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -663,6 +665,18 @@ close_connection_if_service_type_is_hidden(_Config) ->
         5000 ->
             ct:fail(connection_not_closed)
     end.
+
+close_connection_if_start_stream_duplicated(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = [start_stream, stream_features],
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
+                                                   ?NS_JABBER_CLIENT)),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
+                   escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(Alice, no_stream_end_stanza_received)),
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
 
 %%--------------------------------------------------------------------
 %% Internal functions
