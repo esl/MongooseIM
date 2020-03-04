@@ -671,7 +671,7 @@ close_connection_if_start_stream_duplicated(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
     escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
-                                                   ?NS_JABBER_CLIENT)),
+                                                    ?NS_JABBER_CLIENT)),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
                    escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
     escalus:assert(is_stream_end,
