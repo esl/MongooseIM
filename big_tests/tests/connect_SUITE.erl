@@ -83,7 +83,9 @@ groups() ->
                           return_proper_stream_error_if_service_is_not_hidden,
                           close_connection_if_service_type_is_hidden
                          ]},
-          {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated]}
+          {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
+                                             close_connection_if_protocol_violation_after_authentication,
+                                             close_connection_if_protocol_violation_after_binding]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -669,6 +671,30 @@ close_connection_if_service_type_is_hidden(_Config) ->
 close_connection_if_start_stream_duplicated(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Steps = [start_stream, stream_features],
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
+                                                    ?NS_JABBER_CLIENT)),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
+                   escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(Alice, no_stream_end_stanza_received)),
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
+
+close_connection_if_protocol_violation_after_authentication(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = [start_stream, stream_features, authenticate],
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
+                                                    ?NS_JABBER_CLIENT)),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
+                   escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(Alice, no_stream_end_stanza_received)),
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
+
+close_connection_if_protocol_violation_after_binding(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = [start_stream, stream_features, authenticate, bind],
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
     escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
                                                     ?NS_JABBER_CLIENT)),
