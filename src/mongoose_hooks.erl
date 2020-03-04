@@ -504,7 +504,7 @@ xmpp_send_element(Server, Acc, El) ->
 
 %% Roster related hooks
 
-%%% @doc The `roster_get' hook is called to extract user's roster.
+%%% @doc The `roster_get' hook is called to extract a user's roster.
 -spec roster_get(Server, Acc, User) -> Result when
     Server :: jid:lserver(),
     Acc :: mongoose_acc:t(),
