@@ -32,7 +32,8 @@ report_getters() ->
         fun get_api/0,
         fun get_transport_mechanisms/0,
         fun get_tls_options/0,
-        fun get_outgoing_pools/0
+        fun get_outgoing_pools/0,
+        fun get_xmpp_stanzas_count/0
     ].
 
 get_hosts_count() ->
@@ -188,3 +189,22 @@ get_outgoing_pools() ->
     [#{report_name => outgoing_pools,
        key => type,
        value => Type} || {Type, _, _, _, _} <- OutgoingPools].
+
+get_xmpp_stanzas_count() ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
+                   xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
+    StanzasCount = [count_stanzas(Hosts, StanzaType) || StanzaType <- StanzaTypes],
+    % OldStanzaCount =
+    % StanzaRate =
+    [#{report_name => StanzaType,
+       key => count,
+       value => Count} || {StanzaType, Count} <- StanzasCount].
+
+count_stanzas(Hosts, StanzaType) ->
+    FullExometerResults = [exometer:get_value([Host, StanzaType]) || Host <- Hosts],
+    %Filter out possible errors returned by exometer for disabled metrics
+    ExometerResults = lists:filter(fun({OkOrError, _Value}) -> OkOrError == ok end, FullExometerResults),
+    Result = lists:foldl(fun({ok, [{count,Count}, {one, _}]}, Sum) ->
+                            Count + Sum end, 0, ExometerResults),
+    {StanzaType, Result}.
