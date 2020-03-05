@@ -954,9 +954,9 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                           [],
-                                           [ServerHost, ?MODULE, <<>>, <<>>]),
+            Info = mongoose_hooks:disco_info(ServerHost,
+                                             [],
+                                             ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
@@ -1936,12 +1936,14 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
             case mod_pubsub_db_backend:transaction(CreateNode, ErrorDebug) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
+                    mongoose_hooks:pubsub_create_node(ServerHost,
+                                                      ok,
+                                                      Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 {result, {Nidx, _SubsByDepth, Result}} ->
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
+                    mongoose_hooks:pubsub_create_node(ServerHost,
+                                                      ok,
+                                                      Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 Error ->
                     %% in case we change transaction to sync_dirty...
@@ -2045,9 +2047,9 @@ delete_node(Host, Node, Owner) ->
                                   ROptions = RNode#pubsub_node.options,
                                   broadcast_removed_node(RH, RN, RNidx,
                                                          RType, ROptions, SubsByDepth),
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  mongoose_hooks:pubsub_delete_node(ServerHost,
+                                                                    ok,
+                                                                    RH, RN, RNidx)
                           end,
                           Removed),
             case Result of
@@ -2058,9 +2060,9 @@ delete_node(Host, Node, Owner) ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   {RH, RN} = RNode#pubsub_node.nodeid,
                                   RNidx = RNode#pubsub_node.id,
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  mongoose_hooks:pubsub_delete_node(ServerHost,
+                                                                    ok,
+                                                                    RH, RN, RNidx)
                           end,
                           Removed),
             case Result of
@@ -2069,8 +2071,9 @@ delete_node(Host, Node, Owner) ->
             end;
         {result, {TNode, {_, Result}}} ->
             Nidx = TNode#pubsub_node.id,
-            ejabberd_hooks:run(pubsub_delete_node, ServerHost,
-                               [ServerHost, Host, Node, Nidx]),
+            mongoose_hooks:pubsub_delete_node(ServerHost,
+                                              ok,
+                                              Host, Node, Nidx),
             case Result of
                 default -> {result, []};
                 _ -> {result, Result}
@@ -2355,8 +2358,8 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
                         end,
-            ejabberd_hooks:run(pubsub_publish_item, ServerHost,
-                               [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]),
+            mongoose_hooks:pubsub_publish_item(ServerHost, ok,
+                               Node, Publisher, service_jid(Host), ItemId, BrPayload),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
             case get_option(Options, deliver_notifications) of
                 true ->
@@ -3219,9 +3222,9 @@ get_roster_info(_, _, {<<>>, <<>>, _}, _) ->
     {false, false};
 get_roster_info(OwnerUser, OwnerServer, {SubscriberUser, SubscriberServer, _}, AllowedGroups) ->
     LJID = {SubscriberUser, SubscriberServer, <<>>},
-    {Subscription, Groups} = ejabberd_hooks:run_fold(roster_get_jid_info,
-                                                     OwnerServer, {none, []},
-                                                     [OwnerUser, OwnerServer, LJID]),
+    {Subscription, Groups} = mongoose_hooks:roster_get_jid_info(OwnerServer,
+                                                                {none, []},
+                                                                OwnerUser, LJID),
     PresenceSubscription = Subscription == both orelse
         Subscription == from orelse
         {OwnerUser, OwnerServer} == {SubscriberUser, SubscriberServer},
@@ -3726,7 +3729,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
                           #pubsub_node{options = Options, type = Type, id = Nidx}) ->
     case node_call(Host, Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
-            Groups = ejabberd_hooks:run_fold(roster_groups, ServerHost, [], [ServerHost]),
+            Groups = mongoose_hooks:roster_groups(ServerHost, []),
             XEl = #xmlel{name = <<"x">>,
                          attrs = [{<<"xmlns">>, ?NS_XDATA},
                                   {<<"type">>, <<"form">>}],

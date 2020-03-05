@@ -24,6 +24,7 @@
          privacy_iq_get/6,
          privacy_iq_set/5,
          privacy_updated_list/4,
+         push_notifications/4,
          resend_offline_messages_hook/3,
          roster_get_subscription_lists/3,
          roster_get_versioning_feature/2,
@@ -46,6 +47,7 @@
          xmpp_stanza_dropped/5]).
 
 -export([roster_get/3,
+         roster_groups/2,
          roster_get_jid_info/4]).
 
 -export([is_muc_room_owner/4,
@@ -114,6 +116,10 @@
 -export([caps_add/6,
          caps_recognised/5,
          caps_update/6]).
+
+-export([pubsub_create_node/6,
+         pubsub_delete_node/5,
+         pubsub_publish_item/7]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
@@ -321,6 +327,18 @@ privacy_iq_set(Server, Acc, From, To, IQ) ->
 privacy_updated_list(Server, Acc, OldList, NewList) ->
     ejabberd_hooks:run_fold(privacy_updated_list, Server,
                             Acc, [OldList, NewList]).
+
+-spec push_notifications(Server, Acc, NotificationForms, Options) -> Result when
+    Server :: jid:server(),
+    Acc :: ok,
+    NotificationForms :: [#{atom() => binary()}],
+    Options :: #{atom() => binary()},
+    Result :: ok | {error, any()}.
+push_notifications(Server, Acc, NotificationForms, Options) ->
+    ejabberd_hooks:run_fold(push_notifications,
+                            Server,
+                            Acc,
+                            [Server, NotificationForms, Options]).
 
 -spec resend_offline_messages_hook(Server, Acc, User) -> Result when
     Server :: jid:server(),
@@ -547,6 +565,14 @@ xmpp_stanza_dropped(Server, Acc, From, To, Packet) ->
     Result :: mongoose_acc:t().
 roster_get(Server, Acc, User) ->
     ejabberd_hooks:run_fold(roster_get, Server, Acc, [{User, Server}]).
+
+%%% @doc The `roster_groups' hook is called to extract roster groups.
+-spec roster_groups(Server, Acc) -> Result when
+    Server :: jid:lserver(),
+    Acc :: list(),
+    Result :: list().
+roster_groups(Server, Acc) ->
+    ejabberd_hooks:run_fold(roster_groups, Server, Acc, [Server]).
 
 %%% @doc The `roster_get_jid_info' hook is called to determine the subscription state between a given pair of users.
 %%% The hook handlers need to expect following arguments:
@@ -1250,3 +1276,50 @@ caps_update(Server, Acc, From, To, Pid, Features) ->
                             Server,
                             Acc,
                             [From, To, Pid, Features]).
+
+%% PubSub related hooks
+
+%%% @doc The `pubsub_create_node' hook is called to inform that a pubsub node is created.
+-spec pubsub_create_node(Server, Acc, PubSubHost, NodeId, Nidx, NodeOptions) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    PubSubHost :: mod_pubsub:host(),
+    NodeId :: mod_pubsub:nodeId(),
+    Nidx :: mod_pubsub:nodeIdx(),
+    NodeOptions :: list(),
+    Result :: any().
+pubsub_create_node(Server, Acc, PubSubHost, NodeId, Nidx, NodeOptions) ->
+    ejabberd_hooks:run_fold(pubsub_create_node,
+                            Server,
+                            Acc,
+                            [Server, PubSubHost, NodeId, Nidx, NodeOptions]).
+
+%%% @doc The `pubsub_delete_node' hook is called to inform that a pubsub node is deleted.
+-spec pubsub_delete_node(Server, Acc, PubSubHost, NodeId, Nidx) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    PubSubHost :: mod_pubsub:host(),
+    NodeId :: mod_pubsub:nodeId(),
+    Nidx :: mod_pubsub:nodeIdx(),
+    Result :: any().
+pubsub_delete_node(Server, Acc, PubSubHost, NodeId, Nidx) ->
+    ejabberd_hooks:run_fold(pubsub_delete_node,
+                            Server,
+                            Acc,
+                            [Server, PubSubHost, NodeId, Nidx]).
+
+%%% @doc The `pubsub_publish_item' hook is called to inform that a pubsub item is published.
+-spec pubsub_publish_item(Server, Acc, NodeId, Publisher, ServiceJID, ItemId, BrPayload) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    NodeId :: mod_pubsub:nodeId(),
+    Publisher :: jid:jid(),
+    ServiceJID :: jid:jid(),
+    ItemId :: mod_pubsub:itemId(),
+    BrPayload :: mod_pubsub:payload(),
+    Result :: any().
+pubsub_publish_item(Server, Acc, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
+    ejabberd_hooks:run_fold(pubsub_publish_item,
+                            Server,
+                            Acc,
+                            [Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload]).

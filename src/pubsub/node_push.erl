@@ -78,8 +78,8 @@ do_publish_item(ServerHost, PublishOptions,
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
-            Result = ejabberd_hooks:run_fold(push_notifications, ServerHost, ok,
-                                             [ServerHost, NotificationForms, OptionMap]),
+            Result = mongoose_hooks:push_notifications(ServerHost, ok,
+                                                       NotificationForms, OptionMap),
             handle_push_hook_result(Result);
         _ ->
             {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
