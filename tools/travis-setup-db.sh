@@ -123,7 +123,7 @@ if [ "$db" = 'mysql' ]; then
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
-        mysql --default-authentication-plugin=mysql_native_password
+        mysql:8.0 --default-authentication-plugin=mysql_native_password
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
