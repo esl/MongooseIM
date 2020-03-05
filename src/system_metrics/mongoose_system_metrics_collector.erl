@@ -31,7 +31,8 @@ report_getters() ->
         fun get_components/0,
         fun get_api/0,
         fun get_transport_mechanisms/0,
-        fun get_tls_options/0
+        fun get_tls_options/0,
+        fun get_outgoing_pools/0
     ].
 
 get_hosts_count() ->
@@ -129,7 +130,7 @@ filter_unknown_api(ApiList) ->
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
 get_service_option(Service) ->
-    Listen = ejabberd_config:get_local_option(listen),
+    Listen = ejabberd_config:get_local_option_or_default(listen, []),
     Result = [ Option || {_, S, Option} <- Listen, S == Service],
     lists:flatten(Result).
 
@@ -181,3 +182,9 @@ check_tls_specific_option() ->
         true -> just_tls;
         _ -> fast_tls
     end.
+
+get_outgoing_pools() ->
+    OutgoingPools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    [#{report_name => outgoing_pools,
+       key => type,
+       value => Type} || {Type, _, _, _, _} <- OutgoingPools].
