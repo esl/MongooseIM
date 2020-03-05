@@ -194,9 +194,9 @@ get_xmpp_stanzas_count() ->
     Hosts = ejabberd_config:get_global_option(hosts),
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
-    StanzasCount = [count_stanzas(Hosts, StanzaType) || StanzaType <- StanzaTypes],
-    % OldStanzaCount =
-    % StanzaRate =
+    NewCount = [count_stanzas(Hosts, StanzaType) || StanzaType <- StanzaTypes],
+    PrevReport = mongoose_system_metrics_file:read(),
+    StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
     [#{report_name => StanzaType,
        key => count,
        value => Count} || {StanzaType, Count} <- StanzasCount].
@@ -208,3 +208,14 @@ count_stanzas(Hosts, StanzaType) ->
     Result = lists:foldl(fun({ok, [{count,Count}, {one, _}]}, Sum) ->
                             Count + Sum end, 0, ExometerResults),
     {StanzaType, Result}.
+
+calculate_stanza_rate([], NewCount) ->
+    NewCount;
+calculate_stanza_rate(PrevReport, NewCount) ->
+    DecodeReport = [#{report_name => b2a(Name), key => b2a(Key), value => Value} ||
+        #{<<"report_name">> := Name, <<"key">> := Key, <<"value">> := Value}  <- PrevReport],
+    [{Type, Count-Value} ||
+        #{report_name := T, value := Value} <- DecodeReport, {Type, Count} <- NewCount, T == Type].
+
+b2a(Name) ->
+    binary_to_atom(Name, utf8).
