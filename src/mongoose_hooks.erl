@@ -42,7 +42,8 @@
          user_sent_keep_alive/2,
          user_send_packet/5,
          xmpp_bounce_message/2,
-         xmpp_send_element/3]).
+         xmpp_send_element/3,
+         xmpp_stanza_dropped/5]).
 
 -export([roster_get/3,
          roster_get_jid_info/4]).
@@ -93,6 +94,13 @@
          disco_sm_features/6,
          disco_sm_identity/6,
          disco_sm_items/6]).
+
+-export([amp_check_condition/4,
+         amp_check_packet/4,
+         amp_determine_strategy/6,
+         amp_error_action_triggered/2,
+         amp_notify_action_triggered/2,
+         amp_verify_support/3]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
@@ -501,6 +509,20 @@ xmpp_bounce_message(Server, Acc) ->
     Result :: mongoose_acc:t().
 xmpp_send_element(Server, Acc, El) ->
     ejabberd_hooks:run_fold(xmpp_send_element, Server, Acc, [El]).
+
+%%% @doc The `xmpp_stanza_dropped' hook is called to inform that an xmpp stanza has been dropped.
+-spec xmpp_stanza_dropped(Server, Acc, From, To, Packet) -> Result when
+    Server :: jid:lserver(),
+    Acc :: any(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: any().
+xmpp_stanza_dropped(Server, Acc, From, To, Packet) ->
+    ejabberd_hooks:run_fold(xmpp_stanza_dropped,
+                            Server,
+                            Acc,
+                            [From, To, Packet]).
 
 %% Roster related hooks
 
@@ -1019,3 +1041,66 @@ disco_sm_items(Server, Acc, From, To, Node, Lang) ->
                             Server,
                             Acc,
                             [From, To, Node, Lang]).
+
+%% AMP related hooks
+
+%%% @doc The `amp_check_condition' hook is called to determine whether the AMP strategy matches the given AMP rule.
+-spec amp_check_condition(Server, MatchResult, Strategy, Rule) -> Result when
+    Server :: jid:server(),
+    MatchResult :: mod_amp:amp_match_result(),
+    Strategy :: mod_amp:amp_strategy(),
+    Rule :: mod_amp:amp_rule(),
+    Result :: mod_amp:amp_match_result().
+amp_check_condition(Server, MatchResult, Strategy, Rule) ->
+    ejabberd_hooks:run_fold(amp_check_condition, Server, MatchResult, [Strategy, Rule]).
+
+%%% @doc The `amp_check_packet' hook is called when one wants to check a message against amp rules.
+%%% Calling it may result in `mod_amp' taking actions according to the rules and the event (i.e. notify the sender).
+-spec amp_check_packet(Server, Acc, From, Event) -> Result when
+    Server :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    Event :: mod_amp:amp_event(),
+    Result :: mongoose_acc:t().
+amp_check_packet(Server, Acc, From, Event) ->
+    ejabberd_hooks:run_fold(amp_check_packet, Server, Acc, [From, Event]).
+
+%%% @doc The `amp_determine_strategy' hook is called when checking to determine  which strategy will be chosen when executing AMP rules.
+-spec amp_determine_strategy(Server, Strategy, From, To, Packet, Event) -> Result when
+    Server :: jid:server(),
+    Strategy :: mod_amp:amp_strategy(),
+    From :: jid:jid(),
+    To :: jid:jid() | undefined,
+    Packet :: exml:element(),
+    Event :: mod_amp:amp_event(),
+    Result :: mod_amp:amp_strategy().
+amp_determine_strategy(Server, Strategy, From, To, Packet, Event) ->
+    ejabberd_hooks:run_fold(amp_determine_strategy, Server,
+                            Strategy, [From, To, Packet, Event]).
+
+%%% @doc The `amp_error_action_triggered' hook is called to inform that the `error' action has been triggered.
+-spec amp_error_action_triggered(Server, Acc) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    Result :: any().
+amp_error_action_triggered(Server, Acc) ->
+    ejabberd_hooks:run_fold(amp_error_action_triggered, Server, Acc, [Server]).
+
+%%% @doc The `amp_notify_action_triggered' hook is called to inform that the `notify' action has been triggered.
+-spec amp_notify_action_triggered(Server, Acc) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    Result :: any().
+amp_notify_action_triggered(Server, Acc) ->
+    ejabberd_hooks:run_fold(amp_notify_action_triggered, Server, Acc, [Server]).
+
+%%% @doc The `amp_verify_support' hook is called when checking whether the host supports given AMP rules.
+-spec amp_verify_support(Server, Acc, Rules) -> Result when
+    Server :: jid:lserver(),
+    Acc :: [mod_amp:amp_rule_support()],
+    Rules :: mod_amp:amp_rules(),
+    Result :: [mod_amp:amp_rule_support()].
+amp_verify_support(Server, Acc, Rules) ->
+    ejabberd_hooks:run_fold(amp_verify_support, Server, Acc, [Rules]).
+
+
