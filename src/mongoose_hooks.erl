@@ -102,6 +102,10 @@
          amp_notify_action_triggered/2,
          amp_verify_support/3]).
 
+-export([filter_room_packet/3,
+         forget_room/4,
+         room_send_packet/3]).
+
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
     Username :: jid:user() | unknown,
@@ -1103,4 +1107,31 @@ amp_notify_action_triggered(Server, Acc) ->
 amp_verify_support(Server, Acc, Rules) ->
     ejabberd_hooks:run_fold(amp_verify_support, Server, Acc, [Rules]).
 
+%% MUC Light related hooks
 
+-spec filter_room_packet(Server, Packet, EventData) -> Result when
+    Server :: jid:lserver(),
+    Packet :: exml:element(),
+    EventData :: [{atom(), any()}],
+    Result :: exml:element().
+filter_room_packet(Server, Packet, EventData) ->
+    ejabberd_hooks:run_fold(filter_room_packet, Server, Packet, [EventData]).
+
+%%% @doc The `forget_room' hook is called when a room is removed from the database.
+-spec forget_room(HookServer, Acc, Host, Room) -> Result when
+    HookServer :: jid:server(),
+    Acc :: any(),
+    Host :: jid:server(),
+    Room :: jid:luser(),
+    Result :: any().
+forget_room(HookServer, Acc, Host, Room) ->
+    ejabberd_hooks:run_fold(forget_room, HookServer, Acc, [Host, Room]).
+
+%%% @doc The `room_send_packet' hook is called when a message is sent to a room.
+-spec room_send_packet(Server, Packet, EventData) -> Result when
+    Server :: jid:lserver(),
+    Packet :: exml:element(),
+    EventData :: [{atom(), any()}],
+    Result :: exml:element().
+room_send_packet(Server, Packet, EventData) ->
+    ejabberd_hooks:run_fold(room_send_packet, Server, Packet, [EventData]).
