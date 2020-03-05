@@ -63,8 +63,8 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                  {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
     ],
     FilteredPacket = #xmlel{ children = Children }
-        = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch, [EventData]),
-    ejabberd_hooks:run(room_send_packet, RoomS, [FilteredPacket, EventData]),
+        = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
+    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
