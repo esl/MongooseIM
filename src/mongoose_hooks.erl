@@ -104,7 +104,12 @@
 
 -export([filter_room_packet/3,
          forget_room/4,
-         room_send_packet/3]).
+         invitation_sent/7,
+         join_room/6,
+         leave_room/6,
+         room_packet/6,
+         room_send_packet/3,
+         update_inbox_for_muc/2]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
@@ -1107,7 +1112,7 @@ amp_notify_action_triggered(Server, Acc) ->
 amp_verify_support(Server, Acc, Rules) ->
     ejabberd_hooks:run_fold(amp_verify_support, Server, Acc, [Rules]).
 
-%% MUC Light related hooks
+%% MUC and MUC Light related hooks
 
 -spec filter_room_packet(Server, Packet, EventData) -> Result when
     Server :: jid:lserver(),
@@ -1127,6 +1132,60 @@ filter_room_packet(Server, Packet, EventData) ->
 forget_room(HookServer, Acc, Host, Room) ->
     ejabberd_hooks:run_fold(forget_room, HookServer, Acc, [Host, Room]).
 
+-spec invitation_sent(HookServer, Acc, Host, RoomJID, From, To, Reason) -> Result when
+    HookServer :: jid:server(),
+    Acc :: any(),
+    Host :: jid:server(),
+    RoomJID :: jid:jid(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Reason :: binary(),
+    Result :: any().
+invitation_sent(HookServer, Acc, Host, RoomJID, From, To, Reason) ->
+    ejabberd_hooks:run_fold(invitation_sent,
+                            HookServer,
+                            Acc,
+                            [HookServer, Host, RoomJID, From, To, Reason]).
+
+%%% @doc The `join_room' hook is called when a user joins a MUC room.
+-spec join_room(HookServer, Acc, Room, Host, JID, MucJID) -> Result when
+    HookServer :: jid:server(),
+    Acc :: any(),
+    Room :: mod_muc:room(),
+    Host :: jid:server(),
+    JID :: jid:jid(),
+    MucJID :: jid:jid(),
+    Result :: any().
+join_room(HookServer, Acc, Room, Host, JID, MucJID) ->
+    ejabberd_hooks:run_fold(join_room, HookServer, Acc, [HookServer, Room, Host, JID, MucJID]).
+
+%%% @doc The `leave_room' hook is called when a user joins a MUC room.
+-spec leave_room(HookServer, Acc, Room, Host, JID, MucJID) -> Result when
+    HookServer :: jid:server(),
+    Acc :: any(),
+    Room :: mod_muc:room(),
+    Host :: jid:server(),
+    JID :: jid:jid(),
+    MucJID :: jid:jid(),
+    Result :: any().
+leave_room(HookServer, Acc, Room, Host, JID, MucJID) ->
+    ejabberd_hooks:run_fold(leave_room, HookServer, Acc, [HookServer, Room, Host, JID, MucJID]).
+
+%%% @doc The `room_packet' hook is called when a message is added to room's history.
+-spec room_packet(Server, Acc, FromNick, FromJID, JID, Packet) -> Result when
+    Server :: jid:lserver(),
+    Acc :: any(),
+    FromNick :: mod_muc:nick(),
+    FromJID :: jid:jid(),
+    JID :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: any().
+room_packet(Server, Acc, FromNick, FromJID, JID, Packet) ->
+    ejabberd_hooks:run_fold(room_packet,
+                            Server,
+                            Acc,
+                            [FromNick, FromJID, JID, Packet]).
+
 %%% @doc The `room_send_packet' hook is called when a message is sent to a room.
 -spec room_send_packet(Server, Packet, EventData) -> Result when
     Server :: jid:lserver(),
@@ -1135,3 +1194,10 @@ forget_room(HookServer, Acc, Host, Room) ->
     Result :: exml:element().
 room_send_packet(Server, Packet, EventData) ->
     ejabberd_hooks:run_fold(room_send_packet, Server, Packet, [EventData]).
+
+-spec update_inbox_for_muc(Server, Info) -> Result when
+    Server :: jid:server(),
+    Info :: mod_muc_room:update_inbox_for_muc_payload(),
+    Result :: mod_muc_room:update_inbox_for_muc_payload().
+update_inbox_for_muc(Server, Info) ->
+    ejabberd_hooks:run_fold(update_inbox_for_muc, Server, Info, []).
