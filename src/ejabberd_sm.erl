@@ -1238,3 +1238,7 @@ get_user_present_resources(U, S) ->
       " is deprecated, please use the #jid{} equivalent instead",
       [{log_level, warning}]),
     get_user_present_resources(jid:make(U, S, <<>>)).
+a() ->
+    {ok,
+     {},
+     []}
