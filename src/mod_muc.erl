@@ -217,7 +217,7 @@ forget_room(ServerHost, Host, Name) ->
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            ejabberd_hooks:run(forget_room, ServerHost, [Host, Name]);
+            mongoose_hooks:forget_room(ServerHost, ok, Host, Name);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -244,7 +244,7 @@ can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
 can_use_nick(ServerHost, Host, JID, Nick) ->
     mod_muc_db_backend:can_use_nick(ServerHost, Host, JID, Nick).
 
-set_nick(LServer, Host, From, <<>>) ->
+set_nick(_LServer, _Host, _From, <<>>) ->
     {error, should_not_be_empty};
 set_nick(LServer, Host, From, Nick) ->
     mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
@@ -616,8 +616,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost, [],
-                                           [ServerHost, ?MODULE, <<"">>, Lang]),
+            Info = mongoose_hooks:disco_info(ServerHost, [], ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
