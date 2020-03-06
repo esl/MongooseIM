@@ -53,12 +53,10 @@ groups() ->
          {chat, [shuffle], chat_test_cases()},
          {chat_https, [shuffle], chat_test_cases()},
          {time, [parallel], time_test_cases()},
-         {timeout, [parallel], timeout_test_cases()},
          {acks, [shuffle], acks_test_cases()},
          {interleave_requests_statem, [parallel], [interleave_requests_statem]}
         ],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -94,9 +92,6 @@ time_test_cases() ->
      reply_in_time
     ].
 
-timeout_test_cases() ->
-    [long_inactivity_does_not_kill_c2s].
-
 acks_test_cases() ->
     [
      server_acks,
@@ -119,10 +114,6 @@ end_per_suite(Config) ->
 init_per_group(time, Config) ->
     NewConfig = escalus_ejabberd:setup_option(max_wait(), Config),
     escalus_ejabberd:setup_option(inactivity(), NewConfig);
-init_per_group(timeout, Config) ->
-%%    NewConfig = escalus_ejabberd:setup_option(max_wait(3), Config),
-%%    escalus_ejabberd:setup_option(inactivity(100), NewConfig);
-    Config;
 init_per_group(essential, Config) ->
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
@@ -135,9 +126,6 @@ init_per_group(_GroupName, Config) ->
     [{user, carol} | Config1].
 
 end_per_group(time, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
-    escalus_ejabberd:reset_option(inactivity(), NewConfig);
-end_per_group(timeout, Config) ->
     NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
     escalus_ejabberd:reset_option(inactivity(), NewConfig);
 end_per_group(GroupName, Config)
@@ -488,86 +476,6 @@ disconnect_inactive(Config) ->
         escalus_client:kill_connection(Config, Carol)
 
         end).
-
-long_inactivity_does_not_kill_c2s(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {carol, 1}], fun(Alice, Carol) ->
-        Fomt = fun(Term) ->
-                   {ok, F} = file:open("/tmp/tracer", [append]),
-                   file:write(F, io_lib:format("~p\n", [Term])),
-                   file:close(F),
-                   "ok"
-               end,
-        R = recon_trace:calls([{escalus_bosh, handle_data, '_'}], 100, [{scope, local}, {formatter, Fomt}]),
-        ct:pal("R: ~p", [R]),
-        set_keepalive(Carol, false),
-        timer:sleep(timer:seconds(2)),
-%%        poll(Carol),
-        send_and_receive(Alice, Carol),
-%%        poll_and_wait(Carol, 5),
-%%        send_and_receive(Alice, Carol),
-        ok
-    end).
-
-send_and_receive(From, To) ->
-    escalus_client:send(From,
-                        escalus_stanza:chat_to(To, <<"hej">>)),
-    poll(To, true).
-
-poll_and_wait(_Client, 0) ->
-    ok;
-poll_and_wait(Client, Counter) ->
-    poll(Client, false),
-    timer:sleep(timer:seconds(2)),
-    poll_and_wait(Client, Counter - 1).
-
-poll(Client) ->
-    poll(Client, false).
-
-poll(Client, true) ->
-    send_request(Client),
-    [_] = escalus:wait_for_stanzas(Client, 10),
-    ok;
-poll(Client, false) ->
-    send_request(Client),
-    [] = escalus:wait_for_stanzas(Client, 10),
-    ok.
-
-send_request(#client{rcv_pid = Pid} = Client) ->
-    ct:pal("Pid: ~p", [Pid]),
-    RID = get_bosh_rid(Client),
-    SID = get_bosh_sid(Client),
-    escalus_bosh:send(Pid, escalus_bosh:empty_body(RID, SID)),
-    ok.
-
-ong_inactivity_does_not_kill_c2s(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {carol, 1}], fun(Alice, Carol) ->
-%%        set_keepalive(Carol, false),
-
-        messages(Alice, Carol, <<"one">>),
-
-        timer:sleep(timer:seconds(70)),
-
-        messages(Alice, Carol, <<"two">>),
-%%
-%%        messages(Alice, Carol, <<"two">>),
-
-        ok
-
-    end).
-
-messages(From, To, Body) ->
-    message(From, To, Body),
-    message(To, From, Body),
-    ok.
-
-message(From, To, Body) ->
-    ct:pal("Body: ~p", [Body]),
-    escalus_client:send(From,
-                        escalus_stanza:chat_to(To, Body)),
-    escalus:assert(is_chat_message, [Body],
-                   escalus_client:wait_for_stanza(To)),
-    ok.
-
 
 connection_interrupted(Config) ->
     escalus:fresh_story(Config, [{carol, 1}], fun(Carol) ->
