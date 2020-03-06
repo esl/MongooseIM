@@ -111,6 +111,10 @@
          room_send_packet/3,
          update_inbox_for_muc/2]).
 
+-export([caps_add/6,
+         caps_recognised/5,
+         caps_update/6]).
+
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
     Username :: jid:user() | unknown,
@@ -998,12 +1002,14 @@ disco_local_items(Server, Acc, From, To, Node, Lang) ->
                             [From, To, Node, Lang]).
 
 %%% @doc `disco_local_identity' hook is called to get the identity of the server.
--spec disco_local_identity(Server :: jid:server(),
-                           Acc :: [exml:element()],
-                           From :: jid:jid(),
-                           To :: jid:jid(),
-                           Node :: binary(),
-                           Lang :: ejabberd:lang()) -> [exml:element()].
+-spec disco_local_identity(Server, Acc, From, To, Node, Lang) -> Result when
+    Server :: jid:server(),
+    Acc :: [exml:element()],
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Node :: binary(),
+    Lang :: ejabberd:lang(),
+    Result :: [exml:element()].
 disco_local_identity(Server, Acc, From, To, Node, Lang) ->
     ejabberd_hooks:run_fold(disco_local_identity,
                             Server,
@@ -1201,3 +1207,46 @@ room_send_packet(Server, Packet, EventData) ->
     Result :: mod_muc_room:update_inbox_for_muc_payload().
 update_inbox_for_muc(Server, Info) ->
     ejabberd_hooks:run_fold(update_inbox_for_muc, Server, Info, []).
+
+%% Caps related hooks
+
+-spec caps_add(Server, Acc, From, To, Pid, Features) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Pid :: pid(),
+    Features :: unknown | list(),
+    Result :: any().
+caps_add(Server, Acc, From, To, Pid, Features) ->
+    ejabberd_hooks:run_fold(caps_add,
+                            Server,
+                            Acc,
+                            [From, To, Pid, Features]).
+
+-spec caps_recognised(Server, Acc, From, Pid, Features) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    From :: jid:jid(),
+    Pid :: pid(),
+    Features :: unknown | list(),
+    Result :: any().
+caps_recognised(Server, Acc, From, Pid, Features) ->
+    ejabberd_hooks:run_fold(caps_recognised,
+                            Server,
+                            Acc,
+                            [From, Pid, Features]).
+
+-spec caps_update(Server, Acc, From, To, Pid, Features) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Pid :: pid(),
+    Features :: unknown | list(),
+    Result :: any().
+caps_update(Server, Acc, From, To, Pid, Features) ->
+    ejabberd_hooks:run_fold(caps_update,
+                            Server,
+                            Acc,
+                            [From, To, Pid, Features]).
