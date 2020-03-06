@@ -521,7 +521,9 @@ wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
-    {stop, normal, StateData}.
+    {stop, normal, StateData};
+wait_for_feature_before_auth(_, StateData) ->
+    c2s_stream_error(mongoose_xmpp_errors:policy_violation(), StateData).
 
 compressed() ->
     #xmlel{name = <<"compressed">>,
@@ -622,7 +624,10 @@ wait_for_feature_after_auth({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_feature_after_auth(closed, StateData) ->
-    {stop, normal, StateData}.
+    {stop, normal, StateData};
+
+wait_for_feature_after_auth(_, StateData) ->
+    c2s_stream_error(mongoose_xmpp_errors:policy_violation(), StateData).
 
 -spec wait_for_session_or_sm(Item :: ejabberd:xml_stream_item(),
                              State :: state()) -> fsm_return().
@@ -666,7 +671,10 @@ wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_session_or_sm(closed, StateData) ->
-    {stop, normal, StateData}.
+    {stop, normal, StateData};
+
+wait_for_session_or_sm(_, StateData) ->
+    c2s_stream_error(mongoose_xmpp_errors:policy_violation(), StateData).
 
 maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData) ->
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
