@@ -385,7 +385,7 @@ is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => From#jid.lserver,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(Server, A, User),
+    A2 = mongoose_hooks:roster_get(Server, A, User, Server),
     Roster = mongoose_acc:get(roster, items, [], A2),
     lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
                       {TUser, TServer} = jid:to_lus(JID),

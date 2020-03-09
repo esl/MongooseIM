@@ -278,7 +278,7 @@ list_contacts(Caller) ->
                                element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
     {User, Host} = jid:to_lus(CallerJID),
-    Acc2 = ejabberd_hooks:run_fold(roster_get, Host, Acc1, [{User, Host}]),
+    Acc2 = mongoose_hooks:roster_get(Host, Acc1, User, Host),
     Res = mongoose_acc:get(roster, items, Acc2),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
@@ -410,11 +410,9 @@ run_subscription(Type, CallerJid, OtherJid) ->
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,
-    LServer = CallerJid#jid.lserver,
-    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                   Server,
-                                   Acc1,
-                                   [LUser, LServer, OtherJid, Type]),
+    Acc2 = mongoose_hooks:roster_out_subscription(Server,
+                                                  Acc1,
+                                                  LUser, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

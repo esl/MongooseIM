@@ -26,10 +26,6 @@
          privacy_updated_list/4,
          push_notifications/4,
          resend_offline_messages_hook/3,
-         roster_get_subscription_lists/3,
-         roster_get_versioning_feature/2,
-         roster_in_subscription/7,
-         roster_out_subscription/5,
          session_opening_allowed_for_user/3,
          set_presence_hook/5,
          sm_broadcast/6,
@@ -46,9 +42,16 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/5]).
 
--export([roster_get/3,
+-export([roster_get/4,
+         roster_get_jid_info/4,
+         roster_get_subscription_lists/3,
+         roster_get_versioning_feature/2,
          roster_groups/2,
-         roster_get_jid_info/4]).
+         roster_in_subscription/7,
+         roster_out_subscription/5,
+         roster_process_item/2,
+         roster_push/4,
+         roster_set/5]).
 
 -export([is_muc_room_owner/4,
          can_access_identity/4,
@@ -351,51 +354,6 @@ resend_offline_messages_hook(Server, Acc, User) ->
                             Acc,
                             [User, Server]).
 
--spec roster_get_subscription_lists(Server, Acc, User) -> Result when
-    Server :: jid:server(),
-    Acc ::mongoose_acc:t(),
-    User :: jid:user(),
-    Result :: mongoose_acc:t().
-roster_get_subscription_lists(Server, Acc, User) ->
-    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [User, Server]).
-
--spec roster_get_versioning_feature(Server, Acc) -> Result when
-    Server :: jid:server(),
-    Acc :: [exml:element()],
-    Result :: [exml:element()].
-roster_get_versioning_feature(Server, Acc) ->
-    ejabberd_hooks:run_fold(roster_get_versioning_feature,
-                            Server, Acc, [Server]).
-
--spec roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) -> Result when
-    LServer :: jid:lserver(),
-    Acc :: mongoose_acc:t(),
-    User :: jid:user(),
-    Server :: jid:server(),
-    From :: jid:jid(),
-    Type :: mod_roster:sub_presence(),
-    Reason :: any(),
-    Result :: mongoose_acc:t().
-roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) ->
-    ejabberd_hooks:run_fold(
-        roster_in_subscription,
-        LServer,
-        Acc,
-        [User, Server, From, Type, Reason]).
-
--spec roster_out_subscription(Server, Acc, User, To, Type) -> Result when
-    Server :: jid:server(),
-    Acc :: mongoose_acc:t(),
-    User :: jid:user(),
-    To :: jid:jid(),
-    Type :: mod_roster:sub_presence(),
-    Result :: mongoose_acc:t().
-roster_out_subscription(Server, Acc, User, To, Type) ->
-    ejabberd_hooks:run_fold(roster_out_subscription,
-                            Server,
-                            Acc,
-                            [User, Server, To, Type]).
-
 -spec session_opening_allowed_for_user(Server, Allow, JID) -> Result when
     Server :: jid:server(),
     Allow :: any(),
@@ -558,21 +516,22 @@ xmpp_stanza_dropped(Server, Acc, From, To, Packet) ->
 %% Roster related hooks
 
 %%% @doc The `roster_get' hook is called to extract a user's roster.
--spec roster_get(Server, Acc, User) -> Result when
-    Server :: jid:lserver(),
+-spec roster_get(LServer, Acc, User, UserServer) -> Result when
+    LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
     User :: jid:luser(),
+    UserServer :: jid:lserver(),
     Result :: mongoose_acc:t().
-roster_get(Server, Acc, User) ->
-    ejabberd_hooks:run_fold(roster_get, Server, Acc, [{User, Server}]).
+roster_get(LServer, Acc, User, UserServer) ->
+    ejabberd_hooks:run_fold(roster_get, LServer, Acc, [{User, UserServer}]).
 
 %%% @doc The `roster_groups' hook is called to extract roster groups.
--spec roster_groups(Server, Acc) -> Result when
-    Server :: jid:lserver(),
+-spec roster_groups(LServer, Acc) -> Result when
+    LServer :: jid:lserver(),
     Acc :: list(),
     Result :: list().
-roster_groups(Server, Acc) ->
-    ejabberd_hooks:run_fold(roster_groups, Server, Acc, [Server]).
+roster_groups(LServer, Acc) ->
+    ejabberd_hooks:run_fold(roster_groups, LServer, Acc, [LServer]).
 
 %%% @doc The `roster_get_jid_info' hook is called to determine the subscription state between a given pair of users.
 %%% The hook handlers need to expect following arguments:
@@ -582,15 +541,93 @@ roster_groups(Server, Acc) ->
 %%% * RemoteBareJID, a bare JID of the other user.
 %%%
 %%% The arguments and the return value types correspond to the following spec.
--spec roster_get_jid_info(HookServer, InitialValue, LUser, RemoteJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec roster_get_jid_info(LServer, InitialValue, LUser, RemoteJID) -> Result when
+    LServer :: jid:lserver(),
       InitialValue :: {mod_roster:subscription_state(), []},
       LUser :: jid:luser(),
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
-roster_get_jid_info(HookServer, InitialValue, LUser, RemBareJID) ->
-    ejabberd_hooks:run_fold(roster_get_jid_info, HookServer, InitialValue,
-                            [LUser, HookServer, RemBareJID]).
+roster_get_jid_info(LServer, InitialValue, LUser, RemBareJID) ->
+    ejabberd_hooks:run_fold(roster_get_jid_info, LServer, InitialValue,
+                            [LUser, LServer, RemBareJID]).
+
+%%% @doc The `roster_get_subscription_lists' hook is called to extract user's subscription list.
+-spec roster_get_subscription_lists(Server, Acc, User) -> Result when
+    Server :: jid:server(),
+    Acc ::mongoose_acc:t(),
+    User :: jid:user(),
+    Result :: mongoose_acc:t().
+roster_get_subscription_lists(Server, Acc, User) ->
+    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [User, Server]).
+
+%%% @doc The `roster_get_versioning_feature' hook is called to determine if roster versioning is enabled.
+-spec roster_get_versioning_feature(Server, Acc) -> Result when
+    Server :: jid:server(),
+    Acc :: [exml:element()],
+    Result :: [exml:element()].
+roster_get_versioning_feature(Server, Acc) ->
+    ejabberd_hooks:run_fold(roster_get_versioning_feature,
+                            Server, Acc, [Server]).
+
+%%% @doc The `roster_in_subscription' hook is called to determine if a subscription presence is routed to a user.
+-spec roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    User :: jid:user(),
+    Server :: jid:server(),
+    From :: jid:jid(),
+    Type :: mod_roster:sub_presence(),
+    Reason :: any(),
+    Result :: mongoose_acc:t().
+roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) ->
+    ejabberd_hooks:run_fold(
+        roster_in_subscription,
+        LServer,
+        Acc,
+        [User, Server, From, Type, Reason]).
+
+%%% @doc The `roster_out_subscription' hook is called when a user sends out subscription.
+-spec roster_out_subscription(Server, Acc, User, To, Type) -> Result when
+    Server :: jid:server(),
+    Acc :: mongoose_acc:t(),
+    User :: jid:user(),
+    To :: jid:jid(),
+    Type :: mod_roster:sub_presence(),
+    Result :: mongoose_acc:t().
+roster_out_subscription(Server, Acc, User, To, Type) ->
+    ejabberd_hooks:run_fold(roster_out_subscription,
+                            Server,
+                            Acc,
+                            [User, Server, To, Type]).
+
+%%% @doc The `roster_process_item' hook is called when a user's roster is set.
+-spec roster_process_item(LServer, Item) -> Result when
+    LServer :: jid:lserver(),
+    Item :: mod_roster:roster(),
+    Result :: mod_roster:roster().
+roster_process_item(LServer, Item) ->
+    ejabberd_hooks:run_fold(roster_process_item, LServer, Item, [LServer]).
+
+%%% @doc The `roster_push' hook is called when a roster item is being pushed and roster versioning is not enabled.
+-spec roster_push(LServer, Acc, From, Item) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: any(),
+    From :: jid:jid(),
+    Item :: mod_roster:roster(),
+    Result :: any().
+roster_push(LServer, Acc, From, Item) ->
+    ejabberd_hooks:run_fold(roster_push, LServer, Acc, [From, Item]).
+
+%%% @doc The `roster_set' hook is called when a user's roster is set through an IQ.
+-spec roster_set(LServer, Acc, From, To, SubEl) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: any(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    SubEl :: exml:element(),
+    Result :: any().
+roster_set(LServer, Acc, From, To, SubEl) ->
+    ejabberd_hooks:run_fold(roster_set, LServer, Acc, [From, To, SubEl]).
 
 %% MUC related hooks
 
