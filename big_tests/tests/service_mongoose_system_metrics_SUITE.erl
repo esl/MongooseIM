@@ -46,7 +46,8 @@
          xmpp_components_are_reported/1,
          api_are_reported/1,
          transport_mechanisms_are_reported/1,
-         outgoing_pools_are_reported/1
+         outgoing_pools_are_reported/1,
+         xmpp_stanzas_counts_are_reported/1
         ]).
 
 -export([
@@ -85,6 +86,7 @@ all() ->
      api_are_reported,
      transport_mechanisms_are_reported,
      outgoing_pools_are_reported,
+     xmpp_stanzas_counts_are_reported,
      {group, log_transparency}
     ].
 
@@ -291,6 +293,9 @@ transport_mechanisms_are_reported(_Config) ->
 outgoing_pools_are_reported(_Config) ->
     mongoose_helper:wait_until(fun outgoing_pools_are_reported/0, true).
 
+xmpp_stanzas_counts_are_reported(_Config) ->
+    mongoose_helper:wait_until(fun xmpp_stanzas_counts_are_reported/0, true).
+
 just_removed_from_config_logs_question(_Config) ->
     disable_system_metrics(mim3()),
     remove_service_from_config(service_mongoose_system_metrics),
@@ -481,6 +486,9 @@ transport_mechanisms_are_reported() ->
 
 outgoing_pools_are_reported() ->
     is_in_table(<<"outgoing_pools">>).
+
+xmpp_stanzas_counts_are_reported() ->
+    is_in_table(<<"xmppMessageSent">>).
 
 more_than_one_component_is_reported() ->
     Tab = ets:tab2list(?ETS_TABLE),

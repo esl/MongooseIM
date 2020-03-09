@@ -198,24 +198,26 @@ get_xmpp_stanzas_count() ->
     PrevReport = mongoose_system_metrics_file:read(),
     StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
     [#{report_name => StanzaType,
-       key => count,
-       value => Count} || {StanzaType, Count} <- StanzasCount].
+       key => Total,
+       value => Increment} || {StanzaType, Total, Increment} <- StanzasCount].
 
 count_stanzas(Hosts, StanzaType) ->
     FullExometerResults = [exometer:get_value([Host, StanzaType]) || Host <- Hosts],
     %Filter out possible errors returned by exometer for disabled metrics
-    ExometerResults = lists:filter(fun({OkOrError, _Value}) -> OkOrError == ok end, FullExometerResults),
-    Result = lists:foldl(fun({ok, [{count,Count}, {one, _}]}, Sum) ->
+    ExometerResults = lists:filter(fun({OkOrError, _}) ->
+                                    OkOrError == ok
+                                   end, FullExometerResults),
+    StanzaCount = lists:foldl(fun({ok, [{count,Count}, {one, _}]}, Sum) ->
                             Count + Sum end, 0, ExometerResults),
-    {StanzaType, Result}.
+    {StanzaType, StanzaCount}.
 
 calculate_stanza_rate([], NewCount) ->
-    NewCount;
+    [{Type, Count, Count} || {Type, Count} <- NewCount];
 calculate_stanza_rate(PrevReport, NewCount) ->
-    DecodeReport = [#{report_name => b2a(Name), key => b2a(Key), value => Value} ||
-        #{<<"report_name">> := Name, <<"key">> := Key, <<"value">> := Value}  <- PrevReport],
-    [{Type, Count-Value} ||
-        #{report_name := T, value := Value} <- DecodeReport, {Type, Count} <- NewCount, T == Type].
-
-b2a(Name) ->
-    binary_to_atom(Name, utf8).
+    ReportProplist = [{Name, Key} ||
+        #{report_name := Name, key := Key}  <- PrevReport],
+    [{Type, Count,
+        case proplists:get_value(Type, ReportProplist) of
+            undefined -> Count;
+            Total -> Count-Total
+        end} || {Type, Count} <- NewCount].
