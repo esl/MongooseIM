@@ -151,7 +151,7 @@ handle_cast({stop_ping, JID}, State) ->
     {noreply, State#state{timers = Timers}};
 handle_cast({iq_pong, JID, timeout}, State) ->
     Timers = del_timer(JID, State#state.timers),
-    ejabberd_hooks:run(user_ping_timeout, State#state.host, [JID]),
+    mongoose_hooks:user_ping_timeout(State#state.host, ok, JID),
     case State#state.timeout_action of
         kill ->
             case ejabberd_sm:get_session_pid(JID) of
@@ -176,8 +176,8 @@ handle_info({timeout, _TRef, {ping, JID}},
     T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, Response) ->
                 TDelta = erlang:monotonic_time(millisecond) - T0,
-                NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host,
-                                                 Acc, [JID, Response, TDelta]),
+                NewAcc = mongoose_hooks:user_ping_response(State#state.host,
+                                                 Acc, JID, Response, TDelta),
                 gen_server:cast(Pid, {iq_pong, JID, Response}),
                 NewAcc
         end,
