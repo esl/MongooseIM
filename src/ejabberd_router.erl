@@ -229,7 +229,7 @@ do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
             Component = #external_component{domain = NDomain, handler = Handler,
                                             node = Node, is_hidden = IsHidden},
             mnesia:write(Component),
-            ejabberd_hooks:run(register_subhost, [LDomain, IsHidden]);
+            mongoose_hooks:register_subhost(ok, LDomain, IsHidden);
         _ -> mnesia:abort(route_already_exists)
     end.
 
@@ -307,7 +307,7 @@ do_unregister_component({LDomain, _}, Node) ->
             ok = mnesia:delete_object(external_component_global, Comp, write)
     end,
     ok = mnesia:delete({external_component, {LDomain, Node}}),
-    ejabberd_hooks:run(unregister_subhost, [LDomain]),
+    mongoose_hooks:unregister_subhost(ok, LDomain),
     ok.
 
 -spec unregister_component(Domain :: domain()) -> {atomic, ok}.
@@ -348,7 +348,7 @@ register_route_to_ldomain(error, Domain, _) ->
 register_route_to_ldomain(LDomain, _, Handler) ->
     mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
     % No support for hidden routes yet
-    ejabberd_hooks:run(register_subhost, [LDomain, false]).
+    mongoose_hooks:register_subhost(ok, LDomain, false).
 
 unregister_route(Domain) ->
     case jid:nameprep(Domain) of
@@ -356,7 +356,7 @@ unregister_route(Domain) ->
             erlang:error({invalid_domain, Domain});
         LDomain ->
             mnesia:dirty_delete(route, LDomain),
-            ejabberd_hooks:run(unregister_subhost, [LDomain])
+            mongoose_hooks:unregister_subhost(ok, LDomain)
     end.
 
 unregister_routes(Domains) ->

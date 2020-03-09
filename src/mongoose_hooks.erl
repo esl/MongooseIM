@@ -14,10 +14,14 @@
          c2s_unauthenticated_iq/4,
          c2s_update_presence/2,
          check_bl_c2s/2,
+         ejabberd_ctl_process/2,
          failed_to_store_message/4,
          forbidden_session_hook/3,
+         host_config_update/4,
+         local_send_to_resource_hook/5,
          offline_groupchat_message_hook/5,
          offline_message_hook/5,
+         packet_to_component/3,
          presence_probe_hook/5,
          privacy_check_packet/6,
          privacy_get_user_list/3,
@@ -25,14 +29,17 @@
          privacy_iq_set/5,
          privacy_updated_list/4,
          push_notifications/4,
+         register_subhost/3,
          resend_offline_messages_hook/3,
          session_opening_allowed_for_user/3,
+         session_cleanup/5,
          set_presence_hook/5,
          sm_broadcast/6,
          sm_filter_offline_message/5,
          sm_register_connection_hook/4,
          sm_remove_connection_hook/6,
          unacknowledged_message/3,
+         unregister_subhost/2,
          unset_presence_hook/5,
          user_available_hook/3,
          user_receive_packet/6,
@@ -210,6 +217,13 @@ c2s_update_presence(LServer, Acc) ->
 check_bl_c2s(Blacklisted, IP) ->
     ejabberd_hooks:run_fold(check_bl_c2s, Blacklisted, [IP]).
 
+-spec ejabberd_ctl_process(Acc, Args) -> Result when
+    Acc :: any(),
+    Args :: [string()],
+    Result :: any().
+ejabberd_ctl_process(Acc, Args) ->
+    ejabberd_hooks:run_fold(ejabberd_ctl_process, Acc, [Args]).
+
 -spec failed_to_store_message(LServer, Acc, From, Packet) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
@@ -229,6 +243,28 @@ failed_to_store_message(LServer, Acc, From, Packet) ->
     Result :: mongoose_acc:t().
 forbidden_session_hook(Server, Acc, JID) ->
     ejabberd_hooks:run_fold(forbidden_session_hook, Server, Acc, [JID]).
+
+-spec host_config_update(Server, Acc, Key, Config) -> Result when
+    Server :: jid:server(),
+    Acc :: ok,
+    Key :: atom(),
+    Config :: list(),
+    Result :: ok.
+host_config_update(Server, Acc, Key, Config) ->
+    ejabberd_hooks:run_fold(host_config_update, Server, Acc, [Server, Key, Config]).
+
+-spec local_send_to_resource_hook(LServer, Acc, From, To, Packet) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: mongoose_acc:t().
+local_send_to_resource_hook(Server, Acc, From, To, Packet) ->
+    ejabberd_hooks:run_fold(local_send_to_resource_hook,
+                            Server,
+                            Acc,
+                            [From, To, Packet]).
 
 -spec offline_groupchat_message_hook(LServer, Acc, From, To, Packet) -> Result when
     LServer :: jid:lserver(),
@@ -255,6 +291,14 @@ offline_message_hook(LServer, Acc, From, To, Packet) ->
                             LServer,
                             Acc,
                             [From, To, Packet]).
+
+-spec packet_to_component(Acc, From, To) -> Result when
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Result :: mongoose_acc:t().
+packet_to_component(Acc, From, To) ->
+    ejabberd_hooks:run_fold(packet_to_component, Acc, [From, To]).
 
 -spec presence_probe_hook(Server, Acc, From, To, Pid) -> Result when
     Server :: jid:server(),
@@ -343,6 +387,15 @@ push_notifications(Server, Acc, NotificationForms, Options) ->
                             Acc,
                             [Server, NotificationForms, Options]).
 
+%%% @doc The `register_subhost' hook is called when a component is registered for ejabberd_router.
+-spec register_subhost(Acc, LDomain, IsHidden) -> Result when
+    Acc :: any(),
+    LDomain :: binary(),
+    IsHidden :: boolean(),
+    Result :: any().
+register_subhost(Acc, LDomain, IsHidden) ->
+    ejabberd_hooks:run_fold(register_subhost, Acc, [LDomain, IsHidden]).
+
 -spec resend_offline_messages_hook(Server, Acc, User) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
@@ -353,6 +406,19 @@ resend_offline_messages_hook(Server, Acc, User) ->
                             Server,
                             Acc,
                             [User, Server]).
+
+%%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
+-spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
+    Server :: jid:server(),
+    Acc :: mongoose_acc:t(),
+    User :: jid:user(),
+    Resource :: jid:resource(),
+    SID :: ejabberd_sm:sid(),
+    Result :: mongoose_acc:t().
+session_cleanup(Server, Acc, User, Resource, SID) ->
+    ejabberd_hooks:run_fold(session_cleanup,
+                            Server, Acc,
+                            [User, Server, Resource, SID]).
 
 -spec session_opening_allowed_for_user(Server, Allow, JID) -> Result when
     Server :: jid:server(),
@@ -424,6 +490,14 @@ sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unacknowledged_message(Server, Acc, JID) ->
     ejabberd_hooks:run_fold(unacknowledged_message, Server, Acc, [JID]).
+
+%%% @doc The `unregister_subhost' hook is called when a component is unregistered from ejabberd_router.
+-spec unregister_subhost(Acc, LDomain) -> Result when
+    Acc :: any(),
+    LDomain :: binary(),
+    Result :: any().
+unregister_subhost(Acc, LDomain) ->
+    ejabberd_hooks:run_fold(unregister_subhost, Acc, [LDomain]).
 
 -spec unset_presence_hook(LServer, Acc, LUser, LResource, Status) -> Result when
     LServer :: jid:lserver(),

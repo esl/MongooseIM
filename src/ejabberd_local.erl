@@ -404,10 +404,10 @@ do_route(Acc, From, To, El) ->
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
                 _ ->
-                    ejabberd_hooks:run_fold(local_send_to_resource_hook,
+                    mongoose_hooks:local_send_to_resource_hook(
                                             To#jid.lserver,
                                             Acc,
-                                            [From, To, El])
+                                            From, To, El)
             end
     end.
 

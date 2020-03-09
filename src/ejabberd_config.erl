@@ -541,7 +541,7 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     end,
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
-    ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
+    ok = mongoose_hooks:host_config_update(Host, ok, ldap, NewConfig);
 handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     gen_mod_deps:replace_modules(Host, OldModules, NewModules);
 handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
