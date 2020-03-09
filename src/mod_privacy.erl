@@ -323,7 +323,7 @@ check_packet(Acc, User, Server,
     {Subscription, Groups} =
         case NeedDb of
             true ->
-                roster_get_jid_info(Server, User, Server, LJID);
+                roster_get_jid_info(Server, User, LJID);
             false ->
                 {[], []}
         end,
@@ -666,12 +666,10 @@ broadcast_privacy_list(LUser, LServer, Name, UserList) ->
 broadcast_privacy_list_packet(Name, UserList) ->
     {broadcast, {privacy_list, UserList, Name}}.
 
-roster_get_jid_info(Host, User, Server, LJID) ->
-    ejabberd_hooks:run_fold(
-        roster_get_jid_info,
-        Host,
-        {none, []},
-        [User, Server, LJID]).
+roster_get_jid_info(Host, User, LJID) ->
+    mongoose_hooks:roster_get_jid_info(Host,
+                                       {none, []},
+                                       User, LJID).
 
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
