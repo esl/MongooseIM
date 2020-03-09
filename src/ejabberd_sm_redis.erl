@@ -152,8 +152,9 @@ cleanup(Node) ->
                                   #{location => ?LOCATION,
                                     lserver => S,
                                     element => undefined}),
-                          ejabberd_hooks:run_fold(session_cleanup, S, Acc,
-                                                  [U, S, R, SID])
+                          mongoose_hooks:session_cleanup(S,
+                                                         Acc,
+                                                         U, R, SID)
                   end, Hashes).
 
 
