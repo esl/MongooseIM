@@ -5,7 +5,9 @@
 %%% make sure they pass the expected arguments.
 -module(mongoose_hooks).
 
--export([auth_failed/2,
+-export([adhoc_local_items/5,
+         adhoc_sm_items/5,
+         auth_failed/2,
          c2s_broadcast_recipients/6,
          c2s_filter_packet/6,
          c2s_preprocessing_hook/3,
@@ -19,6 +21,7 @@
          forbidden_session_hook/3,
          host_config_update/4,
          local_send_to_resource_hook/5,
+         get_key/3,
          offline_groupchat_message_hook/5,
          offline_message_hook/5,
          packet_to_component/3,
@@ -34,6 +37,7 @@
          session_opening_allowed_for_user/3,
          session_cleanup/5,
          set_presence_hook/5,
+         set_vcard/4,
          sm_broadcast/6,
          sm_filter_offline_message/5,
          sm_register_connection_hook/4,
@@ -42,9 +46,12 @@
          unregister_subhost/2,
          unset_presence_hook/5,
          user_available_hook/3,
+         user_ping_response/5,
+         user_ping_timeout/3,
          user_receive_packet/6,
          user_sent_keep_alive/2,
          user_send_packet/5,
+         vcard_set/4,
          xmpp_bounce_message/2,
          xmpp_send_element/3,
          xmpp_stanza_dropped/5]).
@@ -130,6 +137,26 @@
 -export([pubsub_create_node/6,
          pubsub_delete_node/5,
          pubsub_publish_item/7]).
+
+-spec adhoc_local_items(LServer, Acc, From, To, Lang) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: {result, [exml:element()]},
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Lang :: ejabberd:lang(),
+    Result :: {result, [exml:element()]}.
+adhoc_local_items(LServer, Acc, From, To, Lang) ->
+    ejabberd_hooks:run_fold(adhoc_local_items, LServer, Acc, [From, To, Lang]).
+
+-spec adhoc_sm_items(LServer, Acc, From, To, Lang) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: {result, [exml:element()]},
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Lang :: ejabberd:lang(),
+    Result :: {result, [exml:element()]}.
+adhoc_sm_items(LServer, Acc, From, To, Lang) ->
+    ejabberd_hooks:run_fold(adhoc_sm_items, LServer, Acc, [From, To, Lang]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
@@ -265,6 +292,16 @@ local_send_to_resource_hook(Server, Acc, From, To, Packet) ->
                             Server,
                             Acc,
                             [From, To, Packet]).
+
+%%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
+-spec get_key(LServer, Acc, KeyName) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mod_keystore:key_list(),
+    KeyName :: atom(),
+    Result :: mod_keystore:key_list().
+get_key(LServer, Acc, KeyName) ->
+    ejabberd_hooks:run_fold(get_key, LServer, Acc,
+                            [{KeyName, LServer}]).
 
 -spec offline_groupchat_message_hook(LServer, Acc, From, To, Packet) -> Result when
     LServer :: jid:lserver(),
@@ -438,6 +475,16 @@ session_opening_allowed_for_user(Server, Allow, JID) ->
 set_presence_hook(LServer, Acc, LUser, LResource, Presence) ->
     ejabberd_hooks:run_fold(set_presence_hook, LServer, Acc, [LUser, LServer, LResource, Presence]).
 
+%%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
+-spec set_vcard(LServer, Acc, User, VCard) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: {error, no_handler_defined},
+    User :: jid:jid(),
+    VCard :: exml:element(),
+    Result :: ok | {error, any()}.
+set_vcard(LServer, Acc, User, VCard) ->
+    ejabberd_hooks:run_fold(set_vcard, LServer, Acc, [User, VCard]).
+
 -spec sm_broadcast(LServer, Acc, From, To, Broadcast, SessionCount) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
@@ -521,6 +568,30 @@ user_available_hook(Server, Acc, JID) ->
                             Acc,
                             [JID]).
 
+%%% @doc The `user_ping_response' hook is called when a user responds to a ping.
+-spec user_ping_response(Server, Acc, JID, Response, TDelta) -> Result when
+    Server :: jid:server(),
+    Acc :: mongoose_acc:t(),
+    JID :: jid:jid(),
+    Response :: timeout | jlib:iq(),
+    TDelta :: pos_integer(),
+    Result :: mongoose_acc:t().
+user_ping_response(Server, Acc, JID, Response, TDelta) ->
+    ejabberd_hooks:run_fold(user_ping_response, Server,
+                            Acc, [JID, Response, TDelta]).
+
+%%% @doc The `user_ping_timeout' hook is called when there is a timeout when waiting for a ping response from a user.
+-spec user_ping_timeout(Server, Acc, JID) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    JID :: jid:jid(),
+    Result :: any().
+user_ping_timeout(Server, Acc, JID) ->
+    ejabberd_hooks:run_fold(user_ping_timeout,
+                            Server,
+                            Acc,
+                            [JID]).
+
 -spec user_receive_packet(Server, Acc, JID, From, To, El) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
@@ -557,6 +628,16 @@ user_send_packet(LServer, Acc, From, To, Packet) ->
                             LServer,
                             Acc,
                             [From, To, Packet]).
+
+%%% @doc The `vcard_set' hook is called to inform that the vcard has been set in mod_vcard backend.
+-spec vcard_set(Server, Acc, LUser, VCard) -> Result when
+    Server :: jid:server(),
+    Acc :: any(),
+    LUser :: jid:luser(),
+    VCard :: exml:element(),
+    Result :: any().
+vcard_set(Server, Acc, LUser, VCard) ->
+    ejabberd_hooks:run_fold(vcard_set, Server, Acc, [LUser, Server, VCard]).
 
 -spec xmpp_bounce_message(Server, Acc) -> Result when
     Server :: jid:server(),
