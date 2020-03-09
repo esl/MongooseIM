@@ -27,8 +27,8 @@ cp -r ../deb/mongooseim.service mongooseim/etc/systemd/system/
 
 
 sed -i "s#@ARCH@#${arch}#" mongooseim/DEBIAN/control
-sed -i "s#@VER@#${version}#" mongooseim/DEBIAN/control
-sed -i "s#@VER@#${version}#" mongooseim/DEBIAN/changelog
+sed -i "s#@VER@#${version}-${revision}#" mongooseim/DEBIAN/control
+sed -i "s#@VER@#${version}-${revision}#" mongooseim/DEBIAN/changelog
 
 # set date in the dummy changelog
 date=$(date -R)
