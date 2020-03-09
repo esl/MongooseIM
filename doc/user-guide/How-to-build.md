@@ -68,12 +68,9 @@ $ brew install erlang openssl unixodbc
 Add OpenSSL paths to the compiler and linker environment variables:
 
 ```bash
-$ export LDFLAGS="-L/usr/local/Cellar/openssl/[installed version]/lib/ -undefined dynamic_lookup $LDFLAGS"
-$ export CFLAGS="-I/usr/local/Cellar/openssl/[installed version]/include/ $CFLAGS"
+$ export LDFLAGS="-L/usr/local/opt/openssl/lib"
+$ export CFLAGS="-I/usr/local/opt/openssl/include"
 ```
-
-Please remember to replace `[installed version]` with the one that is present in your file system.
-1.0.2s was the most recent one when this guide was written.
 
 Now, please proceed to the "Building" section.
 
