@@ -9,11 +9,12 @@
 
 -export_type([report_struct/0]).
 
--export([collect/0]).
+-export([collect/1]).
 
-collect() ->
+collect(PrevReport) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    lists:flatten(ReportResults).
+    StanzasCount = get_xmpp_stanzas_count(PrevReport),
+    lists:flatten(ReportResults ++ StanzasCount).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
 get_reports(Fun) ->
@@ -32,8 +33,7 @@ report_getters() ->
         fun get_api/0,
         fun get_transport_mechanisms/0,
         fun get_tls_options/0,
-        fun get_outgoing_pools/0,
-        fun get_xmpp_stanzas_count/0
+        fun get_outgoing_pools/0
     ].
 
 get_hosts_count() ->
@@ -190,24 +190,18 @@ get_outgoing_pools() ->
        key => type,
        value => Type} || {Type, _, _, _, _} <- OutgoingPools].
 
-get_xmpp_stanzas_count() ->
-    Hosts = ejabberd_config:get_global_option(hosts),
+get_xmpp_stanzas_count(PrevReport) ->
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
-    NewCount = [count_stanzas(Hosts, StanzaType) || StanzaType <- StanzaTypes],
-    PrevReport = mongoose_system_metrics_file:read(),
+    NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
     StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
     [#{report_name => StanzaType,
        key => Total,
        value => Increment} || {StanzaType, Total, Increment} <- StanzasCount].
 
-count_stanzas(Hosts, StanzaType) ->
-    FullExometerResults = [exometer:get_value([Host, StanzaType]) || Host <- Hosts],
-    %Filter out possible errors returned by exometer for disabled metrics
-    ExometerResults = lists:filter(fun({OkOrError, _}) ->
-                                    OkOrError == ok
-                                   end, FullExometerResults),
-    StanzaCount = lists:foldl(fun({ok, [{count,Count}, {one, _}]}, Sum) ->
+count_stanzas(StanzaType) ->
+    ExometerResults = exometer:get_values(['_', StanzaType]),
+    StanzaCount = lists:foldl(fun({ _, [{count,Count}, {one, _}]}, Sum) ->
                             Count + Sum end, 0, ExometerResults),
     {StanzaType, StanzaCount}.
 
