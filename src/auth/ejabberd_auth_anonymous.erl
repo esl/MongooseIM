@@ -126,7 +126,7 @@ allow_multiple_connections(Host) ->
     ejabberd_config:get_local_option({allow_multiple_connections, Host}) =:= true.
 
 
-%% @doc Check if user exist in the anonymus database
+%% @doc Check if user exist in the anonymous database
 -spec anonymous_user_exist(LUser :: jid:luser(),
                            LServer :: jid:lserver()) -> boolean().
 anonymous_user_exist(LUser, LServer) ->
@@ -160,7 +160,7 @@ remove_connection(SID, LUser, LServer) ->
 register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
-            ejabberd_hooks:run(register_user, LServer, [LUser, LServer]),
+            mongoose_hooks:register_user(LServer, ok, LUser),
             US = {LUser, LServer},
             mnesia:sync_dirty(
               fun() -> mnesia:write(#anonymous{us = US, sid=SID})
@@ -183,12 +183,15 @@ unregister_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
     Acc.
 
 
-%% @doc Launch the hook to purge user data only for anonymous users
+%% @doc Launch the hook to purge user data only for anonymous users.
 -spec purge_hook(boolean(), jid:luser(), jid:lserver()) -> 'ok'.
 purge_hook(false, _LUser, _LServer) ->
     ok;
 purge_hook(true, LUser, LServer) ->
-    ejabberd_hooks:run(anonymous_purge_hook, LServer, [LUser, LServer]).
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LServer,
+                              element => undefined }),
+    mongoose_hooks:anonymous_purge_hook(LServer, Acc, LUser).
 
 -spec session_cleanup(Acc :: map(), LUser :: jid:luser(),
                       LServer :: jid:lserver(),
@@ -207,7 +210,7 @@ session_cleanup(Acc, LUser, LServer, _LResource, SID) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
-%% @doc When anonymous login is enabled, check the password for permenant users
+%% @doc When anonymous login is enabled, check the password for permanent users
 %% before allowing access
 -spec check_password(LUser :: jid:luser(),
                      LServer :: jid:lserver(),
@@ -219,7 +222,7 @@ check_password(LUser, LServer, _Password, _Digest, _DigestGen) ->
     %% they however are "reserved")
     case ejabberd_auth:is_user_exists_in_other_modules(?MODULE,
                                                        LUser, LServer) of
-        %% If user exists in other module, reject anonnymous authentication
+        %% If user exists in other module, reject anonymous authentication
         true  -> false;
         %% If we are not sure whether the user exists in other module, reject anon auth
         maybe  -> false;
