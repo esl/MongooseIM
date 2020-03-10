@@ -177,6 +177,11 @@ init_per_testcase(module_backend_is_reported, Config) ->
     maybe_start_module(mod_vcard),
     enable_system_metrics(mim()),
     Config;
+init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
+    create_events_collection(),
+    enable_system_metrics(mim()),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(_TestcaseName, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
@@ -209,6 +214,11 @@ end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Con
     remove_additional_tracking_id(mim()),
     disable_system_metrics(mim()),
     Config;
+end_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
+    clear_events_collection(),
+    disable_system_metrics(mim()),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(_TestcaseName, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
@@ -293,7 +303,14 @@ transport_mechanisms_are_reported(_Config) ->
 outgoing_pools_are_reported(_Config) ->
     mongoose_helper:wait_until(fun outgoing_pools_are_reported/0, true).
 
-xmpp_stanzas_counts_are_reported(_Config) ->
+xmpp_stanzas_counts_are_reported(Config) ->
+    escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"COVID-19">>)),
+        escalus:assert(is_chat_message, [<<"COVID-19">>],
+                       escalus:wait_for_stanza(Bob))
+
+    end),
+    mongoose_helper:wait_until(fun xmpp_messages_count_is_reported/0, true),
     mongoose_helper:wait_until(fun xmpp_stanzas_counts_are_reported/0, true).
 
 just_removed_from_config_logs_question(_Config) ->
@@ -488,7 +505,12 @@ outgoing_pools_are_reported() ->
     is_in_table(<<"outgoing_pools">>).
 
 xmpp_stanzas_counts_are_reported() ->
-    is_in_table(<<"xmppMessageSent">>).
+    is_in_table(<<"xmppIqSent">>).
+
+xmpp_messages_count_is_reported() ->
+    BoolMessageSent = feature_is_reported(<<"xmppMessageSent">>, <<"1">>),
+    BoolMessageReceived = feature_is_reported(<<"xmppMessageReceived">>, <<"1">>),
+    BoolMessageSent and BoolMessageReceived.
 
 more_than_one_component_is_reported() ->
     Tab = ets:tab2list(?ETS_TABLE),
