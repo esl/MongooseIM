@@ -74,7 +74,7 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'push_notifications'
--spec push_notifications(AccIn :: ok, Host :: jid:server(),
+-spec push_notifications(AccIn :: ok | mongoose_acc:t(), Host :: jid:server(),
                          Notifications :: [#{binary() => binary()}],
                          Options :: #{binary() => binary()}) ->
     ok | {error, Reason :: term()}.

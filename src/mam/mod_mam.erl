@@ -268,9 +268,9 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc :: map(), From :: jid:jid(),
+-spec user_send_packet(Acc :: mongoose_acc:t(), From :: jid:jid(),
                        To :: jid:jid(),
-                       Packet :: exml:element()) -> map().
+                       Packet :: exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
