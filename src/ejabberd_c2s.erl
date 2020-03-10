@@ -1229,10 +1229,9 @@ preprocess_and_ship(Acc, From, To, El, StateData) ->
         jid:to_binary(To),
         Attrs),
     FixedEl = El#xmlel{attrs = Attrs2},
-    Acc2 = mongoose_hooks:user_receive_packet(
-                                   StateData#state.server,
-                                   Acc,
-                                   StateData#state.jid, From, To, FixedEl),
+    Acc2 = mongoose_hooks:user_receive_packet(StateData#state.server,
+                                              Acc,
+                                              StateData#state.jid, From, To, FixedEl),
     ship_to_local_user(Acc2, {From, To, FixedEl}, StateData).
 
 response_negative(<<"iq">>, forbidden, From, To, Acc) ->
@@ -3280,9 +3279,8 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
     end.
 
 open_session_allowed_hook(Server, JID) ->
-    allow == mongoose_hooks:session_opening_allowed_for_user(
-                                     Server,
-                                     allow, JID).
+    allow == mongoose_hooks:session_opening_allowed_for_user(Server,
+                                                             allow, JID).
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,
