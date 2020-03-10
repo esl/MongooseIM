@@ -7,6 +7,7 @@
 
 -export([adhoc_local_items/5,
          adhoc_sm_items/5,
+         anonymous_purge_hook/3,
          auth_failed/2,
          c2s_broadcast_recipients/6,
          c2s_filter_packet/6,
@@ -169,6 +170,15 @@ adhoc_local_items(LServer, Acc, From, To, Lang) ->
     Result :: {result, [exml:element()]}.
 adhoc_sm_items(LServer, Acc, From, To, Lang) ->
     ejabberd_hooks:run_fold(adhoc_sm_items, LServer, Acc, [From, To, Lang]).
+
+%%% @doc The `anonymous_purge_hook' hook is called when anonymous user's data is removed.
+-spec anonymous_purge_hook(LServer, Acc, LUser) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    LUser :: jid:user(),
+    Result :: mongose_acc:t().
+anonymous_purge_hook(LServer, Acc, LUser) ->
+    ejabberd_hooks:run_fold(anonymous_purge_hook, LServer, Acc, [LUser, LServer]).
 
 -spec auth_failed(Server, Username) -> Result when
     Server :: jid:server(),
