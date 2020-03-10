@@ -327,8 +327,7 @@ do_try_register_in_backend([], _, _, _) ->
 do_try_register_in_backend([M | Backends], LUser, LServer, Password) ->
     case M:try_register(LUser, LServer, Password) of
         ok ->
-            ejabberd_hooks:run(register_user, LServer,
-                [LUser, LServer]);
+            mongoose_hooks:register_user(LServer, ok, LUser);
         _ ->
             do_try_register_in_backend(Backends, LUser, LServer, Password)
     end.
@@ -552,7 +551,7 @@ do_remove_user(LUser, LServer) ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                       lserver => LServer,
                                       element => undefined }),
-            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
+            mongoose_hooks:remove_user(LServer, Acc, LUser),
             ok;
         false ->
             ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
@@ -588,7 +587,8 @@ do_remove_user(LUser, LServer, Password) ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => LServer,
                               element => undefined }),
-            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]);
+            mongoose_hooks:remove_user(LServer, Acc, LUser),
+            ok;
         _ ->
             none
     end,

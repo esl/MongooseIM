@@ -103,9 +103,9 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
     TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
     case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
-            %% Continue routing with initalized metadata
-            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost,
-                               [From, To, LocalHost]),
+            %% Continue routing with initialized metadata
+            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost, ok,
+                                                              From, To, LocalHost),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter local_host=~ts",
                    [ID, jid:to_binary(From), jid:to_binary(To), LocalHost]),
             {ok, TTL} = find_metadata(Acc, ttl),
@@ -113,8 +113,8 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
-            ejabberd_hooks:run(mod_global_distrib_known_recipient,
-                               GlobalHost, [From, To, TargetHost]),
+            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost, ok,
+                                                              From, To, TargetHost),
             case find_metadata(Acc, ttl) of
                 {ok, 0} ->
                     %% Just continue routing
@@ -139,8 +139,7 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             ?DEBUG("Unable to route global message gd_id=~s from=~s to=~s: "
                    "user not found in the routing table",
                    [ID, jid:to_binary(From), jid:to_binary(To)]),
-            ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
-                                    GlobalHost, {From, To, Acc, Packet}, [])
+            mongoose_hooks:mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet})
     end.
 
 %%--------------------------------------------------------------------

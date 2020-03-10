@@ -18,8 +18,11 @@
          check_bl_c2s/2,
          ejabberd_ctl_process/2,
          failed_to_store_message/4,
+         filter_local_packet/2,
+         filter_packet/1,
          forbidden_session_hook/3,
          host_config_update/4,
+         inbox_unread_count/3,
          local_send_to_resource_hook/5,
          get_key/3,
          offline_groupchat_message_hook/5,
@@ -32,8 +35,12 @@
          privacy_iq_set/5,
          privacy_updated_list/4,
          push_notifications/4,
+         register_command/2,
          register_subhost/3,
+         register_user/3,
+         remove_user/3,
          resend_offline_messages_hook/3,
+         rest_user_send_packet/5,
          session_opening_allowed_for_user/3,
          session_cleanup/5,
          set_presence_hook/5,
@@ -43,6 +50,7 @@
          sm_register_connection_hook/4,
          sm_remove_connection_hook/6,
          unacknowledged_message/3,
+         unregister_command/2,
          unregister_subhost/2,
          unset_presence_hook/5,
          user_available_hook/3,
@@ -97,7 +105,8 @@
          mam_muc_flush_messages/3]).
 
 -export([get_mam_pm_gdpr_data/3,
-         get_mam_muc_gdpr_data/3]).
+         get_mam_muc_gdpr_data/3,
+         get_personal_data/3]).
 
 -export([find_s2s_bridge/3,
          s2s_allow_host/3,
@@ -137,6 +146,9 @@
 -export([pubsub_create_node/6,
          pubsub_delete_node/5,
          pubsub_publish_item/7]).
+
+-export([mod_global_distrib_known_recipient/5,
+         mod_global_distrib_unknown_recipient/2]).
 
 -spec adhoc_local_items(LServer, Acc, From, To, Lang) -> Result when
     LServer :: jid:lserver(),
@@ -263,6 +275,27 @@ failed_to_store_message(LServer, Acc, From, Packet) ->
                             Acc,
                             [From, Packet]).
 
+%%% @doc The `filter_local_packet' hook is called to filter out stanzas routed with `mongoose_local_delivery'.
+-spec filter_local_packet(Server, {From, To, Acc, Packet}) -> Result when
+    Server :: jid:server(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Acc :: mongoose_acc:t(),
+    Packet :: exml:element(),
+    Result :: {F :: jid:jid(), T :: jid:jid(), A :: mongoose_acc:t(), P :: exml:element()} | drop.
+filter_local_packet(Server, {From, To, Acc, Packet}) ->
+    ejabberd_hooks:run_fold(filter_local_packet, Server, {From, To, Acc, Packet}, []).
+
+%%% @doc The `filter_packet' hook is called to filter out stanzas routed with `mongoose_router_global'.
+-spec filter_packet({From, To, Acc, Packet}) -> Result when
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Acc :: mongoose_acc:t(),
+    Packet :: exml:element(),
+    Result :: {F :: jid:jid(), T :: jid:jid(), A :: mongoose_acc:t(), P :: exml:element()} | drop.
+filter_packet({From, To, Acc, Packet}) ->
+    ejabberd_hooks:run_fold(filter_packet, {From, To, Acc, Packet}, []).
+
 -spec forbidden_session_hook(Server, Acc, JID) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
@@ -279,6 +312,15 @@ forbidden_session_hook(Server, Acc, JID) ->
     Result :: ok.
 host_config_update(Server, Acc, Key, Config) ->
     ejabberd_hooks:run_fold(host_config_update, Server, Acc, [Server, Key, Config]).
+
+%%% @doc The `inbox_unread_count' hook is called to get the number of unread messages in the inbox for a user.
+-spec inbox_unread_count(LServer, Acc, User) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    User :: jid:jid(),
+    Result :: mongoose_acc:t().
+inbox_unread_count(LServer, Acc, User) ->
+    ejabberd_hooks:run_fold(inbox_unread_count, LServer, Acc, [User]).
 
 -spec local_send_to_resource_hook(LServer, Acc, From, To, Packet) -> Result when
     LServer :: jid:lserver(),
@@ -412,9 +454,10 @@ privacy_updated_list(Server, Acc, OldList, NewList) ->
     ejabberd_hooks:run_fold(privacy_updated_list, Server,
                             Acc, [OldList, NewList]).
 
+%%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(Server, Acc, NotificationForms, Options) -> Result when
     Server :: jid:server(),
-    Acc :: ok,
+    Acc :: ok | mongoose_acc:t(),
     NotificationForms :: [#{atom() => binary()}],
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
@@ -424,6 +467,14 @@ push_notifications(Server, Acc, NotificationForms, Options) ->
                             Acc,
                             [Server, NotificationForms, Options]).
 
+%%% @doc The `register_command' hook is called when a command is registered in `mongoose_commands'.
+-spec register_command(Server, Command) -> Result when
+    Server :: jid:server() | global,
+    Command :: mongoose_commands:t(),
+    Result :: drop.
+register_command(Server, Command) ->
+    ejabberd_hooks:run_fold(register_command, Server, Command, []).
+
 %%% @doc The `register_subhost' hook is called when a component is registered for ejabberd_router.
 -spec register_subhost(Acc, LDomain, IsHidden) -> Result when
     Acc :: any(),
@@ -432,6 +483,24 @@ push_notifications(Server, Acc, NotificationForms, Options) ->
     Result :: any().
 register_subhost(Acc, LDomain, IsHidden) ->
     ejabberd_hooks:run_fold(register_subhost, Acc, [LDomain, IsHidden]).
+
+%%% @doc The `register_user' hook is called when a user is successfully registered in an authentication backend.
+-spec register_user(LServer, Acc, LUser) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: any(),
+    LUser :: jid:luser(),
+    Result :: any().
+register_user(LServer, Acc, LUser) ->
+    ejabberd_hooks:run_fold(register_user, LServer, Acc, [LUser, LServer]).
+
+%%% @doc The `remove_user' hook is called when a user is removed.
+-spec remove_user(LServer, Acc, LUser) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    LUser :: jid:luser(),
+    Result :: mongoose_acc:t().
+remove_user(LServer, Acc, LUser) ->
+    ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]).
 
 -spec resend_offline_messages_hook(Server, Acc, User) -> Result when
     Server :: jid:server(),
@@ -443,6 +512,18 @@ resend_offline_messages_hook(Server, Acc, User) ->
                             Server,
                             Acc,
                             [User, Server]).
+
+%%% @doc The `rest_user_send_packet' hook is called when a user sends a message using the REST API.
+-spec rest_user_send_packet(LServer, Acc, From, To, Packet) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: mongoose_acc:t().
+rest_user_send_packet(LServer, Acc, From, To, Packet) ->
+    ejabberd_hooks:run_fold(rest_user_send_packet, LServer, Acc,
+                            [From, To, Packet]).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -537,6 +618,14 @@ sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unacknowledged_message(Server, Acc, JID) ->
     ejabberd_hooks:run_fold(unacknowledged_message, Server, Acc, [JID]).
+
+%%% @doc The `unregister_command' hook is called when a command is unregistered from `mongoose_commands'.
+-spec unregister_command(Server, Command) -> Result when
+    Server :: jid:server() | global,
+    Command :: mongoose_commands:t(),
+    Result :: drop.
+unregister_command(Server, Command) ->
+    ejabberd_hooks:run_fold(unregister_command, Server, Command, []).
 
 %%% @doc The `unregister_subhost' hook is called when a component is unregistered from ejabberd_router.
 -spec unregister_subhost(Acc, LDomain) -> Result when
@@ -1114,6 +1203,15 @@ get_mam_pm_gdpr_data(HookServer, InitialValue, JID) ->
 get_mam_muc_gdpr_data(HookServer, InitialValue, JID) ->
     ejabberd_hooks:run_fold(get_mam_muc_gdpr_data, HookServer, InitialValue, [JID]).
 
+%%% @doc `get_personal_data' hook is called to retrieve a user's personal data for GDPR purposes.
+-spec get_personal_data(LServer, InitialValue, JID) -> Result when
+    LServer :: jid:lserver(),
+    InitialValue :: [],
+    JID :: jid:jid(),
+    Result :: gdpr:personal_data().
+get_personal_data(LServer, InitialValue, JID) ->
+    ejabberd_hooks:run_fold(get_personal_data, LServer, InitialValue, [JID]).
+
 %% S2S related hooks
 
 %%% @doc `find_s2s_bridge' hook is called to find a s2s bridge to a foreign protocol when opening a socket to a different XMPP server fails.
@@ -1515,3 +1613,30 @@ pubsub_publish_item(Server, Acc, NodeId, Publisher, ServiceJID, ItemId, BrPayloa
                             Server,
                             Acc,
                             [Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload]).
+
+%% Global distribution related hooks
+
+%%% @doc The `mod_global_distrib_known_recipient' hook is called when the recipient is known to `global_distrib'.
+-spec mod_global_distrib_known_recipient(GlobalHost, Acc, From, To, LocalHost) -> Result when
+    GlobalHost :: jid:server(),
+    Acc :: any(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    LocalHost :: jid:server(),
+    Result :: any().
+mod_global_distrib_known_recipient(GlobalHost, Acc, From, To, LocalHost) ->
+    ejabberd_hooks:run_fold(mod_global_distrib_known_recipient,
+                            GlobalHost,
+                            Acc,
+                            [From, To, LocalHost]).
+
+%%% @doc The `mod_global_distrib_unknown_recipient' hook is called when the recipient is unknown to `global_distrib'.
+-spec mod_global_distrib_unknown_recipient(GlobalHost, Info) -> Result when
+    GlobalHost :: jid:server(),
+    Info :: {From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()},
+    Result :: any().
+mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet}) ->
+    ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
+                            GlobalHost,
+                            {From, To, Acc, Packet},
+                            []).

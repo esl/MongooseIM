@@ -22,14 +22,12 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, LDstDomain, Handler) ->
                                 element => OrigPacket},
                               OrigAcc),
     %% Filter locally
-    case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
-        {OrigFrom, OrigTo, Acc0, OrigPacket}, []) of
+    case mongoose_hooks:filter_local_packet(LDstDomain, {OrigFrom, OrigTo, Acc0, OrigPacket}) of
         {From, To, Acc, Packet} ->
             Acc1 = mongoose_acc:update_stanza(#{from_jid => From, to_jid => To, element => Packet}, Acc),
             mongoose_packet_handler:process(Handler, Acc1, From, To, Packet);
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped,
-                OrigFrom#jid.lserver,
-                [OrigFrom, OrigTo, OrigPacket]),
+            mongoose_hooks:xmpp_stanza_dropped(OrigFrom#jid.lserver, ok,
+                                               OrigFrom, OrigTo, OrigPacket),
             ok
     end.
