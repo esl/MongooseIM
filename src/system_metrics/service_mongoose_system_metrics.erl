@@ -25,7 +25,8 @@
 
 -export([verify_if_configured/0]).
 
--record(system_metrics_state, {report_after, reporter_monitor = none, reporter_pid = none}).
+-record(system_metrics_state, {report_after, reporter_monitor = none,
+                               reporter_pid = none, prev_report = []}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
@@ -66,14 +67,17 @@ init(Args) ->
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
-                                                  reporter_pid = none} = State) ->
+                                                  reporter_pid = none,
+                                                  prev_report = PrevReport} = State) ->
+    ServicePid = self(),
     case get_client_id() of
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
-                    Reports = mongoose_system_metrics_collector:collect(),
+                    Reports = mongoose_system_metrics_collector:collect(PrevReport),
                     mongoose_system_metrics_sender:send(ClientId, Reports),
-                    mongoose_system_metrics_file:save(Reports)
+                    mongoose_system_metrics_file:save(Reports),
+                    ServicePid ! {prev_report, Reports}
                 end),
             erlang:send_after(ReportAfter, self(), spawn_reporter),
             {noreply, State#system_metrics_state{reporter_monitor = Monitor,
@@ -87,6 +91,8 @@ handle_info(spawn_reporter, #system_metrics_state{reporter_pid = Pid} = State) -
 handle_info({'DOWN', CollectorMonitor, _, _, _},
                 #system_metrics_state{reporter_monitor = CollectorMonitor} = State) ->
     {noreply, State#system_metrics_state{reporter_monitor = none, reporter_pid = none}};
+handle_info({prev_report, Report}, State) ->
+    {noreply, State#system_metrics_state{prev_report = Report}};
 handle_info(_Message, State) ->
     {noreply, State}.
 

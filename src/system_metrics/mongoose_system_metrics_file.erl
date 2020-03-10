@@ -15,3 +15,4 @@ save(Reports) ->
     JSON = jiffy:encode(Reports, [pretty]),
     file:write_file(location(), JSON),
     ok.
+

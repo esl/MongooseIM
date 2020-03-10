@@ -9,11 +9,12 @@
 
 -export_type([report_struct/0]).
 
--export([collect/0]).
+-export([collect/1]).
 
-collect() ->
+collect(PrevReport) ->
     ReportResults = [ get_reports(RGetter) || RGetter <- report_getters()],
-    lists:flatten(ReportResults).
+    StanzasCount = get_xmpp_stanzas_count(PrevReport),
+    lists:flatten(ReportResults ++ StanzasCount).
 
 -spec get_reports(fun(() -> [report_struct()])) -> [report_struct()].
 get_reports(Fun) ->
@@ -188,3 +189,29 @@ get_outgoing_pools() ->
     [#{report_name => outgoing_pools,
        key => type,
        value => Type} || {Type, _, _, _, _} <- OutgoingPools].
+
+get_xmpp_stanzas_count(PrevReport) ->
+    StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
+                   xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
+    NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
+    StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
+    [#{report_name => StanzaType,
+       key => Total,
+       value => Increment} || {StanzaType, Total, Increment} <- StanzasCount].
+
+count_stanzas(StanzaType) ->
+    ExometerResults = exometer:get_values(['_', StanzaType]),
+    StanzaCount = lists:foldl(fun({ _, [{count,Count}, {one, _}]}, Sum) ->
+                            Count + Sum end, 0, ExometerResults),
+    {StanzaType, StanzaCount}.
+
+calculate_stanza_rate([], NewCount) ->
+    [{Type, Count, Count} || {Type, Count} <- NewCount];
+calculate_stanza_rate(PrevReport, NewCount) ->
+    ReportProplist = [{Name, Key} ||
+        #{report_name := Name, key := Key}  <- PrevReport],
+    [{Type, Count,
+        case proplists:get_value(Type, ReportProplist) of
+            undefined -> Count;
+            Total -> Count-Total
+        end} || {Type, Count} <- NewCount].
