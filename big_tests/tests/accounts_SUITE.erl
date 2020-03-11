@@ -387,4 +387,4 @@ domain() ->
     ct:get_config({hosts, mim, domain}).
 
 make_jid(U, S) ->
-    rpc(mim(), jid, make, [U, S, <<>>]).
+    mongoose_helper:make_jid(U, S, <<>>).
