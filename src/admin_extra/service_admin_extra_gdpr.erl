@@ -60,7 +60,7 @@ retrieve_all(Username, Domain, ResultFilePath) ->
 -spec get_data_from_modules(jid:user(), jid:server()) -> gdpr:personal_data().
 get_data_from_modules(Username, Domain) ->
     JID = jid:make(Username, Domain, <<>>),
-    ejabberd_hooks:run_fold(get_personal_data, JID#jid.lserver, [], [JID]).
+    mongoose_hooks:get_personal_data(JID#jid.lserver, [], JID).
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
 to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->

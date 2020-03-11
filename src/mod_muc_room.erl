@@ -881,39 +881,32 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                  {room_jid, StateData#state.jid},
                  {role, Role},
                  {affiliation, Affiliation}],
-    case ejabberd_hooks:run_fold(filter_room_packet,
-                                 StateData#state.host, Packet, [EventData])
-    of
-        drop ->
-            next_normal_state(StateData);
-        FilteredPacket ->
-            ejabberd_hooks:run(room_send_packet, StateData#state.host, [FilteredPacket, EventData]),
-            RouteFrom = jid:replace_resource(StateData#state.jid,
-                                             FromNick),
-            RoomJid = StateData#state.jid,
-            HookInfo = #{room_jid => RoomJid,
-                         from_jid => From,
-                         from_room_jid => RouteFrom,
-                         packet => FilteredPacket,
-                         affiliations_map => StateData#state.affiliations},
-            run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
-            maps_foreach(fun(_LJID, Info) ->
-                                  ejabberd_router:route(RouteFrom,
-                                                        Info#user.jid,
-                                                        FilteredPacket)
-                          end, StateData#state.users),
-            NewStateData2 = add_message_to_history(FromNick,
-                                                   From,
-                                                   FilteredPacket,
-                                                   StateData),
-            next_normal_state(NewStateData2)
-    end.
+    FilteredPacket = mongoose_hooks:filter_room_packet(StateData#state.host, Packet, EventData),
+    mongoose_hooks:room_send_packet(StateData#state.host, FilteredPacket, EventData),
+    RouteFrom = jid:replace_resource(StateData#state.jid,
+                                     FromNick),
+    RoomJid = StateData#state.jid,
+    HookInfo = #{room_jid => RoomJid,
+                 from_jid => From,
+                 from_room_jid => RouteFrom,
+                 packet => FilteredPacket,
+                 affiliations_map => StateData#state.affiliations},
+    run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
+    maps_foreach(fun(_LJID, Info) ->
+                          ejabberd_router:route(RouteFrom,
+                                                Info#user.jid,
+                                                FilteredPacket)
+                  end, StateData#state.users),
+    NewStateData2 = add_message_to_history(FromNick,
+                                           From,
+                                           FilteredPacket,
+                                           StateData),
+    next_normal_state(NewStateData2).
 
 -spec run_update_inbox_for_muc_hook(jid:server(),
                                     update_inbox_for_muc_payload()) -> ok.
 run_update_inbox_for_muc_hook(ServerHost, HookInfo) ->
-    ejabberd_hooks:run_fold(update_inbox_for_muc,
-                            ServerHost, HookInfo, []),
+    mongoose_hooks:update_inbox_for_muc(ServerHost, HookInfo),
     ok.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
@@ -1679,7 +1672,7 @@ add_online_user(JID, Nick, Role, StateData) ->
 
 -spec run_join_room_hook(jid:jid(), state()) -> ok.
 run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
-  ejabberd_hooks:run(join_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  mongoose_hooks:join_room(ServerHost, ok, Room, Host, JID, MucJID),
   ok.
 
 -spec remove_online_user(jid:jid(), state()) -> state().
@@ -1710,7 +1703,7 @@ remove_online_user(JID, StateData, Reason) ->
 
 -spec run_leave_room_hook(jid:jid(), state()) -> ok.
 run_leave_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
-  ejabberd_hooks:run(leave_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  mongoose_hooks:leave_room(ServerHost, ok, Room, Host, JID, MucJID),
   ok.
 
 -spec filter_presence(exml:element()) -> exml:element().
@@ -2403,7 +2396,7 @@ send_config_update(Type, StateData) ->
 send_invitation(From, To, Reason, StateData=#state{host=Host,
                                                    server_host=ServerHost,
                                                    jid=RoomJID}) ->
-    ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
+    mongoose_hooks:invitation_sent(Host, ok, ServerHost, RoomJID, From, To, Reason),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
         false -> <<>>;
@@ -2598,8 +2591,9 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, TimeStamp, Size},
            StateData#state.history),
     add_to_log(text, {FromNick, Packet}, StateData),
-    ejabberd_hooks:run(room_packet, StateData#state.host,
-                       [FromNick, FromJID, StateData#state.jid, Packet]),
+    mongoose_hooks:room_packet(StateData#state.host,
+                               ok,
+                               FromNick, FromJID, StateData#state.jid, Packet),
     StateData#state{history = Q1}.
 
 
@@ -4155,8 +4149,9 @@ unsafe_check_invitation(FromJID, Els, Lang,
             lists:foreach(
               fun(InviteEl) ->
                       {JID, Reason, Msg} = create_invite(FromJID, InviteEl, Lang, StateData),
-                      ejabberd_hooks:run(invitation_sent, Host,
-                                         [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
+                      mongoose_hooks:invitation_sent(Host,
+                                                     ok,
+                                                     ServerHost, RoomJID, FromJID, JID, Reason),
                       ejabberd_router:route(StateData#state.jid, JID, Msg)
               end, InviteEls),
             {ok, JIDs}

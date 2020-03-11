@@ -196,9 +196,9 @@ caps_stream_features(Acc, MyHost) ->
 disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            ejabberd_hooks:run_fold(disco_local_features,
-                                    To#jid.lserver, empty,
-                                    [From, To, <<"">>, Lang]);
+            mongoose_hooks:disco_local_features(To#jid.lserver,
+                                                empty,
+                                                From, To, <<"">>, Lang);
         false ->
             Acc
     end.
@@ -206,9 +206,9 @@ disco_features(Acc, From, To, Node, Lang) ->
 disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            ejabberd_hooks:run_fold(disco_local_identity,
-                                    To#jid.lserver, [],
-                                    [From, To, <<"">>, Lang]);
+            mongoose_hooks:disco_local_identity(To#jid.lserver,
+                                                [],
+                                                From, To, <<"">>, Lang);
         false ->
             Acc
     end.
@@ -216,8 +216,8 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            ejabberd_hooks:run_fold(disco_info, Host, [],
-                                    [Host, Module, <<"">>, Lang]);
+            mongoose_hooks:disco_info(Host, [],
+                                      Module, <<"">>, Lang);
         false ->
             Acc
     end.
@@ -259,14 +259,14 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
     case gb_trees:lookup(LFrom, Rs) of
         {value, Caps} -> Rs;
         none ->
-            ejabberd_hooks:run(caps_add, To#jid.lserver,
-                               [From, To, self(),
-                                get_features(To#jid.lserver, Caps)]),
+            mongoose_hooks:caps_add(To#jid.lserver,
+                                    ok,
+                                    From, To, self(), get_features(To#jid.lserver, Caps)),
             gb_trees:insert(LFrom, Caps, Rs);
         _ ->
-            ejabberd_hooks:run(caps_update, To#jid.lserver,
-                               [From, To, self(),
-                                get_features(To#jid.lserver, Caps)]),
+            mongoose_hooks:caps_update(To#jid.lserver,
+                                       ok,
+                                       From, To, self(), get_features(To#jid.lserver, Caps)),
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
@@ -425,8 +425,8 @@ feature_request(Acc, LHost, From, Caps, [SubNode | Tail] = SubNodes) ->
 feature_request(Acc, LHost, From, Caps, []) ->
     %% feature_request is never executed with empty SubNodes list
     %% so if we end up here, it means the caps are known
-    ejabberd_hooks:run_fold(caps_recognised, LHost, Acc,
-                            [From, self(), get_features_list(LHost, Caps)]).
+    mongoose_hooks:caps_recognised(LHost, Acc,
+                            From, self(), get_features_list(LHost, Caps)).
 
 -spec feature_response(mongoose_acc:t(), jlib:iq(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
@@ -483,12 +483,11 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    case {ejabberd_hooks:run_fold(disco_local_features,
-                                  Host, empty, [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_local_identity, Host, [],
-                                  [JID, JID, <<"">>, <<"">>]),
-          ejabberd_hooks:run_fold(disco_info, Host, [],
-                                  [Host, undefined, <<"">>, <<"">>])}
+    case {mongoose_hooks:disco_local_features(Host, empty, JID, JID, <<"">>, <<"">>),
+          mongoose_hooks:disco_local_identity(Host, [],
+                                              JID, JID, <<"">>, <<"">>),
+          mongoose_hooks:disco_info(Host, [],
+                                    undefined, <<"">>, <<"">>)}
     of
         {{result, Features}, Identities, Info} ->
             Feats = lists:map(fun ({{Feat, _Host}}) ->

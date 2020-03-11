@@ -105,7 +105,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
                            SMiddle, SNickname, SOrgName,
                            SOrgUnit, SVCARD, SUsername),
 
-    ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
+    mongoose_hooks:vcard_set(VHost, ok, LUser, VCard),
     ok.
 
 search(LServer, Data) ->

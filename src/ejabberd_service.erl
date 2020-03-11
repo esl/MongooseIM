@@ -362,7 +362,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
            [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
-            ejabberd_hooks:run_fold(packet_to_component, global, Acc, [From, To]),
+            mongoose_hooks:packet_to_component(Acc, From, To),
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                 jid:to_binary(To),
                                                 Packet#xmlel.attrs),

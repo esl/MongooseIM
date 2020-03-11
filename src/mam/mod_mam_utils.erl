@@ -1071,10 +1071,7 @@ send_message(From, To, Mess) ->
 is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
                       #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
-    {Subscription, _Groups} =
-        ejabberd_hooks:run_fold(
-          roster_get_jid_info, LServer,
-          {none, []}, [LUser, LServer, RemBareJID]),
+    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, LUser, RemBareJID),
     Subscription == from orelse Subscription == both.
 
 

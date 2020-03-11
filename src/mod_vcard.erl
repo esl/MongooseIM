@@ -397,6 +397,11 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
     end;
 set_vcard({error, _} = E, _From, _VCARD) -> E.
 
+-spec get_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
+                         From :: jid:jid(),
+                         To :: jid:jid(),
+                         Node :: binary(),
+                         ejabberd:lang()) -> {result, [exml:element()]} | empty | {error, any()}.
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_features(Acc, _From, _To, Node, _Lang) ->
@@ -492,8 +497,7 @@ do_route(_VHost, From, To, Acc, #iq{type = set,
 do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = ejabberd_hooks:run_fold(disco_info, VHost, [],
-                                   [VHost, ?MODULE, <<"">>, <<"">>]),
+    Info = mongoose_hooks:disco_info(VHost, [], ?MODULE, <<"">>, <<"">>),
     NameTxt = translate:translate(Lang, <<"vCard User Search">>),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,

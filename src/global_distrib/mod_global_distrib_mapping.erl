@@ -163,8 +163,8 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
-    mongoose_acc:t().
+-spec session_opened(Acc, ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
+    Acc when Acc :: any().
 session_opened(Acc, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
     Acc.

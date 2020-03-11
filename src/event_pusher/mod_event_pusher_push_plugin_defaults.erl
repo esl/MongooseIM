@@ -91,7 +91,7 @@ should_publish(#jid{luser = LUser, lserver = LServer} = To) ->
 
 -spec get_unread_count(mongoose_acc:t(), jid:jid()) -> pos_integer().
 get_unread_count(Acc, To) ->
-    NewAcc = ejabberd_hooks:run_fold(inbox_unread_count, To#jid.lserver, Acc, [To]),
+    NewAcc = mongoose_hooks:inbox_unread_count(To#jid.lserver, Acc, To),
     mongoose_acc:get(inbox, unread_count, 1, NewAcc).
 
 -spec sender_id(jid:jid(), exml:element()) -> binary().
@@ -122,14 +122,13 @@ push_content_fields(SenderId, BodyCData, MessageCount) ->
                           any().
 publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
-    HookArgs = [Host, [maps:from_list(PushPayload)], OptionMap],
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
-    %% tracability purposes and push_SUITE code unification
+    %% traceability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
-    case ejabberd_hooks:run_fold(push_notifications, Host, Acc, HookArgs) of
+    case mongoose_hooks:push_notifications(Host, Acc, [maps:from_list(PushPayload)], OptionMap) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
-            mod_event_pusher_push:disable_node(To,PubsubJID, Node);
+            mod_event_pusher_push:disable_node(To, PubsubJID, Node);
         _ -> ok
     end.
 

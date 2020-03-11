@@ -150,16 +150,18 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     User = To#jid.luser,
     Server = To#jid.lserver,
     {Subscription, _Groups} =
-    ejabberd_hooks:run_fold(roster_get_jid_info, Server,
-                            {none, []}, [User, Server, From]),
+    mongoose_hooks:roster_get_jid_info(Server,
+                                       {none, []},
+                                       User, From),
     MutualSubscription = Subscription == both,
     RequesterSubscribedToTarget = Subscription == from,
     QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
                             (From#jid.lserver == To#jid.lserver),
     case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
         true ->
-            UserListRecord = ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                                                     #userlist{}, [User, Server]),
+            UserListRecord = mongoose_hooks:privacy_get_user_list(Server,
+                                                                  #userlist{},
+                                                                  User),
             ok,
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,

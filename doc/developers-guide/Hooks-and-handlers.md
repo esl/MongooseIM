@@ -88,17 +88,17 @@ Rs = mongoose_acc:get(offline, messages, Acc1, []),
 
 ### Sidenote: something deprecated
 
-Occassionally you may find some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
-Under the hood it calls the same handlers with `ok` as the initial accumulator.
+In the past you may have found some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
+Under the hood it called the same handlers with `ok` as the initial accumulator.
 This is deprecated and some day will be removed.
 
 ### Error handling in hooks
 
 Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
-For that reason hook don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
+For that reason hooks don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
 
-In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with unmodified accumulator.
-If there is no handlers registered for a given hook, the `run_fold` call has simply no effect.
+In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with an unmodified accumulator.
+If there are no handlers registered for a given hook, the `run_fold` call simply has no effect.
 
 ### Sidenote: Code yet to be written
 
@@ -115,7 +115,7 @@ The only required change is to the configuration (apart from deploying the new m
 ### Sidenote: Multiple Domains
 
 A MongooseIM cluster may serve more than one domain at the same time.
-E.g. it's quite common that services like Multi User Chat or Publish-Subscribe are available as subdomains of the main XMPP domain served by an installation.
+E.g. it is quite common that services like Multi User Chat or Publish-Subscribe are available as subdomains of the main XMPP domain served by an installation.
 
 ## Registering hook handlers
 
@@ -123,18 +123,21 @@ In order to store a packet when `ejabberd_sm` runs `offline_message_hook` the re
 To attain the runtime configurability the module should register the handlers when it's loaded and unregister them when
 it's unloaded.
 That's usually done in, respectively, `start/2` and `stop/1` functions.
-Here's the relevant snippet from `mod_offline:start/2`:
+Here is the relevant snippet from `mod_offline:start/2`:
 
 ```erlang
 ejabberd_hooks:add(offline_message_hook, Host,
                    ?MODULE, store_packet, 50)
 ```
 
-It's clearly visible that the handler is added to `offline_message_hook`.
+It is clearly visible that the handler is added to the `offline_message_hook`.
 
-`Host` corresponds to `LServer` used in the aforementioned call to `ejabberd_hooks:run_fold`, i.e. it's the XMPP domain for which the handler is to be executed.
+`Host` corresponds to the `LServer` used in the aforementioned call to the `ejabberd_hooks:run_fold`, i.e. it's the XMPP domain for which the handler is to be executed.
 
-The handler itself is specified as a module-function pair; the arity of the function is neither specified at registration nor verified when calling the handler, so be careful to pass the appropriate number of arguments to `ejabberd_hooks:run_fold` - otherwise the handler will crash.
+The handler itself is specified as a module-function pair;
+the arity of the function is not specified at the registration nor verified when calling the handler.
+This may change in the future, but for now we recommend calling the hooks through the `mongoose_hooks` module and checking the arity there when writing a handler.
+If the handler expects an incorrect number of arguments it will simply crash.
 
 Multiple handlers may be registered for the same hook.
 The last argument, 50, is the sequence number of this handler in the handler chain.
@@ -145,7 +148,7 @@ It's reasonable to keep this number small (e.g. in the range 0-100), though ther
 
 Pluggability also requires the components to be unpluggable at will.
 For that purpose there's the option to unregister a hook handler.
-It's exercised as follows in `mod_offline:stop/1`:
+It's done in `mod_offline:stop/1` in a similar fashion to:
 
 ```erlang
 ejabberd_hooks:delete(offline_message_hook, Host,
@@ -166,7 +169,7 @@ Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module
 
 The signature of a handler has to follow three rules:
 
-* Correct arity (the numer of args passed to `run_fold` + 1).
+* Correct arity (the number of args passed to `run_fold` in `mongoose_hooks` + 1).
 * The first arg is a mutable accumulator (may be `mongoose_acc` in particular).
 * Returns an accumulator of the same type as the input one.
 
@@ -251,6 +254,7 @@ $0 ~ /ejabberd_hooks:run/ {
 
 There's no special function or any setup necessary to create a new hook.
 The only thing that needs to be done is calling `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
+If you want static code analysis though, you should put the new hook inside `mongoose_hooks` with a correct type specification.
 
 Of course, as long as no module registers handlers for this hook just running, it won't have any effects.
 

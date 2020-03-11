@@ -59,7 +59,7 @@ run_initial_check(Acc, _C2SState) ->
 
 
 -spec check_packet(mongoose_acc:t() | exml:element(), amp_event()) ->
-    mongoose_acc:t() | exml:element() | drop.
+    mongoose_acc:t() | exml:element().
 check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
     % it is called this way only from ejabberd_c2s:send_and_maybe_buffer_stanza/3, line 1666
     % maybe Paweł Chrząszcz knows why and can advise what to do about it
@@ -73,7 +73,7 @@ check_packet(Acc, Event) ->
     check_packet(Acc, mongoose_acc:from_jid(Acc), Event).
 
 -spec check_packet(exml:element()|mongoose_acc:t(), jid:jid(), amp_event()) ->
-    exml:element() | mongoose_acc:t() | drop.
+    exml:element() | mongoose_acc:t().
 check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => From#jid.lserver,
@@ -88,11 +88,16 @@ check_packet(Acc, #jid{lserver = Host} = From, Event) ->
             % this hook replaces original element with something modified by amp
             % which is a hack, but since we have accumulator here we have a chance
             % to fix implementation
-            ejabberd_hooks:run_fold(amp_check_packet, Host, Acc, [From, Event]);
+            mongoose_hooks:amp_check_packet(Host, Acc, From, Event);
         _ ->
             Acc
     end.
 
+-spec add_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
+                         From :: jid:jid(),
+                         To :: jid:jid(),
+                         NS :: binary(),
+                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
     {result, Features};
@@ -161,13 +166,14 @@ process_amp_rules(Packet, From, Event, Rules) ->
 %% @doc ejabberd_hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    ejabberd_hooks:run_fold(amp_verify_support, Host, [], [Rules]).
+    mongoose_hooks:amp_verify_support(Host, [], Rules).
 
 -spec determine_strategy(exml:element(), jid:jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
-    ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
-                            amp_strategy:null_strategy(), [From, To, Packet, Event]).
+    mongoose_hooks:amp_determine_strategy(host(From),
+                                          amp_strategy:null_strategy(),
+                                          From, To, Packet, Event).
 
 -spec fold_apply_rules(exml:element(), jid:jid(), amp_strategy(), [amp_rule()]) ->
                               no_match | {match | undecided, amp_rule()}.
@@ -180,9 +186,9 @@ fold_apply_rules(Packet, From, Strategy, [Rule|Rest]) ->
 
 -spec resolve_condition(jid:jid(), amp_strategy(), amp_rule()) -> amp_match_result().
 resolve_condition(From, Strategy, Rule) ->
-    ejabberd_hooks:run_fold
-      (amp_check_condition, host(From), no_match,
-       [Strategy, Rule]).
+    mongoose_hooks:amp_check_condition(host(From),
+                                       no_match,
+                                       Strategy, Rule).
 
 -spec take_action(exml:element(),
                   jid:jid(),
@@ -200,7 +206,7 @@ take_action(Packet, _From, _, _) ->
 take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     Host = host(From),
     reply_to_sender(Rule, server_jid(From), From, Packet),
-    ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
+    mongoose_hooks:amp_notify_action_triggered(Host, ok),
     amp:strip_amp_el(Packet);
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule);
@@ -226,13 +232,14 @@ send_errors_and_drop(Packet, From, ErrorRules) ->
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
     ejabberd_router:route(server_jid(From), From, ErrorResponse),
-    ejabberd_hooks:run(amp_error_action_triggered, Host, [Host]),
+    mongoose_hooks:amp_error_action_triggered(Host, ok),
     update_metric_and_drop(Packet, From).
 
 -spec update_metric_and_drop(exml:element(), jid:jid()) -> drop.
 update_metric_and_drop(Packet, From) ->
-    ejabberd_hooks:run(xmpp_stanza_dropped, host(From),
-                       [From, message_target(Packet), Packet]),
+    mongoose_hooks:xmpp_stanza_dropped(host(From),
+                                       ok,
+                                       From, message_target(Packet), Packet),
     drop.
 
 %% Internal

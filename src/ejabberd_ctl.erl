@@ -260,7 +260,7 @@ get_accesscommands() ->
                   AccessCommands :: [ejabberd_commands:access_cmd()]
                  ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_run_ctp(Args, Auth, AccessCommands) ->
-    try ejabberd_hooks:run_fold(ejabberd_ctl_process, false, [Args]) of
+    try mongoose_hooks:ejabberd_ctl_process(false, Args) of
         false when Args /= [] ->
             try_call_command(Args, Auth, AccessCommands);
         false ->

@@ -447,7 +447,7 @@ item_to_xml(Item) ->
 
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
-    ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
+    mongoose_hooks:roster_set(LServer, ok, From, To, SubEl),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
 
@@ -476,7 +476,7 @@ do_process_item_set(JID1,
                       LJID :: jid:simple_jid() | error,
                       From ::jid:jid(),
                       To ::jid:jid(),
-                      Item2 :: fun( (roster()) -> roster())) -> ok.
+                      MakeItem2 :: fun( (roster()) -> roster())) -> ok.
 set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
                 Item = case get_roster_entry(LUser, LServer, LJID) of
@@ -492,9 +492,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
                     remove -> del_roster_t(LUser, LServer, LJID);
                     _ -> update_roster_t(LUser, LServer, LJID, Item2)
                 end,
-                Item3 = ejabberd_hooks:run_fold(roster_process_item,
-                                                LServer, Item2,
-                                                [LServer]),
+                Item3 = mongoose_hooks:roster_process_item(LServer, Item2),
                 case roster_version_on_db(LServer) of
                     true -> write_roster_version_t(LUser, LServer);
                     false -> ok
@@ -567,7 +565,7 @@ push_item(User, Server, From, Item) ->
     end.
 
 push_item(User, Server, Resource, From, Item) ->
-    ejabberd_hooks:run(roster_push, Server, [From, Item]),
+    mongoose_hooks:roster_push(Server, ok, From, Item),
     push_item(User, Server, Resource, From, Item, not_found).
 
 push_item(User, Server, Resource, From, Item, RosterVersion) ->
@@ -1066,7 +1064,7 @@ get_roster_old(DestServer, LUser, LServer) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => DestServer,
                             element => undefined }),
-    A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
+    A2 = mongoose_hooks:roster_get(DestServer, A, LUser, LServer),
     mongoose_acc:get(roster, items, [], A2).
 
 -spec item_to_map(roster()) -> map().

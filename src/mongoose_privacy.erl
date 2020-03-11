@@ -18,7 +18,9 @@
 -export([privacy_check_packet/6, privacy_check_packet/7]).
 
 -type userlist() :: #userlist{}.
+-type decision() :: allow | deny | block.
 -export_type([userlist/0]).
+-export_type([decision/0]).
 
 %%% API %%%
 
@@ -31,7 +33,7 @@
                            User :: binary(),
                            PrivacyList :: userlist(),
                            To :: jid:jid(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
+                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), decision()}.
 privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
     Acc1 = case Acc0 of
            {Acc, #xmlel{}} -> Acc;
@@ -49,7 +51,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
                            PrivacyList :: userlist(),
                            From :: jid:jid(),
                            To :: jid:jid(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
+                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), decision()}.
 privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     % see if we have just Acc or also stanza to check - may have different name/type
     {Acc, Name, Type} = case Acc0 of
@@ -63,14 +65,8 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     Key = {cached_check, Server, User, From, To, Name, Type, Dir},
     case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
-            Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
-                                           Server,
-                                           mongoose_acc:set(hook, result, allow, Acc),
-                                           [User,
-                                            Server,
-                                            PrivacyList,
-                                            {From, To, Name, Type},
-                                            Dir]),
+            Acc1 = mongoose_hooks:privacy_check_packet(Server, Acc, User, PrivacyList,
+                                                       {From, To, Name, Type}, Dir),
             Res = mongoose_acc:get(hook, result, Acc1),
             {mongoose_acc:set(privacy, Key, Res, Acc1), Res};
         Res ->

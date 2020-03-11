@@ -253,7 +253,7 @@ get_roster(User, Server) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => UserJID#jid.lserver,
                               element => undefined }),
-    Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [jid:to_lus(UserJID)]),
+    Acc2 = mongoose_hooks:roster_get(Server, Acc, UserJID#jid.luser, Server),
     Items = mongoose_acc:get(roster, items, [], Acc2),
     make_roster(Items).
 

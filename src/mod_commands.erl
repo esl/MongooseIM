@@ -261,12 +261,17 @@ unregister(Host, User) ->
     <<"">>.
 
 send_message(From, To, Body) ->
-    Packet = build_packet(message_chat, Body),
     F = jid:from_binary(From),
     T = jid:from_binary(To),
-    ejabberd_hooks:run(user_send_packet,
-                       F#jid.lserver,
-                       [F, T, Packet]),
+    Packet = build_message(From, To, Body),
+    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                              lserver => F#jid.lserver,
+                              element => Packet}),
+
+    mongoose_hooks:user_send_packet(F#jid.lserver,
+                                    Acc0,
+                                    F, T, Packet),
+
     %% privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     ok.
@@ -278,7 +283,7 @@ list_contacts(Caller) ->
                                element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
     {User, Host} = jid:to_lus(CallerJID),
-    Acc2 = ejabberd_hooks:run_fold(roster_get, Host, Acc1, [{User, Host}]),
+    Acc2 = mongoose_hooks:roster_get(Host, Acc1, User, Host),
     Res = mongoose_acc:get(roster, items, Acc2),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
@@ -358,10 +363,13 @@ record_to_map({Id, From, Msg}) ->
     #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
       body => Body}.
 
-build_packet(message_chat, Body) ->
+-spec build_message(From :: binary(), To :: binary(), Body :: binary()) -> exml:element().
+build_message(From, To, Body) ->
     #xmlel{name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>},
-                    {<<"id">>, mongoose_bin:gen_from_crypto()}],
+                    {<<"id">>, mongoose_bin:gen_from_crypto()},
+                    {<<"from">>, From},
+                    {<<"to">>, To}],
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]
           }.
@@ -410,11 +418,9 @@ run_subscription(Type, CallerJid, OtherJid) ->
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,
-    LServer = CallerJid#jid.lserver,
-    Acc2 = ejabberd_hooks:run_fold(roster_out_subscription,
-                                   Server,
-                                   Acc1,
-                                   [LUser, LServer, OtherJid, Type]),
+    Acc2 = mongoose_hooks:roster_out_subscription(Server,
+                                                  Acc1,
+                                                  LUser, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

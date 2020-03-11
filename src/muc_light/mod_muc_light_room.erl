@@ -49,7 +49,7 @@ handle_request(From, To, OrigPacket, Request) ->
 
 -spec maybe_forget(RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
 maybe_forget({RoomU, RoomS} = RoomUS, []) ->
-    ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
+    mongoose_hooks:forget_room(RoomS, ok, RoomS, RoomU),
     mod_muc_light_db_backend:destroy_room(RoomUS);
 maybe_forget(_, _) ->
     my_room_will_go_on.
