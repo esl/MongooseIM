@@ -4,7 +4,7 @@
 -export([start/1,
          stop/1,
          start_link/2,
-         does_user_exist/2]).
+         does_user_exist/1]).
 
 %% Hooks.
 -export([remove_user/3]).
@@ -70,13 +70,12 @@ start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
 
--spec does_user_exist(LUser :: jid:luser(),
-                      LServer :: jid:lserver() | string()) -> boolean().
-does_user_exist(LUser, LServer) ->
+-spec does_user_exist(JID :: jid:jid()) -> boolean().
+does_user_exist(#jid{luser = LUser, lserver = LServer} = JID) ->
     case does_cached_user_exist(LUser, LServer) of
         true -> true;
         false ->
-            case does_stored_user_exist(LUser, LServer) of
+            case does_stored_user_exist(JID) of
                 true ->
                     put_user_into_cache(LUser, LServer),
                     true;
@@ -171,14 +170,14 @@ code_change(_OldVsn, State, _Extra) ->
 %% Helpers
 %%====================================================================
 
--spec does_stored_user_exist(jid:luser(), jid:lserver()) -> boolean().
-does_stored_user_exist(LUser, LServer) ->
-    ejabberd_auth:is_user_exists(jid:make(LUser, LServer, <<>>))
-    andalso not is_anonymous_user(LUser, LServer).
+-spec does_stored_user_exist(jid:jid()) -> boolean().
+does_stored_user_exist(JID) ->
+    ejabberd_auth:is_user_exists(JID)
+    andalso not is_anonymous_user(JID).
 
 
--spec is_anonymous_user(jid:luser(), jid:lserver()) -> boolean().
-is_anonymous_user(LUser, LServer) ->
+-spec is_anonymous_user(jid:jid()) -> boolean().
+is_anonymous_user(#jid{luser=LUser, lserver=LServer} = _JID) ->
     case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
         true ->
             ejabberd_auth_anonymous:does_user_exist(LUser, LServer);

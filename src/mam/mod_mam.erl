@@ -292,12 +292,12 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
+filter_packet({From, To=#jid{lserver=LServer}, Acc, Packet}) ->
     % let them to their amp-related mambo jumbo on stanza
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
-        case ejabberd_users:does_user_exist(LUser, LServer) of
+        case ejabberd_users:does_user_exist(To) of
             false ->
                 {mam_failed, Packet};
             true ->
