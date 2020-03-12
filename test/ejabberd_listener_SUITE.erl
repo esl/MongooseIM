@@ -14,6 +14,8 @@ all() ->
     [tcp_socket_is_started_with_default_backlog,
      tcp_socket_is_started_with_options,
      tcp_socket_supports_proxy_protocol,
+     tcp_socket_has_connection_details,
+     tcp_socket_supports_proxy_protocol,
      udp_socket_is_started_with_defaults,
      tcp_start_stop_reload
      ].
@@ -54,41 +56,68 @@ tcp_socket_is_started_with_options(_C) ->
 
     50 = proplists:get_value(backlog, Opts).
 
+tcp_socket_has_connection_details(_C) ->
+    {ok, _Pid} = listener_started([]),
+
+    {Port, _, _} = tcp_port_ip(),
+
+    meck:new(ejabberd_socket),
+    TestPid = self(),
+    meck:expect(ejabberd_socket, start,
+                fun(_Module, _SockMode, Socket, Opts) ->
+                        TestPid ! {socket_started, Socket, Opts},
+                        ok
+                end),
+
+    {ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}, {packet, raw}]),
+    {ok, SrcPort} = inet:port(Socket),
+
+    receive
+        {socket_started, _Socket, Opts} ->
+            ConnectionDetails = proplists:get_value(connection_details, Opts),
+            ?assertEqual(#{proxy => false,
+                           src_address => {127, 0, 0, 1},
+                           src_port => SrcPort,
+                           dest_address => {127, 0, 0, 1},
+                           dest_port => Port}, ConnectionDetails)
+    after
+        5000 ->
+            ct:fail(timeout_waiting_for_tcp)
+    end.
+
 tcp_socket_supports_proxy_protocol(_C) ->
-   ProxyProtocol = {proxy_protocol, true},
-   {ok, _Pid} = listener_started([ProxyProtocol]),
+    ProxyProtocol = {proxy_protocol, true},
+    {ok, _Pid} = listener_started([ProxyProtocol]),
 
-   ProxyInfo = #{
-		version => 2,
-		command => proxy,
-		transport_family => ipv4,
-		transport_protocol => stream,
-		src_address => {127, 0, 0, 1},
-		src_port => 444,
-		dest_address => {192, 168, 0, 1},
-		dest_port => 443
-   },
+    CommonProxyInfo = #{src_address => {1, 2, 3, 4},
+                        src_port => 444,
+                        dest_address => {192, 168, 0, 1},
+                        dest_port => 443,
+                        version => 2},
+    RanchProxyInfo = CommonProxyInfo#{command => proxy,
+                                      transport_family => ipv4,
+                                      transport_protocol => stream},
+    {Port, _, _} = tcp_port_ip(),
 
-   {Port, _, _} = tcp_port_ip(),
+    meck:new(ejabberd_socket),
+    TestPid = self(),
+    meck:expect(ejabberd_socket, start,
+                fun(_Module, _SockMode, Socket, Opts) ->
+                        TestPid ! {socket_started, Socket, Opts},
+                        ok
+                end),
 
-   meck:new(ejabberd_socket),
-   TestPid = self(),
-   meck:expect(ejabberd_socket, start,
-               fun(_Module, _SockMode, _Socket, Opts) ->
-                     TestPid ! socket_started,
-                     ok
-               end),
+    {ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}, {packet, raw}]),
+    ok = gen_tcp:send(Socket, [ranch_proxy_header:header(RanchProxyInfo)]),
 
-   {ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}, {packet, raw}]),
-   ok = gen_tcp:send(Socket, [ranch_proxy_header:header(ProxyInfo)]),
-
-   receive
-      socket_started ->
-         ok
-   after
-      5000 ->
-         ct:fail(timeout_waiting_for_tcp_with_proxy_protocol)
-   end.
+    receive
+        {socket_started, _Socket, Opts} ->
+            ConnectionDetails = proplists:get_value(connection_details, Opts),
+            ?assertEqual(CommonProxyInfo#{proxy => true}, ConnectionDetails)
+    after
+        5000 ->
+            ct:fail(timeout_waiting_for_tcp_with_proxy_protocol)
+    end.
 
 udp_socket_is_started_with_defaults(_C) ->
     {ok, _Pid} = receiver_started([]),
