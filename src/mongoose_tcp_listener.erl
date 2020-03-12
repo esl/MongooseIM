@@ -117,12 +117,12 @@ do_accept(ListenSocket, ProxyProtocol) ->
             Other
     end.
 
--spec read_proxy_header(gen_tcp:socket()) -> {ok, gen_tcp:socket(), map()}.
+-spec read_proxy_header(gen_tcp:socket()) -> {ok, gen_tcp:socket(), connection_details()}.
 read_proxy_header(Socket) ->
     {ok, ProxyInfo} = ranch_tcp:recv_proxy_header(Socket, 1000),
     {ok, Socket, #{proxy => true,
                    src_address => maps:get(src_address, ProxyInfo),
-                   srd_port => maps:get(src_port, ProxyInfo),
+                   src_port => maps:get(src_port, ProxyInfo),
                    dest_address => maps:get(dest_address, ProxyInfo),
                    dest_port => maps:get(dest_port, ProxyInfo),
                    version => maps:get(version, ProxyInfo)
