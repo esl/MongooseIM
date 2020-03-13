@@ -208,6 +208,10 @@ Below is a sample configuration:
 * `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
+* `{http_opts, HTTPOptions}` - list, default: `[]` - can be used to pass extra parameters which are passed to [fusco], the library used for making the HTTP calls.
+  More details about the possible `http_opts` can be found in [fusco]'s documentation.
+
+[fusco]: https://github.com/esl/fusco
 
 ##### Example configuration
 
@@ -217,6 +221,23 @@ Below is a sample configuration:
    [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
 ]}.
 ```
+
+If peer certificate verification is required, the pool can be configured in the following way:
+
+```Erlang
+{outgoing_pools, [
+  {http, global, mongoose_push_http,
+   [{workers, 50}],
+   [{server, "https://localhost:8443"},
+    {http_opts, [
+                 {connect_options, [{verify, verify_peer}]}
+                 ]}
+   ]}
+]}.
+```
+
+Please note the `connect_options` passed to [fusco] via the pool's `http_opts` parameter.
+
 
 ## Redis connection setup
 
