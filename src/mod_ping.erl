@@ -29,8 +29,7 @@
          user_online/4,
          user_offline/5,
          user_send/4,
-         user_keep_alive/2,
-         user_ping_response/4]).
+         user_keep_alive/2]).
 
 %%====================================================================
 %% Info Handler
@@ -44,9 +43,7 @@ handle_info(send_ping, HandlerState, C2SState) ->
     route_ping_iq(JID, Server),
     {add_ping_timer(HandlerState, C2SState), C2SState};
 handle_info(timeout, HandlerState, C2SState) ->
-    JID = ejabberd_c2s_state:jid(C2SState),
     Server = ejabberd_c2s_state:server(C2SState),
-    ejabberd_hooks:run(user_ping_timeout, Server, [JID]),
     case gen_mod:get_module_opt(Server, ?MODULE, timeout_action, none) of
         kill -> ejabberd_c2s:stop(self());
         _ -> ok
@@ -67,14 +64,16 @@ route_ping_iq(JID, Server) ->
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
     T0 = erlang:monotonic_time(millisecond),
-    F = fun(_, _, _, timeout) ->
+    F = fun(_, _, Acc, timeout) ->
+               mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1),
+               mongoose_hooks:user_ping_timeout(Server, Acc, JID),
                Pid ! {mod_ping, timeout};
            (_From, _To, Acc, Response) ->
                 TDelta = erlang:monotonic_time(millisecond) - T0,
-                NewAcc = mongoose_hooks:user_ping_response(Server,
-                                                           Acc, JID, Response, TDelta),
-                Pid ! {mod_ping, init},
-                mongoose_hooks:user_ping_timeout(Server, NewAcc, JID)
+                mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
+                mongoose_metrics:update(Server, [mod_ping, ping_response], 1),
+                mongoose_hooks:user_ping_response(Server, Acc, JID, Response, TDelta),
+                Pid ! {mod_ping, init}
                 % NewAcc
         end,
     From = jid:make_noprep(<<"">>, Server, <<"">>),
@@ -119,6 +118,7 @@ stop(Host) ->
 %%====================================================================
 %% Hook callbacks
 %%====================================================================
+
 iq_ping(_From, _To, Acc, #iq{type = get, sub_el = #xmlel{ name = <<"ping">> }} = IQ) ->
     {Acc, IQ#iq{type = result, sub_el = []}};
 iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
@@ -139,18 +139,6 @@ user_send(Acc, _JID, _From, _Packet) ->
     self() ! {mod_ping, init},
     Acc.
 
--spec user_ping_response(Acc :: mongoose_acc:t(),
-                         JID :: jid:jid(),
-                         Response :: timeout | jlib:iq(),
-                         TDelta :: pos_integer()) -> mongoose_acc:t().
-user_ping_response(Acc, #jid{server = Server}, timeout, _TDelta) ->
-    mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1),
-    Acc;
-user_ping_response(Acc, #jid{server = Server}, _Response, TDelta) ->
-    mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
-    mongoose_metrics:update(Server, [mod_ping, ping_response], 1),
-    Acc.
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -158,8 +146,7 @@ hooks(Host) ->
     [{sm_register_connection_hook, Host, ?MODULE, user_online, 100},
      {sm_remove_connection_hook, Host, ?MODULE, user_offline, 100},
      {user_send_packet, Host, ?MODULE, user_send, 100},
-     {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
-     {user_ping_response, Host, ?MODULE, user_ping_response, 100}].
+     {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100}].
 
 ensure_metrics(Host) ->
     mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response], spiral),

@@ -249,7 +249,9 @@ wait_for_pong_hooks(0) ->
     ok;
 wait_for_pong_hooks(N) ->
     receive
-        {pong, _} -> wait_for_pong_hooks(N-1)
+        {pong, From} ->
+	    ct:pal("Got pong from: ~p", [From]),
+	    wait_for_pong_hooks(N-1)
     after
         5000 ->
             ct:fail({pong_hook_runs_missing, N})
