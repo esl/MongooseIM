@@ -684,12 +684,11 @@ handle_event(_Event, StateName, StateData) ->
 %%----------------------------------------------------------------------
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
     {Addr, Port} = try ejabberd_socket:peername(StateData#state.socket) of
-                      {ok, {A, P}} ->  {A, P};
-                      {error, _} -> {unknown, unknown}
-                  catch
-                      _:_ ->
-                          {unknown, unknown}
-                  end,
+                       {ok, {A, P}} ->  {A, P}
+                   catch
+                       _:_ ->
+                           {unknown, unknown}
+                   end,
     Infos = [
              {direction, out},
              {statename, StateName},

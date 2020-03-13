@@ -179,7 +179,7 @@ handle_call({compress, ZlibSocket}, _From,
   #state{c2s_pid = C2SPid} = State) ->
     StateAfterReset = reset_parser(State),
     NewState = StateAfterReset#state{socket = ZlibSocket,
-                                 sock_mod = ejabberd_zlib},
+                                     sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
             NewState2 = process_data(ZlibData, NewState),
@@ -224,8 +224,8 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({Tag, _TCPSocket, Data},
       #state{socket = Socket,
-       c2s_pid = C2SPid,
-       sock_mod = SockMod} = State)
+             c2s_pid = C2SPid,
+             sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
         ejabberd_tls ->
@@ -283,7 +283,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, #state{parser = Parser,
-        c2s_pid = C2SPid} = State) ->
+                          c2s_pid = C2SPid} = State) ->
     free_parser(Parser),
     case C2SPid of
         undefined -> ok;

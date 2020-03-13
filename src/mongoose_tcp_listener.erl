@@ -27,7 +27,17 @@
 -export([start_link/6, init/1]).
 
 %% Internal
--export([start_accept_loop/3, accept_loop/3]).
+-export([start_accept_loop/3, accept_loop/4]).
+
+-type connection_details() :: #{
+        proxy        := boolean(),
+        version      => 1 | 2,
+        src_address  := inet:ip_address() | binary(),
+        src_port     := inet:port_number(),
+        dest_address := inet:ip_address() | binary(),
+        dest_port    := inet:port_number()
+       }.
+-export_type([connection_details/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -67,29 +77,56 @@ init({PortIP, Module, Opts, SockOpts, Port, IPS}) ->
                         Module :: atom(),
                         Opts :: [any(), ...]) -> {ok, pid()}.
 start_accept_loop(ListenSock, Module, Opts) ->
-    Pid = proc_lib:spawn_link(?MODULE, accept_loop, [ListenSock, Module, Opts]),
+    ProxyProtocol = proplists:get_value(proxy_protocol, Opts, false),
+    Pid = proc_lib:spawn_link(?MODULE, accept_loop, [ListenSock, Module, Opts, ProxyProtocol]),
     {ok, Pid}.
 
 -spec accept_loop(Socket :: port(),
                   Module :: atom(),
-                  Opts :: [any(), ...]) -> no_return().
-accept_loop(ListenSocket, Module, Opts) ->
-    case gen_tcp:accept(ListenSocket) of
-        {ok, Socket} ->
-            case {inet:sockname(Socket), inet:peername(Socket)} of
-                {{ok, Addr}, {ok, PAddr}} ->
-                    ?INFO_MSG("(~w) Accepted connection ~w -> ~w",
-                              [Socket, PAddr, Addr]);
-                _ ->
-                    ok
-            end,
-            ejabberd_socket:start(Module, gen_tcp, Socket, Opts),
-            ?MODULE:accept_loop(ListenSocket, Module, Opts);
+                  Opts :: [any(), ...],
+                  ProxyProtocol :: boolean()) -> no_return().
+accept_loop(ListenSocket, Module, Opts, ProxyProtocol) ->
+    case do_accept(ListenSocket, ProxyProtocol) of
+        {ok, Socket, ConnectionDetails} ->
+            ?INFO_MSG("event=accepted_tcp_connection, socket=~w, details=~p",
+                      [Socket, ConnectionDetails]),
+            ejabberd_socket:start(
+              Module, gen_tcp, Socket, [{connection_details, ConnectionDetails} | Opts]),
+            ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol);
         {error, Reason} ->
-            ?INFO_MSG("(~w) Failed TCP accept: ~w",
+            ?INFO_MSG("event=tcp_accept_failed, socket=~w, reason=~w",
                       [ListenSocket, Reason]),
-            ?MODULE:accept_loop(ListenSocket, Module, Opts)
+            ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol)
     end.
+
+-spec do_accept(gen_tcp:socket(), boolean()) ->
+    {ok, gen_tcp:socket(), connection_details()} | {error, term()}.
+do_accept(ListenSocket, ProxyProtocol) ->
+    case gen_tcp:accept(ListenSocket) of
+        {ok, Socket} when ProxyProtocol ->
+            read_proxy_header(Socket);
+        {ok, Socket} ->
+            {ok, {DestAddr, DestPort}} = inet:sockname(Socket),
+            {ok, {SrcAddr, SrcPort}} = inet:peername(Socket),
+            {ok, Socket, #{proxy => false,
+                           src_address => SrcAddr,
+                           src_port => SrcPort,
+                           dest_address => DestAddr,
+                           dest_port => DestPort}};
+        Other ->
+            Other
+    end.
+
+-spec read_proxy_header(gen_tcp:socket()) -> {ok, gen_tcp:socket(), connection_details()}.
+read_proxy_header(Socket) ->
+    {ok, ProxyInfo} = ranch_tcp:recv_proxy_header(Socket, 1000),
+    {ok, Socket, #{proxy => true,
+                   src_address => maps:get(src_address, ProxyInfo),
+                   src_port => maps:get(src_port, ProxyInfo),
+                   dest_address => maps:get(dest_address, ProxyInfo),
+                   dest_port => maps:get(dest_port, ProxyInfo),
+                   version => maps:get(version, ProxyInfo)
+                  }}.
 
 -spec make_childspec(Id :: term(), ListenSock :: port(),
                      Module :: module(), Opts :: [any()]) ->

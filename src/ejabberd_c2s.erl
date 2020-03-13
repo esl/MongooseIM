@@ -78,12 +78,11 @@
 -spec start(_, list())
 -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(SockData, Opts) ->
-    ?SUPERVISOR_START.
-
+    ?SUPERVISOR_START(SockData, Opts).
 
 start_link(SockData, Opts) ->
-    p1_fsm_old:start_link(ejabberd_c2s, [SockData, Opts],
-                        fsm_limit_opts(Opts) ++ ?FSMOPTS).
+    p1_fsm_old:start_link(
+      ejabberd_c2s, [SockData, Opts], ?FSMOPTS ++ fsm_limit_opts(Opts)).
 
 socket_type() ->
     xml_stream.
@@ -1722,16 +1721,13 @@ send_and_maybe_buffer_stanza_no_ack(Acc, {_, _, Stanza} = Packet, State) ->
 new_id() ->
     mongoose_bin:gen_from_crypto().
 
-%% Copied from ejabberd_socket.erl
--record(socket_state, {sockmod, socket, receiver}).
-
 -spec get_conn_type(state()) -> conntype().
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
         ejabberd_tls -> c2s_tls;
         ejabberd_zlib ->
-            case ejabberd_zlib:get_sockmod((StateData#state.socket)#socket_state.socket) of
+            case ejabberd_zlib:get_sockmod(ejabberd_socket:get_socket(StateData#state.socket)) of
                 gen_tcp -> c2s_compressed;
                 ejabberd_tls -> c2s_compressed_tls
             end;
@@ -2396,14 +2392,10 @@ process_unauthenticated_stanza(StateData, El) ->
     end.
 
 
--spec peerip(SockMod :: ejabberd:sockmod(), inet:socket())
--> undefined | {inet:ip_address(), inet:port_number()}.
+-spec peerip(SockMod :: ejabberd:sockmod(), inet:socket()) ->
+    undefined | {inet:ip_address(), inet:port_number()}.
 peerip(SockMod, Socket) ->
-    IP = case SockMod of
-             gen_tcp -> inet:peername(Socket);
-             _ -> mongoose_transport:peername(SockMod, Socket)
-         end,
-    case IP of
+    case mongoose_transport:peername(SockMod, Socket) of
         {ok, IPOK} -> IPOK;
         _ -> undefined
     end.

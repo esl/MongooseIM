@@ -29,6 +29,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
   The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 * `acceptors_num` (integer, default: 100) - For TCP-based listeners: the number of processes accepting new connections on the listening socket.
 * `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)); the limit can be disabled with an atom 'unlimited'.
+* `proxy_protocol` (boolean, default: `false`) - For TCP-based listeners: when set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
 
 #### Common TLS options
 
