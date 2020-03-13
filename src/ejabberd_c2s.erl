@@ -29,6 +29,7 @@
 %% External exports
 -export([start/2,
          stop/1,
+         terminate_session/2,
          start_link/2,
          send_text/2,
          socket_type/0,
@@ -140,8 +141,18 @@ send_filtered(FsmRef, Feature, From, To, Packet) ->
 broadcast(FsmRef, Type, From, Packet) ->
     FsmRef ! {broadcast, Type, From, Packet}.
 
+%% @doc Stops the session gracefully, entering resume state if applicable
 stop(FsmRef) ->
     p1_fsm_old:send_event(FsmRef, closed).
+
+%% @doc terminates the session immediately and unconditionally, sending the user a stream conflict
+%% error specifying the reason
+terminate_session(none, _Reason) ->
+    ok;
+terminate_session(#jid{} = Jid, Reason) ->
+    terminate_session(ejabberd_sm:get_session_pid(Jid), Reason);
+terminate_session(Pid, Reason) when is_pid(Pid) ->
+    Pid ! {exit, Reason}.
 
 store_session_info(FsmRef, JID, KV) ->
     FsmRef ! {store_session_info, JID, KV, self()}.
@@ -1007,6 +1018,14 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 
 
 %%% system events
+handle_info({exit, Reason}, _StateName, StateData) ->
+    Lang = StateData#state.lang,
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => StateData#state.server, %% TODO: use new state API
+                              element => undefined }),
+    send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, Reason), StateData),
+    send_trailer(StateData),
+    {stop, normal, StateData};
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     StreamConflict = mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>),
@@ -1336,8 +1355,6 @@ handle_routed_iq(_From, _To, Acc, IQ, StateData)
 handle_routed_broadcast(Acc, {item, IJID, ISubscription}, StateData) ->
     {Acc2, NewState} = roster_change(Acc, IJID, ISubscription, StateData),
     {Acc2, {new_state, NewState}};
-handle_routed_broadcast(Acc, {exit, Reason}, _StateData) ->
-    {Acc, {exit, Reason}};
 handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
     case mongoose_hooks:privacy_updated_list(StateData#state.server,
                                  false, StateData#state.privacy_list, PrivList) of
@@ -1363,11 +1380,6 @@ handle_routed_broadcast(Acc, _, StateData) ->
 -spec handle_broadcast_result(mongoose_acc:t(), broadcast_result(), StateName :: atom(),
     StateData :: state()) ->
     any().
-handle_broadcast_result(Acc, {exit, ErrorMessage}, _StateName, StateData) ->
-    Lang = StateData#state.lang,
-    send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, ErrorMessage), StateData),
-    send_trailer(StateData),
-    {stop, normal, StateData};
 handle_broadcast_result(Acc, {send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
     {Act, _, NewStateData} = ship_to_local_user(Acc, {From, To, Stanza}, NewState),
     finish_state(Act, StateName, NewStateData);
