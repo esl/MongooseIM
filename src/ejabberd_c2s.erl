@@ -149,7 +149,6 @@ store_session_info(FsmRef, JID, KV) ->
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
 
-
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
@@ -948,14 +947,9 @@ resume_session(resume, From, SD) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 
-handle_event({add_info_handler, Tag, M, F, Extra}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, M, F, Extra, StateData0),
-    case ejabberd_c2s_info_handler:safe_call(Tag, init, M, F, Extra, StateData1) of
-        {error, _} ->
-            fsm_next_state(StateName, StateData0);
-        StateData2 ->
-            fsm_next_state(StateName, StateData2)
-    end;
+handle_event({add_info_handler, Tag, InitialState}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, InitialState, StateData0),
+    fsm_next_state(StateName, StateData1);
 handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
     StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
     fsm_next_state(StateName, StateData1);
@@ -1147,18 +1141,18 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
-handle_incoming_message({Tag, Data} = MaybeCustomInfo, StateName, StateData) ->
+handle_incoming_message({call_info_handler, Tag, Data} = MaybeCustomInfo, StateName, StateData) ->
     NStateData =
     case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
-        {M, F, HandlerState} ->
-            case ejabberd_c2s_info_handler:safe_call(Tag, Data, M, F, HandlerState, StateData) of
+        {Tag, HandlerState} ->
+            case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
                 {error, _} ->
                     StateData;
                 NStateData0 ->
                     NStateData0
             end;
         _ ->
-            ?INFO_MSG("Unexpected info: ~p", [MaybeCustomInfo]),
+            ?INFO_MSG("No handler for: ~p", [MaybeCustomInfo]),
             StateData
     end,
     fsm_next_state(StateName, NStateData);
