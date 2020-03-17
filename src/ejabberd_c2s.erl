@@ -1158,7 +1158,7 @@ handle_incoming_message({Tag, Data} = MaybeCustomInfo, StateName, StateData) ->
                     NStateData0
             end;
         _ ->
-            ?ERROR_MSG("Unexpected info: ~p", [MaybeCustomInfo]),
+            ?INFO_MSG("Unexpected info: ~p", [MaybeCustomInfo]),
             StateData
     end,
     fsm_next_state(StateName, NStateData);

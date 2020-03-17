@@ -35,26 +35,21 @@
 %% Info Handler
 %%====================================================================
 
-handle_info(init, HandlerState, C2SState) ->
-    {add_ping_timer(HandlerState, C2SState), C2SState};
-handle_info(send_ping, HandlerState, C2SState) ->
-    JID = ejabberd_c2s_state:jid(C2SState),
-    Server = ejabberd_c2s_state:server(C2SState),
+handle_info(init, HandlerState, Params) ->
+    start_ping_timer(HandlerState, Params);
+handle_info(send_ping, HandlerState, #{jid := JID, server := Server} = Params) ->
     route_ping_iq(JID, Server),
-    {add_ping_timer(HandlerState, C2SState), C2SState};
-handle_info(timeout, HandlerState, C2SState) ->
-    JID = ejabberd_c2s_state:jid(C2SState),
-    Server = ejabberd_c2s_state:server(C2SState),
+    start_ping_timer(HandlerState, Params);
+handle_info(timeout, HandlerState, #{jid := JID, server := Server}) ->
     mongoose_hooks:user_ping_timeout(Server, ok, JID),
     case gen_mod:get_module_opt(Server, ?MODULE, timeout_action, none) of
         kill -> ejabberd_c2s:stop(self());
         _ -> ok
     end,
-    {HandlerState, C2SState}.
+    HandlerState.
 
-add_ping_timer(HandlerState, C2SState) ->
+start_ping_timer(HandlerState, #{server := Server}) ->
     cancel_timer(HandlerState),
-    Server = ejabberd_c2s_state:server(C2SState),
     PingInterval = gen_mod:get_module_opt(Server, ?MODULE, ping_interval, ?DEFAULT_PING_INTERVAL),
     erlang:send_after(PingInterval * 1000, self(), {mod_ping, send_ping}).
 

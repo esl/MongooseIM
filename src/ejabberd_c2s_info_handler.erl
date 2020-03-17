@@ -42,10 +42,12 @@ safe_call(Tag, Data, C2SState) ->
     end.
 
 safe_call(Tag, Data, M, F, HandlerState, C2SState) ->
-    try M:F(Data, HandlerState, C2SState) of
-        {NewHandlerState, NewC2SState0} ->
+    Jid = ejabberd_c2s_state:jid(C2SState),
+    Server = ejabberd_c2s_state:server(C2SState),
+    try M:F(Data, HandlerState, #{jid => Jid, server => Server}) of
+        NewHandlerState ->
             % Perhaps may be optimized?
-            add_to_state(Tag, M, F, NewHandlerState, NewC2SState0)
+            add_to_state(Tag, M, F, NewHandlerState, C2SState)
     catch
         C:R:S ->
             ?ERROR_MSG("event=custom_c2s_info_handler_crash,tag=~p,data=~p,m=~p,f=~p,"
