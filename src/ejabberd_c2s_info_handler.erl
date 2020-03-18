@@ -10,11 +10,13 @@
 -callback handle_c2s_info(Args :: term(), HandlerState :: term(), C2SParams :: map()) ->
       any().
 
+-type handler_tag() :: atom().
+-type handler_state() :: term().
+
 % API for ejabberd_c2s
 -export([get_for/2,
          add_to_state/3,
          remove_from_state/2,
-         safe_call/3,
          safe_call/4]).
 
 -spec add(pid(), atom(), term()) -> ok.
@@ -37,34 +39,26 @@ call(FsmRef, Tag, Data) ->
     FsmRef ! {call_info_handler, Tag, Data},
     ok.
 
+-spec get_for(handler_tag(), state()) -> {handler_tag(), handler_state()} | no_handler.
 get_for(Tag, #state{ info_handlers = InfoHandlers }) ->
-    maps:get(Tag, InfoHandlers, undefined).
+    maps:get(Tag, InfoHandlers, no_handler).
 
+-spec add_to_state(handler_tag(), handler_state(), state()) -> state().
 add_to_state(Tag, HandlerState, #state{ info_handlers = InfoHandlers0 } = C2SState) ->
     C2SState#state{ info_handlers = InfoHandlers0#{ Tag => {Tag, HandlerState} } }.
 
+-spec remove_from_state(handler_tag(), state()) -> state().
 remove_from_state(Tag, #state{ info_handlers = InfoHandlers0 } = C2SState) ->
     C2SState#state{ info_handlers = maps:remove(Tag, InfoHandlers0) }.
 
-safe_call(Tag, Data, C2SState) ->
-    case get_for(Tag, C2SState) of
-        {Tag, HandlerState} ->
-            case safe_call(Tag, Data, HandlerState, C2SState) of
-                {error, _} ->
-                    C2SState;
-                NC2SState0 ->
-                    NC2SState0
-            end;
-        _ ->
-            undefined
-    end.
-
+-spec safe_call(handler_tag(), term(), handler_state(), state()) -> state() | {error, term()}.
 safe_call(Tag, Data, HandlerState, C2SState) ->
     Jid = ejabberd_c2s_state:jid(C2SState),
     Server = ejabberd_c2s_state:server(C2SState),
     try Tag:handle_c2s_info(Data, HandlerState, #{jid => Jid, server => Server}) of
+        HandlerState ->
+            C2SState;
         NewHandlerState ->
-            % Perhaps may be optimized?
             add_to_state(Tag, NewHandlerState, C2SState)
     catch
         C:R:S ->

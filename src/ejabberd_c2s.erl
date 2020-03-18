@@ -1141,7 +1141,7 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
-handle_incoming_message({call_info_handler, Tag, Data} = MaybeCustomInfo, StateName, StateData) ->
+handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
     NStateData =
     case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
         {Tag, HandlerState} ->
@@ -1151,13 +1151,14 @@ handle_incoming_message({call_info_handler, Tag, Data} = MaybeCustomInfo, StateN
                 NStateData0 ->
                     NStateData0
             end;
-        _ ->
-            ?INFO_MSG("No handler for: ~p", [MaybeCustomInfo]),
+        no_handler ->
+            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
             StateData
     end,
     fsm_next_state(StateName, NStateData);
 handle_incoming_message(Info, StateName, StateData) ->
-    ?ERROR_MSG("Unexpected info: ~p", [Info]),
+    ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",
+               [Info, StateName, ejabberd_c2s_state:server(StateData)]),
     fsm_next_state(StateName, StateData).
 
 process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData) ->
