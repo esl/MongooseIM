@@ -4,7 +4,7 @@
 
 -include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
--include("jid.hrl").
+-include_lib("jid/include/jid.hrl").
 -include_lib("session.hrl").
 -compile([export_all]).
 
@@ -20,7 +20,7 @@
 all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
-    ok = stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     application:ensure_all_started(exometer_core),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),

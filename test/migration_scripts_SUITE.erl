@@ -35,7 +35,7 @@ groups() ->
 
 init_per_suite(Config) ->
     file:delete("/tmp/script-debug"),
-    ok = stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(Config) ->

@@ -32,7 +32,7 @@ all() -> [
 init_per_suite(C) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    ok = stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     {ok, _} = application:ensure_all_started(exometer_core),
     C.
 

@@ -71,7 +71,7 @@ put_session(Jid) ->
     ets:insert(?JIDS_ETS, {Jid}),
     do_put(Jid, opt(local_host)).
 
--spec get_session(Jid :: binary()) -> {ok, Host :: jid:lserver()} | error.
+-spec get_session(Jid :: binary()) -> {ok, Host :: binary()} | error.
 get_session(Jid) ->
     do_get(Jid).
 
@@ -94,7 +94,7 @@ put_domain(Domain, IsHidden) ->
             ok
     end.
 
--spec get_domain(Domain :: binary()) -> {ok, Host :: jid:lserver()} | error.
+-spec get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
 get_domain(Domain) ->
     do_get(Domain).
 
@@ -239,7 +239,7 @@ do_put(Key, Host) ->
     {ok, _} = q([<<"SET">>, Key, Host, <<"EX">>, expire_after()]),
     ok.
 
--spec do_get(Key :: binary()) -> {ok, Host :: jid:lserver()} | error.
+-spec do_get(Key :: binary()) -> {ok, Host :: binary()} | error.
 do_get(Key) ->
     case q([<<"GET">>, Key]) of
         {ok, undefined} -> error;

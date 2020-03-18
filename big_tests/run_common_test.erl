@@ -50,6 +50,7 @@ opts() ->
 %% Args are {key :: atom(), val :: string()} pairs.
 %% "=" is an invalid character in option name or value.
 main(RawArgs) ->
+    {ok, _} = application:ensure_all_started(jid),
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
     Opts = apply_preset_enabled(args_to_opts(Args)),
     try

@@ -11,7 +11,6 @@
 -include("mod_muc_light.hrl").
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
--include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 

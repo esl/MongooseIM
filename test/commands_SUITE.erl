@@ -54,7 +54,7 @@ ggo(Any) ->
     none.
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     ok = mnesia:start(),
     ok = acl:start(),
     acl:add(global, coder, {user, <<"zenek">>}),

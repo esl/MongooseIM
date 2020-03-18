@@ -114,7 +114,7 @@ riak_search_mapping(<<"orgname">>) -> <<"vCard.ORG.ORGNAME">>;
 riak_search_mapping(<<"orgunit">>) -> <<"vCard.ORG.ORGUNIT">>.
 
 make_val(Val) ->
-    LVal = stringprep:tolower(Val),
+    LVal = jid:str_tolower(Val),
     case binary:match(LVal, <<" ">>) of
         nomatch ->
             LVal;

@@ -50,7 +50,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     Self = self(),
     ETSProcess = spawn(fun() -> ets_owner(Self) end),
     wait_for_ets(),

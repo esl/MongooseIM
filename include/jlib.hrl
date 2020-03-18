@@ -23,7 +23,7 @@
 %% Load record definitions.
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_ns.hrl").
--include("jid.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -record(iq, {id = <<>>    :: binary(),
              type         :: atom(),

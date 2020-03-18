@@ -52,7 +52,7 @@ init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     mnesia:start(),
     mod_pubsub_db_mnesia:start(),
-    {ok, _} = application:ensure_all_started(stringprep),
+    {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(Config) ->

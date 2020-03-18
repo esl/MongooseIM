@@ -40,7 +40,7 @@
                   sasl,
                   ssl,
                   stdlib,
-                  stringprep,
+                  jid,
                   fast_tls,
                   tirerl,
                   usec,

@@ -44,7 +44,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     Config.
 
 end_per_suite(Config) ->

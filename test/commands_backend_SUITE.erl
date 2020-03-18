@@ -127,7 +127,7 @@ teardown() ->
 
 init_per_suite(C) ->
     application:ensure_all_started(cowboy),
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     application:ensure_all_started(fusco),
     application:ensure_all_started(lager),
     ok = mnesia:start(),

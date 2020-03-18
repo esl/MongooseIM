@@ -34,7 +34,7 @@ groups() ->
     ].
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     C.
 
 end_per_suite(C) ->
