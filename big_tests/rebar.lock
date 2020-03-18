@@ -41,7 +41,7 @@
  {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
  {<<"idna">>,{pkg,<<"idna">>,<<"1.2.0">>},2},
  {<<"jid">>,
-  {git,"https://github.com/NelsonVides/mongoose_jid.git",
+  {git,"https://github.com/esl/mongoose_jid.git",
        {ref,"652ba8d1bce403f1f460fa7910152bbe7ad39330"}},
   0},
  {<<"jiffy">>,{pkg,<<"jiffy">>,<<"1.0.1">>},0},
