@@ -51,7 +51,7 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
-    [log_one, log_one_scram].
+    [log_one, log_one_scram, log_one_scram_256].
 
 all_tests() ->
     [log_one,
@@ -150,6 +150,8 @@ log_one_digest(Config) ->
 log_one_scram(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]).
 
+log_one_scram_256(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
