@@ -33,6 +33,7 @@
                   mnesia,
                   observer_cli,
                   pa,
+                  epipe,
                   public_key,
                   ranch,
                   recon,
