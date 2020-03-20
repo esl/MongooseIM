@@ -57,71 +57,92 @@ mechanism() ->
 mech_new(_Host, Creds) ->
     {ok, #state{step = 2, creds = Creds}}.
 
-mech_step(#state{step = 2} = State, ClientIn) ->
+parse_client_in(ClientIn) ->
     case re:split(ClientIn, <<",">>, [{return, binary}]) of
         [_CBind, _AuthorizationIdentity, _UserNameAttribute, _ClientNonceAttribute, ExtensionAttribute | _]
           when ExtensionAttribute /= [] ->
             {error, <<"protocol-error-extension-not-supported">>};
         [CBind, _AuthorizationIdentity, UserNameAttribute, ClientNonceAttribute | _]
           when (CBind == <<"y">>) or (CBind == <<"n">>) ->
-            case parse_attribute(UserNameAttribute) of
-                {error, Reason} -> {error, Reason};
-                {_, EscapedUserName} ->
-                    case unescape_username(EscapedUserName) of
-                        error -> {error, <<"protocol-error-bad-username">>};
-                        UserName ->
-                            case parse_attribute(ClientNonceAttribute) of
-                                {$r, ClientNonce} ->
-                                    Creds = State#state.creds,
-                                    LServer = mongoose_credentials:lserver(Creds),
-                                    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
-                                        {false, _} -> {error, <<"not-authorized">>, UserName};
-                                        {Ret, AuthModule} ->
-                                            {StoredKey, ServerKey, Salt, IterationCount} =
-                                            if is_tuple(Ret) -> Ret;
-                                               true ->
-                                                   TempSalt =
-                                                   crypto:strong_rand_bytes(?SALT_LENGTH),
-                                                   SaltedPassword =
-                                                   mongoose_scram:salted_password(Ret,
-                                                                                  TempSalt,
-                                                                                  mongoose_scram:iterations()),
-                                                   {mongoose_scram:stored_key(mongoose_scram:client_key(SaltedPassword)),
-                                                    mongoose_scram:server_key(SaltedPassword),
-                                                    TempSalt,
-                                                    mongoose_scram:iterations()}
-                                            end,
-                                            {NStart, _} = binary:match(ClientIn, <<"n=">>),
-                                            ClientFirstMessageBare = binary:part(ClientIn,
-                                                                                 {NStart,
-                                                                                  byte_size(ClientIn)-NStart}),
-                                            ServerNonce =
-                                            jlib:encode_base64(crypto:strong_rand_bytes(?NONCE_LENGTH)),
-                                            ServerFirstMessage =
-                                            iolist_to_binary(
-                                              [<<"r=">>,
-                                               ClientNonce,
-                                               ServerNonce,
-                                               <<",s=">>,
-                                               jlib:encode_base64(Salt),
-                                               <<",i=">>,
-                                               integer_to_list(IterationCount)]),
-                                            {continue, ServerFirstMessage,
-                                             State#state{step = 4, stored_key = StoredKey,
-                                                         server_key = ServerKey,
-                                                         auth_message =
-                                                         <<ClientFirstMessageBare/binary,
-                                                           ",", ServerFirstMessage/binary>>,
-                                                         client_nonce = ClientNonce,
-                                                         server_nonce = ServerNonce,
-                                                         username = UserName,
-                                                         auth_module = AuthModule}}
-                                    end;
-                                _Else -> {error, <<"not-supported">>}
-                            end
-                    end
+            {ok, {UserNameAttribute, ClientNonceAttribute}};
+        _ ->
+            {error, <<"bad-protocol">>}
+    end.
+
+parse_username_attribute({UserNameAttribute, ClientNonceAttribute}) ->
+    case parse_attribute(UserNameAttribute) of
+        {error, Reason} -> {error, Reason};
+        {_, EscapedUserName} -> {ok, {EscapedUserName, ClientNonceAttribute}}
+    end.
+
+unescape_username_attribute({EscapedUserName, ClientNonceAttribute}) ->
+    case unescape_username(EscapedUserName) of
+        error -> {error, <<"protocol-error-bad-username">>};
+        UserName -> {ok, {UserName, ClientNonceAttribute}}
+    end.
+
+parse_client_nonce_attribute({UserName, ClientNonceAttribute}) ->
+    case parse_attribute(ClientNonceAttribute) of
+        {$r, ClientNonce} -> {ok, {UserName, ClientNonce}};
+        _ -> {error, <<"not-supported">>}
+    end.
+
+
+mech_step(#state{step = 2} = State, ClientIn) ->
+    Steps = [{parse_input, fun parse_client_in/1},
+             {parse_username, fun parse_username_attribute/1},
+             {unescape_username, fun unescape_username_attribute/1},
+             {parse_client_nonce, fun parse_client_nonce_attribute/1}
+            ],
+    case epipe:run(Steps, ClientIn) of
+        {ok, {UserName, ClientNonce}} ->
+            Creds = State#state.creds,
+            LServer = mongoose_credentials:lserver(Creds),
+            case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
+                {false, _} -> {error, <<"not-authorized">>, UserName};
+                {Ret, AuthModule} ->
+                    {StoredKey, ServerKey, Salt, IterationCount} =
+                    if is_tuple(Ret) -> Ret;
+                       true ->
+                           TempSalt =
+                           crypto:strong_rand_bytes(?SALT_LENGTH),
+                           SaltedPassword =
+                           mongoose_scram:salted_password(Ret,
+                                                          TempSalt,
+                                                          mongoose_scram:iterations()),
+                           {mongoose_scram:stored_key(mongoose_scram:client_key(SaltedPassword)),
+                            mongoose_scram:server_key(SaltedPassword),
+                            TempSalt,
+                            mongoose_scram:iterations()}
+                    end,
+                    {NStart, _} = binary:match(ClientIn, <<"n=">>),
+                    ClientFirstMessageBare = binary:part(ClientIn,
+                                                         {NStart,
+                                                          byte_size(ClientIn)-NStart}),
+                    ServerNonce =
+                    jlib:encode_base64(crypto:strong_rand_bytes(?NONCE_LENGTH)),
+                    ServerFirstMessage =
+                    iolist_to_binary(
+                      [<<"r=">>,
+                       ClientNonce,
+                       ServerNonce,
+                       <<",s=">>,
+                       jlib:encode_base64(Salt),
+                       <<",i=">>,
+                       integer_to_list(IterationCount)]),
+                    {continue, ServerFirstMessage,
+                     State#state{step = 4, stored_key = StoredKey,
+                                 server_key = ServerKey,
+                                 auth_message =
+                                 <<ClientFirstMessageBare/binary,
+                                   ",", ServerFirstMessage/binary>>,
+                                 client_nonce = ClientNonce,
+                                 server_nonce = ServerNonce,
+                                 username = UserName,
+                                 auth_module = AuthModule}}
             end;
-        _Else -> {error, <<"bad-protocol">>}
+        {error, _Step, Reason} ->
+            {error, Reason}
     end;
 mech_step(#state{step = 4} = State, ClientIn) ->
     case re:split(ClientIn, <<",">>) of
