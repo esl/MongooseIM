@@ -149,6 +149,22 @@ elif [ "$db" = 'pgsql' ]; then
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
+elif [ "$db" = 'cockroach' ]; then
+    NAME=$(db_name cockroach)
+    PGSQL_PORT=${PGSQL_PORT:-5432}
+    sudo -n service postgresql stop || echo "Failed to stop psql"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
+    cp ${MIM_PRIV_DIR}/cockroach-pg.sql ${SQL_TEMP_DIR}/.
+    docker run -d \
+           -e SQL_TEMP_DIR=/tmp/sql \
+           -e POSTGRES_PASSWORD=password \
+           $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
+           $(data_on_volume -v ${SQL_DATA_DIR}:/cockroach/cockroach-data) \
+           -v ${TOOLS}/docker-setup-cockroach.sh:/cockroach/docker-setup-cockroach.sh \
+           -p $PGSQL_PORT:26257 --name=$NAME cockroachdb/cockroach start --insecure
+    tools/wait_for_service.sh $NAME 26257
+    docker exec ${NAME} /cockroach/docker-setup-cockroach.sh 
+
 elif [ "$db" = 'riak' ]; then
     NAME=$(db_name riak)
     # Expose for setup_riak script
