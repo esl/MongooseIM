@@ -136,9 +136,11 @@ there are also some other `publish-options` supported:
   * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
     This value will set the push notification priority. Please refer to FCM / APNS documentation for
     more details on those values.
-  * `sound` - sound that should be played when notification arrives. Please refer to _FCM_/_APNS_ documentation for more details.
-  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets "mutable-content=1" in _APNS_ payload.
-  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification. Please refer to _FCM_ documentation for more details.
+  * `sound` - sound that should be played when a notification arrives. Please refer to _FCM_/_APNS_ documentation for more details.
+  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets "mutable-content=1" in the _APNS_ payload.
+  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification. Please refer to the _FCM_ documentation for more details.
+
+Any other `publish-options` are ignored by [mod_push_service_mongoosepush][]
 
 ### Disabling push notifications
 
