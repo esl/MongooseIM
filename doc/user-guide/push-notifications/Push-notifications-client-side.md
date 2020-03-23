@@ -112,10 +112,15 @@ To enable push notifications in the simplest configuration, just send the follow
 We have now enabled push notifications to be send to the `pubsub.mypubsub.com` domain
 on the node `punsub_node_for_my_private_iphone` created previously, or in the case of PubSub-less,
 for whatever unique node name we give here, for example any variation of the token obtained from
-_APNS_ or _FCM_. In `publish-options` we have passed the service name we are using (`apns` or `fcm`)
-and the device token (here: `your_pns_device_token`) that you received from your push notification
-service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider)).
-Those two options are the only ones required, but there are some others that are optional:
+_APNS_ or _FCM_. Please note that `publish-options` are specific to various XMPP Push Services.
+
+### Publish options
+For [mod_push_service_mongoosepush][] the next `publish-options` are mandatory:
+
+  * `device_id` - device token (here: `your_pns_device_token`) that you received from your push notification service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider))
+  * `service` - push notification service provider name (`apns` or `fcm`)
+
+there are also some other `publish-options` supported:
 
   * `mode` - which may be either `prod` or `dev` (default to `prod`). Decides which connection pool
     type on [MongoosePush][] shall be used. This may be used when _APNS_ on [MongoosePush][] is
@@ -123,7 +128,7 @@ Those two options are the only ones required, but there are some others that are
   * `click_action` - action to perform when notification is clicked on the device. `activity` on
     _Android_ and `category` on _iOS_. Please refer to your platform / push notification service
     provider for more info.
-  * `topic` - currently only used with _APNS_. The value is passed to _APNS_ as `topic` header.  For
+  * `topic` - currently only used with _APNS_. The value is passed to _APNS_ as `topic` header. For
     more information please refer to _APNS_ documentation.
   * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
     payload will be send to the push notifications provider with no notification. The data payload
@@ -131,6 +136,11 @@ Those two options are the only ones required, but there are some others that are
   * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
     This value will set the push notification priority. Please refer to FCM / APNS documentation for
     more details on those values.
+  * `sound` - sound that should be played when a notification arrives. Please refer to _FCM_/_APNS_ documentation for more details.
+  * `mutable_content` - only applicable to _APNS_. If set to `true`, sets "mutable-content=1" in the _APNS_ payload.
+  * `time_to_live` - only applicable to _FCM_. Maximum lifespan of an FCM notification. Please refer to the _FCM_ documentation for more details.
+
+Any other `publish-options` are ignored by [mod_push_service_mongoosepush][]
 
 ### Disabling push notifications
 
