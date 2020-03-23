@@ -36,11 +36,11 @@
 %% Info Handler
 %%====================================================================
 
-handle_c2s_info(init, HandlerState, Params) ->
-    start_ping_timer(HandlerState, Params);
-handle_c2s_info(send_ping, HandlerState, #{jid := JID, server := Server} = Params) ->
+handle_c2s_info(init, HandlerState, #{server := Server}) ->
+    start_ping_timer(HandlerState, Server);
+handle_c2s_info(send_ping, HandlerState, #{jid := JID, server := Server}) ->
     route_ping_iq(JID, Server),
-    start_ping_timer(HandlerState, Params);
+    start_ping_timer(HandlerState, Server);
 handle_c2s_info(timeout, HandlerState, #{jid := JID, server := Server}) ->
     mongoose_hooks:user_ping_timeout(Server, ok, JID),
     case gen_mod:get_module_opt(Server, ?MODULE, timeout_action, none) of
@@ -49,14 +49,11 @@ handle_c2s_info(timeout, HandlerState, #{jid := JID, server := Server}) ->
     end,
     HandlerState.
 
-start_ping_timer(HandlerState, #{server := Server}) ->
-    start_ping_timer(HandlerState, Server);
+-spec start_ping_timer(ejabberd_c2s_info_handler:handler_state(), jid:server()) -> reference().
 start_ping_timer(HandlerState, Server) ->
     cancel_timer(HandlerState),
     PingInterval = gen_mod:get_module_opt(Server, ?MODULE, ping_interval, ?DEFAULT_PING_INTERVAL),
-    {ok, Tref} = timer:apply_after(PingInterval * 1000,
-                                   ejabberd_c2s_info_handler, call, [self(), mod_ping, send_ping]),
-    Tref.
+    ejabberd_c2s_info_handler:call_after(PingInterval * 1000, self(), mod_ping, send_ping).
 
 route_ping_iq(JID, Server) ->
     PingReqTimeout = gen_mod:get_module_opt(Server, ?MODULE, ping_req_timeout,
@@ -89,7 +86,7 @@ route_ping_iq(JID, Server) ->
 cancel_timer(empty_state) ->
     do_nothing;
 cancel_timer(TRef) ->
-    timer:cancel(TRef).
+    erlang:cancel_timer(TRef).
 
 %%====================================================================
 %% utility
@@ -122,7 +119,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PING,
                                   ?MODULE, iq_ping, IQDisc),
     maybe_add_hooks_handlers(Host, SendPings).
-    
+
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->

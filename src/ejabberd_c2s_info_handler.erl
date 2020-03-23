@@ -5,13 +5,15 @@
 -include("jlib.hrl").
 
 % API for other modules
--export([add/3, remove/2, call/3]).
+-export([add/3, remove/2, call/3, call_after/4]).
 
--callback handle_c2s_info(Args :: term(), HandlerState :: term(), C2SParams :: map()) ->
+-callback handle_c2s_info(Args :: term(), HandlerState :: handler_state(), C2SParams :: map()) ->
       any().
 
 -type handler_tag() :: atom().
 -type handler_state() :: term().
+
+-export_type([handler_state/0]).
 
 % API for ejabberd_c2s
 -export([get_for/2,
@@ -39,6 +41,17 @@ call(FsmRef, Tag, Data) ->
     FsmRef ! {call_info_handler, Tag, Data},
     ok.
 
+-spec call_after(integer(), jid:jid() | pid(), atom(), term()) -> reference().
+call_after(Time, #jid{} = JID, Tag, Data) ->
+    case ejabberd_sm:get_session_pid(JID) of
+        none ->
+            session_not_found;
+        Pid ->
+            call_after(Time, Pid, Tag, Data)
+    end;
+call_after(Time, FsmRef, Tag, Data) ->
+    erlang:send_after(Time, FsmRef, {call_info_handler, Tag, Data}).
+
 -spec get_for(handler_tag(), state()) -> {handler_tag(), handler_state()} | no_handler.
 get_for(Tag, #state{ info_handlers = InfoHandlers }) ->
     maps:get(Tag, InfoHandlers, no_handler).
@@ -62,8 +75,8 @@ safe_call(Tag, Data, HandlerState, C2SState) ->
             add_to_state(Tag, NewHandlerState, C2SState)
     catch
         C:R:S ->
-            ?ERROR_MSG("event=custom_c2s_info_handler_crash,tag=~p,data=~p,"
-                       "extra=~p,class=~p,reason=~p,stacktrace=~1000p",
+            ?ERROR_MSG("event=custom_c2s_info_handler_crash tag=~p,data=~p "
+                       "extra=~p class=~p reason=~p stacktrace=~1000p",
                        [Tag, Data, HandlerState, C, R, S]),
             {error, {C, R, S}}
     end.
