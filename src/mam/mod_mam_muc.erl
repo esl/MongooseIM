@@ -256,9 +256,8 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
                     handle_error_iq(Acc, Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    Acc1 = mongoose_hooks:mam_muc_drop_iq(Host, Acc, To, IQ,
-                                                          Action, max_delay_reached),
-                    {Acc1, return_max_delay_reached_error_iq(IQ)}
+                    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+                    {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         false -> {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
@@ -541,9 +540,9 @@ message_row_to_ext_id({MessID, _, _}) ->
 
 -spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-handle_error_iq(Acc, Host, To, Action, {error, Reason, IQ}) ->
-    Acc1 = mongoose_hooks:mam_muc_drop_iq(Host, Acc, To, IQ, Action, Reason),
-    {Acc1, IQ};
+handle_error_iq(Acc, Host, _To, _Action, {error, _Reason, IQ}) ->
+    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+    {Acc, IQ};
 handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
     {Acc, IQ}.
 

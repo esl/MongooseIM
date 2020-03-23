@@ -255,12 +255,12 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
                 {error, max_delay_reached} ->
                     ?WARNING_MSG("issue=max_delay_reached, action=~p, host=~p, from=~p",
                                  [Action, Host, From]),
-                    Acc1 = mongoose_hooks:mam_drop_iq(Host, Acc, To, IQ, Action, max_delay_reached),
-                    {Acc1, return_max_delay_reached_error_iq(IQ)}
+                    mongoose_metrics:update(Host, modMamDroppedIQ, 1),
+                    {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         false ->
-            Acc1 = mongoose_hooks:mam_drop_iq(Host, Acc, To, IQ, Action, action_not_allowed),
-            {Acc1, return_action_not_allowed_error_iq(IQ)}
+            mongoose_metrics:update(Host, modMamDroppedIQ, 1),
+            {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
 
@@ -618,9 +618,9 @@ message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs)  ->
 message_row_to_ext_id({MessID, _, _}) ->
     mess_id_to_external_binary(MessID).
 
-handle_error_iq(Host, Acc, To, Action, {error, Reason, IQ}) ->
-    Acc1 = mongoose_hooks:mam_drop_iq(Host, Acc, To, IQ, Action, Reason),
-    {Acc1, IQ};
+handle_error_iq(Host, Acc, _To, _Action, {error, _Reason, IQ}) ->
+    mongoose_metrics:update(Host, modMamDroppedIQ, 1),
+    {Acc, IQ};
 handle_error_iq(_Host, Acc, _To, _Action, IQ) ->
     {Acc, IQ}.
 

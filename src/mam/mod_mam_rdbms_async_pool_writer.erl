@@ -194,7 +194,7 @@ archive_message(_Result, Host,
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
-                    mongoose_hooks:mam_drop_message(Host, ok),
+                    mongoose_metrics:update(Host, modMamDropped, 1),
                     {error, timeout}
             end
     end.
@@ -265,12 +265,12 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            mongoose_hooks:mam_drop_messages(Host, ok, MessageCount),
+            mongoose_metrics:update(Host, modMamDropped2, MessageCount),
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
     spawn_link(fun() ->
-                       mongoose_hooks:mam_flush_messages(Host, ok, MessageCount)
+                       mongoose_metrics:update(Host, modMamFlushed, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
