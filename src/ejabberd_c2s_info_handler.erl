@@ -41,7 +41,7 @@ call(FsmRef, Tag, Data) ->
     FsmRef ! {call_info_handler, Tag, Data},
     ok.
 
--spec call_after(integer(), jid:jid() | pid(), atom(), term()) -> reference().
+-spec call_after(integer(), jid:jid() | pid(), atom(), term()) -> reference() | session_not_found.
 call_after(Time, #jid{} = JID, Tag, Data) ->
     case ejabberd_sm:get_session_pid(JID) of
         none ->
