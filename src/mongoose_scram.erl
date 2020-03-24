@@ -30,9 +30,9 @@
 -include("mongoose.hrl").
 -include("scram.hrl").
 
-%% External exports
+% Core SCRAM functions
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
--export([ % Core SCRAM functions
+-export([
          salted_password/3,
          stored_key/1,
          server_key/1,
@@ -55,6 +55,8 @@
 
 -export([scram_to_tuple/1]).
 
+-type hash_type() :: crypto:sha1() | crypto:sha2().
+
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
 
@@ -68,7 +70,7 @@
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
-    hi(jid:resourceprep(Password), Salt, IterationCount).
+    hi(sha, jid:resourceprep(Password), Salt, IterationCount).
 
 -spec client_key(binary()) -> binary().
 client_key(SaltedPassword) ->
@@ -87,30 +89,31 @@ client_signature(StoredKey, AuthMessage) ->
 
 -spec client_key(binary(), binary()) -> binary().
 client_key(ClientProof, ClientSignature) ->
-    list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-                                 binary_to_list(ClientProof),
-                                 binary_to_list(ClientSignature))).
+    mask(ClientProof, ClientSignature).
 
 -spec server_signature(binary(), binary()) -> binary().
 server_signature(ServerKey, AuthMessage) ->
     crypto:hmac(sha, ServerKey, AuthMessage).
 
-hi(Password, Salt, IterationCount) ->
-    U1 = crypto:hmac(sha, Password, <<Salt/binary, 0, 0, 0, 1>>),
-    list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-                                 binary_to_list(U1),
-                                 binary_to_list(hi_round(Password, U1,
-                                                         IterationCount - 1)))).
+-spec hi(hash_type(), binary(), binary(), non_neg_integer()) -> binary().
+hi(Hash, Password, Salt, IterationCount) ->
+    U1 = crypto:hmac(Hash, Password, <<Salt/binary, 0, 0, 0, 1>>),
+    mask(U1, hi_round(Hash, Password, U1, IterationCount - 1)).
 
-hi_round(Password, UPrev, 1) ->
-    crypto:hmac(sha, Password, UPrev);
-hi_round(Password, UPrev, IterationCount) ->
-    U = crypto:hmac(sha, Password, UPrev),
-    list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
-                                 binary_to_list(U),
-                                 binary_to_list(hi_round(Password, U,
-                                                         IterationCount - 1)))).
+-spec hi_round(hash_type(), binary(), binary(), non_neg_integer()) -> binary().
+hi_round(Hash, Password, UPrev, 1) ->
+    crypto:hmac(Hash, Password, UPrev);
+hi_round(Hash, Password, UPrev, IterationCount) ->
+    U = crypto:hmac(Hash, Password, UPrev),
+    mask(U, hi_round(Hash, Password, U, IterationCount - 1)).
 
+-spec mask(binary(), binary()) -> binary().
+mask(Key, Data) ->
+    KeySize = size(Key) * 8,
+    <<A:KeySize>> = Key,
+    <<B:KeySize>> = Data,
+    C = A bxor B,
+    <<C:KeySize>>.
 
 enabled(Host) ->
     ejabberd_auth:get_opt(Host, password_format) == scram.
