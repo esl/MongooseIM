@@ -99,8 +99,7 @@
 
 -type blocking_type() :: 'block' | 'unblock'.
 
--type broadcast_type() :: {exit, Reason :: binary()}
-                        | {item, IJID :: jid:simple_jid() | jid:jid(),
+-type broadcast_type() :: {item, IJID :: jid:simple_jid() | jid:jid(),
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mongoose_privacy:userlist(),
                            PrivListName :: binary()}
@@ -111,7 +110,6 @@
 -type broadcast() :: {broadcast, broadcast_type() | mongoose_acc:t()}.
 
 -type broadcast_result() :: {new_state, NewState :: state()}
-                          | {exit, Reason :: binary()}
                           | {send_new, From :: jid:jid(), To :: jid:jid(),
                              Packet :: exml:element(),
                              NewState :: state()}.

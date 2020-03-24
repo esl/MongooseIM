@@ -34,6 +34,7 @@
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
+-behaviour(ejabberd_c2s_info_handler).
 
 -export([read_caps/1, caps_stream_features/2,
          disco_features/5, disco_identity/5, disco_info/5]).
@@ -46,8 +47,10 @@
          handle_cast/2, terminate/2, code_change/3]).
 
 -export([user_send_packet/4, user_receive_packet/5,
-         c2s_presence_in/2, c2s_filter_packet/6,
-         c2s_broadcast_recipients/6]).
+         c2s_presence_in/2, c2s_filter_packet/6]).
+
+%% info handler callbacks
+-export([handle_c2s_info/3]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
@@ -101,6 +104,12 @@ get_features_list(Host, Caps) ->
         unknown -> [];
         Features -> Features
     end.
+
+handle_c2s_info({pep_message, Feature, From, Packet}, HandlerState, #{server := LHost}) ->
+    Recipients = filter_recipients_by_caps(Feature, LHost, HandlerState),
+    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
+                  lists:usort(Recipients)),
+    HandlerState.
 
 -spec get_features(jid:lserver(), nothing | caps()) -> unknown | list().
 get_features(_LHost, nothing) -> [];
@@ -236,12 +245,8 @@ c2s_presence_in(C2SState,
     case Insert or Delete of
         true ->
             LFrom = jid:to_lower(From),
-            Rs = case ejabberd_c2s:get_aux_field(caps_resources,
-                                                 C2SState)
-                 of
-                     {ok, Rs1} -> Rs1;
-                     error -> gb_trees:empty()
-                 end,
+            Rs = ejabberd_c2s_info_handler:get_for(?MODULE,
+                                                 C2SState, gb_trees:empty()),
             Caps = read_caps(Els),
             NewRs = case Caps of
                         nothing when Insert == true -> Rs;
@@ -250,8 +255,7 @@ c2s_presence_in(C2SState,
                             upsert_caps(LFrom, From, To, Caps, Rs);
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
-            ejabberd_c2s:set_aux_field(caps_resources, NewRs,
-                                       C2SState);
+            ejabberd_c2s_info_handler:add_to_state(?MODULE, NewRs, C2SState);
         false -> C2SState
     end.
 
@@ -270,38 +274,28 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
-c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
-    case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
-        {ok, Rs} ->
-            ?DEBUG("Look for CAPS for ~p in ~p (res: ~p)", [To, C2SState, Rs]),
-            LTo = jid:to_lower(To),
-            case gb_trees:lookup(LTo, Rs) of
-                {value, Caps} ->
-                    Drop = not lists:member(Feature, get_features_list(LHost, Caps)),
-                    {stop, Drop};
-                none ->
-                    {stop, true}
-            end;
-        _ -> InAcc
+c2s_filter_packet(_InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
+    Rs = ejabberd_c2s_info_handler:get_for(?MODULE,
+                                           C2SState, gb_trees:empty()),
+    ?DEBUG("Look for CAPS for ~p in ~p (res: ~p)", [To, C2SState, Rs]),
+    LTo = jid:to_lower(To),
+    case gb_trees:lookup(LTo, Rs) of
+        {value, Caps} ->
+            Drop = not lists:member(Feature, get_features_list(LHost, Caps)),
+            {stop, Drop};
+        none ->
+            {stop, true}
     end;
 c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
-c2s_broadcast_recipients(InAcc, LHost, C2SState, {pep_message, Feature}, _From, _Packet) ->
-    case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
-        {ok, Rs} ->
-            filter_recipients_by_caps(InAcc, Feature, LHost, Rs);
-        _ -> InAcc
-    end;
-c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
-
-filter_recipients_by_caps(InAcc, Feature, LHost, Rs) ->
+filter_recipients_by_caps(Feature, LHost, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
                           case lists:member(Feature, get_features_list(LHost, Caps)) of
                               true -> [USR | Acc];
                               false -> Acc
                           end
                   end,
-                  InAcc, Rs).
+                  [], Rs).
 
 init_db(mnesia, _Host) ->
     case catch mnesia:table_info(caps_features, storage_type) of
@@ -334,8 +328,6 @@ init([Host, Opts]) ->
                        c2s_presence_in, 75),
     ejabberd_hooks:add(c2s_filter_packet, Host, ?MODULE,
                        c2s_filter_packet, 75),
-    ejabberd_hooks:add(c2s_broadcast_recipients, Host,
-                       ?MODULE, c2s_broadcast_recipients, 75),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE,
                        user_send_packet, 75),
     ejabberd_hooks:add(user_receive_packet, Host, ?MODULE,
@@ -367,8 +359,6 @@ terminate(_Reason, State) ->
                           c2s_presence_in, 75),
     ejabberd_hooks:delete(c2s_filter_packet, Host, ?MODULE,
                           c2s_filter_packet, 75),
-    ejabberd_hooks:delete(c2s_broadcast_recipients, Host,
-                          ?MODULE, c2s_broadcast_recipients, 75),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE,
                           user_send_packet, 75),
     ejabberd_hooks:delete(user_receive_packet, Host,

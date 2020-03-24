@@ -3623,10 +3623,12 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(Publisher)]),
-            ejabberd_c2s:broadcast(C2SPid,
-                                   {pep_message, <<((Node))/binary, "+notify">>},
-                                   _Sender = jid:make(LUser, LServer, <<"">>),
-                                   _StanzaToSend = add_extended_headers(Stanza, ReplyTo));
+            ejabberd_c2s_info_handler:call(C2SPid,
+                                           mod_caps,
+                                           {pep_message, <<((Node))/binary, "+notify">>,
+                                            jid:make(LUser, LServer, <<"">>),
+                                            add_extended_headers(Stanza, ReplyTo)
+                                           });
         _ ->
             ?DEBUG("~p@~p has no session; can't deliver ~p to contacts",
                    [LUser, LServer, BaseStanza])

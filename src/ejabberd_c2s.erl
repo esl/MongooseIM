@@ -40,7 +40,6 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
-         broadcast/4,
          store_session_info/3,
          remove_session_info/3,
          get_info/1]).
@@ -137,9 +136,6 @@ get_subscription(From = #jid{}, StateData) ->
 
 send_filtered(FsmRef, Feature, From, To, Packet) ->
     FsmRef ! {send_filtered, Feature, From, To, Packet}.
-
-broadcast(FsmRef, Type, From, Packet) ->
-    FsmRef ! {broadcast, Type, From, Packet}.
 
 %% @doc Stops the session gracefully, entering resume state if applicable
 stop(FsmRef) ->
@@ -1152,27 +1148,19 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             ejabberd_router:route(From, To, FinalPacket),
             fsm_next_state(StateName, StateData)
     end;
-handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) ->
-    %% this version is used only by mod_pubsub, which does things the old way
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(StateData#state.server,
-                                                        [],
-                                                        StateData, Type, From, Packet),
-    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-        lists:usort(Recipients)),
-    fsm_next_state(StateName, StateData);
 handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
     NStateData =
     case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
-        {Tag, HandlerState} ->
+        no_handler ->
+            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
+            StateData;
+        HandlerState ->
             case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
                 {error, _} ->
                     StateData;
                 NStateData0 ->
                     NStateData0
-            end;
-        no_handler ->
-            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
-            StateData
+            end
     end,
     fsm_next_state(StateName, NStateData);
 handle_incoming_message(Info, StateName, StateData) ->
