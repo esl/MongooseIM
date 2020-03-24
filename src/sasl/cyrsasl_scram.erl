@@ -48,8 +48,6 @@
 
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
--type username() :: binary().
--type lserver() :: binary().
 -type nonce_attr() :: {term(), binary()}.
 -type nonce() :: binary().
 -type scram_att() :: {module(), scram_keys()}.
@@ -70,7 +68,7 @@ mech_new(_Host, Creds) ->
     {ok, #state{step = 2, creds = Creds}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
-    ClientInList = re:split(ClientIn, <<",">>, [{return, binary}]),
+    ClientInList = binary:split(ClientIn, <<",">>, [global]),
     ClientInSteps = [ fun parse_step2_client_in/1,
                       fun parse_username_attribute/1,
                       fun unescape_username_attribute/1 ],
@@ -100,7 +98,7 @@ mech_step(#state{step = 2} = State, ClientIn) ->
         {error, Reason} -> {error, Reason}
     end;
 mech_step(#state{step = 4} = State, ClientIn) ->
-    ClientInList = re:split(ClientIn, <<",">>),
+    ClientInList = binary:split(ClientIn, <<",">>, [global]),
     ClientInSteps = [ fun parse_step4_client_in/1,
                       fun parse_channel_binding_attribute/1],
     case parse_attributes(ClientInList, ClientInSteps) of
@@ -116,7 +114,7 @@ mech_step(#state{step = 4} = State, ClientIn) ->
                          fun verify_stored_key/1],
             AuthArgs = [{NonceAtt, Nonce}, ClientProofAtt, AuthMessage, State],
             case parse_attributes(AuthArgs, AuthSteps) of
-                ok ->
+                {ok, auth_successful} ->
                     ServerSignature =
                         mongoose_scram:server_signature(State#state.server_key,
                                                         AuthMessage),
@@ -147,7 +145,7 @@ parse_step2_client_in([_CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _]) 
     {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)}.
 
 -spec parse_username_attribute({username_att(), nonce_attr()}) ->
-    {username(), nonce()} | error().
+    {jid:username(), nonce()} | error().
 parse_username_attribute({{error, Reason}, _}) ->
     {errror, Reason};
 parse_username_attribute({{_, EscapedUserName}, {$r, ClientNonce}}) ->
@@ -155,15 +153,15 @@ parse_username_attribute({{_, EscapedUserName}, {$r, ClientNonce}}) ->
 parse_username_attribute({_, _}) ->
     {errror, <<"not-supported">>}.
 
--spec unescape_username_attribute({username(), nonce()}) ->
-    {ok, {username(), nonce()}} | error().
+-spec unescape_username_attribute({jid:username(), nonce()}) ->
+    {ok, {jid:username(), nonce()}} | error().
 unescape_username_attribute({EscapedUserName, ClientNonce}) ->
     case unescape_username(EscapedUserName) of
         error -> {error, <<"protocol-error-bad-username">>};
         UserName -> {ok, {UserName, ClientNonce}}
     end.
 
--spec get_scram_attributes(username(), lserver()) -> scram_att() | error().
+-spec get_scram_attributes(jid:username(), jid:lserver()) -> scram_att() | error().
 get_scram_attributes(UserName, LServer) ->
     case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
         {false, _} ->
