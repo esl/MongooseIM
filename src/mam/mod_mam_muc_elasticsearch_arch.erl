@@ -87,7 +87,7 @@ archive_message(_Result, Host, MessageId, _UserId, RoomJid, FromJID, SourceJid, 
         {error, _} = Err ->
             ?ERROR_MSG("event=archive_muc_message_failed server=~s room=~s source=~s mess_id=~p reason=~1000p",
                        [Host, Room, SourceBinJid, MessageId, Err]),
-            mongoose_hooks:mam_drop_message(Host, ok),
+            mongoose_metrics:update(Host, modMamDropped, 1),
             Err
     end.
 

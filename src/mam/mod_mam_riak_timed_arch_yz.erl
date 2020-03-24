@@ -139,7 +139,7 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Pa
     catch _Type:Reason:StackTrace ->
             ?WARNING_MSG("Could not write message to archive, reason: ~p",
                          [{Reason, StackTrace}]),
-            mongoose_hooks:mam_drop_message(Host, ok),
+            mongoose_metrics:update(Host, modMamDropped, 1),
             {error, Reason}
     end.
 
@@ -153,7 +153,7 @@ archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Di
     catch _Type:Reason:StackTrace ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
                      [{Reason, StackTrace}]),
-        mongoose_hooks:mam_drop_message(Host, ok),
+        mongoose_metrics:update(Host, modMamDropped, 1),
         {error, Reason}
     end.
 

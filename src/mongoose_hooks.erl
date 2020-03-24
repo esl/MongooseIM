@@ -84,21 +84,16 @@
          can_access_room/4,
          muc_room_pid/3]).
 
--export([mam_drop_iq/6,
-         mam_archive_id/3,
+-export([mam_archive_id/3,
          mam_archive_size/4,
          mam_get_behaviour/5,
          mam_set_prefs/7,
          mam_get_prefs/4,
          mam_remove_archive/4,
          mam_lookup_messages/3,
-         mam_archive_message/9,
-         mam_drop_message/2,
-         mam_drop_messages/3,
-         mam_flush_messages/3]).
+         mam_archive_message/9]).
 
--export([mam_muc_drop_iq/6,
-         mam_muc_archive_id/3,
+-export([mam_muc_archive_id/3,
          mam_muc_archive_size/4,
          mam_muc_get_behaviour/5,
          mam_muc_set_prefs/7,
@@ -938,17 +933,6 @@ can_access_room(HookServer, Acc, Room, User) ->
 
 %% MAM related hooks
 
-%%% @doc The `mam_drop_iq' hooks is called when a MAM related IQ was dropped by the server.
--spec mam_drop_iq(HookServer, Acc, To, IQ, Action, Reason) -> ok when
-      HookServer :: jid:lserver(),
-      Acc :: mongoose_acc:t(),
-      To :: jid:jid(),
-      IQ :: jlib:iq(),
-      Action :: mam_iq:action(),
-      Reason :: term().
-mam_drop_iq(HookServer, Acc, To, IQ, Action, Reason) ->
-    ejabberd_hooks:run_fold(mam_drop_iq, HookServer, Acc, [HookServer, To, IQ, Action, Reason]).
-
 %%% @doc The `mam_archive_id' hook is called to determine the id of an archive for a particular user or entity.
 %%% The hook handler is expected to accept the following arguments:
 %%% * Acc with an initial value of `undefined',
@@ -1057,37 +1041,8 @@ mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, Re
                             [HookServer, MessageID, ArchiveID, OwnerJID,
                              RemoteJID, SenderJID, Dir, Packet]).
 
-%%% @doc The `mam_drop_message' hook is called when message archive failed.
-%%%
-%%% For those MAM backends which perform synchronous writes of messages the hook is called when there was an error while writing the message.
-%%% In case of backends performing asynchronous writes,
-%%% this hook is called when the process responsible for async and bulk writes died when talking to it.
--spec mam_drop_message(HookServer :: jid:lserver(), InitialValue :: ok) -> ok.
-mam_drop_message(HookServer, InitialValue) ->
-    ejabberd_hooks:run_fold(mam_drop_message, HookServer, InitialValue, [HookServer]).
-
-%%% @doc The `mam_drop_messages' hook is called when the async bulk write operation failed.
--spec mam_drop_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.
-mam_drop_messages(HookServer, InitialValue, MessageCount) ->
-    ejabberd_hooks:run_fold(mam_drop_messages, HookServer, InitialValue, [HookServer, MessageCount]).
-
-%%% @doc The `mam_flush_messages' hook is run after the async bulk write happens despite the write operation's result.
--spec mam_flush_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.
-mam_flush_messages(HookServer, InitialValue, MessageCount) ->
-    ejabberd_hooks:run_fold(mam_flush_messages, HookServer, InitialValue, [HookServer, MessageCount]).
 
 %% MAM MUC related hooks
-
-%%% @doc The `mam_muc_drop_iq' hooks is called when a MAM related IQ was dropped by the server.
--spec mam_muc_drop_iq(HookServer, Acc, To, IQ, Action, Reason) -> ok when
-      HookServer :: jid:lserver(),
-      Acc :: mongoose_acc:t(),
-      To :: jid:jid(),
-      IQ :: jlib:iq(),
-      Action :: mam_iq:action(),
-      Reason :: term().
-mam_muc_drop_iq(HookServer, Acc, To, IQ, Action, Reason) ->
-    ejabberd_hooks:run_fold(mam_muc_drop_iq, HookServer, Acc, [HookServer, To, IQ, Action, Reason]).
 
 %%% @doc The `mam_muc_archive_id' hook is called to determine the archive ID for a particular room.
 %%% The hook handler is expected to accept the following arguments:

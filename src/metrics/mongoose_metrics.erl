@@ -349,18 +349,12 @@ filter_hook(mam_set_prefs) -> skip;
 filter_hook(mam_remove_archive) -> skip;
 filter_hook(mam_archive_message) -> skip;
 filter_hook(mam_flush_messages) -> skip;
-filter_hook(mam_drop_message) -> skip;
-filter_hook(mam_drop_iq) -> skip;
-filter_hook(mam_drop_messages) -> skip;
 filter_hook(mam_muc_get_prefs) -> skip;
 filter_hook(mam_muc_set_prefs) -> skip;
 filter_hook(mam_muc_remove_archive) -> skip;
 filter_hook(mam_muc_lookup_messages) -> skip;
 filter_hook(mam_muc_archive_message) -> skip;
 filter_hook(mam_muc_flush_messages) -> skip;
-filter_hook(mam_muc_drop_message) -> skip;
-filter_hook(mam_muc_drop_iq) -> skip;
-filter_hook(mam_muc_drop_messages) -> skip;
 
 filter_hook(_) -> use.
 
