@@ -261,7 +261,7 @@ ban_account(User, Host, ReasonText) ->
             {error, ErrorReason}
     end.
 
--spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
+-spec kick_sessions(jid:user(), jid:server(), binary()) -> [ok].
 kick_sessions(User, Server, Reason) ->
     JID = jid:make(User, Server, <<>>),
     lists:map(
