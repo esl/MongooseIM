@@ -46,6 +46,16 @@
          server_nonce = <<"">> :: binary(),
          auth_module           :: ejabberd_gen_auth:t()}).
 
+-type client_in() :: [binary()].
+-type username_att() :: {term(), binary()}.
+-type nonce_attr() :: {term(), binary()}.
+-type nonce() :: binary().
+-type scram_att() :: {module(), scram_keys()}.
+-type scram_keys() :: term().
+-type channel_binding() :: term().
+-type client_proof() :: term().
+-type error() :: {error, binary()} | {error, binary(), binary()}.
+
 -define(SALT_LENGTH, 16).
 
 -define(NONCE_LENGTH, 16).
@@ -58,110 +68,104 @@ mech_new(_Host, Creds) ->
     {ok, #state{step = 2, creds = Creds}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
-    try
-        % Check received attributes
-        ClientInList = re:split(ClientIn, <<",">>, [{return, binary}]),
-        ok = check_extension_attribute(ClientInList),
-        [CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _] = ClientInList,
-        ok = check_message_headers(CBind),
-        EscapedUserName = check_username(parse_attribute(UserNameAtt)),
-        UserName = get_username(EscapedUserName),
-        ClientNonce = get_client_nonce(parse_attribute(ClientNonceAtt)),
-        % Authenticate and prepare response message
-        Creds = State#state.creds,
-        LServer = mongoose_credentials:lserver(Creds),
-        {AuthModule, {StoredKey, ServerKey,
-                      Salt, IterationCount}} = get_scram_attributes(UserName, LServer),
-        {NStart, _} = binary:match(ClientIn, <<"n=">>),
-        ClientFirstMessageBare = binary:part(ClientIn,
-                                            {NStart, byte_size(ClientIn) - NStart}),
-        ServerNonce = jlib:encode_base64(crypto:strong_rand_bytes(?NONCE_LENGTH)),
-        ServerFirstMessage = create_server_first_message(ClientNonce, ServerNonce,
-                                                         Salt, IterationCount),
-
-        {continue, ServerFirstMessage,
-        State#state{step = 4, stored_key = StoredKey, server_key = ServerKey,
-                    auth_message = <<ClientFirstMessageBare/binary,
-                                   ",", ServerFirstMessage/binary>>,
-                    client_nonce = ClientNonce, server_nonce = ServerNonce,
-                    username = UserName, auth_module = AuthModule}}
-    catch
-        error:Error ->
-            case Error of
-                {Reason, User} -> {error, Reason, User};
-                Error -> {error, Error}
+    ClientInList = binary:split(ClientIn, <<",">>, [global]),
+    ClientInSteps = [ fun parse_step2_client_in/1,
+                      fun parse_username_attribute/1,
+                      fun unescape_username_attribute/1 ],
+    case parse_attributes(ClientInList, ClientInSteps) of
+        {ok, {UserName, ClientNonce}} ->
+            Creds = State#state.creds,
+            LServer = mongoose_credentials:lserver(Creds),
+            case get_scram_attributes(UserName, LServer) of
+                {AuthModule, {StoredKey, ServerKey, Salt, IterationCount}} ->
+                     {NStart, _} = binary:match(ClientIn, <<"n=">>),
+                     ClientFirstMessageBare =
+                        binary:part(ClientIn, {NStart, byte_size(ClientIn) - NStart}),
+                     ServerNonce = jlib:encode_base64(
+                                    crypto:strong_rand_bytes(?NONCE_LENGTH)),
+                     ServerFirstMessage =
+                        create_server_first_message(ClientNonce, ServerNonce,
+                                                    Salt, IterationCount),
+                     {continue, ServerFirstMessage,
+                     State#state{step = 4, stored_key = StoredKey, server_key = ServerKey,
+                                 auth_message = <<ClientFirstMessageBare/binary,
+                                                ",", ServerFirstMessage/binary>>,
+                                 client_nonce = ClientNonce, server_nonce = ServerNonce,
+                                 username = UserName, auth_module = AuthModule}};
+                {error, Reason, User} ->
+                    {error, Reason, User}
             end;
-        Type:Error -> {Type, Error}
-
+        {error, Reason} -> {error, Reason}
     end;
 mech_step(#state{step = 4} = State, ClientIn) ->
-    try
-        % Checked received arrtibutes
-        ClientInList = re:split(ClientIn, <<",">>),
-        [GS2ChannelBindingAtt,
-         NonceAtt,
-         ClientProofAtt] = check_attributes(ClientInList),
-        ok = check_channel_binding_attribute(GS2ChannelBindingAtt),
-        Nonce = <<(State#state.client_nonce)/binary,
-                    (State#state.server_nonce)/binary>>,
-        ok = check_nonce(NonceAtt, Nonce),
-        % Authenticate and prepare response message
-        ClientProof = get_client_proof(ClientProofAtt),
-        {PStart, _} = binary:match(ClientIn, <<",p=">>),
-        AuthMessage = iolist_to_binary(
-                        [State#state.auth_message,",",
-                        binary:part(ClientIn, 0, PStart)]),
-        ClientSignature = mongoose_scram_sha256:client_signature(State#state.stored_key,
-                                                          AuthMessage),
-        ClientKey = mongoose_scram_sha256:client_key(ClientProof, ClientSignature),
-        CompareStoredKey = mongoose_scram_sha256:stored_key(ClientKey),
-        ok = verify_stored_key(CompareStoredKey, State#state.stored_key),
-        ServerSignature = mongoose_scram_sha256:server_signature(State#state.server_key,
-                                                          AuthMessage),
-        R = [{username, State#state.username}, {sasl_success_response,
-             <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},
-             {auth_module, State#state.username}],
-        {ok, mongoose_credentials:extend(State#state.creds, R)}
-    catch
-        error:Error ->
-            case Error of
-                {Reason, User} -> {error, Reason, User};
-                Error -> {error, Error}
+    ClientInList = binary:split(ClientIn, <<",">>, [global]),
+    ClientInSteps = [ fun parse_step4_client_in/1,
+                      fun parse_channel_binding_attribute/1],
+    case parse_attributes(ClientInList, ClientInSteps) of
+        {ok, {NonceAtt, ClientProofAtt}} ->
+            Nonce = <<(State#state.client_nonce)/binary,
+                      (State#state.server_nonce)/binary>>,
+            {PStart, _} = binary:match(ClientIn, <<",p=">>),
+            AuthMessage = iolist_to_binary( [State#state.auth_message,",",
+                                    binary:part(ClientIn, 0, PStart)]),
+            AuthSteps = [fun verify_nonce/1,
+                         fun get_client_proof/1,
+                         fun get_stored_key/1,
+                         fun verify_stored_key/1],
+            AuthArgs = [{NonceAtt, Nonce}, ClientProofAtt, AuthMessage, State],
+            case parse_attributes(AuthArgs, AuthSteps) of
+                {ok, auth_successful} ->
+                    ServerSignature =
+                        mongoose_scram_sha256:server_signature(State#state.server_key,
+                                                        AuthMessage),
+                    R = [{username, State#state.username}, {sasl_success_response,
+                         <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},
+                         {auth_module, State#state.username}],
+                    {ok, mongoose_credentials:extend(State#state.creds, R)};
+                {error, Reason} ->
+                    {error, Reason}
             end;
-        Type:Error -> {Type, Error}
-
+        {error, Reason} ->
+            {error, Reason}
     end.
 
-check_extension_attribute([_,_,_,_, Extension | _]) when Extension /= [] ->
-    erlang:error(<<"protocol-error-extension-not-supported">>);
-check_extension_attribute(_) ->
-    ok.
+ -spec parse_attributes(any(), [fun()]) -> {ok, term()} | error().
+parse_attributes(ClientInList, Steps) ->
+    lists:foldl(fun
+                    (_ , {error, Reason}) -> {error, Reason};
+                    (F, Args) -> F(Args)
+                end, ClientInList, Steps).
 
-check_message_headers(CBind) when (CBind == <<"y">>) orelse (CBind == <<"n">>) ->
-    ok;
-check_message_headers(_) ->
-    erlang:error(<<"bad-protocol">>).
+-spec parse_step2_client_in(client_in()) -> {username_att(), nonce_attr()} | error().
+parse_step2_client_in([_,_,_,_, Extension | _]) when Extension /= [] ->
+    {error, <<"protocol-error-extension-not-supported">>};
+parse_step2_client_in([CBind | _]) when (CBind =/= <<"y">>) andalso (CBind =/= <<"n">>) ->
+    {error, <<"bad-protocol">>};
+parse_step2_client_in([_CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _]) ->
+    {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)}.
 
-check_username({error, Reason}) ->
-    erlang:error(Reason);
-check_username({_, EscapedUserName}) ->
-    EscapedUserName.
+-spec parse_username_attribute({username_att(), nonce_attr()}) ->
+    {jid:username(), nonce()} | error().
+parse_username_attribute({{error, Reason}, _}) ->
+    {errror, Reason};
+parse_username_attribute({{_, EscapedUserName}, {$r, ClientNonce}}) ->
+    {EscapedUserName, ClientNonce};
+parse_username_attribute({_, _}) ->
+    {errror, <<"not-supported">>}.
 
-get_username(EscapedUserName) ->
+-spec unescape_username_attribute({jid:username(), nonce()}) ->
+    {ok, {jid:username(), nonce()}} | error().
+unescape_username_attribute({EscapedUserName, ClientNonce}) ->
     case unescape_username(EscapedUserName) of
-        error -> erlang:error(<<"protocol-error-bad-username">>);
-        UserName -> UserName
+        error -> {error, <<"protocol-error-bad-username">>};
+        UserName -> {ok, {UserName, ClientNonce}}
     end.
 
-get_client_nonce({$r, ClientNonce}) ->
-    ClientNonce;
-get_client_nonce(_) ->
-    erlang:error(<<"not-supported">>).
-
+-spec get_scram_attributes(jid:username(), jid:lserver()) -> scram_att() | error().
 get_scram_attributes(UserName, LServer) ->
     case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
         {false, _} ->
-            erlang:error({<<"not-authorized">>, UserName});
+            {error, <<"not-authorized">>, UserName};
         {Params, AuthModule} ->
             {AuthModule, do_get_scram_attributes(Params)}
     end.
@@ -179,37 +183,57 @@ create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
     iolist_to_binary([<<"r=">>, ClientNonce, ServerNonce, <<",s=">>,
         jlib:encode_base64(Salt), <<",i=">>, integer_to_list(IterationCount)]).
 
-check_attributes(AttributesList) when length(AttributesList) == 3 ->
-    [parse_attribute(Attribute) || Attribute <-AttributesList];
-check_attributes(_) ->
-    erlang:error(<<"bad-protocol">>).
+-spec parse_step4_client_in(client_in()) ->
+    {channel_binding(), nonce_attr(), client_proof()} | error().
+parse_step4_client_in(AttributesList) when length(AttributesList) == 3 ->
+    [CBind,
+     NonceAtt,
+     ClientProofAtt] = [parse_attribute(Attribute) || Attribute <-AttributesList],
+     {CBind, NonceAtt, ClientProofAtt};
+parse_step4_client_in(_) ->
+    {error, <<"bad-protocol">>}.
 
-check_channel_binding_attribute({$c, CVal}) ->
-    check_channel_binding_support(binary:at(jlib:decode_base64(CVal), 0));
-check_channel_binding_attribute(_) ->
-    erlang:error(<<"bad-protocol">>).
+-spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof()}) ->
+    {ok, {nonce(), client_proof()}} | error().
+parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt}) ->
+    CBind = binary:at(jlib:decode_base64(CVal), 0),
+    check_channel_binding({CBind, NonceAtt, ClientProofAtt});
+parse_channel_binding_attribute(_) ->
+    {error, <<"bad-protocol">>}.
 
-check_channel_binding_support(Binding) when (Binding == $n) orelse (Binding ==$y) ->
-    ok;
-check_channel_binding_support(_) ->
-    erlang:error(<<"bad-channel-binding">>).
+check_channel_binding({CBind, _, _ }) when (CBind =/= $n) andalso (CBind =/=$y) ->
+    {error, <<"bad-channel-binding">>};
+check_channel_binding({_CBind, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}}.
 
-check_nonce({$r, Nonce}, Nonce) ->
-    ok;
-check_nonce({$r, _ClientNonce}, _Nonce) ->
-    erlang:error(<<"bad-nonce">>);
-check_nonce(_, _) ->
-    erlang:error(<<"bad-protocol">>).
+verify_nonce([{{$r, Nonce}, Nonce} | Args]) ->
+    Args;
+verify_nonce([{{$r, _ClientNonce}, _Nonce} | _Args]) ->
+    {error, <<"bad-nonce">>};
+verify_nonce(_) ->
+    {error, <<"bad-protocol">>}.
 
-get_client_proof({$p, ClientProofB64}) ->
-    jlib:decode_base64(ClientProofB64);
+get_client_proof([{$p, ClientProofB64}, AuthMessage, State]) ->
+    {jlib:decode_base64(ClientProofB64), AuthMessage, State};
 get_client_proof(_) ->
-    erlang:error(<<"bad-protocol">>).
+    {error,<<"bad-protocol">>}.
 
-verify_stored_key(StoredKey, StoredKey) ->
-    ok;
-verify_stored_key(_, _) ->
-    erlang:error(<<"bad-auth">>).
+get_stored_key({ClientProof, AuthMessage, State}) ->
+    ClientSignature = mongoose_scram_sha256:client_signature(State#state.stored_key,
+                                                      AuthMessage),
+    ClientKey = mongoose_scram_sha256:client_key(ClientProof, ClientSignature),
+    CompareStoredKey = mongoose_scram_sha256:stored_key(ClientKey),
+    {CompareStoredKey, State#state.stored_key}.
+
+-spec verify_stored_key({binary(), binary()}) -> {ok, auth_successful} | error().
+verify_stored_key({StoredKey, StoredKey}) ->
+    {ok, auth_successful};
+verify_stored_key(_) ->
+    {error, <<"bad-auth">>}.
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
 
 parse_attribute(Attribute) when byte_size(Attribute) >= 3 ->
     parse_attribute(Attribute, 0);
@@ -223,7 +247,7 @@ parse_attribute(<<Char, Rest/binary>>, 0) ->
         _ ->
             {error, <<"bad-format attribute too short">>}
     end;
-parse_attribute(<<Char, Rest/binary>>, PName) when Char == $= ->
+parse_attribute(<<$=, Rest/binary>>, PName) ->
     {PName, Rest};
 parse_attribute(_,_) ->
    {error, <<"bad-format first char not a letter">>}.
