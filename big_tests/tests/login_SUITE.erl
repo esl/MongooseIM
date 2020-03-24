@@ -46,11 +46,14 @@ all() ->
 groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
-         {login_scram_store_plain, [parallel], scram_tests()},
+         {login_scram_store_plain, [parallel], scram_256_tests()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
+    [log_one, log_one_scram].
+
+scram_256_tests() ->
     [log_one, log_one_scram, log_one_scram_256].
 
 all_tests() ->
