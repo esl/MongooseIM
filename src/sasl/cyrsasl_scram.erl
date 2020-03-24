@@ -46,6 +46,18 @@
          server_nonce = <<"">> :: binary(),
          auth_module           :: ejabberd_gen_auth:t()}).
 
+-type client_in() :: [binary()].
+-type username_att() :: {term(), binary()}.
+-type username() :: binary().
+-type lserver() :: binary().
+-type nonce_attr() :: {term(), binary()}.
+-type nonce() :: binary().
+-type scram_att() :: {module(), scram_keys()}.
+-type scram_keys() :: term().
+-type channel_binding() :: term().
+-type client_proof() :: term().
+-type error() :: {error, binary()} | {error, binary(), binary()}.
+
 -define(SALT_LENGTH, 16).
 
 -define(NONCE_LENGTH, 16).
@@ -119,12 +131,14 @@ mech_step(#state{step = 4} = State, ClientIn) ->
             {error, Reason}
     end.
 
+ -spec parse_attributes(any(), [fun()]) -> {ok, term()} | error().
 parse_attributes(ClientInList, Steps) ->
     lists:foldl(fun
                     (_ , {error, Reason}) -> {error, Reason};
                     (F, Args) -> F(Args)
                 end, ClientInList, Steps).
 
+-spec parse_step2_client_in(client_in()) -> {username_att(), nonce_attr()} | error().
 parse_step2_client_in([_,_,_,_, Extension | _]) when Extension /= [] ->
     {error, <<"protocol-error-extension-not-supported">>};
 parse_step2_client_in([CBind | _]) when (CBind =/= <<"y">>) andalso (CBind =/= <<"n">>) ->
@@ -132,6 +146,8 @@ parse_step2_client_in([CBind | _]) when (CBind =/= <<"y">>) andalso (CBind =/= <
 parse_step2_client_in([_CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _]) ->
     {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)}.
 
+-spec parse_username_attribute({username_att(), nonce_attr()}) ->
+    {username(), nonce()} | error().
 parse_username_attribute({{error, Reason}, _}) ->
     {errror, Reason};
 parse_username_attribute({{_, EscapedUserName}, {$r, ClientNonce}}) ->
@@ -139,12 +155,15 @@ parse_username_attribute({{_, EscapedUserName}, {$r, ClientNonce}}) ->
 parse_username_attribute({_, _}) ->
     {errror, <<"not-supported">>}.
 
+-spec unescape_username_attribute({username(), nonce()}) ->
+    {ok, {username(), nonce()}} | error().
 unescape_username_attribute({EscapedUserName, ClientNonce}) ->
     case unescape_username(EscapedUserName) of
         error -> {error, <<"protocol-error-bad-username">>};
         UserName -> {ok, {UserName, ClientNonce}}
     end.
 
+-spec get_scram_attributes(username(), lserver()) -> scram_att() | error().
 get_scram_attributes(UserName, LServer) ->
     case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
         {false, _} ->
@@ -166,6 +185,8 @@ create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
     iolist_to_binary([<<"r=">>, ClientNonce, ServerNonce, <<",s=">>,
         jlib:encode_base64(Salt), <<",i=">>, integer_to_list(IterationCount)]).
 
+-spec parse_step4_client_in(client_in()) ->
+    {channel_binding(), nonce_attr(), client_proof()} | error().
 parse_step4_client_in(AttributesList) when length(AttributesList) == 3 ->
     [CBind,
      NonceAtt,
@@ -174,6 +195,8 @@ parse_step4_client_in(AttributesList) when length(AttributesList) == 3 ->
 parse_step4_client_in(_) ->
     {error, <<"bad-protocol">>}.
 
+-spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof()}) ->
+    {ok, {nonce(), client_proof()}} | error().
 parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt}) ->
     CBind = binary:at(jlib:decode_base64(CVal), 0),
     check_channel_binding({CBind, NonceAtt, ClientProofAtt});
@@ -204,10 +227,15 @@ get_stored_key({ClientProof, AuthMessage, State}) ->
     CompareStoredKey = mongoose_scram:stored_key(ClientKey),
     {CompareStoredKey, State#state.stored_key}.
 
+-spec verify_stored_key({binary(), binary()}) -> {ok, auth_successful} | error().
 verify_stored_key({StoredKey, StoredKey}) ->
-    ok;
+    {ok, auth_successful};
 verify_stored_key(_) ->
     {error, <<"bad-auth">>}.
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
 
 parse_attribute(Attribute) when byte_size(Attribute) >= 3 ->
     parse_attribute(Attribute, 0);
