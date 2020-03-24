@@ -165,8 +165,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
     * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
-    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
-    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
+    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_scram_sha256, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_scram_sha256, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
     * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
 
 * **extauth_instances** (local)
@@ -178,17 +178,17 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 The table below shows the supported SASL mechanisms for each authentication backend module.
 
-|           | cyrsasl<br>plain | cyrsasl<br>digest | cyrsasl<br>scram | cyrsasl<br>anonymous | cyrsasl<br>external |
-|-----------|:----------------:|:-----------------:|:----------------:|:--------------------:|:-------------------:|
-| internal  |         x        |         x         |         x        |                      |                     |
-| rdbms     |         x        |         x         |         x        |                      |                     |
-| external  |         x        |                   |                  |                      |                     |
-| anonymous |         x        |         x         |         x        |           x          |                     |
-| ldap      |         x        |                   |                  |                      |          x          |
-| jwt       |         x        |                   |                  |                      |                     |
-| riak      |         x        |         x         |         x        |                      |                     |
-| http      |         x        |         x         |         x        |                      |                     |
-| pki       |                  |                   |                  |                      |          x          |
+|           | cyrsasl<br>plain | cyrsasl<br>digest | cyrsasl<br>scram | cyrsasl<br>scram_sha256 | cyrsasl<br>anonymous | cyrsasl<br>external |
+|-----------|:----------------:|:-----------------:|:----------------:|:-----------------------:|:--------------------:|:-------------------:|
+| internal  |         x        |         x         |         x        |           x             |                   |                     |
+| rdbms     |         x        |         x         |         x        |           x             |                      |                     |
+| external  |         x        |                   |                  |                         |                      |                     |
+| anonymous |         x        |         x         |         x        |           x             |           x          |                     |
+| ldap      |         x        |                   |                  |                         |                      |          x          |
+| jwt       |         x        |                   |                  |                         |                      |                     |
+| riak      |         x        |         x         |         x        |           x             |                      |                     |
+| http      |         x        |         x         |         x        |           x             |                      |                     |
+| pki       |                  |                   |                  |                         |                      |          x          |
 
 `cyrsasl_oauth` does not use the auth backends at all and requires the `mod_auth_token` module enabled instead.
 
