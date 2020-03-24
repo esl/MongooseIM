@@ -17,6 +17,7 @@
 
 % API for ejabberd_c2s
 -export([get_for/2,
+         get_for/3,
          add_to_state/3,
          remove_from_state/2,
          safe_call/4]).
@@ -52,9 +53,19 @@ call_after(Time, #jid{} = JID, Tag, Data) ->
 call_after(Time, FsmRef, Tag, Data) ->
     erlang:send_after(Time, FsmRef, {call_info_handler, Tag, Data}).
 
--spec get_for(handler_tag(), state()) -> {handler_tag(), handler_state()} | no_handler.
+-spec get_for(handler_tag(), state(), term()) -> handler_state().
+get_for(Tag, #state{} = State, Default) ->
+    case get_for(Tag, State) of
+        no_handler -> Default;
+        HandlerState -> HandlerState
+    end.
+
+-spec get_for(handler_tag(), state()) -> handler_state() | no_handler.
 get_for(Tag, #state{ info_handlers = InfoHandlers }) ->
-    maps:get(Tag, InfoHandlers, no_handler).
+    case maps:get(Tag, InfoHandlers, no_handler) of
+        {Tag, HandlerState} -> HandlerState;
+        no_handler -> no_handler
+    end.
 
 -spec add_to_state(handler_tag(), handler_state(), state()) -> state().
 add_to_state(Tag, HandlerState, #state{ info_handlers = InfoHandlers0 } = C2SState) ->
