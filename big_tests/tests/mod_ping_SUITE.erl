@@ -17,6 +17,7 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -37,20 +38,26 @@ groups() ->
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
+client_ping_test_cases() ->
+    [ping,
+     wrong_ping].
+
 all_tests() ->
     [ping,
+     wrong_ping,
      active,
      active_keep_alive,
      server_ping_pong,
      server_ping_pang].
+
 suite() ->
     escalus:suite().
 
 ping_interval() ->
-    2.
+    3.
 
 ping_req_timeout() ->
-    1.
+    2.
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
@@ -136,6 +143,20 @@ ping(ConfigIn) ->
                 PingResp = escalus_client:wait_for_stanza(Alice),
                 escalus:assert(is_iq_result, [PingReq], PingResp)
         end).
+
+wrong_ping(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+                        fun(Alice) ->
+                            Domain = ct:get_config({hosts, mim, domain}),
+                            IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
+                                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
+                            }]),
+                            PingReq = escalus_stanza:to(IQ, Domain),
+                            escalus_client:send(Alice, PingReq),
+
+                            PingResp = escalus_client:wait_for_stanza(Alice),
+                            escalus:assert(is_iq_error, [PingReq], PingResp)
+                        end).
 
 active(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),

@@ -427,7 +427,7 @@ user_available_hook(Server, Acc, JID) ->
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Response :: timeout | jlib:iq(),
-    TDelta :: pos_integer(),
+    TDelta :: non_neg_integer(),
     Result :: mongoose_acc:t().
 user_ping_response(Server, Acc, JID, Response, TDelta) ->
     ejabberd_hooks:run_fold(user_ping_response, Server,

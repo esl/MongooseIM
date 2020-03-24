@@ -149,7 +149,6 @@ store_session_info(FsmRef, JID, KV) ->
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
 
-
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
@@ -947,6 +946,13 @@ resume_session(resume, From, SD) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
+
+handle_event({add_info_handler, Tag, InitialState}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, InitialState, StateData0),
+    fsm_next_state(StateName, StateData1);
+handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
+    fsm_next_state(StateName, StateData1);
 handle_event(keep_alive_packet, session_established,
              #state{server = Server, jid = JID} = StateData) ->
     mongoose_hooks:user_sent_keep_alive(Server, JID),
@@ -1135,8 +1141,24 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
+handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
+    NStateData =
+    case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
+        {Tag, HandlerState} ->
+            case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
+                {error, _} ->
+                    StateData;
+                NStateData0 ->
+                    NStateData0
+            end;
+        no_handler ->
+            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
+            StateData
+    end,
+    fsm_next_state(StateName, NStateData);
 handle_incoming_message(Info, StateName, StateData) ->
-    ?ERROR_MSG("Unexpected info: ~p", [Info]),
+    ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",
+               [Info, StateName, ejabberd_c2s_state:server(StateData)]),
     fsm_next_state(StateName, StateData).
 
 process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData) ->
