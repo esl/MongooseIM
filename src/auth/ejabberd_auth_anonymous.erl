@@ -327,6 +327,7 @@ remove_user(_LUser, _LServer, _Password) ->
 supports_sasl_module(Host, cyrsasl_anonymous) -> is_sasl_anonymous_enabled(Host);
 supports_sasl_module(Host, cyrsasl_plain) -> is_login_anonymous_enabled(Host);
 supports_sasl_module(Host, cyrsasl_scram) -> is_login_anonymous_enabled(Host);
+supports_sasl_module(Host, cyrsasl_scram_sha256) -> is_login_anonymous_enabled(Host);
 supports_sasl_module(Host, cyrsasl_digest) -> is_login_anonymous_enabled(Host);
 supports_sasl_module(_, _) -> false.
 

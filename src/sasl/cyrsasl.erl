@@ -141,5 +141,6 @@ default_modules() ->
     [cyrsasl_plain,
      cyrsasl_digest,
      cyrsasl_scram,
+     cyrsasl_scram_sha256,
      cyrsasl_anonymous,
      cyrsasl_oauth].

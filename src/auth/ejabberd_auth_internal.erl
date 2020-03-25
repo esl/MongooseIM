@@ -105,6 +105,7 @@ update_reg_users_counter_table(Server) ->
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) -> true;
 supports_sasl_module(_, cyrsasl_scram) -> true;
+supports_sasl_module(_, cyrsasl_scram_sha256) -> true;
 supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
 supports_sasl_module(_, _) -> false.
 

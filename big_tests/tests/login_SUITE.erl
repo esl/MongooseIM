@@ -46,12 +46,15 @@ all() ->
 groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
-         {login_scram_store_plain, [parallel], scram_tests()},
+         {login_scram_store_plain, [parallel], scram_256_tests()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
     [log_one, log_one_scram].
+
+scram_256_tests() ->
+    [log_one, log_one_scram, log_one_scram_256].
 
 all_tests() ->
     [log_one,
@@ -150,6 +153,8 @@ log_one_digest(Config) ->
 log_one_scram(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]).
 
+log_one_scram_256(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
