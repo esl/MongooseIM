@@ -350,8 +350,8 @@ CREATE TABLE pubsub_nodes (
     p_key VARCHAR(250) NOT NULL,
     name VARCHAR(250)  NOT NULL,
     type VARCHAR(250)  NOT NULL,
-    owners JSON        NOT NULL,
-    options JSON       NOT NULL
+    owners TEXT        NOT NULL,
+    options TEXT       NOT NULL
 );
 
 CREATE UNIQUE INDEX i_pubsub_nodes_key_name ON pubsub_nodes USING btree (p_key, name);
@@ -367,7 +367,8 @@ CREATE TABLE pubsub_affiliations (
     luser VARCHAR(250)      NOT NULL,
     lserver VARCHAR(250)    NOT NULL,
     aff SMALLINT            NOT NULL,
-    PRIMARY KEY(luser, lserver, nidx)
+    PRIMARY KEY(luser, lserver, nidx),
+    UNIQUE(nidx, luser, lserver)
 );
 
 CREATE INDEX i_pubsub_affiliations_nidx ON pubsub_affiliations(nidx);
@@ -410,7 +411,7 @@ CREATE TABLE pubsub_subscriptions (
     lresource VARCHAR(250)  NOT NULL,
     type SMALLINT           NOT NULL,
     sub_id VARCHAR(125)     NOT NULL,
-    options JSON            NOT NULL
+    options TEXT            NOT NULL
 );
 
 CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
@@ -420,7 +421,7 @@ CREATE TABLE event_pusher_push_subscription (
      owner_jid VARCHAR(250),
      node VARCHAR(250),
      pubsub_jid VARCHAR(250),
-     form JSON NOT NULL,
+     form TEXT NOT NULL,
      created_at BIGINT NOT NULL,
      PRIMARY KEY(owner_jid, node, pubsub_jid)
  );

@@ -322,11 +322,11 @@ find_node_by_name(Key, Node) ->
 
 decode_pubsub_node_row({Nidx, KeySQL, Name, Type, Owners, Options}) ->
     Key = decode_key(KeySQL),
-    {DecodedOpts} = jiffy:decode(Options),
+    {DecodedOpts} = jiffy:decode(mongoose_rdbms:unescape_binary(<<>>, Options)),
     DecodedOptions = [maybe_option_value_to_atom(key_to_existing_atom(Item)) ||
                       Item <- DecodedOpts],
     DecodedOwners = [jid:to_lower(jid:from_binary(Owner)) ||
-                     Owner <- jiffy:decode(Owners)],
+                     Owner <- jiffy:decode(mongoose_rdbms:unescape_binary(<<>>, Owners))],
     #pubsub_node{nodeid = {Key, Name},
                  id = mongoose_rdbms:result_to_integer(Nidx),
                  type = Type,
