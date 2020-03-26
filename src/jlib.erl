@@ -195,23 +195,25 @@ make_config_change_message(Status) ->
 -spec make_invitation(From :: jid:jid(), Password :: binary(),
                       Reason :: binary()) -> exml:element().
 make_invitation(From, Password, Reason) ->
-    Children = case Password of
+    Children = case Reason of
                     <<>> -> [];
-                    _ -> [#xmlel{name = <<"password">>,
-                            children = [#xmlcdata{content = Password}]}]
-        end,
-    Children2 = case Reason of
-                    <<>> -> Children;
-_                    -> [#xmlel{name = <<"reason">>,
-                            children = [#xmlcdata{content = Reason}]} | Children]
+                    _ -> [#xmlel{name = <<"reason">>,
+                        children = [#xmlcdata{content = Reason}]}]
     end,
-    Invite = #xmlel{name = <<"invite">>,
-               attrs = [{<<"from">>, jid:to_binary(From)}],
-               children = Children2},
+    Elements = [#xmlel{name = <<"invite">>,
+                       attrs = [{<<"from">>, jid:to_binary(From)}],
+                       children = Children}],
+
+    Elements2 = case Password of
+        <<>> -> Elements;
+        _ -> [#xmlel{name = <<"password">>,
+                     children = [#xmlcdata{content = Password}]} | Elements]
+                end,
+
     #xmlel{name = <<"message">>,
-                      children = [#xmlel{name = <<"x">>,
-                      attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                      children = [Invite]}]}.
+           children = [#xmlel{name = <<"x">>,
+                              attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                              children = Elements2}]}.
 
 -spec form_field({binary(), binary(), binary()}
                | {binary(), binary()}
