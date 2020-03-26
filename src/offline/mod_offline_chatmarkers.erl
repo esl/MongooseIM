@@ -10,7 +10,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, deps/2]).
 
 %% Hook handlers
 -export([inspect_packet/4,
@@ -34,6 +34,10 @@
 
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
+
+-spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+deps(_,_)->
+    [{mod_smart_markers, hard}].
 
 start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, add_default_backend(Opts)),

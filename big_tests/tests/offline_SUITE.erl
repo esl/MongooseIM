@@ -66,7 +66,6 @@ init_per_group(chatmarkers, C) ->
         Modules = [{mod_offline, [{store_groupchat_messages, true},
                                   {backend, rdbms}]},
                    {mod_offline_chatmarkers,[{store_groupchat_messages, true}]},
-                   {mod_smart_markers,[]},
                    {mod_muc_light, [{backend, rdbms}]}],
         Config = dynamic_modules:save_modules(domain(), C),
         dynamic_modules:ensure_modules(domain(), Modules),
