@@ -20,8 +20,8 @@ init(Host, _) ->
     UpdateFields = [<<"msg_id">>, <<"timestamp">>],
     InsertFields = KeyFields ++ UpdateFields,
     QueryName = smart_markers_upsert,
-    {ok, QueryName} = rdbms_queries:prepare_upsert(Host, QueryName, smart_markers,
-                                                   InsertFields, UpdateFields, KeyFields),
+    rdbms_queries:prepare_upsert(Host, QueryName, smart_markers,
+                                 InsertFields, UpdateFields, KeyFields),
     ok.
 
 %% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
