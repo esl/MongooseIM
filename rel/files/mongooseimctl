@@ -11,14 +11,15 @@ if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     exec runuser -l "$RUNNER_USER" -c "$0 $*"
 fi
 
-EJABBERD_DIR="${RUNNER_SCRIPT_DIR%/*}"
+MIM_DIR="${RUNNER_SCRIPT_DIR%/*}"
 EJABBERD_VMARGS_PATH="${RUNNER_ETC_DIR}"/vm.args
-START_ERL=`cat "$EJABBERD_DIR"/releases/start_erl.data`
+START_ERL=`cat "$MIM_DIR"/releases/start_erl.data`
 ERTS_VSN="${START_ERL% *}"
-ERTS_PATH="$EJABBERD_DIR/erts-$ERTS_VSN/bin"
+ERTS_PATH="$MIM_DIR/erts-$ERTS_VSN/bin"
 ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
-EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
+EJABBERD_EBIN_PATH="$MIM_DIR"/lib/mongooseim-*/ebin/
+SCRIPTS_DIR="$MIM_DIR"/scripts
 
 EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
@@ -88,6 +89,25 @@ manage_cluster()
                     fi
                 done;;
         esac
+}
+
+# The function is executed in a new process
+run_scripts ()
+({
+    set -e
+    # Run scripts with prefix "$1" in order
+    export ERTS_PATH="$ERTS_PATH"
+    export MIM_DIR="$MIM_DIR"
+    export PATH="$ERTS_PATH:$PATH"
+    for i in `ls $SCRIPTS_DIR/$1* | sort -V`; do
+        echo "Execute $i"
+        $i
+    done
+})
+
+bootstrap ()
+{
+    run_scripts bootstrap
 }
 
 start ()
@@ -340,6 +360,7 @@ do
 done
 
 case $1 in
+    'bootstrap') bootstrap;;
     'start') start;;
     'stop') stop;;
     'force_stop') force_stop;;
