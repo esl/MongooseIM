@@ -75,19 +75,14 @@ inspect_packet(Acc, From, To, Packet) ->
     end.
 
 maybe_store_chat_marker(Acc, From, To, Packet) ->
-    %% revert this change, muclight must forward permanent acc fields!
-    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
+    case mongoose_acc:get(mod_smart_markers, timestamp, undefined, Acc) of
         undefined -> false;
-        _ ->
-            Timestamp = shift(mongoose_acc:timestamp(Acc)),
+        {_, _, _} = Timestamp ->
             Room = get_room(Acc, From),
             Thread = get_thread(Packet),
             mod_offline_chatmarkers_backend:maybe_store(To, Thread, Room, Timestamp),
             true
     end.
-
-shift(TS) ->
-    usec:to_now(usec:from_now(TS) - usec:from_now({0, 10, 0})).
 
 get_room(Acc, From) ->
     case mongoose_acc:stanza_type(Acc) of
