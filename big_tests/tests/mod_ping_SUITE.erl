@@ -223,7 +223,7 @@ server_ping_pang(ConfigIn) ->
         fun(Alice) ->
                 wait_for_ping_req(Alice),
                 %% do not resp to ping req
-                ct:sleep(timer:seconds(ping_req_timeout() + 1)),
+                ct:sleep(timer:seconds(ping_req_timeout() + 0.5)),
                 TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice),
                 escalus_client:kill_connection(Config, Alice)
