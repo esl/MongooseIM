@@ -140,7 +140,7 @@ check_password(Password, Scram) ->
     Salt = base64:decode(Scram#scram.salt),
     SaltedPassword = salted_password(Password, Salt, IterationCount),
     StoredKey = stored_key(client_key(SaltedPassword)),
-    (base64:decode(Scram#scram.storedkey) == StoredKey).
+    (base64:decode(#scram.storedkey) == StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
