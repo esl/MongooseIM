@@ -27,13 +27,14 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([mechanism/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/2, mech_new/3, mech_step/2]).
 
 -include("mongoose.hrl").
 
 -include("jlib.hrl").
 
 -behaviour(cyrsasl).
+
 
 -record(state,
         {step = 2              :: 2 | 4,
@@ -44,8 +45,10 @@
          auth_message = <<"">> :: binary(),
          client_nonce = <<"">> :: binary(),
          server_nonce = <<"">> :: binary(),
-         auth_module           :: ejabberd_gen_auth:t()}).
+         auth_module           :: ejabberd_gen_auth:t(),
+         sha                   :: sha()}).
 
+-type sha() :: sha1 | sha256.
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
 -type nonce_attr() :: {term(), binary()}.
@@ -65,7 +68,9 @@ mechanism() ->
     <<"SCRAM-SHA-1">>.
 
 mech_new(_Host, Creds) ->
-    {ok, #state{step = 2, creds = Creds}}.
+    {ok, #state{step = 2, creds = Creds, sha = sha}}.
+mech_new(_Host, Creds, Sha) ->
+    {ok, #state{step = 2, creds = Creds, sha = Sha}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
     ClientInList = binary:split(ClientIn, <<",">>, [global]),
@@ -76,7 +81,8 @@ mech_step(#state{step = 2} = State, ClientIn) ->
         {ok, {UserName, ClientNonce}} ->
             Creds = State#state.creds,
             LServer = mongoose_credentials:lserver(Creds),
-            case get_scram_attributes(UserName, LServer) of
+            Sha = State#state.sha,
+            case get_scram_attributes(UserName, LServer, Sha) of
                 {AuthModule, {StoredKey, ServerKey, Salt, IterationCount}} ->
                      {NStart, _} = binary:match(ClientIn, <<"n=">>),
                      ClientFirstMessageBare =
@@ -116,7 +122,8 @@ mech_step(#state{step = 4} = State, ClientIn) ->
             case parse_attributes(AuthArgs, AuthSteps) of
                 {ok, auth_successful} ->
                     ServerSignature =
-                        mongoose_scram:server_signature(State#state.server_key,
+                        mongoose_scram:server_signature(State#state.sha,
+                                                        State#state.server_key,
                                                         AuthMessage),
                     R = [{username, State#state.username}, {sasl_success_response,
                          <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},
@@ -161,23 +168,23 @@ unescape_username_attribute({EscapedUserName, ClientNonce}) ->
         UserName -> {ok, {UserName, ClientNonce}}
     end.
 
--spec get_scram_attributes(jid:username(), jid:lserver()) -> scram_att() | error().
-get_scram_attributes(UserName, LServer) ->
+-spec get_scram_attributes(jid:username(), jid:lserver(), any()) -> scram_att() | error().
+get_scram_attributes(UserName, LServer, Sha) ->
     case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
         {false, _} ->
             {error, <<"not-authorized">>, UserName};
         {Params, AuthModule} ->
-            {AuthModule, do_get_scram_attributes(Params)}
+            {AuthModule, do_get_scram_attributes(Params, Sha)}
     end.
 
-do_get_scram_attributes(Params) when is_tuple(Params) ->
+do_get_scram_attributes(Params, _) when is_tuple(Params) ->
     Params;
-do_get_scram_attributes(Params) ->
+do_get_scram_attributes(Params, Sha) ->
     TempSalt = crypto:strong_rand_bytes(?SALT_LENGTH),
-    SaltedPassword = mongoose_scram:salted_password(Params, TempSalt,
+    SaltedPassword = mongoose_scram:salted_password(Sha, Params, TempSalt,
                                                     mongoose_scram:iterations()),
-    {mongoose_scram:stored_key(mongoose_scram:client_key(SaltedPassword)),
-     mongoose_scram:server_key(SaltedPassword), TempSalt, mongoose_scram:iterations()}.
+    {mongoose_scram:stored_key(Sha, mongoose_scram:client_key(Sha, SaltedPassword)),
+     mongoose_scram:server_key(Sha, SaltedPassword), TempSalt, mongoose_scram:iterations()}.
 
 create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
     iolist_to_binary([<<"r=">>, ClientNonce, ServerNonce, <<",s=">>,
@@ -219,10 +226,11 @@ get_client_proof(_) ->
     {error,<<"bad-protocol">>}.
 
 get_stored_key({ClientProof, AuthMessage, State}) ->
-    ClientSignature = mongoose_scram:client_signature(State#state.stored_key,
+    Sha = State#state.sha,
+    ClientSignature = mongoose_scram:client_signature(Sha, State#state.stored_key,
                                                       AuthMessage),
-    ClientKey = mongoose_scram:client_key(ClientProof, ClientSignature),
-    CompareStoredKey = mongoose_scram:stored_key(ClientKey),
+    ClientKey = mongoose_scram:client_proof_key(ClientProof, ClientSignature),
+    CompareStoredKey = mongoose_scram:stored_key(Sha, ClientKey),
     {CompareStoredKey, State#state.stored_key}.
 
 -spec verify_stored_key({binary(), binary()}) -> {ok, auth_successful} | error().
