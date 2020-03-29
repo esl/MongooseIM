@@ -106,12 +106,14 @@ parse(Items) when is_list(Items) ->
 parse({selected, FieldTypeNames, Rows}) ->
     FieldsInfo = fields_to_parse_info(FieldTypeNames),
     {selected, parse_rows(Rows, FieldsInfo)};
-parse({error, "ERROR: duplicate key" ++ _}) ->
-    {error, duplicate_key};
 parse({error, Reason}) when is_atom(Reason) ->
     {error, atom_to_list(Reason)};
 parse({error, Reason}) ->
-    {error, unicode:characters_to_list(list_to_binary(Reason))};
+    ErrorStr = unicode:characters_to_list(list_to_binary(Reason)),
+    case re:run(ErrorStr, "duplicate key") of
+        nomatch -> {error, ErrorStr};
+        {match, _} -> {error, duplicate_key}
+    end;
 parse(Other) ->
     Other.
 
