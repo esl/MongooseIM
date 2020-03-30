@@ -4997,7 +4997,8 @@ get_nick(User) ->
 %%--------------------------------------------------------------------
 
 invite_has_reason(Stanza) ->
-    exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"reason">>}, cdata]) =/= undefined.
+    exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"invite">>},
+                             {element, <<"reason">>}, cdata]) =/= undefined.
 
 has_reason(Stanza) ->
     exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"item">>},
