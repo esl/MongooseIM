@@ -9,7 +9,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 -behavior(gen_mod).
--behavior(ejabberd_c2s_info_handler).
+-behavior(ejabberd_c2s_callback).
 -xep([{xep, 199}, {version, "2.0"}]).
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -19,7 +19,7 @@
 -define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
 %% C2S custom info handler
--export([handle_c2s_info/3]).
+-export([handle_c2s_call/5]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -36,12 +36,12 @@
 %% Info Handler
 %%====================================================================
 
-handle_c2s_info(init, HandlerState, #{server := Server}) ->
+handle_c2s_call(init, Server, _Jid, HandlerState, _C2SState) ->
     start_ping_timer(HandlerState, Server);
-handle_c2s_info(send_ping, HandlerState, #{jid := JID, server := Server}) ->
+handle_c2s_call(send_ping, Server, JID, HandlerState, _C2SState) ->
     route_ping_iq(JID, Server),
     start_ping_timer(HandlerState, Server);
-handle_c2s_info(timeout, HandlerState, #{jid := JID, server := Server}) ->
+handle_c2s_call(timeout, Server, JID, HandlerState, _C2SState) ->
     mongoose_hooks:user_ping_timeout(Server, ok, JID),
     case gen_mod:get_module_opt(Server, ?MODULE, timeout_action, none) of
         kill -> ejabberd_c2s:stop(self());
@@ -49,11 +49,11 @@ handle_c2s_info(timeout, HandlerState, #{jid := JID, server := Server}) ->
     end,
     HandlerState.
 
--spec start_ping_timer(ejabberd_c2s_info_handler:handler_state(), jid:server()) -> reference().
+-spec start_ping_timer(ejabberd_c2s_callback:handler_state(), jid:server()) -> reference().
 start_ping_timer(HandlerState, Server) ->
     cancel_timer(HandlerState),
     PingInterval = gen_mod:get_module_opt(Server, ?MODULE, ping_interval, ?DEFAULT_PING_INTERVAL),
-    ejabberd_c2s_info_handler:call_after(timer:seconds(PingInterval), self(), mod_ping, send_ping).
+    ejabberd_c2s_callback:cast_after(timer:seconds(PingInterval), self(), mod_ping, send_ping).
 
 route_ping_iq(JID, Server) ->
     PingReqTimeout = timer:seconds(gen_mod:get_module_opt(Server, ?MODULE, ping_req_timeout,
@@ -64,7 +64,7 @@ route_ping_iq(JID, Server) ->
     Pid = self(),
     T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, timeout) ->
-               ejabberd_c2s_info_handler:call(Pid, mod_ping, timeout),
+               ejabberd_c2s_callback:cast(Pid, mod_ping, timeout),
                NewAcc = mongoose_hooks:user_ping_response(Server,
                                                           Acc, JID, timeout, 0),
                NewAcc;
@@ -145,19 +145,19 @@ iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
 
 user_online(Acc, {_, Pid} = _SID, #jid{lserver = Server}, _Info) ->
     Timer = start_ping_timer(empty_state, Server),
-    ejabberd_c2s_info_handler:add(Pid, mod_ping, Timer),
+    ejabberd_c2s_callback:initialise(Pid, mod_ping, Timer),
     Acc.
 
 user_offline(Acc, {_, Pid} = _SID, _JID, _Info, _Reason) ->
-    ejabberd_c2s_info_handler:remove(Pid, mod_ping),
+    ejabberd_c2s_callback:remove(Pid, mod_ping),
     Acc.
 
 user_send(Acc, _JID, _From, _Packet) ->
-    ejabberd_c2s_info_handler:call(self(), mod_ping, init),
+    ejabberd_c2s_callback:cast(self(), mod_ping, init),
     Acc.
 
 user_keep_alive(Acc, _JID) ->
-    ejabberd_c2s_info_handler:call(self(), mod_ping, init),
+    ejabberd_c2s_callback:cast(self(), mod_ping, init),
     Acc.
 
 -spec user_ping_response(Acc :: mongoose_acc:t(),

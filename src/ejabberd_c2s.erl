@@ -954,11 +954,11 @@ resume_session(resume, From, SD) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 
-handle_event({add_info_handler, Tag, InitialState}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, InitialState, StateData0),
+handle_event({set_handler_state, Tag, InitialState}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_callback:add_to_state(Tag, InitialState, StateData0),
     fsm_next_state(StateName, StateData1);
-handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
+handle_event({remove_handler_state, Tag}, StateName, StateData0) ->
+    StateData1 = ejabberd_c2s_callback:remove_from_state(Tag, StateData0),
     fsm_next_state(StateName, StateData1);
 handle_event(keep_alive_packet, session_established,
              #state{server = Server, jid = JID} = StateData) ->
@@ -1149,19 +1149,13 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             fsm_next_state(StateName, StateData)
     end;
 handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
-    NStateData =
-    case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
-        no_handler ->
-            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
-            StateData;
-        HandlerState ->
-            case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
-                {error, _} ->
-                    StateData;
-                NStateData0 ->
-                    NStateData0
-            end
-    end,
+    HandlerState = ejabberd_c2s_callback:get_state_for(Tag, StateData),
+    NStateData = case ejabberd_c2s_callback:safe_call(Tag, Data, HandlerState, StateData) of
+                     {error, _} ->
+                         StateData;
+                     NStateData0 ->
+                         NStateData0
+                 end,
     fsm_next_state(StateName, NStateData);
 handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",

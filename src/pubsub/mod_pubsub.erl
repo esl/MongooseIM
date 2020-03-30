@@ -45,6 +45,8 @@
 -behaviour(gen_server).
 -behaviour(mongoose_packet_handler).
 -behaviour(mongoose_module_metrics).
+-behaviour(ejabberd_c2s_callback).
+
 -author('christophe.romain@process-one.net').
 
 -xep([{xep, 60}, {version, "1.13-1"}]).
@@ -98,6 +100,9 @@
 
 %% packet handler export
 -export([process_packet/5]).
+
+%% info handler callbacks
+-export([handle_c2s_call/5]).
 
 -export([send_loop/1]).
 
@@ -262,6 +267,15 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
      [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
       {pubsub_nodes, ["node_name", "type"], Nodes},
       {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc].
+
+
+handle_c2s_call({pep_message, Feature, From, Packet}, Host, _Jid, HandlerState, C2SState) ->
+    Recipients = mongoose_hooks:c2s_broadcast_recipients(Host,
+                                                         [],
+                                                         C2SState, {pep_message, Feature}, From, Packet),
+    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
+                  lists:usort(Recipients)),
+    HandlerState.
 
 %%====================================================================
 %% gen_server callbacks
@@ -3623,12 +3637,13 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(Publisher)]),
-            ejabberd_c2s_info_handler:call(C2SPid,
-                                           mod_caps,
-                                           {pep_message, <<((Node))/binary, "+notify">>,
+            ejabberd_c2s_callback:cast(C2SPid,
+                                       ?MODULE,
+                                       {pep_message,
+                                            <<((Node))/binary, "+notify">>,
                                             jid:make(LUser, LServer, <<"">>),
-                                            add_extended_headers(Stanza, ReplyTo)
-                                           });
+                                            add_extended_headers(Stanza, ReplyTo)}
+                                           );
         _ ->
             ?DEBUG("~p@~p has no session; can't deliver ~p to contacts",
                    [LUser, LServer, BaseStanza])

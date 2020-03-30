@@ -1,14 +1,16 @@
--module(ejabberd_c2s_info_handler).
+-module(ejabberd_c2s_callback).
 
 -include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 % API for other modules
--export([add/3, remove/2, call/3, call_after/4]).
+-export([initialise/3, remove/2, cast/3, cast_after/4]).
 
--callback handle_c2s_info(Args :: term(), HandlerState :: handler_state(), C2SParams :: map()) ->
-      any().
+-callback handle_c2s_call(Args :: term(),
+                          Server :: jid:lserver(), Jid :: jid:jid(),
+                          HandlerState :: handler_state(), C2SParams :: map()) ->
+      term().
 
 -type handler_tag() :: atom().
 -type handler_state() :: term().
@@ -16,55 +18,56 @@
 -export_type([handler_state/0]).
 
 % API for ejabberd_c2s
--export([get_for/2,
-         get_for/3,
+-export([get_state_for/2,
+         get_state_for/3,
          add_to_state/3,
          remove_from_state/2,
          safe_call/4]).
 
--spec add(pid(), atom(), term()) -> ok.
-add(C2S, Tag, HandlerState) ->
-    p1_fsm_old:send_all_state_event(C2S, {add_info_handler, Tag, HandlerState}).
+-spec initialise(pid(), atom(), term()) -> ok.
+initialise(C2S, Tag, HandlerState) ->
+    p1_fsm_old:send_all_state_event(C2S, {set_handler_state, Tag, HandlerState}).
 
 -spec remove(pid(), atom()) -> ok.
 remove(C2S, Tag) ->
-    p1_fsm_old:send_all_state_event(C2S, {remove_info_handler, Tag}).
+    p1_fsm_old:send_all_state_event(C2S, {remove_handler_state, Tag}).
 
--spec call(jid:jid() | pid(), atom(), term()) -> ok | session_not_found.
-call(#jid{} = JID, Tag, Data) ->
+-spec cast(jid:jid() | pid(), atom(), term()) -> ok | session_not_found.
+cast(#jid{} = JID, Tag, Data) ->
     case ejabberd_sm:get_session_pid(JID) of
         none ->
             session_not_found;
         Pid ->
-            call(Pid, Tag, Data)
+            cast(Pid, Tag, Data)
     end;
-call(FsmRef, Tag, Data) ->
+cast(FsmRef, Tag, Data) ->
     FsmRef ! {call_info_handler, Tag, Data},
     ok.
 
--spec call_after(integer(), jid:jid() | pid(), atom(), term()) -> reference() | session_not_found.
-call_after(Time, #jid{} = JID, Tag, Data) ->
+-spec cast_after(integer(), jid:jid() | pid(), atom(), term()) -> reference() | session_not_found.
+cast_after(Time, #jid{} = JID, Tag, Data) ->
     case ejabberd_sm:get_session_pid(JID) of
         none ->
             session_not_found;
         Pid ->
-            call_after(Time, Pid, Tag, Data)
+            cast_after(Time, Pid, Tag, Data)
     end;
-call_after(Time, FsmRef, Tag, Data) ->
+cast_after(Time, FsmRef, Tag, Data) ->
     erlang:send_after(Time, FsmRef, {call_info_handler, Tag, Data}).
 
--spec get_for(handler_tag(), state(), term()) -> handler_state().
-get_for(Tag, #state{} = State, Default) ->
-    case get_for(Tag, State) of
-        no_handler -> Default;
+-spec get_state_for(handler_tag(), state(), term()) -> handler_state().
+get_state_for(Tag, #state{} = State, Default) ->
+    case get_state_for(Tag, State) of
+        empty_state -> Default;
         HandlerState -> HandlerState
     end.
 
--spec get_for(handler_tag(), state()) -> handler_state() | no_handler.
-get_for(Tag, #state{ info_handlers = InfoHandlers }) ->
-    case maps:get(Tag, InfoHandlers, no_handler) of
+-spec get_state_for(handler_tag(), state()) -> handler_state() | empty_state.
+get_state_for(Tag, #state{info_handlers = InfoHandlers }) ->
+    case maps:get(Tag, InfoHandlers, empty_state) of
         {Tag, HandlerState} -> HandlerState;
-        no_handler -> no_handler
+        empty_state ->
+            empty_state
     end.
 
 -spec add_to_state(handler_tag(), handler_state(), state()) -> state().
@@ -79,7 +82,7 @@ remove_from_state(Tag, #state{ info_handlers = InfoHandlers0 } = C2SState) ->
 safe_call(Tag, Data, HandlerState, C2SState) ->
     Jid = ejabberd_c2s_state:jid(C2SState),
     Server = ejabberd_c2s_state:server(C2SState),
-    try Tag:handle_c2s_info(Data, HandlerState, #{jid => Jid, server => Server}) of
+    try Tag:handle_c2s_call(Data, Server, Jid, HandlerState, C2SState) of
         HandlerState ->
             C2SState;
         NewHandlerState ->
