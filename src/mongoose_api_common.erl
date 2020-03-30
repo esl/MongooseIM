@@ -248,9 +248,11 @@ add_location_header(Result, ResourcePath, Req) ->
     Headers = #{<<"location">> => Path},
     cowboy_req:reply(201, Headers, Req).
 
--spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
+-spec convert_arg(atom(), any()) -> boolean() | integer() | float() | binary() | string() | {error, bad_type}.
 convert_arg(binary, Binary) when is_binary(Binary) ->
     Binary;
+convert_arg(boolean, Value) when is_boolean(Value) ->
+    Value;
 convert_arg(integer, Binary) when is_binary(Binary) ->
     binary_to_integer(Binary);
 convert_arg(integer, Integer) when is_integer(Integer) ->
