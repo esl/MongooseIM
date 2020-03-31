@@ -18,6 +18,8 @@
 -define(MINIO_OPTS, [{expiration_time, 60 * 60} | %% 1 hour, useful for manual testing
                      ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, false)]).
 
+-define(MINIO_TEST_DATA, "qwerty").
+
 -define(MOD_HTTP_UPLOAD_OPTS(Host, Acl),
     [
         {max_file_size, 1234},
@@ -65,17 +67,23 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    ibrowse:start(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    ibrowse:stop(),
     escalus:end_per_suite(Config).
 
 init_per_group(unset_size, Config) ->
     dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(real_upload, Config) ->
-    dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS),
-    escalus:create_users(Config, escalus:get_users([bob]));
+    case is_minio_running(Config) of
+        true ->
+            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS),
+            escalus:create_users(Config, escalus:get_users([bob]));
+        false -> {skip, "minio is not running"}
+    end;
 init_per_group(_, Config) ->
     dynamic_modules:start(host(), mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
@@ -193,20 +201,16 @@ test_minio_upload(Config) ->
         Config, [{bob, 1}],
         fun(Namespace, Bob) ->
             ServJID = upload_service(Bob),
-            FileSize = 7,
+            FileSize = length(?MINIO_TEST_DATA),
             Request = create_slot_request_stanza(ServJID, <<"somefile.txt">>, FileSize,
                                                  undefined, Namespace),
             Result = escalus:send_and_wait(Bob, Request),
-            GetUrl = extract_url(Result, <<"get">>, Namespace),
-            PutUrl = extract_url(Result, <<"put">>, Namespace),
-            %%% these urls can be used to upload and retrieve a file from min.io
-            %%% to upload a file you can use the next command (filename doesn't
-            %%% matter, but the size of a file must be equal to FileSize):
-            %%%    curl -v -T "./filename.txt" <PutUrl>
-            %%% to download a file you can use the next command:
-            %%%    curl -i <GetUrl>
-            io:format("## PUT file:~n   curl -v -T ./filename.txt '~s'~n"
-                      "## GET file:~n   curl -i '~s'~n",[PutUrl,GetUrl])
+            GetUrl = binary_to_list(extract_url(Result, <<"get">>, Namespace)),
+            PutUrl = binary_to_list(extract_url(Result, <<"put">>, Namespace)),
+            PutRetValue = ibrowse:send_req(PutUrl, [], put, ?MINIO_TEST_DATA),
+            ?assertMatch({ok, "200", _, []}, PutRetValue),
+            GetRetValue = ibrowse:send_req(GetUrl, [], get),
+            ?assertMatch({ok, "200", _, ?MINIO_TEST_DATA}, GetRetValue)
         end).
 
 rejects_empty_filename(Config) ->
@@ -281,6 +285,14 @@ escapes_urls_once(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+is_minio_running(Config) ->
+    case proplists:get_value(preset, Config, undefined) of
+        undefined -> false;
+        Preset ->
+            PresetAtom = list_to_existing_atom(Preset),
+            DBs = ct:get_config({ejabberd_presets, PresetAtom, dbs}, []),
+            lists:member(minio, DBs)
+    end.
 
 create_slot_request_stanza(Server, Filename, Size, ContentType, Namespace) when is_integer(Size) ->
     create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType, Namespace);
