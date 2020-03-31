@@ -1,8 +1,8 @@
 # Bootstrap scripts
 
-Scripts are located in `rel/files/scripts/` directory in the MongooseIM repository.
+The scripts are located in the `rel/files/scripts/` directory in the MongooseIM repository.
 
-By default `bootstrap` command executes `bootstrap01-hello.sh`, which just prints the information below:
+By default the `bootstrap` command executes `bootstrap01-hello.sh`, which just prints the information below:
 
 ```erlang
 ./_build/prod/rel/mongooseim/bin/mongooseimctl bootstrap
