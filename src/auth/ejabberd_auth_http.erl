@@ -33,6 +33,7 @@
          check_password/5]).
 
 -include("mongoose.hrl").
+%TODO: replace scram.hrl with a map
 -include("scram.hrl").
 
 -type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
@@ -251,8 +252,8 @@ verify_scram_password(LUser, LServer, Password) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {ok, RawPassword} ->
             case mongoose_scram:deserialize(RawPassword) of
-                {ok, #scram{} = ScramRecord} ->
-                    {ok, mongoose_scram:check_password(Password, ScramRecord)};
+                {ok, DeserializedScramMap} ->
+                    {ok, mongoose_scram:check_password(Password, DeserializedScramMap)};
                 _ ->
                     {error, bad_request}
             end;
