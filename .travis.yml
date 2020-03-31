@@ -95,7 +95,7 @@ env:
     - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
       REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
       ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
-    - PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+    - PRESET=dialyzer_and_edoc SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
       # In case you want to test with another ODBC driver, uncomment this
       # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 

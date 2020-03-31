@@ -110,7 +110,7 @@ orbs:
           - run:
               name: Run Dialyzer
               command: |
-                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_and_edoc -s false
 
       small_tests:
         parallelism: 1

@@ -246,10 +246,12 @@ build_pkg () {
   set +e
 }
 
-if [ "$PRESET" == "dialyzer_only" ]; then
+if [ "$PRESET" == "dialyzer_and_edoc" ]; then
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
+  set -e
   ./rebar3 dialyzer
+  ./rebar3 edoc
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
