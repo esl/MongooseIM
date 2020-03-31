@@ -10,27 +10,36 @@
 -define(NS_XDATA, <<"jabber:x:data">>).
 -define(NS_HTTP_UPLOAD_025, <<"urn:xmpp:http:upload">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
+
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
--define(S3_OPTS,
-        [
-         {max_file_size, 1234},
-         {s3, [
-               {bucket_url, ?S3_HOSTNAME},
-               {region, "eu-east-25"},
-               {access_key_id, "AKIAIAOAONIULXQGMOUA"},
-               {secret_access_key, "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"}
-              ]}
-        ]).
+-define(S3_OPTS, ?MOD_HTTP_UPLOAD_OPTS(?S3_HOSTNAME, true)).
+
+-define(MINIO_HOSTNAME, "http://localhost:9000/mybucket/").
+-define(MINIO_OPTS, [{expiration_time, 60 * 60} | %% 1 hour, useful for manual testing
+                     ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, false)]).
+
+-define(MOD_HTTP_UPLOAD_OPTS(Host, Acl),
+    [
+        {max_file_size, 1234},
+        {s3, [
+            {bucket_url, Host},
+            {add_acl, Acl},
+            {region, "eu-east-25"},
+            {access_key_id, "AKIAIAOAONIULXQGMOUA"},
+            {secret_access_key, "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"}
+        ]}
+    ]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_http_upload_s3}, {group, unset_size}].
+    [{group, mod_http_upload_s3}, {group, unset_size}, {group, real_upload}].
 
 groups() ->
     G = [{unset_size, [], [does_not_advertise_max_size_if_unset]},
+         {real_upload, [], [test_minio_upload]},
          {mod_http_upload_s3, [], [
                                    http_upload_item_discovery,
                                    http_upload_feature_discovery,
@@ -63,6 +72,9 @@ end_per_suite(Config) ->
 
 init_per_group(unset_size, Config) ->
     dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
+    escalus:create_users(Config, escalus:get_users([bob]));
+init_per_group(real_upload, Config) ->
+    dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS),
     escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(_, Config) ->
     dynamic_modules:start(host(), mod_http_upload, ?S3_OPTS),
@@ -175,6 +187,27 @@ urls_contain_s3_hostname(Config) ->
               escalus:assert(fun url_contains/4, [<<"get">>, <<?S3_HOSTNAME>>, Namespace], Result),
               escalus:assert(fun url_contains/4, [<<"put">>, <<?S3_HOSTNAME>>, Namespace], Result)
       end).
+
+test_minio_upload(Config) ->
+    namespaced_story(
+        Config, [{bob, 1}],
+        fun(Namespace, Bob) ->
+            ServJID = upload_service(Bob),
+            FileSize = 7,
+            Request = create_slot_request_stanza(ServJID, <<"somefile.txt">>, FileSize,
+                                                 undefined, Namespace),
+            Result = escalus:send_and_wait(Bob, Request),
+            GetUrl = extract_url(Result, <<"get">>, Namespace),
+            PutUrl = extract_url(Result, <<"put">>, Namespace),
+            %%% these urls can be used to upload and retrieve a file from min.io
+            %%% to upload a file you can use the next command (filename doesn't
+            %%% matter, but the size of a file must be equal to FileSize):
+            %%%    curl -v -T "./filename.txt" <PutUrl>
+            %%% to download a file you can use the next command:
+            %%%    curl -i <GetUrl>
+            io:format("## PUT file:~n   curl -v -T ./filename.txt '~s'~n"
+                      "## GET file:~n   curl -i '~s'~n",[PutUrl,GetUrl])
+        end).
 
 rejects_empty_filename(Config) ->
     namespaced_story(

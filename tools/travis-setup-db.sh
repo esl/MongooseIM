@@ -385,6 +385,9 @@ elif [ "$db" = 'redis' ]; then
 elif [ "$db" = 'ldap' ]; then
     tools/travis-setup-ldap.sh
 
+elif [ "$db" = "minio" ]; then
+    tools/setup_minio.sh
+
 else
     echo "Skip setting up database"
 fi
