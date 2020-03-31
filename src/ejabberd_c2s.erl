@@ -1135,14 +1135,6 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             ejabberd_router:route(From, To, FinalPacket),
             fsm_next_state(StateName, StateData)
     end;
-handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) ->
-    %% this version is used only by mod_pubsub, which does things the old way
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(StateData#state.server,
-                                                        [],
-                                                        StateData, Type, From, Packet),
-    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-        lists:usort(Recipients)),
-    fsm_next_state(StateName, StateData);
 handle_incoming_message({call_remote_hook, Tag, Args}, StateName, StateData) ->
     Host = ejabberd_c2s_state:server(StateData),
     HandlerState = maps:get(Tag, StateData#state.handlers, empty_state),
