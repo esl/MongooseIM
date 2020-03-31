@@ -42,7 +42,9 @@
          broadcast/4,
          store_session_info/3,
          remove_session_info/3,
-         get_info/1]).
+         get_info/1,
+         call_remote_hook/3,
+         call_remote_hook_after/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -148,6 +150,12 @@ store_session_info(FsmRef, JID, KV) ->
 
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
+
+call_remote_hook(Pid, Tag, Args) ->
+    Pid ! {call_remote_hook, Tag, Args}.
+
+call_remote_hook_after(Delay, Pid, Tag, Args) ->
+    erlang:send_after(Delay, Pid, {call_remote_hook, Tag, Args}).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -947,12 +955,6 @@ resume_session(resume, From, SD) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 
-handle_event({add_info_handler, Tag, InitialState}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, InitialState, StateData0),
-    fsm_next_state(StateName, StateData1);
-handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
-    fsm_next_state(StateName, StateData1);
 handle_event(keep_alive_packet, session_established,
              #state{server = Server, jid = JID} = StateData) ->
     mongoose_hooks:user_sent_keep_alive(Server, JID),
@@ -1141,21 +1143,21 @@ handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) -
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
         lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
-handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
-    NStateData =
-    case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
-        {Tag, HandlerState} ->
-            case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
-                {error, _} ->
-                    StateData;
-                NStateData0 ->
-                    NStateData0
-            end;
-        no_handler ->
-            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
-            StateData
-    end,
-    fsm_next_state(StateName, NStateData);
+handle_incoming_message({call_remote_hook, Tag, Args}, StateName, StateData) ->
+    Host = ejabberd_c2s_state:server(StateData),
+    HandlerState = maps:get(Tag, StateData#state.handlers, empty_state),
+    case mongoose_hooks:c2s_remote_hook_call(Host, Tag, Args, HandlerState, StateData) of
+        {error, E} ->
+            ?ERROR_MSG("event=custom_c2s_hook_handler_error tag=~p,data=~p "
+                       "extra=~p reason=~p",
+                       [Tag, Args, HandlerState, E]),
+            fsm_next_state(StateName, StateData);
+        HandlerState ->
+            fsm_next_state(StateName, StateData);
+        NewHandlerState ->
+            NewStates = maps:put(Tag, NewHandlerState, StateData#state.handlers),
+            fsm_next_state(StateName, StateData#state{handlers = NewStates})
+    end;
 handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",
                [Info, StateName, ejabberd_c2s_state:server(StateData)]),
