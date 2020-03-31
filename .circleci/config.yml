@@ -93,7 +93,7 @@ orbs:
               paths: ./
 
 
-      dialyzer:
+      dialyzer_and_edoc:
         parallelism: 1
         machine:
           image: ubuntu-1604:201903-01
@@ -338,8 +338,8 @@ workflows:
             - otp_22
           filters: *all_tags
       # ============= DIALYZER =============
-      - mim/dialyzer:
-          name: dialyzer
+      - mim/dialyzer_and_edoc:
+          name: dialyzer_and_edoc
           otp_package: 22.1.8-1
           context: mongooseim-org
           filters: *all_tags
@@ -422,7 +422,7 @@ workflows:
             - internal_mnesia
             - mysql_redis
             - mssql_mnesia
-            - dialyzer
+            - dialyzer_and_edoc
             - small_tests_22
             - small_tests_21_3
           filters: *all_tags
