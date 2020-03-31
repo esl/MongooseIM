@@ -2,7 +2,7 @@
 %%% @doc Common listener/router for modules that use Cowboy.
 %%%
 %%% The 'modules' configuration option should be a list of
-%%% {Host, BasePath, Module} or {Host, BasePath, Module, Opts} tuples,
+%%% `{Host, BasePath, Module}' or `{Host, BasePath, Module, Opts}' tuples,
 %%% where a Host of "_" will match any host.
 %%%
 %%% A 'middlewares' configuration option may be specified to configure
@@ -10,9 +10,11 @@
 %%%
 %%% Modules may export the following function to configure Cowboy
 %%% routing for sub-paths:
+%%% ```
 %%% cowboy_router_paths(BasePath, Opts) ->
 %%%   [{PathMatch, Handler, NewOpts}]
-%%% If not implemented, [{BasePath, Module, []|Opts}] is assumed.
+%%% '''
+%%% If not implemented, `[{BasePath, Module, [] | Opts}]' is assumed.
 %%% @end
 %%%===================================================================
 -module(ejabberd_cowboy).
@@ -289,7 +291,7 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% @doc
 %% Store trails, this need for generate swagger documentation
 %% Add to Trails each of modules where used trails behaviour
-%% The modules must be added into `mongooseim.cfg`in `swagger` section
+%% The modules must be added into `mongooseim.cfg' in `swagger' section
 %% @end
 %% -------------------------------------------------------------------
 trails_store(Modules) ->
