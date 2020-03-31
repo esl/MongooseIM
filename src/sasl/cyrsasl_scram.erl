@@ -48,7 +48,7 @@
          auth_module           :: ejabberd_gen_auth:t(),
          sha                   :: sha()}).
 
--type sha() :: sha1 | sha256.
+-type sha() :: sha | sha256.
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
 -type nonce_attr() :: {term(), binary()}.
@@ -168,7 +168,7 @@ unescape_username_attribute({EscapedUserName, ClientNonce}) ->
         UserName -> {ok, {UserName, ClientNonce}}
     end.
 
--spec get_scram_attributes(jid:username(), jid:lserver(), any()) -> scram_att() | error().
+-spec get_scram_attributes(jid:username(), jid:lserver(), sha()) -> scram_att() | error().
 get_scram_attributes(UserName, LServer, Sha) ->
     case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
         {false, _} ->
