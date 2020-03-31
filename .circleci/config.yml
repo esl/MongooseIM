@@ -366,7 +366,7 @@ workflows:
           name: internal_mnesia
           otp_package: 22.1.8-1
           preset: internal_mnesia
-          db: mnesia
+          db: "mnesia minio"
           tls_dist: true
           context: mongooseim-org
           requires:
