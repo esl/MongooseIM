@@ -378,7 +378,8 @@ check_unicode(Config, Value) when is_binary(Value) ->
                         "VALUES (", use_escaped(Config, SValue), ")"],
     SelectQuery = <<"SELECT unicode FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
-    SelectResult = sql_query(Config, SelectQuery),
+    {selected, [{SelectedValue}]} = sql_query(Config, SelectQuery),
+    SelectResult = {selected, [{unescape_binary(<<>>, SelectedValue)}]},
     %% Compare as binaries
     ?assert_equal_extra({selected, [{Value}]},
                         SelectResult,
@@ -419,7 +420,8 @@ check_ascii_string(Config, Value) when is_binary(Value) ->
                         "VALUES (", use_escaped(Config, SValue), ")"],
     SelectQuery = <<"SELECT ascii_string FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
-    SelectResult = sql_query(Config, SelectQuery),
+    {selected, [{SelectedValue}]} = sql_query(Config, SelectQuery),
+    SelectResult = {selected, [{unescape_binary(<<>>, SelectedValue)}]},
     %% Compare as binaries
     ?assert_equal_extra({selected, [{Value}]},
                         SelectResult,

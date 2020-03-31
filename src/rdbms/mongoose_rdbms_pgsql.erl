@@ -34,8 +34,27 @@ escape_binary(Bin) when is_binary(Bin) ->
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(<<"\\x", Bin/binary>>) ->
     bin_to_hex:hex_to_bin(Bin);
-unescape_binary(Bin) when is_binary(Bin) ->
-    Bin.
+unescape_binary(Bin) ->
+    list_to_binary(unescape_characters(binary_to_list(Bin))).
+
+unescape_characters([$\\ | [$\\ = C | S]]) when is_list(S) ->
+    [C |  unescape_characters(S)];
+unescape_characters([$\\ | [$0 | S]]) when is_list(S) ->
+    ["\0" |  unescape_characters(S)];
+unescape_characters([$\\ | [$n | S]]) when is_list(S) ->
+    ["\n" |  unescape_characters(S)];
+unescape_characters([$\\ | [$t | S]]) when is_list(S) ->
+    ["\t" |  unescape_characters(S)];
+unescape_characters([$\\ | [$b | S]]) when is_list(S) ->
+    ["\b" |  unescape_characters(S)];
+unescape_characters([$\\ | [$r | S]]) when is_list(S) ->
+    ["\r" |  unescape_characters(S)];
+unescape_characters([$\\ | S]) when is_list(S) ->
+    unescape_characters(S);
+unescape_characters([]) ->
+    [];
+unescape_characters([C | S]) when is_list(S) ->
+    [C | unescape_characters(S)].
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
