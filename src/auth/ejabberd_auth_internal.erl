@@ -119,7 +119,7 @@ authorize(Creds) ->
 check_password(LUser, LServer, Password) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-        [#passwd{password = #scram{} = Scram}] ->
+        [#passwd{password = Scram}] ->
             mongoose_scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
             Password /= <<>>;
