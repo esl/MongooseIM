@@ -24,6 +24,8 @@ mc_cmd="$(cat <<-EOF
 EOF
 )"
 
+# The config script in ${mc_cmd} needs to be run in `minio/mc` container
+# because `minio/server` container doesn't have the `mc` command.
 docker run --rm --entrypoint sh \
     --link "${minio_docker_name}:minio" \
     minio/mc -c "${mc_cmd}"
