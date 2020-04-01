@@ -159,7 +159,7 @@ msg_removed_from_config() ->
     <<"We're sorry to hear you don't want to share the system's metrics with us. "
       "These metrics would enable us to improve MongooseIM and know where to focus our efforts. "
       "To stop being notified, you can add this to the services section of your config file: \n"
-      "    '{services_mongoose_system_metrics, [no_report]}' \n"
+      "    '{service_mongoose_system_metrics, [no_report]}' \n"
       "For more info on how to customise, read, enable, and disable the metrics visit: \n"
       "- MongooseIM docs - \n"
       "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
