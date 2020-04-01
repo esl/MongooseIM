@@ -127,7 +127,7 @@ mech_step(#state{step = 4} = State, ClientIn) ->
                                                         AuthMessage),
                     R = [{username, State#state.username}, {sasl_success_response,
                          <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},
-                         {auth_module, State#state.username}],
+                         {auth_module, State#state.auth_module}],
                     {ok, mongoose_credentials:extend(State#state.creds, R)};
                 {error, Reason} ->
                     {error, Reason}
@@ -179,9 +179,13 @@ get_scram_attributes(UserName, LServer, Sha) ->
 
 do_get_scram_attributes(Params, _) when is_tuple(Params) ->
     Params;
-do_get_scram_attributes(Params, Sha) ->
+do_get_scram_attributes(#{salt := Salt, iteration_count := IterationCount} = Params, Sha) ->
+    #{Sha  := #{stored_key := StoredKey, server_key := ServerKey}} = Params,
+    {base64:decode(StoredKey), base64:decode(ServerKey),
+     base64:decode(Salt), IterationCount};
+do_get_scram_attributes(Password, Sha) ->
     TempSalt = crypto:strong_rand_bytes(?SALT_LENGTH),
-    SaltedPassword = mongoose_scram:salted_password(Sha, Params, TempSalt,
+    SaltedPassword = mongoose_scram:salted_password(Sha, Password, TempSalt,
                                                     mongoose_scram:iterations()),
     {mongoose_scram:stored_key(Sha, mongoose_scram:client_key(Sha, SaltedPassword)),
      mongoose_scram:server_key(Sha, SaltedPassword), TempSalt, mongoose_scram:iterations()}.
