@@ -245,6 +245,8 @@ verify_format(GroupName, {_User, Props}) ->
     SPassword = rpc(mim(), ejabberd_auth, get_password, [Username, Server]),
     do_verify_format(GroupName, Password, SPassword).
 
+do_verify_format(login_scram, _Password, #{salt := _S, iteration_count := _IC}) ->
+    true;
 do_verify_format(login_scram, _Password, SPassword) ->
     %% returned password is a tuple containing scram data
     {_, _, _, _} = SPassword;

@@ -47,8 +47,8 @@
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
--define(SCRAM_SHA_PREFIX, "==SHA=,").
--define(SCRAM_SHA256_PREFIX, "==SHA256=,").
+-define(SCRAM_SHA_PREFIX, "==SHA==,").
+-define(SCRAM_SHA256_PREFIX, "==SHA256==,").
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
@@ -141,21 +141,19 @@ password_to_scram(Password, Salt, IterationCount, HashType) ->
     SaltedPassword = salted_password(HashType, Password, Salt, IterationCount),
     StoredKey = stored_key(HashType, client_key(HashType, SaltedPassword)),
     ServerKey = server_key(HashType, SaltedPassword),
-    {HashType, #{server_key => base64:encode(StoredKey),
-                 stored_key => base64:encode(ServerKey)}}.
+    {HashType, #{server_key => base64:encode(ServerKey),
+                 stored_key => base64:encode(StoredKey)}}.
 
-% check_password(Password, Scram) ->
-%     IterationCount = Scram#scram.iterationcount,
-%     Salt = base64:decode(Scram#scram.salt),
-%     SaltedPassword = salted_password(Password, Salt, IterationCount),
-%     StoredKey = stored_key(client_key(SaltedPassword)),
-%     (base64:decode(#scram.storedkey) == StoredKey);
-check_password(Password, ScramMap) ->
-    #{salt := Salt, iteration_count := IterationCount} = ScramMap,
-    do_check_password(supproted_sha_types(), Password, Salt, IterationCount, ScramMap),
+check_password(Password, Scram) when is_record(Scram, scram)->
+    IterationCount = Scram#scram.iterationcount,
+    Salt = base64:decode(Scram#scram.salt),
     SaltedPassword = salted_password(Password, Salt, IterationCount),
     StoredKey = stored_key(client_key(SaltedPassword)),
-    (base64:decode(#scram.storedkey) == StoredKey).
+    (base64:decode(Scram#scram.storedkey) == StoredKey);
+check_password(Password, ScramMap) when is_map(ScramMap) ->
+    #{salt := Salt, iteration_count := IterationCount} = ScramMap,
+    %TODO: change this check to verify for specific sha, not iterate over all supported
+    do_check_password(supproted_sha_types(), Password, base64:decode(Salt), IterationCount, ScramMap).
 
 do_check_password([], _, _, _, _) ->
     false;
@@ -163,7 +161,7 @@ do_check_password([Sha | RemainingSha], Password, Salt, IterationCount, ScramMap
     #{Sha := #{stored_key := StoredKey}} = ScramMap,
     SaltedPassword = salted_password(Sha, Password, Salt, IterationCount),
     ClientStoredKey = stored_key(Sha, client_key(Sha, SaltedPassword)),
-    case ClientStoredKey == StoredKey of
+    case ClientStoredKey == base64:decode(StoredKey) of
         true -> true;
         false -> do_check_password(RemainingSha, Password, Salt, IterationCount, ScramMap)
     end.
