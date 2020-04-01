@@ -1,31 +1,4 @@
-%%%----------------------------------------------------------------------
-%%% File    : scram.erl
-%%% Author  : Stephen Röttger <stephen.roettger@googlemail.com>
-%%% Purpose : SCRAM (RFC 5802)
-%%% Created : 7 Aug 2011 by Stephen Röttger <stephen.roettger@googlemail.com>
-%%%
-%%%
-%%% ejabberd, Copyright (C) 2002-2013   ProcessOne
-%%%
-%%% This program is free software; you can redistribute it and/or
-%%% modify it under the terms of the GNU General Public License as
-%%% published by the Free Software Foundation; either version 2 of the
-%%% License, or (at your option) any later version.
-%%%
-%%% This program is distributed in the hope that it will be useful,
-%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
-%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-%%% General Public License for more details.
-%%%
-%%% You should have received a copy of the GNU General Public License
-%%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
-%%%
-%%%----------------------------------------------------------------------
-
 -module(mongoose_scram).
-
--author('stephen.roettger@googlemail.com').
 
 -include("mongoose.hrl").
 -include("scram.hrl").
@@ -34,12 +7,18 @@
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
 -export([
          salted_password/3,
+         salted_password/4,
          stored_key/1,
+         stored_key/2,
          server_key/1,
+         server_key/2,
          server_signature/2,
+         server_signature/3,
          client_signature/2,
+         client_signature/3,
          client_key/1,
-         client_key/2]).
+         client_key/2,
+         client_proof_key/2]).
 
 -export([
          enabled/1,
@@ -55,7 +34,7 @@
 
 -export([scram_to_tuple/1]).
 
--type hash_type() :: crypto:sha1() | crypto:sha2().
+-type sha_type() :: crypto:sha1() | crypto:sha2().
 
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
@@ -71,41 +50,58 @@
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
     hi(sha, jid:resourceprep(Password), Salt, IterationCount).
+-spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
+salted_password(Sha, Password, Salt, IterationCount) ->
+    hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 -spec client_key(binary()) -> binary().
 client_key(SaltedPassword) ->
     crypto:hmac(sha, SaltedPassword, <<"Client Key">>).
+-spec client_key(sha_type(), binary()) -> binary().
+client_key(Sha, SaltedPassword) when Sha == sha orelse Sha == sha256 ->
+    crypto:hmac(Sha, SaltedPassword, <<"Client Key">>).
 
 -spec stored_key(binary()) -> binary().
 stored_key(ClientKey) -> crypto:hash(sha, ClientKey).
+-spec stored_key(sha_type(), binary()) -> binary().
+stored_key(Sha, ClientKey) -> crypto:hash(Sha, ClientKey).
 
 -spec server_key(binary()) -> binary().
 server_key(SaltedPassword) ->
     crypto:hmac(sha, SaltedPassword, <<"Server Key">>).
+-spec server_key(sha_type(), binary()) -> binary().
+server_key(Sha, SaltedPassword) ->
+    crypto:hmac(Sha, SaltedPassword, <<"Server Key">>).
 
 -spec client_signature(binary(), binary()) -> binary().
 client_signature(StoredKey, AuthMessage) ->
     crypto:hmac(sha, StoredKey, AuthMessage).
+-spec client_signature(sha_type(), binary(), binary()) -> binary().
+client_signature(Sha, StoredKey, AuthMessage) ->
+    crypto:hmac(Sha, StoredKey, AuthMessage).
 
--spec client_key(binary(), binary()) -> binary().
-client_key(ClientProof, ClientSignature) ->
+-spec client_proof_key(binary(), binary()) -> binary().
+client_proof_key(ClientProof, ClientSignature) ->
     mask(ClientProof, ClientSignature).
 
 -spec server_signature(binary(), binary()) -> binary().
 server_signature(ServerKey, AuthMessage) ->
     crypto:hmac(sha, ServerKey, AuthMessage).
+-spec server_signature(sha_type(), binary(), binary()) -> binary().
+server_signature(Sha, ServerKey, AuthMessage) ->
+    crypto:hmac(Sha, ServerKey, AuthMessage).
 
--spec hi(hash_type(), binary(), binary(), non_neg_integer()) -> binary().
-hi(Hash, Password, Salt, IterationCount) ->
-    U1 = crypto:hmac(Hash, Password, <<Salt/binary, 0, 0, 0, 1>>),
-    mask(U1, hi_round(Hash, Password, U1, IterationCount - 1)).
+-spec hi(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
+hi(Sha, Password, Salt, IterationCount) ->
+    U1 = crypto:hmac(Sha, Password, <<Salt/binary, 0, 0, 0, 1>>),
+    mask(U1, hi_round(Sha, Password, U1, IterationCount - 1)).
 
--spec hi_round(hash_type(), binary(), binary(), non_neg_integer()) -> binary().
-hi_round(Hash, Password, UPrev, 1) ->
-    crypto:hmac(Hash, Password, UPrev);
-hi_round(Hash, Password, UPrev, IterationCount) ->
-    U = crypto:hmac(Hash, Password, UPrev),
-    mask(U, hi_round(Hash, Password, U, IterationCount - 1)).
+-spec hi_round(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
+hi_round(Sha, Password, UPrev, 1) ->
+    crypto:hmac(Sha, Password, UPrev);
+hi_round(Sha, Password, UPrev, IterationCount) ->
+    U = crypto:hmac(Sha, Password, UPrev),
+    mask(U, hi_round(Sha, Password, U, IterationCount - 1)).
 
 -spec mask(binary(), binary()) -> binary().
 mask(Key, Data) ->
