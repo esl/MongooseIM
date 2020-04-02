@@ -47,8 +47,8 @@
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
--define(SCRAM_SHA_PREFIX, "==SHA==,").
--define(SCRAM_SHA256_PREFIX, "==SHA256==,").
+-define(SCRAM_SHA_PREFIX,     "===SHA1===").
+-define(SCRAM_SHA256_PREFIX,  "==SHA256==").
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
@@ -132,7 +132,7 @@ password_to_scram(#scram{} = Password, _) ->
 password_to_scram(Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     ServerStoredKeys = [password_to_scram(Password, Salt, IterationCount, HashType)
-                            || HashType <- supproted_sha_types()],
+                            || {HashType, _Prefix} <- supproted_sha_types()],
     ResultList = lists:merge([{salt, base64:encode(Salt)},
                               {iteration_count, IterationCount}], ServerStoredKeys),
     maps:from_list(ResultList).
@@ -157,7 +157,7 @@ check_password(Password, ScramMap) when is_map(ScramMap) ->
 
 do_check_password([], _, _, _, _) ->
     false;
-do_check_password([Sha | RemainingSha], Password, Salt, IterationCount, ScramMap) ->
+do_check_password([{Sha, _Prefix} | RemainingSha], Password, Salt, IterationCount, ScramMap) ->
     #{Sha := #{stored_key := StoredKey}} = ScramMap,
     SaltedPassword = salted_password(Sha, Password, Salt, IterationCount),
     ClientStoredKey = stored_key(Sha, client_key(Sha, SaltedPassword)),
@@ -177,9 +177,9 @@ serialize(#{salt   := Salt, iteration_count := IterationCount,
             sha256 := #{server_key := Sha256ServerKey, stored_key :=  Sha256StoredKey}}) ->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?MULTI_SCRAM_SERIAL_PREFIX>>/binary,
-    Salt/binary, $,, IterationCountBin/binary,
-    $,, <<?SCRAM_SHA_PREFIX>>/binary, ShaStoredKey/binary, $,, ShaServerKey/binary,
-    $,, <<?SCRAM_SHA256_PREFIX>>/binary, Sha256StoredKey/binary, $,, Sha256ServerKey/binary >>.
+    Salt/binary, $,, IterationCountBin/binary, $,,
+    <<?SCRAM_SHA_PREFIX>>/binary, ShaStoredKey/binary, $|, ShaServerKey/binary, $,,
+    <<?SCRAM_SHA256_PREFIX>>/binary, Sha256StoredKey/binary, $|, Sha256ServerKey/binary >>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     %TODO: detecting and working with old SHA-1 passwords
@@ -194,10 +194,12 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     end;
 deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
-        [Salt, IterationCount | StoredServerKeys] ->
-            IterationCountInt = binary_to_integer(IterationCount),
-            DeserializedKeys = lists:flatten(deserialize(supproted_sha_types(), StoredServerKeys)),
-            ResultList = lists:merge([{salt, Salt}, {iteration_count, IterationCountInt}], DeserializedKeys),
+        [Salt, IterationCountBin | ListOfShaSpecificDetails] ->
+            IterationCount = binary_to_integer(IterationCountBin),
+            DeserializedKeys = [deserialize(supproted_sha_types(), ShaDetails)
+                                             ||ShaDetails <- ListOfShaSpecificDetails],
+            ResultList = lists:merge([{salt, Salt}, {iteration_count, IterationCount}],
+                                     lists:flatten(DeserializedKeys)),
             {ok, maps:from_list(ResultList)};
         _ ->
             ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [Serialized]),
@@ -209,8 +211,16 @@ deserialize(Bin) ->
 
 deserialize([], _) ->
     [];
-deserialize([Sha| RemainingSha] , [ _Prefix, StoredKey, ServerKey | RemainingKeys] ) ->
-    [{Sha, #{server_key => ServerKey, stored_key => StoredKey}}, deserialize(RemainingSha, RemainingKeys)].
+deserialize([{Sha, Prefix} | _RemainingSha],
+    <<Prefix:10/binary, StoredServerKeys/binary>>) ->
+    case catch binary:split(StoredServerKeys, <<"|">>, [global]) of
+        [StoredKey, ServerKey] ->
+            {Sha, #{server_key => ServerKey, stored_key => StoredKey}};
+        _ ->
+            ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [StoredServerKeys])
+    end;
+deserialize([_CurrentSha | RemainingSha], ShaDetails) ->
+    deserialize(RemainingSha, ShaDetails).
 
 -spec scram_to_tuple(scram()) -> scram_tuple().
 scram_to_tuple(Scram) ->
@@ -225,4 +235,5 @@ check_digest(#scram{storedkey = StoredKey}, Digest, DigestGen, Password) ->
     ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd).
 
 supproted_sha_types() ->
-    [sha, sha256].
+    [{sha,      <<?SCRAM_SHA_PREFIX>>},
+     {sha256,   <<?SCRAM_SHA256_PREFIX>>}].

@@ -266,7 +266,7 @@ get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
 
 -spec get_password(LUser :: jid:luser(),
-                   LServer :: jid:lserver()) -> binary() | false.
+                   LServer :: jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
