@@ -177,8 +177,6 @@ get_scram_attributes(UserName, LServer, Sha) ->
             {AuthModule, do_get_scram_attributes(Params, Sha)}
     end.
 
-do_get_scram_attributes(Params, _) when is_tuple(Params) ->
-    Params;
 do_get_scram_attributes(#{salt := Salt, iteration_count := IterationCount} = Params, Sha) ->
     #{Sha  := #{stored_key := StoredKey, server_key := ServerKey}} = Params,
     {base64:decode(StoredKey), base64:decode(ServerKey),

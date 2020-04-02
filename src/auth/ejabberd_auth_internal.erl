@@ -272,10 +272,10 @@ get_password(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            {base64:decode(Scram#scram.storedkey),
-             base64:decode(Scram#scram.serverkey),
-             base64:decode(Scram#scram.salt),
-             Scram#scram.iterationcount};
+            #{salt => Scram#scram.salt,
+              iteration_count => Scram#scram.iterationcount,
+              sha => #{stored_key => Scram#scram.storedkey,
+                       server_key => Scram#scram.serverkey}};
         [#passwd{password = Params}] when is_map(Params)->
             Params;
         [#passwd{password = Password}] ->
