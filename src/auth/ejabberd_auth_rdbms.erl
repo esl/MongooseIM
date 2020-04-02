@@ -286,8 +286,13 @@ get_password(LUser, LServer) ->
             Password; %%Plain password
         {selected, [{_Password, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
-                {ok, Scram} ->
-                    mongoose_scram:scram_to_tuple(Scram);
+                {ok, Scram} when is_record(Scram, scram) ->
+                    #{salt => Scram#scram.salt,
+                      iteration_count => Scram#scram.iterationcount,
+                      sha => #{stored_key => Scram#scram.storedkey,
+                               server_key => Scram#scram.serverkey}};
+                {ok, Scram} when is_map(Scram) ->
+                    Scram;
                 _ ->
                     false
             end;
