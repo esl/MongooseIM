@@ -275,6 +275,8 @@ convert_scram_to_tuple(Password) ->
     case mongoose_scram:deserialize(Password) of
         {ok, #scram{} = Scram} ->
             mongoose_scram:scram_to_tuple(Scram);
+        {ok, Scram} when is_map(Scram)->
+            mongoose_scram:map_to_tuple(Scram);
         _ ->
             false
     end.

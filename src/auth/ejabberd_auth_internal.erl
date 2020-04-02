@@ -141,10 +141,10 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
             Passwd = base64:decode(Scram#scram.storedkey),
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        [#passwd{password = Params}] when is_map(Params) ->
-            % Passwd = base64:decode(Scram#scram.storedkey),
-            % TODO: modify check_digest to check digest over all params
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Params);
+        % [#passwd{password = Params}] when is_map(Params) ->
+        %     % Passwd = base64:decode(Scram#scram.storedkey),
+        %     % TODO: modify check_digest to check digest over all params
+        %     ejabberd_auth:check_digest(Digest, DigestGen, Password, Params);
         [#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
@@ -355,7 +355,8 @@ write_passwd(#passwd{} = Passwd) ->
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
 
--spec get_scram(jid:lserver(), binary()) -> mongoose_scram:scram() | binary().
+% TODO: change the return type to mongoose_scram:scram_map()
+-spec get_scram(jid:lserver(), binary()) -> mongoose_scram:scram() | map() | binary().
 get_scram(LServer, Password) ->
     case mongoose_scram:enabled(LServer) and is_binary(Password) of
         true ->
