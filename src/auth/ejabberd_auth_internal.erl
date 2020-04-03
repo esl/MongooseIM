@@ -355,8 +355,7 @@ write_passwd(#passwd{} = Passwd) ->
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
 
-% TODO: change the return type to mongoose_scram:scram_map()
--spec get_scram(jid:lserver(), binary()) -> mongoose_scram:scram() | map() | binary().
+-spec get_scram(jid:lserver(), binary()) -> mongoose_scram:scram() | binary().
 get_scram(LServer, Password) ->
     case mongoose_scram:enabled(LServer) and is_binary(Password) of
         true ->
