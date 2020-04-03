@@ -271,10 +271,7 @@ get_password(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            #{salt => Scram#scram.salt,
-              iteration_count => Scram#scram.iterationcount,
-              sha => #{stored_key => Scram#scram.storedkey,
-                       server_key => Scram#scram.serverkey}};
+            mongoose_scram:scram_record_to_map(Scram);
         [#passwd{password = Params}] when is_map(Params)->
             Params;
         [#passwd{password = Password}] ->

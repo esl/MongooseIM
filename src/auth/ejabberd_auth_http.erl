@@ -264,7 +264,7 @@ stop(_Host) ->
 -spec check_scram_password(binary(), binary(), binary(), fun()) -> boolean().
 check_scram_password(OriginalPassword, GotPassword, Digest, DigestGen) ->
     case mongoose_scram:deserialize(GotPassword) of
-        {ok, #scram{} = Scram} ->
+        {ok, Scram} ->
             mongoose_scram:check_digest(Scram, Digest, DigestGen, OriginalPassword);
         _ ->
             false
@@ -273,10 +273,8 @@ check_scram_password(OriginalPassword, GotPassword, Digest, DigestGen) ->
 -spec convert_scram_to_tuple(binary()) -> ejabberd_auth:passterm() | false.
 convert_scram_to_tuple(Password) ->
     case mongoose_scram:deserialize(Password) of
-        {ok, #scram{} = Scram} ->
-            mongoose_scram:scram_to_tuple(Scram);
-        {ok, Scram} when is_map(Scram)->
-            mongoose_scram:map_to_tuple(Scram);
+        {ok, Scram} ->
+           Scram;
         _ ->
             false
     end.

@@ -32,16 +32,27 @@
 
 -export([serialize/1, deserialize/1]).
 
--export([scram_to_tuple/1]).
+-export([scram_to_tuple/1, scram_record_to_map/1]).
 
 -type sha_type() :: crypto:sha1() | crypto:sha2().
 
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
 
+-type scram_map() ::
+    #{salt := binary(),
+      iteration_count := non_neg_integer(),
+      sha := #{server_key := binary(), stored_key := binary()}}.
+
+-type muilti_scram_map() ::
+    #{salt := binary(),
+      iteration_count := non_neg_integer(),
+      sha    := #{server_key := binary(), stored_key := binary()},
+      sha256 := #{server_key := binary(), stored_key := binary()}}.
+
 -type scram() :: #scram{}.
 
--export_type([scram_tuple/0, scram/0]).
+-export_type([scram_tuple/0, scram/0, scram_map/0, muilti_scram_map/0]).
 
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
@@ -132,7 +143,7 @@ password_to_scram(#scram{} = Password, _) ->
 password_to_scram(Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     ServerStoredKeys = [password_to_scram(Password, Salt, IterationCount, HashType)
-                            || {HashType, _Prefix} <- supproted_sha_types()],
+                            || {HashType, _Prefix} <- supported_sha_types()],
     ResultList = lists:merge([{salt, base64:encode(Salt)},
                               {iteration_count, IterationCount}], ServerStoredKeys),
     maps:from_list(ResultList).
@@ -153,7 +164,7 @@ check_password(Password, Scram) when is_record(Scram, scram)->
 check_password(Password, ScramMap) when is_map(ScramMap) ->
     #{salt := Salt, iteration_count := IterationCount} = ScramMap,
     %TODO: change this check to verify for specific sha, not iterate over all supported
-    do_check_password(supproted_sha_types(), Password, base64:decode(Salt), IterationCount, ScramMap).
+    do_check_password(supported_sha_types(), Password, base64:decode(Salt), IterationCount, ScramMap).
 
 do_check_password([], _, _, _, _) ->
     false;
@@ -182,7 +193,6 @@ serialize(#{salt   := Salt, iteration_count := IterationCount,
     <<?SCRAM_SHA256_PREFIX>>/binary, Sha256StoredKey/binary, $|, Sha256ServerKey/binary >>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
-    %TODO: detecting and working with old SHA-1 passwords
     case catch binary:split(Serialized, <<",">>, [global]) of
         [StoredKey, ServerKey, Salt, IterationCount] ->
             {ok, #{salt => Salt,
@@ -196,8 +206,8 @@ deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
         [Salt, IterationCountBin | ListOfShaSpecificDetails] ->
             IterationCount = binary_to_integer(IterationCountBin),
-            DeserializedKeys = [deserialize(supproted_sha_types(), ShaDetails)
-                                             ||ShaDetails <- ListOfShaSpecificDetails],
+            DeserializedKeys = [deserialize(supported_sha_types(), ShaDetails)
+                                             || ShaDetails <- ListOfShaSpecificDetails],
             ResultList = lists:merge([{salt, Salt}, {iteration_count, IterationCount}],
                                      lists:flatten(DeserializedKeys)),
             {ok, maps:from_list(ResultList)};
@@ -229,11 +239,28 @@ scram_to_tuple(Scram) ->
      base64:decode(Scram#scram.salt),
      Scram#scram.iterationcount}.
 
--spec check_digest(scram(), binary(), fun(), binary()) -> boolean().
-check_digest(#scram{storedkey = StoredKey}, Digest, DigestGen, Password) ->
-    Passwd = base64:decode(StoredKey),
-    ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd).
+-spec scram_record_to_map(scram()) -> scram_map().
+scram_record_to_map(Scram) ->
+    #{salt => Scram#scram.salt,
+      iteration_count => Scram#scram.iterationcount,
+      sha => #{stored_key => Scram#scram.storedkey,
+               server_key => Scram#scram.serverkey}}.
 
-supproted_sha_types() ->
+-spec check_digest(Scram, binary(), fun(), binary()) -> boolean() when
+    Scram :: scram_map() | muilti_scram_map().
+check_digest(ScramMap, Digest, DigestGen, Password) ->
+    do_check_digest(supported_sha_types(), ScramMap, Digest, DigestGen, Password).
+
+do_check_digest([] , _, _, _, _) ->
+    false;
+do_check_digest([{Sha,_Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Password) ->
+    #{Sha := #{stored_key := StoredKey}} = ScramMap,
+    Passwd = base64:decode(StoredKey),
+    case ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd) of
+        true  -> true;
+        false -> do_check_digest(RemainingSha, Digest, DigestGen, Password, Passwd)
+    end.
+
+supported_sha_types() ->
     [{sha,      <<?SCRAM_SHA_PREFIX>>},
      {sha256,   <<?SCRAM_SHA256_PREFIX>>}].
