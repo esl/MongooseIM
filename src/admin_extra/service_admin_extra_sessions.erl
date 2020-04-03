@@ -32,7 +32,6 @@
     num_resources/2,
     resource_num/3,
     kick_session/4,
-    kick_this_session/4,
     prepare_reason/1,
     status_num/2, status_num/1,
     status_list/2, status_list/1,
@@ -189,19 +188,11 @@ resource_num(User, Host, Num) ->
 
 
 -spec kick_session(jid:user(), jid:server(), jid:resource(),
-        ReasonText :: binary()) -> 'ok'.
+        ReasonText :: binary() | list()) -> 'ok'.
 kick_session(User, Server, Resource, ReasonText) ->
-    kick_this_session(User, Server, Resource, prepare_reason(ReasonText)),
+    ejabberd_c2s:terminate_session(jid:make(User, Server, Resource),
+                                   prepare_reason(ReasonText)),
     ok.
-
-
--spec kick_this_session(jid:user(), jid:server(), jid:resource(),
-        Reason :: binary()) -> mongoose_acc:t().
-kick_this_session(User, Server, Resource, Reason) ->
-    ejabberd_sm:route(
-        jid:make(<<"">>, <<"">>, <<"">>),
-        jid:make(User, Server, Resource),
-        {broadcast, {exit, Reason}}).
 
 
 -spec prepare_reason(binary() | string()) -> binary().
@@ -212,9 +203,7 @@ prepare_reason([Reason]) ->
 prepare_reason(Reason) when is_list(Reason) ->
     list_to_binary(Reason);
 prepare_reason(Reason) when is_binary(Reason) ->
-    Reason;
-prepare_reason(StringList) ->
-    prepare_reason(string:join(StringList, "_")).
+    Reason.
 
 
 -spec status_num('all' | jid:server(), status()) -> non_neg_integer().
