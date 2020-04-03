@@ -115,7 +115,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         {selected, [{_Passwd, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
-                {ok, #scram{} = Scram} ->
+                {ok, Scram} ->
                     mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
@@ -286,12 +286,7 @@ get_password(LUser, LServer) ->
             Password; %%Plain password
         {selected, [{_Password, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
-                {ok, Scram} when is_record(Scram, scram) ->
-                    #{salt => Scram#scram.salt,
-                      iteration_count => Scram#scram.iterationcount,
-                      sha => #{stored_key => Scram#scram.storedkey,
-                               server_key => Scram#scram.serverkey}};
-                {ok, Scram} when is_map(Scram) ->
+                {ok, Scram} ->
                     Scram;
                 _ ->
                     false
