@@ -115,7 +115,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         {selected, [{_Passwd, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
-                {ok, #scram{} = Scram} ->
+                {ok, Scram} ->
                     mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
@@ -287,7 +287,7 @@ get_password(LUser, LServer) ->
         {selected, [{_Password, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
-                    mongoose_scram:scram_to_tuple(Scram);
+                    Scram;
                 _ ->
                     false
             end;

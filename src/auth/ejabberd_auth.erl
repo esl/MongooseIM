@@ -406,7 +406,7 @@ do_get_vh_registered_users_number(LServer, Opts) ->
 
 %% @doc Get the password of the user.
 -spec get_password(User :: jid:user(),
-                   Server :: jid:server()) -> binary() | false.
+                   Server :: jid:server()) -> ejabberd_auth:passterm() | false.
 get_password(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
