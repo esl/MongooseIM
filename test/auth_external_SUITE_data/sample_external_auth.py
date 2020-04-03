@@ -51,12 +51,6 @@ def removeuser(username, server):
     serialize()
     return True
 
-def removeuser3(username, server, password):
-    if auth(username, server, password):
-        return removeuser(username, server)
-    else:
-        return False
-
 def serialize():
     f = open(outfile, 'a')
     pickle.dump(users, f)

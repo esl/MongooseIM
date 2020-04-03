@@ -20,7 +20,6 @@ The following list describes packets that the script should support.
 * `setpass:<username>:<domain>:<password>` - Set password.
 * `tryregister:<username>:<domain>:<password>` - Register a user.
 * `removeuser:<username>:<domain>` - Remove a user.
-* `removeuser3:<username>:<domain>:<password>` - Remove a user if the password is correct.
 * `isuser:<username>:<domain>` - Check if a user exists.
 
 ## Configuration options

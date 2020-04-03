@@ -44,7 +44,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2
         ]).
 
@@ -192,15 +191,6 @@ does_user_exist(_LUser, _LServer) ->
                   ) -> ok | {error, not_allowed}.
 remove_user(_LUser, _LServer) ->
     ok.
-
-
-%% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_exists | not_allowed | bad_request}.
-remove_user(_LUser, _LServer, _Password) ->
-    {error, not_allowed}.
 
 %%%----------------------------------------------------------------------
 %%% Internal helpers

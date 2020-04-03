@@ -15,7 +15,6 @@ groups() ->
 all_tests() ->
     [try_register_ok,
      remove_user_ok,
-     remove_user_with_pass_ok,
      set_password_ok,
      does_user_exist,
      get_password_returns_false_if_no_cache,
@@ -47,11 +46,6 @@ try_register_ok(_C) ->
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
     ok = ?AUTH_MOD:remove_user(U, domain()),
-    false = ?AUTH_MOD:check_password(U, domain(), P).
-
-remove_user_with_pass_ok(_C) ->
-    {U, P} = given_user_registered(),
-    ok = ?AUTH_MOD:remove_user(U, domain(), P),
     false = ?AUTH_MOD:check_password(U, domain(), P).
 
 set_password_ok(_C) ->

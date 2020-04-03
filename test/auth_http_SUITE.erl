@@ -203,15 +203,7 @@ is_user_exists(_Config) ->
 remove_user(_Config) ->
     true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
     ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN1),
-    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
-
-    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
-    {error, not_allowed} = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"wrongpass">>),
-    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
-    ok = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"pass">>),
-    false = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
-
-    {error, not_exists} = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
+    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1).
 
 supported_sasl_mechanisms(Config) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],

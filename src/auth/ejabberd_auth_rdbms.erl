@@ -42,7 +42,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2
         ]).
 
@@ -355,29 +354,6 @@ remove_user(LUser, LServer) ->
         ok
     end,
     ok.
-
-
-%% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                 ) -> ok | {error, not_exists | not_allowed}.
-remove_user(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case check_password_wo_escape(LUser, Username, LServer, Password) of
-        true ->
-            case catch rdbms_queries:del_user(LServer, Username) of
-                {'EXIT', Error} ->
-                    ?WARNING_MSG("Failed SQL query: ~p", [Error]),
-                    {error, not_allowed};
-                _ ->
-                    ok
-            end;
-        not_exists ->
-            {error, not_exists};
-        false ->
-            {error, not_allowed}
-    end.
 
 %%%------------------------------------------------------------------
 %%% SCRAM

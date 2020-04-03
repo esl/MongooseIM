@@ -42,7 +42,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2
         ]).
 
@@ -210,23 +209,6 @@ remove_user(LUser, LServer) ->
                 false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(LUser, LServer)
-            end,
-            ok
-    end.
-
-
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_allowed}.
-remove_user(LUser, LServer, Password) ->
-    case extauth:remove_user(LUser, LServer, Password) of
-        false -> {error, not_allowed};
-        true ->
-            case get_cache_option(LServer) of
-                false -> ok;
-                {true, _CacheTime} ->
-                    ejabberd_auth_internal:remove_user(LUser, LServer, Password)
             end,
             ok
     end.

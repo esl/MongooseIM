@@ -24,7 +24,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2,
          stop/1]).
 
@@ -173,23 +172,6 @@ remove_user(LUser, LServer) ->
     case remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>) of
         ok -> ok;
         _ -> {error, not_allowed}
-    end.
-
--spec remove_user(jid:luser(), jid:lserver(), binary()) ->
-    ok | {error, not_allowed | not_exists | bad_request}.
-remove_user(LUser, LServer, Password) ->
-    case mongoose_scram:enabled(LServer) of
-        false ->
-            remove_user_req(LUser, LServer, Password, <<"remove_user_validate">>);
-        true ->
-            case verify_scram_password(LUser, LServer, Password) of
-                {ok, true} ->
-                    remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>);
-                {ok, false} ->
-                    {error, not_allowed};
-                {error, _} = Error ->
-                    Error
-            end
     end.
 
 -spec remove_user_req(binary(), binary(), binary(), binary()) ->

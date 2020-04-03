@@ -42,7 +42,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2
         ]).
 
@@ -317,54 +316,6 @@ remove_user(LUser, LServer) ->
                                             LServer, -1)
         end,
     mnesia:transaction(F),
-    ok.
-
-
-%% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_exists | not_allowed | bad_request}.
-remove_user(LUser, LServer, Password) ->
-    US = {LUser, LServer},
-    F = fun() ->
-                case read_passwd(US) of
-                    [#passwd{password = Scram}] when is_record(Scram, scram) ->
-                        delete_scram_password(US, LServer, Password, Scram);
-                    [#passwd{password = Password}] ->
-                        delete_password(US, LServer);
-                    _ ->
-                        not_exists
-                end
-        end,
-    case mnesia:transaction(F) of
-        {atomic, ok} ->
-            ok;
-        {atomic, not_exists} ->
-            {error, not_exists};
-        {atomic, not_allowed} ->
-            {error, not_allowed};
-        Error ->
-            ?ERROR_MSG("Mnesia transaction fail: ~p", [Error]),
-            {error, bad_request}
-    end.
-
--spec delete_scram_password(tuple(), jid:lserver(),
-                           binary(), mongoose_scram:scram()) ->
-                                   ok | not_allowed.
-delete_scram_password(US, LServer, Password, Scram) ->
-    case mongoose_scram:check_password(Password, Scram) of
-        true ->
-            delete_password(US, LServer);
-        false ->
-            not_allowed
-    end.
-
--spec delete_password(tuple(), jid:lserver()) -> ok.
-delete_password(US, LServer) ->
-    mnesia:delete({passwd, US}),
-    mnesia:dirty_update_counter(reg_users_counter,
-                                LServer, -1),
     ok.
 
 -spec scram_passwords() -> {atomic, ok}.

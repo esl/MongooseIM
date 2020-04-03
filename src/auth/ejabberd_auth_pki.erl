@@ -35,8 +35,7 @@
          get_password/2,
          get_password_s/2,
          does_user_exist/2,
-         remove_user/2,
-         remove_user/3
+         remove_user/2
         ]).
 
 -export([check_password/3,
@@ -105,12 +104,6 @@ does_user_exist(_, _) -> true.
                    Server :: ejabberd:lserver()
                  ) -> ok | {error, not_allowed}.
 remove_user(_, _) -> {error, not_allowed}.
-
--spec remove_user( User :: ejabberd:luser(),
-                   Server :: ejabberd:lserver(),
-                   Password :: binary()
-                 ) -> ok | {error, not_exists | not_allowed | bad_request}.
-remove_user(_, _, _) -> {error, not_allowed}.
 
 check_password(_, _, _) -> false.
 
