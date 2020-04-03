@@ -48,7 +48,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2
         ]).
 
@@ -254,23 +253,6 @@ remove_user(LUser, LServer) ->
       false -> {error, not_allowed};
       DN -> eldap_pool:delete(State#state.eldap_id, DN)
     end.
-
-
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_exists | not_allowed}.
-remove_user(LUser, LServer, Password) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
-    case find_user_dn(LUser, State) of
-      false -> {error, not_exists};
-      DN ->
-            case eldap_pool:bind(State#state.bind_eldap_id, DN, Password) of
-                ok -> ok = eldap_pool:delete(State#state.eldap_id, DN);
-                _ -> {error, not_allowed}
-            end
-    end.
-
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

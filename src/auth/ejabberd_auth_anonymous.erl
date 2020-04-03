@@ -48,7 +48,6 @@
          get_password/3,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2,
          get_vh_registered_users/2,
          get_vh_registered_users_number/1,
@@ -316,12 +315,6 @@ does_user_exist(LUser, LServer) ->
 remove_user(_LUser, _LServer) ->
     {error, not_allowed}.
 
-
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()) -> {error, not_allowed}.
-remove_user(_LUser, _LServer, _Password) ->
-    {error, not_allowed}.
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(Host, cyrsasl_anonymous) -> is_sasl_anonymous_enabled(Host);

@@ -52,11 +52,6 @@
                       Server :: jid:lserver()
                       ) -> ok | {error, not_allowed}.
 
--callback remove_user(User :: jid:luser(),
-                      Server :: jid:lserver(),
-                      Password :: binary()
-                      ) -> ok | {error, not_exists | not_allowed | bad_request}.
-
 -export_type([t/0]).
 
 -type t() :: module().

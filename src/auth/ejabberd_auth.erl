@@ -49,7 +49,6 @@
          is_user_exists/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2,
          entropy/1
         ]).
@@ -558,41 +557,6 @@ do_remove_user(LUser, LServer) ->
                        [LUser, LServer, AuthModules]),
             {error, not_allowed}
     end.
-
-%% @doc Try to remove user if the provided password is correct.
-%% The removal is attempted in each auth method provided:
-%% when one returns 'ok' the loop stops;
-%% if no method returns 'ok' then it returns the error message
-%% indicated by the last method attempted.
--spec remove_user(User :: jid:user(),
-                  Server :: jid:server(),
-                  Password :: binary()
-                  ) -> ok | not_exists | not_allowed | bad_request | error.
-remove_user(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_remove_user(LUser, LServer, Password).
-
-do_remove_user(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
-    error;
-do_remove_user(LUser, LServer, Password) ->
-    R = lists:foldl(
-        fun(_M, ok = Res) ->
-            Res;
-            (M, _) ->
-                M:remove_user(LUser, LServer, Password)
-        end, error, auth_modules(LServer)),
-    case R of
-        ok ->
-            Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => LServer,
-                              element => undefined }),
-            mongoose_hooks:remove_user(LServer, Acc, LUser),
-            ok;
-        _ ->
-            none
-    end,
-    R.
 
 %% @doc Calculate informational entropy.
 -spec entropy(iolist()) -> float().

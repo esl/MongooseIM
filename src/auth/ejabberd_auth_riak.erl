@@ -35,8 +35,7 @@
          get_password/2,
          get_password_s/2,
          does_user_exist/2,
-         remove_user/2,
-         remove_user/3
+         remove_user/2
         ]).
 
 -export([bucket_type/1]).
@@ -179,9 +178,6 @@ remove_user(LUser, LServer) ->
             ?WARNING_MSG("Failed Riak query: ~p", [Error]),
             {error, not_allowed}
     end.
-
-remove_user(_LUser, _LServer, _Password) ->
-    erlang:error(not_implemented).
 
 -spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->

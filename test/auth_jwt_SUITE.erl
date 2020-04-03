@@ -127,9 +127,7 @@ is_user_exists(_Config) ->
 
 % remove_user/2,3
 remove_user(_Config) ->
-    ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1),
-    {error, not_allowed} = ejabberd_auth_jwt:remove_user(<<"toremove3">>,
-                                                         ?DOMAIN1, <<"wrongpass">>).
+    ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1).
 
 get_vh_registered_users_number(_C) ->
     0 = ejabberd_auth_jwt:get_vh_registered_users_number(?DOMAIN1, []).

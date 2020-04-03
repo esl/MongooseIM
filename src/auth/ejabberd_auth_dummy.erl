@@ -21,7 +21,6 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
          supports_sasl_module/2,
          scram_passwords/0]).
 
@@ -91,12 +90,6 @@ does_user_exist(_User, _Server) ->
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
 remove_user(_User, _Server) ->
-    ok.
-
-%% @spec (User, Server, Password) -> ok | not_exists | not_allowed | bad_request
-%% @doc Remove user if the provided password is correct.
-remove_user(_User, _Server, _Password) ->
-    %% in fact not_supported
     ok.
 
 supports_sasl_module(_, cyrsasl_plain) -> true;
