@@ -149,17 +149,17 @@
 -export([mod_global_distrib_known_recipient/5,
          mod_global_distrib_unknown_recipient/2]).
 
--export([c2s_remote_hook_call/5]).
+-export([c2s_remote_hook/5]).
 
--spec c2s_remote_hook_call(LServer, Tag, Args, HandlerState, C2SState) -> Result when
+-spec c2s_remote_hook(LServer, Tag, Args, HandlerState, C2SState) -> Result when
     LServer :: jid:lserver(),
     Tag :: atom(),
     Args :: term(),
     HandlerState :: term(),
     C2SState :: ejabberd_c2s:state(),
     Result :: term(). % ok | empty_state | HandlerState
-c2s_remote_hook_call(LServer, Tag, Args, HandlerState, C2SState) ->
-    ejabberd_hooks:run_fold(c2s_remote_hook_call, LServer, HandlerState, [Tag, Args, C2SState]).
+c2s_remote_hook(LServer, Tag, Args, HandlerState, C2SState) ->
+    ejabberd_hooks:run_fold(c2s_remote_hook, LServer, HandlerState, [Tag, Args, C2SState]).
 
 -spec adhoc_local_items(LServer, Acc, From, To, Lang) -> Result when
     LServer :: jid:lserver(),

@@ -29,7 +29,7 @@
          user_keep_alive/2]).
 
 %% Remote hook callback
--export([handle_remote_hook_call/4]).
+-export([handle_remote_hook/4]).
 
 %%====================================================================
 %% Info Handler
@@ -44,7 +44,7 @@ route_ping_iq(JID, Server) ->
     Pid = self(),
     T0 = erlang:monotonic_time(millisecond),
     F = fun(_From, _To, Acc, timeout) ->
-               ejabberd_c2s:call_remote_hook(Pid, mod_ping, timeout),
+               ejabberd_c2s:run_remote_hook(Pid, mod_ping, timeout),
                NewAcc = mongoose_hooks:user_ping_response(Server,
                                                           Acc, JID, timeout, 0),
                NewAcc;
@@ -73,7 +73,7 @@ hooks(Host) ->
      {user_send_packet, Host, ?MODULE, user_send, 100},
      {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
      {user_ping_response, Host, ?MODULE, user_ping_response, 100},
-     {c2s_remote_hook_call, Host, ?MODULE, handle_remote_hook_call, 100}].
+     {c2s_remote_hook, Host, ?MODULE, handle_remote_hook, 100}].
 
 
 ensure_metrics(Host) ->
@@ -102,6 +102,8 @@ maybe_add_hooks_handlers(_, _) ->
     ok.
 
 stop(Host) ->
+%%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
+%%    won't stop currently running timers. They'll run one more time, and then stop.
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
@@ -119,28 +121,28 @@ iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
 %% Hook callbacks
 %%====================================================================
 
-handle_remote_hook_call(HandlerState, mod_ping, Args, C2SState) ->
+handle_remote_hook(HandlerState, mod_ping, Args, C2SState) ->
     handle_remote_call(Args,
                        ejabberd_c2s_state:jid(C2SState),
                        ejabberd_c2s_state:server(C2SState),
                        HandlerState);
-handle_remote_hook_call(HandlerState, _, _, _) ->
+handle_remote_hook(HandlerState, _, _, _) ->
     HandlerState.
 
 user_online(Acc, {_, Pid} = _SID, _Jid, _Info) ->
-    ejabberd_c2s:call_remote_hook(Pid, mod_ping, init),
+    ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
     Acc.
 
 user_offline(Acc, {_, Pid} = _SID, _JID, _Info, _Reason) ->
-    ejabberd_c2s:call_remote_hook(Pid, mod_ping, remove_timer),
+    ejabberd_c2s:run_remote_hook(Pid, mod_ping, remove_timer),
     Acc.
 
 user_send(Acc, _JID, _From, _Packet) ->
-    ejabberd_c2s:call_remote_hook(self(), mod_ping, init),
+    ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
     Acc.
 
 user_keep_alive(Acc, _JID) ->
-    ejabberd_c2s:call_remote_hook(self(), mod_ping, init),
+    ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
     Acc.
 
 -spec user_ping_response(Acc :: mongoose_acc:t(),
@@ -179,7 +181,7 @@ handle_remote_call(remove_timer, _JID, _Server, HandlerState) ->
 start_ping_timer(HandlerState, Server) ->
     cancel_timer(HandlerState),
     PingInterval = gen_mod:get_module_opt(Server, ?MODULE, ping_interval, ?DEFAULT_PING_INTERVAL),
-    ejabberd_c2s:call_remote_hook_after(timer:seconds(PingInterval), self(), mod_ping, send_ping).
+    ejabberd_c2s:run_remote_hook_after(timer:seconds(PingInterval), self(), mod_ping, send_ping).
 
 cancel_timer(empty_state) ->
     do_nothing;

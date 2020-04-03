@@ -67,8 +67,7 @@ groups() ->
                                befriend_and_alienate,
                                befriend_and_alienate_auto]},
          {dynamic_module, [], [stop_start_command_module]}],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 auth_test_cases() ->
     [auth_passes_correct_creds,

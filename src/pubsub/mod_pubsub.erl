@@ -70,7 +70,7 @@
          disco_local_identity/5, disco_local_features/5,
          disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1,
-         handle_remote_hook_call/4]).
+         handle_remote_hook/4]).
 
 %% exported iq handlers
 -export([iq_sm/4]).
@@ -371,7 +371,7 @@ pep_hooks() ->
      {disco_sm_features, disco_sm_features, 75},
      {disco_sm_items, disco_sm_items, 75},
      {filter_local_packet, handle_pep_authorization_response, 1},
-     {c2s_remote_hook_call, handle_remote_hook_call, 100}
+     {c2s_remote_hook, handle_remote_hook, 100}
     ].
 
 add_pep_iq_handlers(ServerHost, Opts) ->
@@ -763,7 +763,7 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
 %% callback for remote hook calls, to distribute pep messages from the node owner c2s process
 %%
 
-handle_remote_hook_call(HandlerState, pep_message, {Feature, From, Packet}, C2SState) ->
+handle_remote_hook(HandlerState, pep_message, {Feature, From, Packet}, C2SState) ->
     Host = ejabberd_c2s_state:server(C2SState),
     Recipients = mongoose_hooks:c2s_broadcast_recipients(Host,
                                                          [],
@@ -771,7 +771,7 @@ handle_remote_hook_call(HandlerState, pep_message, {Feature, From, Packet}, C2SS
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
                   lists:usort(Recipients)),
     HandlerState;
-handle_remote_hook_call(HandlerState, _, _, _) ->
+handle_remote_hook(HandlerState, _, _, _) ->
     HandlerState.
 
 %% -------
@@ -3640,9 +3640,9 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(Publisher)]),
-            ejabberd_c2s:call_remote_hook(C2SPid,
-                                          pep_message,
-                                          {<<((Node))/binary, "+notify">>,
+            ejabberd_c2s:run_remote_hook(C2SPid,
+                                         pep_message,
+                                         {<<((Node))/binary, "+notify">>,
                                            jid:make(LUser, LServer, <<"">>),
                                            add_extended_headers(Stanza, ReplyTo)});
         _ ->

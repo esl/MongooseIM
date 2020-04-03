@@ -43,8 +43,8 @@
          store_session_info/3,
          remove_session_info/3,
          get_info/1,
-         call_remote_hook/3,
-         call_remote_hook_after/4]).
+         run_remote_hook/3,
+         run_remote_hook_after/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -158,11 +158,11 @@ store_session_info(FsmRef, JID, KV) ->
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
 
-call_remote_hook(Pid, Tag, Args) ->
-    Pid ! {call_remote_hook, Tag, Args}.
+run_remote_hook(Pid, HandlerName, Args) ->
+    Pid ! {run_remote_hook, HandlerName, Args}.
 
-call_remote_hook_after(Delay, Pid, Tag, Args) ->
-    erlang:send_after(Delay, Pid, {call_remote_hook, Tag, Args}).
+run_remote_hook_after(Delay, Pid, HandlerName, Args) ->
+    erlang:send_after(Delay, Pid, {run_remote_hook, HandlerName, Args}).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -1150,19 +1150,17 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             ejabberd_router:route(From, To, FinalPacket),
             fsm_next_state(StateName, StateData)
     end;
-handle_incoming_message({call_remote_hook, Tag, Args}, StateName, StateData) ->
+handle_incoming_message({run_remote_hook, HandlerName, Args}, StateName, StateData) ->
     Host = ejabberd_c2s_state:server(StateData),
-    HandlerState = maps:get(Tag, StateData#state.handlers, empty_state),
-    case mongoose_hooks:c2s_remote_hook_call(Host, Tag, Args, HandlerState, StateData) of
+    HandlerState = maps:get(HandlerName, StateData#state.handlers, empty_state),
+    case mongoose_hooks:c2s_remote_hook(Host, HandlerName, Args, HandlerState, StateData) of
         {error, E} ->
             ?ERROR_MSG("event=custom_c2s_hook_handler_error tag=~p,data=~p "
                        "extra=~p reason=~p",
-                       [Tag, Args, HandlerState, E]),
-            fsm_next_state(StateName, StateData);
-        HandlerState ->
+                       [HandlerName, Args, HandlerState, E]),
             fsm_next_state(StateName, StateData);
         NewHandlerState ->
-            NewStates = maps:put(Tag, NewHandlerState, StateData#state.handlers),
+            NewStates = maps:put(HandlerName, NewHandlerState, StateData#state.handlers),
             fsm_next_state(StateName, StateData#state{handlers = NewStates})
     end;
 handle_incoming_message(Info, StateName, StateData) ->
