@@ -42,13 +42,11 @@
 -type scram_map() ::
     #{salt := binary(),
       iteration_count := non_neg_integer(),
-      sha := #{server_key := binary(), stored_key := binary()}}.
+      sha_key() := server_and_stored_key_type()}.
 
--type muilti_scram_map() ::
-    #{salt := binary(),
-      iteration_count := non_neg_integer(),
-      sha    := #{server_key := binary(), stored_key := binary()},
-      sha256 := #{server_key := binary(), stored_key := binary()}}.
+-type sha_key() :: sha | sha256.
+
+-type server_and_stored_key_type() :: #{server_key := binary(), stored_key := binary()}.
 
 -type scram() :: #scram{}.
 
