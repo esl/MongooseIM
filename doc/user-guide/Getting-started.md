@@ -134,7 +134,7 @@ mongooseimctl  unregister dan localhost
 
 ### Populate the contact lists (rosters)
 
-Fo a given user (`localuser` and `localserver`), add a contact (`user` and `server`):
+For a given user (`localuser` and `localserver`), add a contact (`user` and `server`):
 ```bash
 mongooseimctl add_rosteritem localuser localserver user server nick group subs 
 ```
