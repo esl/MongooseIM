@@ -80,7 +80,7 @@ check_password(LUser, LServer, Password) ->
     case do_get_password(LUser, LServer) of
         false ->
             false;
-        #scram{} = Scram ->
+        Scram when is_record(Scram, scram) orelse is_map(Scram)->
             mongoose_scram:check_password(Password, Scram);
         Password when is_binary(Password) ->
             Password /= <<"">>;
@@ -97,7 +97,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
     case do_get_password(LUser, LServer) of
         false ->
             false;
-        #scram{} = Scram ->
+        Scram when is_record(Scram, scram) orelse is_map(Scram) ->
             mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         PassRiak when is_binary(PassRiak) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, PassRiak)
@@ -146,8 +146,10 @@ get_password(LUser, LServer) ->
     case do_get_password(LUser, LServer) of
         false ->
             false;
+        Scram when is_map(Scram) ->
+            Scram;
         #scram{} = Scram ->
-            mongoose_scram:scram_to_tuple(Scram);
+            mongoose_scram:scram_record_to_map(Scram);
         Password ->
             Password
     end.
