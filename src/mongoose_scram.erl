@@ -237,7 +237,10 @@ scram_record_to_map(Scram) ->
                server_key => Scram#scram.serverkey}}.
 
 -spec check_digest(Scram, binary(), fun(), binary()) -> boolean() when
-    Scram :: scram_map().
+    Scram :: scram_map() | scram().
+check_digest(Scram, Digest, DigestGen, Password) when is_record(Scram, scram) ->
+    ScramMap = scram_record_to_map(Scram),
+    check_digest(ScramMap, Digest, DigestGen, Password);
 check_digest(ScramMap, Digest, DigestGen, Password) ->
     do_check_digest(supported_sha_types(), ScramMap, Digest, DigestGen, Password).
 

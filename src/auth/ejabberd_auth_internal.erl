@@ -138,13 +138,8 @@ check_password(LUser, LServer, Password) ->
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-        [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            Passwd = base64:decode(Scram#scram.storedkey),
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        % [#passwd{password = Params}] when is_map(Params) ->
-        %     % Passwd = base64:decode(Scram#scram.storedkey),
-        %     % TODO: modify check_digest to check digest over all params
-        %     ejabberd_auth:check_digest(Digest, DigestGen, Password, Params);
+        [#passwd{password = Scram}] when is_record(Scram, scram) orelse is_map(Scram) ->
+            mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         [#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
