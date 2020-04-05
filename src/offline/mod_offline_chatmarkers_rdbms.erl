@@ -30,7 +30,12 @@ get(#jid{lserver = Host} = Jid) ->
     {selected, Rows} = mongoose_rdbms:sql_query(Host, SelectQuery),
     decode(Rows).
 
-
+%%% @doc
+%%% Jid, Thread, and Room parameters serve as a composite database key. If
+%%% key is not available in the database, then it must be added with the
+%%% corresponding timestamp. Otherwise this function does nothing, the stored
+%%% timestamp for the composite key MUST remain unchanged!
+%%% @end
 -spec maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
                   Room :: undefined | jid:jid(), TS :: erlang:timestamp()) -> ok.
 maybe_store(#jid{lserver = Host} = Jid, Thread, Room, TS) ->
@@ -67,7 +72,7 @@ escape_string(String) ->
 escape_int(Int) ->
     mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
-%% add new record if key not available, otherwise no changes to the table
+%% add new record if key is not available, otherwise no changes to the table
 check_insert_result({error,duplicate_key}) -> ok;
 check_insert_result({updated, 1}) -> ok;
 check_insert_result(Result) ->

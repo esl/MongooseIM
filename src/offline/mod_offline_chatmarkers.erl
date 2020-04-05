@@ -1,7 +1,26 @@
 %%%----------------------------------------------------------------------------
 %%% @copyright (C) 2020, Erlang Solutions Ltd.
 %%% @doc
-%%%   this module optimizes offline storage for chat markers
+%%%   This module optimizes offline storage for chat markers in the next way:
+%%%
+%%%      1) It filters out chat marker packets processed by mod_smart_markers:
+%%%          * These packets can be identified by the extra permanent Acc
+%%%            timestamp field added by mod_smart_markers.
+%%%          * These packets are not going to mod_offline (notice the
+%%%            difference in priorities for offline_message_hook handlers)
+%%%          * The information about these chat markers is stored in DB,
+%%%            timestamp added by mod_smart_markers is important here!
+%%%
+%%%      2) After all the offline messages are inserted by mod_offline (notice
+%%%         the difference in priorities for the resend_offline_messages_hook
+%%%         handlers), this module adds the latest chat markers as the last
+%%%         offline messages:
+%%%          * It extracts chat markers data stored for the user in the DB
+%%%            (with timestamps)
+%%%          * Requests cached chat markers from mod_smart_markers that has
+%%%            timestamp older or equal to the stored one.
+%%%          * Generates and inserts chat markers as the last offline messages
+%%%
 %%% @end
 %%%----------------------------------------------------------------------------
 -module(mod_offline_chatmarkers).
@@ -28,6 +47,12 @@
 -callback get(Jid :: jid:jid()) -> {ok, [{Thread :: undefined | binary(),
                                           Room :: undefined | jid:jid(),
                                           TS :: erlang:timestamp()}]}.
+%%% @doc
+%%% Jid, Thread, and Room parameters serve as a composite database key. If
+%%% key is not available in the database, then it must be added with the
+%%% corresponding timestamp. Otherwise this function does nothing, the stored
+%%% timestamp for the composite key MUST remain unchanged!
+%%% @end
 -callback maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
                       Room :: undefined | jid:jid(), TS :: erlang:timestamp()) -> ok.
 -callback remove_user(Jid :: jid:jid()) -> ok.
@@ -40,7 +65,7 @@ deps(_,_)->
     [{mod_smart_markers, hard}].
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts)),
+    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts), [get, maybe_store]),
     mod_offline_chatmarkers_backend:init(Host, Opts),
     ejabberd_hooks:add(hooks(Host)),
     ok.

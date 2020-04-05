@@ -1,21 +1,22 @@
 %%%----------------------------------------------------------------------------
 %%% @copyright (C) 2020, Erlang Solutions Ltd.
 %%% @doc
-%%%   this module implements storage of the latest chat markers
-%%%   sent by the users. this can be used to optimize mod_offline
+%%%   This module implements storage of the latest chat markers
+%%%   sent by the users. This can be used to optimize mod_offline
 %%%   functionality, or to implement custom fetching protocol and
 %%%   avoid storage of chat markers in MAM.
 %%%
 %%%   Please be aware of the next implementation details:
 %%%
-%%%    1) current implementation is based on user_send_packet hook.
-%%%       it doesn't work for s2s connections, but usage of another
+%%%    1) Current implementation is based on user_send_packet hook.
+%%%       It doesn't work for s2s connections, but usage of another
 %%%       hook (e.g. filter_local_packet) makes implementation harder
 %%%       and results in multiple processing of one and the same
 %%%       chat marker notification (sent to different users by MUC).
-%%%       however that is the only possible way to deal with group
+%%%       However that is the only possible way to deal with group
 %%%       chat messages sent from the room to the user over s2s.
 %%%
+%%%       ```
 %%%                                            S2S
 %%%                                             +
 %%%                                             |
@@ -30,17 +31,23 @@
 %%%                +--------------------+       |
 %%%                                             |
 %%%                                             +
+%%%    '''
 %%%
 %%%    2) DB backend requires us to provide host information, and
 %%%       the host is always the recipient's server in case one2one
 %%%       messages, and a master domain of the MUC service in case
 %%%       of groupchat.
 %%%
-%%%    3) MUC light doesn't have message serialization! So it doesn't
+%%%    3) It is the client application's responsibility to ensure that
+%%%       chat markers move only forward. There is no verification of
+%%%       chat markers in this module, it just stores the latest chat
+%%%       marker information sent by the user.
+%%%
+%%%    4) MUC light doesn't have message serialization! So it doesn't
 %%%       guaranty one and the same message order for different users.
 %%%       This can result in a race condition situation when different
 %%%       users track (and mark) different messages as the last in a
-%%%       chat history. however, this is rare situation, and it self
+%%%       chat history. However, this is a rare situation, and it self
 %%%       recovers on the next message in the room. Anyway storing chat
 %%%       markers in MAM doesn't fix this problem.
 %%%
@@ -83,14 +90,18 @@
 %%--------------------------------------------------------------------
 -callback init(Host :: jid:lserver(), Opts :: proplists:proplist()) -> ok.
 
-%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
-%% as composite database key. if key is not available in the database, then
-%% chat marker must be added. otherwise this function should update chat
-%% marker record for that composite key.
+%%% @doc
+%%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
+%%% as a composite database key. If key is not available in the database,
+%%% then chat marker must be added. Otherwise this function must update
+%%% chat marker record for that composite key.
+%%% @end
 -callback update_chat_marker(Host :: jid:lserver(), ChatMarker :: chat_marker()) -> ok.
 
-%% this function must return the latest chat markers sent to the
-%% user/room (with or w/o thread) later than provided timestamp.
+%%% @doc
+%%% This function must return the latest chat markers sent to the
+%%% user/room (with or w/o thread) later than provided timestamp.
+%%% @end
 -callback get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
                            Thread :: maybe_thread(), TS :: erlang:timestamp()) ->
                               [chat_marker()].
@@ -100,7 +111,8 @@
 %%--------------------------------------------------------------------
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts)),
+    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts),
+                                 [get_chat_markers, update_chat_marker]),
     mod_smart_markers_backend:init(Host, Opts),
     ejabberd_hooks:add(hooks(Host)).
 
@@ -209,7 +221,7 @@ is_valid_message(From, To, Packet) ->
 get_host(groupchat, SubHost) ->
     case mongoose_subhosts:get_host(SubHost) of
         undefined -> false;
-        {ok,Host} -> {true,Host}
+        {ok, Host} -> {true, Host}
     end;
 get_host(one2one, Host) ->
     Hosts = ejabberd_config:get_global_option(hosts),
@@ -220,7 +232,7 @@ get_host(one2one, Host) ->
 
 -spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
-    ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
+    mongoose_hooks:can_access_room(Room#jid.lserver, false, Room, User).
 
 add_default_backend(Opts) ->
     case lists:keyfind(backend, 2, Opts) of

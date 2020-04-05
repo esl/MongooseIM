@@ -1,8 +1,7 @@
 %%%----------------------------------------------------------------------------
 %%% @copyright (C) 2020, Erlang Solutions Ltd.
 %%% @doc
-%%%    mnesia backend for mod_smart_markers,
-%%%    prototyping only
+%%%    RDBMS backend for mod_smart_markers
 %%% @end
 %%%----------------------------------------------------------------------------
 -module(mod_smart_markers_rdbms).
@@ -24,17 +23,21 @@ init(Host, _) ->
                                  InsertFields, UpdateFields, KeyFields),
     ok.
 
-%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
-%% as composite database key. if key is not available in the database, then
-%% chat marker must be added. otherwise this function should update chat
-%% marker record for that composite key.
+%%% @doc
+%%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
+%%% as a composite database key. If key is not available in the database,
+%%% then chat marker must be added. Otherwise this function must update
+%%% chat marker record for that composite key.
+%%% @end
 -spec update_chat_marker(Host :: jid:lserver(),
                          ChatMarker :: mod_smart_markers:chat_marker()) -> ok.
 update_chat_marker(Host, ChatMarker) ->
     do_update_chat_marker(Host, ChatMarker).
 
-%% this function must return the latest chat markers sent to the
-%% user/room (with or w/o thread) later than provided timestamp.
+%%% @doc
+%%% This function must return the latest chat markers sent to the
+%%% user/room (with or w/o thread) later than provided timestamp.
+%%% @end
 -spec get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
                        Thread :: mod_smart_markers:maybe_thread(),
                        TS :: erlang:timestamp()) -> [mod_smart_markers:chat_marker()].
