@@ -38,10 +38,12 @@
 -export([
          set/3,
          set/4,
+         set_permanent/2,
          set_permanent/3,
          set_permanent/4,
          append/4,
          get_permanent_keys/1,
+         get_permanent_fields/1,
          get/2,
          get/3,
          get/4,
@@ -105,6 +107,7 @@
        }.
 
 -type ns_key() :: {NS :: any(), Key :: any()}.
+-type ns_key_value() :: {Namespace :: any(), K :: any(), V :: any()}.
 
 %% --------------------------------------------------------
 %% API
@@ -218,6 +221,13 @@ set_permanent(NS, [{K, V} | T], Acc) ->
     NewAcc = set_permanent(NS, K, V, Acc),
     set_permanent(NS, T, NewAcc).
 
+-spec set_permanent([ns_key_value()], Acc :: t()) -> t().
+set_permanent([], #{mongoose_acc := true} = Acc) ->
+    Acc;
+set_permanent([{NS, K, V} | T], Acc) ->
+    NewAcc = set_permanent(NS, K, V, Acc),
+    set_permanent(T, NewAcc).
+
 -spec append(NS :: any(), Key :: any(), Val :: any() | [any()], Acc :: t()) -> t().
 append(NS, Key, Val, Acc) ->
     OldVal = get(NS, Key, [], Acc),
@@ -226,6 +236,11 @@ append(NS, Key, Val, Acc) ->
 -spec get_permanent_keys(Acc :: t()) -> [ns_key()].
 get_permanent_keys(#{mongoose_acc := true, non_strippable := NonStrippable}) ->
     NonStrippable.
+
+-spec get_permanent_fields(Acc :: t()) -> [ns_key_value()].
+get_permanent_fields(Acc) ->
+    [{NS, Key, mongoose_acc:get(NS, Key, Acc)} ||
+        {NS, Key} <- mongoose_acc:get_permanent_keys(Acc)].
 
 -spec get(Namespace :: any(), Acc :: t()) -> [{K :: any(), V :: any()}].
 get(NS, #{mongoose_acc := true} = Acc) ->

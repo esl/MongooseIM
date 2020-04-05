@@ -380,7 +380,7 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
     TimeStamp = get_or_build_timestamp_from_packet(Packet),
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
-    PermanentFields = get_permanent_fields(Acc),
+    PermanentFields = mongoose_acc:get_permanent_fields(Acc),
     Msg = #offline_msg{us = {LUser, LServer},
                        timestamp = TimeStamp,
                        expire = Expire,
@@ -537,7 +537,7 @@ is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
 
 compose_offline_message(#offline_msg{from = From, to = To, permanent_fields = PermanentFields},
                         Packet, Acc0) ->
-    Acc1 = set_permanent_fields(PermanentFields, Acc0),
+    Acc1 = mongoose_acc:set_permanent(PermanentFields, Acc0),
     Acc = mongoose_acc:update_stanza(#{element => Packet, from_jid => From, to_jid => To}, Acc1),
     {route, From, To, Acc}.
 
@@ -594,15 +594,6 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     Secs1 = S rem 1000000,
     {MegaSecs1, Secs1, 0}.
 
-get_permanent_fields(Acc) ->
-    [{NS, Key, mongoose_acc:get(NS, Key, Acc)} ||
-        {NS, Key} <- mongoose_acc:get_permanent_keys(Acc)].
-
-set_permanent_fields([], Acc) -> Acc;
-set_permanent_fields([{NS, Key, Value} | T], Acc) ->
-    NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
-    set_permanent_fields(T, NewAcc).
-
 config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

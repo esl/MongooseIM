@@ -240,16 +240,7 @@ make_handler_fun(Acc) ->
                                      element => Packet,
                                      from_jid => From,
                                      to_jid => To}),
-        PermanentFields = get_permanent_fields(Acc),
-        NewAcc = set_permanent_fields(PermanentFields, NewAcc0),
+        PermanentFields = mongoose_acc:get_permanent_fields(Acc),
+        NewAcc = mongoose_acc:set_permanent(PermanentFields, NewAcc0),
         ejabberd_router:route(From, To, NewAcc, Packet)
     end.
-
-get_permanent_fields(Acc) ->
-    [{NS, Key, mongoose_acc:get(NS, Key, Acc)} ||
-        {NS, Key} <- mongoose_acc:get_permanent_keys(Acc)].
-
-set_permanent_fields([], Acc) -> Acc;
-set_permanent_fields([{NS, Key, Value} | T], Acc) ->
-    NewAcc = mongoose_acc:set_permanent(NS, Key, Value, Acc),
-    set_permanent_fields(T, NewAcc).
