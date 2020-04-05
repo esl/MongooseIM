@@ -70,7 +70,7 @@
 -type t() :: #{
         mongoose_acc := true,
         ref := reference(),
-        timestamp := erlang:timestamp(),
+        timestamp := integer(), %microsecond
         origin_pid := pid(),
         origin_location := location(),
         origin_stanza := binary() | undefined,
@@ -120,7 +120,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
     #{
       mongoose_acc => true,
       ref => make_ref(),
-      timestamp => os:timestamp(),
+      timestamp => os:system_time(microsecond),
       origin_pid => self(),
       origin_location => Location,
       origin_stanza => ElementBin,
@@ -136,7 +136,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
 ref(#{ mongoose_acc := true, ref := Ref }) ->
     Ref.
 
--spec timestamp(Acc :: t()) -> erlang:timestamp().
+-spec timestamp(Acc :: t()) -> integer().
 timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
     TS.
 

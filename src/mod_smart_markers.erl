@@ -80,7 +80,7 @@
                          to := jid:jid(),
                          thread := maybe_thread(), %%it is not optional!!!
                          type := chat_marker_type(),
-                         timestamp := erlang:timestamp(),
+                         timestamp := integer(), %microsecond
                          id := binary()}.
 
 -export_type([chat_marker/0]).
@@ -103,7 +103,7 @@
 %%% user/room (with or w/o thread) later than provided timestamp.
 %%% @end
 -callback get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
-                           Thread :: maybe_thread(), TS :: erlang:timestamp()) ->
+                           Thread :: maybe_thread(), Timestamp :: integer()) ->
                               [chat_marker()].
 
 %%--------------------------------------------------------------------
@@ -168,7 +168,7 @@ maybe_update_chat_markers(Host, Acc, From, To, Packet) ->
             mongoose_acc:set_permanent(?MODULE, timestamp, TS, Acc)
     end.
 
--spec extract_chat_markers(erlang:timestamp(), From :: jid:jid(), To :: jid:jid(),
+-spec extract_chat_markers(Timestamp::integer(), From :: jid:jid(), To :: jid:jid(),
                            Packet :: exml:element()) -> [chat_marker()].
 extract_chat_markers(TS, From, To, Packet) ->
     case get_chat_markers(Packet) of

@@ -46,7 +46,7 @@
 -callback init(Host :: jid:lserver(), Opts :: list()) -> ok.
 -callback get(Jid :: jid:jid()) -> {ok, [{Thread :: undefined | binary(),
                                           Room :: undefined | jid:jid(),
-                                          TS :: erlang:timestamp()}]}.
+                                          Timestamp :: integer()}]}.
 %%% @doc
 %%% Jid, Thread, and Room parameters serve as a composite database key. If
 %%% key is not available in the database, then it must be added with the
@@ -54,7 +54,7 @@
 %%% timestamp for the composite key MUST remain unchanged!
 %%% @end
 -callback maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
-                      Room :: undefined | jid:jid(), TS :: erlang:timestamp()) -> ok.
+                      Room :: undefined | jid:jid(), Timestamp :: integer()) -> ok.
 -callback remove_user(Jid :: jid:jid()) -> ok.
 
 %% gen_mod callbacks
@@ -106,7 +106,7 @@ inspect_packet(Acc, From, To, Packet) ->
 maybe_store_chat_marker(Acc, From, To, Packet) ->
     case mongoose_acc:get(mod_smart_markers, timestamp, undefined, Acc) of
         undefined -> false;
-        {_, _, _} = Timestamp ->
+        Timestamp when is_integer(Timestamp)->
             Room = get_room(Acc, From),
             Thread = get_thread(Packet),
             mod_offline_chatmarkers_backend:maybe_store(To, Thread, Room, Timestamp),
