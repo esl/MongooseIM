@@ -90,18 +90,14 @@
 %%--------------------------------------------------------------------
 -callback init(Host :: jid:lserver(), Opts :: proplists:proplist()) -> ok.
 
-%%% @doc
-%%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
+%%% 'from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
 %%% as a composite database key. If key is not available in the database,
 %%% then chat marker must be added. Otherwise this function must update
 %%% chat marker record for that composite key.
-%%% @end
 -callback update_chat_marker(Host :: jid:lserver(), ChatMarker :: chat_marker()) -> ok.
 
-%%% @doc
 %%% This function must return the latest chat markers sent to the
 %%% user/room (with or w/o thread) later than provided timestamp.
-%%% @end
 -callback get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
                            Thread :: maybe_thread(), Timestamp :: integer()) ->
                               [chat_marker()].

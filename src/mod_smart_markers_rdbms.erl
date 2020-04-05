@@ -24,7 +24,7 @@ init(Host, _) ->
     ok.
 
 %%% @doc
-%%% 'from', 'to', 'thread' and 'type' keys of the chat_marker() map serve
+%%% 'from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
 %%% as a composite database key. If key is not available in the database,
 %%% then chat marker must be added. Otherwise this function must update
 %%% chat marker record for that composite key.
