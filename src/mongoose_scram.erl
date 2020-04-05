@@ -50,7 +50,7 @@
 
 -type scram() :: #scram{}.
 
--export_type([scram_tuple/0, scram/0, scram_map/0, muilti_scram_map/0]).
+-export_type([scram_tuple/0, scram/0, scram_map/0]).
 
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
@@ -161,19 +161,11 @@ check_password(Password, Scram) when is_record(Scram, scram)->
     (base64:decode(Scram#scram.storedkey) == StoredKey);
 check_password(Password, ScramMap) when is_map(ScramMap) ->
     #{salt := Salt, iteration_count := IterationCount} = ScramMap,
-    %TODO: change this check to verify for specific sha, not iterate over all supported
-    do_check_password(supported_sha_types(), Password, base64:decode(Salt), IterationCount, ScramMap).
-
-do_check_password([], _, _, _, _) ->
-    false;
-do_check_password([{Sha, _Prefix} | RemainingSha], Password, Salt, IterationCount, ScramMap) ->
+    [Sha | _] = [ShaKey || {ShaKey, _Prefix} <- supported_sha_types(),  maps:is_key(ShaKey, ScramMap)],
     #{Sha := #{stored_key := StoredKey}} = ScramMap,
-    SaltedPassword = salted_password(Sha, Password, Salt, IterationCount),
+    SaltedPassword = salted_password(Sha, Password, base64:decode(Salt), IterationCount),
     ClientStoredKey = stored_key(Sha, client_key(Sha, SaltedPassword)),
-    case ClientStoredKey == base64:decode(StoredKey) of
-        true -> true;
-        false -> do_check_password(RemainingSha, Password, Salt, IterationCount, ScramMap)
-    end.
+    ClientStoredKey == base64:decode(StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
                      salt = Salt, iterationcount = IterationCount})->
@@ -245,7 +237,7 @@ scram_record_to_map(Scram) ->
                server_key => Scram#scram.serverkey}}.
 
 -spec check_digest(Scram, binary(), fun(), binary()) -> boolean() when
-    Scram :: scram_map() | muilti_scram_map().
+    Scram :: scram_map().
 check_digest(ScramMap, Digest, DigestGen, Password) ->
     do_check_digest(supported_sha_types(), ScramMap, Digest, DigestGen, Password).
 
