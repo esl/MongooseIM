@@ -5,6 +5,46 @@
 set -eu pipefail
 IFS=$'\n\t'
 
+echo "Executing init scripts via 'mongooseimctl bootstrap'"
+# Fails, if exit code is wrong
+mongooseimctl bootstrap
+
+echo "Check, that bootstrap01-hello.sh script is executed"
+BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
+echo "$BOOTSTRAP_RESULT" | grep "Hello from"
+
+echo "Check, that print_install_dir works"
+MIM_DIR=$(mongooseimctl print_install_dir)
+test -d "$MIM_DIR"
+
+
+echo "Check, that bootstrap fails, if permissions are wrong"
+GOOD_SCRIPT="$MIM_DIR/scripts/bootstrap01-hello.sh"
+chmod "644" "$GOOD_SCRIPT"
+
+BAD_PERM_BOOTSTRAP_RESULT=$(mongooseimctl bootstrap || echo "It should fail")
+echo "$BAD_PERM_BOOTSTRAP_RESULT" | grep "It should fail"
+
+
+echo "Check, that bootstrap works without any scripts"
+rm "$MIM_DIR/scripts/"*
+mongooseimctl bootstrap
+
+
+echo "Check, that bootstrap fails, if any of bootstrap scripts fail"
+BAD_SCRIPT="$MIM_DIR/scripts/bootstrap02-fails.sh"
+cat << EOF > "$BAD_SCRIPT"
+#!/usr/bin/env bash
+
+cat this_file_is_missing_you
+EOF
+
+chmod 755 "$BAD_SCRIPT"
+
+BAD_BOOTSTRAP_RESULT=$(mongooseimctl bootstrap || echo "It should fail")
+echo "$BAD_BOOTSTRAP_RESULT" | grep "It should fail"
+
+
 echo "Starting mongooseim via 'mongooseimctl start'"
 mongooseimctl start
 

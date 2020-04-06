@@ -11,14 +11,15 @@ if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     exec runuser -l "$RUNNER_USER" -c "$0 $*"
 fi
 
-EJABBERD_DIR="${RUNNER_SCRIPT_DIR%/*}"
+MIM_DIR="${RUNNER_SCRIPT_DIR%/*}"
 EJABBERD_VMARGS_PATH="${RUNNER_ETC_DIR}"/vm.args
-START_ERL=`cat "$EJABBERD_DIR"/releases/start_erl.data`
+START_ERL=`cat "$MIM_DIR"/releases/start_erl.data`
 ERTS_VSN="${START_ERL% *}"
-ERTS_PATH="$EJABBERD_DIR/erts-$ERTS_VSN/bin"
+ERTS_PATH="$MIM_DIR/erts-$ERTS_VSN/bin"
 ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
-EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
+EJABBERD_EBIN_PATH="$MIM_DIR"/lib/mongooseim-*/ebin/
+SCRIPTS_DIR="$MIM_DIR"/scripts
 
 EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
@@ -90,6 +91,30 @@ manage_cluster()
         esac
 }
 
+# The function is executed in a new process
+run_scripts ()
+({
+    set -e
+    # Run scripts with prefix "$1" in order
+    export ERTS_PATH="$ERTS_PATH"
+    export MIM_DIR="$MIM_DIR"
+    export PATH="$ERTS_PATH:$PATH"
+    for i in `ls $SCRIPTS_DIR/$1* | sort -V`; do
+        echo "Execute $i"
+        $i
+    done
+})
+
+bootstrap ()
+{
+    run_scripts bootstrap
+}
+
+print_install_dir ()
+{
+    echo "$MIM_DIR"
+}
+
 start ()
 {
     "$RUNNER_SCRIPT_DIR"/mongooseim start
@@ -134,6 +159,9 @@ help ()
     echo "  join_cluster other_node_name                Add current node to cluster"
     echo "  leave_cluster                               Leave current node from the cluster"
     echo "  remove_from_cluster other_node_name         Remove dead node from the cluster"
+    echo "Extra Commands:"
+    echo "  bootstrap           Executes MongooseIM init scripts (used for initial configuration)"
+    echo "  print_install_dir   Prints path to MongooseIM release directory"
     echo ""
 }
 
@@ -340,6 +368,7 @@ do
 done
 
 case $1 in
+    'bootstrap') bootstrap;;
     'start') start;;
     'stop') stop;;
     'force_stop') force_stop;;
@@ -351,5 +380,6 @@ case $1 in
     'foreground') foreground;;
     'started') wait_for_status_file started 60 1 || true; wait_for_status 0 30 2;; # wait 30x2s before timeout
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
+    'print_install_dir') print_install_dir;;
     *) ctl $QUOTED_ARGS;;
 esac
