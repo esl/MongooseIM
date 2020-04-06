@@ -29,7 +29,7 @@
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
--export([start/2, stop/1, iq_handler/4]).
+-export([start/2, stop/1, iq_handler/4, get_urls/5]).
 
 %% Hook implementations
 -export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
@@ -41,7 +41,7 @@
 %%--------------------------------------------------------------------
 
 -callback create_slot(UTCDateTime :: calendar:datetime(), UUID :: binary(),
-                      Filename :: unicode:unicode_binary(), ContentType :: binary(),
+                      Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
                       Size :: pos_integer(), Opts :: proplists:proplist()) ->
     {PUTURL :: binary(), GETURL :: binary(), Headers :: #{binary() => binary()}}.
 
@@ -110,6 +110,17 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
     end,
     {Acc, Res}.
 
+
+-spec get_urls(Host :: jid:lserver(), Filename :: binary(), Size :: pos_integer(),
+               ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
+                  {PutURL :: binary(), GetURL :: binary(), Headers :: #{binary() => binary()}}.
+get_urls(Host, Filename, Size, ContentType, Timeout) ->
+    UTCDateTime = calendar:universal_time(),
+    Token = generate_token(Host),
+    Opts = module_opts(Host),
+    NewOpts = gen_mod:set_opt(expiration_time, Opts, Timeout),
+    mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
+                                        ContentType, Size, NewOpts).
 
 -spec get_disco_identity(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().

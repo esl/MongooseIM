@@ -25,7 +25,7 @@
 %%--------------------------------------------------------------------
 
 -spec create_slot(UTCDateTime :: calendar:datetime(), Token :: binary(),
-                  Filename :: unicode:unicode_binary(), ContentType :: binary(),
+                  Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
                   Size :: pos_integer(), Opts :: proplists:proplist()) ->
                          {PUTURL :: binary(), GETURL :: binary(),
                           Headers :: #{binary() => binary()}}.
