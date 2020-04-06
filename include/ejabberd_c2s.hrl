@@ -77,7 +77,7 @@
                 csi_buffer = [] :: [mongoose_acc:t()],
                 hibernate_after = 0 :: non_neg_integer(),
                 replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}],
-                info_handlers = #{} :: #{ term() => {module(), atom(), term()} }
+                handlers = #{} :: #{ term() => {module(), atom(), term()} }
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().

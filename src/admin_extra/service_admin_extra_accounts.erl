@@ -261,12 +261,12 @@ ban_account(User, Host, ReasonText) ->
             {error, ErrorReason}
     end.
 
--spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
+-spec kick_sessions(jid:user(), jid:server(), binary()) -> [ok].
 kick_sessions(User, Server, Reason) ->
     JID = jid:make(User, Server, <<>>),
     lists:map(
         fun(Resource) ->
-                service_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
+                service_admin_extra_sessions:kick_session(User, Server, Resource, Reason)
         end,
         ejabberd_sm:get_user_resources(JID)).
 

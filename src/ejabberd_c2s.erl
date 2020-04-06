@@ -29,6 +29,7 @@
 %% External exports
 -export([start/2,
          stop/1,
+         terminate_session/2,
          start_link/2,
          send_text/2,
          socket_type/0,
@@ -39,10 +40,11 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
-         broadcast/4,
          store_session_info/3,
          remove_session_info/3,
-         get_info/1]).
+         get_info/1,
+         run_remote_hook/3,
+         run_remote_hook_after/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -137,17 +139,30 @@ get_subscription(From = #jid{}, StateData) ->
 send_filtered(FsmRef, Feature, From, To, Packet) ->
     FsmRef ! {send_filtered, Feature, From, To, Packet}.
 
-broadcast(FsmRef, Type, From, Packet) ->
-    FsmRef ! {broadcast, Type, From, Packet}.
-
+%% @doc Stops the session gracefully, entering resume state if applicable
 stop(FsmRef) ->
     p1_fsm_old:send_event(FsmRef, closed).
+
+%% @doc terminates the session immediately and unconditionally, sending the user a stream conflict
+%% error specifying the reason
+terminate_session(none, _Reason) ->
+    no_session;
+terminate_session(#jid{} = Jid, Reason) ->
+    terminate_session(ejabberd_sm:get_session_pid(Jid), Reason);
+terminate_session(Pid, Reason) when is_pid(Pid) ->
+    Pid ! {exit, Reason}.
 
 store_session_info(FsmRef, JID, KV) ->
     FsmRef ! {store_session_info, JID, KV, self()}.
 
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
+
+run_remote_hook(Pid, HandlerName, Args) ->
+    Pid ! {run_remote_hook, HandlerName, Args}.
+
+run_remote_hook_after(Delay, Pid, HandlerName, Args) ->
+    erlang:send_after(Delay, Pid, {run_remote_hook, HandlerName, Args}).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -947,12 +962,6 @@ resume_session(resume, From, SD) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 
-handle_event({add_info_handler, Tag, InitialState}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:add_to_state(Tag, InitialState, StateData0),
-    fsm_next_state(StateName, StateData1);
-handle_event({remove_info_handler, Tag}, StateName, StateData0) ->
-    StateData1 = ejabberd_c2s_info_handler:remove_from_state(Tag, StateData0),
-    fsm_next_state(StateName, StateData1);
 handle_event(keep_alive_packet, session_established,
              #state{server = Server, jid = JID} = StateData) ->
     mongoose_hooks:user_sent_keep_alive(Server, JID),
@@ -1007,6 +1016,14 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 
 
 %%% system events
+handle_info({exit, Reason}, _StateName, StateData) ->
+    Lang = StateData#state.lang,
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => ejabberd_c2s_state:server(StateData),
+                              element => undefined }),
+    send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, Reason), StateData),
+    send_trailer(StateData),
+    {stop, normal, StateData};
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     StreamConflict = mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>),
@@ -1133,29 +1150,19 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             ejabberd_router:route(From, To, FinalPacket),
             fsm_next_state(StateName, StateData)
     end;
-handle_incoming_message({broadcast, Type, From, Packet}, StateName, StateData) ->
-    %% this version is used only by mod_pubsub, which does things the old way
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(StateData#state.server,
-                                                        [],
-                                                        StateData, Type, From, Packet),
-    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-        lists:usort(Recipients)),
-    fsm_next_state(StateName, StateData);
-handle_incoming_message({call_info_handler, Tag, Data}, StateName, StateData) ->
-    NStateData =
-    case ejabberd_c2s_info_handler:get_for(Tag, StateData) of
-        {Tag, HandlerState} ->
-            case ejabberd_c2s_info_handler:safe_call(Tag, Data, HandlerState, StateData) of
-                {error, _} ->
-                    StateData;
-                NStateData0 ->
-                    NStateData0
-            end;
-        no_handler ->
-            ?INFO_MSG("event=no_info_handler tag=~p host=~p", [Tag, ejabberd_c2s_state:server(StateData)]),
-            StateData
-    end,
-    fsm_next_state(StateName, NStateData);
+handle_incoming_message({run_remote_hook, HandlerName, Args}, StateName, StateData) ->
+    Host = ejabberd_c2s_state:server(StateData),
+    HandlerState = maps:get(HandlerName, StateData#state.handlers, empty_state),
+    case mongoose_hooks:c2s_remote_hook(Host, HandlerName, Args, HandlerState, StateData) of
+        {error, E} ->
+            ?ERROR_MSG("event=custom_c2s_hook_handler_error tag=~p,data=~p "
+                       "extra=~p reason=~p",
+                       [HandlerName, Args, HandlerState, E]),
+            fsm_next_state(StateName, StateData);
+        NewHandlerState ->
+            NewStates = maps:put(HandlerName, NewHandlerState, StateData#state.handlers),
+            fsm_next_state(StateName, StateData#state{handlers = NewStates})
+    end;
 handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",
                [Info, StateName, ejabberd_c2s_state:server(StateData)]),
@@ -1336,8 +1343,6 @@ handle_routed_iq(_From, _To, Acc, IQ, StateData)
 handle_routed_broadcast(Acc, {item, IJID, ISubscription}, StateData) ->
     {Acc2, NewState} = roster_change(Acc, IJID, ISubscription, StateData),
     {Acc2, {new_state, NewState}};
-handle_routed_broadcast(Acc, {exit, Reason}, _StateData) ->
-    {Acc, {exit, Reason}};
 handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
     case mongoose_hooks:privacy_updated_list(StateData#state.server,
                                  false, StateData#state.privacy_list, PrivList) of
@@ -1363,11 +1368,6 @@ handle_routed_broadcast(Acc, _, StateData) ->
 -spec handle_broadcast_result(mongoose_acc:t(), broadcast_result(), StateName :: atom(),
     StateData :: state()) ->
     any().
-handle_broadcast_result(Acc, {exit, ErrorMessage}, _StateName, StateData) ->
-    Lang = StateData#state.lang,
-    send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, ErrorMessage), StateData),
-    send_trailer(StateData),
-    {stop, normal, StateData};
 handle_broadcast_result(Acc, {send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
     {Act, _, NewStateData} = ship_to_local_user(Acc, {From, To, Stanza}, NewState),
     finish_state(Act, StateName, NewStateData);

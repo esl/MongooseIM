@@ -226,11 +226,10 @@ commands() ->
 
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
-    ejabberd_sm:route(
-      jid:make(<<"">>, <<"">>, <<"">>),
-      J,
-      {broadcast, {exit, <<"kicked">>}}),
-    <<"kicked">>.
+    case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
+        no_session -> <<"no active session">>;
+        {exit, <<"kicked">>} -> <<"kicked">>
+    end.
 
 list_sessions(Host) ->
     Lst = ejabberd_sm:get_vh_session_list(Host),
