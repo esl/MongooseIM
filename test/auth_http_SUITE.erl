@@ -188,8 +188,8 @@ get_password(_Config) ->
             <<"makota">> = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1),
             <<"makota">> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1);
         true ->
-            % tuple with SCRAM data
-            {_, _, _, _} = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1),
+            % map with SCRAM data
+            is_map(ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1)),
             <<>> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1)
     end,
     false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN1),
@@ -199,7 +199,7 @@ is_user_exists(_Config) ->
     true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
     false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).
 
-% remove_user/2,3
+% remove_user/2
 remove_user(_Config) ->
     true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
     ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN1),
