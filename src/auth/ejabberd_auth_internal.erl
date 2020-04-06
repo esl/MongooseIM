@@ -58,7 +58,7 @@
 
 -type passwd() :: #passwd{
                      us :: jid:simple_bare_jid(),
-                     password :: binary() | #scram{}
+                     password :: binary() | #scram{} | mongoose_scram:scram_map()
                     }.
 
 -record(reg_users_counter, {vhost, count}).
@@ -119,9 +119,7 @@ authorize(Creds) ->
 check_password(LUser, LServer, Password) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-        [#passwd{password = Params}] when is_map(Params) ->
-            mongoose_scram:check_password(Password, Params);
-        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+        [#passwd{password = Scram}] when is_map(Scram) orelse is_record(Scram, scram) ->
             mongoose_scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
             Password /= <<>>;

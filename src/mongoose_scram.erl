@@ -6,17 +6,11 @@
 % Core SCRAM functions
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
 -export([
-         salted_password/3,
          salted_password/4,
-         stored_key/1,
          stored_key/2,
-         server_key/1,
          server_key/2,
-         server_signature/2,
          server_signature/3,
-         client_signature/2,
          client_signature/3,
-         client_key/1,
          client_key/2,
          client_proof_key/2]).
 
@@ -59,35 +53,21 @@
 -define(SCRAM_SHA_PREFIX,     "===SHA1===").
 -define(SCRAM_SHA256_PREFIX,  "==SHA256==").
 
--spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
-salted_password(Password, Salt, IterationCount) ->
-    hi(sha, jid:resourceprep(Password), Salt, IterationCount).
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
     hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
--spec client_key(binary()) -> binary().
-client_key(SaltedPassword) ->
-    crypto:hmac(sha, SaltedPassword, <<"Client Key">>).
 -spec client_key(sha_type(), binary()) -> binary().
 client_key(Sha, SaltedPassword) when Sha == sha orelse Sha == sha256 ->
     crypto:hmac(Sha, SaltedPassword, <<"Client Key">>).
 
--spec stored_key(binary()) -> binary().
-stored_key(ClientKey) -> crypto:hash(sha, ClientKey).
 -spec stored_key(sha_type(), binary()) -> binary().
 stored_key(Sha, ClientKey) -> crypto:hash(Sha, ClientKey).
 
--spec server_key(binary()) -> binary().
-server_key(SaltedPassword) ->
-    crypto:hmac(sha, SaltedPassword, <<"Server Key">>).
 -spec server_key(sha_type(), binary()) -> binary().
 server_key(Sha, SaltedPassword) ->
     crypto:hmac(Sha, SaltedPassword, <<"Server Key">>).
 
--spec client_signature(binary(), binary()) -> binary().
-client_signature(StoredKey, AuthMessage) ->
-    crypto:hmac(sha, StoredKey, AuthMessage).
 -spec client_signature(sha_type(), binary(), binary()) -> binary().
 client_signature(Sha, StoredKey, AuthMessage) ->
     crypto:hmac(Sha, StoredKey, AuthMessage).
@@ -96,9 +76,6 @@ client_signature(Sha, StoredKey, AuthMessage) ->
 client_proof_key(ClientProof, ClientSignature) ->
     mask(ClientProof, ClientSignature).
 
--spec server_signature(binary(), binary()) -> binary().
-server_signature(ServerKey, AuthMessage) ->
-    crypto:hmac(sha, ServerKey, AuthMessage).
 -spec server_signature(sha_type(), binary(), binary()) -> binary().
 server_signature(Sha, ServerKey, AuthMessage) ->
     crypto:hmac(Sha, ServerKey, AuthMessage).
@@ -136,8 +113,7 @@ password_to_scram(Password) ->
     password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
 password_to_scram(#scram{} = Password, _) ->
-    %TODO: check if this is still correct
-    Password;
+    scram_record_to_map(Password);
 password_to_scram(Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     ServerStoredKeys = [password_to_scram(Password, Salt, IterationCount, HashType)
@@ -154,11 +130,8 @@ password_to_scram(Password, Salt, IterationCount, HashType) ->
                  stored_key => base64:encode(StoredKey)}}.
 
 check_password(Password, Scram) when is_record(Scram, scram)->
-    IterationCount = Scram#scram.iterationcount,
-    Salt = base64:decode(Scram#scram.salt),
-    SaltedPassword = salted_password(Password, Salt, IterationCount),
-    StoredKey = stored_key(client_key(SaltedPassword)),
-    (base64:decode(Scram#scram.storedkey) == StoredKey);
+    ScramMap = scram_record_to_map(Scram),
+    check_password(Password, ScramMap);
 check_password(Password, ScramMap) when is_map(ScramMap) ->
     #{salt := Salt, iteration_count := IterationCount} = ScramMap,
     [Sha | _] = [ShaKey || {ShaKey, _Prefix} <- supported_sha_types(),  maps:is_key(ShaKey, ScramMap)],
