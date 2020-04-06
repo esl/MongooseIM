@@ -506,10 +506,9 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                lists:keydelete(
                                  certfile, 1, StateData#state.tls_options)]
                       end,
-            Socket = StateData#state.socket,
-            TLSSocket = (StateData#state.sockmod):starttls(
-                                                    Socket, TLSOpts,
-                                                    exml:to_binary(tls_proceed())),
+            TLSSocket = mongoose_transport:starttls(StateData#state.sockmod,
+                                                    StateData#state.socket,
+                                                    TLSOpts, exml:to_binary(tls_proceed())),
             fsm_next_state(wait_for_stream,
                            StateData#state{socket = TLSSocket,
                                            streamid = new_id(),

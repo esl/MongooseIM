@@ -29,6 +29,8 @@
 
 -callback starttls(Transport :: t(), TLSOpts :: list()) -> t().
 
+-callback starttls(Transport :: t(), TLSOpts :: list(), Data :: binary()) -> t().
+
 -callback monitor(Transport :: t()) -> MonitorRef :: reference().
 
 -callback send_xml(Transport :: t(), Data :: send_xml_input()) -> ok.
@@ -39,11 +41,14 @@
 %% API
 %%----------------------------------------------------------------------
 
--export([starttls/3, monitor/2, send_xml/3, peername/2,
+-export([starttls/3, starttls/4, monitor/2, send_xml/3, peername/2,
          get_peer_certificate/2]).
 
 -spec starttls(TransportMod :: module(), Transport :: t(), TLSOpts :: list()) -> t().
 starttls(TransportMod, Transport, TLSOpts) -> TransportMod:starttls(Transport, TLSOpts).
+
+-spec starttls(TransportMod :: module(), Transport :: t(), TLSOpts :: list(), binary()) -> t().
+starttls(TransportMod, Transport, TLSOpts, Data) -> TransportMod:starttls(Transport, TLSOpts, Data).
 
 -spec monitor(TransportMod :: module(), Transport :: t()) -> reference().
 monitor(TransportMod, Transport) -> TransportMod:monitor(Transport).
