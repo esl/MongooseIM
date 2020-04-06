@@ -359,10 +359,13 @@ remove_user(LUser, LServer) ->
 %%% SCRAM
 %%%------------------------------------------------------------------
 
--spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
-    prepared_scrammed_password().
-prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+-spec prepare_scrammed_password(Iterations, Password, Server) ->
+    prepared_scrammed_password() when
+        Iterations :: pos_integer(),
+        Password :: binary(),
+        Server :: jid:lserver().
+prepare_scrammed_password(Iterations, Password, Server) when is_integer(Iterations) ->
+    Scram = mongoose_scram:password_to_scram(Password, Iterations, Server),
     PassDetails = mongoose_scram:serialize(Scram),
     PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
     EmptyPassword = mongoose_rdbms:escape_string(<<>>),
@@ -374,7 +377,7 @@ prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
 prepare_password(Server, Password) ->
     case mongoose_scram:enabled(Server) of
         true ->
-            prepare_scrammed_password(mongoose_scram:iterations(Server), Password);
+            prepare_scrammed_password(mongoose_scram:iterations(Server), Password, Server);
         _ ->
             mongoose_rdbms:escape_string(Password)
     end.
@@ -403,7 +406,7 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
             lists:foreach(
               fun({Username, Password}) ->
                       ScrammedPassword = prepare_scrammed_password(ScramIterationCount,
-                                                                   Password),
+                                                                   Password, LServer),
                       write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
               end, Results),
             ?INFO_MSG("Scrammed. Waiting for ~pms", [Interval]),

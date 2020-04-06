@@ -95,7 +95,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
 set_password(LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(LServer) of
                         true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(
-                                                  Password, mongoose_scram:iterations(LServer)));
+                                                  Password, mongoose_scram:iterations(LServer), LServer));
                         false -> Password
                     end,
     case make_req(post, <<"set_password">>, LUser, LServer, PasswordFinal) of
@@ -109,7 +109,7 @@ set_password(LUser, LServer, Password) ->
 try_register(LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(LServer) of
                         true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(
-                                                  Password, mongoose_scram:iterations(LServer)));
+                                                  Password, mongoose_scram:iterations(LServer), LServer));
                         false -> Password
                     end,
     case make_req(post, <<"register">>, LUser, LServer, PasswordFinal) of

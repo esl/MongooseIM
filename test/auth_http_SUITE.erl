@@ -258,7 +258,7 @@ meck_cleanup() ->
 do_scram(Pass, Config) ->
     case lists:keyfind(scram_group, 1, Config) of
         {_, true} ->
-            mongoose_scram:serialize(mongoose_scram:password_to_scram(Pass, mongoose_scram:iterations(?DOMAIN1)));
+            mongoose_scram:serialize(mongoose_scram:password_to_scram(Pass, mongoose_scram:iterations(?DOMAIN1), ?DOMAIN1));
         _ ->
             Pass
     end.

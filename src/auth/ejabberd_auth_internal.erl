@@ -153,7 +153,7 @@ set_password(LUser, LServer, Password) ->
     F = fun() ->
         Password2 = case mongoose_scram:enabled(LServer) of
                         true ->
-                            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer));
+                            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer), LServer);
                         false -> Password
                     end,
         write_passwd(#passwd{us = US, password = Password2})
@@ -326,7 +326,7 @@ scram_passwords() ->
 
 -spec scramming_function(passwd()) -> passwd().
 scramming_function(#passwd{us = {_, Server}, password = Password} = P) ->
-    Scram = mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(Server)),
+    Scram = mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(Server), Server),
     P#passwd{password = Scram}.
 
 -spec dirty_read_passwd(US :: jid:simple_bare_jid()) -> [passwd()].
@@ -349,7 +349,7 @@ write_counter(#reg_users_counter{} = Counter) ->
 get_scram(LServer, Password) ->
     case mongoose_scram:enabled(LServer) and is_binary(Password) of
         true ->
-            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer));
+            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer), LServer);
         false -> Password
     end.
 

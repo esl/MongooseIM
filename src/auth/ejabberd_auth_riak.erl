@@ -224,15 +224,15 @@ do_set_password({ok, Map}, LUser, LServer, Password) ->
     UpdateMap = mongoose_riak:update_map(Map, Ops),
     mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UpdateMap)).
 
-prepare_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+prepare_password(Iterations, Password, Server) when is_integer(Iterations) ->
+    Scram = mongoose_scram:password_to_scram(Password, Iterations, Server),
     PassDetails = mongoose_scram:serialize(Scram),
-    {<<"">>, PassDetails};
+    {<<"">>, PassDetails}.
 
 prepare_password(Server, Password) ->
     case mongoose_scram:enabled(Server) of
         true ->
-            prepare_password(mongoose_scram:iterations(Server), Password);
+            prepare_password(mongoose_scram:iterations(Server), Password, Server);
         _ ->
             Password
     end.
