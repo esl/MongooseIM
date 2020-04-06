@@ -12,6 +12,8 @@ Hello from /Users/mikhailuvarov/erlang/esl/MongooseIM/_build/prod/rel/mongooseim
 MongooseIM is installed into /Users/mikhailuvarov/erlang/esl/MongooseIM/_build/prod/rel/mongooseim
 ```
 
+Execution of scripts stops with an error, if any of scripts fail.
+
 Environment variables, available from scripts:
 
 - `ERTS_PATH` - path to Erlang Runtime System, used by MongooseIM.

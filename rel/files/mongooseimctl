@@ -110,6 +110,11 @@ bootstrap ()
     run_scripts bootstrap
 }
 
+print_install_dir ()
+{
+    echo "$MIM_DIR"
+}
+
 start ()
 {
     "$RUNNER_SCRIPT_DIR"/mongooseim start
@@ -146,7 +151,6 @@ help ()
 {
     echo ""
     echo "Commands to start a MongooseIM node:"
-    echo "  bootstrap       Executes MongooseIM init scripts (used for initial configuration)"
     echo "  start           Start a MongooseIM node as daemon (detached from terminal)"
     echo "  debug           Attach an interactive Erlang shell to a running MongooseIM node"
     echo "  live            Start MongooseIM node in live (interactive) mode"
@@ -155,6 +159,9 @@ help ()
     echo "  join_cluster other_node_name                Add current node to cluster"
     echo "  leave_cluster                               Leave current node from the cluster"
     echo "  remove_from_cluster other_node_name         Remove dead node from the cluster"
+    echo "Extra Commands:"
+    echo "  bootstrap           Executes MongooseIM init scripts (used for initial configuration)"
+    echo "  print_install_dir   Prints path to MongooseIM release directory"
     echo ""
 }
 
@@ -373,5 +380,6 @@ case $1 in
     'foreground') foreground;;
     'started') wait_for_status_file started 60 1 || true; wait_for_status 0 30 2;; # wait 30x2s before timeout
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
+    'print_install_dir') print_install_dir;;
     *) ctl $QUOTED_ARGS;;
 esac
