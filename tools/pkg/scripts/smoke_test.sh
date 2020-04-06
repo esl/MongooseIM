@@ -5,6 +5,14 @@
 set -eu pipefail
 IFS=$'\n\t'
 
+echo "Executing init scripts via 'mongooseimctl bootstrap'"
+# Fails, if exit code is wrong
+mongooseimctl bootstrap
+
+echo "Check, that bootstrap01-hello.sh script is executed"
+BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
+echo "$BOOTSTRAP_RESULT" | grep "Hello from"
+
 echo "Starting mongooseim via 'mongooseimctl start'"
 mongooseimctl start
 
