@@ -381,8 +381,8 @@ determine_features(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
     case can_use_tls(SockMod, TLS, TLSEnabled) of
         true ->
             case TLSRequired of
-                true -> [starttls(required)];
-                _    -> [starttls(optional)] ++ OtherFeatures
+                true -> [starttls_stanza(required)];
+                _    -> [starttls_stanza(optional)] ++ OtherFeatures
             end;
         false ->
             OtherFeatures
@@ -406,7 +406,7 @@ maybe_sasl_mechanisms(#state{server = Server} = S) ->
 hook_enabled_features(Server) ->
     mongoose_hooks:c2s_stream_features(Server, []).
 
-starttls(TLSRequired)
+starttls_stanza(TLSRequired)
   when TLSRequired =:= required;
        TLSRequired =:= optional ->
     #xmlel{name = <<"starttls">>,
