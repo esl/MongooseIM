@@ -146,6 +146,7 @@ help ()
 {
     echo ""
     echo "Commands to start a MongooseIM node:"
+    echo "  bootstrap       Executes MongooseIM init scripts (used for initial configuration)"
     echo "  start           Start a MongooseIM node as daemon (detached from terminal)"
     echo "  debug           Attach an interactive Erlang shell to a running MongooseIM node"
     echo "  live            Start MongooseIM node in live (interactive) mode"
