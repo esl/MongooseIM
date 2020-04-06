@@ -1,57 +1,123 @@
-### Module Description
+## Module Description
 
-This module is a backend of [mod_event_pusher] that implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
-It enables a service that notifies `PubSub` of a user's choice about every message that they could miss while being offline.
-There are two control stanzas that the client can send to this module: `enable` and `disable`.
-The `enable` stanza enables push notifications and forwards them to a specified `PubSub` node.
-This stanza may also contain an optional `Data Form` that will be added to each and every notification to `PubSub` node as `publish-options`.
-Please be sure to provide all form fields required by the specified `PubSub` node.
-Any publish error may result in disabling push notifications to this node.
+This module is a backend for [mod_event_pusher][] that implements
+[XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
+It provides push notification data to the service that delivers actual notifications
+to a client device.
 
-### Options
+We've prepared [a detailed tutorial][tutorial] for a proper push
+notifications setup on both client and server side.
+
+Please make sure that clients provide all form fields required by the specified `PubSub` node.
+Some publish errors may result in disabling push notifications for the specific device until it
+attempts to enable them again.
+
+This module is very easy to enable, just paste the following to your MongooseIM configuration file:
+
+```
+{mod_event_pusher, [
+  {backends, [
+    {push, [{wpool, [{workers, 100}]}]}
+  ]}
+]}.
+```
+
+And that's basically it. You have just enabled the push notification support
+with 100 asynchronous workers that will handle all push notification related work.
+
+
+## Options
 
 * **backend** (atom, default: `mnesia`) - Backend to use for storing the registrations.
- Currently only `mnesia` may be used.
+ Possible options are `mnesia` and `rdbms`.
 * **wpool** (list, default: `[]`) - List of options that will be passed to the `worker_pool` library that handles all the requests.
  Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
-* **plugin_module** (atom, default: `mod_event_pusher_push_plugin_defaults`) - module implementing `mod_event_pusher_push_plugin` behaviour,
-  used for dynamic configuration of push notifications. Read more about it [here](#plugin-module)
+* **plugin_module** (atom, default: `mod_event_pusher_push_plugin_defaults`) - module implementing
+  `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
+  See the [relevant section](#plugin-module) for more details.
+* **virtual_pubsub_hosts** (list of strings, default: `[]`) - a list of "simulated"
+  Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name. It will
+  automatically be replaced by a respective XMPP domain (e.g. `localhost`).
+  See the [relevant section](#virtual-pubsub-hosts) for more details.
 
-### Plugin module
+## Virtual PubSub hosts
 
-A plugin module handles dynamic configuration of push notifications. It implements `mod_event_pusher_push_plugin` behaviour which
-requires two callbacks:
+If a notification is published to one of the configured domains, the internal push notification hook
+is executed in MongooseIM instead of the XEP-0357 typical behaviour. If an existing PubSub domain
+is added to this list, it will be shadowed in the push notifications context. To ensure complete
+shadowing of all the PubSub subdomains we must use the `@HOSTS@` pattern, otherwise only the
+subdomain of the user is shadowed. It enables easy migration from PubSub-full deployments to
+PubSub-less variants.
 
-* `should_publish/3` - callback used for filtering push notifications. A push notification is triggered for given a message only if this
-callback returns `true`.
+### Migration from XEP-0357 to virtual hosts
 
-```
--spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
-```
-
-* `publish_notification/5` - does the actual push.
-  By default it pushes to the registered pubsub nodes.
-
-```
--spec publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
-                           To :: jid:jid(), Packet :: exml:element(),
-                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
-```
-
-
-
-### Example configuration
+This is an example of how you can migrate the existing setup to the new model. PubSub service still
+exists, just for the case of a user attempting to create a node. However, its domain is overridden
+for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
+option. `pubsub.@HOSTS@` is the default domain for `mod_pubsub`.
 
 ```Erlang
+{mod_pubsub, [{plugins, [<<"push">>]}]}, % mandatory minimal config
+
 {mod_event_pusher, [
     {backends, [
         {push, [
-            {backend, mnesia},
-            {wpool, [{workers, 200}]},
-            {plugin_module, mod_event_pusher_push_plugin_defaults}
+            {backend, mnesia}, % optional
+            {wpool, [{workers, 200}]}, % optional
+            {plugin_module, mod_event_pusher_push_plugin_defaults}, % optional
+            {virtual_pubsub_hosts, ["pubsub.@HOSTS@"]}
         ]}
     ]}
 ]}
 ```
 
+#### Advantages
+* Versatility: PubSub-less and PubSub-full mechanisms can be configured with different domains and
+  therefore give fine-grained control over the push notification handling
+* Takes advantage of the PubSub-less efficiency when told to do so
+* Fully compliant with [XEP-0357][] and therefore with most 3rd party client libraries
+* Ideal for migrations to PubSub-less deployments.
+
+#### Drawbacks
+* More complex configuration on the server side
+* Pays the PubSub performance penalty when the PubSub path is taken
+
+
+## Plugin module
+
+You can also control the format of the "sender" of the push notification (which ultimately becomes
+the title of push notification) and filter which messages will trigger the notification.
+In order to achieve that, you need to create a plugin module that implements the
+`mod_event_pusher_push_plugin` behaviour and enable this plugin in the `plugin_module` section as
+above.
+
+A plugin module handles the dynamic configuration of push notifications. 
+It contains the filtering and custom logic for notifying about messages.
+
+Two plugin implementations are provided.
+They offer different behaviour considering unacknowledged messages when using [Stream Management][XEP-0198]:
+
+
+* `mod_event_pusher_push_plugin_defaults`, which implements an older behaviour. It does not notify
+  the user of unacknowledged messages immediately after detecting a lost connection to the user.
+* `mod_event_pusher_push_plugin_enhanced`, which pushes notifications as soon as the server detects
+  that the client has disconnected and waits for stream resumption (by an `unack_msg_event` event
+  generated by the `unacknowledged_message` hook). This immediate notification prevents the unneeded
+  suspension of the client's application, if there are no unacknowledged messages yet. This allows
+  to create more power efficient mobile applications.
+
+In order for the enhanced plugin to work, each device (an entity that may receive push
+notifications) should be uniquely identified. The only correct way to identify a device from the
+XMPP standpoint is to use the data provided with the [enable stanza][enabling]. Because of that,
+each device should (re)enable the push notifications at the beginning of each and every connection.
+
+### Custom plugins
+
+A custom module implementing the optional callbacks of `mod_event_pusher_push_plugin`
+may be used as a plugin to change the default behaviour. In the case of not implemented callbacks
+the defaults are used instead.
+
 [mod_event_pusher]: ./mod_event_pusher.md
+[XEP-0198]: https://xmpp.org/extensions/xep-0198.html
+[enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
+[tutorial]: ../user-guide/push-notifications/Push-notifications.md

@@ -8,16 +8,26 @@
 %%%-------------------------------------------------------------------
 -module(mod_inbox).
 -author("ludwikbukowski").
+-behaviour(mongoose_module_metrics).
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
--include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 -include("mongoose_logger.hrl").
 
+-export([get_personal_data/2]).
+
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1, inbox_unread_count/2]).
+-export([process_iq/4,
+         process_iq_conversation/4,
+         user_send_packet/4,
+         filter_packet/1,
+         inbox_unread_count/2,
+         remove_user/3
+        ]).
 -export([clear_inbox/2]).
+
+-export([config_metrics/1]).
 
 -callback init(Host, Opts) -> ok when
                Host :: jid:lserver(),
@@ -36,7 +46,7 @@
                     Content :: binary(),
                     Count :: integer(),
                     MsgId :: binary(),
-                    Timestamp :: erlang:timestamp().
+                    Timestamp :: integer().
 
 -callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
                        Username :: jid:luser(),
@@ -65,9 +75,10 @@
                       Username :: jid:luser(),
                       Server :: jid:lserver().
 
--callback get_inbox_unread(Username, Server) -> {ok, integer()} when
+-callback get_inbox_unread(Username, Server, InterlocutorJID) -> {ok, integer()} when
                       Username :: jid:luser(),
-                      Server :: jid:lserver().
+                      Server :: jid:lserver(),
+                      InterlocutorJID :: jid:jid().
 
 -type get_inbox_params() :: #{
         start => erlang:timestamp(),
@@ -77,6 +88,28 @@
        }.
 
 -export_type([get_inbox_params/0]).
+
+%%--------------------------------------------------------------------
+%% gdpr callbacks
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Schema = ["jid", "content", "unread_count", "timestamp"],
+    InboxParams = #{
+        start => {0,0,0},
+        'end' => erlang:timestamp(),
+        order => asc,
+        hidden_read => false
+       },
+    Entries = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
+    ProcessedEntries = [{ RemJID, Content, UnreadCount, jlib:now_to_utc_string(Timestamp) } ||
+                        { RemJID, Content, UnreadCount, Timestamp } <- Entries],
+    [{inbox, Schema, ProcessedEntries} | Acc].
+
+%%--------------------------------------------------------------------
+%% inbox callbacks
+%%--------------------------------------------------------------------
 
 -spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
@@ -98,7 +131,10 @@ start(Host, Opts) ->
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(hooks(Host)),
     store_bin_reset_markers(Host, FullOpts),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX,
+                                  ?MODULE, process_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION,
+                                  ?MODULE, process_iq_conversation, IQDisc).
 
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -119,7 +155,7 @@ process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     Form = build_inbox_form(),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
-process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
+process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
     Username = From#jid.luser,
     Host = From#jid.lserver,
     case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
@@ -127,10 +163,36 @@ process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) 
             {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
-            forward_messages(List, QueryId, To),
+            forward_messages(List, QueryId, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
+
+-spec process_iq_conversation(From :: jid:jid(),
+                              To :: jid:jid(),
+                              Acc :: mongoose_acc:t(),
+                              IQ :: jlib:iq()) ->
+    {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+process_iq_conversation(From, _To, Acc,
+                        #iq{type = set,
+                            xmlns = ?NS_ESL_INBOX_CONVERSATION,
+                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
+    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
+
+maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
+    case reset_stanza_extract_interlocutor_jid(ResetStanza) of
+        {error, Msg} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        InterlocutorJID ->
+            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
+    end.
+
+process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
+    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
+    {Acc, IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"reset">>,
+                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 children = []}]}}.
 
 -spec forward_messages(List :: list(inbox_res()),
                        QueryId :: id(),
@@ -185,20 +247,33 @@ filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
+remove_user(Acc, User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    mod_inbox_backend:clear_inbox(LUser, LServer),
+    Acc.
+
 -spec maybe_process_message(Host :: host(),
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
                             Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Host, From, To, Msg, Dir) ->
-    AcceptableMessage = should_be_stored_in_inbox(Msg),
-    case AcceptableMessage of
+    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
             maybe_process_acceptable_message(Host, From, To, Msg, Dir, Type);
         false ->
             ok
     end.
+
+-spec inbox_owner_exists(From :: jid:jid(),
+                         To :: jid:jid(),
+                         Dir :: outgoing | incoming) -> boolean().
+inbox_owner_exists(From, _To, outgoing) ->
+    ejabberd_users:does_user_exist(From#jid.luser, From#jid.lserver);
+inbox_owner_exists(_From, To, incoming) ->
+    ejabberd_users:does_user_exist(To#jid.luser, To#jid.lserver).
 
 maybe_process_acceptable_message(Host, From, To, Msg, Dir, one2one) ->
             process_message(Host, From, To, Msg, Dir, one2one);
@@ -326,14 +401,17 @@ get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
 get_inbox_unread(undefined, Acc, To) ->
 %% TODO this value should be bound to a stanza reference inside Acc
     {User, Host} = jid:to_lus(To),
-    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
+    InterlocutorJID = mongoose_acc:from_jid(Acc),
+    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host, InterlocutorJID),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
 hooks(Host) ->
     [
+     {remove_user, Host, ?MODULE, remove_user, 50},
      {user_send_packet, Host, ?MODULE, user_send_packet, 70},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
-     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80}
+     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
     ].
 
 get_groupchat_types(Host) ->
@@ -423,6 +501,19 @@ get_message_type(Msg) ->
             one2one
     end.
 
+reset_stanza_extract_interlocutor_jid(ResetStanza) ->
+    case exml_query:attr(ResetStanza, <<"jid">>) of
+        undefined ->
+            {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
+        Value ->
+            case jid:from_binary(Value) of
+                error ->
+                    ?ERROR_MSG("event=invalid_inbox_form_field,field=jid,value=~s", [Value]),
+                    {error, invalid_field_value(<<"jid">>, Value)};
+                JID -> JID
+            end
+    end.
+
 -spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
     mod_inbox_utils:clear_inbox(Username, Server).
@@ -492,3 +583,7 @@ is_offline_message(Msg) ->
 
 extract_unread_count({_, _, Count, _}) ->
     binary_to_integer(Count).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

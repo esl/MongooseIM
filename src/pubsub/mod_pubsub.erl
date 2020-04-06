@@ -20,7 +20,6 @@
 %%% @copyright 2006-2015 ProcessOne
 %%% @author Christophe Romain <christophe.romain@process-one.net>
 %%%   [http://www.process-one.net/]
-%%% @version {@vsn}, {@date} {@time}
 %%% @end
 %%% ====================================================================
 
@@ -45,6 +44,7 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 -author('christophe.romain@process-one.net').
 
 -xep([{xep, 60}, {version, "1.13-1"}]).
@@ -66,9 +66,9 @@
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
-         on_user_offline/5, remove_user/2, remove_user/3,
+         on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
-         disco_local_items/5, disco_sm_identity/5,
+         disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
 
 %% exported iq handlers
@@ -85,7 +85,7 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/2, plugins/1, config/3,
+         tree/1, tree/2, plugin/2, plugin/1, plugins/1, plugin_call/3, config/3,
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
@@ -94,10 +94,14 @@
          terminate/2, code_change/3]).
 -export([default_host/0]).
 
+-export([get_personal_data/2]).
+
 %% packet handler export
 -export([process_packet/5]).
 
 -export([send_loop/1]).
+
+-export([config_metrics/1]).
 
 -define(PROCNAME, ejabberd_mod_pubsub).
 -define(LOOPNAME, ejabberd_mod_pubsub_loop).
@@ -242,13 +246,22 @@ default_host() ->
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      State :: #state{}) -> any().
-process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
-    Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
-                                                  from_jid => From,
-                                                  to_jid => To,
-                                                  element => El }, Acc),
-    Packet = mongoose_acc:element(Acc2),
-    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
+process_packet(_Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
+    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
+
+%%====================================================================
+%% GDPR callback
+%%====================================================================
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
+     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
+     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
+
+     [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
+      {pubsub_nodes, ["node_name", "type"], Nodes},
+      {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc].
 
 %%====================================================================
 %% gen_server callbacks
@@ -342,12 +355,12 @@ hooks() ->
      {sm_remove_connection_hook, on_user_offline, 75},
      {disco_local_identity, disco_local_identity, 75},
      {disco_local_features, disco_local_features, 75},
-     {disco_local_items, disco_local_items, 75},
      {presence_probe_hook, presence_probe, 80},
      {roster_in_subscription, in_subscription, 50},
      {roster_out_subscription, out_subscription, 50},
      {remove_user, remove_user, 50},
-     {anonymous_purge_hook, remove_user, 50}
+     {anonymous_purge_hook, remove_user, 50},
+     {get_personal_data, get_personal_data, 50}
     ].
 
 pep_hooks() ->
@@ -534,7 +547,7 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           _From  ::jid:jid(),
           To     ::jid:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: binary())
+          Lang   :: ejabberd:lang())
         -> [exml:element()].
 disco_local_identity(Acc, _From, To, Node, Lang) ->
     LServer = To#jid.lserver,
@@ -563,12 +576,12 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [exml:element()],
+          Acc :: {result, [exml:element()]} | empty | {error, any()},
           _From  ::jid:jid(),
           To     ::jid:jid(),
-          Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: binary())
-        -> [binary(), ...].
+          Node   :: <<>> | mod_pubsub:nodeId() | binary(),
+          Lang   :: ejabberd:lang())
+        -> {result, [exml:element()]} | empty | {error, any()}.
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
     Feats = case Acc of
@@ -579,18 +592,13 @@ disco_local_features(Acc, _From, To, <<>>, _Lang) ->
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
-disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
-
 -spec disco_sm_identity(
-        Acc  :: empty | [exml:element()],
-          From ::jid:jid(),
-          To   ::jid:jid(),
+        Acc :: [exml:element()],
+          From :: jid:jid(),
+          To :: jid:jid(),
           Node :: mod_pubsub:nodeId(),
-          Lang :: binary())
+          Lang :: ejabberd:lang())
         -> [exml:element()].
-disco_sm_identity(empty, From, To, Node, Lang) ->
-    disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
@@ -626,12 +634,12 @@ disco_identity(Host, Node, From) ->
     end.
 
 -spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]},
+        Acc  :: empty | {result, Features::[Feature::binary()]} | {error, any()},
           From ::jid:jid(),
           To   ::jid:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> {result, Features::[Feature::binary()]}.
+        -> {result, Features::[Feature::binary()]} | {error, any()}.
 disco_sm_features(empty, From, To, Node, Lang) ->
     disco_sm_features({result, []}, From, To, Node, Lang);
 disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
@@ -843,40 +851,23 @@ unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
 %%
 
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Entity = jid:make(LUser, LServer, <<>>),
     Host = host(LServer),
-    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
-    spawn(fun() -> lists:foreach(
-                     fun(PType) ->
-                             catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
-                     end, plugins(Host)) end).
+    lists:foreach(fun(PType) ->
+                          remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
+                  end, plugins(Host)),
+    Acc.
 
-remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
-                          node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
-                     (_) ->
-                          ok
-                  end, Subs),
-    {result, Affs} = node_action(Host, PType, get_entity_affiliations, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-                       when N == HomeTreeBase, Type == <<"hometree">> ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{id = Nidx}, publisher}) ->
-                          node_action(Host, PType,
-                                      set_affiliation,
-                                      [Nidx, Entity, none]);
-                     (_) ->
-                          ok
-                  end, Affs).
+remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
+    try
+        plugin_call(Plugin, remove_user, [LUser, LServer])
+    catch
+        Class:Reason:StackTrace ->
+            ?WARNING_MSG("event=cannot_delete_pubsub_user,"
+                         "luser=~s,lserver=~s,class=~p,reason=~p,stacktrace=~p",
+                         [LUser, LServer, Class, Reason, StackTrace])
+    end.
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -963,9 +954,9 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                           [],
-                                           [ServerHost, ?MODULE, <<>>, <<>>]),
+            Info = mongoose_hooks:disco_info(ServerHost,
+                                             [],
+                                             ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
@@ -1331,8 +1322,23 @@ all_metrics() ->
      {get, affiliations},
      {set, affiliations}].
 
+iq_action_to_metric_name(<<"create">>) -> create;
+iq_action_to_metric_name(<<"publish">>) -> publish;
+iq_action_to_metric_name(<<"retract">>) -> retract;
+iq_action_to_metric_name(<<"subscribe">>) -> subscribe;
+iq_action_to_metric_name(<<"unsubscribe">>) -> unsubscribe;
+iq_action_to_metric_name(<<"items">>) -> items;
+iq_action_to_metric_name(<<"options">>) -> options;
+iq_action_to_metric_name(<<"configure">>) -> configure;
+iq_action_to_metric_name(<<"default">>) -> default;
+iq_action_to_metric_name(<<"delete">>) -> delete;
+iq_action_to_metric_name(<<"purge">>) -> purge;
+iq_action_to_metric_name(<<"subscriptions">>) -> subscriptions;
+iq_action_to_metric_name(<<"affiliations">>) -> affiliations.
+
+
 metric_name(IQType, Name, MetricSuffix) when is_binary(Name) ->
-    NameAtom = binary_to_existing_atom(Name, utf8),
+    NameAtom = iq_action_to_metric_name(Name),
     metric_name(IQType, NameAtom, MetricSuffix);
 metric_name(IQType, Name, MetricSuffix) when is_atom(Name) ->
     [pubsub, IQType, Name, MetricSuffix].
@@ -1874,19 +1880,21 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 %%<li>nodetree create_node checks if nodeid already exists</li>
 %%<li>node plugin create_node just sets default affiliation/subscription</li>
 %%</ul>
--spec create_node(
-        Host          :: mod_pubsub:host(),
-          ServerHost    :: binary(),
-          Node        :: <<>> | mod_pubsub:nodeId(),
-          Owner         ::jid:jid(),
-          Type          :: binary(),
-          Access        :: atom(),
-          Configuration :: [exml:element()])
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+%% @end
+
 create_node(Host, ServerHost, Node, Owner, Type) ->
     create_node(Host, ServerHost, Node, Owner, Type, all, []).
+
+-spec create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) -> R when
+      Host          :: mod_pubsub:host(),
+      ServerHost    :: binary(),
+      Node          :: <<>> | mod_pubsub:nodeId(),
+      Owner         :: jid:jid(),
+      Type          :: binary(),
+      Access        :: atom(),
+      Configuration :: [exml:element()],
+      R             :: {result, [exml:element(), ...]}
+                     | {error, exml:element()}.
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
         true ->
@@ -1928,12 +1936,14 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
             case mod_pubsub_db_backend:transaction(CreateNode, ErrorDebug) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
+                    mongoose_hooks:pubsub_create_node(ServerHost,
+                                                      ok,
+                                                      Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 {result, {Nidx, _SubsByDepth, Result}} ->
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
+                    mongoose_hooks:pubsub_create_node(ServerHost,
+                                                      ok,
+                                                      Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 Error ->
                     %% in case we change transaction to sync_dirty...
@@ -2037,9 +2047,9 @@ delete_node(Host, Node, Owner) ->
                                   ROptions = RNode#pubsub_node.options,
                                   broadcast_removed_node(RH, RN, RNidx,
                                                          RType, ROptions, SubsByDepth),
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  mongoose_hooks:pubsub_delete_node(ServerHost,
+                                                                    ok,
+                                                                    RH, RN, RNidx)
                           end,
                           Removed),
             case Result of
@@ -2050,9 +2060,9 @@ delete_node(Host, Node, Owner) ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   {RH, RN} = RNode#pubsub_node.nodeid,
                                   RNidx = RNode#pubsub_node.id,
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  mongoose_hooks:pubsub_delete_node(ServerHost,
+                                                                    ok,
+                                                                    RH, RN, RNidx)
                           end,
                           Removed),
             case Result of
@@ -2061,8 +2071,9 @@ delete_node(Host, Node, Owner) ->
             end;
         {result, {TNode, {_, Result}}} ->
             Nidx = TNode#pubsub_node.id,
-            ejabberd_hooks:run(pubsub_delete_node, ServerHost,
-                               [ServerHost, Host, Node, Nidx]),
+            mongoose_hooks:pubsub_delete_node(ServerHost,
+                                              ok,
+                                              Host, Node, Nidx),
             case Result of
                 default -> {result, []};
                 _ -> {result, Result}
@@ -2347,8 +2358,8 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
                         end,
-            ejabberd_hooks:run(pubsub_publish_item, ServerHost,
-                               [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]),
+            mongoose_hooks:pubsub_publish_item(ServerHost, ok,
+                               Node, Publisher, service_jid(Host), ItemId, BrPayload),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
             case get_option(Options, deliver_notifications) of
                 true ->
@@ -2667,11 +2678,11 @@ send_items(Host, Node, _Nidx, _Type, Options, LJID, _) ->
 
 dispatch_items({FromU, FromS, FromR} = From, {ToU, ToS, ToR} = To, Node,
                Options, Stanza) ->
-    C2SPid = case ejabberd_sm:get_session_pid(ToU, ToS, ToR) of
+    C2SPid = case ejabberd_sm:get_session_pid(jid:make(ToU, ToS, ToR)) of
                  ToPid when is_pid(ToPid) -> ToPid;
                  _ ->
                      R = user_resource(FromU, FromS, FromR),
-                     case ejabberd_sm:get_session_pid(FromU, FromS, R) of
+                     case ejabberd_sm:get_session_pid(jid:make(FromU, FromS, R)) of
                          FromPid when is_pid(FromPid) -> FromPid;
                          _ -> undefined
                      end
@@ -3211,9 +3222,9 @@ get_roster_info(_, _, {<<>>, <<>>, _}, _) ->
     {false, false};
 get_roster_info(OwnerUser, OwnerServer, {SubscriberUser, SubscriberServer, _}, AllowedGroups) ->
     LJID = {SubscriberUser, SubscriberServer, <<>>},
-    {Subscription, Groups} = ejabberd_hooks:run_fold(roster_get_jid_info,
-                                                     OwnerServer, {none, []},
-                                                     [OwnerUser, OwnerServer, LJID]),
+    {Subscription, Groups} = mongoose_hooks:roster_get_jid_info(OwnerServer,
+                                                                {none, []},
+                                                                OwnerUser, LJID),
     PresenceSubscription = Subscription == both orelse
         Subscription == from orelse
         {OwnerUser, OwnerServer} == {SubscriberUser, SubscriberServer},
@@ -3291,9 +3302,10 @@ sub_option_can_deliver(_, _, _) -> true.
 presence_can_deliver(_, false) ->
     true;
 presence_can_deliver({User, Server, <<>>}, true) ->
-    ejabberd_sm:get_user_present_resources(User, Server) =/= [];
+    ejabberd_sm:get_user_present_resources(jid:make_noprep(User, Server, <<>>)) =/= [];
 presence_can_deliver({User, Server, Resource}, true) ->
-    case ejabberd_sm:get_session(User, Server, Resource) of
+    JID = jid:make_noprep(User, Server, Resource),
+    case ejabberd_sm:get_session(JID) of
         {_SUser, _SID, SPriority, _SInfo} when SPriority /= undefined -> true;
         _ -> false
     end.
@@ -3327,7 +3339,7 @@ state_can_deliver({U, S, R}, SubOptions) ->
           JIDs       :: [jid:ljid()])
         -> [jid:ljid()].
 get_resource_state({U, S, R}, ShowValues, JIDs) ->
-    case ejabberd_sm:get_session_pid(U, S, R) of
+    case ejabberd_sm:get_session_pid(jid:make_noprep(U, S, R)) of
         none ->
             %% If no PID, item can be delivered
             lists:append([{U, S, R}], JIDs);
@@ -3603,7 +3615,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
                      SubsByDepth, NotifyType, BaseStanza, SHIM),
     %% Handles implicit presence subscriptions
     SenderResource = user_resource(LUser, LServer, LResource),
-    case ejabberd_sm:get_session_pid(LUser, LServer, SenderResource) of
+    case ejabberd_sm:get_session_pid(jid:make(LUser, LServer, SenderResource)) of
         C2SPid when is_pid(C2SPid) ->
             NotificationType = get_option(NodeOptions, notification_type, headline),
             Stanza = add_message_type(BaseStanza, NotificationType),
@@ -3691,7 +3703,8 @@ process_jid_to_deliver(JIDs, SubID, NodeName, JIDToDeliver, {JIDsAcc, Recipients
     end.
 
 user_resources(User, Server) ->
-    ejabberd_sm:get_user_resources(User, Server).
+    JID = jid:make(User, Server, <<>>),
+    ejabberd_sm:get_user_resources(JID).
 
 user_resource(User, Server, <<>>) ->
     case user_resources(User, Server) of
@@ -3716,7 +3729,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
                           #pubsub_node{options = Options, type = Type, id = Nidx}) ->
     case node_call(Host, Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
-            Groups = ejabberd_hooks:run_fold(roster_groups, ServerHost, [], [ServerHost]),
+            Groups = mongoose_hooks:roster_groups(ServerHost, []),
             XEl = #xmlel{name = <<"x">>,
                          attrs = [{<<"xmlns">>, ?NS_XDATA},
                                   {<<"type">>, <<"form">>}],
@@ -4143,6 +4156,9 @@ tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
 plugin(_Host, Name) ->
+    plugin(Name).
+
+plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -4251,6 +4267,9 @@ tree_action(Host, Function, Args) ->
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
     PluginModule = plugin(Host, Type),
+    plugin_call(PluginModule, Function, Args).
+
+plugin_call(PluginModule, Function, Args) ->
     CallModule = maybe_default_node(PluginModule, Function, Args),
     case apply(CallModule, Function, Args) of
         {result, Result} ->
@@ -4508,3 +4527,7 @@ make_error_reply(Packet, #xmlel{} = ErrorEl) ->
 make_error_reply(Packet, Error) ->
     ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
     jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

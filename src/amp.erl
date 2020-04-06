@@ -1,9 +1,9 @@
--module(amp).
 %% @doc Models and business logic for  XEP-0079: Advanced Message Processing
+%% This work was sponsored by Grindr LLC
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
 %% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
-%% This work was sponsored by Grindr LLC
+-module(amp).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
@@ -129,10 +129,11 @@ strip_amp_el(#xmlel{children = Children} = Elem) ->
 
 
 %% Internal
-%% @doc We want to keep client->server AMPed messages,
-%%      but filter out server->client AMPed responses.
+%% @doc We want to keep `client->server' AMPed messages,
+%%      but filter out `server->client' AMPed responses.
 %%      We can distinguish them by the fact that s2c messages MUST have
-%%      a 'status' attr on the <amp> element.
+%%      a `status' attr on the `<amp>' element.
+%% @end
 -spec is_amp_request(exml:element()) -> boolean().
 is_amp_request(Stanza) ->
     Amp = exml_query:subelement(Stanza, <<"amp">>),

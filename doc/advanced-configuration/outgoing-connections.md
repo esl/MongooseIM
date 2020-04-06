@@ -10,11 +10,12 @@ The interface for outgoing connections management was unified and is now availab
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
-* `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
+* `ldap` - pool of connections to an LDAP server
+* `generic` - pool of generic workers not associated directly with a particular connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
 
-Every entry in the `outgoing_pools` is a 5 element tuple:
+Every entry in the `outgoing_pools` is a 5-element tuple:
 
 ```erlang
 {Type, Host, Tag, PoolOptions, ConnectionOptions}
@@ -32,6 +33,7 @@ Where:
    with the following exception:
     * `strategy` - specifies the worker selection strategy for the given pool, default is `best_worker`,
       more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
+      *WARNING:* `redis` and `riak` backends are not compatible with `available_worker` strategy.
     * `call_timeout` - specifies the timeout, in milliseconds, for a call operation to the pool
 * `ConnectionOptions` - options list passed to the `start` function of the pool type
 
@@ -123,7 +125,8 @@ An example configuration can look as follows:
 {outgoing_pools, [
  {rdbms, global, default, [{workers, 5}],
   [{server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
-             [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}]}
+             [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"},
+              {server_name_indication, disable}]}}]}
 ]}.
 ```
 
@@ -205,6 +208,10 @@ Below is a sample configuration:
 * `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
+* `{http_opts, HTTPOptions}` - list, default: `[]` - can be used to pass extra parameters which are passed to [fusco], the library used for making the HTTP calls.
+  More details about the possible `http_opts` can be found in [fusco]'s documentation.
+
+[fusco]: https://github.com/esl/fusco
 
 ##### Example configuration
 
@@ -214,6 +221,23 @@ Below is a sample configuration:
    [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
 ]}.
 ```
+
+If peer certificate verification is required, the pool can be configured in the following way:
+
+```Erlang
+{outgoing_pools, [
+  {http, global, mongoose_push_http,
+   [{workers, 50}],
+   [{server, "https://localhost:8443"},
+    {http_opts, [
+                 {connect_options, [{verify, verify_peer}]}
+                 ]}
+   ]}
+]}.
+```
+
+Please note the `connect_options` passed to [fusco] via the pool's `http_opts` parameter.
+
 
 ## Redis connection setup
 
@@ -225,6 +249,9 @@ They can be defined as follows:
  {redis, global, Tag, WorkersOptions, ConnectionOptions}
 ]}.
 ```
+
+*WARNING:* `redis` backend is not compatible with `available_worker` strategy.
+
 The `Tag` parameter can only be set to `default` for a session backend.
 For `mod_global_distrib` module it can take any value (default is **global_distrib**) but the name needs to be passed as:
 
@@ -260,6 +287,8 @@ It is configured with the following tuple inside the `outgoing_pools` config opt
  {riak, global, default, [{workers, 20}], [{address, "127.0.0.1"}, {port, 8087}]}
 ]}.
 ```
+
+*WARNING:* `riak` backend is not compatible with `available_worker` strategy.
 
 #### Riak SSL connection setup
 
@@ -496,5 +525,69 @@ below the limit.
    {amqp_password, "guest"},
    {confirms_enabled, true},
    {max_worker_queue_len, 100}]}
+]}.
+```
+
+## LDAP connection setup
+
+To configure a pool of connections to an LDAP server, use the following syntax:
+
+```erlang
+{ldap, Host, Tag, PoolOptions, ConnectionOptions}
+```
+
+### Connection options
+
+The following options can be specified in the `ConnectionOptions` list:
+
+* **servers**
+    * **Description:** List of IP addresses or DNS names of your LDAP servers. They are tried sequentially until the connection succeeds.
+    * **Value:** A list of strings
+    * **Default:** `["localhost"]`
+    * **Example:** `["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]`
+
+* **encrypt**
+    * **Description:** Enable connection encryption with your LDAP server.
+        The value `tls` enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+    * **Values:** `none`, `tls`
+    * **Default:** `none`
+
+* **tls_options**
+    * **Description:** Specifies TLS connection options. Requires `{encrypt, tls}` (see above).
+    * **Value:** List of `ssl:tls_client_option()`. More details can be found in the [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+    * **Default:** no options
+    * **Example:** `[{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]`
+
+* **port**
+    * **Description:** Port to connect to your LDAP server.
+    * **Values:** Integer
+    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+
+* **rootdn**
+    * **Description:** Bind DN
+    * **Values:** String
+    * **Default:** empty string which is `anonymous connection`
+
+* **password**
+    * **Description:** Bind password
+    * **Values:** String
+    * **Default:** empty string
+
+* **connect_interval**
+    * **Description:** Interval between consecutive connection attempts in case of connection failure
+    * **Value:** Integer (milliseconds)
+    * **Default:** 10000
+
+### Example
+
+A pool started for each host with the `default` tag and 5 workers. The LDAP server is at `ldap-server.example.com:389`. MongooseIM will authenticate as `cn=admin,dc=example,dc=com` with the provided password.
+
+```erlang
+{outgoing_pools, [
+ {ldap, host, default, [{workers, 5}],
+  [{servers, ["ldap-server.example.com"]},
+   {rootdn, "cn=admin,dc=example,dc=com"},
+   {password, "ldap-admin-password"}]
+ }
 ]}.
 ```

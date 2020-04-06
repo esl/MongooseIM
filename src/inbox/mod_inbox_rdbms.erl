@@ -12,6 +12,8 @@
 -include("mongoose.hrl").
 -include("mod_inbox.hrl").
 
+-behaviour(mod_inbox).
+
 %% API
 -export([get_inbox/3,
          init/2,
@@ -21,7 +23,7 @@
          remove_inbox/3,
          clear_inbox/1,
          clear_inbox/2,
-         get_inbox_unread/2]).
+         get_inbox_unread/3]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -67,10 +69,13 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
     mongoose_rdbms:sql_query(LServer, Query).
 
 
-get_inbox_unread(Username, Server) ->
+get_inbox_unread(Username, Server, InterlocutorJID) ->
+    RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
     Res = mongoose_rdbms:sql_query(Server,
                                    ["select unread_count from inbox "
                                     "WHERE luser=", esc_string(Username),
+                                      "AND lserver=", esc_string(Server),
+                                      "AND remote_bare_jid=", esc_string(RemBareJIDBin),
                                     ";"]),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
@@ -85,15 +90,14 @@ get_inbox_unread(Username, Server) ->
                 Content :: binary(),
                 Count :: integer(),
                 MsgId :: binary(),
-                Timestamp :: erlang:timestamp().
+                Timestamp :: integer().
 set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    NumericTimestamp = usec:from_now(Timestamp),
     InsertParams = [LUsername, LServer, LToBareJid,
-                    Content, Count, MsgId, NumericTimestamp],
-    UpdateParams = [Content, Count, MsgId, NumericTimestamp],
+                    Content, Count, MsgId, Timestamp],
+    UpdateParams = [Content, Count, MsgId, Timestamp],
     UniqueKeyValues  = [LUsername, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(Server, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
@@ -133,9 +137,8 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
     BackendModule = rdbms_specific_backend(Server),
-    NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
-                                              Content, MsgId, NumericTimestamp),
+                                              Content, MsgId, Timestamp),
     %% psql will return {updated, {[UnreadCount]}}
     %% mssql and mysql will return {selected, {[Val]}}
     check_result(Res).
@@ -143,7 +146,7 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
 -spec reset_unread(User :: binary(),
                    Server :: binary(),
                    BareJid :: binary(),
-                   MsgId :: binary()) -> ok.
+                   MsgId :: binary() | undefined) -> ok.
 reset_unread(Username, Server, ToBareJid, MsgId) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -154,7 +157,12 @@ reset_unread(Username, Server, ToBareJid, MsgId) ->
 -spec reset_inbox_unread_rdbms(Username :: jid:luser(),
                                Server :: jid:lserver(),
                                ToBareJid :: binary(),
-                               MsgId :: binary()) -> mongoose_rdbms:query_result().
+                               MsgId :: binary() | undefined) -> mongoose_rdbms:query_result().
+reset_inbox_unread_rdbms(Username, Server, ToBareJid, undefined) ->
+    mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=0",
+        " where luser=", esc_string(Username),
+        " and lserver=", esc_string(Server),
+        " and remote_bare_jid=", esc_string(ToBareJid), ";"]);
 reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
     mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=0 where luser=",
         esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",

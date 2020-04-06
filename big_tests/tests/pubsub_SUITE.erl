@@ -116,7 +116,6 @@
 -import(pubsub_tools, [pubsub_node/0,
                        domain/0,
                        node_addr/0,
-                       rand_name/1,
                        encode_group_name/2,
                        decode_group_name/1]).
 -import(distributed_helper, [mim/0,
@@ -149,16 +148,20 @@ group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:=
 group_is_compatible(_, _) -> true.
 
 base_groups() ->
-    G = [{basic, [parallel], basic_tests()},
+    %% NOTE: basic and collection are placed in sequence because they run bigger
+    %% sets of tests, which in parallel might cause deadlocks in the
+    %% transactions for MNESIA and MYSQL.
+    %% TODO: Optimise pubsub backends (MYSQL! Mnesia?)
+    G = [{basic, [sequence], basic_tests()},
          {service_config, [parallel], service_config_tests()},
          {node_config, [parallel], node_config_tests()},
          {node_affiliations, [parallel], node_affiliations_tests()},
          {manage_subscriptions, [parallel], manage_subscriptions_tests()},
-         {collection, [parallel], collection_tests()},
+         {collection, [sequence], collection_tests()},
          {collection_config, [parallel], collection_config_tests()},
          {debug_calls, [parallel], debug_calls_tests()},
          {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
-         {hometree_specific, [parallel], hometree_specific_tests()},
+         {hometree_specific, [sequence], hometree_specific_tests()},
          {last_item_cache, [parallel], last_item_cache_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
@@ -1158,7 +1161,7 @@ retrieve_pending_subscription_requests_test(Config) ->
 %% Comments in test cases refer to sections is the XEP
 %%--------------------------------------------------------------------
 
-pubsub_leaf_name() -> rand_name(<<"leaf">>).
+pubsub_leaf_name() -> pubsub_tools:rand_name(<<"leaf">>).
 pubsub_leaf() -> {node_addr(), pubsub_leaf_name()}.
 
 create_delete_collection_test(Config) ->

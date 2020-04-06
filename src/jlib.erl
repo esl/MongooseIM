@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -195,24 +194,25 @@ make_config_change_message(Status) ->
 -spec make_invitation(From :: jid:jid(), Password :: binary(),
                       Reason :: binary()) -> exml:element().
 make_invitation(From, Password, Reason) ->
+    Children = case Reason of
+                    <<>> -> [];
+                    _ -> [#xmlel{name = <<"reason">>,
+                        children = [#xmlcdata{content = Reason}]}]
+    end,
     Elements = [#xmlel{name = <<"invite">>,
-                       attrs = [{<<"from">>, jid:to_binary(From)}]}],
+                       attrs = [{<<"from">>, jid:to_binary(From)}],
+                       children = Children}],
+
     Elements2 = case Password of
         <<>> -> Elements;
         _ -> [#xmlel{name = <<"password">>,
                      children = [#xmlcdata{content = Password}]} | Elements]
                 end,
-    Elements3 = case Reason of
-        <<>> -> Elements2;
-        _ -> [#xmlel{name = <<"reason">>,
-                     children = [#xmlcdata{content = Reason}]} | Elements2]
-                end,
 
     #xmlel{name = <<"message">>,
            children = [#xmlel{name = <<"x">>,
                               attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                              children = Elements3}]}.
-
+                              children = Elements2}]}.
 
 -spec form_field({binary(), binary(), binary()}
                | {binary(), binary()}
@@ -253,11 +253,16 @@ make_voice_approval_form(From, Nick, Role) ->
         ]}.
 
 
--spec replace_from_to_attrs(From :: binary(), To :: binary(), [binary_pair()]) -> [binary_pair()].
+-spec replace_from_to_attrs(From :: binary(),
+                            To :: binary() | undefined,
+                            [binary_pair()]) -> [binary_pair()].
 replace_from_to_attrs(From, To, Attrs) ->
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
-    Attrs3 = [{<<"to">>, To} | Attrs2],
+    Attrs3 = case To of
+                 undefined -> Attrs2;
+                 _ -> [{<<"to">>, To} | Attrs2]
+             end,
     Attrs4 = [{<<"from">>, From} | Attrs3],
     Attrs4.
 
@@ -503,37 +508,28 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) 
         lists:flatten(
           io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
                         [Year, Month, Day, Hour, Minute, Second, Micro])),
-    TimezoneString =
-        case Timezone of
-            utc -> "Z";
-            {Sign, {TZh, TZm}} ->
-                io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
-            {TZh, TZm} ->
-                Sign = case TZh >= 0 of
-                           true -> "+";
-                           false -> "-"
-                       end,
-                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
-        end,
+    TimezoneString = timezone_to_iso(Timezone),
     {TimestampString, TimezoneString};
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
     TimestampString =
         lists:flatten(
           io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w",
                         [Year, Month, Day, Hour, Minute, Second])),
-    TimezoneString =
-        case Timezone of
-            utc -> "Z";
-            {Sign, {TZh, TZm}} ->
-                io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
-            {TZh, TZm} ->
-                Sign = case TZh >= 0 of
-                           true -> "+";
-                           false -> "-"
-                       end,
-                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
-        end,
+    TimezoneString = timezone_to_iso(Timezone),
     {TimestampString, TimezoneString}.
+
+timezone_to_iso(Timezone) ->
+    case Timezone of
+        utc -> "Z";
+        {Sign, {TZh, TZm}} ->
+            io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
+        {TZh, TZm} ->
+            Sign = case TZh >= 0 of
+                       true -> "+";
+                       false -> "-"
+                   end,
+            io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
+    end.
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
@@ -677,91 +673,14 @@ check_list(List) ->
             end
         end, true, List).
 
-%%
-%% Base64 stuff (based on httpd_util.erl)
-%%
 
-%% TODO: optimize binary way
--spec decode_base64(binary() | string()) -> binary() | string().
-decode_base64(S) when erlang:is_binary(S)->
-    list_to_binary(decode_base64(binary_to_list(S)));
+-spec decode_base64(binary() | string()) -> binary().
 decode_base64(S) ->
-    decode1_base64([C || C <- S,
-                         C /= $\s,
-                         C /= $\t,
-                         C /= $\n,
-                         C /= $\r]).
+    base64:mime_decode(S).
 
-
--spec decode1_base64(string()) -> string().
-decode1_base64([]) ->
-    [];
-decode1_base64([Sextet1, Sextet2, $=, $=|Rest]) ->
-    Bits2x6=
-        (d(Sextet1) bsl 18) bor
-        (d(Sextet2) bsl 12),
-    Octet1=Bits2x6 bsr 16,
-    [Octet1|decode1_base64(Rest)];
-decode1_base64([Sextet1, Sextet2, Sextet3, $=|Rest]) ->
-    Bits3x6=
-        (d(Sextet1) bsl 18) bor
-        (d(Sextet2) bsl 12) bor
-        (d(Sextet3) bsl 6),
-    Octet1=Bits3x6 bsr 16,
-    Octet2=(Bits3x6 bsr 8) band 16#ff,
-    [Octet1, Octet2|decode1_base64(Rest)];
-decode1_base64([Sextet1, Sextet2, Sextet3, Sextet4|Rest]) ->
-    Bits4x6=
-        (d(Sextet1) bsl 18) bor
-        (d(Sextet2) bsl 12) bor
-        (d(Sextet3) bsl 6) bor
-        d(Sextet4),
-    Octet1=Bits4x6 bsr 16,
-    Octet2=(Bits4x6 bsr 8) band 16#ff,
-    Octet3=Bits4x6 band 16#ff,
-    [Octet1, Octet2, Octet3|decode1_base64(Rest)];
-decode1_base64(_CatchAll) ->
-    "".
-
-
--spec d(char()) -> char().
-d(X) when X >= $A, X =<$Z ->
-    X-65;
-d(X) when X >= $a, X =<$z ->
-    X-71;
-d(X) when X >= $0, X =<$9 ->
-    X+4;
-d($+) -> 62;
-d($/) -> 63;
-d(_) -> 63.
-
-
-%% TODO: optimize binary way
--spec encode_base64(binary() | string()) -> binary() | string().
-encode_base64(B) when is_binary(B) ->
-    list_to_binary(encode_base64(binary_to_list(B)));
-encode_base64([]) ->
-    [];
-encode_base64([A]) ->
-    [e(A bsr 2), e((A band 3) bsl 4), $=, $=];
-encode_base64([A, B]) ->
-    [e(A bsr 2), e(((A band 3) bsl 4) bor (B bsr 4)), e((B band 15) bsl 2), $=];
-encode_base64([A, B, C|Ls]) ->
-    encode_base64_do(A, B, C, Ls).
-encode_base64_do(A, B, C, Rest) ->
-    BB = (A bsl 16) bor (B bsl 8) bor C,
-    [e(BB bsr 18), e((BB bsr 12) band 63),
-     e((BB bsr 6) band 63), e(BB band 63)|encode_base64(Rest)].
-
-
--spec e(byte()) -> char() | none().
-e(X) when X >= 0, X < 26 -> X+65;
-e(X) when X>25, X<52 ->     X+71;
-e(X) when X>51, X<62 ->     X-4;
-e(62) ->                    $+;
-e(63) ->                    $/;
-e(X) ->                     exit({bad_encode_base64_token, X}).
-
+-spec encode_base64(binary() | string()) -> binary().
+encode_base64(B) ->
+    base64:encode(B).
 
 %% @doc Convert Erlang inet IP to list
 -spec ip_to_list(inet:ip4_address() | {inet:ip_address(), inet:port_number()}
@@ -788,7 +707,7 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     NCh = [Spec | Er#xmlel.children],
     Er#xmlel{children = NCh}.
 
-%% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
+%% TODO: remove `code' attribute (currently it used for backward-compatibility)
 
 -spec stanza_error( Code :: binary()
                  , Type :: binary()

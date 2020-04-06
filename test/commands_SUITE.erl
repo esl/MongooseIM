@@ -54,7 +54,7 @@ ggo(Any) ->
     none.
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     ok = mnesia:start(),
     ok = acl:start(),
     acl:add(global, coder, {user, <<"zenek">>}),
@@ -171,6 +171,9 @@ new_type_checker(_C) ->
     {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
     true = t_check_type([], [1, 2, 3]),
     true = t_check_type([], []),
+    true = t_check_type({msg, boolean}, true),
+    true = t_check_type({msg, boolean}, false),
+    {false, _} = t_check_type({msg, boolean}, <<"true">>),
     ok.
 
 t_check_type(Spec, Value) ->

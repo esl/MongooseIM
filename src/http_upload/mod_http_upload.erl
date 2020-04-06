@@ -17,6 +17,8 @@
 -module(mod_http_upload).
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -xep([{xep, 363}, {version, "0.2.5"}]).
 -xep([{xep, 363}, {version, "0.3.0"}]).
 
@@ -31,6 +33,8 @@
 
 %% Hook implementations
 -export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -118,8 +122,10 @@ get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
+-spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
+                      From :: jid:jid(), To :: jid:jid(),
+                      Node :: binary(), ejabberd:lang())
+                     -> {result, [exml:element()]} | {error, any()}.
 get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
     Item = #xmlel{name  = <<"item">>,
                   attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},
@@ -272,3 +278,7 @@ is_nonempty_binary(_) -> false.
 -spec is_positive_integer(term()) -> boolean().
 is_positive_integer(X) when is_integer(X) -> X > 0;
 is_positive_integer(_) -> false.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, s3}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

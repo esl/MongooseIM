@@ -16,21 +16,41 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
--export([reset_unread_count/3,
+-export([maybe_reset_unread_count/4,
+         reset_unread_count_to_zero/2,
+         maybe_write_to_inbox/5,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
          clear_inbox/1,
          clear_inbox/2,
          get_reset_markers/1,
          if_chat_marker_get_id/2,
-         has_chat_marker/2,
+         has_chat_marker/1,
          fill_from_attr/2,
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
          reset_marker_to_bin/1,
-         get_inbox_unread/2]).
+         get_inbox_unread/3
+        ]).
 
+-spec maybe_reset_unread_count(Server :: host(),
+                               User :: jid:jid(),
+                               Remote :: jid:jid(),
+                               Packet :: exml:element()) -> ok.
+maybe_reset_unread_count(Server, User, Remote, Packet) ->
+    ResetMarkers = mod_inbox_utils:get_reset_markers(Server),
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, ResetMarkers) of
+        undefined ->
+            ok;
+        Id ->
+            reset_unread_count(User, Remote, Id)
+    end.
+
+-spec reset_unread_count_to_zero(jid:jid(), jid:jid()) -> ok.
+reset_unread_count_to_zero(#jid{luser = FromUsername, lserver = Server}, Remote) ->
+    ToBareJid = jid:to_binary(jid:to_bare(Remote)),
+    ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, undefined).
 
 -spec reset_unread_count(User :: jid:jid(),
                          Remote :: jid:jid(),
@@ -52,7 +72,7 @@ write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
     RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
-    Timestamp = erlang:timestamp(),
+    Timestamp = erlang:system_time(microsecond),
     ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
                                      Content, Count, MsgId, Timestamp).
 
@@ -65,7 +85,7 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     Content = exml:to_binary(Packet),
     Username = Receiver#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
-    Timestamp = erlang:timestamp(),
+    Timestamp = erlang:system_time(microsecond),
     mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
                                             Content, MsgId, Timestamp).
 
@@ -104,12 +124,36 @@ if_chat_marker_get_id(Packet, Marker) ->
         _ ->
             undefined
     end.
+
+
+-spec has_chat_marker(Packet :: exml:element()) -> boolean().
+has_chat_marker(Packet) ->
+    has_chat_marker(Packet, all_chat_markers()).
+
 -spec has_chat_marker(Packet :: exml:element(), list(marker())) -> boolean().
-has_chat_marker(_Packet, []) -> false;
-has_chat_marker(Packet, [Marker | R]) ->
-    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
-        #xmlel{name = Marker} -> true;
-        _ -> has_chat_marker(Packet, R)
+has_chat_marker(Packet, Markers) ->
+    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS, no_marker) of
+        no_marker ->
+            false;
+        #xmlel{name = Marker} ->
+            lists:member(Marker, Markers)
+    end.
+
+-spec maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) -> ok | {ok, integer()} when
+      Host :: host(),
+      User :: jid:jid(),
+      Remote :: jid:jid(),
+      Packet :: exml:element(),
+      %% WriteF is write_to_receiver_inbox/4 or write_to_sender_inbox/4
+      WriteF :: fun().
+maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) ->
+    case mod_inbox_utils:has_chat_marker(Packet) of
+        true ->
+            ok;
+        false ->
+            FromBin = jid:to_binary(User),
+            Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
+            WriteF(Host, User, Remote, Packet2)
     end.
 
 -spec get_msg_id(Msg :: exml:element()) -> binary().
@@ -142,5 +186,8 @@ reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
 reset_marker_to_bin(received) -> <<"received">>;
 reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
 
-get_inbox_unread(User, Server) ->
-    mod_inbox_backend:get_inbox_unread(User, Server).
+get_inbox_unread(User, Server, InterlocutorJID) ->
+    mod_inbox_backend:get_inbox_unread(User, Server, InterlocutorJID).
+
+all_chat_markers() ->
+    [<<"received">>, <<"displayed">>, <<"acknowledged">>].

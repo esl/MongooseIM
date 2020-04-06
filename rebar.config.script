@@ -35,17 +35,6 @@ fun() ->
         end
 end,
 
-MaybeConfigureCoveralls =
-fun(Config) ->
-        case os:getenv("TRAVIS") of
-            "true" ->
-                JobId   = os:getenv("TRAVIS_JOB_ID"),
-                lists:keystore(coveralls_service_job_id, 1, Config, {coveralls_service_job_id, JobId});
-            _ ->
-                Config
-        end
-end,
-
 DevAppsToInclude =
 fun() ->
         case os:getenv("DEVNODE") of
@@ -82,6 +71,5 @@ MaybeFIPSSupport = fun(Config) ->
     end
 end,
 
-Config0 = MaybeConfigureCoveralls(CONFIG),
-Config1 = SetupIncludedApps(Config0, EnvApps),
+Config1 = SetupIncludedApps(CONFIG, EnvApps),
 MaybeFIPSSupport(Config1).

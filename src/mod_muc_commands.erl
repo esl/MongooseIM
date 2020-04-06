@@ -20,6 +20,8 @@
 -module(mod_muc_commands).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -export([start/2, stop/1]).
 
 -export([create_instant_room/4]).

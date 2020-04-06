@@ -19,36 +19,22 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
 -module(cyrsasl).
 -author('alexey@process-one.net').
 
--export([start/0,
-         register_mechanism/3,
-         listmech/1,
+-export([listmech/1,
          server_new/5,
          server_start/3,
          server_step/2]).
 
 -include("mongoose.hrl").
 
--record(sasl_mechanism, {
-          mechanism,
-          module,
-          password_type
-         }).
 -type sasl_module() :: module().
--type sasl_mechanism() :: #sasl_mechanism{
-                             mechanism :: mechanism(),
-                             module :: sasl_module(),
-                             password_type :: password_type()
-                            }.
 -type mechanism() :: binary().
--type password_type() :: plain | digest | scram | cert.
 
 -record(sasl_state, {service :: binary(),
                      myname :: jid:server(),
@@ -64,8 +50,9 @@
                | {error, binary() | {binary(), binary()}, jid:user()}.
 
 -export_type([mechanism/0,
-              password_type/0,
               error/0]).
+
+-callback mechanism() -> mechanism().
 
 -callback mech_new(Host :: jid:server(),
                    Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
@@ -73,27 +60,6 @@
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                            | cyrsasl:error().
-
--spec start() -> 'ok'.
-start() ->
-    ets:new(sasl_mechanism, [named_table,
-                             public,
-                             {keypos, #sasl_mechanism.mechanism}]),
-    MechOpts = [],
-    [ Mech:start(MechOpts) || Mech <- get_mechanisms() ],
-    ok.
-
--spec register_mechanism(Mechanism :: mechanism(),
-                         Module :: sasl_module(),
-                         PasswordType :: password_type()) -> true.
-register_mechanism(Mechanism, Module, PasswordType) ->
-    ets_insert_mechanism(#sasl_mechanism{mechanism = Mechanism,
-                                         module = Module,
-                                         password_type = PasswordType}).
-
--spec ets_insert_mechanism(MechanismRec :: sasl_mechanism()) -> true.
-ets_insert_mechanism(MechanismRec) ->
-    ets:insert(sasl_mechanism, MechanismRec).
 
 -spec check_credentials(sasl_state(), mongoose_credentials:t()) -> R when
       R :: {'ok', mongoose_credentials:t()}
@@ -110,28 +76,7 @@ check_credentials(_State, Creds) ->
 
 -spec listmech(jid:server()) -> [mechanism()].
 listmech(Host) ->
-    Mechs = ets:select(sasl_mechanism,
-                       [{#sasl_mechanism{mechanism = '$1',
-                                         password_type = '$2',
-                                         _ = '_'},
-                         case catch ejabberd_auth:store_type(Host) of
-                             external ->
-                                 [{'==', '$2', plain}];
-                             scram ->
-                                 [{'/=', '$2', digest}];
-                             {'EXIT', {undef, [{Module, store_type, []} | _]}} ->
-                                 ?WARNING_MSG("~p doesn't implement the function store_type/0",
-                                              [Module]),
-                                 [{'/=','$2', cert}];
-                             _Else ->
-                                 [{'/=','$2', cert}]
-                         end,
-                         ['$1']}]),
-    filter_mechanisms(Host, Mechs,
-                      [{<<"ANONYMOUS">>,
-                        fun(H)-> ejabberd_auth_anonymous:is_sasl_anonymous_enabled(H) end},
-                       {<<"X-OAUTH">>,
-                        fun(H) -> gen_mod:is_loaded(H, mod_auth_token) end}]).
+    [M:mechanism() || M <- get_modules(Host), is_module_supported(Host, M)].
 
 -spec server_new(Service :: binary(),
                  ServerFQDN :: jid:server(),
@@ -150,25 +95,21 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
               | error().
 
 server_start(State, Mech, ClientIn) ->
-    case lists:member(Mech, listmech(State#sasl_state.myname)) of
-        true ->
-            case lookup_mech(Mech) of
-                [#sasl_mechanism{module = Module}] ->
-                    {ok, MechState} = Module:mech_new(State#sasl_state.myname,
-                                                      State#sasl_state.creds),
-                    server_step(State#sasl_state{mech_mod = Module,
-                                                 mech_state = MechState},
-                                ClientIn);
-                _ ->
-                    {error, <<"no-mechanism">>}
-            end;
-        false ->
+    Host = State#sasl_state.myname,
+    case [M || M <- get_modules(Host), M:mechanism() =:= Mech, is_module_supported(Host, M)] of
+        [Module] ->
+            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds),
+            server_step(State#sasl_state{mech_mod = Module,
+                                         mech_state = MechState},
+                        ClientIn);
+        [] ->
             {error, <<"no-mechanism">>}
     end.
 
--spec lookup_mech(Mech :: mechanism()) -> [sasl_mechanism()].
-lookup_mech(Mech) ->
-    ets:lookup(sasl_mechanism, Mech).
+is_module_supported(Host, cyrsasl_oauth) ->
+    gen_mod:is_loaded(Host, mod_auth_token);
+is_module_supported(Host, Module) ->
+    mongoose_fips:supports_sasl_module(Module) andalso ejabberd_auth:supports_sasl_module(Host, Module).
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) -> Result when
       Result :: {ok, mongoose_credentials:t()}
@@ -189,22 +130,17 @@ server_step(State, ClientIn) ->
             {error, Error}
     end.
 
-%% @doc Remove the anonymous mechanism from the list if not enabled for the
-%% given host
--spec filter_mechanisms(jid:server(), [mechanism()],
-                        [{mechanism(), fun()}]) -> [mechanism()].
-filter_mechanisms(Host, Mechanisms, UnwantedMechanisms) ->
-    lists:foldl(fun({Mechanism, FilterFun}, Acc) ->
-                        case FilterFun(Host) of
-                            true -> Acc;
-                            false -> Acc -- [Mechanism]
-                        end
-                end, Mechanisms, UnwantedMechanisms).
+-spec get_modules(jid:server()) -> [sasl_module()].
+get_modules(Host) ->
+    case ejabberd_config:get_local_option({sasl_mechanisms, Host}) of
+        undefined -> ejabberd_config:get_local_option_or_default(sasl_mechanisms, default_modules());
+        Modules -> Modules
+    end.
 
-get_mechanisms() ->
-    Default = [cyrsasl_plain,
-               cyrsasl_digest,
-               cyrsasl_scram,
-               cyrsasl_anonymous,
-               cyrsasl_oauth],
-    ejabberd_config:get_local_option_or_default(sasl_mechanisms, Default).
+default_modules() ->
+    [cyrsasl_plain,
+     cyrsasl_digest,
+     cyrsasl_scram,
+     cyrsasl_scram_sha256,
+     cyrsasl_anonymous,
+     cyrsasl_oauth].

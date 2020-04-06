@@ -1,144 +1,117 @@
 # Package build scripts for MongooseIM
 
-Build MongooseIM packages in a local container.
+`build.sh` script builds the MongooseIM package for different operating systems
+with usage of Docker. `build.sh` bases on the source code passed as a docker
+context, commands contained in a dockerfile and building scripts. The process of
+building the package runs during docker image building. Copying of the ready
+package takes place after running the docker image containing it.
+
+Source code version used for building a package is set by checking out the desired
+git reference in the project.
+
 Contents:
 
 ```sh
 .
-├── README.md       # This file
-├── build*          # Script to build build containers
-├── env/            # Environment variable definitions
-├── files/          # Files provisioned to the build containers
-├── packages/       # Shiny new packages go here
-├── platforms/      # Dockerfile definitions for your Linux distro flavor
-├── publish*        # Script to publish ready packages
-└── run*            # Script to run build containers, i.e. build packages
+├── README.md            # This file
+├── build.sh*            # Build package script
+├── Dockerfile_{deb,rpm} # Instructions for building different platforms packages
+├── scripts/             # Files and scripts used to build packages
+├── packages/            # Preferable directory for the built packages
+├── env/                 # Environment variable definitions
+├── publish.sh*          # Script to publish ready packages
 ```
-
-
-## Building a build container
-
-Run:
-
-```sh
-./build PLATFORM
-```
-
-Look into `platforms/` for valid values of `PLATFORM`.
-
-For example, specify `centos7` if you want to build an `.rpm` or `debian_stretch` to get a `.deb`
-package for the relevant version of the system.
-
-Adding support for a new platform is basically writing a Dockerfile
-which will preinstall all the build dependencies for the project.
-The build container image is reused for consecutive builds,
-so make sure to do as much as possible when building the build container
-to effectively shorten package build times later.
 
 
 ## Building a package
 
-Run:
+To build a package run:
 
 ```sh
-$ ./run PLATFORM <VERSION>
+  ./build.sh \
+    --platform $PLATFORM \
+    --version $VERSION \
+    --revision $REVISION \
+    --erlang_version $ERLANG_VERSION \
+    --dockerfile_path "$DOCKERFILE_PATH" \
+    --context_path $CONTEXT_PATH \
+    --built_packages_directory "$BUILT_PACKAGES_DIRECTORY"
 ```
 
-Look into `platforms/` for valid values of `PLATFORM` - it is the same thing
-as when building a build container.
+Where:
 
-If all goes well, the package will land in `packages/`
-subdirectory - mounted as a container volume at `/packages`.
-The container instance is removed once the build finishes.
+* `$PLATFORM` - an OS and an OS version name separated by "_" (e.g. centos_7,
+debian_stretch),
+* `$VERSION` - a version of MongooseIM (for most cases version from the `VERSION`
+file will be suitable),
+* `$REVISION` - a revision of a package (should be increased each time a package
+is built for the same source code but with the usage of changed build scripts),
+* `$ERLANG_VERSION` - a version of the esl-erlang package which should be used
+while compiling MongooseIM (please remember about concerning minimal erlang version
+specified in the `rebar.config` file and the esl-erlang package revision - e.g. 22.2.5-2),
+* `DOCKERFILE_PATH` - a dockerfile path which should be used to build a package
+for given platform (e.g. path of `Dockerfile_rpm` for `centos_7`),
+* `CONTEXT_PATH` - a root directory of the MongooseIM project (during building
+whole source code is copied to a building docker image container and the `_build`
+directory is erased),
+* `BUILT_PACKAGES_DIRECTORY` - a directory in which ready package will be placed.
 
-Repository to build MongooseIM from can be overridden by exporting
-the `MONGOOSEIM_REPO` environment variable.
-The default is the official MongooseIM repository: https://github.com/esl/mongooseim.git
+If all goes well, the package will land in the`$built_packages_directory`
+subdirectory - mounted as a container bind mount at `/built_packages` in the
+container. The container instance is removed once the build finishes.
 
-In the rare case of changing the package build scripts,
-but not released code itself, it's also possible to specify package
-revision:
+A resulting package will be called:
 
-```sh
-$ ./run PLATFORM <VERSION> <PACKAGE-REVISION>
+```
+mongooseim_3.6.0-1~centos~7_amd64.rpm
+```
+For passed `version`: "3.6.0", `revision`: "1" and `platform`: "centos_7".
+
+## Sample configuration
+
+Below variables can be used to build a default package for Debian Stretch:
+
+```
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+PLATFORM="debian_stretch"
+VERSION=$(cat "${PROJECT_ROOT}/VERSION")
+REVISION="1"
+ERLANG_VERSION="22.2.5-1"
+DOCKERFILE_PATH="$PROJECT_ROOT/tools/pkg/Dockerfile_deb"
+CONTEXT_PATH=$PROJECT_ROOT
+BUILT_PACKAGES_DIRECTORY="$PROJECT_ROOT/tools/pkg/packages"
 ```
 
-The default `PACKAGE-REVISION` is 1, so if you have to specify it,
-you'll most likely use 2, 3... and so on.
+## Setting package version and revision
 
-A resulting package will, for example, be called:
+A package version consists of a MongooseIM `version` and a `revision` of a package. 
+Their default and recommended values were showed above. It is possible though
+that a package will be built for non tagged version of the source code.
 
-```
-mongooseim-2.1.0-1~centos7.x86_64.rpm
-```
+Setting `version` and `revision` is up to creator of a package but following is
+recommended:
 
-For version 2.1.0, revision 1 and platform `centos7`.
+* always set: `VERSION=$(cat "${PROJECT_ROOT}/VERSION")`,
+* while building a package for tagged source code use: `REVISION="1"`,
+* while building a package for non tagged source code try to indicate what source
+code was used (e.g. by adding a commit hash to the revision: 
+`REVISION="1.$(git rev-parse --short HEAD)"`).
 
+Make sure to keep the `"${PROJECT_ROOT}/VERSION"` and passed `$VERSION`
+in sync - otherwise, it will become impossible (or hard at least) to track
+what code version went into which package.
 
-### Tagging versions
-
-`TAGGED-PUBLIC-VERSION` is the reference which will be built and packaged.
-However, the package name will contain content of the `VERSION` file from the
-repository's top level directory.
-Make sure to keep the tagged versions and `VERSION` in sync - otherwise,
-it will become impossible (or hard at least) to track what code
-version went into which package.
-
-`VERSION` is also used as version of the Erlang release
-which will be installed from the package.
-The operations people will be grateful for staying sane if you make sure
-that the package name/version, release version and git tag all match.
-
-Git hooks can be a great reminder here!
-
-```sh
-#!/usr/bin/env sh
-
-# Make sure VERSION file and git tag define the same MongooseIM version.
-#
-# Put in:
-#
-#   <MONGOOSEIM_ROOT>/.git/hooks/pre-commit
-#
-# or
-#
-#   <MONGOOSEIM_ROOT>/.git/hooks/post-commit
-#
-# depending on whether you want to be reminded before or after
-# entering the commit message.
-# When this script fails committing will also fail.
-
-set -e
-
-VERSION=$(cat VERSION)
-GIT_TAG=$(git describe --tags)
-
-if [ x"$VERSION" = x"$GIT_TAG" ]; then
-    :
-else
-    echo "Versions do not match!"
-    echo "VERSION file: " $VERSION
-    echo "git tag:      " $GIT_TAG
-    echo
-    echo "Set IGNORE_VERSION_CHECK to commit anyway."
-    echo
-    if [ x"$IGNORE_VERSION_CHECK" != x"" ]; then
-        exit 0
-    else
-        exit 1
-    fi
-fi
-
-exit 0
-```
-
+Passed `$VERSION` is also used as a version of the Erlang release which will
+be installed from the package. The operations people will be grateful for staying
+sane if you make sure that the package name/version/revision, and source code
+version from which package was built all match.
 
 ## Publishing the package
 
 Once you've built the package and it's available in `packages/`:
 
 ```
-./publish TAGGED-PUBLIC-VERSION [PACKAGE-REVISION]
+./publish VERSION [PACKAGE-REVISION]
 ```
 
 As indicated by square brackets `PACKAGE-REVISION` is optional.

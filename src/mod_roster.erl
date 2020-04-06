@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -39,6 +38,7 @@
 -xep([{xep, 83}, {version, "1.0"}]).
 -xep([{xep, 93}, {version, "1.2"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -56,7 +56,7 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
          get_jid_info/4,
@@ -66,7 +66,14 @@
          roster_version/2
          ]).
 
--export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
+-export([remove_test_user/2,
+         transaction/2,
+         process_subscription_transaction/6,
+         get_user_rosters_length/2]). % for testing
+
+-export([get_personal_data/2]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -156,6 +163,33 @@
     Item :: term(),
     Result :: error | roster().
 
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+    Records = mod_roster_backend:get_roster(LUser, LServer),
+    SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
+    [{roster, Schema, SerializedRecords} | Acc].
+
+roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
+                                     subscription = Subscription, ask = Ask, groups = Groups,
+                                     askmessage = AskMessage, xs = XS }) ->
+    [
+     jid:to_binary(JID),
+     Name,
+     atom_to_binary(Subscription, utf8),
+     atom_to_binary(Ask, utf8),
+     string:join([ unicode:characters_to_list(G) || G <- Groups ], ", "),
+     AskMessage,
+     << <<(exml:to_binary(X))>> || X <- XS >>
+    ].
+
+%%--------------------------------------------------------------------
+%% mod_roster's callbacks
+%%--------------------------------------------------------------------
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -189,7 +223,8 @@ hooks(Host) ->
      {roster_get_jid_info, Host, ?MODULE, get_jid_info, 50},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
-     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50}].
+     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
@@ -412,7 +447,7 @@ item_to_xml(Item) ->
 
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
-    ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
+    mongoose_hooks:roster_set(LServer, ok, From, To, SubEl),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
 
@@ -441,7 +476,7 @@ do_process_item_set(JID1,
                       LJID :: jid:simple_jid() | error,
                       From ::jid:jid(),
                       To ::jid:jid(),
-                      Item2 :: fun( (roster()) -> roster())) -> ok.
+                      MakeItem2 :: fun( (roster()) -> roster())) -> ok.
 set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
                 Item = case get_roster_entry(LUser, LServer, LJID) of
@@ -457,9 +492,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
                     remove -> del_roster_t(LUser, LServer, LJID);
                     _ -> update_roster_t(LUser, LServer, LJID, Item2)
                 end,
-                Item3 = ejabberd_hooks:run_fold(roster_process_item,
-                                                LServer, Item2,
-                                                [LServer]),
+                Item3 = mongoose_hooks:roster_process_item(LServer, Item2),
                 case roster_version_on_db(LServer) of
                     true -> write_roster_version_t(LUser, LServer);
                     false -> ok
@@ -517,22 +550,22 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
 process_item_els(Item, []) -> Item.
 
 push_item(User, Server, From, Item) ->
-    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>),
-                      jid:make(User, Server, <<"">>),
+    #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
+    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>), JID,
                       {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(Server) of
         true ->
-            push_item_version(Server, User, From, Item,
-                              roster_version(Server, jid:nodeprep(User)));
+            push_item_version(JID, Server, User, From, Item,
+                              roster_version(Server, LUser));
         false ->
             lists:foreach(fun (Resource) ->
                                   push_item(User, Server, Resource, From, Item)
                           end,
-                          ejabberd_sm:get_user_resources(User, Server))
+                          ejabberd_sm:get_user_resources(JID))
     end.
 
 push_item(User, Server, Resource, From, Item) ->
-    ejabberd_hooks:run(roster_push, Server, [From, Item]),
+    mongoose_hooks:roster_push(Server, ok, From, Item),
     push_item(User, Server, Resource, From, Item, not_found).
 
 push_item(User, Server, Resource, From, Item, RosterVersion) ->
@@ -552,13 +585,13 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
                           jid:make(User, Server, Resource),
                           jlib:iq_to_xml(ResIQ)).
 
-push_item_version(Server, User, From, Item,
+push_item_version(JID, Server, User, From, Item,
                   RosterVersion) ->
     lists:foreach(fun (Resource) ->
                           push_item(User, Server, Resource, From, Item,
                                     RosterVersion)
                   end,
-                  ejabberd_sm:get_user_resources(User, Server)).
+                  ejabberd_sm:get_user_resources(JID)).
 
 -spec get_subscription_lists(Acc :: mongoose_acc:t(),
                              User :: binary(),
@@ -826,6 +859,9 @@ in_auto_reply(_, _, _) -> none.
 remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
 
+get_user_rosters_length(User, Server) ->
+    length(get_roster_old(User, Server)).
+
 %% Used only by tests
 remove_user(User, Server) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -836,10 +872,19 @@ remove_user(User, Server) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Acc1 = send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
+    Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
+    mod_roster_backend:remove_user(LUser, LServer),
     Acc1.
+
+try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+    try
+        send_unsubscription_to_rosteritems(Acc, LUser, LServer)
+    catch
+        E:R:S ->
+            ?WARNING_MSG("event=cannot_send_unsubscription_to_rosteritems,"
+                         "class=~p,reason=~p,stacktrace=~p", [E, R, S]),
+            Acc
+    end.
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
@@ -1019,7 +1064,7 @@ get_roster_old(DestServer, LUser, LServer) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => DestServer,
                             element => undefined }),
-    A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
+    A2 = mongoose_hooks:roster_get(DestServer, A, LUser, LServer),
     mongoose_acc:get(roster, items, [], A2).
 
 -spec item_to_map(roster()) -> map().
@@ -1033,3 +1078,6 @@ item_to_map(#roster{} = Roster) ->
     #{jid => ContactJid, name => ContactName, subscription => Subs,
       groups => Groups, ask => Ask}.
 
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

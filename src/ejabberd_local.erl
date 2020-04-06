@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -58,6 +57,10 @@
          terminate/2, code_change/3]).
 
 -export([do_route/4]).
+
+%% For testing only
+-export([get_iq_callback/1]).
+
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -138,12 +141,12 @@ process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)
     catch
-        _:Reason ->
+        _:Reason:StackTrace ->
             ?ERROR_MSG("event=routing_error,from=~ts,to=~ts,module=~p,"
                        "reason=~p,packet=~ts,stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, exml:to_binary(mongoose_acc:element(Acc)),
-                        erlang:get_stacktrace()])
+                        StackTrace])
     end.
 
 -spec route_iq(From :: jid:jid(),
@@ -401,10 +404,10 @@ do_route(Acc, From, To, El) ->
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
                 _ ->
-                    ejabberd_hooks:run_fold(local_send_to_resource_hook,
+                    mongoose_hooks:local_send_to_resource_hook(
                                             To#jid.lserver,
                                             Acc,
-                                            [From, To, El])
+                                            From, To, El)
             end
     end.
 

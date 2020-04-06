@@ -62,12 +62,11 @@ and [ELK](https://www.elastic.co/elk-stack) friendly.
 
     try ...
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=check_password_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
-            erlang:raise(Class, Reason, Stacktrace)
+                       [Class, Reason, LUser, StackTrace]),
+            erlang:raise(Class, Reason, StackTrace)
     end
 ```
 

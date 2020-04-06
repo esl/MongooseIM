@@ -4,6 +4,7 @@
 -export([init/0]).
 -export([start/4]).
 -export([stop/2]).
+-export([is_supported_strategy/1]).
 
 init() ->
     ok.
@@ -15,6 +16,9 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
 
 stop(_, _) ->
     ok.
+
+is_supported_strategy(available_worker) -> false;
+is_supported_strategy(_) -> true.
 
 %%%===================================================================
 %%% Internal functions

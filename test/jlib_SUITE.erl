@@ -16,7 +16,7 @@ all() -> [
          ].
 
 init_per_suite(C) ->
-    ok = stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     C.
 
 end_per_suite(C) ->

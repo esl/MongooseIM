@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -29,6 +28,7 @@
 -xep([{xep, 16}, {version, "1.6"}]).
 -xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
@@ -36,9 +36,10 @@
          process_iq_get/5,
          get_user_list/3,
          check_packet/6,
-         remove_user/2,
          remove_user/3,
          updated_list/3]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -309,29 +310,24 @@ get_user_list(_, User, Server) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
+check_packet(Acc, _User, _Server, #userlist{list = []}, _, _Dir) ->
+    mongoose_acc:set(hook, result, allow, Acc);
 check_packet(Acc, User, Server,
-         #userlist{list = List, needdb = NeedDb},
-         {From, To, Name, Type},
-         Dir) ->
-    CheckResult = case List of
-        [] ->
-            allow;
-        _ ->
-            PType = packet_directed_type(Dir, packet_type(Name, Type)),
-            LJID = case Dir of
-                   in -> jid:to_lower(From);
-                   out -> jid:to_lower(To)
-                   end,
-            {Subscription, Groups} =
-            case NeedDb of
-                true ->
-                    Host = jid:nameprep(Server),
-                    roster_get_jid_info(Host, User, Server, LJID);
-                false ->
-                    {[], []}
-            end,
-            check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
-    end,
+             #userlist{list = List, needdb = NeedDb},
+             {From, To, Name, Type}, Dir) ->
+    PType = packet_directed_type(Dir, packet_type(Name, Type)),
+    LJID = case Dir of
+               in -> jid:to_lower(From);
+               out -> jid:to_lower(To)
+           end,
+    {Subscription, Groups} =
+        case NeedDb of
+            true ->
+                roster_get_jid_info(Server, User, LJID);
+            false ->
+                {[], []}
+        end,
+    CheckResult = check_packet_aux(List, PType, Type, LJID, Subscription, Groups),
     mongoose_acc:set(hook, result, CheckResult, Acc).
 
 %% allow error messages
@@ -368,27 +364,20 @@ do_check_packet_aux(Type, Action, PType, Value, JID, MType, Subscription, Groups
             check_packet_aux(List, PType, MType, JID, Subscription, Groups)
     end.
 
-is_ptype_match(Item, PType) ->
-    case Item#listitem.match_all of
-        true ->
-            true;
-        false ->
-            case PType of
-                message ->
-                    Item#listitem.match_message;
-                message_out ->
-                    false; % according to xep-0016, privacy lists do not stop outgoing
-                           % messages (so they say)
-                iq ->
-                    Item#listitem.match_iq;
-                presence_in ->
-                    Item#listitem.match_presence_in;
-                presence_out ->
-                    Item#listitem.match_presence_out;
-                other ->
-                    false
-            end
-    end.
+is_ptype_match(#listitem{match_all = true}, _PType) ->
+    true;
+is_ptype_match(Item, message) ->
+    Item#listitem.match_message;
+is_ptype_match(_Item, message_out) ->
+    false; % according to xep-0016, privacy lists do not stop outgoing messages (so they say)
+is_ptype_match(Item, iq) ->
+    Item#listitem.match_iq;
+is_ptype_match(Item, presence_in) ->
+    Item#listitem.match_presence_in;
+is_ptype_match(Item, presence_out) ->
+    Item#listitem.match_presence_out;
+is_ptype_match(_Item, other) ->
+    false.
 
 is_type_match(jid, Value, JID, _Subscription, _Groups) ->
     case Value of
@@ -416,15 +405,11 @@ is_type_match(group, Value, _JID, _Subscription, Groups) ->
     lists:member(Value, Groups).
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_privacy_backend:remove_user(LUser, LServer).
-
+    R = mod_privacy_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 updated_list(_, #userlist{name = SameName}, #userlist{name = SameName} = New) -> New;
 updated_list(_, Old, _) -> Old.
@@ -434,29 +419,23 @@ updated_list(_, Old, _) -> Old.
 %% ------------------------------------------------------------------
 
 
-packet_directed_type(Dir, Type) ->
-    case {Type, Dir} of
-         {message, out} -> message_out;
-         {message, in} -> message;
-         {iq, in} -> iq;
-         {presence, in} -> presence_in;
-         {presence, out} -> presence_out;
-         {_, _} -> other
-    end.
+packet_directed_type(out, message) -> message_out;
+packet_directed_type(in, message) -> message;
+packet_directed_type(in, iq) -> iq;
+packet_directed_type(in, presence) -> presence_in;
+packet_directed_type(out, presence) -> presence_out;
+packet_directed_type(_Dir, _Type) -> other.
 
-packet_type(Name, Type) ->
-    case Name of
-        <<"message">> -> message;
-        <<"iq">> -> iq;
-        <<"presence">> ->
-            case Type of
-                %% notification
-                undefined -> presence;
-                <<"unavailable">> -> presence;
-                %% subscribe, subscribed, unsubscribe,
-                %% unsubscribed, error, probe, or other
-                _ -> other
-            end
+packet_type(<<"message">>, _Type) -> message;
+packet_type(<<"iq">>, _Type) -> iq;
+packet_type(<<"presence">>, Type) ->
+    case Type of
+        %% notification
+        undefined -> presence;
+        <<"unavailable">> -> presence;
+        %% subscribe, subscribed, unsubscribe,
+        %% unsubscribed, error, probe, or other
+        _ -> other
     end.
 
 parse_items([]) ->
@@ -687,10 +666,11 @@ broadcast_privacy_list(LUser, LServer, Name, UserList) ->
 broadcast_privacy_list_packet(Name, UserList) ->
     {broadcast, {privacy_list, UserList, Name}}.
 
-roster_get_jid_info(Host, User, Server, LJID) ->
-    ejabberd_hooks:run_fold(
-        roster_get_jid_info,
-        Host,
-        {none, []},
-        [User, Server, LJID]).
+roster_get_jid_info(Host, User, LJID) ->
+    mongoose_hooks:roster_get_jid_info(Host,
+                                       {none, []},
+                                       User, LJID).
 
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

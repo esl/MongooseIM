@@ -4,40 +4,8 @@
 %%% Purpose : MUC light support
 %%% Created : 8 Sep 2014 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%
-%%% Configuration options:
-%%% * backend (mnesia) - DB backend
-%%% * equal_occupants (false) - When enabled, everyone in the room will have 'member' status,
-%%%                             including creator
-%%% * legacy_mode (false) - Enables XEP-0045 compatibility mode
-%%% * rooms_per_user (infinity) - Default maximum count of rooms the user can occupy
-%%% * blocking (true) - Blocking feature enabled/disabled
-%%% * all_can_configure (false) - Every room occupant can change room configuration
-%%% * all_can_invite (false) - Every room occupant can invite a user to the room
-%%% * max_occupants (infinity) - Maximal occupant count per room
-%%% * rooms_per_page (10) - Maximal room count per result page in room disco
-%%% * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
-%%%                              user's roster
-%%% * config_schema (["roomname", "subject"]) - Custom list of configuration options for a room;
-%%%                               WARNING! Lack of `roomname` field will cause room names in
-%%%                               Disco results and Roster items be set to room username.
-%%% * default_config ([{"roomname, "Untitled"}, {"subject", ""}]) -
-%%%                                Custom default room configuration; must be a subset of
-%%%                                config schema. It's a list of KV tuples with string keys
-%%%                                and values of appriopriate type. String values will be
-%%%                                converted to binary automatically.
-%%%        Example: [{"roomname", "The room"}, {"subject", "Chit-chat"}, {"security", 10}]
-%%%
-%%% Allowed `config_schema` list items (may be mixed):
-%%% * Just field name: "field" - will be expanded to "field" of type 'binary'
-%%% * Field name and type: {"field", integer}
-%%% * Field name, atom and the type: {"field", field, float} - useful only for debugging
-%%%                 or unusual applications
-%%% Sample valid list: `["roomname", {"subject", binary}, {"priority", priority, integer}]`
-%%%
-%%% Valid config field types:
-%%% * binary
-%%% * integer
-%%% * float
+%%% Looking for documentation excerpt that was present here for 5 years?
+%%% Now everything is moved to doc/modules/mod_muc_light.md
 %%%
 %%%----------------------------------------------------------------------
 
@@ -52,9 +20,10 @@
 
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
--export([standard_config_schema/0, standard_default_config/0, default_host/0]).
+-export([default_schema_definition/0, default_host/0]).
 -export([config_schema/1, default_config/1]).
 
 %% For Administration API
@@ -83,25 +52,26 @@
 %% For propEr
 -export([apply_rsm/3]).
 
+-export([config_metrics/1]).
+
 %%====================================================================
 %% API
 %%====================================================================
 
--spec standard_config_schema() -> [Field :: string()].
-standard_config_schema() -> ["roomname", "subject"].
-
--spec standard_default_config() -> [{K :: string(), V :: string()}].
-standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
+-spec default_schema_definition() -> mod_muc_light_room_config:user_defined_schema().
+default_schema_definition() ->
+    [{"roomname", "Untitled"},
+     {"subject", ""}].
 
 -spec default_host() -> binary().
 default_host() ->
     <<"muclight.@HOST@">>.
 
--spec default_config(MUCServer :: jid:lserver()) -> config().
+-spec default_config(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:kv().
 default_config(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, default_config, []).
 
--spec config_schema(MUCServer :: jid:lserver()) -> config_schema().
+-spec config_schema(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:schema().
 config_schema(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
 
@@ -119,7 +89,7 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
                         CreatorUS, RoomUS, CreationCfg#create.aff_users),
     MaxOccupants = gen_mod:get_module_opt_by_subhost(
                      RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
-    case {mod_muc_light_utils:process_raw_config(
+    case {mod_muc_light_room_config:apply_binary_kv(
             RawConfig, default_config(RoomS), config_schema(RoomS)),
           process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
@@ -194,14 +164,12 @@ start(Host, Opts) ->
     ejabberd_router:register_route(MUCHost, mongoose_packet_handler:new(?MODULE)),
 
     %% Prepare config schema
-    ConfigSchema = mod_muc_light_utils:make_config_schema(
-                     gen_mod:get_opt(config_schema, Opts, standard_config_schema())),
+    ConfigSchema = mod_muc_light_room_config:schema_from_definition(
+                     gen_mod:get_opt(config_schema, Opts, default_schema_definition())),
     gen_mod:set_module_opt(Host, ?MODULE, config_schema, ConfigSchema),
 
     %% Prepare default config
-    DefaultConfig = mod_muc_light_utils:make_default_config(
-                      gen_mod:get_opt(default_config, Opts, standard_default_config()),
-                      ConfigSchema),
+    DefaultConfig = mod_muc_light_room_config:default_from_schema(ConfigSchema),
     gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),
 
     ok.
@@ -308,8 +276,10 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [exml:element()]}, From :: jid:jid(), To :: jid:jid(),
-                      NS :: binary(), ejabberd:lang()) -> {result, [exml:element()]}.
+-spec get_muc_service(Acc :: {result, [exml:element()]} | empty | {error, any()},
+                      From :: jid:jid(), To :: jid:jid(),
+                      NS :: binary(), ejabberd:lang())
+                     -> {result, [exml:element()]} | empty | {error, any()}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
     XMLNS = case gen_mod:get_module_opt_by_subhost(
                    LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
@@ -655,3 +625,7 @@ maybe_forget_rooms([{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
 
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

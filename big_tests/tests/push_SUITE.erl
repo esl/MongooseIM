@@ -18,7 +18,8 @@
     disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
--record(route, {from, to, acc, packet}).
+-define(RPC_SPEC, distributed_helper:mim()).
+-define(SESSION_KEY, publish_service).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -28,8 +29,8 @@ all() ->
     [
         {group, disco},
         {group, toggling},
-        {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, pubsub_ful},
+        {group, pubsub_less}
     ].
 
 groups() ->
@@ -44,11 +45,17 @@ groups() ->
                                  enable_should_succeed_without_form,
                                  enable_with_form_should_fail_with_incorrect_from,
                                  enable_should_accept_correct_from,
+                                 enable_should_fail_with_invalid_pubsub_jid,
                                  disable_should_fail_with_missing_attributes,
                                  disable_should_fail_with_invalid_attributes,
                                  disable_all,
-                                 disable_node
+                                 disable_node,
+                                 disable_node_enabled_in_session_removes_it_from_session_info,
+                                 disable_all_nodes_removes_it_from_all_user_session_infos,
+                                 disable_node_enabled_in_other_session_leaves_current_info_unchanged
                                 ]},
+         {pubsub_ful, [], notification_groups()},
+         {pubsub_less, [], notification_groups()},
          {pm_msg_notifications, [parallel], [
                                              pm_no_msg_notifications_if_not_enabled,
                                              pm_no_msg_notifications_if_user_online,
@@ -66,6 +73,12 @@ groups() ->
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
+notification_groups() ->
+    [
+     {group, pm_msg_notifications},
+     {group, muclight_msg_notifications}
+    ].
+
 suite() ->
     escalus:suite().
 
@@ -73,65 +86,121 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+%% --------------------- Callbacks ------------------------
+
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE),
+    start_execution_queue(),
     escalus:init_per_suite(Config).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    stop_execution_queue(),
     escalus:end_per_suite(Config).
 
 init_per_group(disco, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
+init_per_group(pubsub_ful, Config) ->
+    [{pubsub_host, real} | Config];
+init_per_group(pubsub_less, Config) ->
+    [{pubsub_host, virtual} | Config];
 init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
-    Config = init_per_group(generic_group, Config0),
+    Config = ensure_pusher_module_and_save_old_mods(Config0),
     dynamic_modules:ensure_modules(Host, [{mod_muc_light,
                                            [{host, binary_to_list(?MUCHOST)},
-                                            {backend, mnesia},
+                                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                             {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
     Config;
-init_per_group(_, Config0) ->
-    Config1 = [{push_config, ?PUSH_OPTS} | Config0],
-    Host = ct:get_config({hosts, mim, domain}),
-    Config = dynamic_modules:save_modules(Host, Config1),
-    dynamic_modules:ensure_modules(Host, [{mod_push, ?PUSH_OPTS}]),
-    Config.
+init_per_group(_, Config) ->
+    ensure_pusher_module_and_save_old_mods(Config).
 
 end_per_group(disco, Config) ->
     escalus:delete_users(Config),
     Config;
+end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_ful;
+                                         ComplexGroup == pubsub_less ->
+    Config;
 end_per_group(_, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:restore_modules(Host, Config),
+    restore_modules(Config),
     Config.
 
-init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OldModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, start_modules, [Host, [{mod_push, ?PUSH_OPTS}]]),
-    escalus:init_per_testcase(CaseName, [{old_modules, OldModules} | Config]);
+init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config1) ->
+    Config2 = ensure_pusher_module_and_save_old_mods(Config1),
+    escalus:init_per_testcase(CaseName, Config2);
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
-    start_publish_listener(CaseName, Config0),
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
     Config = [{case_name, CaseName} | Config1],
+
+    case ?config(pubsub_host, Config0) of
+        virtual ->
+            add_virtual_host_to_pusher(pubsub_jid(Config)),
+            start_hook_listener();
+        _ ->
+            start_route_listener(CaseName)
+    end,
+
     escalus:init_per_testcase(CaseName, Config).
 
-
 end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OldModules = ?config(old_modules, Config),
-    CurrentModules = rpc(gen_mod, loaded_modules_with_opts, [Host]),
-    rpc(gen_mod_deps, replace_modules, [Host, CurrentModules, OldModules]),
+    restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     rpc(ejabberd_router, unregister_route, [atom_to_binary(CaseName, utf8)]),
     escalus:end_per_testcase(CaseName, Config).
+
+%% --------------------- Helpers ------------------------
+execution_queue() ->
+    receive
+        {Pid, Fun, Args} when is_pid(Pid), is_list(Args), is_function(Fun, length(Args)) ->
+            Ret = (catch apply(Fun, Args)),
+            Pid ! {ret, Ret},
+            execution_queue();
+        {Pid, stop} when is_pid(Pid) ->
+            Pid ! stopped
+    end.
+
+start_execution_queue() ->
+    register(execution_queue, spawn(fun execution_queue/0)).
+
+stop_execution_queue() ->
+    execution_queue ! {self(), stop},
+    receive
+        stopped -> ok
+    end.
+
+queue(F, A) -> queue(F, A, 5000).
+
+queue(F, A, Timeout) ->
+    execution_queue ! {self(), F, A},
+    receive
+        {ret, Ret} -> Ret
+    after Timeout ->
+        error({timeout, F, A, Timeout})
+    end.
+
+add_virtual_host_to_pusher(VirtualHost) ->
+    %% this function is executed in parallel environment,
+    %% so to prevent race conditions queue rpc calls.
+    Args = [mod_event_pusher_push, add_virtual_pubsub_host, [<<"localhost">>, VirtualHost]],
+    queue(fun escalus_ejabberd:rpc/3, Args).
+
+ensure_pusher_module_and_save_old_mods(Config) ->
+    PushOpts = [{backend, mongoose_helper:mnesia_or_rdbms_backend()}],
+    Host = ct:get_config({hosts, mim, domain}),
+    Config1 = dynamic_modules:save_modules(Host, Config),
+    PusherMod = {mod_event_pusher, [{backends, [{push, PushOpts}]}]},
+    dynamic_modules:ensure_modules(Host, [PusherMod]),
+    [{push_opts, PushOpts} | Config1].
+
+restore_modules(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:restore_modules(Host, Config).
 
 %%--------------------------------------------------------------------
 %% GROUP disco
@@ -157,7 +226,7 @@ push_notifications_not_listed_disco_when_not_available(Config) ->
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(is_iq_result, Stanza),
-            Pred = fun(Feature, Stanza) -> not escalus_pred:has_feature(Feature, Stanza) end,
+            Pred = fun(Feature, Stanza0) -> not escalus_pred:has_feature(Feature, Stanza0) end,
             escalus:assert(Pred, [push_helper:ns_push()], Stanza),
             ok
         end).
@@ -264,6 +333,16 @@ enable_should_accept_correct_from(Config) ->
             ok
         end).
 
+enable_should_fail_with_invalid_pubsub_jid(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            escalus:send(Bob, enable_stanza(<<"invalid_pubsub_jid">>, <<"NodeId">>)),
+            escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>],
+                           escalus:wait_for_stanza(Bob)),
+            ok
+        end).
+
 disable_should_fail_with_missing_attributes(Config) ->
     escalus:story(
         Config, [{bob, 1}],
@@ -326,6 +405,87 @@ disable_node(Config) ->
             ok
         end).
 
+disable_node_enabled_in_session_removes_it_from_session_info(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_tools:pubsub_node_name(),
+
+            escalus:send(Bob, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
+            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+
+            escalus:send(Bob, disable_stanza(PubsubJID, NodeId)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
+            false = lists:keyfind(?SESSION_KEY, 1, Info2)
+        end).
+
+disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 2}],
+        fun(Bob1, Bob2) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_tools:pubsub_node_name(),
+            NodeId2 = pubsub_tools:pubsub_node_name(),
+
+            escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            escalus:send(Bob2, enable_stanza(PubsubJID, NodeId2, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            {?SESSION_KEY, {_JID, NodeId2, _}} = lists:keyfind(?SESSION_KEY, 1, Info2),
+
+            %% Now Bob1 disables all nodes
+            escalus:send(Bob1, disable_stanza(PubsubJID)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            %% And we check if Bob1 and Bob2 have push notifications cleared from session info
+            Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            false = lists:keyfind(?SESSION_KEY, 1, Info3),
+
+            Info4 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            false = lists:keyfind(?SESSION_KEY, 1, Info4)
+        end).
+
+disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
+    escalus:fresh_story(
+        Config, [{bob, 2}],
+        fun(Bob1, Bob2) ->
+            PubsubJID = pubsub_jid(Config),
+            NodeId = pubsub_tools:pubsub_node_name(),
+            NodeId2 = pubsub_tools:pubsub_node_name(),
+
+            escalus:send(Bob1, enable_stanza(PubsubJID, NodeId, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            escalus:send(Bob2, enable_stanza(PubsubJID, NodeId2, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
+
+            Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+
+            Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
+            {?SESSION_KEY, {_JID, NodeId2, _}} = lists:keyfind(?SESSION_KEY, 1, Info2),
+
+            %% Now Bob1 disables the node registered by Bob2
+            escalus:send(Bob1, disable_stanza(PubsubJID, NodeId)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob1)),
+
+            %% And we check if Bob1 still has its own Node in the session info
+            Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
+            false = lists:keyfind(?SESSION_KEY, 1, Info3)
+        end).
+
 %%--------------------------------------------------------------------
 %% GROUP pm_msg_notifications
 %%--------------------------------------------------------------------
@@ -337,7 +497,7 @@ pm_no_msg_notifications_if_not_enabled(Config) ->
             become_unavailable(Bob),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -352,7 +512,7 @@ pm_no_msg_notifications_if_user_online(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -369,21 +529,10 @@ pm_msg_notify_if_user_offline(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                             {element, <<"publish">>},
-                                             {element, <<"item">>},
-                                             {element, <<"notification">>},
-                                             {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:push_form_type(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
+            #{ payload := Payload } = received_push(Config),
+            ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Payload)),
             ?assertMatch(AliceJID,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
+                         proplists:get_value(<<"last-message-sender">>, Payload)),
 
             ok
         end).
@@ -402,18 +551,10 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish-options">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:ns_pubsub_pub_options(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
-            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
+            #{ publish_options := PublishOptions } = received_push(Config),
+
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, PublishOptions)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, PublishOptions)),
             ok
         end).
 
@@ -434,7 +575,7 @@ pm_msg_notify_stops_after_disabling(Config) ->
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
-            ?assert(not received_route()),
+            ?assert(not received_push(Config)),
 
             ok
         end).
@@ -457,7 +598,7 @@ muclight_no_msg_notifications_if_not_enabled(Config) ->
 
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
 
             ok
         end).
@@ -478,7 +619,7 @@ muclight_no_msg_notifications_if_user_online(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
@@ -499,22 +640,12 @@ muclight_msg_notify_if_user_offline(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish">>},
-                                            {element, <<"item">>},
-                                            {element, <<"notification">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:push_form_type(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Fields)),
+            #{ payload := Payload } = received_push(Config),
+
+            ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Payload)),
             SenderId = <<(room_bin_jid(Room))/binary, "/" ,BobJID/binary>>,
             ?assertMatch(SenderId,
-                         proplists:get_value(<<"last-message-sender">>, Fields)),
+                         proplists:get_value(<<"last-message-sender">>, Payload)),
             ok
         end).
 
@@ -536,18 +667,10 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            Published = received_route(),
-            ?assertMatch(#route{}, Published),
-            #route{to = RealPubsubJID, packet = Packet} = Published,
-            ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
-            Form = exml_query:path(Packet, [{element, <<"pubsub">>},
-                                            {element, <<"publish-options">>},
-                                            {element, <<"x">>}]),
-            Fields = parse_form(Form),
-            NS = push_helper:ns_pubsub_pub_options(),
-            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
-            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
-            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
+            #{ publish_options := PublishOptions } = received_push(Config),
+
+            ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, PublishOptions)),
+            ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, PublishOptions)),
             ok
         end).
 
@@ -572,15 +695,53 @@ muclight_msg_notify_stops_after_disabling(Config) ->
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), Msg),
             escalus:send(Bob, Stanza),
 
-            ?assert(not truly(received_route())),
+            ?assert(not truly(received_push(Config))),
             ok
         end).
 
-
 %%--------------------------------------------------------------------
-%% Test helpers
+%% Remote code
+%% Functions that will be executed in MongooseIM context + helpers that set them up
 %%--------------------------------------------------------------------
 
+start_route_listener(CaseName) ->
+    %% We put namespaces in the state to avoid injecting push_helper module to MIM as well
+    State = #{ pid => self(),
+               pub_options_ns => push_helper:ns_pubsub_pub_options(),
+               push_form_ns => push_helper:push_form_type() },
+    Handler = rpc(mongoose_packet_handler, new, [?MODULE, State]),
+    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]).
+
+process_packet(_Acc, _From, To, El, State) ->
+    #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
+    PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish-options">>},
+                                      {element, <<"x">>}]),
+    PublishOptions = parse_form(PublishXML),
+
+    PayloadXML = exml_query:path(El, [{element, <<"pubsub">>},
+                                      {element, <<"publish">>},
+                                      {element, <<"item">>},
+                                      {element, <<"notification">>},
+                                      {element, <<"x">>}]),
+    Payload = parse_form(PayloadXML),
+
+    case valid_ns_if_defined(PubOptionsNS, PublishOptions) andalso
+         valid_ns_if_defined(PushFormNS, Payload) of
+        true ->
+            TestCasePid ! #{ publish_options => PublishOptions,
+                             payload => Payload,
+                             pubsub_jid_bin => jid:to_binary(To) };
+        false ->
+            %% We use publish_options0 and payload0 to avoid accidental match in received_push
+            %% even after some tests updates and refactors
+            TestCasePid ! #{ error => invalid_namespace,
+                             publish_options0 => PublishOptions,
+                             payload0 => Payload }
+    end.
+
+parse_form(undefined) ->
+    undefined;
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));
 parse_form(Fields) when is_list(Fields) ->
@@ -590,27 +751,54 @@ parse_form(Fields) when is_list(Fields) ->
              exml_query:path(Field, [{element, <<"value">>}, cdata])}
         end, Fields).
 
-start_publish_listener(CaseName, Config) ->
+valid_ns_if_defined(_, undefined) ->
+    true;
+valid_ns_if_defined(NS, FormProplist) ->
+    NS =:= proplists:get_value(<<"FORM_TYPE">>, FormProplist).
+
+start_hook_listener() ->
     TestCasePid = self(),
-    Handler = rpc(mongoose_packet_handler, new, [?MODULE, TestCasePid]),
-    rpc(ejabberd_router, register_route, [atom_to_binary(CaseName, utf8), Handler]),
+    rpc(?MODULE, rpc_start_hook_handler, [TestCasePid]).
 
-    Config.
+rpc_start_hook_handler(TestCasePid) ->
+    Handler = fun(Acc, _Host, [PayloadMap], OptionMap) ->
+                      try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
+                          PubsubJIDBin ->
+                              TestCasePid ! #{ publish_options => maps:to_list(OptionMap),
+                                               payload => maps:to_list(PayloadMap),
+                                               pubsub_jid_bin => PubsubJIDBin },
+                              Acc
+                      catch
+                          C:R:S ->
+                              TestCasePid ! #{ event => handler_error,
+                                               class => C,
+                                               reason => R,
+                                               stacktrace => S },
+                              Acc
+                      end
+              end,
+    ejabberd_hooks:add(push_notifications, <<"localhost">>, Handler, 50).
 
-process_packet(Acc, From, To, El, TestCasePid) ->
-    TestCasePid ! #route{from = From, to = To, acc = Acc, packet = El}.
+%%--------------------------------------------------------------------
+%% Test helpers
+%%--------------------------------------------------------------------
 
 create_room(Room, [Owner | Members], Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     create_room(Room, <<"muclight.", Domain/binary>>, Owner, Members,
                                 Config, <<"v1">>).
 
-received_route() ->
+received_push(Config) ->
+    ExpectedPubsubJIDBin = pubsub_jid(Config),
+    %% With parallel test cases execution we might receive notifications from other cases
+    %% so it's essential to filter by our pubsub JID
     receive
-        #route{} = R ->
-            R
-    after timer:seconds(5) ->
-        false
+        #{ pubsub_jid_bin := PubsubJIDBin } = Push when PubsubJIDBin =:= ExpectedPubsubJIDBin ->
+            Push
+    after
+        timer:seconds(5) ->
+            ct:pal("~p", [#{ result => nomatch, msg_inbox => process_info(self(), messages) }]),
+            false
     end.
 
 truly(false) ->
@@ -626,7 +814,11 @@ bare_jid(JIDOrClient) ->
 
 pubsub_jid(Config) ->
     CaseName = proplists:get_value(case_name, Config),
-    <<"pubsub@", (atom_to_binary(CaseName, utf8))/binary>>.
+    CaseNameBin = atom_to_binary(CaseName, utf8),
+    case ?config(pubsub_host, Config) of
+        virtual -> <<CaseNameBin/binary, ".hyperion">>;
+        _ -> <<"pubsub@", CaseNameBin/binary>>
+    end.
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
@@ -640,5 +832,3 @@ is_offline(LUser, LServer) ->
             true
     end.
 
-lower(Bin) when is_binary(Bin) ->
-    list_to_binary(string:to_lower(binary_to_list(Bin))).

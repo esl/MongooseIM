@@ -27,7 +27,8 @@
 -module (mod_carboncopy).
 -author ('ecestari@process-one.net').
 -xep([{xep, 280}, {version, "0.10"}]).
--behavior(gen_mod).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start/2,
@@ -42,9 +43,6 @@
          iq_handler1/4,
          remove_connection/5
         ]).
-
-%% For testing and debugging
--export([enable/4, disable/3]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
@@ -97,14 +95,13 @@ iq_handler1(From, To, Acc, IQ) ->
 iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
                                                        children = []}} = IQ, CC) ->
     ?DEBUG("carbons IQ received: ~p", [IQ]),
-    {U, S, R} = jid:to_lower(From),
     Result = case Operation of
                  <<"enable">> ->
-                     ?INFO_MSG("carbons enabled for user ~s@~s/~s", [U, S, R]),
-                     enable(S, U, R, CC);
+                     ?INFO_MSG("carbons enabled for user ~s", [jid:to_binary(From)]),
+                     enable(From, CC);
                  <<"disable">> ->
-                     ?INFO_MSG("carbons disabled for user ~s@~s/~s", [U, S, R]),
-                     disable(S, U, R)
+                     ?INFO_MSG("carbons disabled for user ~s", [jid:to_binary(From)]),
+                     disable(From)
              end,
     case Result of
         ok ->
@@ -185,8 +182,9 @@ is_forwarded(SubTag) ->
         _ -> ignore
     end.
 
-remove_connection(Acc, User, Server, Resource, _Status) ->
-    disable(Server, User, Resource),
+remove_connection(Acc, LUser, LServer, LResource, _Status) ->
+    JID = jid:make_noprep(LUser, LServer, LResource),
+    disable(JID),
     Acc.
 
 
@@ -208,12 +206,12 @@ max_prio(PrioRes) ->
 is_max_prio(Res, PrioRes) ->
     lists:member({max_prio(PrioRes), Res}, PrioRes).
 
-jids_minus_max_priority_resource(U, S, _R, CCResList, PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CCVersion}
+jids_minus_max_priority_resource(JID, CCResList, PrioRes) ->
+    [ {jid:replace_resource(JID, CCRes), CCVersion}
       || {CCVersion, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
 
-jids_minus_specific_resource(U, S, R, CCResList, _PrioRes) ->
-    [ {jid:make({U, S, CCRes}), CCVersion}
+jids_minus_specific_resource(JID, R, CCResList, _PrioRes) ->
+    [ {jid:replace_resource(JID, CCRes), CCVersion}
       || {CCVersion, CCRes} <- CCResList, CCRes =/= R ].
 
 %% If the original user is the only resource in the list of targets
@@ -224,19 +222,19 @@ drop_singleton_jid(_JID, Targets)        -> Targets.
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
-    {U, S, R} = jid:to_lower(JID),
-    {PrioRes, CCResList} = get_cc_enabled_resources(U, S),
+    #jid{lresource = R} = JID,
+    {PrioRes, CCResList} = get_cc_enabled_resources(JID),
     Targets = case is_bare_to(Direction, To, PrioRes) of
                   true -> jids_minus_max_priority_resource
-                            (U, S, R, CCResList, PrioRes);
-                  _    -> jids_minus_specific_resource(U, S, R, CCResList, PrioRes)
+                            (JID, CCResList, PrioRes);
+                  _    -> jids_minus_specific_resource(JID, R, CCResList, PrioRes)
               end,
     ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
            [Targets, PrioRes, CCResList]),
-    lists:map(fun({Dest, Version}) ->
-                      {_, _, Resource} = jid:to_lower(Dest),
+    lists:foreach(fun({Dest, Version}) ->
+                      #jid{lresource = Resource} = JID,
                       ?DEBUG("forwarding to ~ts", [Resource]),
-                      Sender = jid:make({U, S, <<>>}),
+                      Sender = jid:replace_resource(JID, <<>>),
                       New = build_forward_packet
                               (JID, Packet, Sender, Dest, Direction, Version),
                       ejabberd_router:route(Sender, Dest, New)
@@ -264,16 +262,18 @@ carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
                                  attrs = [{<<"xmlns">>, ?NS_FORWARD}],
                                  children = [complete_packet(JID, Packet, Direction)]} ]} ].
 
-enable(Host, U, R, CC) ->
-    ?DEBUG("enabling for ~p/~p", [U, R]),
+enable(JID, CC) ->
+    ?DEBUG("enabling for ~p", [jid:to_binary(JID)]),
     KV = {?CC_KEY, cc_ver_to_int(CC)},
-    {ok, KV} = ejabberd_sm:store_info(U, Host, R, KV),
-    ok.
+    case ejabberd_sm:store_info(JID, KV) of
+        {ok, KV} -> ok;
+        {error, _} = Err -> Err
+    end.
 
-disable(Host, U, R) ->
-    ?DEBUG("disabling for ~ts@~ts/~ts", [U, Host, R]),
+disable(JID) ->
+    ?DEBUG("disabling for ~p", [jid:to_binary(JID)]),
     KV = {?CC_KEY, ?CC_DISABLED},
-    case ejabberd_sm:store_info(U, Host, R, KV) of
+    case ejabberd_sm:store_info(JID, KV) of
         {error, offline} -> ok;
         {ok, KV} -> ok;
         Err -> {error, Err}
@@ -294,8 +294,8 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-get_cc_enabled_resources(User, Server)->
-    AllSessions = ejabberd_sm:get_raw_sessions(User, Server),
+get_cc_enabled_resources(JID)->
+    AllSessions = ejabberd_sm:get_raw_sessions(JID),
     CCs = cat_maybes([maybe_cc_resource(S) || S <- AllSessions]),
     Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
     {Prios, CCs}.

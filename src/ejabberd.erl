@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -30,6 +29,7 @@
 -export([start/0,
          stop/0,
          get_pid_file/0,
+         get_status_file/0,
          get_so_path/0,
          get_bin_path/0]).
 
@@ -94,6 +94,17 @@ get_bin_path() ->
 -spec get_pid_file() -> 'false' | nonempty_string().
 get_pid_file() ->
     case os:getenv("EJABBERD_PID_PATH") of
+        false ->
+            false;
+        "" ->
+            false;
+        Path ->
+            Path
+    end.
+
+-spec get_status_file() -> 'false' | nonempty_string().
+get_status_file() ->
+    case os:getenv("EJABBERD_STATUS_PATH") of
         false ->
             false;
         "" ->

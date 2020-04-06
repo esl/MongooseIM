@@ -17,8 +17,7 @@
 
 filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
     %% Filter globally
-    case ejabberd_hooks:run_fold(filter_packet,
-        {OrigFrom, OrigTo, OrigAcc, OrigPacket}, []) of
+    case mongoose_hooks:filter_packet({OrigFrom, OrigTo, OrigAcc, OrigPacket}) of
         {From, To, Acc, Packet} ->
             {From, To, Acc, Packet};
         drop ->

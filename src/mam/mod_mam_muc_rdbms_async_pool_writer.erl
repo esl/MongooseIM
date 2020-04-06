@@ -17,9 +17,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -154,16 +152,15 @@ stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
 
-
--spec archive_message(_, Host :: jid:server(), MessID :: mod_mam:message_id(),
-                      ArcID :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: atom(),
+-spec archive_message(_Result, Host :: jid:server(), MessID :: mod_mam:message_id(),
+                      RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
+                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(), Dir :: atom(),
                       Packet :: packet()) -> ok | {error, timeout}.
-archive_message(_Result, Host,
-                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = mod_mam_muc_rdbms_arch:prepare_message(Host,
-                                                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
-    Worker = select_worker(Host, ArcID),
+archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
+                SenderJID = #jid{}, UserRoomJID = #jid{}, _Dir, Packet) ->
+    Row = mod_mam_muc_rdbms_arch:prepare_message(Host, MessID, RoomID,
+                                                 SenderJID, UserRoomJID, Packet),
+    Worker = select_worker(Host, RoomID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
     case is_overloaded(WorkerPid) of
@@ -176,7 +173,7 @@ archive_message(_Result, Host,
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
-                    ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+                    mongoose_metrics:update(Host, modMamDropped, 1),
                     {error, timeout}
             end
     end.
@@ -227,25 +224,6 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     Acc.
 
--spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
-                           jid:server(), MessId :: mod_mam:message_id(),
-                           ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                           Now :: mod_mam:unix_timestamp()) ->
-                                  ejabberd_gen_mam_archive:purge_single_message_result().
-purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
-    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
-    Result.
-
-
--spec purge_multiple_messages(Result :: any(), Host :: jid:server(),
-                              ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                              _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
-                              End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-                              _WithJID :: jid:jid()) -> ok.
-purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
-                        _Start, End, Now, _WithJID) ->
-    Result.
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -280,13 +258,12 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
+            mongoose_metrics:update(Host, modMamDropped2, MessageCount),
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
     spawn_link(fun() ->
-                       ejabberd_hooks:run(mam_muc_flush_messages, Host,
-                                          [Host, MessageCount])
+                       mongoose_hooks:mam_muc_flush_messages(Host, ok, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.

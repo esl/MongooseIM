@@ -18,6 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -162,8 +163,8 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
-    mongoose_acc:t().
+-spec session_opened(Acc, ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
+    Acc when Acc :: any().
 session_opened(Acc, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
     Acc.
@@ -272,10 +273,12 @@ get_session(Key) ->
 
 -spec put_session(Key :: binary()) -> ok.
 put_session(Key) ->
+    ?DEBUG("event=put_session key=~ts", [Key]),
     mod_global_distrib_mapping_backend:put_session(Key).
 
 -spec delete_session(Key :: binary()) -> ok.
 delete_session(Key) ->
+    ?DEBUG("event=delete_session key=~ts", [Key]),
     mod_global_distrib_mapping_backend:delete_session(Key).
 
 -spec get_domain(Key :: binary()) -> {ok, term()} | error.

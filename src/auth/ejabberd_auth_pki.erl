@@ -23,7 +23,7 @@
 %% ejabberd_gen_auth API
 -export([start/1,
          stop/1,
-         store_type/1,
+         supports_sasl_module/2,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -35,8 +35,7 @@
          get_password/2,
          get_password_s/2,
          does_user_exist/2,
-         remove_user/2,
-         remove_user/3
+         remove_user/2
         ]).
 
 -export([check_password/3,
@@ -48,8 +47,8 @@ start(_) -> ok.
 -spec stop(Host :: ejabberd:lserver()) -> ok.
 stop(_) -> ok.
 
--spec store_type(Host :: ejabberd:lserver()) -> scram | plain | external.
-store_type(_) -> scram.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, Module) -> Module =:= cyrsasl_external.
 
 -spec set_password( User :: ejabberd:luser(),
                     Server :: ejabberd:lserver(),
@@ -105,12 +104,6 @@ does_user_exist(_, _) -> true.
                    Server :: ejabberd:lserver()
                  ) -> ok | {error, not_allowed}.
 remove_user(_, _) -> {error, not_allowed}.
-
--spec remove_user( User :: ejabberd:luser(),
-                   Server :: ejabberd:lserver(),
-                   Password :: binary()
-                 ) -> ok | {error, not_exists | not_allowed | bad_request}.
-remove_user(_, _, _) -> {error, not_allowed}.
 
 check_password(_, _, _) -> false.
 

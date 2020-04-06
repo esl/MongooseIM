@@ -50,20 +50,11 @@ For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNA
 
 ### Enable compatible authentication backend
 
-Please modify [`auth_opts` option](../Advanced-configuration.md#authentication) in MongooseIM's config file to include proper item.
-Also, [`pki` backend](../authentication-backends/PKI-authentication-module.md) is recommended for `SASL EXTERNAL`.
+You need to enable one of the following authentication backends by using the [`auth_method` option](../Advanced-configuration.md#authentication) in the MongooseIM configuration file.
 
-### WARNING!
-
-Some authentication backends may enforce `plain` password storage format, which automatically disables `SASL EXTERNAL`.
-Below you may find a list of backends that are safe to use with `cyrsasl_external` mechanism.
-
-* `pki`
-* `anonymous`
-* `http` **without** `{is_external, true}` option
-* `internal`
-* `rdbms`
-* `riak`
+* `pki` - accepts user credentials,
+* `http` - accepts user credentials if the provided certificate is [known and valid](../authentication-backends/HTTP-authentication-module.md#method-get_certs)
+* `ldap` - accepts user credentials if a corresponding user account exists in LDAP.
 
 ### Self-signed certificates
 

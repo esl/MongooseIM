@@ -11,7 +11,8 @@
 
 -callback stop(Host :: jid:lserver()) -> ok.
 
--callback store_type(Host :: jid:lserver()) -> scram | plain | external.
+-callback supports_sasl_module(Host :: jid:lserver(),
+                               Module :: cyrsasl:sasl_module()) -> boolean().
 
 -callback set_password(User :: jid:luser(),
                        Server :: jid:lserver(),
@@ -50,11 +51,6 @@
 -callback remove_user(User :: jid:luser(),
                       Server :: jid:lserver()
                       ) -> ok | {error, not_allowed}.
-
--callback remove_user(User :: jid:luser(),
-                      Server :: jid:lserver(),
-                      Password :: binary()
-                      ) -> ok | {error, not_exists | not_allowed | bad_request}.
 
 -export_type([t/0]).
 

@@ -16,8 +16,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -96,7 +95,7 @@ stop(_Host, _MUCHost) ->
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: config(),
+-spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room(RoomUS, Config, AffUsers, Version) ->
@@ -136,7 +135,7 @@ remove_user(UserUS, Version) ->
 %% ------------------------ Configuration manipulation ------------------------
 
 -spec get_config(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:kv(), Version :: binary()} | {error, not_exists}.
 get_config(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
@@ -156,7 +155,9 @@ get_config(RoomUS, Option) ->
             Error
     end.
 
--spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: config(), Version :: binary()) ->
+-spec set_config(RoomUS :: jid:simple_bare_jid(),
+                 Config :: mod_muc_light_room_config:kv(),
+                 Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomUS, ConfigChanges, Version) ->
     {atomic, Res} = mnesia:transaction(fun set_config_transaction/3,
@@ -226,7 +227,8 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
 %% ------------------------ Misc ------------------------
 
 -spec get_info(RoomUS :: jid:simple_bare_jid()) ->
-    {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
+    {ok, mod_muc_light_room_config:kv(), aff_users(), Version :: binary()}
+    | {error, not_exists}.
 get_info(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] ->
@@ -241,7 +243,7 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
-    lists:foreach(fun({RoomU, RoomS}) -> ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]) end,
+    lists:foreach(fun({RoomU, RoomS}) -> mongoose_hooks:forget_room(RoomS, ok, RoomS, RoomU) end,
                   mnesia:dirty_all_keys(muc_light_room)),
     lists:foreach(fun mnesia:clear_table/1,
                   [muc_light_room, muc_light_user_room, muc_light_blocking]).
@@ -284,7 +286,8 @@ create_table(Name, TabDef) ->
 
 %% Expects config to have unique fields!
 -spec create_room_transaction(RoomUS :: jid:simple_bare_jid(),
-                              Config :: config(), AffUsers :: aff_users(),
+                              Config :: mod_muc_light_room_config:kv(),
+                              AffUsers :: aff_users(),
                               Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({<<>>, Domain}, Config, AffUsers, Version) ->
@@ -344,7 +347,7 @@ remove_user_transaction(UserUS, Version) ->
 
 %% Expects config changes to have unique fields!
 -spec set_config_transaction(RoomUS :: jid:simple_bare_jid(),
-                             ConfigChanges :: config(),
+                             ConfigChanges :: mod_muc_light_room_config:kv(),
                              Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config_transaction(RoomUS, ConfigChanges, Version) ->

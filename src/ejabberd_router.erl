@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -122,10 +121,13 @@ route(From, To, #xmlel{} = Packet) ->
     % (called by broadcasting)
     route(From, To, Acc);
 route(From, To, Acc) ->
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-           [From, To, Acc]),
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc]),
     El = mongoose_acc:element(Acc),
-    route(From, To, Acc, El, routing_modules_list()).
+    RoutingModules = routing_modules_list(),
+    NewAcc = route(From, To, Acc, El, RoutingModules),
+    ?DEBUG("Routing using modules ~p resulted in ~p",
+           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    NewAcc.
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
@@ -138,9 +140,12 @@ route(From, To, Acc, El) ->
     Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
                                          to_jid => To,
                                          element => El }, Acc),
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-        [From, To, Acc1]),
-    route(From, To, Acc1, El, routing_modules_list()).
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc1]),
+    RoutingModules = routing_modules_list(),
+    NewAcc = route(From, To, Acc1, El, RoutingModules),
+    ?DEBUG("Routing using modules ~p resulted in ~p",
+           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    NewAcc.
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -224,7 +229,7 @@ do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
             Component = #external_component{domain = NDomain, handler = Handler,
                                             node = Node, is_hidden = IsHidden},
             mnesia:write(Component),
-            ejabberd_hooks:run(register_subhost, [LDomain, IsHidden]);
+            mongoose_hooks:register_subhost(ok, LDomain, IsHidden);
         _ -> mnesia:abort(route_already_exists)
     end.
 
@@ -302,7 +307,7 @@ do_unregister_component({LDomain, _}, Node) ->
             ok = mnesia:delete_object(external_component_global, Comp, write)
     end,
     ok = mnesia:delete({external_component, {LDomain, Node}}),
-    ejabberd_hooks:run(unregister_subhost, [LDomain]),
+    mongoose_hooks:unregister_subhost(ok, LDomain),
     ok.
 
 -spec unregister_component(Domain :: domain()) -> {atomic, ok}.
@@ -343,7 +348,7 @@ register_route_to_ldomain(error, Domain, _) ->
 register_route_to_ldomain(LDomain, _, Handler) ->
     mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
     % No support for hidden routes yet
-    ejabberd_hooks:run(register_subhost, [LDomain, false]).
+    mongoose_hooks:register_subhost(ok, LDomain, false).
 
 unregister_route(Domain) ->
     case jid:nameprep(Domain) of
@@ -351,7 +356,7 @@ unregister_route(Domain) ->
             erlang:error({invalid_domain, Domain});
         LDomain ->
             mnesia:dirty_delete(route, LDomain),
-            ejabberd_hooks:run(unregister_subhost, [LDomain])
+            mongoose_hooks:unregister_subhost(ok, LDomain)
     end.
 
 unregister_routes(Domains) ->
@@ -516,33 +521,28 @@ route(From, To, Acc, Packet, []) ->
     mongoose_metrics:update(global, routingErrors, 1),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
-    ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
-        {'EXIT', Reason} ->
+        {'EXIT', {Reason, StackTrace}} ->
             ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
                          "packet=~ts~n~nstack_trace=~p~n",
                          [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                           M, Reason, exml:to_binary(OrigPacket),
-                          erlang:get_stacktrace()]),
+                          StackTrace]),
             mongoose_acc:append(router, result, {error, {M, Reason}}, Acc);
         drop ->
-            ?DEBUG("filter dropped packet", []),
             mongoose_acc:append(router, result, {drop, M}, Acc);
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
-            ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
-                {'EXIT', Reason} ->
+                {'EXIT', {Reason, StackTrace}} ->
                     ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
                                  "packet=~ts~n~nstack_trace=~p~n",
                                  [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                                   M, Reason, exml:to_binary(OrigPacketFiltered),
-                                  erlang:get_stacktrace()]),
+                                  StackTrace]),
                     mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc);
                 done ->
-                    ?DEBUG("routing done", []),
                     mongoose_acc:append(router, result, {done, M}, NAcc);
                 {From, To, NAcc1, Packet} ->
-                    ?DEBUG("routing skipped", []),
                     route(From, To, NAcc1, Packet, Tail)
             end
     end.

@@ -15,10 +15,21 @@ all() -> [
           handles_riak_config,
           handles_cassandra_config,
           example_muc_only_no_pref_good_performance,
-          example_pm_only_good_performance
+          example_pm_only_good_performance,
+          get_mam_module_configuration
          ].
 
 %% Tests
+
+init_per_testcase(get_mam_module_configuration, Config) ->
+    meck_config(),
+    Config;
+init_per_testcase(_, Config) -> Config.
+
+end_per_testcase(get_mam_module_configuration, Config) ->
+    meck_cleanup(),
+    Config;
+end_per_testcase(_CaseName, Config) -> Config.
 
 overrides_general_options(_Config) ->
     Deps = deps([{backend, rdbms}, {pm, [{backend, cassandra}]}, {muc, []}]),
@@ -87,11 +98,17 @@ produces_valid_configurations(_Config) ->
 
 
 handles_riak_config(_Config) ->
-    Deps = deps([{backend, riak}, {pm, [{user_prefs_store, mnesia}]}, {muc, []}]),
+    Deps = deps([
+                 {backend, riak},
+                 {db_message_format, some_format},
+                 {pm, [{user_prefs_store, mnesia}]},
+                 {muc, []}
+                ]),
 
     ?assert(lists:keymember(mod_mam, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)),
     check_has_args(mod_mam_riak_timed_arch_yz, [pm, muc], Deps),
+    check_has_args(mod_mam_riak_timed_arch_yz, [{db_message_format, some_format}], Deps),
     check_has_args(mod_mam_mnesia_prefs, [pm], Deps),
     check_has_no_args(mod_mam_mnesia_prefs, [muc], Deps).
 
@@ -99,14 +116,17 @@ handles_riak_config(_Config) ->
 handles_cassandra_config(_Config) ->
     Deps = deps([
                  {backend, cassandra},
-                 {pm, [{user_prefs_store, cassandra}]},
-                 {muc, [{user_prefs_store, mnesia}]}
+                 simple,
+                 {pm, [{user_prefs_store, cassandra}, {db_message_format, some_format}]},
+                 {muc, [{user_prefs_store, mnesia}, {pool_name, some_poolname}]}
                 ]),
 
-    ?assert(lists:keymember(mod_mam_cassandra_arch, 1, Deps)),
-    ?assert(lists:keymember(mod_mam_muc_cassandra_arch, 1, Deps)),
     check_has_args(mod_mam_mnesia_prefs, [muc], Deps),
-    check_has_args(mod_mam_cassandra_prefs, [pm], Deps).
+    check_has_args(mod_mam_cassandra_prefs, [pm], Deps),
+    check_has_args(mod_mam_cassandra_arch, [{db_message_format, some_format}, {simple, true}], Deps),
+    check_has_args(mod_mam_muc_cassandra_arch, [{pool_name, some_poolname}, {simple, true}], Deps),
+    check_has_no_args(mod_mam_cassandra_arch, [{pool_name, some_poolname}], Deps),
+    check_has_no_args(mod_mam_muc_cassandra_arch, [{db_message_format, some_format}], Deps).
 
 
 example_muc_only_no_pref_good_performance(_Config) ->
@@ -118,7 +138,7 @@ example_muc_only_no_pref_good_performance(_Config) ->
                 ]),
 
     check_equal_deps([
-                      {mod_mam_rdbms_user, [muc]},
+                      {mod_mam_rdbms_user, [muc, pm]},
                       {mod_mam_cache_user, [muc]},
                       %% 'muc' argument is ignored by the module
                       {mod_mam_muc_rdbms_arch, [muc, no_writer]},
@@ -144,8 +164,39 @@ example_pm_only_good_performance(_Config) ->
                       {mod_mam, []}
                      ], Deps).
 
+get_mam_module_configuration(_Config) ->
+    %% see mocked values at meck_config/0
+    ?assertEqual(unique_value_1,
+                 get_config(<<"no_config">>, mod_mam, unique_value_1)),
+    ?assertEqual([here, is, some, config],
+                 get_config(<<"mod_mam_config">>, mod_mam, [])),
+    ?assertEqual(unique_value_2,
+                 get_config(<<"meta_no_mod_mam_config">>, mod_mam, unique_value_2)),
+    ?assertEqual([{archive_groupchats, true}],
+                 get_config(<<"meta_valid_mod_mam_config">>, mod_mam, [])).
+
 %% Helpers
 
+meck_config() ->
+    meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_local_option,
+                fun(modules, <<"no_config">>) ->
+                       [];
+                   (modules, <<"mod_mam_config">>) ->
+                       [{mod_mam, [here, is, some, config]}];
+                   (modules, <<"meta_no_mod_mam_config">>) ->
+                       [{mod_mam_meta, [{backend, rdbms},
+                                        {muc, []},
+                                        {pm, false}]}];
+                   (modules, <<"meta_valid_mod_mam_config">>) ->
+                       [{mod_mam_meta, [{backend, rdbms},
+                                        cache_users,
+                                        {pm, [archive_groupchats]}]}]
+                end).
+
+meck_cleanup() ->
+    meck:validate(ejabberd_config),
+    meck:unload(ejabberd_config).
 
 check_equal_deps(A, B) ->
     ?assertEqual(sort_deps(A), sort_deps(B)).
@@ -170,6 +221,8 @@ check_has_args(Mod, Args, Deps) ->
     ?assert(ordsets:is_subset(
               ordsets:from_list(Args), ordsets:from_list(ActualArgs))).
 
+get_config(Host, Mod, Def) ->
+    mod_mam_meta:get_mam_module_configuration(Host, Mod, Def).
 
 deps(Args) ->
     mod_mam_meta:deps(<<"host">>, Args).

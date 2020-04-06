@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -152,7 +151,7 @@ process(["status"]) ->
                                  {mongoose_status, MongooseStatus},
                                  {os_pid, os:getpid()}, get_uptime(),
                                  {dist_proto, get_dist_proto()},
-                                 {logs, get_log_files()}])]),
+                                 {logs, ejabberd_loglevel:get_log_files()}])]),
     case MongooseStatus of
         not_running -> ?STATUS_ERROR;
         {running, _, _Version} -> ?STATUS_SUCCESS
@@ -261,7 +260,7 @@ get_accesscommands() ->
                   AccessCommands :: [ejabberd_commands:access_cmd()]
                  ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_run_ctp(Args, Auth, AccessCommands) ->
-    try ejabberd_hooks:run_fold(ejabberd_ctl_process, false, [Args]) of
+    try mongoose_hooks:ejabberd_ctl_process(false, Args) of
         false when Args /= [] ->
             try_call_command(Args, Auth, AccessCommands);
         false ->
@@ -292,8 +291,7 @@ try_call_command(Args, Auth, AccessCommands) ->
         Res ->
             Res
     catch
-        A:Why ->
-            Stack = erlang:get_stacktrace(),
+        A:Why:Stack ->
             {io_lib:format("Problem '~p ~p' occurred executing the command.~nStacktrace: ~p", [A, Why, Stack]), ?STATUS_ERROR}
     end.
 
@@ -923,17 +921,3 @@ get_dist_proto() ->
         _ -> "inet_tcp"
     end.
 
-%%-----------------------------
-%% Lager specific helpers
-%%-----------------------------
-
-get_log_files() ->
-    Handlers = case catch sys:get_state(lager_event) of
-                   {'EXIT', _} -> [];
-                   Hs when is_list(Hs) -> Hs
-               end,
-    [ file_backend_path(State)
-      || {lager_file_backend, _File, State} <- Handlers ].
-
-file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
-    element(2, LagerFileBackendState).

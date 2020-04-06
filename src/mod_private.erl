@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -28,12 +27,16 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -export([start/2,
          stop/1,
          process_sm_iq/4,
-         remove_user/3,
-         remove_user/2]).
+         remove_user/3]).
+
+-export([get_personal_data/2]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -67,6 +70,26 @@
     LUser   :: binary(),
     LServer :: binary().
 
+-callback get_all_nss(LUser, LServer) -> NSs when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NSs     :: [binary()].
+
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    Schema = ["ns", "xml"],
+    NSs = mod_private_backend:get_all_nss(LUser, LServer),
+    Entries = lists:map(
+                fun(NS) ->
+                        Data = mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}]),
+                        { NS, exml:to_binary(Data) }
+                end, NSs),
+    [{private, Schema, Entries} | Acc].
+
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
 
@@ -76,12 +99,14 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
                                   ?MODULE, process_sm_iq, IQDisc).
 
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
 
 
@@ -89,14 +114,11 @@ stop(Host) ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_private_backend:remove_user(LUser, LServer).
+    R = mod_private_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},
@@ -158,3 +180,7 @@ is_valid_namespace(Namespace) -> Namespace =/= <<>>.
 
 error_iq(IQ=#iq{sub_el=SubElem}, ErrorStanza) ->
     IQ#iq{type = error, sub_el = [SubElem, ErrorStanza]}.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

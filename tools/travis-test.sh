@@ -35,9 +35,14 @@ while getopts ":p::s::e::c:" opt; do
 done
 
 source tools/travis-common-vars.sh
-source tools/travis-helpers.sh
 
-if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+if [ ${CIRCLECI} ]; then
+source tools/circleci-helpers.sh
+else
+source tools/travis-helpers.sh
+fi
+
+if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -120,6 +125,19 @@ print_running_nodes() {
     "$EPMDS" -names
 }
 
+maybe_pause_before_test() {
+  if [ "$PAUSE_BEFORE_BIG_TESTS" -gt 0 ] 2>/dev/null; then
+    local read_ret_val
+    tools/print-dots.sh start_countdown "$PAUSE_BEFORE_BIG_TESTS" "continue in" $$
+    read -es -p $'press enter to pause before the big_tests\n' -t "$PAUSE_BEFORE_BIG_TESTS"
+    read_ret_val="$?"
+    tools/print-dots.sh stop
+    [ "$read_ret_val" -ne 0 ] && { echo; return; }
+    echo "[PAUSED]"
+    read -es -p $'press enter to continue\n'
+  fi
+}
+
 run_tests() {
   maybe_run_small_tests
   SMALL_STATUS=$?
@@ -129,7 +147,11 @@ run_tests() {
   echo "Running big tests (big_tests)"
   echo "############################"
 
-  time ${TOOLS}/start-nodes.sh
+  rm -f /tmp/ct_summary
+
+  time ${TOOLS}/start-nodes.sh || { echo "Failed to start MongooseIM nodes"; return 1; }
+
+  maybe_pause_before_test
 
   run_test_preset
   BIG_STATUS=$?
@@ -162,6 +184,12 @@ run_tests() {
     print_running_nodes
   fi
 
+  if [ -f /tmp/ct_summary ]; then
+      echo "Failed big cases:"
+      cat /tmp/ct_summary
+      echo ""
+  fi
+
   # Do not stop nodes if big tests failed
   if [ "$STOP_NODES" = true ] && [ $BIG_STATUS -eq 0 ] && [ $BIG_STATUS_BY_SUMMARY -eq 0 ]; then
       echo "Stopping MongooseIM nodes"
@@ -184,10 +212,37 @@ enable_tls_dist () {
 
 build_pkg () {
   set -e
-  local platform=$1
   cd tools/pkg
-  ./build $platform
-  ./run $platform
+
+  local platform=$1
+  local esl_erlang_pkg_vsn=$2
+  local project_root=$(git rev-parse --show-toplevel)
+
+  if [[ $platform == centos* ]]; then
+      local dockerfile_name="Dockerfile_rpm"
+  elif [[ $platform == debian* ]] || [[ $platform == ubuntu* ]]; then
+      local dockerfile_name="Dockerfile_deb"
+  else
+      echo "No dockerfile for given platform" && exit 1
+  fi
+
+  version=$(cat "${project_root}/VERSION")
+  commit_sha=$(git rev-parse --short HEAD)
+  # Do not add commit hash to package revision if package is built for tag
+  if [[ "$(git describe --exact-match --tags HEAD 2>/dev/null)" == "$version" ]]; then
+      revision="1"
+  else
+      revision="1.${commit_sha}"
+  fi
+
+  ./build.sh \
+    --platform $platform \
+    --version $version \
+    --revision $revision \
+    --erlang_version $esl_erlang_pkg_vsn \
+    --dockerfile_path "$project_root/tools/pkg/$dockerfile_name" \
+    --context_path $project_root \
+    --built_packages_directory "$project_root/tools/pkg/packages"
   set +e
 }
 
@@ -199,12 +254,13 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh stop
   exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
-  build_pkg $pkg_PLATFORM
+  build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
   time run_small_tests
   RESULT=$?
   exit ${RESULT}
 else
-  [ x"$TLS_DIST" == xyes ] && enable_tls_dist
+  [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
+

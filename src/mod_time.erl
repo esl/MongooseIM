@@ -7,6 +7,7 @@
 -module(mod_time).
 -author('ludwik.bukowski@erlang-solutions.com').
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 -export([start/2, stop/1, process_local_iq/4]).
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -45,7 +46,7 @@ process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
 
 %% Internals
 calculate_time() ->
-    Now = p1_time_compat:timestamp(),
+    Now = erlang:timestamp(),
     NowUniversal = calendar:now_to_universal_time(Now),
     NowLocal = calendar:now_to_local_time(Now),
     {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),

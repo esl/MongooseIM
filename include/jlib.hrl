@@ -14,8 +14,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 -ifndef(MONGOOSEIM_JLIB_HRL).
@@ -24,7 +23,7 @@
 %% Load record definitions.
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_ns.hrl").
--include("jid.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -record(iq, {id = <<>>    :: binary(),
              type         :: atom(),

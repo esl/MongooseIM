@@ -12,7 +12,7 @@ The module can be especially useful for users maintaining their own central user
 For a full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication).
 The simplest way is to just replace the default `auth_method` option in `rel/files/mongooseim.cfg` with `{auth_method, http}`.
 
-Enabling the module **is not enough!** 
+Enabling the module **is not enough!**
 Please follow instructions below.
 
 ### Configuration options
@@ -103,6 +103,15 @@ A body can be missing in the first data chunk read from a socket, leading to str
     * 200, password in the body
     * anything else - `get_password` will fail
 
+### Method `get_certs`
+
+* **Description:** Must return all the valid certificates of a user in the [PEM format](https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail).
+* **HTTP method:** GET
+* **Type:** mandatory when EXTERNAL SASL mechanism is used
+* **Return values:**
+    * 200, all the user's certificates listed one after another (as in a PEM file)
+    * anything else - `get_certs` will fail
+
 ### Method `user_exists`
 
 * **Description:** Must return the information whether the user exists in DB.
@@ -131,17 +140,6 @@ A body can be missing in the first data chunk read from a socket, leading to str
     * 200 or 201 or 204 - success
     * 404 - user does not exist
     * 403 - not allowed for some reason
-    * 40X - will be treated as `bad request`
-
-### Method `remove_user_validate`
-
-* **Description:** Removes a user account only if the provided password is valid.
-* **HTTP method:** POST
-* **Type:** mandatory when `mod_register` is enabled
-* **Return values:**
-    * 200 or 201 or 204 - success
-    * 404 - user does not exist
-    * 403 - invalid user password or not allowed for other reason
     * 40X - will be treated as `bad request`
 
 ### Authentication service API recipes

@@ -245,6 +245,9 @@ unsupported_version() ->
 xml_not_well_formed() ->
     jlib:stream_error(<<"xml-not-well-formed">>).
 
+undefined_condition() ->
+    jlib:stream_error(<<"undefined-condition">>).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Text Stream Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -321,6 +324,9 @@ xml_not_well_formed(Lang, Text) ->
 
 xml_not_well_formed_bin() ->
     exml:to_binary(xml_not_well_formed()).
+
+undefined_condition(Lang, Text) ->
+    jlib:stream_errort(<<"undefined-condition">>, Lang, Text).
 
 bad_format_bin() ->
     exml:to_binary(bad_format()).

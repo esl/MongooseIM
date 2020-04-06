@@ -13,3 +13,4 @@
 -callback get_prefs(mod_mam:preference(), _Host :: jid:server(),
         ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid())
             -> mod_mam:preference().
+

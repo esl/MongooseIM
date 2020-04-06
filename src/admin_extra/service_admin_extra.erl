@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%-------------------------------------------------------------------
 
@@ -32,7 +31,7 @@
 -export([start/1, stop/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
-                  private, stanza, stats
+                  private, stanza, stats, gdpr
                   %, srg %% Disabled until we add mod_shared_roster
                  ]).
 

@@ -15,10 +15,6 @@
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
-%%--------------------------------------------------------------------
-%% mod_vcards callbacks
-%%--------------------------------------------------------------------
-
 init(_VHost, _Options) ->
     prepare_db(),
     ok.
@@ -56,7 +52,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
                 mnesia:write(VCardSearch)
         end,
     {atomic, _} = mnesia:transaction(F),
-    ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
+    mongoose_hooks:vcard_set(VHost, ok, LUser, VCard),
     ok.
 
 search(VHost, Data) ->
@@ -131,7 +127,7 @@ filter_fields([], Match, _VHost) ->
     Match;
 filter_fields([{SVar, [Val]} | Ds], Match, VHost)
   when is_binary(Val) and (Val /= <<"">>) ->
-    LVal = stringprep:tolower(Val),
+    LVal = jid:str_tolower(Val),
     NewMatch =
         case SVar of
             <<"user">> -> Match#vcard_search{luser = make_val(LVal)};

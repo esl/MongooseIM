@@ -43,6 +43,8 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(ldap_helper, [get_ldap_base/1,
+                      call_ldap/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -72,7 +74,8 @@ groups() ->
 rw_tests() ->
     [
      update_own_card,
-     cant_update_own_card_with_invalid_field
+     cant_update_own_card_with_invalid_field,
+     can_update_own_card_with_emoji_in_nickname
     ].
 
 ro_full_search_tests() ->
@@ -146,12 +149,14 @@ end_per_suite(Config) ->
     NewConfig = escalus:delete_users(Config, Who),
     escalus:end_per_suite(NewConfig).
 
-init_per_group(rw, Config) ->
-    restart_vcard_mod(Config, rw),
-    Config;
-init_per_group(params_limited_infinity, Config) ->
-    restart_vcard_mod(Config, params_limited_infinity),
-    Config;
+init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity ->
+    restart_vcard_mod(Config, Group),
+    case vcard_update:is_vcard_ldap() of
+        true ->
+            {skip, ldap_vcard_is_readonly};
+        _ ->
+            Config
+    end;
 init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard, Config),
     case proplists:get_value(backend, VCardConfig) of
@@ -184,14 +189,6 @@ restart_and_prepare_vcard(GroupName, Config) ->
 %%--------------------------------------------------------------------
 
 update_own_card(Config) ->
-    case vcard_update:is_vcard_ldap() of
-        true ->
-            {skip, ldap_vcard_is_readonly};
-        _ ->
-            do_update_own_card(Config)
-    end.
-
-do_update_own_card(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Client1) ->
@@ -202,7 +199,6 @@ do_update_own_card(Config) ->
                     = escalus:send_and_wait(Client1,
                                         escalus_stanza:vcard_update(Client1Fields)),
                 escalus:assert(is_iq_result, Client1SetResultStanza),
-                escalus_stanza:vcard_request(),
                 Client1GetResultStanza
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 <<"Old name">>
@@ -221,6 +217,21 @@ cant_update_own_card_with_invalid_field(Config) ->
                 escalus:assert(is_iq_error, Client1SetResultStanza)
         end).
 
+can_update_own_card_with_emoji_in_nickname(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                NickWithEmoji = <<"Jan 😊"/utf8>>,
+                Client1Fields = [{<<"NICKNAME">>, NickWithEmoji}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                            escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_result, Client1SetResultStanza),
+                Client1GetResultStanza
+                    = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
+                NickWithEmoji = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"NICKNAME">>)
+        end).
+
 retrieve_own_card(Config) ->
     escalus:story(
       Config, [{alice, 1}],
@@ -234,8 +245,8 @@ retrieve_own_card(Config) ->
 
 
 
-%% If no vCard exists, the server MUST return a stanza error 
-%% (which SHOULD be <item-not-found/>) or an IQ-result 
+%% If no vCard exists, the server MUST return a stanza error
+%% (which SHOULD be <item-not-found/>) or an IQ-result
 %% containing an empty <vCard/> element.
 %% We return <item-not-found/>
 user_doesnt_exist(Config) ->
@@ -979,7 +990,7 @@ prepare_vcards(Config) ->
 
 prepare_vcard(ldap, JID, Fields) ->
     [User, Server] = binary:split(JID, <<"@">>),
-    {EPid, Base} = get_ldap_pid_and_base(Server),
+    Base = get_ldap_base(Server),
     VCardMap = [{<<"NICKNAME">>, <<"%u">>, []},
                 {<<"FN">>, <<"%s">>, [<<"displayName">>]},
                 {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
@@ -1011,12 +1022,12 @@ prepare_vcard(ldap, JID, Fields) ->
             undefined ->
                 undefined;
             LdapField ->
-                rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]])
+                eldap:mod_replace(binary_to_list(LdapField), [binary_to_list(Val)])
         end
     end,
     Modificators = convert_vcard_fields(Fields, [], Fun),
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]);
+    ok = call_ldap(Server, modify, [binary_to_list(Dn), Modificators]);
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
     VCard = escalus_stanza:vcard_update(JID, Fields),
@@ -1025,11 +1036,11 @@ prepare_vcard(_, JID, Fields) ->
 insert_alice_photo(Config) ->
     User = <<"alice">>,
     Server = domain(),
-    {EPid, Base} = get_ldap_pid_and_base(Server),
+    Base = get_ldap_base(Server),
     Photo = ?PHOTO_BIN,
-    Modificators = [rpc(mim(), eldap, mod_replace, ["jpegPhoto", [binary_to_list(Photo)]])],
+    Modificators = [eldap:mod_replace("jpegPhoto", [binary_to_list(Photo)])],
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]),
+    ok = call_ldap(Server, modify, [binary_to_list(Dn), Modificators]),
     Config.
 
 
@@ -1040,7 +1051,7 @@ fields_to_ldap_modificators(VcardMap, [{Field, Val} | Rest], Acc) when is_binary
         undefined ->
             NewAcc = Acc;
         LdapField ->
-            LdapModify = rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]]),
+            LdapModify = eldap:mod_replace(binary_to_list(LdapField), [binary_to_list(Val)]),
             NewAcc = [LdapModify | Acc]
     end,
     fields_to_ldap_modificators(VcardMap, Rest, NewAcc);
@@ -1055,14 +1066,6 @@ vcard_field_to_ldap(Map, Field) ->
         _ ->
             undefined
     end.
-
-get_ldap_pid_and_base(Server) ->
-    {ok, State} = rpc(mim(), eldap_utils, get_state, [Server, ejabberd_mod_vcard_ldap]),
-    EldapId = element(4, State),
-    PoolId = binary_to_atom(<<"eldap_pool_", EldapId/binary>>, utf8),
-    Pid = rpc(mim(), pg2, get_closest_pid, [PoolId]),
-    Base = element(10, State),
-    {Pid, Base}.
 
 delete_vcards(Config) ->
     AllVCards = escalus_config:get_ct({vcard, data, all_search, expected_vcards}),

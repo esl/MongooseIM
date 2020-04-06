@@ -20,7 +20,6 @@
 %%% @copyright 2006-2015 ProcessOne
 %%% @author Christophe Romain <christophe.romain@process-one.net>
 %%%   [http://www.process-one.net/]
-%%% @version {@vsn}, {@date} {@time}
 %%% @end
 %%% ====================================================================
 

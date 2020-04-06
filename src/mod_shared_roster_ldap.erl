@@ -21,8 +21,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%-------------------------------------------------------------------
 -module(mod_shared_roster_ldap).
@@ -30,6 +29,8 @@
 -behaviour(gen_server).
 
 -behaviour(gen_mod).
+
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start_link/2, start/2, stop/1]).
@@ -60,14 +61,8 @@
 
 -record(state,
         {host = <<"">>                                :: binary(),
-         eldap_id = <<"">>                            :: binary(),
-         servers = []                                 :: [binary()],
-         backups = []                                 :: [binary()],
-         port = ?LDAP_PORT                            :: inet:port_number(),
-         tls_options = []                             :: list(),
-         dn = <<"">>                                  :: binary(),
+         eldap_id                                     :: {jid:lserver(), binary()},
          base = <<"">>                                :: binary(),
-         password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
          deref =                                         neverDerefAliases  :: neverDerefAliases |
                                                          derefInSearching |
@@ -276,10 +271,6 @@ init([Host, Opts]) ->
                        get_jid_info, 70),
     ejabberd_hooks:add(roster_process_item, Host, ?MODULE,
                        process_item, 50),
-    eldap_pool:start_link(State#state.eldap_id,
-                          State#state.servers, State#state.backups,
-                          State#state.port, State#state.dn,
-                          State#state.password, State#state.tls_options),
     {ok, State}.
 
 handle_call(get_state, _From, State) ->
@@ -504,8 +495,10 @@ get_user_part_re(String, Pattern) ->
     end.
 
 parse_options(Host, Opts) ->
-    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
-    Cfg = eldap_utils:get_config(Host, Opts),
+    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
+                                      fun(A) when is_atom(A) -> A end, default),
+    Base = eldap_utils:get_base(Opts),
+    DerefAliases = eldap_utils:get_deref_aliases(Opts),
     GroupAttr = eldap_utils:get_mod_opt(ldap_groupattr, Opts,
                                         fun iolist_to_binary/1,
                                         <<"cn">>),
@@ -536,29 +529,29 @@ parse_options(Host, Opts) ->
                                            (false) -> false;
                                            (true) -> true
                                         end, true),
-    UserCacheValidity = eldap_utils:get_opt(
-                          {ldap_user_cache_validity, Host}, Opts,
+    UserCacheValidity = eldap_utils:get_mod_opt(
+                          ldap_user_cache_validity, Opts,
                           fun(I) when is_integer(I), I>0 -> I end,
                           ?USER_CACHE_VALIDITY),
-    GroupCacheValidity = eldap_utils:get_opt(
-                           {ldap_group_cache_validity, Host}, Opts,
+    GroupCacheValidity = eldap_utils:get_mod_opt(
+                           ldap_group_cache_validity, Opts,
                            fun(I) when is_integer(I), I>0 -> I end,
                            ?GROUP_CACHE_VALIDITY),
-    UserCacheSize = eldap_utils:get_opt(
-                      {ldap_user_cache_size, Host}, Opts,
+    UserCacheSize = eldap_utils:get_mod_opt(
+                      ldap_user_cache_size, Opts,
                       fun(I) when is_integer(I), I>0 -> I end,
                       ?CACHE_SIZE),
-    GroupCacheSize = eldap_utils:get_opt(
-                       {ldap_group_cache_size, Host}, Opts,
+    GroupCacheSize = eldap_utils:get_mod_opt(
+                       ldap_group_cache_size, Opts,
                        fun(I) when is_integer(I), I>0 -> I end,
                        ?CACHE_SIZE),
-    ConfigFilter = eldap_utils:get_opt({ldap_filter, Host}, Opts,
+    ConfigFilter = eldap_utils:get_mod_opt(ldap_filter, Opts,
                                        fun check_filter/1, <<"">>),
-    ConfigUserFilter = eldap_utils:get_opt({ldap_ufilter, Host}, Opts,
+    ConfigUserFilter = eldap_utils:get_mod_opt(ldap_ufilter, Opts,
                                            fun check_filter/1, <<"">>),
-    ConfigGroupFilter = eldap_utils:get_opt({ldap_gfilter, Host}, Opts,
+    ConfigGroupFilter = eldap_utils:get_mod_opt(ldap_gfilter, Opts,
                                             fun check_filter/1, <<"">>),
-    RosterFilter = eldap_utils:get_opt({ldap_rfilter, Host}, Opts,
+    RosterFilter = eldap_utils:get_mod_opt(ldap_rfilter, Opts,
                                        fun check_filter/1, <<"">>),
     SubFilter = <<"(&(", UIDAttr/binary, "=", UIDAttrFormat/binary,
                   ")(", GroupAttr/binary, "=%g))">>,
@@ -587,15 +580,10 @@ parse_options(Host, Opts) ->
                       _ ->
                           <<"(&", GroupSubFilter/binary, ConfigFilter/binary, ")">>
                   end,
-    #state{host = Host, eldap_id = EldapID,
-           servers = Cfg#eldap_config.servers,
-           backups = Cfg#eldap_config.backups,
-           port = Cfg#eldap_config.port,
-           tls_options = Cfg#eldap_config.tls_options,
-           dn = Cfg#eldap_config.dn,
-           password = Cfg#eldap_config.password,
-           base = Cfg#eldap_config.base,
-           deref = Cfg#eldap_config.deref,
+    #state{host = Host,
+           eldap_id = {Host, EldapID},
+           base = Base,
+           deref = DerefAliases,
            uid = UIDAttr,
            group_attr = GroupAttr, group_desc = GroupDesc,
            user_desc = UserDesc, user_uid = UserUID,

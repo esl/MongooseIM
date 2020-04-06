@@ -23,6 +23,8 @@
          multi_get_data/3,
          remove_user/2]).
 
+-export([get_all_nss/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -46,21 +48,25 @@ multi_get_data(LUser, LServer, NS2Def) ->
 
 -spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
-    KeyFilter = [[<<"starts_with">>, LUser]],
     Bucket = bucket_type(LServer),
-    case mongoose_riak:mapred([{Bucket, KeyFilter}], []) of
-        {ok, []} ->
-            ok;
-        {ok, [{0, BucketKeys} | _]} ->
-            [mongoose_riak:delete(Bucket1, Key) || {{Bucket1, Key}, _} <- BucketKeys];
-        Error ->
-            ?WARNING_MSG("Error reading keys to remove: ~p", [Error]),
-            {error, Error}
-    end.
+    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(LUser, LServer)],
+    ok.
 
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),
     mongoose_riak:put(Obj).
+
+get_all_nss(LUser, LServer) ->
+    {ok, KeysWithUsername} = mongoose_riak:list_keys(bucket_type(LServer)),
+    lists:foldl(
+        fun(Key, Acc) ->
+            case binary:split(Key, <<"/">>) of
+                [LUser, ResultKey] -> [ResultKey | Acc];
+                _ -> Acc
+            end
+        end,
+        [], KeysWithUsername
+    ).
 
 get_private_data(LUser, LServer, NS, Default) ->
     case mongoose_riak:get(bucket_type(LServer), key(LUser, NS)) of
@@ -73,7 +79,7 @@ get_private_data(LUser, LServer, NS, Default) ->
     end.
 
 bucket_type(LServer) ->
-    {<<"private">>, LServer}.
+    {gen_mod:get_module_opt(LServer, mod_private, bucket_type, <<"private">>), LServer}.
 
 key(LUser, NS) ->
     <<LUser/binary, "/", NS/binary>>.

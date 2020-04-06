@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -45,8 +44,7 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
-         store_type/1
+         supports_sasl_module/2
         ]).
 
 
@@ -72,8 +70,8 @@ start(Host) ->
 stop(_Host) ->
     ok.
 
-store_type(_Server) ->
-    external.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -89,7 +87,7 @@ check_password(LUser, LServer, Password) ->
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
     BinAlg = ejabberd_auth:get_opt(LServer, jwt_algorithm),
-    Alg = binary_to_atom(stringprep:tolower(BinAlg), latin1),
+    Alg = binary_to_atom(jid:str_tolower(BinAlg), utf8),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
             UserKey = ejabberd_auth:get_opt(LServer, jwt_username_key),
@@ -193,15 +191,6 @@ does_user_exist(_LUser, _LServer) ->
                   ) -> ok | {error, not_allowed}.
 remove_user(_LUser, _LServer) ->
     ok.
-
-
-%% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_exists | not_allowed | bad_request}.
-remove_user(_LUser, _LServer, _Password) ->
-    {error, not_allowed}.
 
 %%%----------------------------------------------------------------------
 %%% Internal helpers

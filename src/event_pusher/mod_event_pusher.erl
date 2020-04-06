@@ -18,17 +18,23 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 
+-type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
+-export_type([event/0]).
+
 -export([deps/2, start/2, stop/1, push_event/3]).
+
+-export([config_metrics/1]).
 
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> any().
+-callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> mongoose_acc:t().
 
 %%--------------------------------------------------------------------
 %% API
@@ -56,12 +62,10 @@ deps(_Host, Opts) ->
 start(Host, Opts) ->
     create_ets(Host),
     Backends = get_backends(Opts),
-    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
-    ejabberd_hooks:add(push_event, Host, ?MODULE, push_event, 90).
+    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}).
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ejabberd_hooks:delete(push_event, Host, ?MODULE, push_event, 90),
     ets:delete(ets_name(Host)).
 
 %%--------------------------------------------------------------------
@@ -119,3 +123,24 @@ create_ets(Host) ->
                Pid -> Pid
            end,
     ets:new(ets_name(Host), [public, named_table, {read_concurrency, true}, {heir, Heir, testing}]).
+
+config_metrics(Host) ->
+    try
+        Opts = gen_mod:opts_for_module(Host, ?MODULE),
+        BackendsWithOpts = proplists:get_value(backends, Opts, none),
+        Backends = proplists:get_keys(BackendsWithOpts),
+        ReturnList = lists:map(pa:bind(fun get_backend/2, BackendsWithOpts), Backends),
+        lists:flatten(ReturnList)
+    catch
+        _:_ -> [{none, none}]
+    end.
+
+get_backend(BackendsWithOpts, Backend) ->
+    case Backend of
+        push ->
+            PushOptions = proplists:get_value(push, BackendsWithOpts),
+            PushBackend = atom_to_list(proplists:get_value(backend, PushOptions, mnesia)),
+            [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
+        Backend ->
+            {backend, Backend}
+    end.

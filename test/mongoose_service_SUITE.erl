@@ -172,7 +172,7 @@ module_deps(_) ->
     ?assertError({service_not_loaded, _}, gen_mod:start_module(<<"localhost">>, module_a, [])),
     meck:unload(gen_mod),
     mongoose_service:ensure_loaded(service_c),
-    gen_mod:start_module(<<"localhost">>, module_a, []),
+    gen_mod_deps:start_modules(<<"localhost">>, [{module_a, []}]),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
     ok.
 

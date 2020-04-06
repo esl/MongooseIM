@@ -21,8 +21,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -78,13 +77,12 @@ get_default_list_name(LUser, LServer) ->
                        [LUser, LServer, Other]),
             none
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=get_default_list_name_failed "
                        "user=~ts server=~ts"
                        "reason=~p:~p stacktrace=~1000p",
                        [LUser, LServer,
-                        Class, Reason, Stacktrace]),
+                        Class, Reason, StackTrace]),
             none
     end.
 
@@ -98,13 +96,12 @@ get_list_names_only(LUser, LServer) ->
                        [LUser, LServer, Other]),
             []
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=get_list_names_only_failed "
                        "user=~ts server=~ts"
                        "reason=~p:~p stacktrace=~1000p",
                        [LUser, LServer,
-                        Class, Reason, Stacktrace]),
+                        Class, Reason, StackTrace]),
             []
     end.
 
@@ -122,13 +119,12 @@ get_privacy_list(LUser, LServer, Name) ->
                        [LUser, LServer, Name, Other]),
             {error, Other}
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=get_privacy_list_failed "
                        "user=~ts server=~ts listname=~ts"
                        "reason=~p:~p stacktrace=~1000p",
                        [LUser, LServer, Name,
-                        Class, Reason, Stacktrace]),
+                        Class, Reason, StackTrace]),
             {error, Reason}
     end.
 
@@ -143,13 +139,12 @@ get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
                        [LUser, LServer, Name, ID, Other]),
             {error, Other}
     catch
-        Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=get_privacy_list_by_id_failed "
                        "user=~ts server=~ts listname=~ts id=~p"
                        "reason=~p:~p stacktrace=~1000p",
                        [LUser, LServer, Name, ID,
-                        Class, Reason, Stacktrace]),
+                        Class, Reason, StackTrace]),
             {error, Reason}
     end.
 
@@ -167,13 +162,12 @@ forget_default_list(LUser, LServer) ->
                        [LUser, LServer, Other]),
             {error, Other}
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?ERROR_MSG("event=forget_default_list_failed "
                        "user=~ts server=~ts"
                        "reason=~p:~p stacktrace=~1000p",
                        [LUser, LServer,
-                        Class, Reason, Stacktrace]),
+                        Class, Reason, StackTrace]),
             {error, Reason}
     end.
 

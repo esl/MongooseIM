@@ -7,6 +7,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -155,7 +156,7 @@ push_to_many(Config) ->
 start_pool() ->
     Pool = {http, host, http_pool,
             [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
-            [{path_prefix, "/"}, {http_opts, []}, {server, "http://localhost:8000"}]},
+            [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}]},
     ejabberd_node_utils:call_fun(mongoose_wpool,
                                  start_configured_pools,
                                  [[Pool], [<<"localhost">>]]),
@@ -202,7 +203,7 @@ got_push(Type, N, Res) ->
 
 start_http_listener() ->
     Pid = self(),
-    http_helper:start(8000, '_', fun(Req) -> process_notification(Req, Pid) end).
+    http_helper:start(http_notifications_port(), '_', fun(Req) -> process_notification(Req, Pid) end).
 
 stop_http_listener() ->
     http_helper:stop().

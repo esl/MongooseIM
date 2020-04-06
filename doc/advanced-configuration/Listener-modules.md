@@ -16,32 +16,41 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
+#### General
 
-* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
-  If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
-* `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
-* `crlfiles` (list of strings, default: []) - A list of paths to Certificate Revocation Lists. Not supported by `fast_tls` TLS module.
-* `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires valid `cafile`.
-* `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
-* `starttls_required` (default: disabled) - enforces StartTLS usage.
-* `tls` (default: disabled) - When this option is set, clients must initiate a TLS session immediately after connecting, before beginning the normal XML stream.
-* `tls_module` (atom, default: `fast_tls`) - Provides a TLS library to use. `fast_tls` uses OpenSSL-based NIFs, while `just_tls` uses Erlang TLS implementation provided by OTP. They are fully interchangeable, with some exceptions (`ejabberd_c2s` options supported by only one of them are explicitly described, e.g. `crlfiles`).
-* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)); the limit can be disabled with an atom 'unlimited'.
-* `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
- Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `none`) - Connection shaper to use for incoming C2S stanzas.
 * `max_stanza_size` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 * `backlog` (positive integer, default 100) - overrides the default TCP backlog value
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
-* `protocol_options` List of supported SSL protocols, default "no_sslv3".
- It also accepts "no_tlsv1" and "no_tlsv1_1"
-* `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
 * `hibernate_after` (integer, default: 0) - Time in milliseconds after which a client process spawned by this listener will hibernate.
   Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
   The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 * `acceptors_num` (integer, default: 100) - For TCP-based listeners: the number of processes accepting new connections on the listening socket.
+* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)); the limit can be disabled with an atom 'unlimited'.
+* `proxy_protocol` (boolean, default: `false`) - For TCP-based listeners: when set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
+
+#### Common TLS options
+
+* `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
+* `starttls_required` (default: disabled) - enforces StartTLS usage.
+* `tls` (default: disabled) - When this option is set, clients must initiate a TLS session immediately after connecting, before beginning the normal XML stream.
+* `tls_module` (atom, default: `fast_tls`) - Provides a TLS library to use. `fast_tls` uses OpenSSL-based NIFs, while `just_tls` uses Erlang TLS implementation provided by OTP. They are fully interchangeable, with some exceptions (`ejabberd_c2s` options supported by only one of them are explicitly described, e.g. `crlfiles`).
+* `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
+  If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
+* `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
+* `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires a valid `cafile`.
+* `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
+
+#### `fast_tls` - specific options
+
+* `ciphers` (string, default: `"TLSv1.2:TLSv1.3"`) - <a name="c2s-ciphers"></a>Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
+* `protocol_options` List of OpenSSL options, the default value is `["no_sslv2", "no_sslv3", "no_tlsv1, "no_tlsv1_1"]`. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
+
+#### `just_tls` - specific options
+
+* `crlfiles` (list of strings, default: []) - A list of paths to Certificate Revocation Lists.
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
@@ -107,7 +116,7 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
      Example:
 
-            `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
+            `{"localhost", "/api", mongoose_api_admin, [{auth, {<<"ala">>, <<"makotaipsa">>}}]}`
 
   * `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
@@ -163,7 +172,7 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
 * `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
-* `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+* `ciphers` (string, default: `"TLSv1.2:TLSv1.3"`) - cipher suites to use with StartTLS. <a name="s2s-ciphers"></a>
 * `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients (here server initiating S2S connection).
 
 ## XMPP components: `ejabberd_service`
@@ -180,6 +189,7 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `hidden_components` (boolean, default: `false`) - All components connected to an endpoint with this option enabled will be considered "hidden" (see explanation below).
+* `conflict_behaviour` (`disconnect`, `kick_old`, default: `disconnect`) - If set to `kick_old`, in case of a routing conflict it stops the previous connection (see the explanation below). 
 
 According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) component's hostname should be given in the <stream:stream> element.
 
@@ -196,4 +206,19 @@ Alone, it doesn't change the server behaviour in any way, but it may be used by 
 An example would be [`mod_disco`](../modules/mod_disco.md), which may be configured to filter out hidden components from disco results, so they won't be discoverable by clients.
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
 Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
+
+## Conflict behaviour
+
+By default, when a component tries to connect and a registration conflict occures, we drop such connection by sending:
+
+```xml
+<stream:error>
+  <conflict xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>
+</stream:error>
+</stream:stream>
+```
+
+It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
+
+By setting `{conflict_behaviour, kick_old}`, we drop any old connections registered at the same host, before accepting new ones.
 

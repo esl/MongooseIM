@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -180,7 +179,7 @@ handle_call({compress, ZlibSocket}, _From,
   #state{c2s_pid = C2SPid} = State) ->
     StateAfterReset = reset_parser(State),
     NewState = StateAfterReset#state{socket = ZlibSocket,
-                                 sock_mod = ejabberd_zlib},
+                                     sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
             NewState2 = process_data(ZlibData, NewState),
@@ -225,8 +224,8 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({Tag, _TCPSocket, Data},
       #state{socket = Socket,
-       c2s_pid = C2SPid,
-       sock_mod = SockMod} = State)
+             c2s_pid = C2SPid,
+             sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
         ejabberd_tls ->
@@ -284,13 +283,13 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, #state{parser = Parser,
-        c2s_pid = C2SPid} = State) ->
+                          c2s_pid = C2SPid} = State) ->
     free_parser(Parser),
     case C2SPid of
         undefined -> ok;
         _ -> gen_fsm_compat:send_event(C2SPid, closed)
     end,
-    catch (State#state.sock_mod):close(State#state.socket),
+    catch shutdown_socket_and_wait_for_peer_to_close(State#state.socket, State#state.sock_mod),
     ok.
 
 %%--------------------------------------------------------------------
@@ -305,23 +304,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 -spec activate_socket(state()) -> 'ok' | {'tcp_closed', _}.
-activate_socket(#state{socket = Socket,
-                       sock_mod = SockMod}) ->
-    PeerName =
-        case SockMod of
-            gen_tcp ->
-                inet:setopts(Socket, [{active, once}]),
-                inet:peername(Socket);
-            _ ->
-                SockMod:setopts(Socket, [{active, once}]),
-                SockMod:peername(Socket)
-        end,
-    case PeerName of
-        {error, _Reason} ->
-            self() ! {tcp_closed, Socket};
-        {ok, _} ->
-            ok
-    end.
+activate_socket(#state{socket = Socket, sock_mod = gen_tcp}) ->
+    inet:setopts(Socket, [{active, once}]),
+    PeerName = inet:peername(Socket),
+    resolve_peername(PeerName, Socket);
+activate_socket(#state{socket = Socket, sock_mod = SockMod}) ->
+    SockMod:setopts(Socket, [{active, once}]),
+    PeerName = SockMod:peername(Socket),
+    resolve_peername(PeerName, Socket).
+
+resolve_peername({ok, _}, _Socket) ->
+    ok;
+resolve_peername({error, _Reason}, Socket) ->
+    self() ! {tcp_closed, Socket}.
 
 -spec deactivate_socket(state()) -> 'ok' | {'error', _}.
 deactivate_socket(#state{socket = Socket,
@@ -338,25 +333,22 @@ deactivate_socket(#state{socket = Socket,
 process_data([], State) ->
     activate_socket(State),
     State;
+process_data(Els, #state{c2s_pid = undefined} = State) when is_list(Els) ->
+    State;
 process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
   when element(1, Element) == xmlel;
        element(1, Element) == xmlstreamstart;
-      element(1, Element) == xmlstreamelement;
+       element(1, Element) == xmlstreamelement;
        element(1, Element) == xmlstreamend ->
-    case C2SPid of
-        undefined ->
-            State;
-        _ ->
-            catch gen_fsm_compat:send_event(C2SPid, element_wrapper(Element)),
-            process_data(Els, State)
-    end;
+    catch gen_fsm_compat:send_event(C2SPid, element_wrapper(Element)),
+    process_data(Els, State);
 %% Data processing for connectors receivind data as string.
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
                           stanza_chunk_size = ChunkSize,
                           c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
-    Size = size(Data),
+    Size = byte_size(Data),
     maybe_run_keep_alive_hook(Size, State),
     {C2SEvents, NewParser} =
         case exml_stream:parse(Parser, Data) of
@@ -445,3 +437,24 @@ hibernate() ->
 -spec maybe_hibernate(state()) -> hibernate | infinity | pos_integer().
 maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
 maybe_hibernate(#state{hibernate_after = HA}) -> HA.
+
+%% gen_tcp:close/2, but trying to ensure that all data is received by peer.
+%%
+%% This is based on tls_connection:workaround_transport_delivery_problems/2 code
+%% https://github.com/erlang/otp/blob/OTP_17.0-rc2/lib/ssl/src/tls_connection.erl#L959
+%%
+%% There are some more docs why we need it in http://erlang.org/doc/man/gen_tcp.html#close-1
+shutdown_socket_and_wait_for_peer_to_close(Socket, gen_tcp) ->
+    %% Standard trick to try to make sure all
+    %% data sent to the tcp port is really delivered to the
+    %% peer application before tcp port is closed so that the peer will
+    %% get the correct stream end and not only a transport close.
+    inet:setopts(Socket, [{active, false}]),
+    gen_tcp:shutdown(Socket, write),
+    %% Will return when other side has closed or after 30 s
+    %% e.g. we do not want to hang if something goes wrong
+    %% with the network but we want to maximise the odds that
+    %% peer application gets all data sent on the tcp connection.
+    gen_tcp:recv(Socket, 0, 30000);
+shutdown_socket_and_wait_for_peer_to_close(Socket, SockMod) ->
+    SockMod:close(Socket).

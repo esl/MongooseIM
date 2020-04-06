@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -55,6 +54,9 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("external_component.hrl").
+
+-type conflict_behaviour() :: disconnect | kick_old.
 
 -record(state, {socket,
                 sockmod      :: ejabberd:sockmod(),
@@ -64,6 +66,7 @@
                 host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 hidden_components = false :: boolean(),
+                conflict_behaviour :: conflict_behaviour(),
                 access,
                 check_from
               }).
@@ -132,10 +135,7 @@ socket_type() ->
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
     El :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
-                                                  from_jid => From,
-                                                  to_jid => To,
-                                                  element => El }, Acc)}.
+    Pid ! {route, From, To, Acc}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -167,6 +167,7 @@ init([{SockMod, Socket}, Opts]) ->
     SockMod:change_shaper(Socket, Shaper),
     SocketMonitor = SockMod:monitor(Socket),
     HiddenComponents = proplists:get_value(hidden_components, Opts, false),
+    ConflictBehaviour = proplists:get_value(conflict_behaviour, Opts, disconnect),
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
                                  socket_monitor = SocketMonitor,
@@ -175,7 +176,8 @@ init([{SockMod, Socket}, Opts]) ->
                                  access = Access,
                                  check_from = CheckFrom,
                                  is_subdomain = false,
-                                 hidden_components = HiddenComponents
+                                 hidden_components = HiddenComponents,
+                                 conflict_behaviour = ConflictBehaviour
                                  }}.
 
 %%----------------------------------------------------------------------
@@ -214,6 +216,8 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
                            (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
+    {stop, normal, StateData};
+wait_for_stream(replaced, StateData) ->
     {stop, normal, StateData}.
 
 
@@ -225,15 +229,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
             case sha:sha1_hex(StateData#state.streamid ++
                          StateData#state.password) of
                 Digest ->
-                    case register_routes(StateData) of
-                        ok ->
-                            send_text(StateData, <<"<handshake/>">>),
-                            {next_state, stream_established, StateData};
-                        {error, Reason} ->
-                            ?ERROR_MSG("Error in component handshake: ~p", [Reason]),
-                            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
-                            {stop, normal, StateData}
-                    end;
+                    try_register_routes(StateData);
                 _ ->
                     send_text(StateData, ?INVALID_HANDSHAKE_ERR),
                     {stop, normal, StateData}
@@ -246,6 +242,9 @@ wait_for_handshake({xmlstreamend, _Name}, StateData) ->
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
     send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
+wait_for_handshake(replaced, StateData) ->
+    %% We don't expect to receive replaced before handshake
+    do_disconnect_on_conflict(StateData);
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -295,6 +294,8 @@ stream_established({xmlstreamend, _Name}, StateData) ->
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
+stream_established(replaced, StateData) ->
+    do_disconnect_on_conflict(StateData);
 stream_established(closed, StateData) ->
     % TODO ??
     {stop, normal, StateData}.
@@ -361,7 +362,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
            [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
-            ejabberd_hooks:run_fold(packet_to_component, global, Acc, [From, To]),
+            mongoose_hooks:packet_to_component(Acc, From, To),
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                 jid:to_binary(To),
                                                 Packet#xmlel.attrs),
@@ -440,24 +441,85 @@ fsm_limit_opts(Opts) ->
             end
     end.
 
+try_register_routes(StateData) ->
+    try_register_routes(StateData, 3).
+
+try_register_routes(StateData, Retries) ->
+    case register_routes(StateData) of
+        ok ->
+            send_text(StateData, <<"<handshake/>">>),
+            {next_state, stream_established, StateData};
+        {error, Reason} ->
+            RoutesInfo = lookup_routes(StateData),
+            ConflictBehaviour = StateData#state.conflict_behaviour,
+            ?ERROR_MSG("event=component_registration_conflict "
+                       "reason=~p conflict_behaviour=~p retries=~p routes_info=~p",
+                       [Reason, ConflictBehaviour, Retries, RoutesInfo]),
+            handle_registration_conflict(ConflictBehaviour, RoutesInfo, StateData, Retries)
+    end.
+
+routes_info_to_pids(RoutesInfo) ->
+    {_Hosts, ExtComponentsPerHost} = lists:unzip(RoutesInfo),
+    %% Flatten the list of lists
+    ExtComponents = lists:append(ExtComponentsPerHost),
+    %% Ignore handlers from other modules
+    [mongoose_packet_handler:extra(H)
+     || #external_component{handler = H} <- ExtComponents,
+        mongoose_packet_handler:module(H) =:= ?MODULE].
+
+handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
+    Pids = routes_info_to_pids(RoutesInfo),
+    Results = lists:map(fun stop_process/1, Pids),
+    AllOk = lists:all(fun(Result) -> Result =:= ok end, Results),
+    case AllOk of
+        true ->
+            %% Do recursive call
+            try_register_routes(StateData, Retries - 1);
+        false ->
+            ?ERROR_MSG("event=component_registration_kick_failed "
+                       "pids=~p results=~p disconnecting_next",
+                       [Pids, Results]),
+            do_disconnect_on_conflict(StateData)
+    end;
+handle_registration_conflict(_Behaviour, _RoutesInfo, StateData, _Retries) ->
+    do_disconnect_on_conflict(StateData).
+
+do_disconnect_on_conflict(StateData) ->
+    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
+    {stop, normal, StateData}.
+
+lookup_routes(StateData) ->
+    Routes = get_routes(StateData),
+    [{Route, ejabberd_router:lookup_component(Route)} || Route <- Routes].
+
 -spec register_routes(state()) -> any().
-register_routes(#state{host = Subdomain, is_subdomain = true, hidden_components = AreHidden}) ->
-    Hosts = ejabberd_config:get_global_option(hosts),
-    Routes = component_routes(Subdomain, Hosts),
-    ejabberd_router:register_components(Routes, node(),
-                                        mongoose_packet_handler:new(?MODULE, self()), AreHidden);
-register_routes(#state{host = Host, hidden_components = IsHidden}) ->
-    ejabberd_router:register_component(Host, node(),
-                                       mongoose_packet_handler:new(?MODULE, self()), IsHidden).
+register_routes(StateData = #state{hidden_components = AreHidden}) ->
+    Routes = get_routes(StateData),
+    Handler = mongoose_packet_handler:new(?MODULE, self()),
+    ejabberd_router:register_components(Routes, node(), Handler, AreHidden).
 
 -spec unregister_routes(state()) -> any().
-unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->
+unregister_routes(StateData) ->
+    Routes = get_routes(StateData),
+    ejabberd_router:unregister_components(Routes).
+
+get_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
-    Routes = component_routes(Subdomain, Hosts),
-    ejabberd_router:unregister_components(Routes);
-unregister_routes(#state{host=Host}) ->
-    ejabberd_router:unregister_component(Host).
+    component_routes(Subdomain, Hosts);
+get_routes(#state{host=Host}) ->
+    [Host].
 
 -spec component_routes(binary(), [binary()]) -> [binary()].
 component_routes(Subdomain, Hosts) ->
     [<<Subdomain/binary, ".", Host/binary>> || Host <- Hosts].
+
+stop_process(Pid) ->
+    p1_fsm:send_event(Pid, replaced),
+    MonRef = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', MonRef, process, Pid, Reason} ->
+            ok
+    after 5000 ->
+            erlang:demonitor(MonRef, [flush]),
+            {error, timeout}
+    end.

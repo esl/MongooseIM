@@ -1,6 +1,7 @@
 -module(mongoose_cleanup_SUITE).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("mongoose.hrl").
 
 -export([all/0,
          init_per_suite/1, end_per_suite/1,
@@ -33,7 +34,7 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    {ok, _} = application:ensure_all_started(stringprep),
+    {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     Config.
@@ -88,26 +89,32 @@ auth_anonymous(_Config) ->
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
 
 last(_Config) ->
-    mod_last:start(?HOST, [{backend, mnesia},
-                           {iqdisc, no_queue}]),
+    mod_last:start(?HOST, [{backend, mnesia}, {iqdisc, no_queue}]),
     {U, S, R, _JID, SID} = get_fake_session(),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,
     #{} = mod_last:on_presence_update(#{}, U, S, R, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
-    timer:sleep(2000),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
-    {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
-    true = TS2 - TS1 > 0.
+    async_helper:wait_until(
+      fun() ->
+              ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+              {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
+              TS2 - TS1 > 0
+      end,
+      true).
 
 stream_management(_Config) ->
     mod_stream_management:start(?HOST, []),
     {U, S, R, _JID, SID} = get_fake_session(),
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
-    [SID] = mod_stream_management:get_sid(SMID),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
-    [] = mod_stream_management:get_sid(SMID).
+    {sid, SID} = mod_stream_management:get_sid(SMID),
+    Acc = mongoose_acc:new(
+            #{location => ?LOCATION,
+              lserver => S,
+              element => undefined}),
+    ejabberd_hooks:run_fold(session_cleanup, ?HOST, Acc, [U, S, R, SID]),
+    {error, smid_not_found} = mod_stream_management:get_sid(SMID).
 
 local(_Config) ->
     ejabberd_local:start_link(),
@@ -123,12 +130,9 @@ local(_Config) ->
     end,
 
     ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 2000),
+    {ok, undefined, _F} = ejabberd_local:get_iq_callback(ID),
     ejabberd_hooks:run(node_cleanup, [node()]),
-    receive
-        timeout -> ct:fail({timeout, cleaned_iq_timeout})
-    after
-        4000 -> ok
-    end.
+    error = ejabberd_local:get_iq_callback(ID).
 
 s2s(_Config) ->
     ejabberd_s2s:start_link(),

@@ -171,7 +171,7 @@ get_cached_responses(Pid) ->
 
 %%--------------------------------------------------------------------
 %% @private
-%% @spec init(Args) -> {ok, StateName, State} |
+%% init(Args) -> {ok, StateName, State} |
 %%                     {ok, StateName, State, Timeout} |
 %%                     ignore |
 %%                     {stop, StopReason}
@@ -205,7 +205,7 @@ get_maxpause() ->
 %% name as the current state name StateName is called to handle
 %% the event. It is also called if a timeout occurs.
 %%
-%% @spec state_name(Event, State) ->
+%% state_name(Event, State) ->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {stop, Reason, NewState}
@@ -241,7 +241,7 @@ closing(Event, State) ->
 %% the same name as the current state name StateName is called to
 %% handle the event.
 %%
-%% @spec state_name(Event, From, State) ->
+%% state_name(Event, From, State) ->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {reply, Reply, NextStateName, NextState} |
@@ -269,7 +269,7 @@ closing(Event, _From, State) ->
 %% gen_fsm_compat:send_all_state_event/2, this function is called to handle
 %% the event.
 %%
-%% @spec handle_event(Event, StateName, State) ->
+%% handle_event(Event, StateName, State) ->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {stop, Reason, NewState}
@@ -315,7 +315,7 @@ determine_next_state(EventTag, SName, NNS) ->
 %% gen_fsm_compat:sync_send_all_state_event/[2, 3], this function is called
 %% to handle the event.
 %%
-%% @spec handle_sync_event(Event, From, StateName, State) ->
+%% handle_sync_event(Event, From, StateName, State) ->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {reply, Reply, NextStateName, NextState} |
@@ -352,7 +352,7 @@ handle_sync_event(Event, _From, StateName, State) ->
 %% message other than a synchronous or asynchronous event
 %% (or a system message).
 %%
-%% @spec handle_info(Info, StateName, State)->
+%% handle_info(Info, StateName, State)->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Timeout} |
 %%                   {stop, Reason, NewState}
@@ -544,7 +544,7 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
     ReportRid = Ack + 1,
     try
         {ReportRid, TimeSent, _} = lists:keyfind(ReportRid, 1, Sent),
-        ElapsedTimeMillis = p1_time_compat:monotonic_time(milli_seconds) - TimeSent,
+        ElapsedTimeMillis = erlang:monotonic_time(millisecond) - TimeSent,
         Report = {ReportRid, ElapsedTimeMillis},
         case S#state.report of
             false ->
@@ -670,7 +670,7 @@ send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
     {Wrapped, NS} = bosh_wrap(Data, Rid, State),
-    NS2 = cache_response({Rid, p1_time_compat:monotonic_time(milli_seconds), Wrapped}, NS),
+    NS2 = cache_response({Rid, erlang:monotonic_time(millisecond), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
 
 
@@ -1055,7 +1055,7 @@ get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
 %%--------------------------------------------------------------------
 
 %% @doc Set Fields of the Record to Values,
-%% when {Field, Value} <- FieldValues (in list comprehension syntax).
+%% when `{Field, Value} <- FieldValues' (in list comprehension syntax).
 -spec record_set(state(), [{pos_integer(), _}, ...]) -> state().
 record_set(Record, FieldValues) ->
     F = fun({Field, Value}, Rec) ->

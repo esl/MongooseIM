@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -43,8 +42,7 @@
          get_password_s/2,
          does_user_exist/2,
          remove_user/2,
-         remove_user/3,
-         store_type/1
+         supports_sasl_module/2
         ]).
 
 %% Internal
@@ -88,8 +86,8 @@ check_cache_last_options(Server) ->
             end
     end.
 
-store_type(_) ->
-    external.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -211,23 +209,6 @@ remove_user(LUser, LServer) ->
                 false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(LUser, LServer)
-            end,
-            ok
-    end.
-
-
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver(),
-                  Password :: binary()
-                  ) -> ok | {error, not_allowed}.
-remove_user(LUser, LServer, Password) ->
-    case extauth:remove_user(LUser, LServer, Password) of
-        false -> {error, not_allowed};
-        true ->
-            case get_cache_option(LServer) of
-                false -> ok;
-                {true, _CacheTime} ->
-                    ejabberd_auth_internal:remove_user(LUser, LServer, Password)
             end,
             ok
     end.
@@ -358,8 +339,7 @@ set_password_internal(LUser, LServer, Password) ->
 -spec is_fresh_enough(TimeLast :: integer(),
                       CacheTime :: integer()) -> boolean().
 is_fresh_enough(TimeStampLast, CacheTime) ->
-    {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
-    Now = MegaSecs * 1000000 + Secs,
+    Now = erlang:system_time(second),
     (TimeStampLast + CacheTime > Now).
 
 
@@ -369,7 +349,8 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
                       Server :: jid:server()
                       ) -> online | never | mod_last_required | integer().
 get_last_access(User, Server) ->
-    case ejabberd_sm:get_user_resources(User, Server) of
+    JID = jid:make(User, Server, <<>>),
+    case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last_info(User, Server) of
                 mod_last_required ->

@@ -23,7 +23,7 @@
 %% API
 -export([start/1,
          stop/1,
-         store_type/1,
+         supports_sasl_module/2,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -35,8 +35,7 @@
          get_password/2,
          get_password_s/2,
          does_user_exist/2,
-         remove_user/2,
-         remove_user/3
+         remove_user/2
         ]).
 
 -export([bucket_type/1]).
@@ -53,12 +52,12 @@ start(_Host) ->
 stop(_Host) ->
     ok.
 
--spec store_type(jid:lserver()) -> plain | scram.
-store_type(Host) ->
-    case scram:enabled(Host) of
-        false -> plain;
-        true -> scram
-    end.
+-spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_, cyrsasl_plain) -> true;
+supports_sasl_module(_, cyrsasl_scram) -> true;
+supports_sasl_module(_, cyrsasl_scram_sha256) -> true;
+supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
+supports_sasl_module(_, _) -> false.
 
 -spec set_password(jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.
@@ -82,7 +81,7 @@ check_password(LUser, LServer, Password) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:check_password(Password, Scram);
+            mongoose_scram:check_password(Password, Scram);
         Password when is_binary(Password) ->
             Password /= <<"">>;
         _ ->
@@ -99,7 +98,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:check_digest(Scram, Digest, DigestGen, Password);
+            mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         PassRiak when is_binary(PassRiak) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, PassRiak)
     end.
@@ -148,7 +147,7 @@ get_password(LUser, LServer) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:scram_to_tuple(Scram);
+            mongoose_scram:scram_to_tuple(Scram);
         Password ->
             Password
     end.
@@ -180,12 +179,11 @@ remove_user(LUser, LServer) ->
             {error, not_allowed}
     end.
 
-remove_user(_LUser, _LServer, _Password) ->
-    erlang:error(not_implemented).
-
 -spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->
-    {<<"users">>, LServer}.
+    Opts = ejabberd_config:get_local_option_or_default({auth_opts, LServer}, []),
+    BucketType = proplists:get_value(bucket_type, Opts, <<"users">>),
+    {BucketType, LServer}.
 
 %% -----------------------------------------------------------------------------
 %% Internal functions
@@ -204,7 +202,7 @@ try_register_if_does_not_exist(LUser, LServer, PasswordIn) ->
    end.
 
 try_register_with_password(LUser, LServer, Password) ->
-    Now = integer_to_binary(now_to_seconds(os:timestamp())),
+    Now = integer_to_binary(os:system_time(second)),
     Ops = [{{<<"created">>, register},
             fun(R) -> riakc_register:set(Now, R) end},
            set_password_map_op(Password)],
@@ -225,14 +223,14 @@ do_set_password({ok, Map}, LUser, LServer, Password) ->
     mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UpdateMap)).
 
 prepare_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = scram:password_to_scram(Password, Iterations),
-    PassDetails = scram:serialize(Scram),
+    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+    PassDetails = mongoose_scram:serialize(Scram),
     {<<"">>, PassDetails};
 
 prepare_password(Server, Password) ->
-    case scram:enabled(Server) of
+    case mongoose_scram:enabled(Server) of
         true ->
-            prepare_password(scram:iterations(Server), Password);
+            prepare_password(mongoose_scram:iterations(Server), Password);
         _ ->
             Password
     end.
@@ -250,9 +248,9 @@ extract_password(Map) ->
             Password
     end.
 
--spec maybe_extract_scram_password({ok, binary()} | error) -> scram:scram() | false.
+-spec maybe_extract_scram_password({ok, binary()} | error) -> mongoose_scram:scram() | false.
 maybe_extract_scram_password({ok, ScramSerialised}) ->
-    case scram:deserialize(ScramSerialised) of
+    case mongoose_scram:deserialize(ScramSerialised) of
         {ok, Scram} ->
             Scram;
         _ ->
@@ -260,8 +258,3 @@ maybe_extract_scram_password({ok, ScramSerialised}) ->
     end;
 maybe_extract_scram_password(_) ->
     false.
-
--spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
-now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
-

@@ -7,10 +7,14 @@
 -define(IP, {127, 0, 0, 1}).
 -define(FAST_PING_RATE, 500).
 -define(NEW_TIMEOUT, 1200).
+%The timeout is long enough to pass all test cases for ping interval settings
+%using NEW_TIMEOUT value. In these tests we wait for at most 2 pings.
+%The 300ms is just an additional overhead
+-define(IDLE_TIMEOUT, ?NEW_TIMEOUT * 2 + 300).
 
 
 all() ->
-    ping_tests() ++ subprotocol_header_tests().
+    ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
 
 ping_tests() ->
     [ping_test,
@@ -25,18 +29,29 @@ subprotocol_header_tests() ->
      do_not_agree_to_missing_subprotocol,
      do_not_agree_to_other_subprotocol].
 
-init_per_testcase(_, C) ->
+timeout_tests() ->
+    [connection_is_closed_after_idle_timeout,
+     client_ping_frame_resets_idle_timeout].
+
+init_per_suite(C) ->
     setup(),
     C.
 
-end_per_testcase(_, C) ->
+end_per_suite(_) ->
     teardown(),
+    ok.
+
+init_per_testcase(_, C) ->
+    C.
+
+end_per_testcase(_, C) ->
     C.
 
 setup() ->
     meck:unload(),
     application:ensure_all_started(cowboy),
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
+    application:ensure_all_started(lager),
     meck:new(supervisor, [unstick, passthrough, no_link]),
     meck:new(gen_mod,[unstick, passthrough, no_link]),
     %% Set ping rate
@@ -47,13 +62,15 @@ setup() ->
                                          infinity, worker, [_]}) -> {ok, self()};
                    (A,B) -> meck:passthrough([A,B])
                 end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     %% Start websocket cowboy listening
 
     Opts = [{num_acceptors, 10},
             {max_connections, 1024},
             {modules, [{"_", "/http-bind", mod_bosh},
                        {"_", "/ws-xmpp", mod_websockets,
-                        [{timeout, 600000}, {ping_rate, ?FAST_PING_RATE}]}]}],
+                        [{timeout, ?IDLE_TIMEOUT},
+                         {ping_rate, ?FAST_PING_RATE}]}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 
@@ -61,7 +78,8 @@ teardown() ->
     meck:unload(),
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     application:stop(cowboy),
-    %% Do not stop stringprep, Erlang 21 does not like to reload nifs
+    application:stop(lager),
+    %% Do not stop jid, Erlang 21 does not like to reload nifs
     ok.
 
 ping_test(_Config) ->
@@ -76,15 +94,14 @@ set_ping_test(_Config) ->
     #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
     %% When
     mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
-    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + 1000),
+    WaitMargin = 300,
+    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + WaitMargin),
     %% Im waiting too less time!
-    ErrorTimeout = wait_for_ping(Socket1, 0, 700),
-    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 1000),
-    %% now I wait enough time
-    Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 200),
-    %% then
-    ?eq(ok, Resp1),
-    ?eq({error, timeout}, ErrorTimeout).
+    TooShort = 700,
+    ErrorTimeout = wait_for_ping(Socket1, 0, TooShort),
+    ?eq({error, timeout}, ErrorTimeout),
+    %% now I'm wait the remaining time (and some margin)
+    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT - TooShort + WaitMargin).
 
 disable_ping_test(_Config) ->
     #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
@@ -106,6 +123,38 @@ disable_and_set(_Config) ->
     %% then
     ?eq(ErrorTimeout, {error, timeout}),
     ?eq(Resp1, ok).
+
+connection_is_closed_after_idle_timeout(_Config) ->
+    #{socket := Socket} = ws_handshake(),
+    inet:setopts(Socket, [{active, true}]),
+    Closed = wait_for_close(Socket),
+    ?eq(Closed, ok).
+
+client_ping_frame_resets_idle_timeout(_Config) ->
+    #{socket := Socket} = ws_handshake(#{extra_headers => [<<"sec-websocket-protocol: xmpp\r\n">>]}),
+    Now = os:system_time(millisecond),
+    inet:setopts(Socket, [{active, true}]),
+    WaitBeforePingFrame = (?IDLE_TIMEOUT) div 2,
+    timer:sleep(WaitBeforePingFrame),
+    %%Masked ping frame
+    Ping = << 1:1, 0:3, 9:4, 1:1, 0:39 >>,
+    ok = gen_tcp:send(Socket, Ping),
+    Closed = wait_for_close(Socket),
+    ?eq(Closed, ok),
+    End = os:system_time(millisecond),
+    %%Below we check if the time difference between now and the moment
+    %%the WebSocket was established is bigger then the the ?IDLE_TIMEOUT plus initial wait time
+    %%This shows that the connection was not killed after the first ?IDLE_TIMEOUT
+    ?assert(End - Now > ?IDLE_TIMEOUT + WaitBeforePingFrame).
+
+wait_for_close(Socket) ->
+    receive
+        {tcp_closed, Socket} ->
+            ok
+    after ?IDLE_TIMEOUT + 500 ->
+              timeout
+    end.
+
 
 ws_handshake() ->
     ws_handshake(#{}).

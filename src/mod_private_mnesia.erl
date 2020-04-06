@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -35,6 +34,8 @@
          multi_set_data/3,
          multi_get_data/3,
          remove_user/2]).
+
+-export([get_all_nss/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -65,6 +66,13 @@ set_data_t(LUser, LServer, NS, XML) ->
 
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
+
+get_all_nss(LUser, LServer) ->
+    F = fun() ->
+        select_namespaces_t(LUser, LServer)
+    end,
+    {atomic, NSs} = mnesia:transaction(F),
+    NSs.
 
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->

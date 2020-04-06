@@ -19,6 +19,8 @@
 <schema name="mam_search_schema" version="1.5">
     <fields>
         <field name="msg_id_register" type="tlong" indexed="true" stored="false" multiValued="false"/>
+        <field name="msg_owner_jid_register" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+        <field name="mam_type_register" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
         <field name="search_text_register" type="text_general" indexed="true" stored="false" multiValued="false"/>
         <field name="packet_register" type="ignored" indexed="false" stored="false" multiValued="false"/>
 

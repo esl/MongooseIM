@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -277,10 +276,9 @@ do_route(From, To, Acc, Packet) ->
                                                   Attrs),
             NewPacket = Packet#xmlel{attrs = NewAttrs},
             #jid{lserver = MyServer} = From,
-            Acc1 = ejabberd_hooks:run_fold(s2s_send_packet,
-                                           MyServer,
-                                           Acc,
-                                           [From, To, Packet]),
+            Acc1 = mongoose_hooks:s2s_send_packet(MyServer,
+                                                  Acc,
+                                                  From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
             done;
         {aborted, _Reason} ->
@@ -288,6 +286,8 @@ do_route(From, To, Acc, Packet) ->
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->
+                    ?DEBUG("event=s2s_connection_not_found from=~1000p to=~1000p packet=~1000p",
+                           [From, To, Packet]),
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
                     ejabberd_router:route(To, From, Acc1, Err)
@@ -369,11 +369,9 @@ choose_pid(From, Pids) ->
                 [] -> Pids;
                 Ps -> Ps
             end,
-    % Use sticky connections based on the JID of the sender (whithout
-    % the resource to ensure that a muc room always uses the same
-    % connection)
-    Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)),
-                    Pids1),
+    % Use sticky connections based on the JID of the sender
+    % (without the resource to ensure that a muc room always uses the same connection)
+    Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)), Pids1),
     ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
     Pid.
 
@@ -549,8 +547,7 @@ allow_host1(MyHost, S2SHost) ->
             case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
                 deny -> false;
                 _ ->
-                    ejabberd_hooks:run_fold(s2s_allow_host, MyHost,
-                                            allow, [MyHost, S2SHost]) /= deny
+                    mongoose_hooks:s2s_allow_host(MyHost, allow, S2SHost) /= deny
             end
     end.
 

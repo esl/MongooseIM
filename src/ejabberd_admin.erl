@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%-------------------------------------------------------------------
 
@@ -34,7 +33,7 @@
          status/0,
          send_service_message_all_mucs/2,
          %% Accounts
-         register/3, unregister/2,
+         register/3, register/2, unregister/2,
          registered_users/1,
          import_users/1,
          %% Purge DB
@@ -86,6 +85,11 @@ commands() ->
                         result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
                         desc = "Register a user",
+                        module = ?MODULE, function = register,
+                        args = [{host, binary}, {password, binary}],
+                        result = {res, restuple}},
+    #ejabberd_commands{name = register_identified, tags = [accounts],
+                        desc = "Register a user with a specific jid",
                         module = ?MODULE, function = register,
                         args = [{user, binary}, {host, binary}, {password, binary}],
                         result = {res, restuple}},
@@ -256,9 +260,8 @@ do_join_cluster(Node) ->
         error:{cant_get_storage_type, {T, E, R}} ->
             String = io_lib:format("Cannot get storage type for table ~p~n. Reason: ~p:~p", [T, E, R]),
             {mnesia_error, String};
-        E:R ->
-            Stacktrace = erlang:get_stacktrace(),
-            {error, {E, R, Stacktrace}}
+        E:R:S ->
+            {error, {E, R, S}}
     end.
 
 -spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
@@ -314,6 +317,14 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
 %%% Account management
 %%%
 
+-spec register(Host :: jid:server(),
+               Password :: binary()) -> {'cannot_register', io_lib:chars()}
+                                      | {'exists', io_lib:chars()}
+                                      | {'ok', io_lib:chars()}.
+register(Host, Password) ->
+    User = generate_user(),
+    register(User, Host, Password).
+
 -spec register(User :: jid:user(),
                Host :: jid:server(),
                Password :: binary()) -> {'cannot_register', io_lib:chars()}
@@ -332,6 +343,11 @@ register(User, Host, Password) ->
         _ ->
             {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])}
     end.
+
+generate_user() ->
+    mongoose_bin:join([mongoose_bin:gen_from_timestamp(),
+                      mongoose_bin:gen_from_crypto()],
+                      $-).
 
 
 -spec unregister(User :: jid:user(),

@@ -2,14 +2,15 @@
 
 This is a brief documentation for a few selected hooks.
 Though hooks & handlers differ in what they are there to do, it is not necessary to describe them all, because the mechanism is general.
-The following is meant to give you the idea of how hooks work, what they are used for and the various purposes they can serve.
+The following is meant to give you the idea of how the hooks work, what they are used for and the various purposes they can serve.
 
 
 ## `user_send_packet`
 
 ```erlang
-ejabberd_hooks:run(user_send_packet, Server,
-                   [FromJID, ToJID, Stanza])
+mongoose_hooks:user_send_packet(LServer,
+                                Acc,
+                                FromJID, ToJID, El)
 ```
 
 This hook is run in `ejabberd_c2s` after the user sends a packet.
@@ -41,11 +42,12 @@ It is handled by the following modules:
 ## `user_receive_packet`
 
 ```erlang
-ejabberd_hooks:run(user_receive_packet, Server,
-                   [Jid, From, To, FixedPacket])
+Acc2 = mongoose_hooks:user_receive_packet(StateData#state.server, 
+                                          Acc, 
+                                          StateData#state.jid, From, To, FixedEl),
 ```
 
-The hook is run just before a packet received by server is sent to the user.
+The hook is run just before a packet received by the server is sent to the user.
 
 Prior to sending, the packet is verified against any relevant privacy lists (the mechanism is described in [XEP-0016][privacy-lists]).
 The privacy list mechanism itself is not mandatory and requires `mod_privacy` to be configured; otherwise all stanzas are allowed to pass.
@@ -63,8 +65,12 @@ It is handled by the following modules:
 ## `filter_packet`
 
 ```erlang
-ejabberd_hooks:run_fold(filter_packet,
-                        {OrigFrom, OrigTo, OrigPacket}, [])
+mongoose_hooks:filter_packet({OrigFrom, OrigTo, OrigAcc, OrigPacket})
+```
+
+Which in turn executes this line of code:
+```erlang
+ejabberd_hooks:run_fold(filter_packet, {From, To, Acc, Packet}, []).
 ```
 
 This hook is run by `mongoose_router_global` when the packet is being routed by `ejaberd_router:route/3`.
@@ -85,9 +91,7 @@ Keep that in mind when registering the handlers and appropriately use `ejabberd_
 ## `offline_message_hook`
 
 ```erlang
-ejabberd_hooks:run(offline_message_hook,
-                   Server,
-                   [From, To, Packet])
+mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet)
 ```
 
 `ejabberd_sm` runs this hook once it determines that a routed stanza is a message and while it ordinarily could be delivered, no resource (i.e. device or desktop client application) of its recipient is available online for delivery.
@@ -102,7 +106,7 @@ If `mod_offline` fails, `ejabberd_sm:bounce_offline_message` is called and the u
 ## `remove_user`
 
 ```erlang
-ejabberd_hooks:run(remove_user, Server, [User, Server])
+mongoose_hooks:remove_user(LServer, Acc, LUser)
 ```
 
 `remove_user` is run by `ejabberd_auth` - the authentication module - when a request is made to remove the user from the database of the server.
@@ -134,9 +138,8 @@ Setting retries to 0 is not good decision as it was observed that in some setups
 
 ## `session_opening_allowed_for_user`
 ```erlang
-ejabberd_hooks:run_fold(session_opening_allowed_for_user,
-                        Server,
-                        allow, [JID]).
+allow == mongoose_hooks:session_opening_allowed_for_user(Server, 
+                                                         allow, JID).
 ```
 
 This hook is run after authenticating when user sends the IQ opening a session.
@@ -163,7 +166,6 @@ This is the perfect place to plug in custom security control.
 * auth_failed
 * c2s_broadcast_recipients
 * c2s_filter_packet
-* c2s_loop_debug
 * c2s_preprocessing_hook
 * c2s_presence_in
 * c2s_stream_features
@@ -258,7 +260,6 @@ This is the perfect place to plug in custom security control.
 * roster_set
 * s2s_allow_host
 * s2s_connect_hook
-* s2s_loop_debug
 * s2s_receive_packet
 * s2s_send_packet
 * s2s_stream_features
@@ -276,6 +277,7 @@ This is the perfect place to plug in custom security control.
 * update_inbox_for_muc
 * user_available_hook
 * user_ping_timeout
+* user_ping_response
 * user_receive_packet
 * user_send_packet
 * user_sent_keep_alive

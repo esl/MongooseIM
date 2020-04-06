@@ -55,7 +55,8 @@ all() ->
      {group, admin},
      {group, dynamic_module},
      {group, auth},
-     {group, blank_auth}
+     {group, blank_auth},
+     {group, roster}
     ].
 
 groups() ->
@@ -309,16 +310,13 @@ list_contacts(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            AliceJID = escalus_utils:jid_to_lower(
-                            escalus_client:short_jid(Alice)),
+            AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
             BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
             add_sample_contact(Bob, Alice),
             % list bob's contacts
-            {?OK, R} = gett(client, lists:flatten(["/contacts/",
-                                           binary_to_list(BobJID)])),
-            [R1] =  decode_maplist(R),
-            #{jid := AliceJID, subscription := <<"none">>,
-                ask := <<"none">>} = R1,
+            {?OK, R} = gett(admin, lists:flatten(["/contacts/", binary_to_list(BobJID)])),
+            [R1] = decode_maplist(R),
+            #{jid := AliceJID, subscription := <<"none">>, ask := <<"none">>} = R1,
             ok
         end
     ),

@@ -19,16 +19,14 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
 -module(cyrsasl_digest).
 -author('alexey@sevcom.net').
 
--export([start/1,
-         stop/0,
+-export([mechanism/0,
          mech_new/2,
          mech_step/2]).
 
@@ -47,11 +45,9 @@
 
 -type state() :: #state{}.
 
-start(_Opts) ->
-    mongoose_fips:maybe_register_mech(<<"DIGEST-MD5">>, ?MODULE, digest).
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"DIGEST-MD5">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, state()}.
@@ -199,7 +195,7 @@ binary_reverse(<<H, T/binary>>) ->
 -spec is_digesturi_valid(DigestURICase :: binary(),
                          JabberHost :: 'undefined' | jid:server()) -> boolean().
 is_digesturi_valid(DigestURICase, JabberHost) ->
-    DigestURI = stringprep:tolower(DigestURICase),
+    DigestURI = jid:str_tolower(DigestURICase),
     case catch binary:split(DigestURI, <<"/">>) of
         [<<"xmpp">>, Host] when Host == JabberHost ->
             true;

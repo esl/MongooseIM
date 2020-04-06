@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -34,7 +33,6 @@
          set_password/3,
          try_register/3,
          remove_user/2,
-         remove_user/3,
          is_user_exists/2]).
 
 -include("mongoose.hrl").
@@ -114,12 +112,6 @@ try_register(User, Server, Password) ->
 -spec remove_user(jid:user(), jid:server()) -> any().
 remove_user(User, Server) ->
     call_port(Server, [<<"removeuser">>, User, Server]).
-
-
--spec remove_user(jid:user(), jid:server(), binary()) -> any().
-remove_user(User, Server, Password) ->
-    call_port(Server, [<<"removeuser3">>, User, Server, Password]).
-
 
 -spec call_port(jid:server(), [any(), ...]) -> any().
 call_port(Server, Msg) ->

@@ -16,19 +16,26 @@ pages:
       - 'Release/Installation configuration': 'user-guide/release_config.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
-      - 'How to Set up MongoosePush': 'user-guide/Push-notifications.md'
+      - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
+      - 'How to Set up Push Notifications on the client side': 'user-guide/push-notifications/Push-notifications-client-side.md'
+      - 'How to Set up MongoosePush': 'user-guide/push-notifications/With-MongoosePush.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
       - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
   - Migration Guide:
       - '3.1.1 to 3.2.0': 'migrations/3.1.1_3.2.0.md'
+      - '3.3.0 to 3.4.0': 'migrations/3.3.0_3.4.0.md'
+      - '3.5.0 to 3.6.0': 'migrations/3.5.0_3.6.0.md'
+      - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - Platform:
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
       - 'History': 'History.md'
   - 'Configuration':
       - 'Basic Configuration': 'Basic-configuration.md'
+      - 'Erlang Cookie Security': 'Erlang-cookie-security.md'
       - 'Advanced Configuration': 'Advanced-configuration.md'
+      - 'TLS hardening': 'advanced-configuration/TLS-hardening.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
       - 'Outgoing connections': 'advanced-configuration/outgoing-connections.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
@@ -43,6 +50,8 @@ pages:
       - 'JWT Authentication Module': 'authentication-backends/JWT-authentication-module.md'
       - 'LDAP Authentication Module': 'authentication-backends/LDAP-authentication-module.md'
       - 'PKI Authentication Module': 'authentication-backends/PKI-authentication-module.md'
+      - 'Riak Authentication Module': 'authentication-backends/Riak-authentication-module.md'
+      - 'Dummy Authentication Module': 'authentication-backends/Dummy-authentication-module.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
@@ -51,12 +60,15 @@ pages:
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'Operation and maintenance':
+      - 'GDPR considerations': 'operation-and-maintenance/gdpr-considerations.md'
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
+      - 'System Metrics Privacy Policy': 'operation-and-maintenance/System-Metrics-Privacy-Policy.md'
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
+      - 'Known issues': 'operation-and-maintenance/known-issues.md'
   - "Developer's guide":
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'Logging': 'developers-guide/logging.md'

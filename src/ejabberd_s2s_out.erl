@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -115,17 +114,18 @@
 -define(TCP_SEND_TIMEOUT, 15000).
 
 %% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in miliseconds. Default value is 5 minutes.
+%% Specified in milliseconds. Default value is 5 minutes.
 -define(MAX_RETRY_DELAY, 300000).
 
--define(STREAM_HEADER,
-        <<"<?xml version='1.0'?>"
-        "<stream:stream "
-        "xmlns:stream='http://etherx.jabber.org/streams' "
-        "xmlns='jabber:server' "
-        "xmlns:db='jabber:server:dialback' "
-        "from='~s' "
-        "to='~s'~s>">>
+-define(STREAM_HEADER(From, To, Other),
+        <<"<?xml version='1.0'?>",
+          "<stream:stream "
+          "xmlns:stream='http://etherx.jabber.org/streams' "
+          "xmlns='jabber:server' "
+          "xmlns:db='jabber:server:dialback' "
+          "from='", (From)/binary, "' ",
+          "to='", (To)/binary, "' ",
+          (Other)/binary, ">">>
        ).
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
@@ -236,18 +236,15 @@ open_socket(init, StateData) ->
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
                                            streamid = new_id()},
-            send_text(NewStateData, list_to_binary(
-                                      io_lib:format(?STREAM_HEADER,
-                                                    [StateData#state.myname, StateData#state.server,
-                                                     Version]))),
+            send_text(NewStateData,
+                      ?STREAM_HEADER(StateData#state.myname, StateData#state.server, Version)),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
         {error, _Reason} ->
             ?INFO_MSG("s2s connection: ~s -> ~s (remote server not found)",
                       [StateData#state.myname, StateData#state.server]),
-            case ejabberd_hooks:run_fold(find_s2s_bridge,
-                                         undefined,
-                                         [StateData#state.myname,
-                                          StateData#state.server]) of
+            case mongoose_hooks:find_s2s_bridge(undefined,
+                                                StateData#state.myname,
+                                                StateData#state.server) of
                 {Mod, Fun, Type} ->
                     ?INFO_MSG("found a bridge to ~s for: ~s -> ~s",
                               [Type, StateData#state.myname,
@@ -374,9 +371,9 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     ?INFO_MSG("Connection established: ~s -> ~s with TLS=~p",
                               [StateData#state.myname, StateData#state.server,
                                StateData#state.tls_enabled]),
-                    ejabberd_hooks:run(s2s_connect_hook,
-                                       [StateData#state.myname,
-                                        StateData#state.server]),
+                    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
+                                                    ok,
+                                                    StateData#state.server),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
                 {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
@@ -485,10 +482,8 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     ?DEBUG("auth: ~p", [{StateData#state.myname,
                                          StateData#state.server}]),
                     send_text(StateData,
-                              list_to_binary(
-                                io_lib:format(?STREAM_HEADER,
-                                              [StateData#state.myname, StateData#state.server,
-                                               <<" version='1.0'">>]))),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
+                                              <<" version='1.0'">>)),
                     {next_state, wait_for_stream,
                      StateData#state{streamid = new_id(),
                                      authenticated = true
@@ -559,10 +554,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                                    tls_options = TLSOpts2
                                                   },
                     send_text(NewStateData,
-                      list_to_binary(
-                        io_lib:format(?STREAM_HEADER,
-                                      [StateData#state.myname, StateData#state.server,
-                                       <<" version='1.0'">>]))),
+                              ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
+                                <<" version='1.0'">>)),
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
@@ -691,12 +684,11 @@ handle_event(_Event, StateName, StateData) ->
 %%----------------------------------------------------------------------
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
     {Addr, Port} = try ejabberd_socket:peername(StateData#state.socket) of
-                      {ok, {A, P}} ->  {A, P};
-                      {error, _} -> {unknown, unknown}
-                  catch
-                      _:_ ->
-                          {unknown, unknown}
-                  end,
+                       {ok, {A, P}} ->  {A, P}
+                   catch
+                       _:_ ->
+                           {unknown, unknown}
+                   end,
     Infos = [
              {direction, out},
              {statename, StateName},
@@ -986,7 +978,7 @@ get_addr_port(Server) ->
             [{Server, outgoing_s2s_port()}];
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
-            %% for simplicity (higher weigths are overvalued)
+            %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
@@ -1151,7 +1143,7 @@ wait_before_reconnect(StateData) ->
                 undefined_delay ->
                     %% The initial delay is random between 1 and 15 seconds
                     %% Return a random integer between 1000 and 15000
-                    {_, _, MicroSecs} = p1_time_compat:timestamp(),
+                    MicroSecs = erlang:system_time(microsecond),
                     (MicroSecs rem 14000) + 1000;
                 D1 ->
                     %% Duplicate the delay with each successive failed
@@ -1164,7 +1156,7 @@ wait_before_reconnect(StateData) ->
                                                     queue = queue:new()}}.
 
 
-%% @doc Get the maximum allowed delay for retry to reconnect (in miliseconds).
+%% @doc Get the maximum allowed delay for retry to reconnect (in milliseconds).
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
 get_max_retry_delay() ->
@@ -1309,9 +1301,9 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
     send_queue(StateData, StateData#state.queue),
     ?INFO_MSG("Connection established: ~s -> ~s",
               [StateData#state.myname, StateData#state.server]),
-    ejabberd_hooks:run(s2s_connect_hook,
-                       [StateData#state.myname,
-                        StateData#state.server]),
+    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
+                                    ok,
+                                    StateData#state.server),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
 handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when

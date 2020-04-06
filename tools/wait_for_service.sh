@@ -20,7 +20,7 @@ if [ `uname` = "Darwin" ]; then
   docker run --rm -d --name wait-helper ubuntu sleep infinity || echo "We can continue if the wait-helper exists"
   docker cp tools/wait-for-it.sh wait-helper:/wait-for-it.sh
   echo "Wait for $IP:$PORT"
-  docker exec -it wait-helper /wait-for-it.sh -h "$IP" -p "$PORT"
+  docker exec -t wait-helper /wait-for-it.sh -h "$IP" -p "$PORT"
 else
   tools/wait-for-it.sh -h "$IP" -p "$PORT"
 fi

@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -30,6 +29,7 @@
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_module_metrics).
 
 %% API
 -export([start_link/2,
@@ -65,6 +65,8 @@
 %% Stats
 -export([online_rooms_number/0]).
 -export([hibernated_rooms_number/0]).
+
+-export([config_metrics/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -215,7 +217,7 @@ forget_room(ServerHost, Host, Name) ->
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            ejabberd_hooks:run(forget_room, Host, [Host, Name]);
+            mongoose_hooks:forget_room(ServerHost, ok, Host, Name);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -242,7 +244,7 @@ can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
 can_use_nick(ServerHost, Host, JID, Nick) ->
     mod_muc_db_backend:can_use_nick(ServerHost, Host, JID, Nick).
 
-set_nick(LServer, Host, From, <<>>) ->
+set_nick(_LServer, _Host, _From, <<>>) ->
     {error, should_not_be_empty};
 set_nick(LServer, Host, From, Nick) ->
     mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
@@ -614,12 +616,11 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost, [],
-                                           [ServerHost, ?MODULE, <<"">>, Lang]),
+            Info = mongoose_hooks:disco_info(ServerHost, [], ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
-                                         children = iq_disco_info(Lang) ++ Info}]},
+                                         children = iq_disco_info(Lang, From, To) ++ Info}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             spawn(?MODULE, process_iq_disco_items, [Host, From, To, IQ]);
@@ -793,8 +794,9 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
 -spec default_host() -> binary().
 default_host() -> <<"conference.@HOST@">>.
 
--spec iq_disco_info(ejabberd:lang()) -> [exml:element(), ...].
-iq_disco_info(Lang) ->
+-spec iq_disco_info(ejabberd:lang(), jid:jid(), jid:jid()) -> [exml:element(), ...].
+iq_disco_info(Lang, From, To) ->
+    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, From, To, <<>>, <<>>),
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
                      {<<"type">>, <<"text">>},
@@ -805,7 +807,8 @@ iq_disco_info(Lang) ->
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_UNIQUE}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_REGISTER}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_RSM}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}].
+     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}] ++
+    [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures].
 
 
 -spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
@@ -926,13 +929,13 @@ xfield(Type, Label, Var, Val, Lang) ->
 %% @doc Get a pseudo unique Room Name. The Room Name is generated as a hash of
 %%      the requester JID, the local time and a random salt.
 %%
-%%      <<"pseudo">> because we don't verify that there is not a room
-%%       with the returned Name already created, nor mark the generated Name
-%%       as <<"already used">>.  But in practice, it is unique enough. See
-%%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
+%%      `<<"pseudo">>' because we don't verify that there is not a room
+%%      with the returned Name already created, nor mark the generated Name
+%%      as `<<"already used">>'.  But in practice, it is unique enough. See
+%%      http://xmpp.org/extensions/xep-0045.html#createroom-unique
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
-        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
+        #xmlcdata{content = sha:sha1_hex(term_to_binary([From, erlang:unique_integer(),
                                                          mongoose_bin:gen_from_crypto()]))}.
 
 
@@ -1072,8 +1075,8 @@ get_vh_rooms(Host) ->
 
 -spec get_persistent_vh_rooms(jid:server()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
-    Host = mongoose_subhosts:get_host(MucHost),
-    case mod_muc_db_mnesia:get_rooms(Host, MucHost) of
+    {ok, Host} = mongoose_subhosts:get_host(MucHost),
+    case mod_muc_db_backend:get_rooms(Host, MucHost) of
         {ok, List} ->
             List;
         {error, _} ->
@@ -1189,3 +1192,7 @@ ensure_metrics(_Host) ->
     mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

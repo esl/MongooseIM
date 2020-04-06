@@ -15,16 +15,15 @@ groups() ->
 all_tests() ->
     [try_register_ok,
      remove_user_ok,
-     remove_user_with_pass_ok,
      set_password_ok,
      does_user_exist,
      get_password_returns_false_if_no_cache,
      get_password_s_returns_empty_bin_if_no_cache,
-     store_type_external
+     supported_sasl_mechanisms
     ].
 
 init_per_suite(C) ->
-    ok = stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     C.
 
 end_per_suite(C) ->
@@ -49,11 +48,6 @@ remove_user_ok(_C) ->
     ok = ?AUTH_MOD:remove_user(U, domain()),
     false = ?AUTH_MOD:check_password(U, domain(), P).
 
-remove_user_with_pass_ok(_C) ->
-    {U, P} = given_user_registered(),
-    ok = ?AUTH_MOD:remove_user(U, domain(), P),
-    false = ?AUTH_MOD:check_password(U, domain(), P).
-
 set_password_ok(_C) ->
     {U, P} = given_user_registered(),
     NewP = random_binary(7),
@@ -71,8 +65,10 @@ get_password_returns_false_if_no_cache(_C) ->
 get_password_s_returns_empty_bin_if_no_cache(_C) ->
     <<"">> = ?AUTH_MOD:get_password_s(random_binary(8), domain()).
 
-store_type_external(_C) ->
-    external = ?AUTH_MOD:store_type(domain()).
+supported_sasl_mechanisms(_C) ->
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
+    [true, false, false, false] =
+        [?AUTH_MOD:supports_sasl_module(domain(), Mod) || Mod <- Modules].
 
 given_user_registered() ->
     {U, P} = UP = gen_user(),

@@ -12,6 +12,7 @@
 -module(mod_push_service_mongoosepush).
 -author('rafal.slota@erlang-solutions.com').
 -behavior(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -31,11 +32,13 @@
 %% Types
 -export_type([]).
 
+-export([config_metrics/1]).
+
 %%--------------------------------------------------------------------
 %% Definitions
 %%--------------------------------------------------------------------
 
--define(DEFAULT_API_VERSION, "v2").
+-define(DEFAULT_API_VERSION, "v3").
 
 -callback init(term(), term()) -> ok.
 
@@ -71,26 +74,43 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'push_notifications'
--spec push_notifications(AccIn :: term(), Host :: jid:server(),
+-spec push_notifications(AccIn :: ok | mongoose_acc:t(), Host :: jid:server(),
                          Notifications :: [#{binary() => binary()}],
-                         Options :: #{binary() => binary()}) -> ok.
-push_notifications(AccIn, Host, Notifications, Options) ->
+                         Options :: #{binary() => binary()}) ->
+    ok | {error, Reason :: term()}.
+push_notifications(_AccIn, Host, Notifications, Options) ->
     ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
 
     DeviceId = maps:get(<<"device_id">>, Options),
-    ProtocolVersion = list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, api_version,
-                                                            ?DEFAULT_API_VERSION)),
+    ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
+    {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
-    lists:foreach(
-        fun(Notification) ->
+    Fun = fun(Notification) ->
             ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
             {ok, JSON} =
-                make_notification(binary_to_atom(ProtocolVersion, utf8), Notification, Options),
+                make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),
-            cast(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
-        end, Notifications),
+            call(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
+        end,
+    send_push_notifications(Notifications, Fun, ok).
 
-    AccIn.
+send_push_notifications([], _, Result) ->
+    Result;
+send_push_notifications([Notification | Notifications], Fun, Result) ->
+    case Fun(Notification) of
+        {ok, ok} ->
+            send_push_notifications(Notifications, Fun, Result);
+        {ok, {error, device_not_registered} = Err} ->
+            %% In this case there is no point in sending other push notifications
+            %% so we can finish immediately
+            Err;
+        {ok, Other} ->
+            %% The publish IQ allows to put more notifications into one request
+            %% but this is currently not used in MongooseIM.
+            %% In case it's used we try sending other notifications
+            send_push_notifications(Notifications, Fun, Other)
+    end.
+
 
 %%--------------------------------------------------------------------
 %% Module API
@@ -106,14 +126,17 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
                     ok;
+                410 ->
+                    ?WARNING_MSG("issue=unable_to_submit_push_notification, https_status=410, reason=device_not_registered", []),
+                    {error, device_not_registered};
                 StatusCode when StatusCode >= 400 andalso StatusCode < 500  ->
-                    ?ERROR_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p."
-                               "Possible API mismatch - tried URL: ~p.",
-                               [StatusCode, Payload, URL]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, url=~p, response=~p, "
+                               "details=\"Possible API mismatch\", payload=~p",
+                               [StatusCode, URL, Body, Payload]),
                     {error, {invalid_status_code, StatusCode}};
                 StatusCode ->
-                    ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p",
-                                 [StatusCode, Body]),
+                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, response=~p",
+                               [StatusCode, Body]),
                     {error, {invalid_status_code, StatusCode}}
             end;
         {error, Reason} ->
@@ -125,29 +148,47 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
-%% Create notification for API v2
-make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
-    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
-    {ok, #{
-        service => maps:get(<<"service">>, Options),
-        mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        topic => maps:get(<<"topic">>, Options, null),
-        data => Notification#{<<"message-count">> => MessageCount}
-    }};
-make_notification(v2, Notification, Options) ->
-    {ok, #{
-        service => maps:get(<<"service">>, Options),
-        mode => maps:get(<<"mode">>, Options, <<"prod">>),
-        alert => #{
-            body => maps:get(<<"last-message-body">>, Notification),
-            title => maps:get(<<"last-message-sender">>, Notification),
-            tag => maps:get(<<"last-message-sender">>, Notification),
-            badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
-            click_action => maps:get(<<"click_action">>, Options, null)
-        },
-        topic => maps:get(<<"topic">>, Options, null)
-    }}.
+parse_api_version("v3") ->
+    {ok, <<"v3">>};
+parse_api_version("v2") ->
+    {ok, <<"v2">>};
+parse_api_version(_) ->
+    {error, not_supported}.
 
--spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
-cast(Host, M, F, A) ->
-    mongoose_wpool:cast(generic, Host, mongoosepush_service, {M, F, A}).
+%% Create notification for API v2 and v3
+make_notification(Notification, Options) ->
+    RequiredParameters = #{service => maps:get(<<"service">>, Options)},
+    %% The full list of supported optional parameters can be found here:
+    %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
+    %%
+    %% Note that <<"tags">> parameter is explicitely excluded to avoid any
+    %% security issues. User should not be allowed to select pools other than
+    %% prod and dev (see <<"mode">> parameter description).
+    OptionalKeys = [<<"mode">>, <<"priority">>, <<"topic">>,
+                    <<"mutable_content">>, <<"time_to_live">>],
+    OptionalParameters = maps:with(OptionalKeys, Options),
+    NotificationParams = maps:merge(RequiredParameters, OptionalParameters),
+
+    MessageCount = binary_to_integer(maps:get(<<"message-count">>, Notification)),
+
+    DataOrAlert = case Options of
+                      #{<<"silent">> := <<"true">>} ->
+                          Data = Notification#{<<"message-count">> := MessageCount},
+                          #{data => Data};
+                      _ ->
+                          BasicAlert = #{body => maps:get(<<"last-message-body">>, Notification),
+                                         title => maps:get(<<"last-message-sender">>, Notification),
+                                         tag => maps:get(<<"last-message-sender">>, Notification),
+                                         badge => MessageCount},
+                          OptionalAlert = maps:with([<<"click_action">>, <<"sound">>], Options),
+                          #{alert => maps:merge(BasicAlert, OptionalAlert)}
+                  end,
+    {ok, maps:merge(NotificationParams, DataOrAlert)}.
+
+-spec call(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+call(Host, M, F, A) ->
+    mongoose_wpool:call(generic, Host, mongoosepush_service, {M, F, A}).
+
+config_metrics(Host) ->
+    OptsToReport = [{api_version, ?DEFAULT_API_VERSION}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

@@ -16,8 +16,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -50,7 +49,7 @@ handle_request(From, To, OrigPacket, Request) ->
 
 -spec maybe_forget(RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
 maybe_forget({RoomU, RoomS} = RoomUS, []) ->
-    ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
+    mongoose_hooks:forget_room(RoomS, ok, RoomS, RoomU),
     mod_muc_light_db_backend:destroy_room(RoomUS);
 maybe_forget(_, _) ->
     my_room_will_go_on.
@@ -100,7 +99,7 @@ process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
 process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
     {_, RoomS} = RoomUS,
     {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(RoomUS),
-    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
+    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
@@ -109,7 +108,7 @@ process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, 
                                aff_users = AffUsers }};
 process_request({get, #info{} = InfoReq}, _From, _UserUS, {_, RoomS} = RoomUS, _Auth, _AffUsers) ->
     {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(RoomUS),
-    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
+    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
@@ -158,7 +157,7 @@ process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, Roo
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_utils:process_raw_config(
+    case mod_muc_light_room_config:apply_binary_kv(
            ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mongoose_bin:gen_from_timestamp(),

@@ -60,11 +60,11 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                  {from_jid, Sender},
                  {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
                  {affiliation, Aff},
-                 {role, Aff}
+                 {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
     ],
     FilteredPacket = #xmlel{ children = Children }
-        = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch, [EventData]),
-    ejabberd_hooks:run(room_send_packet, RoomS, [FilteredPacket, EventData]),
+        = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
+    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
@@ -107,7 +107,7 @@ decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
 -spec decode_message_by_type(Type :: {binary(), binary()} | false,
                              Id :: {binary(), binary()} | false,
                              Children :: [jlib:xmlch()]) ->
-    {ok, msg() | {set, config()}} | {error, bad_request} | ignore.
+    {ok, msg() | {set, mod_muc_light_room_config:kv()}} | {error, bad_request} | ignore.
 decode_message_by_type({_, <<"groupchat">>}, _, [#xmlel{ name = <<"subject">> } = SubjectEl]) ->
     {ok, {set, #config{ raw_config = [{<<"subject">>, exml_query:cdata(SubjectEl)}] }}};
 decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
@@ -180,11 +180,12 @@ decode_iq(_From, #iq{} = IQ) ->
 
 %% ------------------ Parsers ------------------
 
--spec parse_config(Els :: [jlib:xmlch()]) -> {ok, raw_config()}.
+-spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:binary_kv()}.
 parse_config(Els) ->
     parse_config(Els, []).
 
--spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: raw_config()) -> {ok, raw_config()}.
+-spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:binary_kv()) ->
+    {ok, mod_muc_light_room_config:binary_kv()}.
 parse_config([], ConfigAcc) ->
     {ok, ConfigAcc};
 parse_config([Field | REls], ConfigAcc) ->
@@ -239,12 +240,14 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
     noreply.
-encode_meta({get, #disco_info{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
+encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun) ->
+    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, SenderJID, RoomJID, <<>>, <<>>),
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
                                 {<<"name">>, <<"MUC Light">>}]},
-                #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]}],
+                #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]}] ++
+               [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures],
     {iq_reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _RoomJID, _SenderJID, _HandleFun) ->

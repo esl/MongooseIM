@@ -23,7 +23,8 @@ groups() ->
     [
      {basic, [sequence],
       [
-       store_and_retrieve,
+       store_retrieve_and_delete,
+       store_retrieve_and_delete_many,
        init_from_element,
        produce_iq_meta_automatically,
        strip,
@@ -33,7 +34,7 @@ groups() ->
     ].
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     C.
 
 end_per_suite(C) ->
@@ -42,16 +43,69 @@ end_per_suite(C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-store_and_retrieve(_C) ->
+store_retrieve_and_delete(_C) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
                               element => undefined }),
     Acc2 = mongoose_acc:set(ns, check, 1, Acc),
     ?assertEqual(1, mongoose_acc:get(ns, check, Acc2)),
+    Acc3 = mongoose_acc:set(ns, check, 2, Acc2),
+    ?assertEqual(2, mongoose_acc:get(ns, check, Acc3)),
+    Acc4 = mongoose_acc:delete(ns, check, Acc3),
+    ?assertError(_, mongoose_acc:get(ns, check, Acc4)),
     ok.
 
+store_permanent_retrieve_and_delete(_C) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined }),
+    Acc2 = mongoose_acc:set_permanent(ns, check, 1, Acc),
+    ?assertEqual(1, mongoose_acc:get(ns, check, Acc2)),
+    Acc3 = mongoose_acc:set_permanent(ns, check, 2, Acc2),
+    ?assertEqual(2, mongoose_acc:get(ns, check, Acc3)),
+    ?assertEqual([{ns, check}], mongoose_acc:get_permanent_keys(Acc3)),
+    Acc4 = mongoose_acc:delete(ns, check, Acc3),
+    ?assertError(_, mongoose_acc:get(ns, check, Acc4)),
+    ?assertEqual([], mongoose_acc:get_permanent_keys(Acc4)),
+    ok.
+
+store_retrieve_and_delete_many(_C) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined}),
+    KV = [{check, 1}, {check2, 2}, {check3, 3}],
+    Acc2 = mongoose_acc:set(ns, [{check3, 0} | KV], Acc),
+    [?assertEqual(V, mongoose_acc:get(ns, K, Acc2)) || {K, V} <- KV],
+    NS = mongoose_acc:get(ns, Acc2),
+    ?assertEqual(lists:sort(NS), lists:sort(KV)),
+    Acc3 = mongoose_acc:delete_many(ns, [K || {K, _} <- KV], Acc2),
+    [?assertError(_, mongoose_acc:get(ns, K, Acc3)) || {K, _} <- KV],
+    ?assertEqual([], mongoose_acc:get(ns, Acc3)),
+    Acc4 = mongoose_acc:delete(ns, Acc2),
+    [?assertError(_, mongoose_acc:get(ns, K, Acc4)) || {K, _} <- KV],
+    ?assertEqual([], mongoose_acc:get(ns, Acc4)),
+    ok.
+
+store_permanent_retrieve_and_delete_many(_C) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined}),
+    KV = [{check, 1}, {check2, 2}, {check3, 3}],
+    NK = [{ns, K} || {K, _} <- KV],
+    Acc2 = mongoose_acc:set_permanent(ns, [{check3, 0} | KV], Acc),
+    [?assertEqual(V, mongoose_acc:get(ns, K, Acc2)) || {K, V} <- KV],
+    NS = mongoose_acc:get(ns, Acc2),
+    ?assertEqual(lists:sort(NS), lists:sort(KV)),
+    ?assertEqual(lists:sort(NK),lists:sort(mongoose_acc:get_permanent_keys(Acc2))),
+    Acc3 = mongoose_acc:delete_many(ns, [K || {K, _} <- KV], Acc2),
+    [?assertError(_, mongoose_acc:get(ns, K, Acc3)) || {K, _} <- KV],
+    ?assertEqual([], mongoose_acc:get(ns, Acc3)),
+    ?assertEqual([],mongoose_acc:get_permanent_keys(Acc3)),
+    Acc4 = mongoose_acc:delete(ns, Acc2),
+    [?assertError(_, mongoose_acc:get(ns, K, Acc4)) || {K, _} <- KV],
+    ?assertEqual([], mongoose_acc:get(ns, Acc4)),
+    ?assertEqual([],mongoose_acc:get_permanent_keys(Acc4)),
+    ok.
 
 init_from_element(_C) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -96,15 +150,20 @@ strip(_C) ->
     ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc1)),
     ?assertEqual(undefined, mongoose_acc:get(ns, ppp, undefined, Acc1)),
     Acc2 = mongoose_acc:set_permanent(ns, ppp, 997, Acc1),
-    ?assertEqual(997, mongoose_acc:get(ns, ppp, Acc2)),
-    Ref = mongoose_acc:ref(Acc2),
+    Acc3 = mongoose_acc:set_permanent(ns2, [{a, 1}, {b, 2}], Acc2),
+    ?assertMatch([_, _], mongoose_acc:get(ns2, Acc3)),
+    Acc4 = mongoose_acc:delete(ns2, Acc3),
+    ?assertEqual(997, mongoose_acc:get(ns, ppp, Acc4)),
+    ?assertEqual([], mongoose_acc:get(ns2, Acc4)),
+    Ref = mongoose_acc:ref(Acc4),
     NAcc1 = mongoose_acc:strip(#{ lserver => <<"localhost">>,
-                                 element => sample_stanza() }, Acc2),
+                                 element => sample_stanza() }, Acc4),
     {XMLNS2, NAcc2} = mongoose_iq:xmlns(NAcc1),
     ?assertEqual(<<"urn:xmpp:blocking">>, XMLNS2),
     ?assertEqual(jid:from_binary(<<"a@localhost">>), mongoose_acc:to_jid(NAcc2)),
     ?assertEqual(Ref, mongoose_acc:ref(NAcc2)),
-    ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc2)).
+    ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc2)),
+    ?assertEqual([], mongoose_acc:get(ns2, NAcc2)).
 
 
 sample_stanza() ->

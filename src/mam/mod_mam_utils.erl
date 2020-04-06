@@ -38,7 +38,6 @@
          result_set/4,
          result_query/2,
          result_prefs/4,
-         make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
@@ -195,7 +194,7 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec generate_message_id() -> integer().
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    CandidateStamp = p1_time_compat:os_system_time(micro_seconds),
+    CandidateStamp = erlang:system_time(microsecond),
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
     encode_compact_uuid(UniqueStamp, NodeId).
 
@@ -253,8 +252,7 @@ maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
     end.
 
 maybe_log_deprecation(_IQ) ->
-    %% Left for future deprecations
-    ok.
+    ok. %% May be reused for future MAM versions.
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
@@ -346,13 +344,9 @@ get_one_of_path(_Elem, [], Def) ->
     Def.
 
 
-%% @doc Checks, that the stanza is a message with body.
-%%
-%% Servers SHOULD NOT archive messages that do not have a `<body/>' child tag.
-%% Servers SHOULD NOT delayed messages.
-%%
-%% From v0.3: it is expected that all messages that hold meaningful content,
-%% rather than state changes such as Chat State Notifications, would be archived.
+%% @doc In order to be archived, the message must be of type "normal", "chat" or "groupchat".
+%% It also must include a body or chat marker, as long as it doesn't include
+%% "result", "delay" or "no-store" elements.
 %% @end
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
                             Packet :: exml:element(), boolean()) -> boolean().
@@ -520,23 +514,6 @@ encode_jids(JIDs) ->
      || JID <- JIDs].
 
 
-%% Make fin message introduced in MAM 0.3
--spec make_fin_message(binary(), boolean(), boolean(), exml:element(), binary()) -> exml:element().
-make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
-    #xmlel{
-       name = <<"message">>,
-       children = [make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
-
-%% MAM v0.3
-make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
-    #xmlel{
-       name = <<"fin">>,
-       attrs = [{<<"xmlns">>, MamNs}]
-        ++ [{<<"complete">>, <<"true">>} || IsComplete]
-        ++ [{<<"stable">>, <<"false">>} || not IsStable]
-        ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
-       children = [ResultSetEl]}.
-
 %% MAM v0.4.1 and above
 -spec make_fin_element(binary(), boolean(), boolean(), exml:element()) -> exml:element().
 make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
@@ -662,7 +639,6 @@ is_mam_result_message(_) ->
 maybe_get_result_namespace(Packet) ->
     exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
-is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
 is_mam_namespace(?NS_MAM_06) -> true;
 is_mam_namespace(_)          -> false.
@@ -792,47 +768,64 @@ has_full_text_search(Module, Host) ->
 %% JID serialization
 
 -spec jid_to_opt_binary(UserJID :: jid:jid(), JID :: jid:jid()
-                        ) -> jid:literal_jid().
-jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+                       ) -> jid:literal_jid().
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = <<>>, lresource = <<>>}) ->
+    <<$:>>;
+jid_to_opt_binary(#jid{lserver = LServer, luser = LUser},
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     <<>>;
-jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
-                  #jid{lserver=LServer, luser=LUser, lresource= LResource}) ->
+jid_to_opt_binary(#jid{lserver = LServer, luser = LUser},
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     <<$/, LResource/binary>>;
-jid_to_opt_binary(#jid{lserver=LServer},
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     %% Both clients are on the same server.
     <<LUser/binary>>;
-jid_to_opt_binary(#jid{lserver=LServer},
-                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = <<>>, lresource = LResource}) ->
+    %% Both clients are on the same server.
+    <<$:, $/, LResource/binary>>;
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     %% Both clients are on the same server.
     <<LUser/binary, $/, LResource/binary>>;
 jid_to_opt_binary(_,
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     <<LServer/binary, $:, LUser/binary>>;
 jid_to_opt_binary(_,
-                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     <<LServer/binary, $@, LUser/binary, $/, LResource/binary>>.
 
 
 -spec expand_minified_jid(UserJID :: jid:jid(),
                           OptJID :: jid:literal_jid()) -> jid:literal_jid().
-expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
+expand_minified_jid(#jid{lserver = LServer, luser = LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
-expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
+expand_minified_jid(#jid{lserver = LServer, luser = <<>>}, <<$/, LResource/binary>>) ->
+    <<LServer/binary, $/, LResource/binary>>;
+expand_minified_jid(#jid{lserver = LServer, luser = LUser}, <<$/, LResource/binary>>) ->
     <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
 expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
     expand_minified_jid(Part, UserJID, Encoded).
 
--spec expand_minified_jid('nomatch' | {non_neg_integer(), 1},
-            jid:jid(), Encoded :: jid:luser() | binary()) -> binary().
-expand_minified_jid(nomatch,  #jid{lserver=ThisServer}, LUser) ->
+-spec expand_minified_jid('nomatch' | {non_neg_integer(), 1}, jid:jid(),
+                           Encoded :: jid:luser() | binary()) -> binary().
+expand_minified_jid(nomatch, #jid{lserver = ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
-expand_minified_jid({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+expand_minified_jid({Pos, 1}, #jid{lserver = ThisServer}, Encoded) ->
     case Encoded of
+        <<$:, $/, LResource/binary>> ->
+            <<ThisServer/binary, $/, LResource/binary>>;
+        <<$:>> ->
+            ThisServer;
+        <<LServer:Pos/binary, $:>> ->
+            <<LServer/binary>>;
         <<LServer:Pos/binary, $:, LUser/binary>> ->
             <<LUser/binary, $@, LServer/binary>>;
+        <<LServer:Pos/binary, $@, $/, LResource/binary>> ->
+            <<LServer/binary, $/, LResource/binary>>;
         <<LServer:Pos/binary, $@, Tail/binary>> ->
             [LUser, LResource] = binary:split(Tail, <<$/>>),
             <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
@@ -860,12 +853,12 @@ test_jids() ->
      <<"bob@street/mobile">>].
 
 check_stringprep() ->
-    is_loaded_application(stringprep) orelse start_stringprep().
+    is_loaded_application(jid) orelse start_stringprep().
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "..", "deps", "stringprep", "ebin"])),
-    ok = application:start(stringprep).
+    code:add_path(filename:join([EJ, "..", "..", "deps", "jid", "ebin"])),
+    ok = application:start(jid).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).
@@ -1078,10 +1071,7 @@ send_message(From, To, Mess) ->
 is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
                       #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
-    {Subscription, _Groups} =
-        ejabberd_hooks:run_fold(
-          roster_get_jid_info, LServer,
-          {none, []}, [LUser, LServer, RemBareJID]),
+    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, LUser, RemBareJID),
     Subscription == from orelse Subscription == both.
 
 

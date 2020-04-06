@@ -10,27 +10,38 @@
 -define(NS_XDATA, <<"jabber:x:data">>).
 -define(NS_HTTP_UPLOAD_025, <<"urn:xmpp:http:upload">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
+
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
--define(S3_OPTS,
-        [
-         {max_file_size, 1234},
-         {s3, [
-               {bucket_url, ?S3_HOSTNAME},
-               {region, "eu-east-25"},
-               {access_key_id, "AKIAIAOAONIULXQGMOUA"},
-               {secret_access_key, "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"}
-              ]}
-        ]).
+-define(S3_OPTS, ?MOD_HTTP_UPLOAD_OPTS(?S3_HOSTNAME, true)).
+
+-define(MINIO_HOSTNAME, "http://localhost:9000/mybucket/").
+-define(MINIO_OPTS, [{expiration_time, 60 * 60} | %% 1 hour, useful for manual testing
+                     ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, false)]).
+
+-define(MINIO_TEST_DATA, "qwerty").
+
+-define(MOD_HTTP_UPLOAD_OPTS(Host, Acl),
+    [
+        {max_file_size, 1234},
+        {s3, [
+            {bucket_url, Host},
+            {add_acl, Acl},
+            {region, "eu-east-25"},
+            {access_key_id, "AKIAIAOAONIULXQGMOUA"},
+            {secret_access_key, "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"}
+        ]}
+    ]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_http_upload_s3}, {group, unset_size}].
+    [{group, mod_http_upload_s3}, {group, unset_size}, {group, real_upload}].
 
 groups() ->
     G = [{unset_size, [], [does_not_advertise_max_size_if_unset]},
+         {real_upload, [], [test_minio_upload]},
          {mod_http_upload_s3, [], [
                                    http_upload_item_discovery,
                                    http_upload_feature_discovery,
@@ -56,14 +67,23 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    ibrowse:start(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    ibrowse:stop(),
     escalus:end_per_suite(Config).
 
 init_per_group(unset_size, Config) ->
     dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
+init_per_group(real_upload, Config) ->
+    case is_minio_running(Config) of
+        true ->
+            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS),
+            escalus:create_users(Config, escalus:get_users([bob]));
+        false -> {skip, "minio is not running"}
+    end;
 init_per_group(_, Config) ->
     dynamic_modules:start(host(), mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
@@ -176,6 +196,23 @@ urls_contain_s3_hostname(Config) ->
               escalus:assert(fun url_contains/4, [<<"put">>, <<?S3_HOSTNAME>>, Namespace], Result)
       end).
 
+test_minio_upload(Config) ->
+    namespaced_story(
+        Config, [{bob, 1}],
+        fun(Namespace, Bob) ->
+            ServJID = upload_service(Bob),
+            FileSize = length(?MINIO_TEST_DATA),
+            Request = create_slot_request_stanza(ServJID, <<"somefile.txt">>, FileSize,
+                                                 undefined, Namespace),
+            Result = escalus:send_and_wait(Bob, Request),
+            GetUrl = binary_to_list(extract_url(Result, <<"get">>, Namespace)),
+            PutUrl = binary_to_list(extract_url(Result, <<"put">>, Namespace)),
+            PutRetValue = ibrowse:send_req(PutUrl, [], put, ?MINIO_TEST_DATA),
+            ?assertMatch({ok, "200", _, []}, PutRetValue),
+            GetRetValue = ibrowse:send_req(GetUrl, [], get),
+            ?assertMatch({ok, "200", _, ?MINIO_TEST_DATA}, GetRetValue)
+        end).
+
 rejects_empty_filename(Config) ->
     namespaced_story(
       Config, [{bob, 1}],
@@ -248,6 +285,14 @@ escapes_urls_once(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
+is_minio_running(Config) ->
+    case proplists:get_value(preset, Config, undefined) of
+        undefined -> false;
+        Preset ->
+            PresetAtom = list_to_existing_atom(Preset),
+            DBs = ct:get_config({ejabberd_presets, PresetAtom, dbs}, []),
+            lists:member(minio, DBs)
+    end.
 
 create_slot_request_stanza(Server, Filename, Size, ContentType, Namespace) when is_integer(Size) ->
     create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType, Namespace);

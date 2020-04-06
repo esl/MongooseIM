@@ -1,3 +1,283 @@
+# [MongooseIM 3.6.2](https://github.com/esl/MongooseIM/releases/tag/3.6.2) - 2020-02-20
+
+## Highlights
+
+- Tooling and packages improvements
+
+## All changes
+
+### Changed
+
+- Fix a bug in mongooseimctl run as a different user as the current one (#2631)
+- .deb and .rpm build and test scripts improvements (#2629, #2633)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.2)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222020-02-12..2020-02-20%22+)
+
+
+# [MongooseIM 3.6.1](https://github.com/esl/MongooseIM/releases/tag/3.6.1) - 2020-02-11
+
+## Highlights
+
+- Tooling and packages improvements
+
+## All changes
+
+### Changed
+
+- Use `runuser` instead of `sudo` in scripts managing MongooseIM (#2617)
+- Install pid and status directory explicitly (#2618)
+- Massive rework of scripts building .deb and .rpm packages (#2626, #2629)
+- Remove redundant time conversions in shapers (#2545)
+- Small performance improvements (#2621)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.1)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222020-01-30..2020-02-11%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-01-30&to=2020-02-11&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-01-30..2020-02-11%22%20sort%3Acreated-asc%20)
+
+# [MongooseIM 3.6.0](https://github.com/esl/MongooseIM/releases/tag/3.6.0) - 2020-01-29
+
+## Highlights
+
+- Push notifications improvements
+    - Possibility to configure push notifications without real PubSub
+    - Immediate push notifications to disconnected device in resume state
+- Gathering of system metrics
+- Support for the last two major OTP versions only: 21 and 22
+- Performance improvements
+
+There were some changes to the database schema so please take a look at [Migration guide](doc/migrations/3.5.0_3.6.0.md) when upgrading from a previous version.
+
+## All changes
+
+### Added
+
+- System metrics gathering (#2523, #2532, #2550, #2571, #2578, #2580, #2586, #2591, #2594, #2598, #2601, #2603, #2607, #2610, #2612)
+- MAM disco#info to MUC and MUCLight rooms (#2272)
+- Chat markers support for the room's REST API (#2274)
+- Possibility to close malicious connections without revealing service details (#2304)
+- Ping response time metrics (#2527)
+- Emoji support in VCard's nickname field (#2539)
+- Swagger documentation hosted by MongooseIM (#2543, #2556)
+- Persistent fields from accumulator to offline storage (#2587)
+    - This requires a new column in RDBMS, see the migration guide
+
+### Changed
+
+- Push notifications
+    - Immediate push notification to a connection in resume state (#2018, #2593)
+    - RDBMS backend for `mod_event_pusher_push` (#2526)
+    - PubSub-less push notifications (#2554)
+    - Integration with MongoosePush API v3 (#2549)
+    - Expired device_id removal (#2555)
+    - Details from the push enable stanza are stored in session info now (#2568)
+    - The push notification's priority can be set with enable stanza (#2569)
+    - An `unacknowledged_message` hook is fired when a session is in resume state and a new message arrives (#2589)
+    - Documentation update and rework (#2611)
+- Riak bucket types are now configurable (#2490)
+- Dependencies update:
+    - `lager`: 3.8.0
+    - `cowboy`: 2.7.0
+    - `epgsql`: 4.3.0
+    - `mysql`: 1.5.1
+    - `cache_tab`: 1.0.20
+    - `stringprep`: 1.0.17
+    - `erlcloud`: 3.2.13
+    - `jwerl`: 1.1.0
+    - `observer_cli`: 1.5.3
+    - `amqp_client`: 3.8.0
+    - `wpool`: 4.0.1
+- SASL mechanism management simplification (#2519)
+- MUCLight room config simplification and unification (#2536)
+- Performance improvements:
+    - jid parsing in NIF (#2544)
+    - use built-in base64 encoding (#2547)
+    - C/C++ optimisations (#2604)
+- ejabberd_sm improvements (#2566, #2582)
+
+### Removed
+- `get_stactrace` calls (#2494)
+- Support for MAM v0.3 (#2496)
+- Usage of `p1_time_compat` (#2498)
+- `mod_push` (#2553)
+
+### Other
+
+- Pass the original accumulator when sending out a stanza (#2158, #2528)
+- Remove sender related data from the accumulator before passing it further (#2510)
+- Do not allow `riak` and `redis` pools to use the incompatible `available worker` strategy (#2243)
+- Fix for connection crash when the client enables stream management but it's not available (#2482)
+- Fix for REST API crash when user's JID is empty (#2543)
+- Return `Bad Request` status when malformed JSON is passed to REST API (#2557)
+- Possibility to call external HTTP auth backend to get valid user's certificates (#2044)
+- Fix for last activity error iq responses (#2570)
+- Fix c2s message bouncing issue (#2579)
+- Fix for wrong namespace in ringing stanza (#2584)
+- Fix warning for .deb packages (#2609)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.6.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-10-04..2020-01-29%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-10-04&to=2020-01-29&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222019-10-04..2020-01-29%22%20sort%3Acreated-asc%20)
+
+## Special thanks to our contributors:
+- [@vkatsuba](https://github.com/vkatsuba) (#2542, #2543, #2556, #2557)
+- [@jzskca](https://github.com/jzskca) (#2272)
+- [@kaniini](https://github.com/kaniini) (#2488)
+- [@tomaszwojcikowski](https://github.com/tomaszwojcikowski) (#2584)
+- [@ivanov-aleksander](https://github.com/ivanov-aleksander) (esl/mongooseim-docker#27, esl/mongooseim-docker#28, esl/mongooseim-docker#29, esl/mongooseim-docker#30)
+
+# [MongooseIM 3.5.0](https://github.com/esl/MongooseIM/releases/tag/3.5.0) - 2019-10-03
+
+## Highlights
+
+- Reworked LDAP layer
+- New method of resetting Inbox
+- OTP < 21.2 support is deprecated
+
+## All changes
+
+### Added
+
+- A new dedicated stanza for resetting the Inbox (#2452)
+- New metrics:
+  - `clusterSize`, as seen by each MIM node individually (#2322)
+  - `tcpPortsUsed` (#2359, #2374)
+
+### Changed
+
+- Multiple improvements in the LDAP layer (#2388)
+  - They are now configured like the other outgoing connections.
+  - LDAP+TLS support.
+  - LDAP authentication backend may be used with SASL EXTERNAL
+- GDPR removal and retrieval do not query disabled backends and modules anymore (#2435)
+- Push notifications are no longer sent for messages with empty body (#2394)
+- Stream Management implementation has been updated to match XEP-0198 v1.6 (#2468, #2472)
+- Deprecations:
+  - OTP older than 21.2 (#2465)
+  - XEP-0313 Message Archive Management v0.3 (#2466)
+  - TLS older than 1.2 (#2377)
+- Dependencies update (#2351)
+  - `lager`: 3.7.0
+  - `cowboy`: 2.6.3
+  - `jiffy`: 1.0.1
+  - `uuid`: 1.7.5
+  - `fast_tls`: 1.1.1
+  - `mysql`: 1.5.0
+  - `cache_tab`: 1.0.19
+  - `stringprep`: 1.0.16
+  - `meck`: 0.8.13
+  - `recon`: 2.5.0
+  - `erlcloud`: 3.2.7
+  - `observer_cli`: 1.5.0
+  - `amqp_client`: 3.7.15
+  - `eredis`: 1.2.0
+  - `riakc`: 2.5.3 - no change here but downloaded from a repo now (#2397)
+- Clustering operations are now protected by a global transaction (#2470)
+- Client XML namespace is no longer stripped in the messages received from a client (#2423)
+- `mongooseimctl` script is more robust (#2409)
+- `scram` module has been renamed to `mongoose_scram` (#2401)
+
+### Fixed
+
+- `binary_to_atom` vulnerability (#2444)
+- `push` PubSub node implementation had a bug in the affiliation check (#2438)
+- The unread messages count for push notifications was retrieved improperly and triggered an error (#2481)
+- Chat markers were improperly handled by Inbox (#2449)
+- It is again possible to configure an idle connection timeout for Websockets (#2480)
+- MUC Light role is now properly archived (#2268)
+- Chat markers are now properly stored by the MUC archive (#2271)
+- Inbox recognises MUC Light system messages more reliably (#2290)
+- `disco#info` request no longer causes a crash when `rooms_in_rosters` is enabled (#2354)
+- Mnesia backend for PubSub used to break the transaction restart logic in some operations (#2390)
+- Some REST commands were unusable due to a bug in REST implementation (#2426)
+
+### Other
+
+- Added CircleCI integration (#2372, #2382, #2383, #2414, #2419, #2422, #2439, #2441, #2446, #2447, #2462, #2463)
+- CI stabilisation (#2378, #2389, #2392, #2393, #2395, #2396, #2404, #2428, #2429, #2431, #2434, #2437, #2453, #2454, #2455, #2469, #2473, #2474)
+- Test improvements and refactoring (#2351, #2381, #2398, #2399, #2403, #2408, #2411, #2417, #2418, #2421, #2424, #2432, #2457, #2458, #2459, #2475)
+- Documentation updates (#2247, #2356, #2357, #2376, #2416, #2420, #2436, #2450, #2478, #2479)
+- Reduced resource consumption for dev releases (#2400)
+- New dev nodes are templated from existing one(s) if possible (#2407)
+- Updated `.gitignore` file with new rules for logs (#2385)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.5.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-06-27..2019-10-03%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-06-27&to=2019-10-03&type=c)
+
+## Special thanks to our contributors:
+- @cgrtrifork
+- @Nyco
+- @navneetgupta
+- @jzskca
+
+# [MongooseIM 3.4.1](https://github.com/esl/MongooseIM/releases/tag/3.4.1) - 2019-09-12
+
+## Highlights
+
+Patch release mitigating [ERL-944](https://bugs.erlang.org/browse/ERL-944)
+
+### Fixed
+
+- Vulnerability related to `erlang:binary_to_existing_atom` with `latin1` encoding (#2445)
+
+# [MongooseIM 3.4.0](https://github.com/esl/MongooseIM/releases/tag/3.4.0) - 2019-06-26
+
+## Highlights
+
+- GDPR data retrieval and removal
+
+## All changes
+
+### Added
+
+- GDPR data retrieval and removal (#2260, #2285, #2286, #2288, #2289, #2293, #2294, #2295, #2296, #2297, #2298, #2299, #2300, #2301, #2302, #2303, #2309, #2310, #2312, #2313, #2314, #2316, #2320, #2323, #2326, #2327, #2328, #2336, #2339, #2341, #2345, #2347, #2349)
+- CLI `register` function now generates a safe, random username for a new account (#2262)
+- It is possible now to change the server name returned in HTTP responses (#2308)
+- A new behaviour in case of conflicting component connections: `kick_old` (#2315)
+
+### Changed
+
+- When a session gets replaced, the new one waits longer for the old one to close before reporting an error (#2054)
+- Authentication backends no longer use a `store_type/1` function (#2254)
+- Default certificates are now generated faster (#2305)
+
+### Fixed
+
+- Some race conditions in Stream Management (#2049)
+- faulty script execution of `xep_tools` (#2252)
+- MUC messages are now archived without an empty `to` attribute (#2220)
+- "Offline" classic MUC rooms are now properly reported in disco results (#2238)
+- Inbox responses are now properly routed to the original requester (#2276)
+- Resolved issues with TLS on OTP 20.x (#2332)
+
+### Other
+
+- Updated `escalus` to `4.1.0` (#2337)
+- Test improvements and refactoring (#2319)
+- Update documentation (#2246, #2259, #2261, #2307, #2346)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.4.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-03-13..2019-06-26%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-03-13&to=2019-06-26&type=c)
+
+## Special thanks to our contributor:
+- @varnerac
+
 # [MongooseIM 3.3.0](https://github.com/esl/MongooseIM/releases/tag/3.3.0) - 2019-03-12
 
 ## Highlights
@@ -101,8 +381,8 @@
 - [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222018-11-21..2019-03-12%22+)
 - [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-11-20&to=2019-03-12&type=c)
 
-## Special thanks to our contributors: 
-- @sstrigler 
+## Special thanks to our contributors:
+- @sstrigler
 - @getong
 - @cogentParadigm
 
@@ -118,7 +398,7 @@
 
 ### Added
 
-- Improvements in `mod_inbox`: 
+- Improvements in `mod_inbox`:
   - User can show only active/all conversations (#2017)
   - Inbox IQ result stanza provides a total unread messages count and an active conversation count (#2047, #2056)
   - If an inbox query is malformed, a descriptive error is returned (#2052)
@@ -129,8 +409,8 @@
 - Self-signed certificates may be used with `fast_tls` driver (#2102)
 - `mongoose_bin` module unifies random strings generation API (#2000)
 - Modules may specify "optional" dependencies to enforce the startup order (but not the startup itself) (#2029)
-- Switchable RDBMS backend for `mod_pubsub` - experimental (#2122, #2113, #2129, #2131, #2134) 
-- Changing MUC Light room configurations is possible via REST API (#2030) 
+- Switchable RDBMS backend for `mod_pubsub` - experimental (#2122, #2113, #2129, #2131, #2134)
+- Changing MUC Light room configurations is possible via REST API (#2030)
 - New Message Archive Management metrics for async writers (#2023)
 - New Makefile target to check code style with Elvis (#2111)
 
@@ -179,13 +459,13 @@
 - Backend proxy modules are loaded only once (#1438)
 - Node cleaners are no longer crashing (#2135)
 - Test runner
-  - Tests are counted properly on macOS (#2004) 
+  - Tests are counted properly on macOS (#2004)
   - Appropriate error is returned, when there are no test nodes. (#2004)
   - Improved test specs generation and autocompletion (#2036)
 - Minor fixes (#2010, #2046, #2069, #2086, #2123)
 - `rebar3` release generation with OTP 21 (update to 3.6.1) (#2037)
 - `NkSERVICE` cache dir configuration works as expected now (#2058)
-- Dialyzer job on Travis runs with Erlang/OTP 21 and returns no errors (#2075) 
+- Dialyzer job on Travis runs with Erlang/OTP 21 and returns no errors (#2075)
 
 ### Other
 
@@ -484,7 +764,7 @@ Special thanks to our contributors: @andrewvmail @igors !
 
 ## Fixed
 
-- Fix RDMBS backoff calculation (#1394)
+- Fix RDBMS backoff calculation (#1394)
 - URL escaping and reporting in `mod_http_upload` (#1391)
 - Fixed Unicode support in the MAM full text search with a Riak backend (#1407)
 - Authentication crash with SASL PLAIN and an invalid password (#1433)

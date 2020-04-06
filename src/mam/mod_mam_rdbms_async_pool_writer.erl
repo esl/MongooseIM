@@ -25,10 +25,12 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/3,
-         remove_archive/4]).
+         lookup_messages/3]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -192,7 +194,7 @@ archive_message(_Result, Host,
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
-                    ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+                    mongoose_metrics:update(Host, modMamDropped, 1),
                     {error, timeout}
             end
     end.
@@ -230,14 +232,6 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
     when is_integer(ArcID) ->
     Result.
 
-%% #rh
--spec remove_archive(Acc :: map(), Host :: jid:server(),
-                     RoomId :: mod_mam:archive_id(),
-                     RoomJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, ArcID, _ArcJID)
-    when is_integer(ArcID) ->
-    Acc.
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -271,12 +265,12 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
+            mongoose_metrics:update(Host, modMamDropped2, MessageCount),
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
     spawn_link(fun() ->
-                       ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
+                       mongoose_metrics:update(Host, modMamFlushed, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.

@@ -9,6 +9,13 @@ This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-
 {mod_privacy, []},
 ```
 
+
+##### Riak-specific options
+
+* `defaults_bucket_type` (default `<<"privacy_defaults">>`) - Riak bucket type for information about default list name.
+* `names_bucket_type` (default `<<"privacy_lists_names">>`) - Riak bucket type for information about privacy list names.
+* `bucket_type` (default `<<"privacy_lists">>`) - Riak bucket type for privacy lists.
+
 ### Metrics
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.

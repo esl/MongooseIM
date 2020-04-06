@@ -4,6 +4,8 @@ It enables a service to store all user messages for one-to-one chats as well as 
 It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging.
 It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
 
+MongooseIM is compatible with MAM 0.4-0.6.
+
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
@@ -87,9 +89,9 @@ These options will only have effect when the `rdbms` backend is used:
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-  * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
-  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+    * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
+    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 * **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `rdbms` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
@@ -103,7 +105,7 @@ These options will only have effect when the `rdbms` backend is used:
 
 Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.
 
-From MAM v0.3 onwards it is expected that all messages that hold meaningful content, rather than state changes such as Chat State Notifications, are archived.
+By default, all messages that hold meaningful content, rather than state changes such as Chat State Notifications, are archived.
 
 #### Archiving chat markers
 
@@ -119,6 +121,12 @@ Archive querying is done using Riak KV 2.0 [search mechanism](http://docs.basho.
 Your instance of Riak KV must be configured with Yokozuna enabled.
 
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
+
+##### Riak-specific options
+
+* `bucket_type` (default `<<"mam_yz">>`) - Riak bucket type.
+
+* `search_index` (default `<<"mam">>`) - Riak index name.
 
 ### Cassandra backend
 

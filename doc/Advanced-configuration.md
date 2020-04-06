@@ -20,7 +20,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` and  can be used in the `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` may be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -70,10 +70,10 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 * **s2s_certfile** (global)
     * **Description:** Path to X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `s2s_use_starttls` is enabled.
 
-* **s2s_ciphers** (global)
+* **s2s_ciphers** (global) <a name="s2s-ciphers"></a>
     * **Description:** Defines a list of accepted SSL ciphers in **outgoing** S2S connection.
       Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
-    * **Default:** As of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` ([source](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS))
+    * **Default:** `"TLSv1.2:TLSv1.3"`
 
 * **domain_certfile** (multi, global)
     * **Description:** Overrides common certificates with new ones specific for chosen XMPP domains.
@@ -131,63 +131,12 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
       Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
       See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
-### LDAP Connection
-* **ldap_servers**
-    * **Description:** List of IP addresses or DNS names of your LDAP servers.
-    * **Values:** `[Servers, ...]`
-    * **Default:**  no default value. This option is required when setting up an LDAP connection.
-
-* **ldap_encrypt**
-    * **Description:** Enable connection encryption with your LDAP server.
-        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
-    * **Values:** `none`, `tls`
-    * **Default:** `none`
-
-* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
-    When `hard` is enabled mongooseim doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled mongooseim proceeds even if the check fails.
-    `False` means no checks are performed.
-    * **Values:** `soft`, `hard`, `false`
-    * **Default:** `false`
-
-* **ldap_tls_cacertfile**
-    * **Description:** Path to a file containing PEM encoded CA certificates.
-    * **Values:** Path
-    * **Default:** This option is needed (and required) when TLS verification is enabled.
-
-* **ldap_tls_depth**
-    * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
-         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
-         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
-    * **Values:** Integer
-    * **Default:** 1
-
-* **ldap_port**
-    * **Description:** Port to connect to your LDAP server.
-    * **Values:** Integer
-    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
-
-* **ldap_rootdn**
-    * **Description:** Bind DN
-    * **Values:** String
-    * **Default:** empty string which is `anonymous connection`
-
-* **ldap_password**
-    * **Description:** Bind password
-    * **Values:** String
-    * **Default:** empty string
-
-* **ldap_deref**
-    * **Description:** Whether or not to dereference aliases
-    * **Values:** `never`, `always`, `finding`, `searching`
-    * **Default:** `never`
-
 ### Authentication
 
 * **auth_method** (local)
-    * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
-    * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
+    * **Description:** Chooses an authentication module or a list of modules. Modules from the list are queried one after another until one of them replies positively.
+    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`, `pki`
+    * **Warning:** Authentication backends support only specific SASL mechanisms, see [auth backends capabilities](#authentication-backend-capabilities).
     * **Examples:** `rdbms`, `[internal, anonymous]`
 
 * **auth_opts** (local)
@@ -209,19 +158,39 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
 
-* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `mongooseim.cfg` file.
+        * [`ldap` backend options](authentication-backends/LDAP-authentication-module.md#configuration-options)
+
+        * [`riak` backend options](authentication-backends/Riak-authentication-module.md#configuration-options)
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
-    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SASL PLAIN.
-    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
-    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
+    * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
+    * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_scram_sha256, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_scram_sha256, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
     * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
 
 * **extauth_instances** (local)
     * **Description:** Specifies a number of workers serving external authentication requests.
     * **Syntax:** `{extauth_instances, Count}.`
     * **Default:** 1
+
+#### Authentication backend capabilities
+
+The table below shows the supported SASL mechanisms for each authentication backend module.
+
+|           | cyrsasl<br>plain | cyrsasl<br>digest | cyrsasl<br>scram | cyrsasl<br>scram_sha256 | cyrsasl<br>anonymous | cyrsasl<br>external |
+|-----------|:----------------:|:-----------------:|:----------------:|:-----------------------:|:--------------------:|:-------------------:|
+| internal  |         x        |         x         |         x        |           x             |                   |                     |
+| rdbms     |         x        |         x         |         x        |           x             |                      |                     |
+| external  |         x        |                   |                  |                         |                      |                     |
+| anonymous |         x        |         x         |         x        |           x             |           x          |                     |
+| ldap      |         x        |                   |                  |                         |                      |          x          |
+| jwt       |         x        |                   |                  |                         |                      |                     |
+| riak      |         x        |         x         |         x        |           x             |                      |                     |
+| http      |         x        |         x         |         x        |           x             |                      |                     |
+| pki       |                  |                   |                  |                         |                      |          x          |
+
+`cyrsasl_oauth` does not use the auth backends at all and requires the `mod_auth_token` module enabled instead.
 
 ### Outgoing connections setup
 
@@ -235,7 +204,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
          {http, host, auth, [], [{server, "127.0.0.1"}]}
 ```
 
-### RDMBS connection setup
+### RDBMS connection setup
 
 RDBMS connection pools are set using [outgoing connections configuration](./advanced-configuration/outgoing-connections.md).
 There are some additional options that influence all database connections in the server:
@@ -332,6 +301,18 @@ There are some additional options that influence all database connections in the
     * **Description:** When a user session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
     * **Syntax:** `{replaced_wait_timeout, TimeInMilliseconds}`
     * **Default:** `2000`
+
+* **cowboy_server_name** (local)
+    * **Description:** If configured, replaces Cowboy's default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** listeners started by the `ejabberd_cowboy` module.
+    * **Syntax:** `{cowboy_server_name, NewName}`
+    * **Default:** no value, i.e. `Cowboy` is used as a header value
+    * **Example:** `{cowboy_server_name, "Apache"}`
+
+* **hide_service_name** (local)
+    * **Description:** According to RFC 6210, even when a client sends invalid data after opening a connection, the server must open an XML stream and return a stream error anyway. For extra security, this option may be enabled. It changes MIM behaviour to simply close the connection without any errors returned (effectively hiding the server's identity).
+    * **Syntax:** `{hide_service_name, Boolean}`
+    * **Default:** `false`
+    * **Example:** `{hide_service_name, true}`
 
 ### Modules
 

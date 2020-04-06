@@ -28,8 +28,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc).
--xep([{xep, 313}, {version, "0.2"}]).
--xep([{xep, 313}, {version, "0.3"}]).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
 -xep([{xep, 45}, {version, "1.25"}]).
@@ -49,6 +47,9 @@
          room_process_mam_iq/4,
          forget_room/2,
          forget_room/3]).
+
+%% gdpr callback
+-export([get_personal_data/2]).
 
 %% private
 -export([archive_message/8]).
@@ -116,6 +117,12 @@
 %% ----------------------------------------------------------------------
 %% API
 
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
+    Schema = ["id", "message"],
+    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, [], JID),
+    [{mam_muc, Schema, Entries} | Acc].
+
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ?DEBUG("Remove room ~p from ~p.", [RoomName, SubHost]),
@@ -151,11 +158,8 @@ start(Host, Opts) ->
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(MUCHost, ?NS_MAM_03),
     mod_disco:register_feature(MUCHost, ?NS_MAM_04),
     mod_disco:register_feature(MUCHost, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
@@ -163,6 +167,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE,
                        filter_room_packet, 90),
     ejabberd_hooks:add(forget_room, MUCHost, ?MODULE, forget_room, 90),
+    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     ok.
 
 -spec stop(Host :: jid:server()) -> any().
@@ -172,10 +177,9 @@ stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03),
+    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
-    mod_disco:unregister_feature(MUCHost, ?NS_MAM_03),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_04),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_06),
     ok.
@@ -221,7 +225,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, SrcJID, SrcJID, incoming, Packet1),
+                                     RoomJID, FromJID, SrcJID, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
             case Result of
                 ok ->
@@ -252,9 +256,8 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
                     handle_error_iq(Acc, Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
-                                                   [Host, To, IQ, Action, max_delay_reached]),
-                    {Acc1, return_max_delay_reached_error_iq(IQ)}
+                    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+                    {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         false -> {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
@@ -299,20 +302,19 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_room_owner(User, Room) ->
-    ejabberd_hooks:run_fold(is_muc_room_owner, Room#jid.lserver, false, [Room, User]).
+    mongoose_hooks:is_muc_room_owner(Room#jid.lserver, false, Room, User).
 
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_user_identity_hidden(User, Room) ->
-    case ejabberd_hooks:run_fold(can_access_identity, Room#jid.lserver, false, [Room, User]) of
-        CanAccess when is_boolean(CanAccess) -> not CanAccess;
-        _ -> true
+    case mongoose_hooks:can_access_identity(Room#jid.lserver, false, Room, User) of
+        CanAccess when is_boolean(CanAccess) -> not CanAccess
     end.
 
 -spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
-    ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
+    mongoose_hooks:can_access_room(Room#jid.lserver, false, Room, User).
 
 -spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(), jlib:iq()) ->
                            jlib:iq() | {error, any(), jlib:iq()} | ignore.
@@ -385,31 +387,9 @@ handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, Res} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
-            send_messages_and_fin_message(Res, From, IQ, Params),
-            ignore;
         {ok, Res} ->
             send_messages_and_iq_result(Res, From, IQ, Params)
     end.
-
-send_messages_and_fin_message({TotalCount, Offset, MessageRows}, From,
-                              #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
-                              #{owner_jid := ArcJID} = Params) ->
-    %% send IQ result
-    ResIQ = IQ#iq{type = result, sub_el = []},
-    ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
-
-    %% forward archived messages
-    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
-                                                 QueryID, MessageRows, true),
-
-    %% send fin message
-    IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
-    IsStable = true,
-    ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-    FinMsg = make_fin_message(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, QueryID),
-    ejabberd_sm:route(ArcJID, From, FinMsg).
 
 send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
@@ -450,14 +430,13 @@ handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq
 
 -spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
 archive_id_int(Host, ArcJID = #jid{}) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_id, Host, undefined, [Host, ArcJID]).
+    mongoose_hooks:mam_muc_archive_id(Host, undefined, ArcJID).
 
 
 -spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
                   -> integer().
 archive_size(Host, ArcID, ArcJID = #jid{}) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_size, Host, 0, [Host, ArcID, ArcJID]).
-
+    mongoose_hooks:mam_muc_archive_size(Host, 0, ArcID, ArcJID).
 
 -spec get_behaviour(jid:server(), mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid(),
@@ -465,8 +444,7 @@ archive_size(Host, ArcID, ArcJID = #jid{}) ->
 get_behaviour(Host, ArcID,
               LocJID = #jid{},
               RemJID = #jid{}, DefaultBehaviour) ->
-    ejabberd_hooks:run_fold(mam_muc_get_behaviour, Host, DefaultBehaviour,
-                            [Host, ArcID, LocJID, RemJID]).
+    mongoose_hooks:mam_muc_get_behaviour(Host, DefaultBehaviour, ArcID, LocJID, RemJID).
 
 
 -spec set_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
@@ -474,8 +452,8 @@ get_behaviour(Host, ArcID,
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    ejabberd_hooks:run_fold(mam_muc_set_prefs, Host, {error, not_implemented},
-                            [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
+    mongoose_hooks:mam_muc_set_prefs(Host, {error, not_implemented},
+                                     ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs).
 
 
 %% @doc Load settings from the database.
@@ -483,14 +461,12 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    ejabberd_hooks:run_fold(mam_muc_get_prefs, Host,
-                            {GlobalDefaultMode, [], []},
-                            [Host, ArcID, ArcJID]).
+    mongoose_hooks:mam_muc_get_prefs(Host, {GlobalDefaultMode, [], []}, ArcID, ArcJID).
 
 -spec remove_archive(jid:server(), mod_mam:archive_id() | undefined,
                      jid:jid()) -> 'ok'.
 remove_archive(Host, ArcID, ArcJID = #jid{}) ->
-    ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
+    mongoose_hooks:mam_muc_remove_archive(Host, ok, ArcID, ArcJID),
     ok.
 
 
@@ -511,18 +487,17 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
-                                    [Host, Params])
+            mongoose_hooks:mam_muc_lookup_messages(Host, {ok, {0, 0, []}}, Params)
     end.
 
 
 -spec archive_message(jid:server(), MessId :: mod_mam:message_id(),
                       ArcId :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
+                      SenderJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
                       packet()) -> any().
-archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
-                            [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
+archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet) ->
+    mongoose_hooks:mam_muc_archive_message(Host, ok, MessID, ArcID,
+                                           LocJID, SenderJID, SrcJID, Dir, Packet).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -554,8 +529,9 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
 %% When sending out the archives to a requesting client, the 'to' of the
 %% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
 %% of the sender of the archived message.
+%% However, Smack crashes if 'to' is present, so it is removed.
 replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
-    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), <<>>, Attrs),
+    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), undefined, Attrs),
     Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().
@@ -564,10 +540,9 @@ message_row_to_ext_id({MessID, _, _}) ->
 
 -spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-handle_error_iq(Acc, Host, To, Action, {error, Reason, IQ}) ->
-    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
-                       [Host, To, IQ, Action, Reason]),
-    {Acc1, IQ};
+handle_error_iq(Acc, Host, _To, _Action, {error, _Reason, IQ}) ->
+    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+    {Acc, IQ};
 handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
     {Acc, IQ}.
 
@@ -622,9 +597,10 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
                [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
 
--spec is_archivable_message(Host :: ejabberd:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(MUCHost :: ejabberd:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
-is_archivable_message(Host, Dir, Packet) ->
+is_archivable_message(MUCHost, Dir, Packet) ->
+    {ok, Host} = mongoose_subhosts:get_host(MUCHost),
     {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).

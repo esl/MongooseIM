@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -35,6 +34,8 @@
          multi_set_data/3,
          multi_get_data/3,
          remove_user/2]).
+
+-export([get_all_nss/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -74,6 +75,11 @@ get_data(LUser, LServer, NS, Default) ->
         _ ->
             Default
     end.
+
+get_all_nss(LUser, LServer) ->
+    EscLUser = mongoose_rdbms:escape_string(LUser),
+    {selected, Res} = rdbms_queries:get_all_private_namespaces(LServer, EscLUser),
+    lists:map(fun({R}) -> R end, Res).
 
 remove_user(LUser, LServer) ->
     SLUser = mongoose_rdbms:escape_string(LUser),

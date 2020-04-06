@@ -1,23 +1,19 @@
 -module(mongoose_lib).
--export([bin_to_int/1, log_if_backend_error/4]).
 
+-export([log_if_backend_error/4]).
 %% Maps
 -export([maps_append/3]).
 -export([maps_foreach/2]).
 -export([pairs_foreach/2]).
 -export([maps_or_pairs_foreach/2]).
+%% Busy Wait
+-export([wait_until/2, wait_until/3]).
 
 -include("mongoose.hrl").
 
-%% @doc string:to_integer/1 for binaries
-bin_to_int(Bin) ->
-    bin_to_int(Bin, 0).
-
-bin_to_int(<<H, T/binary>>, X) when $0 =< H, H =< $9 ->
-    bin_to_int(T, (X*10)+(H-$0));
-bin_to_int(Bin, X) ->
-    {X, Bin}.
-
+%% ------------------------------------------------------------------
+%% Logging
+%% ------------------------------------------------------------------
 
 %% @doc Database backends for various modules return ok, {atomic, ok}
 %% or {atomic, []} on success, and usually {error, ...} on failure.
@@ -77,3 +73,24 @@ maps_or_pairs_foreach(Fun, Map) when is_map(Map) ->
     maps_foreach(Fun, Map);
 maps_or_pairs_foreach(Fun, List) when is_list(List) ->
     pairs_foreach(Fun, List).
+
+
+%% Busy wait
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
+
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5), sleep_time => 100},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
+
+do_wait_until(_, _, #{time_left := TimeLeft}) when TimeLeft =< 0 ->
+    ok;
+do_wait_until(Fun, ExpectedValue, Opts) ->
+    case Fun() of
+        ExpectedValue -> {ok, ExpectedValue};
+        _OtherValue -> wait_and_continue(Fun, ExpectedValue, Opts)
+    end.
+
+wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
+    timer:sleep(SleepTime),
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).

@@ -21,7 +21,6 @@
 %%% @copyright 2006-2015 ProcessOne
 %%% @author Christophe Romain <christophe.romain@process-one.net>
 %%%   [http://www.process-one.net/]
-%%% @version {@vsn}, {@date} {@time}
 %%% @end
 %%% ====================================================================
 
@@ -62,8 +61,9 @@ spawn_and_call(F) ->
     Pid = spawn_monitor(FF),
     receive
         {call_result, Ref, Result} ->
+            {atomic, NewId} = Result,
             erlang:demonitor(Ref, [flush]),
-            Result;
+            NewId;
         {'DOWN', Ref, process, Pid, Reason} ->
             erlang:error({spawn_and_call_failed, Reason})
     after 5000 ->

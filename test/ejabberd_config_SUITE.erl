@@ -33,7 +33,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(_Config) ->

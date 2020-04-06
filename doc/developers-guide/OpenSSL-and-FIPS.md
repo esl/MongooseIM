@@ -16,7 +16,7 @@ Make sure the option `--enable-fips` is specified for `configure` command.
 If you want to use a different OpenSSL than the default one, specify the option `--with-ssl=PATH_TO_YOUR_OPENSSL` as well.
 Here's an example of a command for building Erlang/OTP with kerl:
 ```
-KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 20.0 20.0-fips
+KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 21.3 21.3-fips
 ```
 
 ### Building MongooseIM with a custom OpenSSL

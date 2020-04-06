@@ -18,8 +18,10 @@
 -module(mod_global_distrib_hosts_refresher).
 -author("dominik.stanaszek@erlang-solutions.com").
 
--behavior(gen_server).
--behavior(gen_mod).
+-behaviour(gen_server).
+-behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
+
 -include("mongoose.hrl").
 
 %% API
@@ -81,11 +83,17 @@ init([RefreshInterval]) ->
     NState = schedule_refresh(#state{ refresh_interval = RefreshInterval }),
     {ok, NState}.
 
+handle_call(pause, _From, State = #state{tref = undefined}) ->
+    ?ERROR_MSG("event=already_paused", []),
+    {reply, ok, State};
 handle_call(pause, _From, State) ->
     erlang:cancel_timer(State#state.tref),
     {reply, ok, State#state{ tref = undefined }};
-handle_call(unpause, _From, State) ->
+handle_call(unpause, _From, State = #state{tref = undefined}) ->
     {reply, ok, schedule_refresh(State)};
+handle_call(unpause, _From, State = #state{tref = TRef}) ->
+    ?ERROR_MSG("event=not_paused, timer_ref=~p", [TRef]),
+    {reply, ok, State};
 handle_call(Request, From, State) ->
     ?ERROR_MSG("issue=unknown_call request=~p from=~p", [Request, From]),
     {reply, {error, unknown_request}, State}.

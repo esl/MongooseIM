@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -81,7 +80,7 @@ recv_data2(ZlibSock, Packet) ->
             Res
     end.
 
--spec recv_data1(zlibsock(), iolist()) -> {'error', string()} | {'ok', binary()}.
+-spec recv_data1(zlibsock(), iolist()) -> {'error', atom()} | {'ok', binary()}.
 recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
     case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
         <<0, In/binary>> ->
@@ -90,7 +89,7 @@ recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSoc
             {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
--spec send(zlibsock(), iolist()) -> ok | {error, string()}.
+-spec send(zlibsock(), iolist()) -> ok | {error, atom()}.
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
      Packet) ->
     case port_control(Port, ?DEFLATE, Packet) of

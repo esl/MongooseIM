@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -53,6 +52,8 @@
 -export([config_info/0]).
 -export([config_state/0]).
 -export([config_states/0]).
+
+-export([other_cluster_nodes/0]).
 
 -import(mongoose_config_parser, [can_be_ignored/1]).
 
@@ -91,7 +92,7 @@ start() ->
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
-    add_local_option(node_start, p1_time_compat:timestamp()),
+    add_local_option(node_start, {node_start, erlang:system_time(second)}),
     ok.
 
 
@@ -401,16 +402,15 @@ try_reload_cluster(ReloadContext, Changes) ->
     try
         do_reload_cluster(Changes)
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:StackTrace ->
             ?CRITICAL_MSG("issue=try_reload_cluster_failed "
                            "reason=~p:~p stacktrace=~1000p",
-                          [Class, Reason, Stacktrace]),
+                          [Class, Reason, StackTrace]),
             Filename = dump_reload_state(try_reload_cluster, ReloadContext),
             Reason2 = #{issue => try_reload_cluster_failed,
                         reason => Reason,
                         dump_filename => Filename},
-            erlang:raise(Class, Reason2, Stacktrace)
+            erlang:raise(Class, Reason2, StackTrace)
     end.
 
 do_reload_cluster(Changes) ->
@@ -541,7 +541,7 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     end,
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
-    ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
+    ok = mongoose_hooks:host_config_update(Host, ok, ldap, NewConfig);
 handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     gen_mod_deps:replace_modules(Host, OldModules, NewModules);
 handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->

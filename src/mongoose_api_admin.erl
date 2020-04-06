@@ -1,15 +1,13 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
 %%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% @doc
-%%%
-%%% @end
 %%% Created : 05. Jul 2016 12:59
 %%%-------------------------------------------------------------------
+
 %% @doc MongooseIM REST HTTP API for administration.
 %% This module implements cowboy REST callbacks and
 %% passes the requests on to the http api backend module.
-
+%% @end
 -module(mongoose_api_admin).
 -author("ludwikbukowski").
 -behaviour(cowboy_rest).
@@ -56,9 +54,9 @@ cowboy_router_paths(Base, Opts) ->
             Commands = mongoose_commands:list(admin),
             [handler_path(Base, Command, Opts) || Command <- Commands]
         catch
-            _:Err ->
+            _:Err:StackTrace ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n~p",
-                           [Err, erlang:get_stacktrace()]),
+                           [Err, StackTrace]),
                 []
         end.
 
@@ -108,9 +106,11 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+delete_resource(Req, #http_api_state{command_category = Category,
+                                     command_subcategory = SubCategory,
+                                     bindings = B} = State) ->
     Arity = length(B),
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"DELETE">>, Command, Req, State).
 
@@ -153,8 +153,10 @@ get_control_creds(#http_api_state{auth = Creds}) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
+to_json(Req, #http_api_state{command_category = Category,
+                             command_subcategory = SubCategory,
+                             bindings = B} = State) ->
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
     Arity = length(B),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"GET">>, Command, Req, State).

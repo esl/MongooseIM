@@ -33,7 +33,7 @@ generic_tests() ->
      remove_user,
      get_vh_registered_users_number,
      get_vh_registered_users,
-     store_type,
+     supported_sasl_mechanisms,
      dirty_get_registered_users
     ].
 
@@ -50,7 +50,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:ensure_all_started(stringprep),
+    application:ensure_all_started(jid),
     Self = self(),
     ETSProcess = spawn(fun() -> ets_owner(Self) end),
     wait_for_ets(),
@@ -127,9 +127,7 @@ is_user_exists(_Config) ->
 
 % remove_user/2,3
 remove_user(_Config) ->
-    ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1),
-    {error, not_allowed} = ejabberd_auth_jwt:remove_user(<<"toremove3">>,
-                                                         ?DOMAIN1, <<"wrongpass">>).
+    ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN1).
 
 get_vh_registered_users_number(_C) ->
     0 = ejabberd_auth_jwt:get_vh_registered_users_number(?DOMAIN1, []).
@@ -137,8 +135,10 @@ get_vh_registered_users_number(_C) ->
 get_vh_registered_users(_C) ->
     [] = ejabberd_auth_jwt:get_vh_registered_users(?DOMAIN1, []).
 
-store_type(_C) ->
-    external = ejabberd_auth_jwt:store_type(?DOMAIN1).
+supported_sasl_mechanisms(_C) ->
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
+    [true, false, false, false] =
+        [ejabberd_auth_jwt:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
 dirty_get_registered_users(_C) ->
     [] = ejabberd_auth_jwt:dirty_get_registered_users().
@@ -187,7 +187,7 @@ meck_cleanup() ->
     ets:delete(jwt_meck).
 
 generate_token(Alg, NbfDelta, Key) ->
-    Now = p1_time_compat:system_time(seconds),
+    Now = erlang:system_time(second),
     Data = #{bookingNumber => ?USERNAME,
              exp => Now + 60,
              nbf => Now + NbfDelta,

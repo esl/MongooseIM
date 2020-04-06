@@ -1,5 +1,4 @@
-﻿USE [ejabberd]
-GO
+﻿GO
 CREATE TABLE [dbo].[test_types](
     [unicode] [nvarchar](max),
     [binary_data_8k] [varbinary](8000),
@@ -89,6 +88,7 @@ GO
 CREATE TABLE [dbo].[mam_muc_message](
 	[id] [bigint] NOT NULL,
 	[room_id] [bigint] NOT NULL,
+	[sender_id] [bigint] NOT NULL,
 	[nick_name] [nvarchar](250) NOT NULL,
 	[message] [varbinary](max) NOT NULL,
 	[search_body] [nvarchar](max) NOT NULL,
@@ -98,8 +98,11 @@ CREATE TABLE [dbo].[mam_muc_message](
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
 GO
+
+CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message(sender_id);
+GO
+
 SET ANSI_PADDING OFF
 GO
 /****** Object:  Table [dbo].[mam_server_user]    Script Date: 9/17/2014 6:20:03 AM ******/
@@ -143,6 +146,7 @@ CREATE TABLE [dbo].[offline_message](
 	[username] [nvarchar](250) NOT NULL,
 	[from_jid] [nvarchar](250) NOT NULL,
 	[packet] [nvarchar](max) NOT NULL,
+	[permanent_fields] [varbinary](max),
  CONSTRAINT [PK_offline_message_id] PRIMARY KEY CLUSTERED
 (
 	[id] ASC
@@ -566,6 +570,23 @@ GO
 CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
 GO
 
+CREATE TABLE event_pusher_push_subscription (
+     owner_jid NVARCHAR(250),
+     node NVARCHAR(250),
+     pubsub_jid NVARCHAR(150),
+     form NVARCHAR(max) NOT NULL,
+     created_at BIGINT NOT NULL,
+     CONSTRAINT PK_even_pusher_push_subscription PRIMARY KEY CLUSTERED(
+	owner_jid ASC,
+	node ASC,
+	pubsub_jid ASC
+    )
+ )
+GO
+
+CREATE INDEX i_event_pusher_push_subscription ON event_pusher_push_subscription(owner_jid);
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]
@@ -590,35 +611,34 @@ ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [lusername]
 GO
 ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [server]
 GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.last' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'last'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_config' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_config'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_muc_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_muc_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_server_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_server_user'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.offline_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'offline_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_default_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_default_list'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_list'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_list_data' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_list_data'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.private_storage' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'private_storage'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.roster_version' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'roster_version'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rostergroups' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rostergroups'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rosterusers' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rosterusers'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.users' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'users'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.vcard' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'vcard'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.vcard_search' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'vcard_search'
-GO
+
+CREATE TABLE mongoose_cluster_id (
+    k varchar(50) NOT NULL PRIMARY KEY,
+    v text
+);
+
+CREATE TABLE muc_rooms(
+    id BIGINT IDENTITY(1,1) NOT NULL UNIQUE,
+    muc_host VARCHAR(250)   NOT NULL,
+    room_name VARCHAR(250)       NOT NULL,
+    options VARCHAR(MAX)    NOT NULL,
+    PRIMARY KEY (muc_host, room_name)
+);
+
+CREATE TABLE muc_room_aff(
+    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    resource VARCHAR(250)   NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE INDEX i_muc_room_aff_id ON muc_room_aff (room_id);
+
+CREATE TABLE muc_registered(
+    muc_host VARCHAR(250)   NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    nick VARCHAR(250)       NOT NULL,
+    PRIMARY KEY (muc_host, luser, lserver)
+);

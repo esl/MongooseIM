@@ -1,6 +1,7 @@
 -module(mod_keystore).
 
 -behaviour(gen_mod).
+-behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
 -export([start/2,
@@ -11,6 +12,8 @@
 
 %% Tests only!
 -export([validate_opts/1]).
+
+-export([config_metrics/1]).
 
 %% Public types
 -export_type([key/0,
@@ -175,3 +178,7 @@ validate_key_ids(KeySpecs) ->
         [] -> ok;
         [_|_] -> error(non_unique_key_ids, KeySpecs)
     end.
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

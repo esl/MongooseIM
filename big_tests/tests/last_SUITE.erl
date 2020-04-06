@@ -24,15 +24,20 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, last}].
+    [{group, valid_queries},
+     {group, invalid_queries}].
 
 groups() ->
-    G = [{last, [sequence], test_cases()}],
+    G = [{valid_queries, [sequence], valid_test_cases()},
+         {invalid_queries, invalid_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
-test_cases() -> [last_online_user,
-                 last_offline_user,
-                 last_server].
+valid_test_cases() -> [last_online_user,
+                       last_offline_user,
+                       last_server ].
+
+invalid_test_cases() -> [user_not_subscribed_receives_error].
+
 suite() ->
     escalus:suite().
 
@@ -42,7 +47,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config0) ->
+init_per_group(valid_queries, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
     Config2 = escalus:make_everyone_friends(Config1),
     %% This check ensures that there are no registered sessions.
@@ -53,9 +58,11 @@ init_per_group(_GroupName, Config0) ->
     %% Kick "friendly" users
     %% kick_everyone uses ejabberd_c2s_sup to information about client processes.
     mongoose_helper:kick_everyone(),
-    Config2.
+    Config2;
+init_per_group(invalid_queries, Config) ->
+    Config.
 
-end_per_group(_GroupName, Config) ->
+end_per_group(_GroupName, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
@@ -120,6 +127,25 @@ last_server(Config) ->
                           escalus:assert(is_last_result, Stanza),
                           true = (get_last_activity(Stanza) > 0)
                   end).
+
+user_not_subscribed_receives_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice asks about Bob's last activity
+        BobShortJID = escalus_client:short_jid(Bob),
+        escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+
+        %% server replies with an error, since there is no subscription
+        Error = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
+
+        BobFullJID = escalus_client:full_jid(Bob),
+        escalus_client:send(Alice, escalus_stanza:last_activity(BobFullJID)),
+
+        Error1 = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error1),
+        ok
+    end).
+
 
 %%-----------------------------------------------------------------
 %% Helpers

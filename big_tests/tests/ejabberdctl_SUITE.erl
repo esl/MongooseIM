@@ -30,7 +30,7 @@
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
 
--record(offline_msg, {us, timestamp, expire, from, to, packet}).
+-record(offline_msg, {us, timestamp, expire, from, to, packet, permanent_fields = []}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -110,7 +110,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    Cwd0 = escalus_config:get_config(data_dir, Config),
+    Cwd0 = escalus_config:get_config(mim_data_dir, Config),
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
@@ -119,6 +119,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config1]),
+    %% dump_and_load requires at least one mnesia table
+    %% ensure, that passwd table is available
+    Host = ct:get_config({hosts, mim, domain}),
+    catch rpc_call(ejabberd_auth_internal, start, [Host]),
     escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
@@ -171,6 +175,10 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
+
+get_registered_users() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Users = rpc(mim(), ejabberd_auth, get_vh_registered_users, [Host]).
 
 init_per_testcase(CaseName, Config)
   % these cases are incompatible with domainless rdbms schema
@@ -305,7 +313,7 @@ delete_old_users_vhost(Config) ->
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now-86400*30),
 
-    {_, 0} = ejabberdctl("register", [KateName, SecDomain, KatePass], Config),
+    {_, 0} = ejabberdctl("register_identified", [KateName, SecDomain, KatePass], Config),
     {_, 0} = ejabberdctl("check_account", [KateName, SecDomain], Config),
     {_, 0} = ejabberdctl("delete_old_users_vhost", [SecDomain, "10"], Config),
     {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
@@ -907,10 +915,15 @@ simple_register(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {R1, 0} = ejabberdctl("registered_users", [Domain], Config),
+    Before = length(string:tokens(R1, "\n")),
+    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
+    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
+
     {R2, 0} = ejabberdctl("registered_users", [Domain], Config),
+    After = length(string:tokens(R2, "\n")),
     %% then
-    {match, _} = re:run(R2, ".*(" ++ binary_to_list(Name) ++ ").*").
+    2 = After - Before.
 
 simple_unregister(Config) ->
     %% given
@@ -927,8 +940,8 @@ register_twice(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
-    {R, Code} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {_, 0} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
+    {R, Code} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
     %% then
     {match, _} = re:run(R, ".*(already registered).*"),
     true = (Code =/= 0),
@@ -963,10 +976,14 @@ dump_and_load(Config) ->
     TableName = passwd,
     %% Table passwd should not be empty
     TableSize = rpc_call(mnesia, table_info, [TableName, size]),
-    {_, 0} = ejabberdctl("dump", [FileName], Config),
+    {DumpReturns, 0} = ejabberdctl("dump", [FileName], Config),
+    ct:log("DumpReturns ~p", [DumpReturns]),
+    {ok, DumpData} = rpc_call(file, consult, [FileName]),
+    ct:log("DumpData ~p", [DumpData]),
     rpc_call(mnesia, clear_table, [TableName]),
     0 = rpc_call(mnesia, table_info, [TableName, size]),
     {R, 0} = ejabberdctl("load", [FileName], Config),
+    ct:log("LoadReturns ~p", [R]),
     {match, _} = re:run(R, ".+"),
     TableSize = rpc_call(mnesia, table_info, [TableName, size]).
 
@@ -1110,10 +1127,9 @@ set_last(User, Domain, TStamp) ->
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
-    lists:foreach(fun({_User, UserSpec}) ->
-                {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
-                rpc(mim(), ejabberd_auth, remove_user, [Username, Domain])
-        end, Users).
+    lists:foreach(fun({User, Domain}) ->
+                rpc(mim(), ejabberd_auth, remove_user, [User, Domain])
+        end, get_registered_users()).
 
 %%-----------------------------------------------------------------
 %% Predicates

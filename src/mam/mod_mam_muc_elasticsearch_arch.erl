@@ -31,6 +31,9 @@
 -export([remove_archive/4]).
 -export([archive_size/4]).
 
+%gdpr
+-export([get_mam_muc_gdpr_data/2]).
+
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
 -include("mod_mam.hrl").
@@ -56,19 +59,35 @@ stop(Host) ->
 %%-------------------------------------------------------------------
 %% ejabberd_gen_mam_archive callbacks
 %%-------------------------------------------------------------------
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, Source) ->
+    BinSource = mod_mam_utils:bare_jid(Source),
+    Filter = #{term => #{from_jid => BinSource}},
+    Sorting = #{mam_id => #{order => asc}},
+    SearchQuery = #{query => #{bool => #{filter => Filter}},
+                    sort => Sorting},
+    case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
+        {ok, #{<<"hits">> := #{<<"hits">> := Hits}}} ->
+            Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
+            Messages ++ Acc;
+        {error, _} ->
+            Acc
+    end.
 
-archive_message(_Result, Host, MessageId, _UserId, RoomJid, _SourceJid, SourceJid, _Dir, Packet) ->
+archive_message(_Result, Host, MessageId, _UserId, RoomJid, FromJID, SourceJid, _Dir, Packet) ->
     Room = mod_mam_utils:bare_jid(RoomJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
+    From = mod_mam_utils:bare_jid(FromJID),
     DocId = make_document_id(Room, MessageId),
-    Doc = make_document(MessageId, Room, SourceBinJid, Packet),
+    Doc = make_document(MessageId, Room, SourceBinJid, Packet, From),
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
             ok;
         {error, _} = Err ->
             ?ERROR_MSG("event=archive_muc_message_failed server=~s room=~s source=~s mess_id=~p reason=~1000p",
                        [Host, Room, SourceBinJid, MessageId, Err]),
-            ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+            mongoose_metrics:update(Host, modMamDropped, 1),
             Err
     end.
 
@@ -138,16 +157,18 @@ hooks(Host) ->
     [{mam_muc_archive_message, Host, ?MODULE, archive_message, 50},
      {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50},
      {mam_muc_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50}].
+     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50}].
 
 -spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Room, MessageId) ->
     <<Room/binary, $$, (integer_to_binary(MessageId))/binary>>.
 
--spec make_document(mod_mam:message_id(), binary(), binary(), exml:element()) ->
-    map().
-make_document(MessageId, Room, SourceBinJid, Packet) ->
+-spec make_document(mod_mam:message_id(), binary(), binary(), exml:element(),
+                    binary()) -> map().
+make_document(MessageId, Room, SourceBinJid, Packet, FromJID) ->
     #{mam_id     => MessageId,
+      from_jid   => FromJID,
       room       => Room,
       source_jid => SourceBinJid,
       message    => exml:to_binary(Packet),
@@ -256,6 +277,11 @@ hit_to_mam_message(#{<<"_source">> := JSON}) ->
 
     {ok, Stanza} = exml:parse(Packet),
     {MessageId, jid:from_binary(SourceJid), Stanza}.
+
+hit_to_gdpr_mam_message(#{<<"_source">> := JSON}) ->
+    MessageId = maps:get(<<"mam_id">>, JSON),
+    Packet = maps:get(<<"message">>, JSON),
+    {integer_to_binary(MessageId), Packet}.
 
 %% Usage of RSM affects the `"total"' value returned by ElasticSearch. Per RSM spec, the count
 %% returned by the query should represent the size of the whole result set, which in case of MAM

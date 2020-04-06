@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
@@ -483,7 +482,7 @@ normal_state({route, From, Nick, _Acc,
              StateData) ->
     % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     MinPresenceInterval =
     trunc(gen_mod:get_module_opt(StateData#state.server_host,
                                  mod_muc, min_presence_interval, 0) * 1000000),
@@ -882,39 +881,32 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                  {room_jid, StateData#state.jid},
                  {role, Role},
                  {affiliation, Affiliation}],
-    case ejabberd_hooks:run_fold(filter_room_packet,
-                                 StateData#state.host, Packet, [EventData])
-    of
-        drop ->
-            next_normal_state(StateData);
-        FilteredPacket ->
-            ejabberd_hooks:run(room_send_packet, StateData#state.host, [FilteredPacket, EventData]),
-            RouteFrom = jid:replace_resource(StateData#state.jid,
-                                             FromNick),
-            RoomJid = StateData#state.jid,
-            HookInfo = #{room_jid => RoomJid,
-                         from_jid => From,
-                         from_room_jid => RouteFrom,
-                         packet => FilteredPacket,
-                         affiliations_map => StateData#state.affiliations},
-            run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
-            maps_foreach(fun(_LJID, Info) ->
-                                  ejabberd_router:route(RouteFrom,
-                                                        Info#user.jid,
-                                                        FilteredPacket)
-                          end, StateData#state.users),
-            NewStateData2 = add_message_to_history(FromNick,
-                                                   From,
-                                                   FilteredPacket,
-                                                   StateData),
-            next_normal_state(NewStateData2)
-    end.
+    FilteredPacket = mongoose_hooks:filter_room_packet(StateData#state.host, Packet, EventData),
+    mongoose_hooks:room_send_packet(StateData#state.host, FilteredPacket, EventData),
+    RouteFrom = jid:replace_resource(StateData#state.jid,
+                                     FromNick),
+    RoomJid = StateData#state.jid,
+    HookInfo = #{room_jid => RoomJid,
+                 from_jid => From,
+                 from_room_jid => RouteFrom,
+                 packet => FilteredPacket,
+                 affiliations_map => StateData#state.affiliations},
+    run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
+    maps_foreach(fun(_LJID, Info) ->
+                          ejabberd_router:route(RouteFrom,
+                                                Info#user.jid,
+                                                FilteredPacket)
+                  end, StateData#state.users),
+    NewStateData2 = add_message_to_history(FromNick,
+                                           From,
+                                           FilteredPacket,
+                                           StateData),
+    next_normal_state(NewStateData2).
 
 -spec run_update_inbox_for_muc_hook(jid:server(),
                                     update_inbox_for_muc_payload()) -> ok.
 run_update_inbox_for_muc_hook(ServerHost, HookInfo) ->
-    ejabberd_hooks:run_fold(update_inbox_for_muc,
-                            ServerHost, HookInfo, []),
+    mongoose_hooks:update_inbox_for_muc(ServerHost, HookInfo),
     ok.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
@@ -1550,7 +1542,7 @@ store_user_activity(JID, UserActivity, StateData) ->
       StateData#state.server_host,
       mod_muc, min_presence_interval, 0),
     Key = jid:to_lower(JID),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     Activity1 = clean_treap(StateData#state.activity, {1, -Now}),
     Activity =
     case treap:lookup(Key, Activity1) of
@@ -1680,7 +1672,7 @@ add_online_user(JID, Nick, Role, StateData) ->
 
 -spec run_join_room_hook(jid:jid(), state()) -> ok.
 run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
-  ejabberd_hooks:run(join_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  mongoose_hooks:join_room(ServerHost, ok, Room, Host, JID, MucJID),
   ok.
 
 -spec remove_online_user(jid:jid(), state()) -> state().
@@ -1711,7 +1703,7 @@ remove_online_user(JID, StateData, Reason) ->
 
 -spec run_leave_room_hook(jid:jid(), state()) -> ok.
 run_leave_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
-  ejabberd_hooks:run(leave_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  mongoose_hooks:leave_room(ServerHost, ok, Room, Host, JID, MucJID),
   ok.
 
 -spec filter_presence(exml:element()) -> exml:element().
@@ -2404,7 +2396,7 @@ send_config_update(Type, StateData) ->
 send_invitation(From, To, Reason, StateData=#state{host=Host,
                                                    server_host=ServerHost,
                                                    jid=RoomJID}) ->
-    ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
+    mongoose_hooks:invitation_sent(Host, ok, ServerHost, RoomJID, From, To, Reason),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
         false -> <<>>;
@@ -2412,11 +2404,6 @@ send_invitation(From, To, Reason, StateData=#state{host=Host,
     end,
     Packet = jlib:make_invitation(jid:to_bare(From), Password, Reason),
     ejabberd_router:route(RoomJID, To, Packet).
-
-
--spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
-now_to_usec({MSec, Sec, USec}) ->
-    (MSec*1000000 + Sec)*1000000 + USec.
 
 
 -spec change_nick(jid:jid(), binary(), state()) -> state().
@@ -2604,8 +2591,9 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, TimeStamp, Size},
            StateData#state.history),
     add_to_log(text, {FromNick, Packet}, StateData),
-    ejabberd_hooks:run(room_packet, StateData#state.host,
-                       [FromNick, FromJID, StateData#state.jid, Packet]),
+    mongoose_hooks:room_packet(StateData#state.host,
+                               ok,
+                               FromNick, FromJID, StateData#state.jid, Packet),
     StateData#state{history = Q1}.
 
 
@@ -3371,7 +3359,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     IsNameAccepted and IsDescAccepted.
 
 %% @doc Return false if:
-%% <<"the password for a password-protected room is blank">>
+%% `<<"the password for a password-protected room is blank">>'
 -spec is_password_settings_correct(exml:element(), state()) -> boolean().
 is_password_settings_correct(XEl, StateData) ->
     Config = StateData#state.config,
@@ -3734,7 +3722,7 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
-            ?SET_XOPT(maygetmemberlist, [binary_to_existing_atom(V, latin1) || V <- Val])
+            ?SET_XOPT(maygetmemberlist, [binary_to_role(V) || V <- Val])
     end;
 set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(logging, Val);
@@ -3956,8 +3944,12 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
                                       | {'result', [exml:element(), ...], state()}.
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
     {error, mongoose_xmpp_errors:not_allowed()};
-process_iq_disco_info(_From, get, Lang, StateData) ->
+process_iq_disco_info(From, get, Lang, StateData) ->
     Config = StateData#state.config,
+    RoomJID = StateData#state.jid,
+    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, From, RoomJID, <<>>, <<>>),
+    RegisteredFeaturesXML = [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} ||
+                             {{URN, _Host}} <- RegisteredFeatures],
     {result, [#xmlel{name = <<"identity">>,
                      attrs = [{<<"category">>, <<"conference">>},
                           {<<"type">>, <<"text">>},
@@ -3975,7 +3967,7 @@ process_iq_disco_info(_From, get, Lang, StateData) ->
                          <<"muc_moderated">>, <<"muc_unmoderated">>),
               config_opt_to_feature((Config#config.password_protected),
                          <<"muc_passwordprotected">>, <<"muc_unsecured">>)
-             ] ++ iq_disco_info_extras(Lang, StateData), StateData}.
+             ] ++ iq_disco_info_extras(Lang, StateData) ++ RegisteredFeaturesXML, StateData}.
 
 
 -spec rfieldt(binary(), binary(), binary()) -> exml:element().
@@ -4157,8 +4149,9 @@ unsafe_check_invitation(FromJID, Els, Lang,
             lists:foreach(
               fun(InviteEl) ->
                       {JID, Reason, Msg} = create_invite(FromJID, InviteEl, Lang, StateData),
-                      ejabberd_hooks:run(invitation_sent, Host,
-                                         [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
+                      mongoose_hooks:invitation_sent(Host,
+                                                     ok,
+                                                     ServerHost, RoomJID, FromJID, JID, Reason),
                       ejabberd_router:route(StateData#state.jid, JID, Msg)
               end, InviteEls),
             {ok, JIDs}
@@ -4413,7 +4406,7 @@ element_size(El) ->
 route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                               from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(os:timestamp()),
+    Now = os:system_time(microsecond),
     MinMessageInterval = trunc(gen_mod:get_module_opt(StateData#state.server_host,
                                                       mod_muc, min_message_interval, 0) * 1000000),
     Size = element_size(Packet),

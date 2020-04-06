@@ -377,7 +377,7 @@ send_message(Client, ToId) ->
 -spec report_message_ttd(Timestamp :: binary(), role()) -> ok.
 report_message_ttd(Timestamp, Role) ->
     IntegerTimestamp = binary_to_integer(Timestamp),
-    Diff = os:system_time(micro_seconds) - IntegerTimestamp,
+    Diff = os:system_time(microsecond) - IntegerTimestamp,
     exometer:update(?MESSAGE_TTD(Role), Diff).
 
 %================================================
@@ -506,7 +506,7 @@ bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey) ->
 
 -spec make_message(binjid()) -> exml:element().
 make_message(ToId) ->
-    Timestamp = integer_to_binary(os:system_time(micro_seconds)),
+    Timestamp = integer_to_binary(os:system_time(microsecond)),
     Id = escalus_stanza:id(),
     escalus_stanza:set_id(escalus_stanza:chat_to(ToId, Timestamp), Id).
 

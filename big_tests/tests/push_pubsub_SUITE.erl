@@ -27,7 +27,8 @@ groups() ->
          {pubsub_publish, [], [
                                publish_fails_with_invalid_item,
                                publish_fails_with_no_options,
-                               publish_succeeds_with_valid_options
+                               publish_succeeds_with_valid_options,
+                               push_node_can_be_configured_to_whitelist_publishers
                               ]},
          {rest_integration_v2, [], [
                                     rest_service_called_with_correct_path_v2,
@@ -95,7 +96,7 @@ has_disco_identity(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Server = node_addr(),
+            Server = pubsub_tools:node_addr(?PUBSUB_SUB_DOMAIN ++ "."),
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_identity, [<<"pubsub">>, <<"push">>], Stanza)
@@ -109,7 +110,7 @@ allocate_basic_node(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}])
         end).
 
@@ -121,7 +122,7 @@ publish_fails_with_invalid_item(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             Item =
@@ -141,7 +142,7 @@ publish_fails_with_no_options(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             ContentFields = [
@@ -169,7 +170,7 @@ publish_succeeds_with_valid_options(Config) ->
     escalus:story(
         Config, [{alice, 1}],
         fun(Alice) ->
-            Node = pubsub_node(),
+            Node = push_pubsub_node(),
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             Content = [
@@ -186,6 +187,41 @@ publish_succeeds_with_valid_options(Config) ->
             PublishIQ = publish_iq(Alice, Node, Content, Options),
             escalus:send(Alice, PublishIQ),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            ok
+
+        end).
+
+push_node_can_be_configured_to_whitelist_publishers(Config) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            Node = push_pubsub_node(),
+            Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                             {<<"pubsub#publish_model">>, <<"publishers">>}],
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>},
+                                                   {config, Configuration}]),
+
+            ActiveConfig = pubsub_tools:get_configuration(Alice, Node, []),
+            ?assertMatch({_, _, <<"whitelist">>}, lists:keyfind(<<"pubsub#access_model">>, 1, ActiveConfig)),
+            ?assertMatch({_, _, <<"publishers">>}, lists:keyfind(<<"pubsub#publish_model">>, 1, ActiveConfig)),
+
+            Content = [
+                {<<"message-count">>, <<"1">>},
+                {<<"last-message-sender">>, <<"senderId">>},
+                {<<"last-message-body">>, <<"message body">>}
+            ],
+
+            Options = [
+                {<<"device_id">>, <<"sometoken">>},
+                {<<"service">>, <<"apns">>}
+            ],
+
+            PublishIQ = publish_iq(Bob, Node, Content, Options),
+            escalus:send(Bob, PublishIQ),
+            escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+                           escalus:wait_for_stanza(Bob)),
+
 
             ok
 
@@ -309,7 +345,7 @@ prepare_notification(CustomOptions) ->
     {Notification, Options ++ CustomOptions}.
 
 setup_pubsub(User) ->
-    Node = pubsub_node(),
+    Node = push_pubsub_node(),
     pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
     Node.
 
@@ -341,19 +377,8 @@ publish_iq(Client, Node, Content, Options) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-node_addr() ->
-    Domain = domain(),
-    <<?PUBSUB_SUB_DOMAIN, ".", Domain/binary>>.
-
-rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
-    <<Prefix/binary, "_", Suffix/binary>>.
-
-pubsub_node_name() ->
-    rand_name(<<"princely_musings">>).
-
-pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
+push_pubsub_node() ->
+    pubsub_tools:pubsub_node_with_subdomain(?PUBSUB_SUB_DOMAIN ++ ".").
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));

@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%-------------------------------------------------------------------
 
@@ -254,7 +253,7 @@ get_roster(User, Server) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => UserJID#jid.lserver,
                               element => undefined }),
-    Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [jid:to_lus(UserJID)]),
+    Acc2 = mongoose_hooks:roster_get(Server, Acc, UserJID#jid.luser, Server),
     Items = mongoose_acc:get(roster, items, [], Acc2),
     make_roster(Items).
 
@@ -300,10 +299,10 @@ push_roster_all(File) ->
 -spec roster_list_to_binary([mod_roster:roster()]) -> [simple_roster()].
 roster_list_to_binary(Roster) ->
     [{
-        ejabberd_binary:string_to_binary(Usr),
-        ejabberd_binary:string_to_binary(Srv),
-        ejabberd_binary:string_to_binary(Grp),
-        ejabberd_binary:string_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
+        mongoose_bin:string_to_binary(Usr),
+        mongoose_bin:string_to_binary(Srv),
+        mongoose_bin:string_to_binary(Grp),
+        mongoose_bin:string_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
 
 
 -spec subscribe_all([simple_roster()]) -> 'ok'.
@@ -352,20 +351,21 @@ build_list_users(Group, [{User, Server}|Users], Res) ->
 -spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),
         jid:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, U, S, Action) ->
+    JID = jid:make(LU, LS, <<>>),
     lists:foreach(fun(R) ->
-                push_roster_item(LU, LS, R, U, S, Action)
-        end, ejabberd_sm:get_user_resources(LU, LS)).
+                RJID = jid:replace_resource(JID, R),
+                push_roster_item(RJID, U, S, Action)
+        end, ejabberd_sm:get_user_resources(JID)).
 
 
--spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),
-        jid:user(), jid:server(), Action :: push_action()) -> mongoose_acc:t().
-push_roster_item(LU, LS, R, U, S, Action) ->
-    LJID = jid:make(LU, LS, R),
+-spec push_roster_item(jid:jid(), jid:user(), jid:server(), Action :: push_action()) ->
+    mongoose_acc:t().
+push_roster_item(JID, U, S, Action) ->
     BroadcastEl = build_broadcast(U, S, Action),
-    ejabberd_sm:route(LJID, LJID, BroadcastEl),
+    ejabberd_sm:route(JID, JID, BroadcastEl),
     Item = build_roster_item(U, S, Action),
     ResIQ = build_iq_roster_push(Item),
-    ejabberd_router:route(LJID, LJID, ResIQ).
+    ejabberd_router:route(JID, JID, ResIQ).
 
 -spec build_roster_item(jid:user(), jid:server(), push_action()
                        ) -> exml:element().
@@ -433,7 +433,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(UsersS, ":")]
+            [mongoose_bin:string_to_binary(S) || S <- string:tokens(UsersS, ":")]
             ),
 
     Contacts = lists:foldl(
@@ -441,7 +441,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
+            [mongoose_bin:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
             ),
 
     case validate_regexps(Users ++ Contacts) of

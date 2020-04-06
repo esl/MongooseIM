@@ -13,12 +13,16 @@
 
 -define(MAX_OFFLINE_MSGS, 100). % known server-side config
 
+-define(DELAY_NS, <<"urn:xmpp:delay">>).
+-define(AFFILIATION_NS, <<"urn:xmpp:muclight:0#affiliations">>).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
 
 all() ->
-    [{group, mod_offline_tests}].
+    [{group, mod_offline_tests},
+     {group, with_groupchat}].
 
 all_tests() ->
     [offline_message_is_stored_and_delivered_at_login,
@@ -29,7 +33,8 @@ all_tests() ->
      max_offline_messages_reached].
 
 groups() ->
-    G = [{mod_offline_tests, [parallel], all_tests()}],
+    G = [{mod_offline_tests, [parallel], all_tests()},
+         {with_groupchat, [], [groupchat_message_is_stored]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
@@ -41,6 +46,26 @@ suite() ->
 
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
+
+init_per_group(with_groupchat, C) ->
+    OfflineBackend = mongoose_helper:get_backend_name(mod_offline_backend),
+    MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
+    Modules = [{mod_offline, [{store_groupchat_messages, true},
+                              {backend, OfflineBackend}]},
+               {mod_muc_light, [{backend, MucLightBackend}]}],
+    Config = dynamic_modules:save_modules(domain(), C),
+    dynamic_modules:ensure_modules(domain(), Modules),
+    Config;
+init_per_group(_, C) -> C.
+
+end_per_group(with_groupchat, C) ->
+    dynamic_modules:restore_modules(domain(), C),
+    C;
+end_per_group(_, C) -> C.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
 end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 
@@ -83,6 +108,24 @@ groupchat_message_is_not_stored(Config) ->
                     NewBob = login_send_and_receive_presence(FreshConfig, bob),
                     ct:sleep(500),
                     false = escalus_client:has_stanzas(NewBob)
+            end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
+
+groupchat_message_is_stored(Config) ->
+    Story = fun(FreshConfig, Alice, Bob) ->
+                CreateRoomStanza = muc_light_helper:stanza_create_room(undefined, [],
+                                                                       [{Bob, member}]),
+                logout(FreshConfig, Bob),
+                escalus:send(Alice, CreateRoomStanza),
+                AffMsg = escalus:wait_for_stanza(Alice),
+                RoomJID = exml_query:attr(AffMsg, <<"from">>),
+                escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, <<"msgtxt">>)),
+                wait_for_n_offline_messages(Bob, 2),
+                NewBob = login_send_presence(FreshConfig, bob),
+                Stanzas = escalus:wait_for_stanzas(NewBob, 3),
+                escalus_new_assert:mix_match([is_presence, is_affiliation(),
+                                              is_groupchat(<<"msgtxt">>)],
+                                             Stanzas)
             end,
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
@@ -151,11 +194,34 @@ expired_messages_are_not_delivered(Config) ->
 %%%===================================================================
 
 is_chat(Content) ->
-    fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
+    fun(Stanza) ->
+        escalus_pred:is_chat_message(Content, Stanza) andalso
+        has_element_with_ns(Stanza, <<"delay">>, ?DELAY_NS)
+    end.
+
+is_groupchat(Content) ->
+    fun(Stanza) ->
+        escalus_pred:is_groupchat_message(Content, Stanza) andalso
+        has_element_with_ns(Stanza, <<"delay">>, ?DELAY_NS)
+    end.
+
+is_affiliation() ->
+    fun(Stanza) ->
+        has_element_with_ns(Stanza, <<"x">>, ?AFFILIATION_NS) andalso
+        has_element_with_ns(Stanza, <<"delay">>, ?DELAY_NS)
+    end.
+
+has_element_with_ns(Stanza, Element, NS) ->
+    [] =/= exml_query:subelements_with_name_and_ns(Stanza, Element, NS).
 
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
+wait_for_n_offline_messages(Client, N) ->
+    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
+    mongoose_helper:wait_until(WaitFn, N).
 
 logout(Config, User) ->
     mongoose_helper:logout_user(Config, User).

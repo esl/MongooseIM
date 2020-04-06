@@ -19,25 +19,21 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%----------------------------------------------------------------------
 
 -module(cyrsasl_plain).
 -author('alexey@process-one.net').
 
--export([start/1, stop/0, mech_new/2, mech_step/2, parse/1]).
+-export([mechanism/0, mech_new/2, mech_step/2, parse/1]).
 -behaviour(cyrsasl).
 
 -include("mongoose.hrl").
 
-start(_Opts) ->
-    cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),
-    ok.
-
-stop() ->
-    ok.
+-spec mechanism() -> cyrsasl:mechanism().
+mechanism() ->
+    <<"PLAIN">>.
 
 -spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
@@ -96,34 +92,8 @@ prepare(ClientIn) ->
 
 -spec parse(binary()) -> [binary(), ...].
 parse(S) ->
-    parse1(S, <<>>, []).
-
--spec parse1(binary(), binary(), [binary()]) -> [binary(), ...].
-parse1(<<0, Cs/binary>>, S, T) ->
-    parse1(Cs, <<>>, [binary_reverse(S)| T]);
-parse1(<<C, Cs/binary>>, S, T) ->
-    parse1(Cs, <<C, S/binary>>, T);
-%parse1([], [], T) ->
-%    lists:reverse(T);
-parse1(<<>>, S, T) ->
-    lists:reverse([binary_reverse(S)| T]).
-
+    binary:split(S, <<0>>, [global, trim]).
 
 -spec parse_domain(binary()) -> [binary(), ...].
 parse_domain(S) ->
-    parse_domain1(S, <<>>, []).
-
--spec parse_domain1(binary(), binary(), [binary()]) -> [binary(), ...].
-parse_domain1(<<$@, Cs/binary>>, S, T) ->
-    parse_domain1(Cs, <<>>, [binary_reverse(S) | T]);
-parse_domain1(<<C, Cs/binary>>, S, T) ->
-    parse_domain1(Cs, <<C, S/binary>>, T);
-parse_domain1(<<>>, S, T) ->
-    lists:reverse([binary_reverse(S) | T]).
-
-
--spec binary_reverse(binary()) -> binary().
-binary_reverse(<<>>) ->
-    <<>>;
-binary_reverse(<<H, T/binary>>) ->
-    <<(binary_reverse(T))/binary, H>>.
+    binary:split(S, <<$@>>, [global, trim]).

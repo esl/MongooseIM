@@ -62,7 +62,8 @@
 %% A command's definition includes specification of it arguments; when
 %% it is called, arguments are check for compatibility. Examples of specs
 %% and compliant arguments:
-%%
+%% 
+%% ```
 %% a single type spec
 %% integer                          2
 %% binary                           <<"zzz">>
@@ -79,6 +80,7 @@
 %% {integer, binary, float}         {1, <<"2">>, 3.0}
 %% a tuple of named args
 %% {{x, integer}, {y, binary}}      {1, <<"bbb">>}
+%% '''
 %%
 %% Arg specification is used at call-time for control, and also for introspection
 %% (see list/1, list/2, mongoose_commands:get_command/2 and args/1)
@@ -146,7 +148,7 @@
 
 -type typedef() :: [typedef_basic()] | typedef_basic().
 
--type typedef_basic() :: integer | binary | float. %% most basic primitives, string is a binary
+-type typedef_basic() :: boolean | integer | binary | float. %% most basic primitives, string is a binary
 
 -type argspec() :: typedef()
                   | {atom(), typedef()} %% a named argument
@@ -242,7 +244,7 @@ list(U, Category, Action) ->
     list(U, Category, Action, any).
 
 %% @doc List commands, available for this user, filtered by category, action and subcategory
--spec list(caller(), binary() | any, atom(), binary() | any) -> [t()].
+-spec list(caller(), binary() | any, atom(), binary() | any | undefined) -> [t()].
 list(U, Category, Action, SubCategory) ->
     CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
@@ -328,7 +330,7 @@ register_commands(Commands) ->
         fun(Command) ->
             check_registration(Command), %% may throw
             ets:insert_new(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(register_command, global, [Command], []),
+            mongoose_hooks:register_command(global, Command),
             ok
         end,
         Commands).
@@ -338,7 +340,7 @@ unregister_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
             ets:delete_object(mongoose_commands, Command),
-            ejabberd_hooks:run_fold(unregister_command, global, [Command], [])
+            mongoose_hooks:unregister_command(global, Command)
         end,
         Commands).
 
@@ -355,9 +357,9 @@ execute_command(Caller, Command, Args) ->
             {error, denied, <<"Command not available for this user">>};
         caller_jid_mismatch ->
             {error, denied, <<"Caller ids do not match">>};
-        X:E ->
+        X:E:S ->
             ?ERROR_MSG("Caught ~p:~p while executing ~p stacktrace=~p",
-                       [X, E, Command#mongoose_command.name, erlang:get_stacktrace()]),
+                       [X, E, Command#mongoose_command.name, S]),
             {error, internal, term_to_binary(E)}
     end.
 
@@ -422,6 +424,8 @@ maybe_ignore_result(_, Res) ->
 check_type(ok, _) ->
     ok;
 check_type(A, A) ->
+    true;
+check_type({_Name, boolean}, Value) when is_boolean(Value) ->
     true;
 check_type({_Name, binary}, Value) when is_binary(Value) ->
     true;

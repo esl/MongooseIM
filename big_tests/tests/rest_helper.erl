@@ -15,6 +15,7 @@
     delete/2,
     delete/3,
     delete/4,
+    make_request/1,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -32,6 +33,15 @@
 -define(PATHPREFIX, <<"/api">>).
 
 -type role() :: admin | client.
+-type credentials() :: {Username :: binary(), Password :: binary()}.
+-type request_params() :: #{
+        role := role(),
+        method := binary(),
+        creds => credentials(),
+        path := binary(),
+        body := binary(),
+        return_headers := boolean(),
+        server := atom() }.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -87,51 +97,66 @@ assert_notinmaplist([K|Keys], Map, L, Orig) ->
 
 
 gett(Role, Path) ->
-    make_request(Role, <<"GET">>, Path).
+    make_request(#{ role => Role, method => <<"GET">>, path => Path }).
 
 post(Role, Path, Body) ->
-    make_request(Role, <<"POST">>, Path, Body).
+    make_request(#{ role => Role, method => <<"POST">>, path => Path, body => Body }).
 
 putt(Role, Path, Body) ->
-    make_request(Role, <<"PUT">>, Path, Body).
+    make_request(#{ role => Role, method => <<"PUT">>, path => Path, body => Body }).
 
 delete(Role, Path) ->
-    make_request(Role, <<"DELETE">>, Path).
+    make_request(#{ role => Role, method => <<"DELETE">>, path => Path }).
 
--spec gett(role(), Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
 gett(Role, Path, Cred) ->
-    make_request(Role, {<<"GET">>, Cred}, Path).
+    make_request(#{ role => Role, method => <<"GET">>, creds => Cred, path => Path}).
 
 post(Role, Path, Body, Cred) ->
-    make_request(Role, {<<"POST">>, Cred}, Path, Body).
+    make_request(#{ role => Role, method => <<"POST">>, creds => Cred, path => Path, body => Body }).
 
 putt(Role, Path, Body, Cred) ->
-    make_request(Role, {<<"PUT">>, Cred}, Path, Body).
+    make_request(#{ role => Role, method => <<"PUT">>, creds => Cred, path => Path, body => Body }).
 
 delete(Role, Path, Cred) ->
-    make_request(Role, {<<"DELETE">>, Cred}, Path).
+    make_request(#{ role => Role, method => <<"DELETE">>, creds => Cred, path => Path }).
 
 delete(Role, Path, Cred, Body) ->
-    make_request(Role, {<<"DELETE">>, Cred}, Path, Body).
+    make_request(#{ role => Role, method => <<"DELETE">>, creds => Cred, path => Path, body => Body }).
 
+-spec make_request(request_params()) ->
+    {{Number :: binary(), Text :: binary()},
+     Headers :: [{binary(), binary()}],
+     Body :: map() | binary()}.
+make_request(#{ return_headers := true } = Params) ->
+    NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
+    case fusco_request(NormalizedParams) of
+        {RCode, RHeaders, Body, _, _} ->
+            {RCode, normalize_headers(RHeaders), decode(Body)};
+        {RCode, RHeaders, Body, _, _, _} ->
+            {RCode, normalize_headers(RHeaders), decode(Body)}
+    end;
+make_request(#{ return_headers := false } = Params) ->
+    {Code, _, Body} = make_request(Params#{ return_headers := true }),
+    {Code, Body};
+make_request(Params) ->
+    make_request(Params#{ return_headers => false }).
 
+normalize_path(#{ path := Path } = Params) when not is_binary(Path) ->
+    normalize_path(Params#{ path := list_to_binary(Path) });
+normalize_path(#{ path := Path } = Params) ->
+    Params#{ path := <<?PATHPREFIX/binary, Path/binary>> }.
 
-make_request(Role, Method, Path) ->
-    make_request(Role, Method, Path, <<"">>).
+normalize_body(#{ body := Body } = Params) when is_map(Body) ->
+    Params#{ body := jiffy:encode(Body) };
+normalize_body(#{ body := Body } = Params) when is_binary(Body) ->
+    Params;
+normalize_body(Params) ->
+    Params#{ body => <<>> }.
 
-make_request(Role, Method, Path, ReqBody) when is_map(ReqBody) ->
-    make_request(Role, Method, Path, jiffy:encode(ReqBody));
-make_request(Role, Method, Path, ReqBody) when not is_binary(Path) ->
-    make_request(Role, Method, list_to_binary(Path), ReqBody);
-make_request(Role, Method, Path, ReqBody) ->
-    CPath = <<?PATHPREFIX/binary, Path/binary>>,
-    {Code, RespBody} = case fusco_request(Role, Method, CPath, ReqBody) of
-                           {RCode, _, Body, _, _} ->
-                               {RCode, Body};
-                           {RCode, _, Body, _, _, _} ->
-                               {RCode, Body}
-                       end,
-    {Code, decode(RespBody)}.
+fill_default_server(#{ server := _Server } = Params) ->
+    Params;
+fill_default_server(Params) ->
+    Params#{ server => mim() }.
 
 decode(<<>>) ->
     <<"">>;
@@ -139,18 +164,25 @@ decode(RespBody) ->
     try
         jiffy:decode(RespBody)
     catch
-        throw:_ ->
+        error:_ ->
             RespBody
     end.
 
+normalize_headers(Headers) ->
+    lists:map(fun({K, V}) when is_binary(V) -> {K, V};
+                 ({K, V}) when is_list(V) -> {K, iolist_to_binary(V)} end, Headers).
+
 %% a request specyfying credentials is directed to client http listener
-fusco_request(Role, {Method, {User, Password}}, Path, Body) ->
-    Basic = list_to_binary("Basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
+fusco_request(#{ role := Role, method := Method, creds := {User, Password},
+                 path := Path, body := Body, server := Server }) ->
+    EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
+    Basic = list_to_binary("Basic " ++ EncodedAuth),
     Headers = [{<<"authorization">>, Basic}],
-    fusco_request(Method, Path, Body, Headers, get_port(Role), get_ssl_status(Role));
+    fusco_request(Method, Path, Body, Headers,
+                  get_port(Role, Server), get_ssl_status(Role, Server));
 %% without them it is for admin (secure) interface
-fusco_request(Role, Method, Path, Body) ->
-    fusco_request(Method, Path, Body, [], get_port(Role), get_ssl_status(Role)).
+fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server }) ->
+    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server)).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
@@ -159,20 +191,22 @@ fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     fusco_cp:stop(Client),
     Result.
 
--spec get_port(role()) -> Port :: integer().
-get_port(Role) -> 
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
-    [{PortIpNet, ejabberd_cowboy, _Opts}] = lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
+-spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec()) -> Port :: integer().
+get_port(Role, Node) ->
+    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    [{PortIpNet, ejabberd_cowboy, _Opts}] =
+        lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
     case PortIpNet of
         {Port, _Host, _Net} -> Port;
         {Port, _Host} -> Port;
         Port -> Port
     end.
 
--spec get_ssl_status(role()) -> boolean().
-get_ssl_status(Role) ->
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
-    [{_PortIpNet, _Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
+-spec get_ssl_status(Role :: role(), Server :: distributed_helper:rpc_spec()) -> boolean().
+get_ssl_status(Role, Node) ->
+    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    [{_PortIpNet, _Module, Opts}] =
+        lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     lists:keymember(ssl, 1, Opts).
 
 % @doc Changes the control credentials for admin by restarting the listener
@@ -226,12 +260,15 @@ is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
 is_roles_config(_, _) -> false.
 
 mapfromlist(L) ->
-    Nl = lists:keymap(fun(B) -> binary_to_existing_atom(B, utf8) end, 1, L),
+    Nl = lists:map(fun({K, {V}}) when is_list(V) ->
+                           {binary_to_existing_atom(K, utf8), mapfromlist(V)};
+                      ({K, V}) ->
+                           {binary_to_existing_atom(K, utf8), V}
+                   end, L),
     maps:from_list(Nl).
 
 decode_maplist(Ml) ->
-    Pl = [C || {C} <- Ml],
-    [mapfromlist(L) || L <- Pl].
+    [mapfromlist(L) || {L} <- Ml].
 
 
 to_list(V) when is_binary(V) ->
@@ -240,17 +277,18 @@ to_list(V) when is_list(V) ->
     V.
 
 maybe_enable_mam(rdbms, Host, Config) ->
-    init_module(Host, mod_mam_rdbms_arch, [muc, pm, simple]),
+    init_module(Host, mod_mam_rdbms_arch, []),
+    init_module(Host, mod_mam_muc_rdbms_arch, []),
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
     init_module(Host, mod_mam_rdbms_user, [muc, pm]),
-    init_module(Host, mod_mam, []),
-    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
+    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
+    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}, {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
-    init_module(Host, mod_mam, []),
-    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
+    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
+    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}, {archive_chat_markers, true}]),
     [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
@@ -324,7 +362,7 @@ make_arc_id(Client) ->
     User = escalus_client:username(Client),
     Server = escalus_client:server(Client),
     Bin = escalus_client:short_jid(Client),
-    Jid = mam_helper:rpc_apply(jid, make, [User, Server, <<"">>]),
+    Jid = mongoose_helper:make_jid(User, Server, <<>>),
     {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
 
 fill_room_archive(RoomID, Users) ->
@@ -333,7 +371,7 @@ fill_room_archive(RoomID, Users) ->
     Days = [Today - I || I <- lists:seq(0, 3)],
     Host = ct:get_config({hosts, mim, domain}),
     MUCLight = <<"muclight.", Host/binary>>,
-    RoomJID = mam_helper:rpc_apply(jid, make, [RoomID, MUCLight, <<>>]),
+    RoomJID = mongoose_helper:make_jid(RoomID, MUCLight, <<>>),
     RoomBinJID = <<RoomID/binary, "@", MUCLight/binary>>,
     RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [Host, RoomJID]),
     Room = {RoomBinJID, RoomJID, RoomArcID},

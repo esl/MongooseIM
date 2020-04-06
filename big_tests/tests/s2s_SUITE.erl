@@ -12,6 +12,9 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+%% Module aliases
+-define(dh, distributed_helper).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -141,13 +144,12 @@ timeout_waiting_for_message(Config) ->
 
 connections_info(Config) ->
     simple_message(Config),
-    Node = ct:get_config({hosts, mim, node}),
     FedDomain = ct:get_config({hosts, fed, domain}),
-    S2SIn = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [in]),
+    S2SIn = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [in]),
     ct:pal("S2sIn: ~p", [S2SIn]),
     true = lists:any(fun(PropList) -> [FedDomain] =:= proplists:get_value(domains, PropList) end,
                      S2SIn),
-    S2SOut = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [out]),
+    S2SOut = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [out]),
     ct:pal("S2sOut: ~p", [S2SOut]),
     true = lists:any(fun(PropList) -> FedDomain =:= proplists:get_value(server, PropList) end,
                      S2SOut),
@@ -224,7 +226,7 @@ successful_external_auth_with_valid_cert(Config) ->
                       {from_server, "localhost_bis"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -241,7 +243,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
                       {from_server, "localhost_bis"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -274,7 +276,7 @@ auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
                       {from_server, "some_not_in_cert_domain"},
                       {requested_name, <<"some_not_in_cert_domain">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -296,7 +298,7 @@ auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
                       {from_server, "localhost"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],

@@ -19,8 +19,7 @@
 %%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with this program; if not, write to the Free Software
-%%% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-%%% 02111-1307 USA
+%%% Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 %%%
 %%%-------------------------------------------------------------------
 
@@ -173,12 +172,14 @@ commands() ->
 
 -spec num_resources(jid:user(), jid:server()) -> non_neg_integer().
 num_resources(User, Host) ->
-    length(ejabberd_sm:get_user_resources(User, Host)).
+    JID = jid:make(User, Host, <<>>),
+    length(ejabberd_sm:get_user_resources(JID)).
 
 
 -spec resource_num(jid:user(), jid:server(), integer()) -> binary() | string().
 resource_num(User, Host, Num) ->
-    Resources = ejabberd_sm:get_user_resources(User, Host),
+    JID = jid:make(User, Host, <<>>),
+    Resources = ejabberd_sm:get_user_resources(JID),
     case (0<Num) and (Num=<length(Resources)) of
         true ->
             lists:nth(Num, Resources);
@@ -274,7 +275,7 @@ connected_users_info(Host) ->
         Type :: binary(), Show :: binary() | string(), Status :: binary() | string(),
         Prio :: binary() | string()) -> 'ok'.
 set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
-    Pid = ejabberd_sm:get_session_pid(User, Host, Resource),
+    Pid = ejabberd_sm:get_session_pid(jid:make(User, Host, Resource)),
     USR = <<User/binary, $@, Host/binary, $/, Resource/binary>>,
     US = <<User/binary, $@, Host/binary>>,
     Message = {xmlstreamelement,
@@ -291,9 +292,11 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
 
 -spec user_sessions_info(jid:user(), jid:server()) -> [formatted_user_info()].
 user_sessions_info(User, Host) ->
-    Resources = ejabberd_sm:get_user_resources(User, Host),
+    JID = jid:make(User, Host, <<>>),
+    Resources = ejabberd_sm:get_user_resources(JID),
     lists:foldl(fun(Res, Acc) ->
-                case ejabberd_sm:get_session(User, Host, Res) of
+                RJID = jid:replace_resource(JID, Res),
+                case ejabberd_sm:get_session(RJID) of
                     offline -> Acc;
                     Session -> [format_user_info(Session)|Acc]
                 end

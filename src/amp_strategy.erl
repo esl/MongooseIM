@@ -1,10 +1,11 @@
--module(amp_strategy).
 %% @doc This module is responsible for determining the server's strategy for a
 %% particular message. (See XEP section 2.2.2 "Determine Default Action")
+%% This work was sponsored by Grindr LLC
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
 %% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
-%% This work was sponsored by Grindr LLC
+-module(amp_strategy).
+
 -export([determine_strategy/5,
          null_strategy/0]).
 
@@ -25,7 +26,7 @@ determine_strategy(_, _, To, _, Event) ->
                   'expire-at' = undefined}.
 
 %% @doc This strategy will never be matched by any amp_rules.
-%% Use it as a seed parameter to ejaberd_hooks:run_fold
+%% Use it as a seed parameter to `mongoose_hooks'.
 -spec null_strategy() -> amp_strategy().
 null_strategy() ->
     #amp_strategy{deliver = undefined,
@@ -34,9 +35,8 @@ null_strategy() ->
 
 %% Internals
 get_target_resources(MessageTarget) ->
-    {User, Server, Resource} = jid:to_lower(MessageTarget),
-    ResourceSession = ejabberd_sm:get_session(User, Server, Resource),
-    UserResources = ejabberd_sm:get_user_resources(User, Server),
+    ResourceSession = ejabberd_sm:get_session(MessageTarget),
+    UserResources = ejabberd_sm:get_user_resources(MessageTarget),
     {ResourceSession, UserResources}.
 
 deliver_strategy({offline, []}, initial_check) -> [none];

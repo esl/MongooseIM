@@ -122,7 +122,7 @@ calls_callback_module_to_retrieve_attributes_for_message(Config) ->
 %% Fixtures
 
 init_per_suite(Config) ->
-    stringprep:start(),
+    {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(_) ->

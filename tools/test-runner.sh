@@ -26,11 +26,14 @@ Options:
 --skip-small-tests    -- disable small tests
 --skip-big-tests      -- disable big tests
 --skip-build-tests    -- disable big test compilation
+--skip-build-mim      -- disable MIM nodes compilation
+--skip-start-nodes    -- do not start nodes before big tests
 --skip-stop-nodes     -- do not stop nodes after big tests
 --skip-setup-db       -- do not start any databases, the same as "--db --" option
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 --colors              -- force colors in help and examples commands
+--pause [SECONDS]     -- pause before big_tests execution
 
 Test specifications:
 -- [SUITE]
@@ -73,29 +76,29 @@ Script examples:
     Disables big tests and cover
 
 ./tools/test-runner.sh --skip-big-tests
-    Travis build job 1
+    Travis build job with small tests
 
 ./tools/test-runner.sh --skip-small-tests --db redis --tls-dist --preset internal_mnesia
-    Travis build job 2
+    Travis build job with internal_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
-    Travis build job 3
+    Travis build job with mysql_redis
 
 ./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
-    Travis build job 4
+    Travis build job with odbc_mssql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
-    Travis build job 5
+    Travis build job with ldap_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
-    Travis build job 6
+    Travis MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
 ./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
-    Travis build job 8
+    Travis build job with pgsql_mnesia
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
-    Travis build job 9
+    Travis build job with riak_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
     Runs mam_SUITE with MySQL
@@ -283,10 +286,13 @@ SMALL_TESTS_DEFAULT=true
 COVER_ENABLED_DEFAULT=true
 PRESET_ENABLED_DEFAULT=true
 
+PAUSE_BEFORE_BIG_TESTS=0
 BIG_TESTS=true
 BUILD_TESTS=true
+BUILD_MIM=true
+START_NODES=true
 STOP_NODES=true
-TLS_DIST=no
+TLS_DIST=false
 
 SELECTED_TESTS=()
 STOP_SCRIPT=false
@@ -300,6 +306,15 @@ do
 key="$1"
 
 case $key in
+    --pause)
+        shift # past argument
+        PAUSE_BEFORE_BIG_TESTS=15
+        if [ "$1" -gt 0 ] 2>/dev/null; then
+            PAUSE_BEFORE_BIG_TESTS="$1"
+            shift
+        fi
+    ;;
+
     --db)
         shift # past argument
         unset DB # We ignore env variable value
@@ -416,6 +431,17 @@ case $key in
         BUILD_TESTS=false
     ;;
 
+    --skip-build-mim)
+        shift # past argument
+        BUILD_MIM=false
+    ;;
+
+    --skip-start-nodes)
+        shift # past argument
+        START_NODES=false
+        BUILD_MIM=false
+    ;;
+
     --skip-stop-nodes)
         shift # past argument
         STOP_NODES=false
@@ -423,7 +449,7 @@ case $key in
 
     --tls-dist)
         shift # past argument
-        TLS_DIST=yes
+        TLS_DIST=true
     ;;
 
     --verbose)
@@ -526,6 +552,7 @@ if [ "$BIG_TESTS" = false ]; then
     DB=""
     DEV_NODES=""
     BUILD_TESTS=false
+    BUILD_MIM=false
 fi
 
 if [ "$DB_FROM_PRESETS" = true ]; then
@@ -567,6 +594,7 @@ export DB="${DB-$DBS_DEFAULT}"
 export DEV_NODES="${DEV_NODES-$DEV_NODES_DEFAULT}"
 export TEST_HOSTS="${TEST_HOSTS-$TEST_HOSTS_DEFAULT}"
 export BUILD_TESTS="$BUILD_TESTS"
+export BUILD_MIM="$BUILD_MIM"
 export TLS_DIST="$TLS_DIST"
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile
@@ -576,7 +604,9 @@ else
     export REBAR_CT_EXTRA_ARGS=""
 fi
 export TESTSPEC="auto_big_tests.spec"
+export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
+export PAUSE_BEFORE_BIG_TESTS="$PAUSE_BEFORE_BIG_TESTS"
 
 # Debug printing
 echo "Variables:"
@@ -588,9 +618,11 @@ echo "    SMALL_TESTS=$SMALL_TESTS"
 echo "    COVER_ENABLED=$COVER_ENABLED"
 echo "    PRESET_ENABLED=$PRESET_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
+echo "    BUILD_MIM=$BUILD_MIM"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
+echo "    START_NODES=$START_NODES"
 echo "    STOP_NODES=$STOP_NODES"
 echo ""
 
