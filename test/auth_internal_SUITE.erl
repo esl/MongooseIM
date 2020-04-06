@@ -56,8 +56,10 @@ passwords_in_plain_can_be_converted_to_scramed(_C) ->
                      sha := #{server_key := _, stored_key := _},
                      sha256 := #{server_key := _, stored_key := _}}}], AfterMigrationPlain),
     %% and the old scram format remains the same
-    AfterMigrationOldScram = mnesia:dirty_read({passwd, {U2, S2}}),
-    ?assertMatch([{passwd, _, {scram, _, _, _, _}}], AfterMigrationOldScram),
+    AfterMigrationScram = mnesia:dirty_read({passwd, {U2, S2}}),
+    ?assertMatch([{passwd, _,
+                 #{iteration_count := _, salt := _,
+                   sha := #{server_key := _, stored_key := _}}}], AfterMigrationScram),
     meck:unload().
 
 gen_user() ->
@@ -75,4 +77,3 @@ old_password_to_scram(Password, IterationCount) ->
            serverkey = base64:encode(ServerKey),
            salt = base64:encode(Salt),
            iterationcount = IterationCount}.
-
