@@ -178,7 +178,7 @@ get_scram_attributes(UserName, LServer, Sha) ->
     end.
 
 do_get_scram_attributes(#{salt := Salt, iteration_count := IterationCount} = Params, Sha) ->
-    #{Sha  := #{stored_key := StoredKey, server_key := ServerKey}} = Params,
+    #{Sha := #{stored_key := StoredKey, server_key := ServerKey}} = Params,
     {base64:decode(StoredKey), base64:decode(ServerKey),
      base64:decode(Salt), IterationCount};
 do_get_scram_attributes(Password, Sha) ->

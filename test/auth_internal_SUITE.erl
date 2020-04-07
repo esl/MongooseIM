@@ -6,7 +6,7 @@
 
 all() ->
     [passwords_as_records_are_still_supported,
-     passwords_in_plain_can_be_converted_to_scramed].
+     passwords_in_plain_can_be_converted_to_scram].
 
 init_per_suite(C) ->
     application:ensure_all_started(jid),
@@ -34,7 +34,7 @@ passwords_as_records_are_still_supported(_C) ->
     OldScram = mnesia:dirty_read({passwd, {U, S}}),
     ?assertMatch([{passwd, _, {scram, _, _, _, _}}], OldScram).
 
-passwords_in_plain_can_be_converted_to_scramed(_C) ->
+passwords_in_plain_can_be_converted_to_scram(_C) ->
     %% Given there in mnesia there are users
     %% with plain text password
     {U, S, P} = gen_user(),

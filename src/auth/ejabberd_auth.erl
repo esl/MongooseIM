@@ -69,7 +69,6 @@
 -type authmodule() :: module().
 -type passterm() :: binary() | mongoose_scram:scram_tuple() | mongoose_scram:scram_map().
 
-
 -define(METRIC(Name), [backends, auth, Name]).
 
 %%%----------------------------------------------------------------------

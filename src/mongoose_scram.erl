@@ -50,8 +50,8 @@
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
--define(SCRAM_SHA_PREFIX,     "===SHA1===").
--define(SCRAM_SHA256_PREFIX,  "==SHA256==").
+-define(SCRAM_SHA_PREFIX, "===SHA1===").
+-define(SCRAM_SHA256_PREFIX, "==SHA256==").
 
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
@@ -141,7 +141,7 @@ check_password(Password, ScramMap) when is_map(ScramMap) ->
     ClientStoredKey == base64:decode(StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
-                     salt = Salt, iterationcount = IterationCount})->
+                 salt = Salt, iterationcount = IterationCount})->
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
        StoredKey/binary, $,, ServerKey/binary,
@@ -162,7 +162,7 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
                    iteration_count => binary_to_integer(IterationCount),
                    sha => #{stored_key => StoredKey, server_key => ServerKey}}};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [Serialized]),
+            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [Serialized]),
             {error, incorrect_scram}
     end;
 deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
@@ -175,7 +175,7 @@ deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
                                      lists:flatten(DeserializedKeys)),
             {ok, maps:from_list(ResultList)};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [Serialized]),
+            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [Serialized]),
             {error, incorrect_scram}
     end;
 deserialize(Bin) ->
@@ -190,7 +190,7 @@ deserialize([{Sha, Prefix} | _RemainingSha],
         [StoredKey, ServerKey] ->
             {Sha, #{server_key => ServerKey, stored_key => StoredKey}};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [StoredServerKeys])
+            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [StoredServerKeys])
     end;
 deserialize([_CurrentSha | RemainingSha], ShaDetails) ->
     deserialize(RemainingSha, ShaDetails).
