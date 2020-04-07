@@ -101,9 +101,12 @@ mask(Key, Data) ->
     <<C:KeySize>>.
 
 enabled(Host) ->
-    PasswordFormat = ejabberd_auth:get_opt(Host, password_format),
-    ScramSha = proplists:get_value(scram, [PasswordFormat]),
-    PasswordFormat == scram orelse PasswordFormat == {scram, ScramSha}.
+    case ejabberd_auth:get_opt(Host, password_format) of
+        scram -> true;
+        {scram} -> true;
+        {scram, _ScramSha} -> true;
+        _ -> false
+    end.
 
 %% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
@@ -248,9 +251,12 @@ supported_sha_types() ->
 configured_sha_types(Host) ->
     PasswordFormat = ejabberd_auth:get_opt(Host, password_format),
     ScramSha = proplists:get_value(scram, [PasswordFormat]),
-    case PasswordFormat == scram orelse ScramSha == [] of
-        true -> supported_sha_types();
-        false ->
+    case ejabberd_auth:get_opt(Host, password_format) of
+        Scram when Scram == scram orelse Scram == {scram} ->
+            supported_sha_types();
+        {scram, []} ->
+            supported_sha_types();
+        {scram, ScramSha} ->
             lists:filter(fun({Sha, _Prefix}) ->
                             lists:member(Sha, ScramSha) end, supported_sha_types())
     end.
