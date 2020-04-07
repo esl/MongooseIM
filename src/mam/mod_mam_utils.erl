@@ -33,6 +33,9 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_archivable_message/4,
+         get_retract_id/1,
+         get_origin_id/1,
+         tombstone/2,
          wrap_message/6,
          wrap_message/7,
          result_set/4,
@@ -367,20 +370,18 @@ is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->
     Body       = exml_query:subelement(Packet, <<"body">>, false),
     ChatMarker = ArchiveChatMarkers
                  andalso has_chat_marker(Packet),
+    Retract    = get_retract_id(Packet) =/= none,
     %% Used in MAM
     Result     = exml_query:subelement(Packet, <<"result">>, false),
     %% Used in mod_offline
     Delay      = exml_query:subelement(Packet, <<"delay">>, false),
     %% Message Processing Hints (XEP-0334)
     NoStore    = exml_query:subelement(Packet, <<"no-store">>, false),
-    is_valid_message_children(Body, ChatMarker, Result, Delay, NoStore).
 
-%% Forwarded by MAM message, or just a message without body or chat marker
-is_valid_message_children(false, false, _,     _,     _    ) -> false;
-is_valid_message_children(_,     _,     false, false, false) -> true;
-%% Forwarded by MAM message or delivered by mod_offline
-%% See mam_SUITE:offline_message for a test case
-is_valid_message_children(_,     _,     _,    _,     _    ) -> false.
+    has_any([Body, ChatMarker, Retract]) andalso not has_any([Result, Delay, NoStore]).
+
+has_any(Elements) ->
+    lists:any(fun(El) -> El =/= false end, Elements).
 
 has_chat_marker(Packet) ->
     case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
@@ -389,6 +390,33 @@ has_chat_marker(Packet) ->
         #xmlel{name = <<"acknowledged">>} -> true;
         _                                 -> false
     end.
+
+get_retract_id(Packet) ->
+    case exml_query:subelement_with_ns(Packet, ?NS_FASTEN) of
+        El = #xmlel{name = <<"apply-to">>} ->
+            case exml_query:subelement_with_ns(El, ?NS_RETRACT) of
+                #xmlel{name = <<"retract">>} -> exml_query:attr(El, <<"id">>, none);
+                _ -> none
+            end;
+        _ -> none
+    end.
+
+get_origin_id(Packet) ->
+    exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
+                             {attr, <<"id">>}], none).
+
+tombstone(Packet, OriginID) ->
+    Packet#xmlel{children = [retracted_element(OriginID)]}.
+
+retracted_element(OriginID) ->
+    Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
+    #xmlel{name = <<"retracted">>,
+           attrs = [{<<"xmlns">>, ?NS_RETRACT},
+                    {<<"stamp">>, list_to_binary(Timestamp)}],
+           children = [#xmlel{name = <<"origin-id">>,
+                              attrs = [{<<"xmlns">>, ?NS_STANZAID},
+                                       {<<"id">>, OriginID}]}
+                      ]}.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),

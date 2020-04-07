@@ -34,7 +34,7 @@
          lookup_messages/2,
          remove_archive/4]).
 
--export([archive_message/9,
+-export([archive_message/10,
          archive_message_muc/9,
          lookup_messages/3,
          lookup_messages_muc/3]).
@@ -133,7 +133,7 @@ mam_bucket_type(Host) ->
 %% LocJID - archive owner's JID
 %% RemJID - interlocutor's JID
 %% SrcJID - "Real" sender JID
-archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
+archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _OriginID, _Dir, Packet) ->
     try
         archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
     catch _Type:Reason:StackTrace ->

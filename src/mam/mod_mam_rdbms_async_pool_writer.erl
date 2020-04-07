@@ -29,7 +29,7 @@
 -behaviour(mongoose_module_metrics).
 
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3]).
 
 %% Helpers for debugging
@@ -173,13 +173,13 @@ stop_worker(Proc) ->
 
 -spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
                       ArchiveID :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: atom(),
+                      RemJID :: jid:jid(), SrcJID :: jid:jid(), OriginID :: binary(), Dir :: atom(),
                       Packet :: any()) -> ok.
 archive_message(_Result, Host,
-                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet)
+                MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet)
         when is_integer(ArcID) ->
     Row = mod_mam_rdbms_arch:prepare_message(Host, MessID, ArcID, LocJID,
-                                            RemJID, SrcJID, Dir, Packet),
+                                            RemJID, SrcJID, OriginID, Dir, Packet),
 
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
