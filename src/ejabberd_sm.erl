@@ -32,6 +32,7 @@
          start_link/0,
          route/3,
          route/4,
+         run_in_all_sessions/3,
          open_session/3, open_session/4,
          close_session/4,
          store_info/2,
@@ -215,6 +216,13 @@ route(From, To, Acc, El) ->
                         ?MODULE, Reason, exml:to_binary(El), StackTrace]);
         Acc1 -> Acc1
     end.
+
+%% @doc runs remote hook in all active sessions of this user
+%% this is going to eventuall replace the infamous route({broadcast...
+-spec run_in_all_sessions(jid:jid(), atom(), term()) -> [term()].
+run_in_all_sessions(#jid{luser = LUser, lserver = LServer}, Tag, Args) ->
+    lists:map(fun({_, Pid}) -> ejabberd_c2s:run_remote_hook(Pid, Tag, Args) end,
+              get_user_present_pids(LUser, LServer)).
 
 -spec open_session(SID, JID, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),

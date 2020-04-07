@@ -157,6 +157,7 @@ store_session_info(FsmRef, JID, KV) ->
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
 
+-spec run_remote_hook(pid(), atom(), term()) -> term().
 run_remote_hook(Pid, HandlerName, Args) ->
     Pid ! {run_remote_hook, HandlerName, Args}.
 
@@ -2075,22 +2076,7 @@ presence_broadcast_first(Acc0, From, StateData, Packet) ->
                     ISubscription :: from | to | both | none,
                     State :: state()) -> {mongoose_acc:t(), state()}.
 roster_change(Acc, IJID, ISubscription, StateData) ->
-    {BecomeAvailable, BecomeUnavailable, NState} = mod_roster:roster_change(IJID, ISubscription, StateData),
-    From = StateData#state.jid,
-    To = jid:make(IJID),
-    case {BecomeAvailable, BecomeUnavailable} of
-        {true, _} ->
-            P = mod_roster:get_last_presence(StateData),
-            Acc1 = check_privacy_and_route_or_ignore(Acc, StateData, From, To, P, out),
-            {Acc1, NState};
-        {_, true} ->
-            PU = #xmlel{name = <<"presence">>,
-                        attrs = [{<<"type">>, <<"unavailable">>}]},
-            Acc1 = check_privacy_and_route_or_ignore(Acc, StateData, From, To, PU, out),
-            {Acc1, NState};
-        _ ->
-            {Acc, NState}
-    end.
+    {Acc, mod_roster:roster_change(IJID, ISubscription, StateData)}.
 
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
