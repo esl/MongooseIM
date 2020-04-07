@@ -642,3 +642,42 @@ CREATE TABLE muc_registered(
     nick VARCHAR(250)       NOT NULL,
     PRIMARY KEY (muc_host, luser, lserver)
 );
+
+-- from_jid, to_jid and thread have 250 characters in MySQL
+-- but here we are limited by index size (900 bytes)
+CREATE TABLE smart_markers (
+    from_jid NVARCHAR(150) NOT NULL,
+    to_jid NVARCHAR(150) NOT NULL,
+    thread NVARCHAR(145) NOT NULL,
+    -- chat marker types:
+    -- 'R' - received
+    -- 'D' - displayed
+    -- 'A' - acknowledged
+    type NVARCHAR(1) NOT NULL,
+    msg_id NVARCHAR(250) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    CONSTRAINT pk_smart_markers PRIMARY KEY CLUSTERED(
+            from_jid ASC,
+            to_jid ASC,
+            thread ASC,
+            type ASC
+        )
+);
+
+CREATE INDEX i_smart_markers ON smart_markers(to_jid, thread);
+
+-- jid, thread and room have 250 characters in MySQL
+-- but here we are limited by index size (900 bytes)
+CREATE TABLE offline_markers (
+    jid NVARCHAR(150) NOT NULL,
+    thread NVARCHAR(145) NOT NULL,
+    room NVARCHAR(150) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    CONSTRAINT pk_offline_markers PRIMARY KEY CLUSTERED(
+                jid ASC,
+                thread ASC,
+                room ASC
+        )
+);
+
+CREATE INDEX i_offline_markers ON offline_markers(jid);

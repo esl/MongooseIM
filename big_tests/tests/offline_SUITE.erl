@@ -22,6 +22,7 @@
 
 all() ->
     [{group, mod_offline_tests},
+     {group, chatmarkers},
      {group, with_groupchat}].
 
 all_tests() ->
@@ -32,9 +33,15 @@ all_tests() ->
      expired_messages_are_not_delivered,
      max_offline_messages_reached].
 
+chat_markers_tests() ->
+    [one2one_chatmarker_is_overriden_and_only_unique_markers_are_delivered,
+     room_chatmarker_is_overriden_and_only_unique_markers_are_delivered].
+
 groups() ->
     G = [{mod_offline_tests, [parallel], all_tests()},
-         {with_groupchat, [], [groupchat_message_is_stored]}],
+         {with_groupchat, [], [groupchat_message_is_stored]},
+         {chatmarkers, [], chat_markers_tests()}
+        ],
     ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
@@ -56,9 +63,23 @@ init_per_group(with_groupchat, C) ->
     Config = dynamic_modules:save_modules(domain(), C),
     dynamic_modules:ensure_modules(domain(), Modules),
     Config;
+init_per_group(chatmarkers, C) ->
+    case mongoose_helper:is_rdbms_enabled(domain())of
+        false ->  {skip, require_rdbms};
+    true->
+        Modules = [{mod_offline, [{store_groupchat_messages, true},
+                                  {backend, rdbms}]},
+                   {mod_offline_chatmarkers,[{store_groupchat_messages, true}]},
+                   {mod_muc_light, [{backend, rdbms}]}],
+        Config = dynamic_modules:save_modules(domain(), C),
+        dynamic_modules:ensure_modules(domain(), Modules),
+        Config
+    end;
+
 init_per_group(_, C) -> C.
 
-end_per_group(with_groupchat, C) ->
+end_per_group(Group, C) when Group =:= chatmarkers;
+                             Group =:= with_groupchat ->
     dynamic_modules:restore_modules(domain(), C),
     C;
 end_per_group(_, C) -> C.
@@ -113,20 +134,71 @@ groupchat_message_is_not_stored(Config) ->
 
 groupchat_message_is_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->
-                CreateRoomStanza = muc_light_helper:stanza_create_room(undefined, [],
-                                                                       [{Bob, member}]),
-                logout(FreshConfig, Bob),
-                escalus:send(Alice, CreateRoomStanza),
-                AffMsg = escalus:wait_for_stanza(Alice),
-                RoomJID = exml_query:attr(AffMsg, <<"from">>),
-                escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, <<"msgtxt">>)),
-                wait_for_n_offline_messages(Bob, 2),
-                NewBob = login_send_presence(FreshConfig, bob),
-                Stanzas = escalus:wait_for_stanzas(NewBob, 3),
-                escalus_new_assert:mix_match([is_presence, is_affiliation(),
-                                              is_groupchat(<<"msgtxt">>)],
-                                             Stanzas)
+        CreateRoomStanza = muc_light_helper:stanza_create_room(undefined, [],
+                                                               [{Bob, member}]),
+        logout(FreshConfig, Bob),
+        escalus:send(Alice, CreateRoomStanza),
+        AffMsg = escalus:wait_for_stanza(Alice),
+        RoomJID = exml_query:attr(AffMsg, <<"from">>),
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, <<"msgtxt">>)),
+        wait_for_n_offline_messages(Bob, 2),
+        NewBob = login_send_presence(FreshConfig, bob),
+        Stanzas = escalus:wait_for_stanzas(NewBob, 3),
+        escalus_new_assert:mix_match([is_presence, is_affiliation(),
+                                      is_groupchat(<<"msgtxt">>)],
+                                     Stanzas)
             end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
+
+one2one_chatmarker_is_overriden_and_only_unique_markers_are_delivered(Config) ->
+    Story =
+        fun(FreshConfig, Alice, Bob) ->
+            logout(FreshConfig, Bob),
+            escalus:send(Alice, one2one_chatmarker(Bob, <<"received">>, <<"123">>)),
+            escalus:send(Alice, one2one_chatmarker(Bob, <<"received">>, <<"321">>)),
+            escalus:send(Alice, one2one_chatmarker(Bob, <<"received">>, <<"322">>, <<"t1">>)),
+            escalus:send(Alice, one2one_chatmarker(Bob, <<"received">>, <<"323">>, <<"t1">>)),
+            escalus:send(Alice, one2one_chatmarker(Bob, <<"displayed">>, <<"319">>)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"msgtxt">>)),
+            wait_for_n_offline_messages(Bob, 1),
+            NewBob = login_send_presence(FreshConfig, bob),
+            Stanzas = escalus:wait_for_stanzas(NewBob, 6), %only 5 messages must be received
+            escalus_new_assert:mix_match(
+                [is_presence, is_chat(<<"msgtxt">>),
+                 is_one2one_chatmarker(<<"received">>, <<"321">>),
+                 is_one2one_chatmarker(<<"received">>, <<"323">>, <<"t1">>),
+                 is_one2one_chatmarker(<<"displayed">>, <<"319">>)],
+                Stanzas)
+        end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
+
+room_chatmarker_is_overriden_and_only_unique_markers_are_delivered(Config) ->
+    Story =
+        fun(FreshConfig, Alice, Bob) ->
+            CreateRoomStanza = muc_light_helper:stanza_create_room(undefined, [],
+                                                                   [{Bob, member}]),
+            escalus:send(Alice, CreateRoomStanza),
+            AffMsg = escalus:wait_for_stanza(Alice),
+            RoomJID = exml_query:attr(AffMsg, <<"from">>),
+            AffMsg2 = escalus:wait_for_stanza(Bob),
+            RoomJID = exml_query:attr(AffMsg2, <<"from">>),
+            logout(FreshConfig, Bob),
+            escalus:send(Alice, room_chatmarker(RoomJID, <<"received">>, <<"123">>)),
+            escalus:send(Alice, room_chatmarker(RoomJID, <<"received">>, <<"321">>)),
+            escalus:send(Alice, room_chatmarker(RoomJID, <<"received">>, <<"322">>, <<"t1">>)),
+            escalus:send(Alice, room_chatmarker(RoomJID, <<"received">>, <<"323">>, <<"t1">>)),
+            escalus:send(Alice, room_chatmarker(RoomJID, <<"displayed">>, <<"319">>)),
+            escalus:send(Alice, escalus_stanza:groupchat_to(RoomJID, <<"msgtxt">>)),
+            wait_for_n_offline_messages(Bob, 1),
+            NewBob = login_send_presence(FreshConfig, bob),
+            Stanzas = escalus:wait_for_stanzas(NewBob, 6), %only 5 messages must be received
+            escalus_new_assert:mix_match(
+                [is_presence, is_groupchat(<<"msgtxt">>),
+                 is_room_chatmarker(<<"received">>, <<"321">>),
+                 is_room_chatmarker(<<"received">>, <<"323">>, <<"t1">>),
+                 is_room_chatmarker(<<"displayed">>, <<"319">>)],
+                Stanzas)
+        end,
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
 headline_message_is_not_stored(Config) ->
@@ -193,6 +265,26 @@ expired_messages_are_not_delivered(Config) ->
 %%% Custom predicates
 %%%===================================================================
 
+room_chatmarker(RoomJID, MarkerType, MessageId) ->
+    ChatMarker = escalus_stanza:chat_marker(RoomJID, MarkerType, MessageId),
+    escalus_stanza:setattr(ChatMarker, <<"type">>, <<"groupchat">>).
+
+room_chatmarker(RoomJID, MarkerType, MessageId, ThreadID) ->
+    ChatMarker = room_chatmarker(RoomJID, MarkerType, MessageId),
+    add_thread_id(ChatMarker, ThreadID).
+
+one2one_chatmarker(RecipientJID, MarkerType, MessageId) ->
+    escalus_stanza:chat_marker(RecipientJID, MarkerType, MessageId).
+
+one2one_chatmarker(RecipientJID, MarkerType, MessageId, ThreadID) ->
+    ChatMarker = one2one_chatmarker(RecipientJID, MarkerType, MessageId),
+    add_thread_id(ChatMarker, ThreadID).
+
+add_thread_id(#xmlel{children = Children} = ChatMarker, ThreadID) ->
+    ThreadEl = #xmlel{name = <<"thread">>,
+                      children = [#xmlcdata{content = ThreadID}]},
+    ChatMarker#xmlel{children = [ThreadEl | Children]}.
+
 is_chat(Content) ->
     fun(Stanza) ->
         escalus_pred:is_chat_message(Content, Stanza) andalso
@@ -210,6 +302,37 @@ is_affiliation() ->
         has_element_with_ns(Stanza, <<"x">>, ?AFFILIATION_NS) andalso
         has_element_with_ns(Stanza, <<"delay">>, ?DELAY_NS)
     end.
+
+is_one2one_chatmarker(Marker, Id) ->
+    is_one2one_chatmarker(Marker, Id, undefined).
+
+is_one2one_chatmarker(Marker, Id, ThreadID) ->
+    fun(Stanza) ->
+        is_chatmarker(Stanza, Marker, undefined, Id, ThreadID)
+    end.
+
+is_room_chatmarker(Marker, Id) ->
+    is_room_chatmarker(Marker, Id, undefined).
+
+is_room_chatmarker(Marker, Id, ThreadID) ->
+    fun(Stanza) ->
+        is_chatmarker(Stanza, Marker, <<"groupchat">>, Id, ThreadID)
+    end.
+
+is_chatmarker(Stanza, Marker, Type, Id, ThreadID) ->
+    try
+        escalus_pred:is_chat_marker(Marker, Id, Stanza) andalso
+            escalus_pred:has_type(Type, Stanza) andalso
+            has_thread_id(Stanza, ThreadID)
+    catch
+        _:_ -> false
+
+    end.
+
+has_thread_id(Stanza, undefined) ->
+    undefined =:= exml_query:subelement(Stanza, <<"thread">>);
+has_thread_id(Stanza, ThreadID) ->
+    ThreadID == exml_query:path(Stanza, [{element, <<"thread">>}, cdata]).
 
 has_element_with_ns(Stanza, Element, NS) ->
     [] =/= exml_query:subelements_with_name_and_ns(Stanza, Element, NS).

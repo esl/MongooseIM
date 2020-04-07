@@ -251,7 +251,7 @@ process_decoded_packet(From, To, {ok, #iq{} = IQ}, Acc, OrigPacket) ->
 process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, Acc, OrigPacket)
   when RoomU =/= <<>> ->
     case mod_muc_light_db_backend:room_exists(jid:to_lus(To)) of
-        true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom);
+        true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom, Acc);
         false -> mod_muc_light_codec_backend:encode_error(
                    {error, item_not_found}, From, To, OrigPacket, make_handler_fun(Acc))
     end;

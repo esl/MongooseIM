@@ -24,7 +24,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_request/4, maybe_forget/2, process_request/4]).
+-export([handle_request/5, maybe_forget/2, process_request/4]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
@@ -39,13 +39,13 @@
 %% API
 %%====================================================================
 
--spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(),
-                     OrigPacket :: exml:element(), Request :: muc_light_packet()) -> ok.
-handle_request(From, To, OrigPacket, Request) ->
+-spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
+                     Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> ok.
+handle_request(From, To, OrigPacket, Request, Acc) ->
     RoomUS = jid:to_lus(To),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
-    send_response(From, To, RoomUS, OrigPacket, Response).
+    send_response(From, To, RoomUS, OrigPacket, Response, Acc).
 
 -spec maybe_forget(RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
 maybe_forget({RoomU, RoomS} = RoomUS, []) ->
@@ -223,14 +223,24 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
 
 -spec send_response(From :: jid:jid(), RoomJID :: jid:jid(),
                     RoomUS :: jid:simple_bare_jid(), OrigPacket :: exml:element(),
-                    Result :: packet_processing_result()) -> ok.
-send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
+                    Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> ok.
+send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err, _Acc) ->
     mod_muc_light_codec_backend:encode_error(
       Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
-send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->
-    mod_muc_light_codec_backend:encode(Response, From, RoomUS, fun ejabberd_router:route/3).
+send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response, Acc) ->
+    mod_muc_light_codec_backend:encode(Response, From, RoomUS, make_handler_fun(Acc)).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
+make_handler_fun(Acc) ->
+    fun(From, To, Packet) ->
+        NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                     lserver => From#jid.lserver,
+                                     element => Packet,
+                                     from_jid => From,
+                                     to_jid => To}),
+        PermanentFields = mongoose_acc:get_permanent_fields(Acc),
+        NewAcc = mongoose_acc:set_permanent(PermanentFields, NewAcc0),
+        ejabberd_router:route(From, To, NewAcc, Packet)
+    end.

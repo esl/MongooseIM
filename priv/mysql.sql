@@ -475,3 +475,29 @@ CREATE TABLE mongoose_cluster_id (
     k varchar(50) PRIMARY KEY,
     v text
 );
+
+CREATE TABLE smart_markers (
+    from_jid VARCHAR(250) NOT NULL,
+    to_jid VARCHAR(250) NOT NULL,
+    thread VARCHAR(250) NOT NULL,
+    -- 'R' - received
+    -- 'D' - displayed
+    -- 'A' - acknowledged
+    type ENUM('R', 'D', 'A') NOT NULL,
+    msg_id VARCHAR(250) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    PRIMARY KEY(from_jid, to_jid, thread, type)
+) CHARACTER SET utf8mb4;
+
+CREATE INDEX i_smart_markers USING BTREE ON smart_markers(to_jid, thread);
+
+
+CREATE TABLE offline_markers (
+    jid VARCHAR(250) NOT NULL,
+    thread VARCHAR(250) NOT NULL,
+    room VARCHAR(250) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    PRIMARY KEY(jid, thread, room)
+) CHARACTER SET utf8mb4;
+
+CREATE INDEX i_offline_markers ON offline_markers(jid);
