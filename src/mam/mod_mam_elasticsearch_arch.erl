@@ -27,7 +27,7 @@
 -export([stop/1]).
 
 %% ejabberd_gen_mam_archive callbacks
--export([archive_message/9]).
+-export([archive_message/10]).
 -export([lookup_messages/3]).
 -export([remove_archive/4]).
 -export([archive_size/4]).
@@ -72,7 +72,7 @@ get_mam_pm_gdpr_data(Acc, Owner) ->
 %% ejabberd_gen_mam_archive callbacks
 %%-------------------------------------------------------------------
 
-archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJid, _Dir, Packet) ->
+archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJid, _OriginID, _Dir, Packet) ->
     Owner = mod_mam_utils:bare_jid(LocalJid),
     Remote = mod_mam_utils:bare_jid(RemoteJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),

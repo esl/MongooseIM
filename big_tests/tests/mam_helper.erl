@@ -485,13 +485,13 @@ parse_children_message_result_forwarded_message(#xmlel{name = <<"x">>,
     M#forwarded_message{has_x_user_element = IsUser,
                         message_xs = [XEl | M#forwarded_message.message_xs]};
 %% Parse `<archived />' or chat markers.
-parse_children_message_result_forwarded_message(MaybeChatMarker, M) ->
-    case exml_query:attr(MaybeChatMarker, <<"xmlns">>) of
+parse_children_message_result_forwarded_message(Elem, M) ->
+    case exml_query:attr(Elem, <<"xmlns">>) of
         ?NS_CHAT_MARKERS ->
-            M#forwarded_message{ chat_marker = MaybeChatMarker#xmlel.name };
+            M#forwarded_message{ chat_marker = Elem#xmlel.name };
         _ ->
             % Not relevant
-            M
+            M#forwarded_message{ message_children = [Elem | M#forwarded_message.message_children] }
     end.
 
 %% Num is 1-based.

@@ -91,7 +91,7 @@
          mam_get_prefs/4,
          mam_remove_archive/4,
          mam_lookup_messages/3,
-         mam_archive_message/9]).
+         mam_archive_message/10]).
 
 -export([mam_muc_archive_id/3,
          mam_muc_archive_size/4,
@@ -1024,7 +1024,7 @@ mam_lookup_messages(HookServer, InitialValue, Params) ->
                             [HookServer, Params]).
 
 %%% @doc The `mam_archive_message' hook is called in order to store the message in the archive.
--spec mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+-spec mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
     Result when
     HookServer :: jid:lserver(),
     InitialValue :: ok,
@@ -1033,13 +1033,14 @@ mam_lookup_messages(HookServer, InitialValue, Params) ->
     OwnerJID :: jid:jid(),
     RemoteJID :: jid:jid(),
     SenderJID :: jid:jid(),
+    OriginID :: binary(),
     Dir :: incoming | outgoing,
     Packet :: term(),
     Result :: ok | {error, timeout}.
-mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, Dir, Packet) ->
+mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_archive_message, HookServer, InitialValue,
                             [HookServer, MessageID, ArchiveID, OwnerJID,
-                             RemoteJID, SenderJID, Dir, Packet]).
+                             RemoteJID, SenderJID, OriginID, Dir, Packet]).
 
 
 %% MAM MUC related hooks

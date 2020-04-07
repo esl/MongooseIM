@@ -21,14 +21,14 @@
 -callback decode(binary()) -> term().
 
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
 -export([get_mam_pm_gdpr_data/2]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/8, prepare_insert/2]).
+-export([prepare_message/9, prepare_insert/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -152,39 +152,77 @@ index_hint_sql(Host) ->
 -spec archive_message(_Result, Host :: jid:server(),
                       MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
                       LocJID :: jid:jid(), RemJID :: jid:jid(),
-                      SrcJID :: jid:jid(), Dir :: atom(), Packet :: any()) -> ok.
+                      SrcJID :: jid:jid(), OriginID :: binary(),
+                      Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
-                LocJID, RemJID, SrcJID, Dir, Packet) when is_integer(UserID) ->
+                LocJID, RemJID, SrcJID, OriginID, Dir, Packet) when is_integer(UserID) ->
     try
         do_archive_message(Result, Host, MessID, UserID,
-                           LocJID, RemJID, SrcJID, Dir, Packet)
+                           LocJID, RemJID, SrcJID, OriginID, Dir, Packet)
     catch _Type:Reason:StackTrace ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
-                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
+                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p'stacktrace=~p",
                        [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
                         Reason, StackTrace]),
             {error, Reason}
     end.
 
-do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = prepare_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet),
+do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
+    Row = prepare_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
+    case mod_mam_utils:get_retract_id(Packet) of
+        none -> ok;
+        OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
+    end.
+
+retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
+    SUserID = use_escaped_integer(escape_user_id(UserID)),
+    SOriginID = use_escaped_string(escape_string(OriginID)),
+    Query = query_for_messages_to_retract(Host, SUserID, LocJID, RemJID, SOriginID, Dir),
+    {selected, [{BMessID, SDataRaw}]} = mod_mam_utils:success_sql_query(Host, Query),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Packet = stored_binary_to_packet(Host, Data),
+    Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
+    TombstoneData = packet_to_stored_binary(Host, Tombstone),
+    STombstoneData = mongoose_rdbms:use_escaped_binary(
+                       mongoose_rdbms:escape_binary(Host, TombstoneData)),
+    UpdateQuery = query_to_make_tombstone(STombstoneData, SUserID, BMessID),
+    {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery),
     ok.
 
+query_for_messages_to_retract(_Host, SUserID, _LocJID, _RemJID, SOriginID, outgoing) ->
+    ["SELECT id, message FROM mam_message"
+     " WHERE user_id = ", SUserID, " AND origin_id = ", SOriginID, " AND DIRECTION = 'O'"
+     " ORDER BY id DESC LIMIT 1"];
+query_for_messages_to_retract(Host, SUserID, LocJID, RemJID, SOriginID, incoming) ->
+    SBareRemJID = use_escaped_string(minify_and_escape_bare_jid(Host, LocJID, RemJID)),
+    ["SELECT id, message FROM mam_message"
+     " WHERE user_id = ", SUserID, " AND origin_id = ", SOriginID,
+     " AND remote_bare_jid = ", SBareRemJID, " AND DIRECTION = 'I'"
+     " ORDER BY id DESC LIMIT 1"].
+
+query_to_make_tombstone(STombstoneData, SUserID, BMessID) ->
+    ["UPDATE mam_message SET message = ", STombstoneData, ", search_body = '' "
+     "WHERE user_id = ", SUserID, " AND id = '", BMessID, "'"].
+
 prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
-                SrcJID, Dir, Packet) ->
+                SrcJID, OriginID, Dir, Packet) ->
     SBareRemJID = jid_to_stored_binary(Host, LocJID, jid:to_bare(RemJID)),
     SSrcJID = jid_to_stored_binary(Host, LocJID, SrcJID),
     SDir = encode_direction(Dir),
+    SOriginID = case OriginID of
+                    none -> null;
+                    _ -> OriginID
+                end,
     Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
-    [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, Data, TextBody].
+    [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, SOriginID, Data, TextBody].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
     Table = mam_message,
     Fields = [id, user_id, remote_bare_jid, remote_resource,
-              direction, from_jid, message, search_body],
+              direction, from_jid, origin_id, message, search_body],
     Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.

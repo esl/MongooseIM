@@ -205,12 +205,17 @@ CREATE TABLE mam_message(
   -- Term-encoded message packet
   message bytea NOT NULL,
   search_body text,
+  origin_id varchar(250),
   PRIMARY KEY(user_id, id)
 );
 CREATE INDEX i_mam_message_username_jid_id
     ON mam_message
     USING BTREE
     (user_id, remote_bare_jid, id);
+CREATE INDEX i_mam_message_origin_id
+    ON mam_message
+    USING BTREE
+    (user_id, origin_id);
 
 CREATE TABLE mam_config(
   user_id INT NOT NULL,
