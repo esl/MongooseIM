@@ -144,7 +144,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
                        `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
 
         * **auth_password_format**
-             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently, the popular XMPP clients support the SCRAM method. It is strongly recommended to use the hashed version. SCRAM hashing with use of the SHA-1 and SHA-256 is supported. Hashing algorithms can be provided as an argument. This will result in storing and supporting only hashes specified in the configuration. The older XMPP clients can still use `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
+             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version. MongooseIM supports SCRAM hashing, either SHA-1 or SHA-256 can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration. The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha256]}` are equivalent configurations)
              * **Default:** `plain` (for compatibility reasons, might change soon)
 
