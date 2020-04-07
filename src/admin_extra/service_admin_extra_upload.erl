@@ -33,7 +33,12 @@ commands() -> [
          {PutURL :: binary(), GetURL :: binary(), Headers :: [{binary(), binary()}]}.
 get_urls(Host, Filename, Size, <<"">>, Timeout) ->
     get_urls(Host, Filename, Size, undefined, Timeout);
-get_urls(Host, Filename, Size, ContentType, Timeout) ->
+get_urls(_Host, _Filename, _Size, _ContentType, _Timeout) ->
     {PutURL, GetURL, Header} =
-        mod_http_upload:get_urls(Host, Filename, Size, ContentType, Timeout),
+        %mod_http_upload:get_urls(Host, Filename, Size, ContentType, Timeout),
+        { %% test values, taken from XEP-363
+          <<"https://upload.montague.tld/4a771ac1-f0b2-4a4a-9700-f2a26fa2bb67/tr%C3%A8s%20cool.jpg">>,
+          <<"https://download.montague.tld/4a771ac1-f0b2-4a4a-9700-f2a26fa2bb67/tr%C3%A8s%20cool.jpg">>,
+          #{<<"Authorization">> => <<"Basic Base64String==">>,
+            <<"Cookie">> => <<"foo=bar; user=romeo">>} },
     {PutURL, GetURL, maps:to_list(Header)}.
