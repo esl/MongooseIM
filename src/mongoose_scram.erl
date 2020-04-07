@@ -243,14 +243,9 @@ supported_sha_types() ->
      {sha256,   <<?SCRAM_SHA256_PREFIX>>}].
 
 configured_sha_types(Host) ->
-    PasswordFormat = ejabberd_auth:get_opt(Host, password_format),
-    ScramSha = proplists:get_value(scram, [PasswordFormat]),
-    case ejabberd_auth:get_opt(Host, password_format) of
-        scram ->
-            supported_sha_types();
-        {scram, []} ->
-            supported_sha_types();
-        {scram, ScramSha} ->
+    case catch ejabberd_auth:get_opt(Host, password_format) of
+        {scram, ScramSha} when length(ScramSha) > 0 ->
             lists:filter(fun({Sha, _Prefix}) ->
-                            lists:member(Sha, ScramSha) end, supported_sha_types())
+                            lists:member(Sha, ScramSha) end, supported_sha_types());
+        _ -> supported_sha_types()
     end.
