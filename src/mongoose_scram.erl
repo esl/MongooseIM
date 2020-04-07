@@ -103,7 +103,6 @@ mask(Key, Data) ->
 enabled(Host) ->
     case ejabberd_auth:get_opt(Host, password_format) of
         scram -> true;
-        {scram} -> true;
         {scram, _ScramSha} -> true;
         _ -> false
     end.
@@ -114,12 +113,12 @@ iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 iterations(Host) ->
     ejabberd_auth:get_opt(Host, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
-password_to_scram(Password, Host) ->
-    password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT, Host).
+password_to_scram(Host, Password) ->
+    password_to_scram(Host, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
-password_to_scram(#scram{} = Password, _, _) ->
+password_to_scram(_, #scram{} = Password, _) ->
     scram_record_to_map(Password);
-password_to_scram(Password, IterationCount, Host) ->
+password_to_scram(Host, Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     ServerStoredKeys = [password_to_scram(Password, Salt, IterationCount, HashType)
                             || {HashType, _Prefix} <- configured_sha_types(Host)],
@@ -247,7 +246,7 @@ configured_sha_types(Host) ->
     PasswordFormat = ejabberd_auth:get_opt(Host, password_format),
     ScramSha = proplists:get_value(scram, [PasswordFormat]),
     case ejabberd_auth:get_opt(Host, password_format) of
-        Scram when Scram == scram orelse Scram == {scram} ->
+        scram ->
             supported_sha_types();
         {scram, []} ->
             supported_sha_types();
