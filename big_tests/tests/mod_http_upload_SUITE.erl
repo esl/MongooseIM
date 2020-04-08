@@ -279,7 +279,7 @@ escapes_urls_once(Config) ->
               Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
                                                    undefined, Namespace),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun url_contains/4, [<<"put">>, <<"&x-amz-acl=public-read">>, Namespace], Result)
+              escalus:assert(fun url_contains/4, [<<"put">>, <<"%3Bx-amz-acl">>, Namespace], Result)
       end).
 
 %%--------------------------------------------------------------------
