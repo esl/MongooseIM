@@ -34,9 +34,14 @@ get_urls(_Host, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0->
 get_urls(Host, Filename, Size, <<"">>, Timeout) ->
     get_urls(Host, Filename, Size, undefined, Timeout);
 get_urls(Host, Filename, Size, ContentType, Timeout) ->
-    {PutURL, GetURL, Header} =
-        mod_http_upload:get_urls(Host, Filename, Size, ContentType, Timeout),
-    {ok, generate_output_message(PutURL, GetURL, Header)}.
+    case gen_mod:is_loaded(Host, mod_http_upload) of
+        true ->
+            {PutURL, GetURL, Header} =
+                mod_http_upload:get_urls(Host, Filename, Size, ContentType, Timeout),
+            {ok, generate_output_message(PutURL, GetURL, Header)};
+        false ->
+            {error, "mod_http_upload is not loaded for this host"}
+    end.
 
 -spec generate_output_message(PutURL :: binary(), GetURL :: binary(),
                               Headers :: #{binary() => binary()}) -> string().
