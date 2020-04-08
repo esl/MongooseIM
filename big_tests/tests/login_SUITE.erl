@@ -39,6 +39,7 @@ all() ->
     [
      {group, login},
      {group, login_scram},
+     {group, configure_sha256},
      {group, login_scram_store_plain},
      {group, messages}
     ].
@@ -46,12 +47,16 @@ all() ->
 groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
+         {configure_sha256, [pallarel], configure_sha256_test()},
          {login_scram_store_plain, [parallel], scram_tests()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
     [log_one, log_one_scram, log_one_scram_256].
+
+configure_sha256_test() ->
+    [configure_sha256_log_with_sha256].
 
 all_tests() ->
     [log_one,
@@ -78,7 +83,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) when
-      GroupName == login_scram; GroupName == login_scram_store_plain ->
+      GroupName == login_scram;
+      GroupName == configure_sha256;
+      GroupName == login_scram_store_plain ->
     case mongoose_helper:supports_sasl_module(cyrsasl_scram) of
         false ->
             {skip, "scram password type not supported"};
@@ -153,6 +160,9 @@ log_one_scram(Config) ->
 log_one_scram_256(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
 
+configure_sha256_log_with_sha256(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
+
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
     #xmlel{name = <<"failure">>} = Xmlel,
@@ -222,10 +232,10 @@ set_store_password(Type) ->
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
     rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
 
-
-
 config_password_format(login_scram) ->
     set_store_password(scram);
+config_password_format(configure_sha256) ->
+    set_store_password({scram, [sha256]});
 config_password_format(_) ->
     set_store_password(plain).
 
@@ -242,7 +252,12 @@ verify_format(GroupName, {_User, Props}) ->
     SPassword = rpc(mim(), ejabberd_auth, get_password, [Username, Server]),
     do_verify_format(GroupName, Password, SPassword).
 
+
 do_verify_format(login_scram, _Password, #{salt := _S, iteration_count := _IC}) ->
+    true;
+do_verify_format(configure_sha256, _Pass, #{salt := _S, iteration_count := _IC,
+                                            sha256 := #{stored_key := _StK,
+                                                        server_key := _SvK}}) ->
     true;
 do_verify_format(login_scram, _Password, SPassword) ->
     %% returned password is a tuple containing scram data

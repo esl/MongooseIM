@@ -18,8 +18,8 @@
          enabled/1,
          iterations/0,
          iterations/1,
-         password_to_scram/1,
          password_to_scram/2,
+         password_to_scram/3,
          check_password/2,
          check_digest/4
         ]).
@@ -101,7 +101,11 @@ mask(Key, Data) ->
     <<C:KeySize>>.
 
 enabled(Host) ->
-    ejabberd_auth:get_opt(Host, password_format) == scram.
+    case ejabberd_auth:get_opt(Host, password_format) of
+        scram -> true;
+        {scram, _ScramSha} -> true;
+        _ -> false
+    end.
 
 %% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
@@ -109,15 +113,15 @@ iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 iterations(Host) ->
     ejabberd_auth:get_opt(Host, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
-password_to_scram(Password) ->
-    password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
+password_to_scram(Host, Password) ->
+    password_to_scram(Host, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
-password_to_scram(#scram{} = Password, _) ->
+password_to_scram(_, #scram{} = Password, _) ->
     scram_record_to_map(Password);
-password_to_scram(Password, IterationCount) ->
+password_to_scram(Host, Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     ServerStoredKeys = [password_to_scram(Password, Salt, IterationCount, HashType)
-                            || {HashType, _Prefix} <- supported_sha_types()],
+                            || {HashType, _Prefix} <- configured_sha_types(Host)],
     ResultList = lists:merge([{salt, base64:encode(Salt)},
                               {iteration_count, IterationCount}], ServerStoredKeys),
     maps:from_list(ResultList).
@@ -134,7 +138,8 @@ check_password(Password, Scram) when is_record(Scram, scram)->
     check_password(Password, ScramMap);
 check_password(Password, ScramMap) when is_map(ScramMap) ->
     #{salt := Salt, iteration_count := IterationCount} = ScramMap,
-    [Sha | _] = [ShaKey || {ShaKey, _Prefix} <- supported_sha_types(),  maps:is_key(ShaKey, ScramMap)],
+    [Sha | _] = [ShaKey || {ShaKey, _Prefix} <- supported_sha_types(),
+                                                maps:is_key(ShaKey, ScramMap)],
     #{Sha := #{stored_key := StoredKey}} = ScramMap,
     SaltedPassword = salted_password(Sha, Password, base64:decode(Salt), IterationCount),
     ClientStoredKey = stored_key(Sha, client_key(Sha, SaltedPassword)),
@@ -146,14 +151,20 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
        StoredKey/binary, $,, ServerKey/binary,
        $,, Salt/binary, $,, IterationCountBin/binary>>;
-serialize(#{salt   := Salt, iteration_count := IterationCount,
-            sha    := #{server_key := ShaServerKey, stored_key := ShaStoredKey},
-            sha256 := #{server_key := Sha256ServerKey, stored_key :=  Sha256StoredKey}}) ->
+serialize(#{salt   := Salt, iteration_count := IterationCount} = ScramMap) ->
     IterationCountBin = integer_to_binary(IterationCount),
-    << <<?MULTI_SCRAM_SERIAL_PREFIX>>/binary,
-    Salt/binary, $,, IterationCountBin/binary, $,,
-    <<?SCRAM_SHA_PREFIX>>/binary, ShaStoredKey/binary, $|, ShaServerKey/binary, $,,
-    <<?SCRAM_SHA256_PREFIX>>/binary, Sha256StoredKey/binary, $|, Sha256ServerKey/binary >>.
+    ConfigedSha = [{ShaKey, Prefix} || {ShaKey, Prefix} <- supported_sha_types(),
+                                                           maps:is_key(ShaKey, ScramMap)],
+    Header = [?MULTI_SCRAM_SERIAL_PREFIX, Salt, $, , IterationCountBin],
+    do_serialize(Header, ScramMap, ConfigedSha).
+
+do_serialize(Serialized, _ ,[]) ->
+    erlang:iolist_to_binary(Serialized);
+do_serialize(Header, ScramMap, [{Sha, Prefix} | RemainingSha]) ->
+    #{Sha := #{server_key := ServerKey, stored_key := StoredKey}} = ScramMap,
+    ShaSerialization = [$, , Prefix, StoredKey, $|, ServerKey],
+    NewHeader = [Header | ShaSerialization],
+    do_serialize(NewHeader, ScramMap, RemainingSha).
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
@@ -230,3 +241,11 @@ do_check_digest([{Sha,_Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Pas
 supported_sha_types() ->
     [{sha,      <<?SCRAM_SHA_PREFIX>>},
      {sha256,   <<?SCRAM_SHA256_PREFIX>>}].
+
+configured_sha_types(Host) ->
+    case catch ejabberd_auth:get_opt(Host, password_format) of
+        {scram, ScramSha} when length(ScramSha) > 0 ->
+            lists:filter(fun({Sha, _Prefix}) ->
+                            lists:member(Sha, ScramSha) end, supported_sha_types());
+        _ -> supported_sha_types()
+    end.

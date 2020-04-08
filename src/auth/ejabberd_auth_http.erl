@@ -94,7 +94,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
 -spec set_password(jid:luser(), jid:lserver(), binary()) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(LServer) of
-                        true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(
+                        true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(LServer,
                                                   Password, mongoose_scram:iterations(LServer)));
                         false -> Password
                     end,
@@ -108,7 +108,7 @@ set_password(LUser, LServer, Password) ->
     ok | {error, exists | not_allowed}.
 try_register(LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(LServer) of
-                        true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(
+                        true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(LServer,
                                                   Password, mongoose_scram:iterations(LServer)));
                         false -> Password
                     end,

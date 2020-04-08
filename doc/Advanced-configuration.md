@@ -140,12 +140,12 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Examples:** `rdbms`, `[internal, anonymous]`
 
 * **auth_opts** (local)
-    * **Description:** Provides different parameters that will be applied to a choosen authentication method.
+    * **Description:** Provides different parameters that will be applied to a chosen authentication method.
                        `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
 
         * **auth_password_format**
-             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
-             * **Values:** `plain`, `scram`
+             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version. MongooseIM supports SCRAM hashing, either SHA-1 or SHA-256 can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration. The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
+             * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha256]}` are equivalent configurations)
              * **Default:** `plain` (for compatibility reasons, might change soon)
 
         * **auth_scram_iterations**
@@ -223,7 +223,7 @@ There are some additional options that influence all database connections in the
 
 ### Traffic shapers
 
-* **shaper** (mutli, global)
+* **shaper** (multi, global)
     * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 

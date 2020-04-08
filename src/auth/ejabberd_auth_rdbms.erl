@@ -359,10 +359,13 @@ remove_user(LUser, LServer) ->
 %%% SCRAM
 %%%------------------------------------------------------------------
 
--spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
-    prepared_scrammed_password().
-prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+-spec prepare_scrammed_password(Server, Iterations, Password) ->
+    prepared_scrammed_password() when
+        Server :: jid:lserver(),
+        Iterations :: pos_integer(),
+        Password :: binary().
+prepare_scrammed_password(Server, Iterations, Password) when is_integer(Iterations) ->
+    Scram = mongoose_scram:password_to_scram(Server, Password, Iterations),
     PassDetails = mongoose_scram:serialize(Scram),
     PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
     EmptyPassword = mongoose_rdbms:escape_string(<<>>),
@@ -374,7 +377,7 @@ prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
 prepare_password(Server, Password) ->
     case mongoose_scram:enabled(Server) of
         true ->
-            prepare_scrammed_password(mongoose_scram:iterations(Server), Password);
+            prepare_scrammed_password(Server, mongoose_scram:iterations(Server), Password);
         _ ->
             mongoose_rdbms:escape_string(Password)
     end.
@@ -402,9 +405,10 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
             ?INFO_MSG("Scramming ~p users...", [length(Results)]),
             lists:foreach(
               fun({Username, Password}) ->
-                      ScrammedPassword = prepare_scrammed_password(ScramIterationCount,
-                                                                   Password),
-                      write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
+                ScrammedPassword = prepare_scrammed_password(LServer,
+                                                             ScramIterationCount,
+                                                             Password),
+                write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
               end, Results),
             ?INFO_MSG("Scrammed. Waiting for ~pms", [Interval]),
             timer:sleep(Interval),
