@@ -1345,9 +1345,6 @@ handle_routed_iq(_From, _To, Acc, IQ, StateData)
                               Broadcast :: broadcast_type(),
                               StateData :: state()) ->
     {mongoose_acc:t(), broadcast_result()}.
-handle_routed_broadcast(Acc, {item, IJID, ISubscription}, StateData) ->
-    {Acc2, NewState} = roster_change(Acc, IJID, ISubscription, StateData),
-    {Acc2, {new_state, NewState}};
 handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
     case mongoose_hooks:privacy_updated_list(StateData#state.server,
                                  false, StateData#state.privacy_list, PrivList) of
@@ -2070,13 +2067,6 @@ presence_broadcast_first(Acc0, From, StateData, Packet) ->
                    CurrentFrom),
             {AccFinal, NewState}
     end.
-
--spec roster_change(Acc :: mongoose_acc:t(),
-                    IJID :: jid:simple_jid() | jid:jid(),
-                    ISubscription :: from | to | both | none,
-                    State :: state()) -> {mongoose_acc:t(), state()}.
-roster_change(Acc, IJID, ISubscription, StateData) ->
-    {Acc, mod_roster:roster_change(IJID, ISubscription, StateData)}.
 
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),

@@ -96,7 +96,7 @@
          presence_update_to_available/3,
          is_unavailable/1,
          get_presence_timestamp/1,
-         roster_change/3,
+         handle_remote_hook/4,
          get_subscriptions/2]).
 
 -include("mongoose.hrl").
@@ -414,14 +414,14 @@ binary() | jid:simple_jid()).
 
 -spec roster_change(IJID :: jid:simple_jid() | jid:jid(),
                     ISubscription :: from | to | both | none,
-                    State :: ejabberd_c2s:state()) -> {boolean(), boolean(), ejabberd_c2s:state()}.
-roster_change(IJID, ISubscription, C2SState) ->
+                    StateData :: roster_state(),
+                    State :: ejabberd_c2s:state()) -> roster_state().
+roster_change(IJID, ISubscription, StateData, C2SState) ->
     From = ejabberd_c2s_state:jid(C2SState),
     To = jid:make(IJID),
-    StateData = ejabberd_c2s_state:get_handler_state(mod_roster, C2SState),
     {BecomeAvailable, BecomeUnavailable, NState} = do_roster_change(IJID, ISubscription, From, StateData),
     send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
-    ejabberd_c2s_state:set_handler_state(mod_roster, NState, C2SState).
+    NState.
 
 send_updated_presence(true, _, From, To, C2SState) ->
     P = mod_roster:get_last_presence(C2SState),
@@ -588,7 +588,13 @@ hooks(Host) ->
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
      {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50},
+     {c2s_remote_hook, Host, ?MODULE, handle_remote_hook, 100}].
+
+handle_remote_hook(HandlerState, mod_roster, {roster_change, IJID, ISubscription}, C2SState) ->
+    roster_change(IJID, ISubscription, HandlerState, C2SState);
+handle_remote_hook(HandlerState, _, _, _) ->
+    HandlerState.
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
@@ -915,9 +921,7 @@ process_item_els(Item, []) -> Item.
 
 push_item(User, Server, From, Item) ->
     #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
-%%    ejabberd_sm:run_in_all_sessions(JID, roster_change, {item, Item#roster.jid, Item#roster.subscription}),
-    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>), JID,
-                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
+    ejabberd_sm:run_in_all_sessions(JID, mod_roster, {roster_change, Item#roster.jid, Item#roster.subscription}),
     case roster_versioning_enabled(Server) of
         true ->
             push_item_version(JID, Server, User, From, Item,
