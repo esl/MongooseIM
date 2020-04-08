@@ -25,7 +25,7 @@ commands() -> [
 ].
 
 -spec get_urls(Host :: binary(), Filename :: binary(), Size :: pos_integer(),
-               ContentType :: binary(), Timeout :: pos_integer()) ->
+               ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
         {ok, string()} | {error, string()}.
 get_urls(_Host, _Filename, Size, _ContentType, _Timeout) when Size =< 0->
     {error, "size must be positive integer"};
