@@ -35,7 +35,7 @@
          remove_archive/4]).
 
 -export([archive_message/10,
-         archive_message_muc/9,
+         archive_message_muc/10,
          lookup_messages/3,
          lookup_messages_muc/3]).
 
@@ -146,7 +146,7 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _OriginI
 %% LocJID - MUC/MUC Light room's JID
 %% FromJID - "Real" sender JID
 %% SrcJID - Full JID of user within room (room@domain/user)
-archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Dir, Packet) ->
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _OriginID, _Dir, Packet) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
         archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)

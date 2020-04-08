@@ -13,7 +13,7 @@
 
 %% MAM hook handlers
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -150,10 +150,9 @@ insert_query_cql() ->
         "VALUES (?, ?, ?, ?, ?, ?)".
 
 archive_message(Result, Host, MessID, _RoomID,
-                LocJID, FromJID, NickName, Dir, Packet) ->
+                LocJID, FromJID, NickName, _OriginID, _Dir, Packet) ->
     try
-        archive_message2(Result, Host, MessID, LocJID,
-                         FromJID, NickName, Dir, Packet)
+        archive_message2(Result, Host, MessID, LocJID, FromJID, NickName, Packet)
     catch _Type:Reason ->
             {error, Reason}
     end.
@@ -161,7 +160,7 @@ archive_message(Result, Host, MessID, _RoomID,
 archive_message2(_Result, _Host, MessID,
                  LocJID = #jid{},
                  FromJID = #jid{},
-                 _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
+                 _SrcJID = #jid{lresource = BNick}, Packet) ->
     BLocJID = mod_mam_utils:bare_jid(LocJID),
     BFromJID = mod_mam_utils:bare_jid(FromJID),
     BPacket = packet_to_stored_binary(Packet),

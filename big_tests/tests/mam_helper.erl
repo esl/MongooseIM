@@ -891,8 +891,8 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
-    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
+    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, none, outgoing, Packet]),
+    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, none, incoming, Packet]).
 
 archive_message(Args) ->
     rpc_apply(mod_mam, archive_message, Args).
@@ -940,7 +940,7 @@ archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
     rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
-                                             FromJID, SrcJID, incoming, Packet]).
+                                             FromJID, SrcJID, none, incoming, Packet]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->

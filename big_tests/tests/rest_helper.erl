@@ -353,9 +353,9 @@ put_msg({{MsgIdOwner, MsgIdRemote},
     {_ToBin, ToJID, ToArcID},
     {_, Source, _}, Packet}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    OutArgs = [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet],
+    OutArgs = [Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, none, outgoing, Packet],
     ok = mam_helper:rpc_apply(mod_mam, archive_message, OutArgs),
-    InArgs = [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet],
+    InArgs = [Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, none, incoming, Packet],
     ok = mam_helper:rpc_apply(mod_mam, archive_message, InArgs).
 
 make_arc_id(Client) ->
@@ -394,7 +394,7 @@ put_room_msg({{_, MsgID},
     Host = ct:get_config({hosts, mim, domain}),
     ok = mam_helper:rpc_apply(mod_mam_muc, archive_message,
                          [Host, MsgID, ToArcID, ToJID, FromJID, SrcJID,
-                          incoming, Msg]),
+                          none, incoming, Msg]),
     {MsgID, FromJIDBin, Msg}.
 
 make_timestamp(Offset, Time) ->

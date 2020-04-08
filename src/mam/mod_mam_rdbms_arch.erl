@@ -152,7 +152,7 @@ index_hint_sql(Host) ->
 -spec archive_message(_Result, Host :: jid:server(),
                       MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
                       LocJID :: jid:jid(), RemJID :: jid:jid(),
-                      SrcJID :: jid:jid(), OriginID :: binary(),
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
                       Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
                 LocJID, RemJID, SrcJID, OriginID, Dir, Packet) when is_integer(UserID) ->

@@ -7,7 +7,7 @@
 -callback archive_message(_Result, jid:server(),
                           MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
                           LocJID :: jid:jid(), RemJID :: jid:jid(),
-                          SrcJID :: jid:jid(), OriginID :: binary(),
+                          SrcJID :: jid:jid(), OriginID :: binary() | none,
                           Dir :: atom(), Packet :: any()) ->
     ok | {error, timeout}.
 
