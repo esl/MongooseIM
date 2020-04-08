@@ -26,7 +26,7 @@
 -export([stop/1]).
 
 %% ejabberd_gen_mam_archive callbacks
--export([archive_message/9]).
+-export([archive_message/10]).
 -export([lookup_messages/3]).
 -export([remove_archive/4]).
 -export([archive_size/4]).
@@ -75,7 +75,7 @@ get_mam_muc_gdpr_data(Acc, Source) ->
             Acc
     end.
 
-archive_message(_Result, Host, MessageId, _UserId, RoomJid, FromJID, SourceJid, _Dir, Packet) ->
+archive_message(_Result, Host, MessageId, _UserId, RoomJid, FromJID, SourceJid, _OriginID, _Dir, Packet) ->
     Room = mod_mam_utils:bare_jid(RoomJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
     From = mod_mam_utils:bare_jid(FromJID),

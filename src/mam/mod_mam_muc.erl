@@ -52,7 +52,7 @@
 -export([get_personal_data/2]).
 
 %% private
--export([archive_message/8]).
+-export([archive_message/9]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 -export([handle_set_message_form/3]).
@@ -225,7 +225,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, FromJID, SrcJID, incoming, Packet1),
+                                     RoomJID, FromJID, SrcJID, none, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
             case Result of
                 ok ->
@@ -493,11 +493,11 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 
 -spec archive_message(jid:server(), MessId :: mod_mam:message_id(),
                       ArcId :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      SenderJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
-                      packet()) -> any().
-archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet) ->
+                      SenderJID :: jid:jid(), SrcJID :: jid:jid(), OriginID :: none,
+                      Dir :: 'incoming', packet()) -> any().
+archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, OriginID, Dir, Packet) ->
     mongoose_hooks:mam_muc_archive_message(Host, ok, MessID, ArcID,
-                                           LocJID, SenderJID, SrcJID, Dir, Packet).
+                                           LocJID, SenderJID, SrcJID, OriginID, Dir, Packet).
 
 %% ----------------------------------------------------------------------
 %% Helpers

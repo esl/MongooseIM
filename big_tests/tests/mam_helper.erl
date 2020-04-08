@@ -891,8 +891,8 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
-    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
+    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, none, outgoing, Packet]),
+    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, none, incoming, Packet]).
 
 archive_message(Args) ->
     rpc_apply(mod_mam, archive_message, Args).

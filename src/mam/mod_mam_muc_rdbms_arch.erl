@@ -19,7 +19,7 @@
 -callback decode(binary()) -> term().
 
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -127,9 +127,9 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
 -spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
                       RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
                       SenderJID :: jid:jid(),
-                      UserRoomJID :: jid:jid(), incoming, Packet :: packet()) -> ok.
+                      UserRoomJID :: jid:jid(), none, incoming, Packet :: packet()) -> ok.
 archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
-                SenderJID = #jid{}, UserRoomJID = #jid{}, incoming, Packet) ->
+                SenderJID = #jid{}, UserRoomJID = #jid{}, none, incoming, Packet) ->
     try
         Row = prepare_message(Host, MessID, RoomID, SenderJID, UserRoomJID, Packet),
         {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),

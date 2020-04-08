@@ -15,7 +15,7 @@
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -154,10 +154,11 @@ stop_worker(Proc) ->
 
 -spec archive_message(_Result, Host :: jid:server(), MessID :: mod_mam:message_id(),
                       RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
-                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(), Dir :: atom(),
+                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(),
+                      _OriginID :: binary() | none, _Dir :: atom(),
                       Packet :: packet()) -> ok | {error, timeout}.
 archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
-                SenderJID = #jid{}, UserRoomJID = #jid{}, _Dir, Packet) ->
+                SenderJID = #jid{}, UserRoomJID = #jid{}, _OriginID, _Dir, Packet) ->
     Row = mod_mam_muc_rdbms_arch:prepare_message(Host, MessID, RoomID,
                                                  SenderJID, UserRoomJID, Packet),
     Worker = select_worker(Host, RoomID),
