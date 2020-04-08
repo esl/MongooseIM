@@ -32,7 +32,7 @@
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
     S3Opts = gen_mod:get_opt(s3, Opts),
     ExpirationTime = gen_mod:get_opt(expiration_time, Opts, 60),
-    AddACL = proplists:get_value(add_acl, S3Opts, true),
+    AddACL = proplists:get_value(add_acl, S3Opts, false),
     BucketURL = unicode:characters_to_binary(gen_mod:get_opt(bucket_url, S3Opts)),
     Region = list_to_binary(gen_mod:get_opt(region, S3Opts)),
     AccessKeyId = list_to_binary(gen_mod:get_opt(access_key_id, S3Opts)),

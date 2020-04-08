@@ -3,7 +3,7 @@ This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/
 It enables a service that on user request creates an upload "slot". 
 A slot is a pair of URLs, one of which can be used with a `PUT` method to upload user's file, the other with a `GET` method to retrieve the file.
 
-Currently, the module supports only the S3 backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html).
+Currently, the module supports only the S3 backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html).
 
 ### Options
 
@@ -19,7 +19,7 @@ Currently, the module supports only the S3 backend using [AWS Signature Version 
 #### S3 backend options
 
 * **bucket_url** (string, default: unset) - A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
-* **add_acl** (boolean, default: `true`) - If `true`, adds `x-amz-acl=public-read` parameter to the PUT request.
+* **add_acl** (boolean, default: `false`) - If `true`, adds `x-amz-acl=public-read` header to the PUT request.
 This allows users to read the uploaded files even if the bucket is private.
 * **region** (string, default: unset) - The [AWS region][aws-region] to use for requests.
 * **access_key_id** (string, default: unset) - [ID of the access key][aws-keys] to use for authorization.

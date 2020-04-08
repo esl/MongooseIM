@@ -111,7 +111,8 @@ provides_and_signs_acl(_Config) ->
                         maps:get(<<"x-amz-acl">>, Headers, <<"noquery">>)
                 end),
 
-    {PutUrl, _} = create_slot(#{}),
+    Opts = with_s3_opts(#{add_acl => true}),
+    {PutUrl, _} = create_slot(#{opts => Opts}),
     Queries = parse_url(PutUrl, queries),
     ?assertEqual(
         {<<"X-Amz-SignedHeaders">>, <<"content-length;content-type;host;x-amz-acl">>},
@@ -129,8 +130,7 @@ does_not_provide_acl_when_disabled(_Config) ->
                         maps:get(<<"x-amz-acl">>, Headers, <<"noquery">>)
                 end),
 
-    Opts = with_s3_opts(#{add_acl => false}),
-    {PutUrl, _} = create_slot(#{opts => Opts}),
+    {PutUrl, _} = create_slot(#{}),
     Queries = parse_url(PutUrl, queries),
     ?assertEqual({<<"X-Amz-SignedHeaders">>, <<"content-length;content-type;host">>},
                  lists:keyfind(<<"X-Amz-SignedHeaders">>, 1, Queries)),
