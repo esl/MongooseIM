@@ -58,7 +58,7 @@
 
 -type passwd() :: #passwd{
                      us :: jid:simple_bare_jid(),
-                     password :: binary() | #scram{}
+                     password :: binary() | #scram{} | mongoose_scram:scram_map()
                     }.
 
 -record(reg_users_counter, {vhost, count}).
@@ -119,7 +119,7 @@ authorize(Creds) ->
 check_password(LUser, LServer, Password) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-        [#passwd{password = #scram{} = Scram}] ->
+        [#passwd{password = Scram}] when is_map(Scram) orelse is_record(Scram, scram) ->
             mongoose_scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
             Password /= <<>>;
@@ -136,9 +136,8 @@ check_password(LUser, LServer, Password) ->
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
-        [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            Passwd = base64:decode(Scram#scram.storedkey),
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        [#passwd{password = Scram}] when is_record(Scram, scram) orelse is_map(Scram) ->
+            mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         [#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
@@ -154,7 +153,7 @@ set_password(LUser, LServer, Password) ->
     F = fun() ->
         Password2 = case mongoose_scram:enabled(LServer) of
                         true ->
-                            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer));
+                            mongoose_scram:password_to_scram(LServer, Password, mongoose_scram:iterations(LServer));
                         false -> Password
                     end,
         write_passwd(#passwd{us = US, password = Password2})
@@ -260,15 +259,14 @@ get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
 
 -spec get_password(LUser :: jid:luser(),
-                   LServer :: jid:lserver()) -> binary() | false.
+                   LServer :: jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            {base64:decode(Scram#scram.storedkey),
-             base64:decode(Scram#scram.serverkey),
-             base64:decode(Scram#scram.salt),
-             Scram#scram.iterationcount};
+            mongoose_scram:scram_record_to_map(Scram);
+        [#passwd{password = Params}] when is_map(Params)->
+            Params;
         [#passwd{password = Password}] ->
             Password;
         _ ->
@@ -281,6 +279,8 @@ get_password_s(LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            <<"">>;
+        [#passwd{password = Params}] when is_map(Params)->
             <<"">>;
         [#passwd{password = Password}] ->
             Password;
@@ -326,7 +326,7 @@ scram_passwords() ->
 
 -spec scramming_function(passwd()) -> passwd().
 scramming_function(#passwd{us = {_, Server}, password = Password} = P) ->
-    Scram = mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(Server)),
+    Scram = mongoose_scram:password_to_scram(Server, Password, mongoose_scram:iterations(Server)),
     P#passwd{password = Scram}.
 
 -spec dirty_read_passwd(US :: jid:simple_bare_jid()) -> [passwd()].
@@ -349,7 +349,7 @@ write_counter(#reg_users_counter{} = Counter) ->
 get_scram(LServer, Password) ->
     case mongoose_scram:enabled(LServer) and is_binary(Password) of
         true ->
-            mongoose_scram:password_to_scram(Password, mongoose_scram:iterations(LServer));
+            mongoose_scram:password_to_scram(LServer, Password, mongoose_scram:iterations(LServer));
         false -> Password
     end.
 

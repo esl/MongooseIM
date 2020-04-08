@@ -67,7 +67,7 @@
               passterm/0]).
 
 -type authmodule() :: module().
--type passterm() :: binary() | mongoose_scram:scram_tuple().
+-type passterm() :: binary() | mongoose_scram:scram_tuple() | mongoose_scram:scram_map().
 
 -define(METRIC(Name), [backends, auth, Name]).
 
@@ -405,7 +405,7 @@ do_get_vh_registered_users_number(LServer, Opts) ->
 
 %% @doc Get the password of the user.
 -spec get_password(User :: jid:user(),
-                   Server :: jid:server()) -> binary() | false.
+                   Server :: jid:server()) -> ejabberd_auth:passterm() | false.
 get_password(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
