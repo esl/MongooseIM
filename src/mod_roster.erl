@@ -412,90 +412,6 @@ is_unavailable(C2SState) ->
 -type pack_tree() :: gb_trees:tree(binary() | jid:simple_jid(),
 binary() | jid:simple_jid()).
 
--spec roster_change(IJID :: jid:simple_jid() | jid:jid(),
-                    ISubscription :: from | to | both | none,
-                    StateData :: roster_state(),
-                    State :: ejabberd_c2s:state()) -> roster_state().
-roster_change(IJID, ISubscription, StateData, C2SState) ->
-    From = ejabberd_c2s_state:jid(C2SState),
-    To = jid:make(IJID),
-    {BecomeAvailable, BecomeUnavailable, NState} = do_roster_change(IJID, ISubscription, From, StateData),
-    send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
-    NState.
-
-send_updated_presence(true, _, From, To, C2SState) ->
-    P = mod_roster:get_last_presence(C2SState),
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             lserver => ejabberd_c2s_state:server(C2SState),
-                             from_jid => From,
-                             to_jid => To,
-                             element => P}),
-    send_with_privacy_check(Acc, C2SState, From, To, P, out);
-send_updated_presence(_, true, From, To, C2SState) ->
-    PU = #xmlel{name = <<"presence">>,
-                attrs = [{<<"type">>, <<"unavailable">>}]},
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             lserver => ejabberd_c2s_state:server(C2SState),
-                             from_jid => From,
-                             to_jid => To,
-                             element => PU}),
-    send_with_privacy_check(Acc, C2SState, From, To, PU, out);
-send_updated_presence(_, _, _From, _To, _C2SState) ->
-    ok.
-
-do_roster_change(IJID, ISubscription, OwnerJid, StateData) ->
-    LIJID = jid:to_lower(IJID),
-    IsSubscribedToMe = (ISubscription == both) or (ISubscription == from),
-    AmISubscribedTo = (ISubscription == both) or (ISubscription == to),
-    WasSubscribedToMe = gb_sets:is_element(LIJID, StateData#roster_state.pres_f),
-    FSet = case IsSubscribedToMe of
-               true ->
-                   gb_sets:add_element(LIJID, StateData#roster_state.pres_f);
-               false ->
-                   gb_sets:del_element(LIJID, StateData#roster_state.pres_f)
-           end,
-    TSet = case AmISubscribedTo of
-               true ->
-                   gb_sets:add_element(LIJID, StateData#roster_state.pres_t);
-               false ->
-                   gb_sets:del_element(LIJID, StateData#roster_state.pres_t)
-           end,
-    case StateData#roster_state.pres_last of
-        undefined ->
-            {false, false, StateData#roster_state{pres_f = FSet, pres_t = TSet}};
-        _ ->
-            ?DEBUG("roster changed for ~p~n", [OwnerJid]),
-            IsntInvisible = not StateData#roster_state.pres_invis,
-            ImAvailableTo = gb_sets:is_element(LIJID, StateData#roster_state.pres_a),
-            ImInvisibleTo = gb_sets:is_element(LIJID, StateData#roster_state.pres_i),
-            BecomeAvailable = IsntInvisible and IsSubscribedToMe and not WasSubscribedToMe,
-            BecomeUnavailable = not IsSubscribedToMe and WasSubscribedToMe
-                                and (ImAvailableTo or ImInvisibleTo),
-            case {BecomeAvailable, BecomeUnavailable} of
-                {true, _} ->
-                    ?DEBUG("become_available_to: ~p~n", [LIJID]),
-                    A = gb_sets:add_element(LIJID,
-                                            StateData#roster_state.pres_a),
-                    NState = StateData#roster_state{pres_a = A,
-                                                    pres_f = FSet,
-                                                    pres_t = TSet},
-                    {BecomeAvailable, BecomeUnavailable, NState};
-                {_, true} ->
-                    ?DEBUG("become_unavailable_to: ~p~n", [LIJID]),
-                    I = gb_sets:del_element(LIJID,
-                                            StateData#roster_state.pres_i),
-                    A = gb_sets:del_element(LIJID,
-                                            StateData#roster_state.pres_a),
-                    NState = StateData#roster_state{pres_i = I,
-                                                    pres_a = A,
-                                                    pres_f = FSet,
-                                                    pres_t = TSet},
-                    {BecomeAvailable, BecomeUnavailable, NState};
-                _ ->
-                    NState = StateData#roster_state{pres_f = FSet, pres_t = TSet},
-                    {BecomeAvailable, BecomeUnavailable, NState}
-            end
-    end.
 
 %% @doc Try to reduce the heap footprint of the four presence sets
 %% by ensuring that we re-use strings and Jids wherever possible.
@@ -551,6 +467,138 @@ pack_string(String, Pack) ->
         none ->
             {String, gb_trees:insert(String, String, Pack)}
     end.
+
+%%--------------------------------------------------------------------
+%% This is called in every active session
+%%--------------------------------------------------------------------
+
+-spec roster_change(Item :: roster(),
+                    StateData :: roster_state(),
+                    State :: ejabberd_c2s:state()) -> roster_state().
+roster_change(Item, StateData, C2SState) ->
+    From = ejabberd_c2s_state:jid(C2SState),
+    To = jid:make(Item#roster.jid),
+    #roster{jid = IJID, subscription = ISubscription} = Item,
+    {BecomeAvailable, BecomeUnavailable, NState} = do_roster_change(IJID, ISubscription, From, StateData),
+    send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
+    send_roster_iq(From, Item),
+    NState.
+
+send_updated_presence(true, _, From, To, C2SState) ->
+    P = mod_roster:get_last_presence(C2SState),
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             lserver => ejabberd_c2s_state:server(C2SState),
+                             from_jid => From,
+                             to_jid => To,
+                             element => P}),
+    send_with_privacy_check(Acc, C2SState, From, To, P, out);
+send_updated_presence(_, true, From, To, C2SState) ->
+    PU = #xmlel{name = <<"presence">>,
+                attrs = [{<<"type">>, <<"unavailable">>}]},
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             lserver => ejabberd_c2s_state:server(C2SState),
+                             from_jid => From,
+                             to_jid => To,
+                             element => PU}),
+    send_with_privacy_check(Acc, C2SState, From, To, PU, out);
+send_updated_presence(_, _, _From, _To, _C2SState) ->
+    ok.
+
+send_roster_iq(From, Item) ->
+    Server = From#jid.lserver,
+    LUser = From#jid.luser,
+    RosterVersion = case roster_versioning_enabled(Server) of
+                        true ->
+                            roster_version(Server, LUser);
+                        false ->
+                            not_found
+                    end,
+    mongoose_hooks:roster_push(Server, ok, From, Item),
+    ExtraAttrs = case RosterVersion of
+                     not_found -> [];
+                     _ -> [{<<"ver">>, RosterVersion}]
+                 end,
+    ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
+                %% @doc Roster push, calculate and include the version attribute.
+                %% TODO: don't push to those who didn't load roster
+                id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
+                sub_el =
+                [#xmlel{name = <<"query">>,
+                        attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
+                        children = [item_to_xml(Item)]}]},
+    ejabberd_router:route(jid:to_bare(From), From, jlib:iq_to_xml(ResIQ)).
+
+do_roster_change(IJID, ISubscription, OwnerJid, StateData) ->
+    LIJID = jid:to_lower(IJID),
+    IsSubscribedToMe = (ISubscription == both) or (ISubscription == from),
+    AmISubscribedTo = (ISubscription == both) or (ISubscription == to),
+    WasSubscribedToMe = gb_sets:is_element(LIJID, StateData#roster_state.pres_f),
+    FSet = case IsSubscribedToMe of
+               true ->
+                   gb_sets:add_element(LIJID, StateData#roster_state.pres_f);
+               false ->
+                   gb_sets:del_element(LIJID, StateData#roster_state.pres_f)
+           end,
+    TSet = case AmISubscribedTo of
+               true ->
+                   gb_sets:add_element(LIJID, StateData#roster_state.pres_t);
+               false ->
+                   gb_sets:del_element(LIJID, StateData#roster_state.pres_t)
+           end,
+    case StateData#roster_state.pres_last of
+        undefined ->
+            {false, false, StateData#roster_state{pres_f = FSet, pres_t = TSet}};
+        _ ->
+            ?DEBUG("roster changed for ~p~n", [OwnerJid]),
+            IsntInvisible = not StateData#roster_state.pres_invis,
+            ImAvailableTo = gb_sets:is_element(LIJID, StateData#roster_state.pres_a),
+            ImInvisibleTo = gb_sets:is_element(LIJID, StateData#roster_state.pres_i),
+            BecomeAvailable = IsntInvisible and IsSubscribedToMe and not WasSubscribedToMe,
+            BecomeUnavailable = not IsSubscribedToMe and WasSubscribedToMe
+                                and (ImAvailableTo or ImInvisibleTo),
+            case {BecomeAvailable, BecomeUnavailable} of
+                {true, _} ->
+                    ?DEBUG("become_available_to: ~p~n", [LIJID]),
+                    A = gb_sets:add_element(LIJID,
+                                            StateData#roster_state.pres_a),
+                    NState = StateData#roster_state{pres_a = A,
+                                                    pres_f = FSet,
+                                                    pres_t = TSet},
+                    {BecomeAvailable, BecomeUnavailable, NState};
+                {_, true} ->
+                    ?DEBUG("become_unavailable_to: ~p~n", [LIJID]),
+                    I = gb_sets:del_element(LIJID,
+                                            StateData#roster_state.pres_i),
+                    A = gb_sets:del_element(LIJID,
+                                            StateData#roster_state.pres_a),
+                    NState = StateData#roster_state{pres_i = I,
+                                                    pres_a = A,
+                                                    pres_f = FSet,
+                                                    pres_t = TSet},
+                    {BecomeAvailable, BecomeUnavailable, NState};
+                _ ->
+                    NState = StateData#roster_state{pres_f = FSet, pres_t = TSet},
+                    {BecomeAvailable, BecomeUnavailable, NState}
+            end
+    end.
+
+send_with_privacy_check(Acc, StateData, From, To, Packet, Dir) ->
+    Jid = ejabberd_c2s_state:jid(StateData),
+    {Acc2, Res} = mongoose_privacy:privacy_check_packet(Acc,
+                                                        ejabberd_c2s_state:server(StateData),
+                                                        Jid#jid.luser,
+                                                        ejabberd_c2s_state:privacy_list(StateData),
+                                                        To,
+                                                        Dir),
+    case Res of
+        allow -> ejabberd_router:route(From, To, Acc2, Packet);
+        _ -> Acc2
+    end.
+
+%%--------------------------------------------------------------------
+%% end of what is called in every active session
+%%--------------------------------------------------------------------
+
 %%--------------------------------------------------------------------
 %% mod_roster's callbacks
 %%--------------------------------------------------------------------
@@ -591,8 +639,8 @@ hooks(Host) ->
      {get_personal_data, Host, ?MODULE, get_personal_data, 50},
      {c2s_remote_hook, Host, ?MODULE, handle_remote_hook, 100}].
 
-handle_remote_hook(HandlerState, mod_roster, {roster_change, IJID, ISubscription}, C2SState) ->
-    roster_change(IJID, ISubscription, HandlerState, C2SState);
+handle_remote_hook(HandlerState, mod_roster, {roster_change, Item}, C2SState) ->
+    roster_change(Item, HandlerState, C2SState);
 handle_remote_hook(HandlerState, _, _, _) ->
     HandlerState.
 
@@ -871,7 +919,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
         end,
     case transaction(LServer, F) of
         {atomic, {OldItem, NewItem}} ->
-            push_item(User, LServer, To, NewItem),
+            push_item(To, NewItem),
             case NewItem#roster.subscription of
                 remove ->
                     send_unsubscribing_presence(From, OldItem), ok;
@@ -919,48 +967,9 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
-push_item(User, Server, From, Item) ->
-    #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
-    ejabberd_sm:run_in_all_sessions(JID, mod_roster, {roster_change, Item#roster.jid, Item#roster.subscription}),
-    case roster_versioning_enabled(Server) of
-        true ->
-            push_item_version(JID, Server, User, From, Item,
-                              roster_version(Server, LUser));
-        false ->
-            lists:foreach(fun (Resource) ->
-                                  push_item(User, Server, Resource, From, Item)
-                          end,
-                          ejabberd_sm:get_user_resources(JID))
-    end.
-
-push_item(User, Server, Resource, From, Item) ->
-    mongoose_hooks:roster_push(Server, ok, From, Item),
-    push_item(User, Server, Resource, From, Item, not_found).
-
-push_item(User, Server, Resource, From, Item, RosterVersion) ->
-    ExtraAttrs = case RosterVersion of
-                     not_found -> [];
-                     _ -> [{<<"ver">>, RosterVersion}]
-                 end,
-    ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
-                %% @doc Roster push, calculate and include the version attribute.
-                %% TODO: don't push to those who didn't load roster
-                id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
-                sub_el =
-                [#xmlel{name = <<"query">>,
-                        attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
-                        children = [item_to_xml(Item)]}]},
-    ejabberd_router:route(From,
-                          jid:make(User, Server, Resource),
-                          jlib:iq_to_xml(ResIQ)).
-
-push_item_version(JID, Server, User, From, Item,
-                  RosterVersion) ->
-    lists:foreach(fun (Resource) ->
-                          push_item(User, Server, Resource, From, Item,
-                                    RosterVersion)
-                  end,
-                  ejabberd_sm:get_user_resources(JID)).
+push_item(From, Item) ->
+    ejabberd_sm:run_in_all_sessions(From, mod_roster, {roster_change, Item}),
+    ok.
 
 -spec get_subscription_lists(Acc :: mongoose_acc:t(),
                              User :: binary(),
@@ -1068,7 +1077,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                 {push, #roster{ subscription = none, ask = in }} ->
                     true;
                 {push, Item} ->
-                    push_item(User, Server, jid:make(User, Server, <<"">>), Item),
+                    push_item(jid:make(User, Server, <<"">>), Item),
                     true;
                 none -> false
             end;
@@ -1467,16 +1476,3 @@ get_priority_from_presence(PresencePacket) ->
             end
     end.
 
-
-send_with_privacy_check(Acc, StateData, From, To, Packet, Dir) ->
-    Jid = ejabberd_c2s_state:jid(StateData),
-    {Acc2, Res} = mongoose_privacy:privacy_check_packet(Acc,
-                                                        ejabberd_c2s_state:server(StateData),
-                                                        Jid#jid.luser,
-                                                        ejabberd_c2s_state:privacy_list(StateData),
-                                                        To,
-                                                        Dir),
-    case Res of
-        allow -> ejabberd_router:route(From, To, Acc2, Packet);
-        _ -> Acc2
-    end.
