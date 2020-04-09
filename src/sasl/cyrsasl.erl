@@ -140,7 +140,10 @@ get_modules(Host) ->
 default_modules() ->
     [cyrsasl_plain,
      cyrsasl_digest,
-     cyrsasl_scram,
+     cyrsasl_scram_sha1,
+     cyrsasl_scram_sha224,
      cyrsasl_scram_sha256,
+     cyrsasl_scram_sha384,
+     cyrsasl_scram_sha512,
      cyrsasl_anonymous,
      cyrsasl_oauth].
