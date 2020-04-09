@@ -24,7 +24,7 @@ ejabberdctl(Cmd, Args, Config) ->
 
 ejabberdctl(Node, Cmd, Args, Config) ->
     CtlCmd = distributed_helper:ctl_path(Node, Config),
-    run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
+    run(CtlCmd, [Cmd | Args]).
 
 rpc_call(M, F, Args) ->
     case rpc(mim(), M, F, Args) of
@@ -35,19 +35,15 @@ rpc_call(M, F, Args) ->
             Result
     end.
 
-normalize_args(Args) ->
-    lists:map(fun
-                  (Arg) when is_binary(Arg) ->
-                      binary_to_list(Arg);
-                  (Arg) when is_list(Arg) ->
-                      Arg
-              end, Args).
+run(Cmd, Args) ->
+    run(Cmd, Args, [], 60000).
 
-run(Cmd) ->
-    run(Cmd, 60000).
+run(Cmd, Args, Opts) ->
+    run(Cmd, Args, Opts, 60000).
 
-run(Cmd, Timeout) ->
-    Port = erlang:open_port({spawn, Cmd}, [exit_status]),
+run(Cmd, Args, Opts, Timeout) ->
+    Port = erlang:open_port({spawn_executable, Cmd},
+                            [exit_status, {args, Args} | Opts]),
     loop(Cmd, Port, [], Timeout).
 
 loop(Cmd, Port, Data, Timeout) ->

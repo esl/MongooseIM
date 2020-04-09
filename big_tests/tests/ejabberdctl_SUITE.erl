@@ -27,10 +27,6 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--define(SINGLE_QUOTE_CHAR, $\').
--define(DOUBLE_QUOTE_CHAR, $\").
-
--define(EMPTY_STRING_PARAM, "''").
 -define(HTTP_UPLOAD_FILENAME, "tmp.txt").
 -define(HTTP_UPLOAD_FILESIZE, "5").
 -define(HTTP_UPLOAD_TIMEOUT, "666").
@@ -39,11 +35,9 @@
                                                              ContentType,
                                                              ?HTTP_UPLOAD_TIMEOUT)).
 -define(HTTP_UPLOAD_PARAMS_WITH_FILESIZE(X), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME, X,
-                                                                 ?EMPTY_STRING_PARAM,
-                                                                 ?HTTP_UPLOAD_TIMEOUT)).
+                                                                 "", ?HTTP_UPLOAD_TIMEOUT)).
 -define(HTTP_UPLOAD_PARAMS_WITH_TIMEOUT(X), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME,
-                                                                ?HTTP_UPLOAD_FILESIZE,
-                                                                ?EMPTY_STRING_PARAM, X)).
+                                                                ?HTTP_UPLOAD_FILESIZE, "", X)).
 -define(HTTP_UPLOAD_PARAMS(FileName, FileSize, ContentType, Timeout),
     [ct:get_config({hosts, mim, domain}), FileName, FileSize, ContentType, Timeout]).
 
@@ -309,6 +303,7 @@ end_per_testcase(CaseName, Config) ->
     %% with 'unavailable' stanzas on client stop.
     mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
+
 %%--------------------------------------------------------------------
 %% http upload tests
 %%--------------------------------------------------------------------
@@ -332,7 +327,7 @@ upload_returns_correct_urls_with_content_type(Config) ->
     upload_returns_correct_urls(Config, "text/plain").
 
 upload_returns_correct_urls_without_content_type(Config) ->
-    upload_returns_correct_urls(Config, ?EMPTY_STRING_PARAM).
+    upload_returns_correct_urls(Config, "").
 
 upload_returns_correct_urls(Config, ContentType) ->
     HttpUploadParams = ?HTTP_UPLOAD_PARAMS(ContentType),
@@ -368,10 +363,10 @@ check_bucket_url_and_filename(Type, Url) ->
 check_substring(SubString, String) ->
     ?assertMatch({match, [_]}, re:run(String, SubString, [global])).
 
-signed_headers_regex(false, ?EMPTY_STRING_PARAM) -> ?S3_SIGNED_HEADERS;
-signed_headers_regex(false, _) -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE;
-signed_headers_regex(true, ?EMPTY_STRING_PARAM) -> ?S3_SIGNED_HEADERS_WITH_ACL;
-signed_headers_regex(true, _) -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL.
+signed_headers_regex(false, "") -> ?S3_SIGNED_HEADERS;
+signed_headers_regex(false, _)  -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE;
+signed_headers_regex(true, "")  -> ?S3_SIGNED_HEADERS_WITH_ACL;
+signed_headers_regex(true, _)   -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL.
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_accounts tests
@@ -494,7 +489,7 @@ kick_session(Config) ->
                 Username = escalus_client:username(Alice),
                 Domain = escalus_client:server(Alice),
                 Resource = escalus_client:resource(Alice),
-                Args = [Username, Domain, Resource, "\"Because I can!\""],
+                Args = [Username, Domain, Resource, "Because I can!"],
 
                 {_, 0} = ejabberdctl("kick_session", Args, Config),
                 Stanza = escalus:wait_for_stanza(Alice),
@@ -585,7 +580,7 @@ vcard2_multi_rw(Config) ->
     {_, ExitCode} = ejabberdctl("get_vcard2_multi", [Username, Domain, "ORG", "ORGUNIT"], Config),
     true = (ExitCode /= 0),
 
-    Args = [Username, Domain, "ORG", "ORGUNIT", "'sales;marketing'"],
+    Args = [Username, Domain, "ORG", "ORGUNIT", "sales;marketing"],
     {_, 0} = ejabberdctl("set_vcard2_multi", Args, Config),
     {OrgUnits0, 0} = ejabberdctl("get_vcard2_multi", [Username, Domain, "ORG", "ORGUNIT"], Config),
     OrgUnits = string:tokens(OrgUnits0, "\n"),
@@ -608,8 +603,8 @@ rosteritem_rw(Config) ->
                 {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
                 {_, 0} = ejabberdctl("add_rosteritem",
                                      [AliceName, Domain, MikeName,
-                                      Domain, "\"My Mike\"",
-                                      "\'My Group\'", "both"], Config),
+                                      Domain, "My Mike",
+                                      "My Group", "both"], Config),
 
                 [Push1, Push2] = escalus:wait_for_stanzas(Alice, 2), % Check roster broadcasts
                 escalus:assert(is_roster_set, Push1),
@@ -811,7 +806,7 @@ process_rosteritems_delete_advanced2(Config) ->
         Action = "delete",
         Subs = "to:from",
         Asks = "any",
-        User = "'al.c[e]@.*host:((b[o]b)|(mike))@loc.*t2'",
+        User = "al.c[e]@.*host:((b[o]b)|(mike))@loc.*t2",
         {AliceName, Domain, _} = get_user_data(alice, Config),
         {BobName, Domain, _} = get_user_data(bob, Config),
         {MikeName, Domain, _} = get_user_data(mike, Config),
@@ -819,7 +814,7 @@ process_rosteritems_delete_advanced2(Config) ->
         ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
         ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
         ContactBob= string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
-        ContactsReg = "'.ik[ea]@localho+.*:k@loc.*st:(alice)+@.*:no'",
+        ContactsReg = ".ik[ea]@localho+.*:k@loc.*st:(alice)+@.*:no",
         {_, 0} = ejabberdctl("add_rosteritem",
                              [AliceName, Domain, MikeName,
                               Domain, "DearMike", "MyGroup", "to"],
@@ -928,8 +923,8 @@ set_last(Config) ->
 
 private_rw(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
-    XmlEl1 = "'<secretinfo xmlns=\"nejmspejs\">1</secretinfo>'",
-    XmlEl2 = "'<secretinfo xmlns=\"inny\">2</secretinfo>'",
+    XmlEl1 = "<secretinfo xmlns=\"nejmspejs\">1</secretinfo>",
+    XmlEl2 = "<secretinfo xmlns=\"inny\">2</secretinfo>",
 
     {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl1], Config),
     {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl2], Config),
@@ -948,14 +943,14 @@ send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob1, Bob2) ->
                 {_, 0} = ejabberdctl("send_message_chat", [escalus_client:full_jid(Alice),
                                                            escalus_client:full_jid(Bob1),
-                                                           "\"Hi Bob!\""], Config),
+                                                           "Hi Bob!"], Config),
                 Stanza1 = escalus:wait_for_stanza(Bob1),
                 escalus:assert(is_chat_message, [<<"Hi Bob!">>], Stanza1),
 
                 {_, 0} = ejabberdctl("send_message_headline",
                                      [escalus_client:full_jid(Alice),
                                       escalus_client:short_jid(Bob1),
-                                      "Subj", "\"Hi Bob!!\""], Config),
+                                      "Subj", "Hi Bob!!"], Config),
                 Stanza2 = escalus:wait_for_stanza(Bob1),
                 Stanza3 = escalus:wait_for_stanza(Bob2),
                 escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!!">>], Stanza2),
@@ -964,13 +959,13 @@ send_message(Config) ->
 
 send_message_wrong_jid(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {_, Err1} = ejabberdctl("send_message_chat", ["'@@#$%!!.§§£'",
+        {_, Err1} = ejabberdctl("send_message_chat", ["@@#$%!!.§§£",
                                                    escalus_client:full_jid(Bob),
-                                                   "\"Hello bobby!\""], Config),
-        {_, Err2} = ejabberdctl("send_message_headline", ["'%%@&@&@==//\///'",
+                                                   "Hello bobby!"], Config),
+        {_, Err2} = ejabberdctl("send_message_headline", ["%%@&@&@==//\///",
                                                        escalus_client:short_jid(Bob),
-                                                       "Subj", "\"Are
-                                                       you there?\""],
+                                                       "Subj", "Are
+                                                       you there?"],
                              Config),
         true = Err1 =/= 0,
         true = Err2 =/= 0,
@@ -988,7 +983,7 @@ send_stanza(Config) ->
 
                 Stanza = Stanza = create_stanza(Alice, BobJID),
                 {_, 0} = ejabberdctl("send_stanza_c2s",
-                       [BobName, Domain, Resource, <<$\", Stanza/binary, $\">>],
+                       [BobName, Domain, Resource, Stanza],
                        Config),
 
                 Message = escalus:wait_for_stanza(Alice),
@@ -1006,10 +1001,10 @@ send_stanzac2s_wrong(Config) ->
         Stanza = create_stanza(Alice, BobJID),
         StanzaWrong = <<"<iq type='get' id='234234'><xmlns='wrongwrong'>">>,
         {_, Err} = ejabberdctl("send_stanza_c2s",
-                  [WrongBobName, Domain, Resource, <<$\", Stanza/binary, $\">>],
+                  [WrongBobName, Domain, Resource, Stanza],
                   Config),
         {_, Err2} = ejabberdctl("send_stanza_c2s",
-                  [BobName, Domain, Resource, <<$\", StanzaWrong/binary, $\">>],
+                  [BobName, Domain, Resource,  StanzaWrong],
                   Config),
 
         true = Err =/= 0,
@@ -1018,11 +1013,7 @@ send_stanzac2s_wrong(Config) ->
     end).
 
 create_stanza(Name1, JID2) ->
-    re:replace(exml:to_binary(escalus_stanza:from(
-                    escalus_stanza:chat_to(Name1, "Hi"), JID2)),
-                    <<?DOUBLE_QUOTE_CHAR>>,
-                    <<?SINGLE_QUOTE_CHAR>>,
-                    [global, {return, binary}]).
+    exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Name1, "Hi"), JID2)).
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_stats tests

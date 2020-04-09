@@ -171,5 +171,5 @@ stop_node(Node, Config) ->
 
 mongooseim_script(Node, Cmd, Args, Config) ->
     CtlCmd = script_path(Node, Config, "mongooseim"),
-    ejabberdctl_helper:run(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " ")).
+    ejabberdctl_helper:run(CtlCmd, [Cmd | Args]).
 
