@@ -83,11 +83,16 @@ stop(_Host) ->
     ok.
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(_, cyrsasl_plain) -> true;
-supports_sasl_module(_, cyrsasl_scram) -> true;
-supports_sasl_module(_, cyrsasl_scram_sha256) -> true;
-supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
-supports_sasl_module(_, _) -> false.
+supports_sasl_module(_, cyrsasl_plain) ->
+    true;
+supports_sasl_module(Host, cyrsasl_scram) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram);
+supports_sasl_module(Host, cyrsasl_scram_sha256) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram);
+supports_sasl_module(Host, cyrsasl_digest) ->
+    not mongoose_scram:enabled(Host);
+supports_sasl_module(_, _) ->
+    false.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.

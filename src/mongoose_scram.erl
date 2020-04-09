@@ -16,6 +16,7 @@
 
 -export([
          enabled/1,
+         can_login_with_configured_password_format/2,
          iterations/0,
          iterations/1,
          password_to_scram/2,
@@ -105,6 +106,19 @@ enabled(Host) ->
         scram -> true;
         {scram, _ScramSha} -> true;
         _ -> false
+    end.
+
+can_login_with_configured_password_format(Host, cyrsasl_scram) ->
+    is_password_fromat_allowed(Host, sha);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha256) ->
+    is_password_fromat_allowed(Host, sha256).
+
+is_password_fromat_allowed(Host, Sha) ->
+    case ejabberd_auth:get_opt(Host, password_format) of
+        undefined -> true;
+        plain -> true;
+        scram -> true;
+        {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)
     end.
 
 %% This function is exported and used from other modules
