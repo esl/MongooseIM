@@ -53,7 +53,12 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
-    [log_one, log_one_scram, log_one_scram_256].
+    [log_one,
+     log_one_scram_sha1,
+     log_one_scram_sha224,
+     log_one_scram_sha256,
+     log_one_scram_sha384,
+     log_one_scram_sha512].
 
 configure_sha256_test() ->
     [configure_sha256_log_with_sha256].
@@ -86,7 +91,7 @@ init_per_group(GroupName, Config) when
       GroupName == login_scram;
       GroupName == configure_sha256;
       GroupName == login_scram_store_plain ->
-    case mongoose_helper:supports_sasl_module(cyrsasl_scram) of
+    case mongoose_helper:supports_sasl_module(cyrsasl_scram_sha1) of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -157,8 +162,17 @@ log_one_digest(Config) ->
 log_one_scram(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]).
 
+log_one_scram_224(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-224">>} | Config]).
+
 log_one_scram_256(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
+
+ log_one_scram_384(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-384">>} | Config]).
+
+log_one_scram_512(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-512">>} | Config]).
 
 configure_sha256_log_with_sha256(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
