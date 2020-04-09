@@ -19,7 +19,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
@@ -29,6 +29,75 @@
 
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
+
+-define(EMPTY_STRING_PARAM, "''").
+-define(HTTP_UPLOAD_FILENAME, "tmp.txt").
+-define(HTTP_UPLOAD_FILESIZE, "5").
+-define(HTTP_UPLOAD_TIMEOUT, "666").
+-define(HTTP_UPLOAD_PARAMS(ContentType), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME,
+                                                             ?HTTP_UPLOAD_FILESIZE,
+                                                             ContentType,
+                                                             ?HTTP_UPLOAD_TIMEOUT)).
+-define(HTTP_UPLOAD_PARAMS_WITH_FILESIZE(X), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME, X,
+                                                                 ?EMPTY_STRING_PARAM,
+                                                                 ?HTTP_UPLOAD_TIMEOUT)).
+-define(HTTP_UPLOAD_PARAMS_WITH_TIMEOUT(X), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME,
+                                                                ?HTTP_UPLOAD_FILESIZE,
+                                                                ?EMPTY_STRING_PARAM, X)).
+-define(HTTP_UPLOAD_PARAMS(FileName, FileSize, ContentType, Timeout),
+    [ct:get_config({hosts, mim, domain}), FileName, FileSize, ContentType, Timeout]).
+
+-define(CTL_ERROR(Messsage), "Error: \"" ++ Messsage ++ "\"\n").
+-define(HTTP_UPLOAD_NOT_ENABLED_ERROR, ?CTL_ERROR("mod_http_upload is not loaded for this host")).
+-define(HTTP_UPLOAD_FILESIZE_ERROR, ?CTL_ERROR("size must be positive integer")).
+-define(HTTP_UPLOAD_TIMEOUT_ERROR, ?CTL_ERROR("timeout must be positive integer")).
+
+-define(S3_BUCKET_URL, "http://localhost:9000/mybucket/").
+-define(S3_REGION, "eu-east-25").
+-define(S3_ACCESS_KEY_ID, "AKIAIAOAONIULXQGMOUA").
+-define(MINIO_OPTS(AddAcl),
+    [
+        {max_file_size, 1234},
+        {s3, [
+            {bucket_url, ?S3_BUCKET_URL},
+            {add_acl, AddAcl},
+            {region, ?S3_REGION},
+            {access_key_id, ?S3_ACCESS_KEY_ID},
+            {secret_access_key, "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"}
+        ]}
+    ]).
+
+%%Prefix MUST be a constant string, otherwise it results in compilation error
+-define(GET_URL(Prefix, Sting), fun() -> Prefix ++ URL = Sting, URL end()).
+
+%% The following is an example presigned URL:
+%%
+%%     https://s3.amazonaws.com/examplebucket/test.txt
+%%     ?X-Amz-Algorithm=AWS4-HMAC-SHA256
+%%     &X-Amz-Credential=<your-access-key-id>/20130721/us-east-1/s3/aws4_request
+%%     &X-Amz-Date=20130721T201207Z
+%%     &X-Amz-Expires=86400
+%%     &X-Amz-SignedHeaders=host
+%%     &X-Amz-Signature=<signature-value>
+%%
+%% for more details see
+%%     https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+-define(S3_BASE_URL_REGEX, "^"?S3_BUCKET_URL".+/"?HTTP_UPLOAD_FILENAME).
+-define(S3_ALGORITHM_REGEX, "[?&]X-Amz-Algorithm=AWS4-HMAC-SHA256(&|$)").
+-define(S3_CREDENTIAL_REGEX,
+        % X-Amz-Credential=<your-access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
+        "[?&]X-Amz-Credential="?S3_ACCESS_KEY_ID"%2F[0-9]{8}%2F"?S3_REGION"%2Fs3%2Faws4_request(&|$)").
+-define(S3_DATE_REGEX, "X-Amz-Date=[0-9]{8}T[0-9]{6}Z(&|$)").
+-define(S3_EXPIRATION_REGEX, "[?&]X-Amz-Expires="?HTTP_UPLOAD_TIMEOUT"(&|$)").
+-define(S3_SIGNED_HEADERS, "[?&]X-Amz-SignedHeaders=content-length%3Bhost(&|$)").
+-define(S3_SIGNED_HEADERS_WITH_ACL,
+        "[?&]X-Amz-SignedHeaders=content-length%3Bhost%3Bx-amz-acl(&|$)").
+-define(S3_SIGNED_HEADERS_WITH_CONTENT_TYPE,
+        "[?&]X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost(&|$)").
+-define(S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL,
+        "[?&]X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost%3Bx-amz-acl(&|$)").
+-define(S3_SIGNATURE_REGEX, "[?&]X-Amz-Signature=[^&]+(&|$)").
+
 
 -record(offline_msg, {us, timestamp, expire, from, to, packet, permanent_fields = []}).
 
@@ -47,7 +116,8 @@ all() ->
      {group, private},
      {group, stanza},
      {group, stats},
-     {group, basic}
+     {group, basic},
+     {group, upload}
     ].
 
 groups() ->
@@ -60,7 +130,10 @@ groups() ->
          {stanza, [sequence], stanza()},
          {roster_advanced, [sequence], roster_advanced()},
          {basic, [sequence], basic()},
-         {stats, [sequence], stats()}],
+         {stats, [sequence], stats()},
+         {upload, [], upload()},
+         {upload_with_acl, [], upload_enabled()},
+         {upload_without_acl, [], upload_enabled()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 basic() ->
@@ -106,6 +179,14 @@ stanza() -> [send_message, send_message_wrong_jid, send_stanza, send_stanzac2s_w
 
 stats() -> [stats_global, stats_host].
 
+upload() ->
+    [upload_not_enabled, upload_wrong_filesize, upload_wrong_timeout,
+     {group, upload_with_acl}, {group, upload_without_acl}].
+
+upload_enabled() ->
+    [upload_returns_correct_urls_without_content_type,
+     upload_returns_correct_urls_with_content_type].
+
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
@@ -139,7 +220,6 @@ init_per_group(vcard, Config) ->
         _ ->
             Config
     end;
-
 init_per_group(roster_advanced, Config) ->
     case rpc(mim(), gen_mod, get_module_opt,
              [ct:get_config({hosts, mim, domain}), mod_roster, backend, mnesia])
@@ -149,7 +229,14 @@ init_per_group(roster_advanced, Config) ->
         _ ->
             {skip, command_process_rosteritems_supports_only_mnesia}
     end;
-
+init_per_group(upload_without_acl, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Host, mod_http_upload, ?MINIO_OPTS(false)),
+    [{with_acl, false} | Config];
+init_per_group(upload_with_acl, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:start(Host, mod_http_upload, ?MINIO_OPTS(true)),
+    [{with_acl, true} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -172,6 +259,11 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
         end
     end,
     lists:foreach(C, Roster),
+    Config;
+end_per_group(UploadGroup, Config) when UploadGroup =:= upload_without_acl;
+                                        UploadGroup =:= upload_with_acl ->
+    Host = ct:get_config({hosts, mim, domain}),
+    dynamic_modules:stop(Host, mod_http_upload),
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
@@ -217,6 +309,69 @@ end_per_testcase(CaseName, Config) ->
     %% with 'unavailable' stanzas on client stop.
     mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
+%%--------------------------------------------------------------------
+%% http upload tests
+%%--------------------------------------------------------------------
+upload_not_enabled(Config) ->
+    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS("text/plain"), Config),
+    ?assertEqual({?HTTP_UPLOAD_NOT_ENABLED_ERROR, 1}, Ret).
+
+upload_wrong_filesize(Config) ->
+    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("0"), Config),
+    ?assertEqual({?HTTP_UPLOAD_FILESIZE_ERROR, 1}, Ret),
+    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("-1"), Config),
+    ?assertEqual({?HTTP_UPLOAD_FILESIZE_ERROR, 1}, Ret).
+
+upload_wrong_timeout(Config) ->
+    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("0"), Config),
+    ?assertEqual({?HTTP_UPLOAD_TIMEOUT_ERROR, 1}, Ret),
+    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("-1"), Config),
+    ?assertEqual({?HTTP_UPLOAD_TIMEOUT_ERROR, 1}, Ret).
+
+upload_returns_correct_urls_with_content_type(Config) ->
+    upload_returns_correct_urls(Config, "text/plain").
+
+upload_returns_correct_urls_without_content_type(Config) ->
+    upload_returns_correct_urls(Config, ?EMPTY_STRING_PARAM).
+
+upload_returns_correct_urls(Config, ContentType) ->
+    HttpUploadParams = ?HTTP_UPLOAD_PARAMS(ContentType),
+    {Output, 0} = ejabberdctl("http_upload", HttpUploadParams, Config),
+    {PutURL, GetURL} = get_urls(Output),
+    WithACL = proplists:get_value(with_acl, Config),
+    check_urls(PutURL, GetURL, WithACL, ContentType).
+
+get_urls(Output) ->
+    [PutStr, GetStr | _] = string:split(Output, "\n", all),
+    PutURL = ?GET_URL("PutURL: ", PutStr),
+    GetURL = ?GET_URL("GetURL: ", GetStr),
+    {PutURL, GetURL}.
+
+check_urls(PutURL, GetURL, WithACL, ContentType) ->
+    check_bucket_url_and_filename(put, PutURL),
+    check_bucket_url_and_filename(get, GetURL),
+    check_substring(?S3_ALGORITHM_REGEX, PutURL),
+    check_substring(?S3_CREDENTIAL_REGEX, PutURL),
+    check_substring(?S3_DATE_REGEX, PutURL),
+    check_substring(?S3_EXPIRATION_REGEX, PutURL),
+    SignedHeadersRegex = signed_headers_regex(WithACL, ContentType),
+    check_substring(SignedHeadersRegex, PutURL),
+    check_substring(?S3_SIGNATURE_REGEX, PutURL).
+
+check_bucket_url_and_filename(Type, Url) ->
+    UrlRegex = case Type of
+                   get -> ?S3_BASE_URL_REGEX"$";
+                   put -> ?S3_BASE_URL_REGEX"\?.*"
+               end,
+    ?assertMatch({match, [{0, _}]}, re:run(Url, UrlRegex)).
+
+check_substring(SubString, String) ->
+    ?assertMatch({match, [_]}, re:run(String, SubString, [global])).
+
+signed_headers_regex(false, ?EMPTY_STRING_PARAM) -> ?S3_SIGNED_HEADERS;
+signed_headers_regex(false, _) -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE;
+signed_headers_regex(true, ?EMPTY_STRING_PARAM) -> ?S3_SIGNED_HEADERS_WITH_ACL;
+signed_headers_regex(true, _) -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL.
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_accounts tests
