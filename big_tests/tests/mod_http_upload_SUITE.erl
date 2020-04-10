@@ -15,17 +15,16 @@
 -define(S3_OPTS, ?MOD_HTTP_UPLOAD_OPTS(?S3_HOSTNAME, true)).
 
 -define(MINIO_HOSTNAME, "http://localhost:9000/mybucket/").
--define(MINIO_OPTS, [{expiration_time, 60 * 60} | %% 1 hour, useful for manual testing
-                     ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, false)]).
+-define(MINIO_OPTS(AddAcl), ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, AddAcl)).
 
 -define(MINIO_TEST_DATA, "qwerty").
 
--define(MOD_HTTP_UPLOAD_OPTS(Host, Acl),
+-define(MOD_HTTP_UPLOAD_OPTS(Host, AddAcl),
     [
         {max_file_size, 1234},
         {s3, [
             {bucket_url, Host},
-            {add_acl, Acl},
+            {add_acl, AddAcl},
             {region, "eu-east-25"},
             {access_key_id, "AKIAIAOAONIULXQGMOUA"},
             {secret_access_key, "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"}
@@ -37,11 +36,15 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_http_upload_s3}, {group, unset_size}, {group, real_upload}].
+    [{group, mod_http_upload_s3}, {group, unset_size},
+     {group, real_upload_with_acl}, {group, real_upload_without_acl}].
 
 groups() ->
     G = [{unset_size, [], [does_not_advertise_max_size_if_unset]},
-         {real_upload, [], [test_minio_upload]},
+         {real_upload_with_acl, [], [test_minio_upload_without_content_type,
+                                     test_minio_upload_with_content_type]},
+         {real_upload_without_acl, [], [test_minio_upload_without_content_type,
+                                        test_minio_upload_with_content_type]},
          {mod_http_upload_s3, [], [
                                    http_upload_item_discovery,
                                    http_upload_feature_discovery,
@@ -77,11 +80,18 @@ end_per_suite(Config) ->
 init_per_group(unset_size, Config) ->
     dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
-init_per_group(real_upload, Config) ->
+init_per_group(real_upload_without_acl, Config) ->
     case is_minio_running(Config) of
         true ->
-            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS),
+            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(false)),
             escalus:create_users(Config, escalus:get_users([bob]));
+        false -> {skip, "minio is not running"}
+    end;
+init_per_group(real_upload_with_acl, Config) ->
+    case is_minio_running(Config) of
+        true ->
+            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(true)),
+            [{with_acl, true} | escalus:create_users(Config, escalus:get_users([bob]))];
         false -> {skip, "minio is not running"}
     end;
 init_per_group(_, Config) ->
@@ -196,22 +206,39 @@ urls_contain_s3_hostname(Config) ->
               escalus:assert(fun url_contains/4, [<<"put">>, <<?S3_HOSTNAME>>, Namespace], Result)
       end).
 
-test_minio_upload(Config) ->
+test_minio_upload_without_content_type(Config) ->
+    test_minio_upload(Config, undefined).
+
+test_minio_upload_with_content_type(Config) ->
+    test_minio_upload(Config, <<"text/plain">>).
+
+test_minio_upload(Config, ContentType) ->
     namespaced_story(
         Config, [{bob, 1}],
         fun(Namespace, Bob) ->
             ServJID = upload_service(Bob),
             FileSize = length(?MINIO_TEST_DATA),
             Request = create_slot_request_stanza(ServJID, <<"somefile.txt">>, FileSize,
-                                                 undefined, Namespace),
+                                                 ContentType, Namespace),
             Result = escalus:send_and_wait(Bob, Request),
             GetUrl = binary_to_list(extract_url(Result, <<"get">>, Namespace)),
             PutUrl = binary_to_list(extract_url(Result, <<"put">>, Namespace)),
-            PutRetValue = ibrowse:send_req(PutUrl, [], put, ?MINIO_TEST_DATA),
+            Header = generate_header(Config, ContentType),
+            PutRetValue = ibrowse:send_req(PutUrl, Header, put, ?MINIO_TEST_DATA),
             ?assertMatch({ok, "200", _, []}, PutRetValue),
             GetRetValue = ibrowse:send_req(GetUrl, [], get),
             ?assertMatch({ok, "200", _, ?MINIO_TEST_DATA}, GetRetValue)
         end).
+
+generate_header(Config, undefined) ->
+    case proplists:get_value(with_acl, Config, false) of
+        true ->
+            [{<<"x-amz-acl">>, <<"public-read">>}];
+        false ->
+            []
+    end;
+generate_header(Config, ContentType) ->
+    [{<<"Content-Type">>, ContentType} | generate_header(Config, undefined)].
 
 rejects_empty_filename(Config) ->
     namespaced_story(
@@ -279,7 +306,7 @@ escapes_urls_once(Config) ->
               Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
                                                    undefined, Namespace),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun url_contains/4, [<<"put">>, <<"&x-amz-acl=public-read">>, Namespace], Result)
+              escalus:assert(fun url_contains/4, [<<"put">>, <<"%3Bx-amz-acl">>, Namespace], Result)
       end).
 
 %%--------------------------------------------------------------------

@@ -431,7 +431,15 @@ ejabberdctl_interactive(C, A, R, Config) ->
     ejabberdctl_interactive(DefaultNode, C, A, R, Config).
 ejabberdctl_interactive(Node, Cmd, Args, Response, Config) ->
     CtlCmd = escalus_config:get_config(ctl_path_atom(Node), Config),
-    run_interactive(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " "), Response).
+    run_interactive(string:join([CtlCmd, Cmd | normalize_args(Args)], " "), Response).
+
+normalize_args(Args) ->
+    lists:map(fun
+                  (Arg) when is_binary(Arg) ->
+                      binary_to_list(Arg);
+                  (Arg) when is_list(Arg) ->
+                      Arg
+              end, Args).
 
 ejabberdctl_force(Command, Args, ForceFlag, Config) ->
     #{node := DefaultNode} = mim(),

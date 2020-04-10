@@ -107,14 +107,16 @@ provides_and_signs_acl(_Config) ->
     meck:new(aws_signature_v4, [passthrough]),
     meck:expect(aws_signature_v4, sign,
                 fun
-                    (_, _, QS, _, _, _, _, _) ->
-                        maps:get(<<"x-amz-acl">>, QS, <<"noquery">>)
+                    (_, _, _, Headers, _, _, _, _) ->
+                        maps:get(<<"x-amz-acl">>, Headers, <<"noquery">>)
                 end),
 
-    {PutUrl, _} = create_slot(#{}),
+    Opts = with_s3_opts(#{add_acl => true}),
+    {PutUrl, _} = create_slot(#{opts => Opts}),
     Queries = parse_url(PutUrl, queries),
-    ?assertEqual({<<"x-amz-acl">>, <<"public-read">>},
-                 lists:keyfind(<<"x-amz-acl">>, 1, Queries)),
+    ?assertEqual(
+        {<<"X-Amz-SignedHeaders">>, <<"content-length;content-type;host;x-amz-acl">>},
+        lists:keyfind(<<"X-Amz-SignedHeaders">>, 1, Queries)),
 
     ?assertEqual({<<"X-Amz-Signature">>, <<"public-read">>},
                  lists:keyfind(<<"X-Amz-Signature">>, 1, Queries)),
@@ -124,14 +126,14 @@ provides_and_signs_acl(_Config) ->
 does_not_provide_acl_when_disabled(_Config) ->
     meck:expect(aws_signature_v4, sign,
                 fun
-                    (_, _, QS, _, _, _, _, _) ->
-                       maps:get(<<"x-amz-acl">>, QS, <<"noquery">>)
-               end),
+                    (_, _, _, Headers, _, _, _, _) ->
+                        maps:get(<<"x-amz-acl">>, Headers, <<"noquery">>)
+                end),
 
-    Opts = with_s3_opts(#{add_acl => false}),
-    {PutUrl, _} = create_slot(#{opts => Opts}),
+    {PutUrl, _} = create_slot(#{}),
     Queries = parse_url(PutUrl, queries),
-    ?assertEqual(false, lists:keyfind(<<"x-amz-acl">>, 1, Queries)),
+    ?assertEqual({<<"X-Amz-SignedHeaders">>, <<"content-length;content-type;host">>},
+                 lists:keyfind(<<"X-Amz-SignedHeaders">>, 1, Queries)),
     ?assertEqual({<<"X-Amz-Signature">>, <<"noquery">>},
                  lists:keyfind(<<"X-Amz-Signature">>, 1, Queries)),
 

@@ -25,14 +25,14 @@
 %%--------------------------------------------------------------------
 
 -spec create_slot(UTCDateTime :: calendar:datetime(), Token :: binary(),
-                  Filename :: unicode:unicode_binary(), ContentType :: binary(),
+                  Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
                   Size :: pos_integer(), Opts :: proplists:proplist()) ->
                          {PUTURL :: binary(), GETURL :: binary(),
                           Headers :: #{binary() => binary()}}.
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
     S3Opts = gen_mod:get_opt(s3, Opts),
     ExpirationTime = gen_mod:get_opt(expiration_time, Opts, 60),
-    AddACL = proplists:get_value(add_acl, S3Opts, true),
+    AddACL = proplists:get_value(add_acl, S3Opts, false),
     BucketURL = unicode:characters_to_binary(gen_mod:get_opt(bucket_url, S3Opts)),
     Region = list_to_binary(gen_mod:get_opt(region, S3Opts)),
     AccessKeyId = list_to_binary(gen_mod:get_opt(access_key_id, S3Opts)),
@@ -40,9 +40,10 @@ create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
 
     {Scheme, Host, Port, Path} = extract_uri_params(BucketURL, Token, Filename),
 
-    ExpectedHeaders = get_expected_headers(Scheme, Host, Port, Size, ContentType),
+    ExpectedHeaders = get_expected_headers(Scheme, Host, Port, Size,
+                                           ContentType, AddACL),
     UnsignedQueries = create_queries(UTCDateTime, AccessKeyId, Region,
-                                     ExpirationTime, ExpectedHeaders, AddACL),
+                                     ExpirationTime, ExpectedHeaders),
 
     Signature = aws_signature_v4:sign(<<"PUT">>, Path, UnsignedQueries, ExpectedHeaders,
                                       UTCDateTime, Region, <<"s3">>, SecretAccessKey),
@@ -61,14 +62,13 @@ create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
 
 -spec create_queries(UTCDateTime :: calendar:datetime(), AccessKeyId :: binary(),
                      Region :: binary(), ExpirationTime :: pos_integer(),
-                     ExpectedHeaders :: #{binary() => binary()}, AddACL :: boolean()) ->
+                     ExpectedHeaders :: #{binary() => binary()}) ->
                             Queries :: #{binary() => binary()}.
-create_queries(UTCDateTime, AccessKeyId, Region, ExpirationTime, ExpectedHeaders, AddACL) ->
+create_queries(UTCDateTime, AccessKeyId, Region, ExpirationTime, ExpectedHeaders) ->
     Scope = aws_signature_v4:compose_scope(UTCDateTime, Region, <<"s3">>),
     SignedHeadersSemi = << <<H/binary, ";">> || H <- maps:keys(ExpectedHeaders) >>,
     SignedHeaders = binary_part(SignedHeadersSemi, 0, byte_size(SignedHeadersSemi) - 1),
-    WithAcl = maps:from_list([{<<"x-amz-acl">>, <<"public-read">>} || AddACL]),
-    WithAcl#{
+    #{
        <<"X-Amz-Algorithm">> => <<"AWS4-HMAC-SHA256">>,
        <<"X-Amz-Credential">> => <<AccessKeyId/binary, "/", Scope/binary>>,
        <<"X-Amz-Date">> => aws_signature_v4:datetime_iso8601(UTCDateTime),
@@ -81,14 +81,24 @@ create_queries(UTCDateTime, AccessKeyId, Region, ExpirationTime, ExpectedHeaders
                            Host :: unicode:unicode_binary(),
                            Port :: inet:port_number(),
                            Size :: pos_integer(),
-                           ContentType :: binary() | undefined) ->
-                                  Headers :: #{binary() => binary()}.
-get_expected_headers(Scheme, Host, Port, Size, undefined) ->
-    #{<<"host">> => with_port_component(Scheme, Host, Port),
-      <<"content-length">> => integer_to_binary(Size)};
-get_expected_headers(Scheme, Host, Port, Size, ContentType) ->
-    maps:put(<<"content-type">>, ContentType,
-             get_expected_headers(Scheme, Host, Port, Size, undefined)).
+                           ContentType :: binary() | undefined,
+                           AddACL :: boolean()) ->
+                              Headers :: #{binary() => binary()}.
+get_expected_headers(Scheme, Host, Port, Size, ContentType, AddACL) ->
+    Headers = #{<<"host">> => with_port_component(Scheme, Host, Port),
+                <<"content-length">> => integer_to_binary(Size)},
+    WithContentType = maybe_add_content_type(ContentType, Headers),
+    maybe_add_acl(AddACL, WithContentType).
+
+maybe_add_content_type(undefined, Headers) ->
+    Headers;
+maybe_add_content_type(ContentType, Headers) ->
+    maps:put(<<"content-type">>, ContentType, Headers).
+
+maybe_add_acl(false, Headers) ->
+    Headers;
+maybe_add_acl(true, Headers) ->
+    maps:put(<<"x-amz-acl">>, <<"public-read">>, Headers).
 
 
 -spec extract_uri_params(BucketURL :: unicode:unicode_binary(), Token :: binary(),
