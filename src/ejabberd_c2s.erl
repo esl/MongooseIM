@@ -2894,7 +2894,6 @@ merge_state(OldSD, SD) ->
                 #state.server,
                 #state.resource,
                 #state.handlers,
-%%                #state.pres_pri, - unused?
                 #state.privacy_list,
                 #state.aux_fields,
                 #state.csi_buffer,

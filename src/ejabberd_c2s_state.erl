@@ -1,6 +1,7 @@
 -module(ejabberd_c2s_state).
 
 -include("ejabberd_c2s.hrl").
+-include("mongoose.hrl").
 
 -export([server/1, jid/1]).
 -export([get_handler_state/2, set_handler_state/3]).

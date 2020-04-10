@@ -854,18 +854,19 @@ add_sample_contact(Who, Whom, Groups, Nick) ->
                         escalus_stanza:roster_add_contact(Whom,
                                                           Groups,
                                                           Nick)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Who)),
     Received = escalus_client:wait_for_stanza(Who),
     escalus_assert:is_roster_set(Received),
     escalus_client:send(Who, escalus_stanza:iq_result(Received)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Who)).
+    ok.
 
 subscribe(Who, Whom) ->
     % 'Who' sends a subscribe request to 'Whom'
     escalus:send(Who, escalus_stanza:presence_direct(
                         escalus_client:short_jid(Whom), <<"subscribe">>)),
     PushReq = escalus:wait_for_stanza(Who),
-    escalus:assert(is_roster_set, PushReq),
     escalus:send(Who, escalus_stanza:iq_result(PushReq)),
+    escalus:assert(is_roster_set, PushReq),
 
     %% 'Whom' receives subscription reqest
     Received = escalus:wait_for_stanza(Whom),
@@ -875,23 +876,32 @@ subscribe(Who, Whom) ->
     escalus:send(Whom, escalus_stanza:roster_add_contact(Who,
                                                         [<<"enemies">>],
                                                         <<"Enemy1">>)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Whom)),
     PushReq2 = escalus:wait_for_stanza(Whom),
     escalus:assert(is_roster_set, PushReq2),
     escalus:send(Whom, escalus_stanza:iq_result(PushReq2)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Whom)),
 
     %% 'Whom' sends subscribed presence
     escalus:send(Whom, escalus_stanza:presence_direct(
                          escalus_client:short_jid(Who), <<"subscribed">>)),
 
     %% 'Who' receives subscribed
-    Stanzas = escalus:wait_for_stanzas(Who, 2),
+    Stanzas = escalus:wait_for_stanzas(Who, 3),
 
-    check_subscription_stanzas(Stanzas, <<"subscribed">>),
-    escalus:assert(is_presence, escalus:wait_for_stanza(Who)).
+    check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
+    ok.
 
 check_subscription_stanzas(Stanzas, Type) ->
+    check_subscription_stanzas(Stanzas, Type, none).
+
+check_subscription_stanzas(Stanzas, Type, PresenceType) ->
     IsPresWithType = fun(S) ->
-                         escalus_pred:is_presence_with_type(Type, S)
+        escalus_pred:is_presence_with_type(Type, S)
                      end,
-    escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
+    ExtraChecks = case PresenceType of
+                      none -> [];
+                      Tp -> [fun(S) ->
+                          escalus_pred:is_presence_with_type(Tp, S)
+                             end]
+                  end,
+    escalus:assert_many([is_roster_set, IsPresWithType] ++ ExtraChecks, Stanzas).

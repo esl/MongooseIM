@@ -33,8 +33,6 @@
                 resource = <<>>       :: jid:resource(),
                 sid                   :: ejabberd_sm:sid() | undefined,
                 pending_invitations = [],
-                pres_pri,
-                %% Are we invisible?
                 privacy_list = #userlist{} :: mongoose_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),
@@ -59,6 +57,7 @@
                 replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}],
                 handlers = #{} :: #{ term() => {module(), atom(), term()} }
                 }).
+
 -type aux_key() :: atom().
 -type aux_value() :: any().
 -type state() :: #state{}.

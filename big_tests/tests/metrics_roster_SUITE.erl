@@ -231,7 +231,7 @@ decline_subscription(ConfigIn) ->
 unsubscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
 
@@ -288,10 +288,12 @@ add_sample_contact(Alice, Bob) ->
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,
         escalus_stanza:roster_add_contact(Bob, Groups, Name)),
+    R = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_iq_result, R),
     RosterPush = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_roster_set, RosterPush),
     escalus_client:send(Alice, escalus_stanza:iq_result(RosterPush)),
-    escalus_client:wait_for_stanza(Alice).
+    ok.
 
 
 remove_roster(Config, UserSpec) ->

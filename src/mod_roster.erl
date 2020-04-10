@@ -134,6 +134,7 @@
     %% We are _invisible_ to these users.
     %% This may change throughout the session.
     pres_i = gb_sets:new() :: jid_set() | debug_presences(),
+    %% Are we invisible?
     pres_invis = false :: boolean(),
     pres_timestamp :: calendar:datetime() | undefined,
     pres_last
@@ -243,7 +244,6 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 %% for c2s
 %%--------------------------------------------------------------------
 
-
 %% this should be used to call a handler module func which modifies handler state
 %% it is just a convenient wrapper
 %% can be used for any call
@@ -268,9 +268,8 @@ am_i_subscribed_to_presence(LJID, LBareJID, State) ->
            andalso gb_sets:is_element(LBareJID, S#roster_state.pres_t).
 
 is_subscribed_to_my_presence(JID, State) ->
-    S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     {Lowcase, Bare} = lowcase_and_bare(JID),
-    is_subscribed_to_my_presence(Lowcase, Bare, S).
+    is_subscribed_to_my_presence(Lowcase, Bare, State).
 
 is_subscribed_to_my_presence(LFrom, LBareFrom, State) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
@@ -884,18 +883,17 @@ do_process_item_set(JID1,
                     Item1 = process_item_attrs(Item, Attrs),
                     process_item_els(Item1, Els)
                 end,
-    set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2).
+    set_roster_item(LUser, LServer, LJID, From, To, MakeItem2).
 
 %% @doc this is run when a roster item is to be added, updated or removed
 %% the interface of this func could probably be a bit simpler
--spec set_roster_item(User :: binary(),
-                      LUser :: binary(),
+-spec set_roster_item(LUser :: binary(),
                       LServer :: binary(),
                       LJID :: jid:simple_jid() | error,
                       From ::jid:jid(),
                       To ::jid:jid(),
                       MakeItem2 :: fun( (roster()) -> roster())) -> ok.
-set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
+set_roster_item(LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
                 Item = case get_roster_entry(LUser, LServer, LJID) of
                            does_not_exist ->
@@ -1333,7 +1331,6 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
                             modify_roster_item(Item, Name, Groups, NewSubscription)
                         end,
             set_roster_item(
-                LUser, % User
                 LUser, % LUser
                 LServer, % LServer
                 LJID, % LJID
