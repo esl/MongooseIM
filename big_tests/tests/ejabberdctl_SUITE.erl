@@ -179,16 +179,15 @@ upload() ->
 
 upload_enabled() ->
     [upload_returns_correct_urls_without_content_type,
-     upload_returns_correct_urls_with_content_type].
+     upload_returns_correct_urls_with_content_type,
+     real_upload_without_content_type,
+     real_upload_with_content_type].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    Cwd0 = escalus_config:get_config(mim_data_dir, Config),
-    CwdTokens = string:tokens(Cwd0, "/"),
-    Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
-    TemplatePath = Cwd ++ "/roster.template",
+    TemplatePath = filename:join(?config(mim_data_dir, Config), "roster.template"),
     AuthMods = auth_modules(),
     Node = mim(),
     Config1 = ejabberd_node_utils:init(Node, Config),
@@ -285,6 +284,12 @@ init_per_testcase(CaseName, Config)
         true -> {skip, not_fully_supported_with_ldap};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
+init_per_testcase(CaseName, Config) when CaseName == real_upload_without_content_type;
+                                         CaseName == real_upload_with_content_type ->
+    case is_minio_running(Config) of
+        true -> escalus:init_per_testcase(CaseName, Config);
+        false -> {skip, "minio is not running"}
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -329,6 +334,12 @@ upload_returns_correct_urls_with_content_type(Config) ->
 upload_returns_correct_urls_without_content_type(Config) ->
     upload_returns_correct_urls(Config, "").
 
+real_upload_with_content_type(Config) ->
+    real_upload(Config, "text/plain").
+
+real_upload_without_content_type(Config) ->
+    real_upload(Config, "").
+
 upload_returns_correct_urls(Config, ContentType) ->
     HttpUploadParams = ?HTTP_UPLOAD_PARAMS(ContentType),
     {Output, 0} = ejabberdctl("http_upload", HttpUploadParams, Config),
@@ -368,6 +379,22 @@ signed_headers_regex(false, _)  -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE;
 signed_headers_regex(true, "")  -> ?S3_SIGNED_HEADERS_WITH_ACL;
 signed_headers_regex(true, _)   -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL.
 
+is_minio_running(Config) ->
+    case proplists:get_value(preset, Config, undefined) of
+        undefined -> false;
+        Preset ->
+            PresetAtom = list_to_existing_atom(Preset),
+            DBs = ct:get_config({ejabberd_presets, PresetAtom, dbs}, []),
+            lists:member(minio, DBs)
+    end.
+
+real_upload(Config, ContentType) ->
+    #{node := Node} = mim(),
+    BinPath = distributed_helper:bin_path(Node, Config),
+    UploadScript = filename:join(?config(mim_data_dir, Config), "test_file_upload.sh"),
+    Ret = ejabberdctl_helper:run(UploadScript, [ContentType], [{cd, BinPath}]),
+    ?assertMatch({_, 0}, Ret),
+    ok.
 %%--------------------------------------------------------------------
 %% mod_admin_extra_accounts tests
 %%--------------------------------------------------------------------

@@ -43,6 +43,9 @@ remove_node_from_cluster(Node, _Config) ->
 ctl_path(Node, Config) ->
     script_path(Node, Config, "mongooseimctl").
 
+bin_path(Node, Config) ->
+    filename:join([get_cwd(Node, Config), "bin"]).
+
 script_path(Node, Config, Script) ->
     filename:join([get_cwd(Node, Config), "bin", Script]).
 
