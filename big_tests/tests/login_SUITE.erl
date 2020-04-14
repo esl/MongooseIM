@@ -40,7 +40,7 @@ all() ->
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
-     {group, log_specific_scram},
+     {group, login_specific_scram},
      {group, messages}
     ].
 
@@ -48,7 +48,7 @@ groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
          {login_scram_store_plain, [parallel], scram_tests()},
-         {log_specific_scram, [sequence], configure_specific_scram_test()},
+         {login_specific_scram, [sequence], configure_specific_scram_test()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -98,7 +98,7 @@ end_per_suite(Config) ->
 
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    case mongoose_helper:supports_sasl_module(cyrsasl_scram_sha1) of
+    case are_sasl_scram_modules_supported() of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -106,10 +106,18 @@ init_per_group(GroupName, Config) when
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
             assert_password_format(GroupName, Config2)
     end;
+init_per_group(login_specific_scram, Config) ->
+    case are_sasl_scram_modules_supported() of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
+            escalus:create_users(Config, escalus:get_users([alice, bob]))
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
-end_per_group(login_scram, Config) ->
+end_per_group(GroupName, Config) when
+    GroupName == login_scram; GroupName == login_specific_scram ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
@@ -342,3 +350,9 @@ fail_log_one(Config) ->
     [{alice, UserSpec}] = escalus_users:get_users([alice]),
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
+
+are_sasl_scram_modules_supported() ->
+    ScramModules = [cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
+                    cyrsasl_scram_sha384, cyrsasl_scram_sha512],
+    IsSupported = [mongoose_helper:supports_sasl_module(Module) || Module <- ScramModules],
+    [true, true, true, true, true] == IsSupported.

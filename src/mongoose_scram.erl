@@ -112,17 +112,17 @@ enabled(Host) ->
     end.
 
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha1) ->
-    is_password_fromat_allowed(Host, sha);
+    is_password_format_allowed(Host, sha);
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha224) ->
-    is_password_fromat_allowed(Host, sha224);
+    is_password_format_allowed(Host, sha224);
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha256) ->
-    is_password_fromat_allowed(Host, sha256);
+    is_password_format_allowed(Host, sha256);
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha384) ->
-    is_password_fromat_allowed(Host, sha384);
+    is_password_format_allowed(Host, sha384);
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha512) ->
-    is_password_fromat_allowed(Host, sha512).
+    is_password_format_allowed(Host, sha512).
 
-is_password_fromat_allowed(Host, Sha) ->
+is_password_format_allowed(Host, Sha) ->
     case ejabberd_auth:get_opt(Host, password_format) of
         undefined -> true;
         plain -> true;
