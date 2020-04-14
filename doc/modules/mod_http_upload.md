@@ -1,7 +1,7 @@
 ### Module Description
 This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html). 
 It enables a service that on user request creates an upload "slot". 
-A slot is a pair of URLs, one of which can be used with a `PUT` method to upload user's file, the other with a `GET` method to retrieve the file.
+A slot is a pair of URLs, one of which can be used with a `PUT` method to upload a user's file, the other with a `GET` method to retrieve such file.
 
 Currently, the module supports only the [S3][s3] backend using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html).
 
@@ -12,13 +12,13 @@ Currently, the module supports only the [S3][s3] backend using [AWS Signature Ve
 * **backend** (atom, default: `s3`) - Backend to use for generating slots. Currently only `s3` can be used.
 * **expiration_time** (integer, default: `60`) - Duration (in seconds) after which the generated `PUT` URL will become invalid.
 * **token_bytes** (integer, default: `32`) - Number of random bytes of a token that will be used in a generated URL. 
- The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in URL will be 64 characters long.
+ The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
 * **max_file_size** (integer, default: 10485760 (10 MB)) - Maximum file size (in bytes) accepted by the module. Disabled if set to `undefined`.
 * **s3** (list, default: unset) - Options specific to [S3][s3] backend.
 
 #### [S3][s3] backend options
 
-* **bucket_url** (string, default: unset) - A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
+* **bucket_url** (string, default: unset) - A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS it needs to point to a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
 * **add_acl** (boolean, default: `false`) - If `true`, adds `x-amz-acl: public-read` header to the PUT URL.
 This allows users to read the uploaded files even if the bucket is private. The same header must be added to the PUT request.
 * **region** (string, default: unset) - The [AWS region][aws-region] to use for requests.
@@ -48,19 +48,19 @@ This allows users to read the uploaded files even if the bucket is private. The 
 
 ### Testing [S3][s3] configuration
 
-Since there is no direct connection between MongooseIM and [S3][s3] bucket,
-it is not possible to verify provided [S3][s3] credentials on a startup.
+Since there is no direct connection between MongooseIM and an [S3][s3] bucket,
+it is not possible to verify the provided [S3][s3] credentials during startup.
 However, the testing can be done manually. MongooseIM provides a dedicated
 `mongooseimctl http_upload` command for the manual URLs generation, it accepts
-the next parameters:
+the following parameters:
 
 * **Host** - XMPP host name.
 * **FileName** - The name of the file.
 * **FileSize** - The size of the file (positive integer).
 * **ContentType** - [Content-Type][Content-Type], optional parameter. If not provided, must be an empty string `""`.
-* **ExpirationTime** - Duration (in seconds, positive integer) after which the generated `PUT` URL will become invalid. This parameter shadows **expiration_time** configuration.
+* **ExpirationTime** - Duration (in seconds, positive integer) after which the generated `PUT` URL will become invalid. This parameter shadows the **expiration_time** configuration.
 
-The generated URLs can be used to upload/download file using `curl` utility:
+The generated URLs can be used to upload/download a file using the `curl` utility:
 
 ```bash
 # Create some text file
@@ -92,10 +92,10 @@ curl -i "$get_url"
 
 [min.io][minio] doesn't support [ObjectACL][minio-limits], so enabling `add_acl`
 makes no sense. The [bucket policies][bucket-policies] must be used instead,
-it is enough to set bucket policy to `download`.
+it is enough to set the bucket policy to `download`.
 
-Please note, there is no error if you keep `add_acl` enabled. [min.io][minio] just
-ignores `x-amz-acl` header. This might be useful to simplify the migration from [S3][s3]
+Please note that there is no error if you keep `add_acl` enabled. [min.io][minio] just
+ignores the `x-amz-acl` header. This might be useful to simplify the migration from [S3][s3]
 to [min.io][minio]
 
 [minio]: https://min.io
@@ -109,4 +109,3 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | Backend action | Description (when it gets incremented) |
 | ---- | -------------------------------------- |
 | `create_slot` | An upload slot is allocated. |
-
