@@ -61,6 +61,8 @@
                     ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                            | cyrsasl:error().
 
+-optional_callbacks([mechanism/0, mech_new/2]).
+
 -spec check_credentials(sasl_state(), mongoose_credentials:t()) -> R when
       R :: {'ok', mongoose_credentials:t()}
          | {'error', binary()}.

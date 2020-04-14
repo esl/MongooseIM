@@ -27,7 +27,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([mechanism/0, mech_new/2, mech_new/3, mech_step/2]).
+-export([mech_new/3, mech_step/2]).
 
 -include("mongoose.hrl").
 
@@ -48,7 +48,7 @@
          auth_module           :: ejabberd_gen_auth:t(),
          sha                   :: sha()}).
 
--type sha() :: sha | sha256.
+-type sha() :: sha | sha224 | sha256 | sha384 | sha512.
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
 -type nonce_attr() :: {term(), binary()}.
@@ -63,12 +63,6 @@
 
 -define(NONCE_LENGTH, 16).
 
--spec mechanism() -> cyrsasl:mechanism().
-mechanism() ->
-    <<"SCRAM-SHA-1">>.
-
-mech_new(_Host, Creds) ->
-    {ok, #state{step = 2, creds = Creds, sha = sha}}.
 mech_new(_Host, Creds, Sha) ->
     {ok, #state{step = 2, creds = Creds, sha = Sha}}.
 
