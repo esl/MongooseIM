@@ -66,8 +66,10 @@ get_password_s_returns_empty_bin_if_no_cache(_C) ->
     <<"">> = ?AUTH_MOD:get_password_s(random_binary(8), domain()).
 
 supported_sasl_mechanisms(_C) ->
-    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
-    [true, false, false, false] =
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
+               cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
+               cyrsasl_scram_sha384, cyrsasl_scram_sha512],
+    [true, false, false, false, false, false, false, false] =
         [?AUTH_MOD:supports_sasl_module(domain(), Mod) || Mod <- Modules].
 
 given_user_registered() ->

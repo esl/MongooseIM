@@ -206,12 +206,14 @@ remove_user(_Config) ->
     false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1).
 
 supported_sasl_mechanisms(Config) ->
-    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
+               cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
+               cyrsasl_scram_sha384, cyrsasl_scram_sha512],
     DigestSupported = case lists:keyfind(scram_group, 1, Config) of
                           {_, true} -> false;
                           _ -> true
                       end,
-    [true, DigestSupported, true, false] =
+    [true, DigestSupported, false, true, true, true, ture, ture] =
         [ejabberd_auth_http:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
 cert_auth_fail(Config) ->
