@@ -14,7 +14,7 @@ pages:
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
-      - 'Bootstrap scripts': 'user-guide/Bootstrap.md'
+      - 'Bootstrap scripts': 'user-guide/Bootstrap-Scripts.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
       - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
