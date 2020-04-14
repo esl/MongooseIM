@@ -166,8 +166,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code). Please note that the list of advertised authentication mechanisms is filtered out by the supported password formats to assure that it is possible to authenticate using authentication mechanisms that are offered.
     * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
     * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sh384, cyrsasl_scram_sha512, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
-    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_scram_sha256, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
-    * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sha384,cyrsasl_scram_sha512, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
+    * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram_sha256]`
 
 * **extauth_instances** (local)
     * **Description:** Specifies a number of workers serving external authentication requests.

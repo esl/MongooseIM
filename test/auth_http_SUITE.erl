@@ -213,7 +213,7 @@ supported_sasl_mechanisms(Config) ->
                           {_, true} -> false;
                           _ -> true
                       end,
-    [true, DigestSupported, false, true, true, true, ture, ture] =
+    [true, DigestSupported, false, true, true, true, true, true] =
         [ejabberd_auth_http:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
 cert_auth_fail(Config) ->

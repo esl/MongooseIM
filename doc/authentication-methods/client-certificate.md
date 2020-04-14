@@ -44,7 +44,7 @@ the list of `auth_opts` in MongooseIM config file:
 provided and use the user identity from the authentication request.
 
 
-If the client certificate does not contain a JID, the client must provide one in authorisation entity. 
+If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
 For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
@@ -138,7 +138,7 @@ Authentication with a client certificate (validated with provided CA chain) or p
 
 {auth_method, [rdbms, pki]}.
 
-{sasl_mechanisms, [cyrsasl_scram, cyrsasl_external]}.
+{sasl_mechanisms, [cyrsasl_scram_sha1, cyrsasl_external]}.
 ```
 
 ## Client certificate prerequisites
@@ -179,4 +179,3 @@ You don't need to pre-create a user account in order to log in with a certificat
 
 If Gajim fails to connect, try to restart it.
 Version 0.16.8 sometimes "forgets" to ask for the client certificate password.
-
