@@ -1011,10 +1011,8 @@ add_contact_and_invite(Config) ->
             %% Wait for push before trying to query endpoint
             %% If we just call endpoint,
             %% the "subscribed" stanza can not yet be processed.
-            escalus:wait_for_stanza(Bob),
-            Push3 = escalus:wait_for_stanza(Bob),
-            ct:log("Push3 ~p", [Push3]),
-            escalus:assert(is_roster_set, Push3),
+            PushAndPresence = escalus:wait_for_stanzas(Bob, 3),
+            escalus:assert_many([is_roster_set, is_presence, is_presence], PushAndPresence),
 
             % now check Bob's roster
             {?OK, R4} = gett(client, "/contacts", BCred),

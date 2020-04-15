@@ -6,8 +6,6 @@
 -define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
 -define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
--type jid_set() :: gb_sets:set(jid:simple_jid()).
-
 -type authenticated_state() :: boolean() | resumed | replaced.
 
 %% pres_a contains all the presence available send (either through roster mechanism or directed).

@@ -177,7 +177,7 @@ subscribe(ConfigIn) ->
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob adds new contact to his roster
@@ -250,9 +250,9 @@ unsubscribe(ConfigIn) ->
                             escalus_stanza:roster_add_contact(Alice,
                                                               [<<"enemies">>],
                                                               <<"Alice">>)),
-        PushReqB = escalus_client:wait_for_stanza(Bob),
+        PushAndResB = escalus_client:wait_for_stanzas(Bob, 2),
+        [PushReqB] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, PushAndResB),
         escalus_client:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
         escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
@@ -269,7 +269,8 @@ unsubscribe(ConfigIn) ->
         %% Alice sends unsubscribe
         escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribe">>)),
 
-        PushReqA2 = escalus_client:wait_for_stanza(Alice),
+        PushAndPresA2 = escalus_client:wait_for_stanzas(Alice, 2),
+        [PushReqA2] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, PushAndPresA2),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReqA2)),
 
         %% Bob receives unsubscribe

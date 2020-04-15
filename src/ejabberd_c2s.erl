@@ -2011,7 +2011,7 @@ privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
                                           Dir).
 
 -spec presence_broadcast(Acc :: mongoose_acc:t(),
-                         JIDSet :: jid_set(),
+                         JIDSet :: [jid:jid()],
                          State :: state()) -> mongoose_acc:t().
 presence_broadcast(Acc, JIDSet, StateData) ->
     From = mongoose_acc:from_jid(Acc),

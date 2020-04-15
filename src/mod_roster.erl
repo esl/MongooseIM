@@ -56,6 +56,7 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
+         set_roster_entry/5,
          remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
@@ -414,7 +415,7 @@ binary() | jid:simple_jid()).
 
 %% @doc Try to reduce the heap footprint of the four presence sets
 %% by ensuring that we re-use strings and Jids wherever possible.
--spec pack_state(term(), roster_state(), ejabberd_c2s:state()) -> roster_state().
+-spec pack_state(term(), roster_state(), ejabberd_c2s:state()) -> {new_state, roster_state()}.
 pack_state(_, State, _Cstate) ->
     #roster_state{pres_a=A,
                   pres_i=I,
@@ -875,7 +876,7 @@ process_item_set(_From, _To, _) -> ok.
 
 do_process_item_set(error, _, _, _) -> ok;
 do_process_item_set(JID1,
-                    #jid{user = User, luser = LUser, lserver = LServer} = From,
+                    #jid{luser = LUser, lserver = LServer} = From,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
@@ -965,7 +966,7 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
-push_item(From, Item) ->
+push_item(From, #roster{} = Item) ->
     ejabberd_sm:run_in_all_sessions(From, mod_roster, {roster_change, Item}),
     ok.
 
@@ -1297,6 +1298,7 @@ send_presence_type(From, To, Type) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% used for testing only - should be removed
 set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jid:nodeprep(User),
@@ -1318,7 +1320,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
                        ContactBin :: binary(),
                        Name :: binary() | unchanged,
                        Groups :: [binary()] | unchanged,
-                       NewSubscription :: remove | unchanged) -> ok|error.
+                       NewSubscription :: binary() | remove | unchanged) -> ok|error.
 set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
