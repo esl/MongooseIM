@@ -403,5 +403,5 @@ case $1 in
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     'print_install_dir') print_install_dir;;
     'escript') run_escript $@;;
-    *) ctl $ARGS;;
+    *) ctl $QUOTED_ARGS;;
 esac
