@@ -104,16 +104,16 @@ update_reg_users_counter_table(Server) ->
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) ->
     true;
-supports_sasl_module(Host, cyrsasl_scram_sha1) ->
-    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram_sha1);
-supports_sasl_module(Host, cyrsasl_scram_sha224) ->
-    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram_sha224);
-supports_sasl_module(Host, cyrsasl_scram_sha256) ->
-    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram_sha256);
-supports_sasl_module(Host, cyrsasl_scram_sha384) ->
-    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram_sha384);
-supports_sasl_module(Host, cyrsasl_scram_sha512) ->
-    mongoose_scram:can_login_with_configured_password_format(Host, cyrsasl_scram_sha512);
+supports_sasl_module(Host, cyrsasl_scram_sha1 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha224 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha256 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha384 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha512 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
 supports_sasl_module(Host, cyrsasl_digest) ->
     not mongoose_scram:enabled(Host);
 supports_sasl_module(_, _) ->
