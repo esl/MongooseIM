@@ -61,7 +61,7 @@ In order to learn more about the meaning of the Stored Key, Server Key, Salt and
 
 ## Legacy format description
 
-MongooseIM installations prior to 3.7 were supporting only SHA-1 as a hashing algorithm for SCRAM. The SCRAM format that was used can be seen below.
+MongooseIM installations older or equal to 3.6.2 were supporting only SHA-1 as a hashing algorithm for SCRAM. The SCRAM format that was used can be seen below.
 
 `==SCRAM==,<stored key>,<server key>,<salt>,<iteration count>`
 
