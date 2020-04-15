@@ -392,13 +392,13 @@ has_chat_marker(Packet) ->
     end.
 
 get_retract_id(Packet) ->
-    case exml_query:subelement_with_ns(Packet, ?NS_FASTEN) of
-        El = #xmlel{name = <<"apply-to">>} ->
-            case exml_query:subelement_with_ns(El, ?NS_RETRACT) of
-                #xmlel{name = <<"retract">>} -> exml_query:attr(El, <<"id">>, none);
-                _ -> none
+    case exml_query:subelement_with_name_and_ns(Packet, <<"apply-to">>, ?NS_FASTEN) of
+        El = #xmlel{} ->
+            case exml_query:subelement_with_name_and_ns(El, <<"retract">>, ?NS_RETRACT) of
+                #xmlel{} -> exml_query:attr(El, <<"id">>, none);
+                undefined -> none
             end;
-        _ -> none
+        undefined -> none
     end.
 
 get_origin_id(Packet) ->

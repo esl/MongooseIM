@@ -1733,6 +1733,8 @@ retract_message(Config) ->
         ApplyTo = exml_query:subelement(RecvRetract, <<"apply-to">>),
         <<"urn:xmpp:fasten:0">> = exml_query:attr(ApplyTo, <<"xmlns">>),
 
+        maybe_wait_for_archive(Config),
+
         %% ... and Alice and Bob have the tombstone and the 'retract' message in their archives
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Alice))),
