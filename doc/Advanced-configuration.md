@@ -144,7 +144,10 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
                        `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
 
         * **auth_password_format**
-             * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version. MongooseIM supports SHA-1, SHA-224, SHA-256 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration. The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
+             * **Description:** Decide whether user passwords will be kept plain or hashed in the database.
+             Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version.
+             MongooseIM supports SHA-1, SHA-224, SHA-256 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration.
+             The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha224, sha256, sha384, sha512]}` are equivalent configurations)
              * **Default:** `plain` (for compatibility reasons, might change soon)
 
@@ -163,7 +166,9 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
         * [`riak` backend options](authentication-backends/Riak-authentication-module.md#configuration-options)
 
 * **sasl_mechanisms** (local)
-    * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code). Please note that the list of advertised authentication mechanisms is filtered out by the supported password formats to assure that it is possible to authenticate using authentication mechanisms that are offered.
+    * **Description:** Specifies a list of allowed SASL mechanisms.
+    It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
+    Please note that the list of advertised authentication mechanisms is filtered out by the supported password formats to assure that it is possible to authenticate using authentication mechanisms that are offered.
     * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
     * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sh384, cyrsasl_scram_sha512, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
     * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sha384,cyrsasl_scram_sha512, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`

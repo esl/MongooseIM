@@ -12,7 +12,9 @@ Developers can use this information to create advanced endpoints for `ejabberd_a
 * `<stored key>` - Base64-encoded Stored Key
 * `<server key>` - Base64-encoded Server Key
 
-The SCRAM format can vary depending on the SHA algorithms that are used for SCRAM. Salt and iteration count is common for different SHA types. Stored Key and Server Key are specific to a given SHA and are following a SHA prefix that is indicating which SHA they belong to.
+The SCRAM format can vary depending on the SHA algorithms that are used for SCRAM.
+Salt and iteration count is common for different SHA types.
+Stored Key and Server Key are specific to a given SHA and are following a SHA prefix that is indicating which SHA they belong to.
 
 In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification](https://tools.ietf.org/html/rfc5802).
 
@@ -61,7 +63,8 @@ In order to learn more about the meaning of the Stored Key, Server Key, Salt and
 
 ## Legacy format description
 
-MongooseIM installations older or equal to 3.6.2 were supporting only SHA-1 as a hashing algorithm for SCRAM. The SCRAM format that was used can be seen below.
+MongooseIM installations older or equal to 3.6.2 were supporting only SHA-1 as a hashing algorithm for SCRAM.
+The SCRAM format that was used can be seen below.
 
 `==SCRAM==,<stored key>,<server key>,<salt>,<iteration count>`
 
