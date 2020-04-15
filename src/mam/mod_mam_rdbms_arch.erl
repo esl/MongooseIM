@@ -28,7 +28,7 @@
 -export([get_mam_pm_gdpr_data/2]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/9, prepare_insert/2]).
+-export([prepare_message/9, retract_message/9, prepare_insert/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -161,7 +161,7 @@ archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, OriginID, Dir, Packet)
     catch _Type:Reason:StackTrace ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
-                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p'stacktrace=~p",
+                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
                        [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
                         Reason, StackTrace]),
             {error, Reason}
@@ -170,6 +170,9 @@ archive_message(Result, Host, MessID, UserID,
 do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
     Row = prepare_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
+    retract_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet).
+
+retract_message(Host, _MessID, UserID, LocJID, RemJID, _SrcJID, _OriginID, Dir, Packet) ->
     case mod_mam_utils:get_retract_id(Packet) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
@@ -178,7 +181,9 @@ do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, Origin
 retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
     SUserID = use_escaped_integer(escape_user_id(UserID)),
     SOriginID = use_escaped_string(escape_string(OriginID)),
-    Query = query_for_messages_to_retract(Host, SUserID, LocJID, RemJID, SOriginID, Dir),
+    SBareRemJID = use_escaped_string(minify_and_escape_bare_jid(Host, LocJID, RemJID)),
+    SDir = encode_direction(Dir),
+    Query = query_for_messages_to_retract(Host, SUserID, SBareRemJID, SOriginID, SDir),
     {selected, [{BMessID, SDataRaw}]} = mod_mam_utils:success_sql_query(Host, Query),
     Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
@@ -190,20 +195,15 @@ retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
     {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery),
     ok.
 
-query_for_messages_to_retract(_Host, SUserID, _LocJID, _RemJID, SOriginID, outgoing) ->
+query_for_messages_to_retract(_Host, SUserID, SBareRemJID, SOriginID, SDir) ->
     ["SELECT id, message FROM mam_message"
-     " WHERE user_id = ", SUserID, " AND origin_id = ", SOriginID, " AND DIRECTION = 'O'"
-     " ORDER BY id DESC LIMIT 1"];
-query_for_messages_to_retract(Host, SUserID, LocJID, RemJID, SOriginID, incoming) ->
-    SBareRemJID = use_escaped_string(minify_and_escape_bare_jid(Host, LocJID, RemJID)),
-    ["SELECT id, message FROM mam_message"
-     " WHERE user_id = ", SUserID, " AND origin_id = ", SOriginID,
-     " AND remote_bare_jid = ", SBareRemJID, " AND DIRECTION = 'I'"
+     " WHERE user_id = ", SUserID, " AND remote_bare_jid = ", SBareRemJID,
+     " AND origin_id = ", SOriginID, " AND direction = '", SDir, "'"
      " ORDER BY id DESC LIMIT 1"].
 
 query_to_make_tombstone(STombstoneData, SUserID, BMessID) ->
-    ["UPDATE mam_message SET message = ", STombstoneData, ", search_body = '' "
-     "WHERE user_id = ", SUserID, " AND id = '", BMessID, "'"].
+    ["UPDATE mam_message SET message = ", STombstoneData, ", search_body = ''"
+     " WHERE user_id = ", SUserID, " AND id = '", BMessID, "'"].
 
 prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
                 SrcJID, OriginID, Dir, Packet) ->
