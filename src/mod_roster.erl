@@ -1347,7 +1347,7 @@ modify_roster_item(Item, Name, Groups, NewSubscription) ->
             end,
     Item2 = case Groups of
                 unchanged -> Item1;
-                _ -> Item#roster{groups = Groups}
+                _ -> Item1#roster{groups = Groups}
             end,
     case NewSubscription of
         unchanged -> Item2;
