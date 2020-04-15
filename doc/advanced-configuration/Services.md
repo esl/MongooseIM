@@ -33,6 +33,7 @@ Provides additional commands to mongooseimctl script.
     * `stats`: Adds `stats`, `stats_host`
     * `vcard`: Adds `get_vcard`, `get_vcard2`, `get_vcard2_multi`, `set_vcard`, `set_vcard2`, `set_vcard2_multi`
     * `gdpr`: Adds `retrieve_personal_data`
+    * `upload` : Adds `http_upload`
 
 #### Example configuration
 ` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `
