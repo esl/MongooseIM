@@ -178,10 +178,10 @@ stop_worker(Proc) ->
 archive_message(_Result, Host,
                 MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet)
         when is_integer(ArcID) ->
+    Args = [Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet],
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
-    Args = [Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet],
     case is_overloaded(WorkerPid) of
         false ->
             gen_server:cast(Worker, {archive_message, Args});

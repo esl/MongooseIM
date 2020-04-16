@@ -590,7 +590,7 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 
 -spec archive_message(Host :: jid:server(), MessID :: message_id(),
                       ArcID :: archive_id(), LocJID :: jid:jid(), RemJID :: jid:jid(),
-                      SrcJID :: jid:jid(), OriginID :: binary(),
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
                       Dir :: incoming | outgoing, Packet :: term()
                      ) -> ok | {error, timeout}.
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->

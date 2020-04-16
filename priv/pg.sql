@@ -250,10 +250,12 @@ CREATE TABLE mam_muc_message(
   -- Term-encoded message packet
   message bytea NOT NULL,
   search_body text,
+  origin_id varchar,
   PRIMARY KEY (room_id, id)
 );
 
 CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message USING BTREE (sender_id);
+CREATE INDEX i_mam_muc_message_room_id_sender_id_origin_id ON mam_muc_message USING BTREE (room_id, sender_id, origin_id);
 
 CREATE TABLE offline_message(
     id SERIAL UNIQUE PRIMARY Key,
