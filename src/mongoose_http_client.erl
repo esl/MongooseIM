@@ -19,7 +19,8 @@
 %%     * server - (required)
 %%     * path_prefix - ""
 %%     * request_timeout - 2000,
-%%     * http_opts - [] % passed to fusco
+%%     * http_client - `gun' or `fusco'
+%%     * http_opts - [] % passed to fusco or #{} passed to gun
 %%%
 %%% @end
 %%% Created : 26. Jun 2018 13:07

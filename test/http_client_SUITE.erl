@@ -20,6 +20,14 @@
 -include_lib("common_test/include/ct.hrl").
 
 all() ->
+    [{group, fusco},
+     {group, gun}].
+
+groups() ->
+    [{fusco, [], tests()},
+     {gun, [], tests()}].
+
+tests() ->
     [get_test,
      no_pool_test,
      post_test,
@@ -53,24 +61,35 @@ end_per_suite(_Config) ->
     exit(whereis(ejabberd_sup), shutdown),
     whereis(test_helper) ! stop.
 
+init_per_group(fusco, Config) ->
+    [{connection_opts, [{server, "http://localhost:8080"}, http_client, fusco]} | Config];
+init_per_group(gun, Config) ->
+    application:ensure_all_started(gun),
+    [{connection_opts, [{server, {"127.0.0.1", 8080}}, {http_client, gun}]} | Config].
+
+end_per_group(_, Config) ->
+    Config.
+
 init_per_testcase(request_timeout_test, Config) ->
+    ConnOpts = proplists:get_value(connection_opts, Config),
     mongoose_wpool:start_configured_pools([{http, global, pool(), [],
-                                            [{server, "http://localhost:8080"},
-                                             {request_timeout, 10}]}],
+                                            [{request_timeout, 10} | ConnOpts]}],
                                           [<<"a.com">>]),
     Config;
 init_per_testcase(pool_timeout_test, Config) ->
+    ConnOpts = proplists:get_value(connection_opts, Config),
     mongoose_wpool:start_configured_pools([{http, global, pool(),
                                             [{workers, 1},
                                              {max_overflow, 0},
                                              {strategy, available_worker},
                                              {call_timeout, 10}],
-                                            [{server, "http://localhost:8080"}]}],
+                                            ConnOpts}],
                                           [<<"a.com">>]),
     Config;
 init_per_testcase(_TC, Config) ->
+    ConnOpts = proplists:get_value(connection_opts, Config),
     mongoose_wpool:start_configured_pools([{http, global, pool(), [],
-                                            [{server, "http://localhost:8080"}]}],
+                                            ConnOpts}],
                                           [<<"a.com">>]),
     Config.
 

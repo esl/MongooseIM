@@ -56,7 +56,13 @@ get_params(Host, Tag) ->
 
 wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
     TargetServer = gen_mod:get_opt(server, ConnOpts),
-    HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
-    Worker = {fusco, {TargetServer, HttpOpts}},
+    HttpClient = gen_mod:get_opt(http_client, ConnOpts, fusco),
+    case HttpClient of
+        fusco ->
+            HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
+            Worker = {fusco, {TargetServer, HttpOpts}};
+        gun ->
+            HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, #{}),
+            Worker = {mongoose_gun_worker, {TargetServer, HttpOpts}}
+    end,
     [{worker, Worker} | WpoolOptsIn].
-

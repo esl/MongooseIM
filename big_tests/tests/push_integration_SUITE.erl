@@ -128,7 +128,7 @@ init_per_suite(Config) ->
     Port = mongoose_push_mock:port(),
 
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
-    HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
+    HTTPOpts = [{server, {"127.0.0.1", Port}}, {http_client, gun}, {http_opts, #{transport => tls}}],
     rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
         [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
