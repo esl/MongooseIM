@@ -126,8 +126,8 @@ del_aux_field(Key, #state{aux_fields = Opts} = State) ->
     both | from | 'none' | 'to'.
 get_subscription(From = #jid{}, StateData) ->
     {LFrom, LBFrom} = lowcase_and_bare(From),
-    F = mod_roster:is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
-    T = mod_roster:am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
+    F = mongoose_c2s_presence:is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
+    T = mongoose_c2s_presence:am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
     case {F, T} of
         {true, true} -> both;
         {true, _} -> from;
@@ -781,7 +781,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
                         pending_invitations = Pending,
                         privacy_list = PrivList},
     StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
-                                                           mod_roster:initialise_state(Fs1, Ts1),
+                                                           mongoose_c2s_presence:initialise_state(Fs1, Ts1),
                                                            NewStateData),
     {established, Acc1, StateWithRoster}.
 
@@ -986,7 +986,7 @@ handle_event(_Event, StateName, StateData) ->
    | {'reply', Reply :: 'ok' | {_, _, _, _}, statename(), state(), timeout()}.
 handle_sync_event(get_presence, _From, StateName, StateData) ->
     User = StateData#state.user,
-    PresLast = mod_roster:get_last_presence(StateData),
+    PresLast = mongoose_c2s_presence:get_last_presence(StateData),
 
     Show = get_showtag(PresLast),
     Status = get_statustag(PresLast),
@@ -997,7 +997,7 @@ handle_sync_event(get_presence, _From, StateName, StateData) ->
 handle_sync_event(get_info, _From, StateName, StateData) ->
     {reply, make_c2s_info(StateData), StateName, StateData};
 handle_sync_event(get_subscribed, _From, StateName, StateData) ->
-    Subscribed = mod_roster:get_subscriptions(from, StateData),
+    Subscribed = mongoose_c2s_presence:get_subscriptions(from, StateData),
     {reply, Subscribed, StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
     Reply = ok,
@@ -1031,7 +1031,7 @@ handle_info(replaced, _StateName, StateData) ->
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established, #state{jid = JID} = StateData) ->
-    case mod_roster:is_present_or_invisible(StateData) of
+    case mongoose_c2s_presence:is_present_or_invisible(StateData) of
         true ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                       lserver => JID#jid.lserver,
@@ -1076,7 +1076,7 @@ handle_info(system_shutdown, StateName, StateData) ->
 handle_info({force_update_presence, LUser}, StateName,
             #state{user = LUser, server = LServer} = StateData) ->
     NewStateData =
-    case mod_roster:get_last_presence(StateData) of
+    case mongoose_c2s_presence:get_last_presence(StateData) of
         #xmlel{name = <<"presence">>} = PresEl ->
             Acc = element_to_origin_accum(PresEl, StateData),
             mongoose_hooks:c2s_update_presence(
@@ -1309,7 +1309,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
 handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData)
   when Type /= result, Type /= error ->
     % we could make iq handlers handle full jids as well, but wouldn't it be an overkill?
-    {Acc, HasFromSub} = case mod_roster:is_subscribed_to_my_presence(From, StateData) of
+    {Acc, HasFromSub} = case mongoose_c2s_presence:is_subscribed_to_my_presence(From, StateData) of
                              true ->
                                  {A, R} = privacy_check_packet(Acc0, To, out, StateData),
                                  {A, R == 'allow'};
@@ -1392,14 +1392,14 @@ handle_routed_presence(From, To, Acc, StateData) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
-            NewState = case mod_roster:am_i_available_to(LFrom, LBFrom, State) of
+            NewState = case mongoose_c2s_presence:am_i_available_to(LFrom, LBFrom, State) of
                            true -> State;
-                           false -> mod_roster:call(make_available_to, {LFrom, LBFrom}, State)
+                           false -> mongoose_c2s_presence:call(make_available_to, {LFrom, LBFrom}, State)
                        end,
             Acc1 = process_presence_probe(From, To, Acc, NewState),
             {probe, Acc1, NewState};
         <<"error">> ->
-            NewState = mod_roster:call(del_active_presence, From, State),
+            NewState = mongoose_c2s_presence:call(del_active_presence, From, State),
             {allow, Acc, NewState};
         <<"invisible">> ->
             #xmlel{ attrs = Attrs } = Packet,
@@ -1432,9 +1432,9 @@ handle_routed_available_presence(State, From, To, Acc) ->
     case Res of
         allow ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
-            case mod_roster:am_i_available_to(LFrom, LBFrom, State) of
+            case mongoose_c2s_presence:am_i_available_to(LFrom, LBFrom, State) of
                 true -> {allow, Acc1, State};
-                false -> {allow, Acc1, mod_roster:call(make_available_to, {LFrom, LBFrom}, State)}
+                false -> {allow, Acc1, mongoose_c2s_presence:call(make_available_to, {LFrom, LBFrom}, State)}
             end;
         _ ->
             {deny, Acc1, State}
@@ -1479,8 +1479,8 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
               StateData#state.jid,
               <<"Replaced by new connection">>,
               replaced),
-            Acc1 = presence_broadcast(Acc0, mod_roster:get_subscriptions(available, StateData), StateData),
-            presence_broadcast(Acc1, mod_roster:get_subscriptions(invisible, StateData), StateData),
+            Acc1 = presence_broadcast(Acc0, mongoose_c2s_presence:get_subscriptions(available, StateData), StateData),
+            presence_broadcast(Acc1, mongoose_c2s_presence:get_subscriptions(invisible, StateData), StateData),
             reroute_unacked_messages(StateData, UnreadMessages);
         {_, resumed} ->
             StreamConflict = mongoose_xmpp_errors:stream_conflict(
@@ -1496,7 +1496,7 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                       [StateData#state.socket,
                        jid:to_binary(StateData#state.jid)]),
 
-            case mod_roster:has_active_presence(StateData) of
+            case mongoose_c2s_presence:has_active_presence(StateData) of
                 false ->
                     ejabberd_sm:close_session(Acc,
                                               StateData#state.sid,
@@ -1512,8 +1512,8 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                       StateData#state.jid,
                       <<"">>,
                       normal),
-                    Acc1 = presence_broadcast(Acc0, mod_roster:get_subscriptions(available, StateData), StateData),
-                    presence_broadcast(Acc1, mod_roster:get_subscriptions(invisible, StateData), StateData)
+                    Acc1 = presence_broadcast(Acc0, mongoose_c2s_presence:get_subscriptions(available, StateData), StateData),
+                    presence_broadcast(Acc1, mongoose_c2s_presence:get_subscriptions(invisible, StateData), StateData)
             end,
             reroute_unacked_messages(StateData, UnreadMessages)
     end,
@@ -1727,15 +1727,15 @@ get_conn_type(StateData) ->
                              State :: state()) -> mongoose_acc:t().
 process_presence_probe(From, To, Acc, StateData) ->
     {LFrom, LBareFrom} = lowcase_and_bare(From),
-    LastPres = mod_roster:get_last_presence(StateData),
+    LastPres = mongoose_c2s_presence:get_last_presence(StateData),
     case LastPres of
         undefined ->
             Acc;
         _ ->
             case {should_retransmit_last_presence(LFrom, LBareFrom, StateData),
-                  mod_roster:specifically_visible_to(LFrom, StateData)} of
+                  mongoose_c2s_presence:specifically_visible_to(LFrom, StateData)} of
                 {true, _} ->
-                    Timestamp = mod_roster:get_presence_timestamp(StateData),
+                    Timestamp = mongoose_c2s_presence:get_presence_timestamp(StateData),
                     Packet = xml:append_subtags(
                                LastPres,
                                %% To is the one sending the presence (the target of the probe)
@@ -1774,9 +1774,9 @@ check_privacy_and_route_probe(StateData, From, To, Acc, Packet) ->
     end.
 
 should_retransmit_last_presence(LFrom, LBareFrom, S) ->
-    not mod_roster:is_invisible(S)
-    andalso mod_roster:is_subscribed_to_my_presence(LFrom, LBareFrom, S)
-    andalso not mod_roster:invisible_to(LFrom, LBareFrom, S).
+    not mongoose_c2s_presence:is_invisible(S)
+    andalso mongoose_c2s_presence:is_subscribed_to_my_presence(LFrom, LBareFrom, S)
+    andalso not mongoose_c2s_presence:invisible_to(LFrom, LBareFrom, S).
 
 
 lowcase_and_bare(JID) ->
@@ -1799,22 +1799,22 @@ presence_update(Acc, From, StateData) ->
                                               StateData#state.jid,
                                               Status,
                                               Info),
-            Acc2 = presence_broadcast(Acc1, mod_roster:get_subscriptions(available, StateData), StateData),
-            Acc3 = presence_broadcast(Acc2, mod_roster:get_subscriptions(invisible, StateData), StateData),
+            Acc2 = presence_broadcast(Acc1, mongoose_c2s_presence:get_subscriptions(available, StateData), StateData),
+            Acc3 = presence_broadcast(Acc2, mongoose_c2s_presence:get_subscriptions(invisible, StateData), StateData),
             % and here we reach the end
-            {Acc3, mod_roster:call(empty_presence, false, StateData)};
+            {Acc3, mongoose_c2s_presence:call(empty_presence, false, StateData)};
         <<"invisible">> ->
             NewPriority = get_priority_from_presence(Packet),
             Acc0 = update_priority(Acc, NewPriority, Packet, StateData),
-            case mod_roster:is_invisible(StateData) of
+            case mongoose_c2s_presence:is_invisible(StateData) of
                 false ->
                     Acc1 = presence_broadcast(Acc0,
-                                              mod_roster:get_subscriptions(available, StateData),
+                                              mongoose_c2s_presence:get_subscriptions(available, StateData),
                                               StateData),
                     Acc2 = presence_broadcast(Acc1,
-                                              mod_roster:get_subscriptions(invisible, StateData),
+                                              mongoose_c2s_presence:get_subscriptions(invisible, StateData),
                                               StateData),
-                    S1 = mod_roster:call(empty_presence, true, StateData),
+                    S1 = mongoose_c2s_presence:call(empty_presence, true, StateData),
                     presence_broadcast_first(Acc2, From, S1, Packet);
                 true ->
                     {Acc0, StateData}
@@ -1840,13 +1840,13 @@ presence_update(Acc, From, StateData) ->
                                    Packet :: exml:element(),
                                    StateData :: state()) -> {mongoose_acc:t(), state()}.
 presence_update_to_available(Acc, From, Packet, StateData) ->
-    OldPriority = mod_roster:get_priority(StateData),
+    OldPriority = mongoose_c2s_presence:get_priority(StateData),
     NewPriority = get_priority_from_presence(Packet),
     Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
 
-    NewStateData = mod_roster:call(presence_update_to_available, Packet, StateData),
+    NewStateData = mongoose_c2s_presence:call(presence_update_to_available, Packet, StateData),
 
-    FromUnavail = mod_roster:is_unavailable(StateData),
+    FromUnavail = mongoose_c2s_presence:is_unavailable(StateData),
     ?DEBUG("from unavail = ~p~n", [FromUnavail]),
     presence_update_to_available(FromUnavail, Acc1, OldPriority, NewPriority, From,
                                  Packet, NewStateData).
@@ -1901,10 +1901,10 @@ presence_track(Acc, StateData) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"unavailable">> ->
             Acc1 = check_privacy_and_route(Acc, StateData),
-            {Acc1, mod_roster:call(set_presence_state, {unavailable, LTo}, StateData)};
+            {Acc1, mongoose_c2s_presence:call(set_presence_state, {unavailable, LTo}, StateData)};
         <<"invisible">> ->
             Acc1 = check_privacy_and_route(Acc, StateData),
-            {Acc1, mod_roster:call(set_presence_state, {invisible, LTo}, StateData)};
+            {Acc1, mongoose_c2s_presence:call(set_presence_state, {invisible, LTo}, StateData)};
         <<"subscribe">> ->
             Acc1 = process_presence_subscription_and_route(Acc, subscribe, StateData),
             {Acc1, StateData};
@@ -1925,7 +1925,7 @@ presence_track(Acc, StateData) ->
             {Acc1, StateData};
         _ ->
             Acc1 = check_privacy_and_route(Acc, StateData),
-            {Acc1, mod_roster:call(set_presence_state, {available, LTo}, StateData)}
+            {Acc1, mongoose_c2s_presence:call(set_presence_state, {available, LTo}, StateData)}
     end.
 
 -spec process_presence_subscription_and_route(Acc :: mongoose_acc:t(),
@@ -2030,7 +2030,7 @@ presence_broadcast(Acc, JIDSet, StateData) ->
                                     From :: 'undefined' | jid:jid(),
                                     Packet :: exml:element()) -> mongoose_acc:t().
 presence_broadcast_to_trusted(Acc, StateData, From, Packet) ->
-    Trusted = mod_roster:get_subscriptions(trusted, StateData),
+    Trusted = mongoose_c2s_presence:get_subscriptions(trusted, StateData),
     lists:foldl(fun(JID, Ac) ->
                     FJID = jid:make(JID),
                     check_privacy_and_route_or_ignore(Ac, StateData, From, FJID, Packet, out)
@@ -2049,18 +2049,18 @@ presence_broadcast_first(Acc0, From, StateData, Packet) ->
                            ejabberd_router:route(From, jid:make(JID), A, Stanza)
                        end,
                Acc0,
-               mod_roster:get_subscriptions(to, StateData)),
-    case mod_roster:is_invisible(StateData) of
+               mongoose_c2s_presence:get_subscriptions(to, StateData)),
+    case mongoose_c2s_presence:is_invisible(StateData) of
         true ->
             {Acc, StateData};
         false ->
-            CurrentFrom = mod_roster:get_subscriptions(from, StateData),
+            CurrentFrom = mongoose_c2s_presence:get_subscriptions(from, StateData),
             {NewState, AccFinal} = lists:foldl(
                    fun(JID, {State, Accum}) ->
                            FJID = jid:make(JID),
                            Accum1 = check_privacy_and_route_or_ignore(Accum, StateData, From, FJID,
                                                              Packet, out),
-                           {mod_roster:call(set_presence_state, {available, JID}, State), Accum1}
+                           {mongoose_c2s_presence:call(set_presence_state, {available, JID}, State), Accum1}
                    end,
                    {StateData, Acc},
                    CurrentFrom),
@@ -2269,7 +2269,7 @@ peerip(SockMod, Socket) ->
 
 %% @doc fsm_next_state_pack: Pack the StateData structure to improve sharing.
 fsm_next_state_pack(StateName, StateData) ->
-    fsm_next_state_gc(StateName, mod_roster:call(pack_state, none, StateData)).
+    fsm_next_state_gc(StateName, mongoose_c2s_presence:call(pack_state, none, StateData)).
 
 %% @doc fsm_next_state_gc: Garbage collect the process heap to make use of
 %% the newly packed StateData structure.
@@ -2383,7 +2383,7 @@ get_msg([]) ->
 maybe_update_presence(Acc, StateData, NewList) ->
     % Our own jid is added to pres_f, even though we're not a "contact", so for
     % the purposes of this check we don't want it:
-    FromsExceptSelf = mod_roster:get_subscriptions(from_except_self, StateData),
+    FromsExceptSelf = mongoose_c2s_presence:get_subscriptions(from_except_self, StateData),
 
     lists:foldl(
       fun(T, Ac) ->
@@ -2455,10 +2455,10 @@ blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
                        attrs = [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"unavailable">>}]
                    };
                unblock ->
-                   mod_roster:get_last_presence(StateData)
+                   mongoose_c2s_presence:get_last_presence(StateData)
            end,
     T = jid:from_binary(Jid),
-    case mod_roster:is_subscribed_to_my_presence(T, StateData) of
+    case mongoose_c2s_presence:is_subscribed_to_my_presence(T, StateData) of
         true ->
             F = jid:to_bare(StateData#state.jid),
             ejabberd_router:route(F, T, Pres);
@@ -2842,7 +2842,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
             {stop, _, _} = Stop ->
                 Stop;
             {next_state, session_established, NSD, _} ->
-                Priority = mod_roster:get_priority(NSD),
+                Priority = mongoose_c2s_presence:get_priority(NSD),
                 Info = [{ip, NSD#state.ip},
                         {conn, NSD#state.conn},
                         {auth_module, NSD#state.auth_module}],
