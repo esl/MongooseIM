@@ -1030,8 +1030,7 @@ handle_info(replaced, _StateName, StateData) ->
     maybe_send_element_from_server_jid_safe(StateData, StreamConflict),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
-handle_info(new_offline_messages, session_established, StateData) ->
-    JID = ejabberd_c2s_state:jid(StateData),
+handle_info(new_offline_messages, session_established, #state{jid = JID} = StateData) ->
     case mod_roster:is_present_or_invisible(StateData) of
         true ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,

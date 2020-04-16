@@ -24,6 +24,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(mongoose_helper, [check_subscription_stanzas/2, check_subscription_stanzas/3]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -236,7 +238,7 @@ invisible_presence(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
-        Response1 = escalus:wait_for_stanzas(Bob, 10, 100),
+        Response1 = escalus:wait_for_stanzas(Bob, 2),
         escalus:assert_many([is_roster_set, is_iq_result], Response1),
         [PushReqB] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, Response1),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
@@ -346,7 +348,7 @@ versioning(Config) ->
 
         escalus:assert_many([is_roster_set, is_iq_result], Received),
 
-        RosterSet = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
+        [RosterSet] = [R || R <- Received, escalus_pred:is_roster_set(R)],
 
         Ver2 = exml_query:path(RosterSet, [{element, <<"query">>}, {attr, <<"ver">>}]),
 
@@ -670,21 +672,6 @@ add_sample_contact(Alice, Bob) ->
     Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
     escalus:assert(count_roster_items, [1], Result),
     escalus:send(Alice, escalus_stanza:iq_result(Result)).
-
-check_subscription_stanzas(Stanzas, Type) ->
-    check_subscription_stanzas(Stanzas, Type, none).
-
-check_subscription_stanzas(Stanzas, Type, PresenceType) ->
-    IsPresWithType = fun(S) ->
-                         escalus_pred:is_presence_with_type(Type, S)
-                     end,
-    ExtraChecks = case PresenceType of
-                      none -> [];
-                      Tp -> [fun(S) ->
-                                escalus_pred:is_presence_with_type(Tp, S)
-                            end]
-                  end,
-    escalus:assert_many([is_roster_set, IsPresWithType] ++ ExtraChecks, Stanzas).
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||

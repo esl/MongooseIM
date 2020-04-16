@@ -24,6 +24,8 @@
 
 -define(SLEEP_TIME, 50).
 
+-import(mongoose_helper, [check_subscription_stanzas/2, check_subscription_stanzas/3]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -891,17 +893,3 @@ subscribe(Who, Whom) ->
     check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
     ok.
 
-check_subscription_stanzas(Stanzas, Type) ->
-    check_subscription_stanzas(Stanzas, Type, none).
-
-check_subscription_stanzas(Stanzas, Type, PresenceType) ->
-    IsPresWithType = fun(S) ->
-        escalus_pred:is_presence_with_type(Type, S)
-                     end,
-    ExtraChecks = case PresenceType of
-                      none -> [];
-                      Tp -> [fun(S) ->
-                          escalus_pred:is_presence_with_type(Tp, S)
-                             end]
-                  end,
-    escalus:assert_many([is_roster_set, IsPresWithType] ++ ExtraChecks, Stanzas).
