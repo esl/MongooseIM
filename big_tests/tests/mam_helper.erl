@@ -940,7 +940,7 @@ archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
     rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
-                                             FromJID, SrcJID, incoming, Packet]).
+                                             FromJID, SrcJID, none, incoming, Packet]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
