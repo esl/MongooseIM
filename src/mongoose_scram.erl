@@ -39,7 +39,7 @@
       iteration_count := non_neg_integer(),
       sha_key() := server_and_stored_key_type()}.
 
--type sha_key() :: sha | sha224| sha256 | sha384 | sha512.
+-type sha_key() :: sha | sha224 | sha256 | sha384 | sha512.
 
 -type server_and_stored_key_type() :: #{server_key := binary(), stored_key := binary()}.
 
