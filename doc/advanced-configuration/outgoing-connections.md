@@ -207,13 +207,18 @@ Below is a sample configuration:
 
 `ConnectionOptions` can take the following `{key, value}` pairs:
 
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
+* `{http_client, Client}` - `gun` or `fusco`, defaults to `fusco`.
+This choice influences some of the options below.
+* `{server, Host}` - for Fusco a string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
+For Gun a tuple `{Host, Port}`.
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-* `{http_opts, HTTPOptions}` - list, default: `[]` - can be used to pass extra parameters which are passed to [fusco], the library used for making the HTTP calls.
-  More details about the possible `http_opts` can be found in [fusco]'s documentation.
+* `{http_opts, HTTPOptions}` - a list (for Fusco) or a map (for Gun), defaults to `[]` or `#{}` depending on the client.
+Can be used to pass extra parameters to the library responsible for making the HTTP calls.
+  More details about the possible `http_opts` can be found in [fusco]'s or [gun]'s documentation.
 
 [fusco]: https://github.com/esl/fusco
+[gun]: https://ninenines.eu/docs/en/gun/2.0/manual/
 
 ##### Example configuration
 
