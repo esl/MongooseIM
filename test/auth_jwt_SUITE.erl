@@ -136,8 +136,10 @@ get_vh_registered_users(_C) ->
     [] = ejabberd_auth_jwt:get_vh_registered_users(?DOMAIN1, []).
 
 supported_sasl_mechanisms(_C) ->
-    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_external],
-    [true, false, false, false] =
+    Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
+               cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
+               cyrsasl_scram_sha384, cyrsasl_scram_sha512],
+    [true, false, false, false, false, false, false, false] =
         [ejabberd_auth_jwt:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
 
 dirty_get_registered_users(_C) ->

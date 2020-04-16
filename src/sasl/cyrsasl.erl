@@ -61,6 +61,8 @@
                     ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
                                            | cyrsasl:error().
 
+-optional_callbacks([mechanism/0, mech_new/2]).
+
 -spec check_credentials(sasl_state(), mongoose_credentials:t()) -> R when
       R :: {'ok', mongoose_credentials:t()}
          | {'error', binary()}.
@@ -140,7 +142,10 @@ get_modules(Host) ->
 default_modules() ->
     [cyrsasl_plain,
      cyrsasl_digest,
-     cyrsasl_scram,
+     cyrsasl_scram_sha1,
+     cyrsasl_scram_sha224,
      cyrsasl_scram_sha256,
+     cyrsasl_scram_sha384,
+     cyrsasl_scram_sha512,
      cyrsasl_anonymous,
      cyrsasl_oauth].

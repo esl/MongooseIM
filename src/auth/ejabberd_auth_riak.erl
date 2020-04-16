@@ -54,10 +54,20 @@ stop(_Host) ->
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) -> true;
-supports_sasl_module(_, cyrsasl_scram) -> true;
-supports_sasl_module(_, cyrsasl_scram_sha256) -> true;
-supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
-supports_sasl_module(_, _) -> false.
+supports_sasl_module(Host, cyrsasl_scram_sha1 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha224 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha256 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha384 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha512 = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_digest) ->
+    not mongoose_scram:enabled(Host);
+supports_sasl_module(_, _) ->
+    false.
 
 -spec set_password(jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.

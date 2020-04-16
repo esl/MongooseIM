@@ -39,31 +39,45 @@ all() ->
     [
      {group, login},
      {group, login_scram},
-     {group, configure_sha256},
      {group, login_scram_store_plain},
+     {group, login_specific_scram},
      {group, messages}
     ].
 
 groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
-         {configure_sha256, [pallarel], configure_sha256_test()},
          {login_scram_store_plain, [parallel], scram_tests()},
+         {login_specific_scram, [sequence], configure_specific_scram_test()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
-    [log_one, log_one_scram, log_one_scram_256].
+    [log_one,
+     log_one_scram_sha1,
+     log_one_scram_sha224,
+     log_one_scram_sha256,
+     log_one_scram_sha384,
+     log_one_scram_sha512].
 
-configure_sha256_test() ->
-    [configure_sha256_log_with_sha256].
+configure_specific_scram_test() ->
+    [configure_sha1_log_with_sha1,
+     configure_sha224_log_with_sha224,
+     configure_sha256_log_with_sha256,
+     configure_sha384_log_with_sha384,
+     configure_sha512_log_with_sha512,
+     configure_sha1_fail_log_with_sha224,
+     configure_sha224_fail_log_with_sha256,
+     configure_sha256_fail_log_with_sha384,
+     configure_sha384_fail_log_with_sha512,
+     configure_sha512_fail_log_with_sha1].
 
 all_tests() ->
     [log_one,
      log_non_existent_plain,
      log_one_digest,
      log_non_existent_digest,
-     log_one_scram,
+     log_one_scram_sha1,
      log_non_existent_scram,
      blocked_user
     ].
@@ -83,10 +97,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) when
-      GroupName == login_scram;
-      GroupName == configure_sha256;
-      GroupName == login_scram_store_plain ->
-    case mongoose_helper:supports_sasl_module(cyrsasl_scram) of
+      GroupName == login_scram; GroupName == login_scram_store_plain ->
+    case are_sasl_scram_modules_supported() of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -94,10 +106,18 @@ init_per_group(GroupName, Config) when
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
             assert_password_format(GroupName, Config2)
     end;
+init_per_group(login_specific_scram, Config) ->
+    case are_sasl_scram_modules_supported() of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
+            escalus:create_users(Config, escalus:get_users([alice, bob]))
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
-end_per_group(login_scram, Config) ->
+end_per_group(GroupName, Config) when
+    GroupName == login_scram; GroupName == login_specific_scram ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
@@ -112,8 +132,8 @@ init_per_testcase(CaseName, Config) when
             escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(CaseName, Config) when
-      CaseName =:= log_one_scram; CaseName =:= log_non_existent_scram ->
-    case mongoose_helper:supports_sasl_module(cyrsasl_scram) of
+      CaseName =:= log_one_scram_sha1; CaseName =:= log_non_existent_scram ->
+    case mongoose_helper:supports_sasl_module(cyrsasl_scram_sha1) of
         false ->
             {skip, "scram password type not supported"};
         true ->
@@ -154,14 +174,50 @@ log_one(Config) ->
 log_one_digest(Config) ->
     log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
 
-log_one_scram(Config) ->
+log_one_scram_sha1(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]).
 
-log_one_scram_256(Config) ->
+log_one_scram_sha224(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-224">>} | Config]).
+
+log_one_scram_sha256(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
 
+ log_one_scram_sha384(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-384">>} | Config]).
+
+log_one_scram_sha512(Config) ->
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-512">>} | Config]).
+
+configure_sha1_log_with_sha1(Config) ->
+        configure_and_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
+
+configure_sha224_log_with_sha224(Config) ->
+    configure_and_log_scram(Config, sha224, <<"SCRAM-SHA-224">>).
+
 configure_sha256_log_with_sha256(Config) ->
-    log_one([{escalus_auth_method, <<"SCRAM-SHA-256">>} | Config]).
+    configure_and_log_scram(Config, sha256, <<"SCRAM-SHA-256">>).
+
+configure_sha384_log_with_sha384(Config) ->
+    configure_and_log_scram(Config, sha384, <<"SCRAM-SHA-384">>).
+
+configure_sha512_log_with_sha512(Config) ->
+    configure_and_log_scram(Config, sha512, <<"SCRAM-SHA-512">>).
+
+configure_sha1_fail_log_with_sha224(Config) ->
+    configure_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-224">>).
+
+configure_sha224_fail_log_with_sha256(Config) ->
+    configure_and_fail_log_scram(Config, sha224, <<"SCRAM-SHA-256">>).
+
+configure_sha256_fail_log_with_sha384(Config) ->
+    configure_and_fail_log_scram(Config, sha256, <<"SCRAM-SHA-384">>).
+
+configure_sha384_fail_log_with_sha512(Config) ->
+    configure_and_fail_log_scram(Config, sha384, <<"SCRAM-SHA-512">>).
+
+configure_sha512_fail_log_with_sha1(Config) ->
+    configure_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-1">>).
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
@@ -234,8 +290,6 @@ set_store_password(Type) ->
 
 config_password_format(login_scram) ->
     set_store_password(scram);
-config_password_format(configure_sha256) ->
-    set_store_password({scram, [sha256]});
 config_password_format(_) ->
     set_store_password(plain).
 
@@ -253,12 +307,16 @@ verify_format(GroupName, {_User, Props}) ->
     do_verify_format(GroupName, Password, SPassword).
 
 
-do_verify_format(login_scram, _Password, #{salt := _S, iteration_count := _IC}) ->
+do_verify_format(GroupName, _P, #{salt   := _S, iteration_count := _IC,
+                                  sha    := #{stored_key := _, server_key := _},
+                                  sha224 := #{stored_key := _, server_key := _},
+                                  sha256 := #{stored_key := _, server_key := _},
+                                  sha384 := #{stored_key := _, server_key := _},
+                                  sha512 := #{stored_key := _, server_key := _}}) when
+                 GroupName == login_scram orelse GroupName == scram ->
     true;
-do_verify_format(configure_sha256, _Pass, #{salt := _S, iteration_count := _IC,
-                                            sha256 := #{stored_key := _StK,
-                                                        server_key := _SvK}}) ->
-    true;
+do_verify_format({scram, Sha}, _Password, ScramMap = #{salt := _S, iteration_count := _IC}) ->
+   maps:is_key(Sha, ScramMap);
 do_verify_format(login_scram, _Password, SPassword) ->
     %% returned password is a tuple containing scram data
     {_, _, _, _} = SPassword;
@@ -277,3 +335,24 @@ modify_acl_for_blocking(Method, Spec) ->
     User = proplists:get_value(username, Spec),
     Lower = escalus_utils:jid_to_lower(User),
     rpc(mim(), acl, Method, [Domain, blocked, {user, Lower}]).
+
+configure_and_log_scram(Config, Sha, Mech) ->
+    set_store_password({scram, [Sha]}),
+    assert_password_format({scram, Sha}, Config),
+    log_one([{escalus_auth_method, Mech} | Config]).
+
+configure_and_fail_log_scram(Config, Sha, Mech) ->
+    set_store_password({scram, [Sha]}),
+    assert_password_format({scram, Sha}, Config),
+    {expected_challenge, _, _} = fail_log_one([{escalus_auth_method, Mech} | Config]).
+
+fail_log_one(Config) ->
+    [{alice, UserSpec}] = escalus_users:get_users([alice]),
+    {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
+    R.
+
+are_sasl_scram_modules_supported() ->
+    ScramModules = [cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
+                    cyrsasl_scram_sha384, cyrsasl_scram_sha512],
+    IsSupported = [mongoose_helper:supports_sasl_module(Module) || Module <- ScramModules],
+    [true, true, true, true, true] == IsSupported.

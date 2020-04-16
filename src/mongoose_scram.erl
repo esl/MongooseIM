@@ -16,6 +16,7 @@
 
 -export([
          enabled/1,
+         can_login_with_configured_password_format/2,
          iterations/0,
          iterations/1,
          password_to_scram/2,
@@ -38,7 +39,7 @@
       iteration_count := non_neg_integer(),
       sha_key() := server_and_stored_key_type()}.
 
--type sha_key() :: sha | sha256.
+-type sha_key() :: sha | sha224 | sha256 | sha384 | sha512.
 
 -type server_and_stored_key_type() :: #{server_key := binary(), stored_key := binary()}.
 
@@ -51,14 +52,17 @@
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
 -define(SCRAM_SHA_PREFIX, "===SHA1===").
+-define(SCRAM_SHA224_PREFIX, "==SHA224==").
 -define(SCRAM_SHA256_PREFIX, "==SHA256==").
+-define(SCRAM_SHA384_PREFIX, "==SHA384==").
+-define(SCRAM_SHA512_PREFIX, "==SHA512==").
 
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
     hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 -spec client_key(sha_type(), binary()) -> binary().
-client_key(Sha, SaltedPassword) when Sha == sha orelse Sha == sha256 ->
+client_key(Sha, SaltedPassword) ->
     crypto:hmac(Sha, SaltedPassword, <<"Client Key">>).
 
 -spec stored_key(sha_type(), binary()) -> binary().
@@ -105,6 +109,25 @@ enabled(Host) ->
         scram -> true;
         {scram, _ScramSha} -> true;
         _ -> false
+    end.
+
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha1) ->
+    is_password_format_allowed(Host, sha);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha224) ->
+    is_password_format_allowed(Host, sha224);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha256) ->
+    is_password_format_allowed(Host, sha256);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha384) ->
+    is_password_format_allowed(Host, sha384);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha512) ->
+    is_password_format_allowed(Host, sha512).
+
+is_password_format_allowed(Host, Sha) ->
+    case ejabberd_auth:get_opt(Host, password_format) of
+        undefined -> true;
+        plain -> true;
+        scram -> true;
+        {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)
     end.
 
 %% This function is exported and used from other modules
@@ -240,7 +263,10 @@ do_check_digest([{Sha,_Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Pas
 
 supported_sha_types() ->
     [{sha,      <<?SCRAM_SHA_PREFIX>>},
-     {sha256,   <<?SCRAM_SHA256_PREFIX>>}].
+     {sha224,   <<?SCRAM_SHA224_PREFIX>>},
+     {sha256,   <<?SCRAM_SHA256_PREFIX>>},
+     {sha384,   <<?SCRAM_SHA384_PREFIX>>},
+     {sha512,   <<?SCRAM_SHA512_PREFIX>>}].
 
 configured_sha_types(Host) ->
     case catch ejabberd_auth:get_opt(Host, password_format) of

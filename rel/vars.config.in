@@ -67,7 +67,7 @@
 {http_api_client_endpoint, "8089"}.
 {s2s_use_starttls, "{s2s_use_starttls, optional}."}.
 {s2s_certfile, "{s2s_certfile, \"priv/ssl/fake_server.pem\"}."}.
-{sasl_mechanisms, "%%{sasl_mechanisms, [cyrsasl_scram, cyrsasl_plain]}."}.
+{sasl_mechanisms, "%%{sasl_mechanisms, [cyrsasl_scram_sha1, cyrsasl_plain]}."}.
 
 {all_metrics_are_global, "false"}.
 
