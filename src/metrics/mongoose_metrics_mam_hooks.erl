@@ -24,7 +24,7 @@
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/4,
          mam_muc_lookup_messages/3,
-         mam_muc_archive_message/9,
+         mam_muc_archive_message/10,
          mam_muc_flush_messages/3]).
 
 -type metrics_notify_return() :: mongoose_metrics_hooks:metrics_notify_return().
@@ -123,7 +123,7 @@ mam_muc_lookup_messages(Result = {error, _},
 
 
 mam_muc_archive_message(Result, Host,
-    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _OriginID, _Dir, _Packet) ->
     mongoose_metrics:update(Host, modMucMamArchived, 1),
     Result.
 

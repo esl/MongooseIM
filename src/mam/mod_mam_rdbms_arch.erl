@@ -183,7 +183,7 @@ retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
     SOriginID = use_escaped_string(escape_string(OriginID)),
     SBareRemJID = use_escaped_string(minify_and_escape_bare_jid(Host, LocJID, RemJID)),
     SDir = encode_direction(Dir),
-    Query = query_for_messages_to_retract(Host, SUserID, SBareRemJID, SOriginID, SDir),
+    Query = query_for_messages_to_retract(SUserID, SBareRemJID, SOriginID, SDir),
     {selected, [{BMessID, SDataRaw}]} = mod_mam_utils:success_sql_query(Host, Query),
     Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
@@ -195,7 +195,7 @@ retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
     {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery),
     ok.
 
-query_for_messages_to_retract(_Host, SUserID, SBareRemJID, SOriginID, SDir) ->
+query_for_messages_to_retract(SUserID, SBareRemJID, SOriginID, SDir) ->
     ["SELECT id, message FROM mam_message"
      " WHERE user_id = ", SUserID, " AND remote_bare_jid = ", SBareRemJID,
      " AND origin_id = ", SOriginID, " AND direction = '", SDir, "'"
