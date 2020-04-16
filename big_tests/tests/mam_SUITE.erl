@@ -41,6 +41,7 @@
          long_text_search_request/1,
          text_search_is_available/1,
          muc_message_with_stanzaid/1,
+         retract_muc_message/1,
          muc_text_search_request/1,
          muc_archive_request/1,
          muc_multiple_devices/1,
@@ -330,7 +331,7 @@ basic_groups() ->
                                  dont_archive_chat_markers]},
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
-            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases()},
+            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -407,6 +408,9 @@ muc_cases() ->
 
 muc_stanzaid_cases() ->
     [muc_message_with_stanzaid].
+
+muc_retract_cases() ->
+    [retract_muc_message].
 
 muc_configurable_archiveid_cases() ->
     [
@@ -917,6 +921,9 @@ init_per_testcase(C=only_stanzaid, Config) ->
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=retract_muc_message, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -1034,6 +1041,9 @@ end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_message_with_stanzaid, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=retract_muc_message, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
@@ -1856,7 +1866,60 @@ muc_message_with_stanzaid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retract_muc_message(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
 
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends to the chat room.
+        Msg = #xmlel{children = Children} = escalus_stanza:groupchat_to(RoomAddr, Text),
+        Msg2 = Msg#xmlel{children = Children ++ [origin_id_element(<<"orig-id-1">>)]},
+        escalus:send(Alice, Msg2),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        OriginId = exml_query:subelement(BobMsg, <<"origin-id">>),
+        <<"urn:xmpp:sid:0">> = exml_query:attr(OriginId, <<"xmlns">>),
+        <<"orig-id-1">> = exml_query:attr(OriginId, <<"id">>),
+
+        %% WHEN Alice retracts the message
+        ApplyToElement = apply_to_element(<<"orig-id-1">>),
+        RetractMsg = #xmlel{name = <<"message">>,
+                            attrs = [{<<"type">>, <<"groupchat">>},
+                                     {<<"to">>, RoomAddr}],
+                            children = [ApplyToElement]},
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the message with 'retract'...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ApplyTo = exml_query:subelement(RecvRetract, <<"apply-to">>),
+        <<"urn:xmpp:fasten:0">> = exml_query:attr(ApplyTo, <<"xmlns">>),
+
+        maybe_wait_for_archive(Config),
+
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Bob))),
+        #forwarded_message{message_body = undefined,
+                           message_children = [#xmlel{name = <<"retracted">>}]} = parse_forwarded_message(ArcMsg1),
+        #forwarded_message{message_body = undefined,
+                           message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2),
+
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     P = ?config(props, Config),

@@ -224,8 +224,9 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
         true ->
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
+            OriginID = mod_mam_utils:get_origin_id(Packet),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, FromJID, SrcJID, none, incoming, Packet1),
+                                     RoomJID, FromJID, SrcJID, OriginID, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
             case Result of
                 ok ->

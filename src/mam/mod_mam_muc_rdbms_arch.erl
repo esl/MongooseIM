@@ -24,7 +24,7 @@
          remove_archive/4]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/6, prepare_insert/2]).
+-export([prepare_message/7, retract_message/7, prepare_insert/2]).
 
 %gdpr
 -export([get_mam_muc_gdpr_data/2]).
@@ -129,10 +129,11 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
                       SenderJID :: jid:jid(),
                       UserRoomJID :: jid:jid(), none, incoming, Packet :: packet()) -> ok.
 archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
-                SenderJID = #jid{}, UserRoomJID = #jid{}, none, incoming, Packet) ->
+                SenderJID = #jid{}, UserRoomJID = #jid{}, OriginID, incoming, Packet) ->
     try
-        Row = prepare_message(Host, MessID, RoomID, SenderJID, UserRoomJID, Packet),
+        Row = prepare_message(Host, MessID, RoomID, SenderJID, UserRoomJID, OriginID, Packet),
         {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),
+        retract_message(Host, MessID, RoomID, SenderJID, UserRoomJID, OriginID, Packet),
         ok
     catch _Type:Reason:StackTrace ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p room_id=~p "
@@ -141,20 +142,57 @@ archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
             {error, Reason}
     end.
 
+retract_message(Host, _MessID, RoomID, SenderJID, _UserRoomJID, _OriginID, Packet) ->
+    case mod_mam_utils:get_retract_id(Packet) of
+        none -> ok;
+        OriginIDToRetract -> retract_message(Host, RoomID, SenderJID, OriginIDToRetract)
+    end.
+
+retract_message(Host, RoomID, SenderJID, OriginID) ->
+    SRoomID = use_escaped_integer(escape_room_id(RoomID)),
+    SenderID = mod_mam:archive_id_int(Host, jid:to_bare(SenderJID)),
+    SSenderID = use_escaped_integer(mongoose_rdbms:escape_integer(SenderID)),
+    SOriginID = use_escaped_string(mongoose_rdbms:escape_string(OriginID)),
+    Query = query_for_messages_to_retract(SRoomID, SSenderID, SOriginID),
+    {selected, [{BMessID, SDataRaw}]} = mod_mam_utils:success_sql_query(Host, Query),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Packet = stored_binary_to_packet(Host, Data),
+    Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
+    TombstoneData = packet_to_stored_binary(Host, Tombstone),
+    STombstoneData = mongoose_rdbms:use_escaped_binary(
+                       mongoose_rdbms:escape_binary(Host, TombstoneData)),
+    UpdateQuery = query_to_make_tombstone(STombstoneData, SRoomID, BMessID),
+    {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery),
+    ok.
+
+query_for_messages_to_retract(SRoomID, SSenderID, SOriginID) ->
+    ["SELECT id, message FROM mam_muc_message"
+     " WHERE room_id = ", SRoomID, " AND sender_id = ", SSenderID, " AND origin_id = ", SOriginID,
+     " ORDER BY id DESC LIMIT 1"].
+
+query_to_make_tombstone(STombstoneData, SRoomID, BMessID) ->
+    ["UPDATE mam_muc_message SET message = ", STombstoneData, ", search_body = ''"
+     " WHERE room_id = ", SRoomID, " AND id = '", BMessID, "'"].
+
 -spec prepare_message(Host :: jid:server(), MessID :: mod_mam:message_id(),
                       RoomID :: mod_mam:archive_id(), SenderJID :: jid:jid(),
-                      UserRoomJID :: jid:jid(), Packet :: packet()) -> [binary() | integer()].
-prepare_message(Host, MessID, RoomID, SenderJID, #jid{ lresource = FromNick }, Packet) ->
+                      UserRoomJID :: jid:jid(), OriginID :: binary() | none,
+                      Packet :: packet()) -> [binary() | integer()].
+prepare_message(Host, MessID, RoomID, SenderJID, #jid{ lresource = FromNick }, OriginID, Packet) ->
     BareSenderJID = jid:to_bare(SenderJID),
     Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
     SenderID = mod_mam:archive_id_int(Host, BareSenderJID),
-    [MessID, RoomID, SenderID, FromNick, Data, TextBody].
+    SOriginID = case OriginID of
+                    none -> null;
+                    _ -> OriginID
+                end,
+    [MessID, RoomID, SenderID, FromNick, SOriginID, Data, TextBody].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
     Table = mam_muc_message,
-    Fields = [id, room_id, sender_id, nick_name, message, search_body],
+    Fields = [id, room_id, sender_id, nick_name, origin_id, message, search_body],
     Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.
