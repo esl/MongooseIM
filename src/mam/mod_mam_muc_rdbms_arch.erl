@@ -154,13 +154,15 @@ retract_message(Host, RoomID, SenderJID, OriginID) ->
     SSenderID = use_escaped_integer(mongoose_rdbms:escape_integer(SenderID)),
     SOriginID = use_escaped_string(mongoose_rdbms:escape_string(OriginID)),
     Query = query_for_messages_to_retract(SRoomID, SSenderID, SOriginID),
-    {selected, [{BMessID, SDataRaw}]} = mod_mam_utils:success_sql_query(Host, Query),
-    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    {selected, [{ResMessID, ResData}]} = mod_mam_utils:success_sql_query(Host, Query),
+    Data = mongoose_rdbms:unescape_binary(Host, ResData),
     Packet = stored_binary_to_packet(Host, Data),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
     TombstoneData = packet_to_stored_binary(Host, Tombstone),
     STombstoneData = mongoose_rdbms:use_escaped_binary(
                        mongoose_rdbms:escape_binary(Host, TombstoneData)),
+    MessID = mongoose_rdbms:result_to_integer(ResMessID),
+    BMessID = use_escaped_integer(escape_message_id(MessID)),
     UpdateQuery = query_to_make_tombstone(STombstoneData, SRoomID, BMessID),
     {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery),
     ok.
