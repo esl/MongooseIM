@@ -38,7 +38,7 @@ demo_session_lifetime = 600
 demo_tls_versions = 'tlsv1.2', 'tlsv1.3'
 ```
 
-Only lowercase variables allowed in `templates.ini`.
+Only lowercase variables are allowed in `templates.ini`.
 
 You can redeclare options using environment variables when executing the bootstrap script:
 
@@ -46,11 +46,12 @@ You can redeclare options using environment variables when executing the bootstr
 MIM_DEMO_SESSION_LIFETIME=700 mongooseimctl bootstrap
 ```
 
-Environment variables should have a `MIM_` prefix. The variable names can be uppercase.
+Environment variables should have a `MIM_` prefix. The variable names are case-insensitive
+(but we suggest to use the uppercase variable names for consistency).
 
 # Demo template
 
-Demo template is located in `rel/files/templates/demo.config`.
+A demo template is located in `rel/files/templates/demo.config`.
 It is copied into the `/templates` directory inside your release directory.
 
 

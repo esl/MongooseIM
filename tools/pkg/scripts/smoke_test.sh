@@ -9,20 +9,15 @@ echo "Check, that print_install_dir works"
 MIM_DIR=$(mongooseimctl print_install_dir)
 test -d "$MIM_DIR"
 
-# Template generation needs writable etc directory, but mongooseimctl switches user,
-# so it's not executed as root.
-chmod 777 "$MIM_DIR/etc"
-chmod 666 "$MIM_DIR/etc/"*
-
 echo "Executing init scripts via 'mongooseimctl bootstrap'"
-# Fails, if exit code is wrong
+# Fails, if the exit code is wrong
 mongooseimctl bootstrap
 
 echo "Check, that bootstrap01-hello.sh script is executed"
 BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
 echo "$BOOTSTRAP_RESULT" | grep "Hello from"
 
-# Script should be accessable by "mongooseim" user
+# Script should be accessable by the "mongooseim" user
 mv smoke_templates.escript "$MIM_DIR/"
 
 echo "Check, that templates are correctly processed"

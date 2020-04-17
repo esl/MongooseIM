@@ -26,9 +26,12 @@ init_and_template(MIM_DIR, TemplateConfigPath, TemplateConfigBin) ->
     %% Options defined in the ini config file
     FileOpts = maps:from_list(proplists:get_value(options, TemplateConfig, [])),
 
+    LowerEnvVars = [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()],
+
     %% Add all env variables with prefix MIM_
-    EnvVars = maps:from_list([{list_to_atom(string:to_lower(K)), list_to_binary(V)}
-                              || {"MIM_" ++ K, V} <- os:list_env_vars()]),
+    EnvVars = maps:from_list([{list_to_atom(K), list_to_binary(V)}
+                              || {"mim_" ++ K, V} <- LowerEnvVars]),
+
     io:format("Found ~p env variables~n", [maps:size(EnvVars)]),
 
     %% EnvVars have higher priority

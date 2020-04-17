@@ -17,3 +17,4 @@ _build/*
 .git
 
 tools/pkg/Dockerfile_rpm
+tools/pkg/packages/
