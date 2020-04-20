@@ -21,18 +21,20 @@
 
 all() ->
     [{group, fusco},
-     {group, gun}].
+     {group, gun_http1},
+     {group, gun_http2}].
 
 groups() ->
-    [{fusco, [], tests()},
-     {gun, [], tests()}].
+    [{fusco, [], [pool_timeout_test | tests()]},
+     {gun_http1, [], tests()},
+     {gun_http2, [], tests()}].
 
 tests() ->
     [get_test,
      no_pool_test,
      post_test,
      request_timeout_test,
-     pool_timeout_test
+     multiple_requests_test
     ].
 
 init_per_suite(Config) ->
@@ -62,10 +64,15 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_group(fusco, Config) ->
-    [{connection_opts, [{server, "http://localhost:8080"}, http_client, fusco]} | Config];
-init_per_group(gun, Config) ->
+    [{connection_opts, [{server, "http://localhost:8080"}, {http_client, fusco}]} | Config];
+init_per_group(gun_http1, Config) ->
     application:ensure_all_started(gun),
-    [{connection_opts, [{server, {"127.0.0.1", 8080}}, {http_client, gun}]} | Config].
+    [{connection_opts, [{server, {"127.0.0.1", 8080}}, {http_client, gun}]} | Config];
+init_per_group(gun_http2, Config) ->
+    application:ensure_all_started(gun),
+    [{connection_opts, [{server, {"127.0.0.1", 8080}},
+                        {http_client, gun},
+                        {http_opts, #{protocols => [http2]}}]} | Config].
 
 end_per_group(_, Config) ->
     Config.
@@ -82,7 +89,7 @@ init_per_testcase(pool_timeout_test, Config) ->
                                             [{workers, 1},
                                              {max_overflow, 0},
                                              {strategy, available_worker},
-                                             {call_timeout, 10}],
+                                             {call_timeout, 50}],
                                             ConnOpts}],
                                           [<<"a.com">>]),
     Config;
@@ -122,5 +129,25 @@ pool_timeout_test(_Config) ->
     Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
     {error, pool_timeout} = Result,
     receive finished -> ok after 1000 -> error(no_finished_message) end.
+
+multiple_requests_test(_Config) ->
+    Pid = self(),
+    N = 5,
+    [spawn(fun() ->
+        Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
+        Pid ! Result
+        end) || _ <- lists:seq(1,N)],
+    receive_results(N).
+
+receive_results(0) ->
+    ok;
+receive_results(N) ->
+    receive
+        Result ->
+            {ok, {<<"200">>, <<"OK">>}} = Result,
+            receive_results(N-1)
+    after 100 ->
+        error(results_timeout)
+    end.
 
 pool() -> tmp_pool.
