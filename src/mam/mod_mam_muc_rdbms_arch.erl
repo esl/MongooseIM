@@ -168,9 +168,10 @@ retract_message(Host, RoomID, SenderJID, OriginID) ->
     ok.
 
 query_for_messages_to_retract(SRoomID, SSenderID, SOriginID) ->
-    ["SELECT id, message FROM mam_muc_message"
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(1),
+    ["SELECT ", LimitMSSQL, " id, message FROM mam_muc_message"
      " WHERE room_id = ", SRoomID, " AND sender_id = ", SSenderID, " AND origin_id = ", SOriginID,
-     " ORDER BY id DESC LIMIT 1"].
+     " ORDER BY id DESC ", LimitSQL].
 
 query_to_make_tombstone(STombstoneData, SRoomID, BMessID) ->
     ["UPDATE mam_muc_message SET message = ", STombstoneData, ", search_body = ''"
