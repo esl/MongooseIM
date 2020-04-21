@@ -74,7 +74,6 @@ rm -rf %{buildroot}
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/lib/mongooseim
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/log/mongooseim
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/lock/mongooseim
-%attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/lock/mongooseim
 
 %changelog
 * %(date "+%a %b %d %Y") Erlang Solutions <packages@erlang-solutions.com> - %{version}-%{release}

@@ -5,7 +5,7 @@
 set -eu pipefail
 IFS=$'\n\t'
 
-echo "Check, that print_install_dir works"
+echo "Check that print_install_dir works"
 MIM_DIR=$(mongooseimctl print_install_dir)
 test -d "$MIM_DIR"
 
@@ -13,7 +13,7 @@ echo "Executing init scripts via 'mongooseimctl bootstrap'"
 # Fails, if the exit code is wrong
 mongooseimctl bootstrap
 
-echo "Check, that bootstrap01-hello.sh script is executed"
+echo "Check that bootstrap01-hello.sh script is executed"
 BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
 echo "$BOOTSTRAP_RESULT" | grep "Hello from"
 
