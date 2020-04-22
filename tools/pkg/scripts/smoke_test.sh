@@ -5,18 +5,30 @@
 set -eu pipefail
 IFS=$'\n\t'
 
-echo "Executing init scripts via 'mongooseimctl bootstrap'"
-# Fails, if exit code is wrong
-mongooseimctl bootstrap
-
-echo "Check, that bootstrap01-hello.sh script is executed"
-BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
-echo "$BOOTSTRAP_RESULT" | grep "Hello from"
-
-echo "Check, that print_install_dir works"
+echo "Check that print_install_dir works"
 MIM_DIR=$(mongooseimctl print_install_dir)
 test -d "$MIM_DIR"
 
+echo "Executing init scripts via 'mongooseimctl bootstrap'"
+# Fails, if the exit code is wrong
+mongooseimctl bootstrap
+
+echo "Check that bootstrap01-hello.sh script is executed"
+BOOTSTRAP_RESULT=$(mongooseimctl bootstrap)
+echo "$BOOTSTRAP_RESULT" | grep "Hello from"
+
+# Script should be accessable by the "mongooseim" user
+mv smoke_templates.escript "$MIM_DIR/"
+
+echo "Check, that templates are correctly processed"
+echo "Override default demo_session_lifetime=600 with 700"
+# We check escaping with MIM_unused_var
+MIM_unused_var="'\n\t\t\"" MIM_demo_session_lifetime=700 mongooseimctl bootstrap
+mongooseimctl escript "$MIM_DIR/smoke_templates.escript"
+
+# Uppercase variables also work
+MIM_DEMO_SESSION_LIFETIME=700 mongooseimctl bootstrap
+mongooseimctl escript "$MIM_DIR/smoke_templates.escript"
 
 echo "Check, that bootstrap fails, if permissions are wrong"
 GOOD_SCRIPT="$MIM_DIR/scripts/bootstrap01-hello.sh"

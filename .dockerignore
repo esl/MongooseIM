@@ -12,3 +12,9 @@ _build/*
 **/*.beam
 #no erlcinfo files (in order to have cleaner logs when compiling in the container)
 **/erlcinfo
+# no vim temp files
+**/.*.sw*
+.git
+
+tools/pkg/Dockerfile_rpm
+tools/pkg/packages/

@@ -6,9 +6,21 @@ RUNNER_BASE_DIR="${RUNNER_SCRIPT_DIR%/*}"
 RUNNER_ETC_DIR="{{mongooseim_etc_dir}}"
 RUNNER_USER="{{mongooseim_runner_user}}"
 
+# Return variables with MIM_ prefix
+function preserved_variables
+{
+    EXP=$(export -p | grep '^declare -x MIM_')
+    # if not empty
+    if [ ! -z "$EXP" ]; then
+        # concat lines with " && " separator and add the separator at the end
+        echo "${EXP//$'\n'/ && } && "
+    fi
+}
+
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec runuser -l "$RUNNER_USER" -c "$0 $*"
+    # Preserve some env variables
+    exec runuser -s /bin/bash -l "$RUNNER_USER" -c "$(preserved_variables) $0 $*"
 fi
 
 MIM_DIR="${RUNNER_SCRIPT_DIR%/*}"
@@ -115,6 +127,14 @@ print_install_dir ()
     echo "$MIM_DIR"
 }
 
+run_escript()
+{
+    export MIM_DIR="$MIM_DIR"
+
+    shift
+    "$ERTS_PATH"/escript $@
+}
+
 start ()
 {
     "$RUNNER_SCRIPT_DIR"/mongooseim start
@@ -162,6 +182,7 @@ help ()
     echo "Extra Commands:"
     echo "  bootstrap           Executes MongooseIM init scripts (used for initial configuration)"
     echo "  print_install_dir   Prints path to MongooseIM release directory"
+    echo "  escript             Runs escript command using embedded Erlang Runtime System"
     echo ""
 }
 
@@ -381,5 +402,6 @@ case $1 in
     'started') wait_for_status_file started 60 1 || true; wait_for_status 0 30 2;; # wait 30x2s before timeout
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     'print_install_dir') print_install_dir;;
+    'escript') run_escript $@;;
     *) ctl $QUOTED_ARGS;;
 esac

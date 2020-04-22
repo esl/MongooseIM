@@ -70,6 +70,7 @@ rm -rf %{buildroot}
 
 %config	 %{_sysconfdir}/mongooseim/*
 
+%attr(770,mongooseim,mongooseim) %{_prefix}/lib/mongooseim/etc
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/lib/mongooseim
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/log/mongooseim
 %attr(770,mongooseim,mongooseim) %dir %{_localstatedir}/lock/mongooseim

@@ -1,6 +1,15 @@
 # vi: ft=dockerfile
 ARG dockerfile_platform
 
+# Source container is useful for preparing code for the actual build.
+FROM $dockerfile_platform AS source
+COPY . /SOURCE
+# Separate the main code from the testing code.
+# So that any changes in the testing code do not trigger cache invalidation in the builder.
+RUN mkdir /TESTS \
+    && mv /SOURCE/tools/pkg/scripts/smoke_test.sh /TESTS/ \
+    && mv /SOURCE/tools/pkg/scripts/smoke_templates.escript /TESTS/
+
 FROM $dockerfile_platform AS builder
 
 # Install the build dependencies
@@ -23,7 +32,7 @@ RUN curl -O https://packages.erlang-solutions.com/erlang-solutions-2.0-1.noarch.
 # including not commited changes are used to build the package
 RUN rpmdev-setuptree
 WORKDIR /root/rpmbuild
-COPY . ./BUILD/mongooseim
+COPY --from=source /SOURCE ./BUILD/mongooseim
 
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.spec ./SPECS/.
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \
@@ -44,7 +53,7 @@ RUN yum -y update; yum install -y mongooseim*.rpm
 
 # Simple check if MiM works
 COPY --from=builder /root/rpmbuild/BUILD/mongooseim/tools/wait-for-it.sh .
-COPY --from=builder /root/rpmbuild/BUILD/mongooseim/tools/pkg/scripts/smoke_test.sh .
+COPY --from=source /TESTS/* ./
 
 RUN ./smoke_test.sh
 

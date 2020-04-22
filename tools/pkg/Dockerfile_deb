@@ -44,6 +44,7 @@ RUN apt-get update; dpkg -i *.deb; apt-get install -y -f
 # Simple check if MiM works
 COPY --from=builder /root/mongooseim/tools/wait-for-it.sh .
 COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_test.sh .
+COPY --from=builder /root/mongooseim/tools/pkg/scripts/smoke_templates.escript .
 
 RUN ./smoke_test.sh
 

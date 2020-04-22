@@ -51,7 +51,8 @@ app_opts() ->
      {"cassandra",     ["cqerl"],           include_driver("cassandra")},
      {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
      {"aws",           ["erlcloud"],        "include support for AWS services"},
-     {"amqp_client",   ["amqp_client"],     "include AMQP client"}].
+     {"amqp_client",   ["amqp_client"],     "include AMQP client"},
+     {"templates",     ["eini", "bbmustache"], "include applications for templating"}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
