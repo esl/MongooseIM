@@ -258,9 +258,7 @@ unsubscribe(ConfigIn) ->
         escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
-        escalus_client:wait_for_stanzas(Alice, 2),
-
-        escalus_client:wait_for_stanza(Alice),
+        escalus_client:wait_for_stanzas(Alice, 3),
 
         %% Bob receives roster push
         PushReqB1 = escalus_client:wait_for_stanza(Bob),
@@ -289,10 +287,9 @@ add_sample_contact(Alice, Bob) ->
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,
         escalus_stanza:roster_add_contact(Bob, Groups, Name)),
-    R = escalus_client:wait_for_stanza(Alice),
-    escalus:assert(is_iq_result, R),
-    RosterPush = escalus_client:wait_for_stanza(Alice),
-    escalus:assert(is_roster_set, RosterPush),
+    R = escalus_client:wait_for_stanzas(Alice, 2),
+    escalus:assert_many([is_iq_result, is_roster_set], R),
+    [RosterPush] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, R),
     escalus_client:send(Alice, escalus_stanza:iq_result(RosterPush)),
     ok.
 
