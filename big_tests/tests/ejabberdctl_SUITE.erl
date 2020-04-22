@@ -696,7 +696,6 @@ push_roster(Config) ->
                                      is_roster_set
                                     ],
                                    Sets),
-                lists:map(fun(S) -> escalus:assert(is_roster_set, S) end, Sets),
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
@@ -1413,4 +1412,3 @@ add_rosteritem2(Name1, Domain1, Name2, Domain2, Config) ->
     ejabberdctl("add_rosteritem",
                 [Name1, Domain1, Name2,
                  Domain2, "DearMike", "MyGroup", "both"], Config).
-

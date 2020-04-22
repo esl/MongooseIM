@@ -19,7 +19,6 @@ privacy_list(#state{ privacy_list = PrivacyList}) ->
 get_handler_state(HandlerName, StateData) ->
     maps:get(HandlerName, StateData#state.handlers, empty_state).
 
-
 set_handler_state(HandlerName, NewHandlerState, StateData) ->
     NewStates = maps:put(HandlerName, NewHandlerState, StateData#state.handlers),
     StateData#state{handlers = NewStates}.

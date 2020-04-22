@@ -3108,4 +3108,3 @@ update_stanza(From, To, #xmlel{} = Element, Acc) ->
 strip_c2s_fields(Acc) ->
     %% TODO: verify if we really need to strip down these 2 fields
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
-

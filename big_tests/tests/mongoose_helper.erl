@@ -412,13 +412,12 @@ check_subscription_stanzas(Stanzas, Type) ->
 
 check_subscription_stanzas(Stanzas, Type, PresenceType) ->
     IsPresWithType = fun(S) ->
-        escalus_pred:is_presence_with_type(Type, S)
+                         escalus_pred:is_presence_with_type(Type, S)
                      end,
     ExtraChecks = case PresenceType of
                       none -> [];
                       Tp -> [fun(S) ->
-                          escalus_pred:is_presence_with_type(Tp, S)
+                                 escalus_pred:is_presence_with_type(Tp, S)
                              end]
                   end,
     escalus:assert_many([is_roster_set, IsPresWithType] ++ ExtraChecks, Stanzas).
-

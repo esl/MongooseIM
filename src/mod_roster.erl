@@ -90,7 +90,6 @@
 
 -type get_user_roster_strategy() :: db_versioning | hash_versioning | no_versioning.
 
-
 -callback init(Host, Opts) -> ok when
     Host :: jid:server(),
     Opts :: list().
@@ -1047,4 +1046,3 @@ item_to_map(#roster{} = Roster) ->
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
-

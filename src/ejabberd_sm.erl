@@ -218,7 +218,7 @@ route(From, To, Acc, El) ->
     end.
 
 %% @doc runs remote hook in all active sessions of this user
-%% this is going to eventuall replace the infamous route({broadcast...
+%% this is going to eventually replace the infamous route({broadcast...
 -spec run_in_all_sessions(jid:jid(), atom(), term()) -> [term()].
 run_in_all_sessions(#jid{luser = LUser, lserver = LServer}, Tag, Args) ->
     lists:map(fun({_, Pid}) -> ejabberd_c2s:run_remote_hook(Pid, Tag, Args) end,

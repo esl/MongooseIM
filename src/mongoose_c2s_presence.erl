@@ -1,6 +1,6 @@
 %% @doc
-%% This modules handles part of c2s state, namely related to online presence.
-%% Keeps track of which of our contacts is online, away etc, our own online status, and
+%% This module handles part of c2s state, namely related to online presence.
+%% It keeps track of which of our contacts is online, away etc, our own online status, and
 %% provides API for ejabberd_c2s to retrieve or modify these information.
 %% It also takes care of distributing roster iq push and presence updates upon roster change -
 %% when roster is changed, mod_roster calls this module in every active session of the
@@ -82,7 +82,6 @@ handle_remote_hook(HandlerState, _, _, _) ->
 
 %% this should be used to call a handler module func which modifies handler state
 %% it is just a convenient wrapper
-%% can be used for any call
 call(FunctionName, Args, StateData) ->
     HandlerState = ejabberd_c2s_state:get_handler_state(mod_roster, StateData),
     case ?MODULE:FunctionName(Args, HandlerState, StateData) of
@@ -100,8 +99,8 @@ initialise_state(FromSubs, ToSubs) ->
 am_i_subscribed_to_presence(LJID, LBareJID, State) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     gb_sets:is_element(LJID, S#roster_state.pres_t)
-    orelse (LJID /= LBareJID)
-           andalso gb_sets:is_element(LBareJID, S#roster_state.pres_t).
+        orelse (LJID /= LBareJID)
+        andalso gb_sets:is_element(LBareJID, S#roster_state.pres_t).
 
 is_subscribed_to_my_presence(JID, State) ->
     {Lowcase, Bare} = lowcase_and_bare(JID),
@@ -110,14 +109,14 @@ is_subscribed_to_my_presence(JID, State) ->
 is_subscribed_to_my_presence(LFrom, LBareFrom, State) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     gb_sets:is_element(LFrom, S#roster_state.pres_f)
-    orelse (LFrom /= LBareFrom)
-           andalso gb_sets:is_element(LBareFrom, S#roster_state.pres_f).
+        orelse (LFrom /= LBareFrom)
+        andalso gb_sets:is_element(LBareFrom, S#roster_state.pres_f).
 
 am_i_available_to(LFrom, LBFrom, State) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     gb_sets:is_element(LFrom, S#roster_state.pres_a)
-    orelse (LFrom /= LBFrom)
-           andalso gb_sets:is_element(LBFrom, S#roster_state.pres_a).
+        orelse (LFrom /= LBFrom)
+        andalso gb_sets:is_element(LBFrom, S#roster_state.pres_a).
 
 make_available_to({LFrom, LBFrom}, State, _C2SState) ->
     NewState = case gb_sets:is_element(LFrom, State#roster_state.pres_f) of
@@ -160,8 +159,8 @@ has_active_presence(State) ->
 invisible_to(LFrom, LBareFrom, State) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     gb_sets:is_element(LFrom, S#roster_state.pres_i)
-    orelse (LFrom /= LBareFrom)
-           andalso gb_sets:is_element(LBareFrom, S#roster_state.pres_i).
+        orelse (LFrom /= LBareFrom)
+        andalso gb_sets:is_element(LBareFrom, S#roster_state.pres_i).
 
 is_invisible(State) ->
     #roster_state{pres_invis = Invisible} = ejabberd_c2s_state:get_handler_state(mod_roster, State),
@@ -171,8 +170,8 @@ is_invisible(State) ->
 specifically_visible_to(LFrom,  State) ->
     #roster_state{pres_invis = Invisible} = S = ejabberd_c2s_state:get_handler_state(mod_roster, State),
     Invisible
-    andalso gb_sets:is_element(LFrom, S#roster_state.pres_f)
-    andalso gb_sets:is_element(LFrom, S#roster_state.pres_a).
+        andalso gb_sets:is_element(LFrom, S#roster_state.pres_f)
+        andalso gb_sets:is_element(LFrom, S#roster_state.pres_a).
 
 set_presence_state({unavailable, LTo}, StateData, _C2SState) ->
     I = gb_sets:del_element(LTo, StateData#roster_state.pres_i),
@@ -242,7 +241,7 @@ presence_update_to_available(Packet, StateData, _C2SState) ->
 
 is_unavailable(C2SState) ->
     S = ejabberd_c2s_state:get_handler_state(mod_roster, C2SState),
-    (S#roster_state.pres_last == undefined) or S#roster_state.pres_invis.
+    (S#roster_state.pres_last == undefined) orelse S#roster_state.pres_invis.
 
 -type pack_tree() :: gb_trees:tree(binary() | jid:simple_jid(),
 binary() | jid:simple_jid()).
