@@ -886,6 +886,8 @@ init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
 init_per_testcase(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
+init_per_testcase(C=retract_message, Config) ->
+    skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -922,8 +924,11 @@ init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=retract_muc_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
+    Init = fun() ->
+                   Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+                   escalus:init_per_testcase(C, start_alice_room(Config1))
+           end,
+    skip_if_retraction_not_supported(Config, Init);
 init_per_testcase(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -990,6 +995,14 @@ init_per_testcase(C=dont_archive_chat_markers, Config) ->
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+skip_if_retraction_not_supported(Config, Init) ->
+    case lists:member(?config(configuration, Config), rdbms_configs(true)) of
+        false ->
+            {skip, "message retraction not supported"};
+        true ->
+            Init()
+    end.
 
 skip_if_riak(C, Config) ->
     case ?config(configuration, Config) of
