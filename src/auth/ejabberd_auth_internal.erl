@@ -106,6 +106,8 @@ supports_sasl_module(_, cyrsasl_plain) ->
     true;
 supports_sasl_module(Host, cyrsasl_scram_sha1 = ScramSha) ->
     mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(Host, cyrsasl_scram_sha1_plus = ScramSha) ->
+    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
 supports_sasl_module(Host, cyrsasl_scram_sha224 = ScramSha) ->
     mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
 supports_sasl_module(Host, cyrsasl_scram_sha256 = ScramSha) ->

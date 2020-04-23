@@ -146,6 +146,7 @@ default_modules() ->
     [cyrsasl_plain,
      cyrsasl_digest,
      cyrsasl_scram_sha1,
+     cyrsasl_scram_sha1_plus,
      cyrsasl_scram_sha224,
      cyrsasl_scram_sha256,
      cyrsasl_scram_sha384,

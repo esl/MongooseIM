@@ -56,6 +56,7 @@
 -define(SCRAM_SHA256_PREFIX, "==SHA256==").
 -define(SCRAM_SHA384_PREFIX, "==SHA384==").
 -define(SCRAM_SHA512_PREFIX, "==SHA512==").
+-define(SCRAM_SHA1_PLUS_PREFIX, "=SHA1PLUS=").
 
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
@@ -112,6 +113,8 @@ enabled(Host) ->
     end.
 
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha1) ->
+    is_password_format_allowed(Host, sha);
+can_login_with_configured_password_format(Host, cyrsasl_scram_sha1_plus) ->
     is_password_format_allowed(Host, sha);
 can_login_with_configured_password_format(Host, cyrsasl_scram_sha224) ->
     is_password_format_allowed(Host, sha224);
