@@ -28,7 +28,7 @@
 
 -export([listmech/1,
          server_new/5,
-         server_start/3,
+         server_start/4,
          server_step/2]).
 
 -include("mongoose.hrl").
@@ -36,12 +36,12 @@
 -type sasl_module() :: module().
 -type mechanism() :: binary().
 
--record(sasl_state, {service :: binary(),
-                     myname :: jid:server(),
-                     realm :: binary(),
-                     mech_mod :: sasl_module(),
+-record(sasl_state, {service    :: binary(),
+                     myname     :: jid:server(),
+                     realm      :: binary(),
+                     mech_mod   :: sasl_module(),
                      mech_state :: any(),
-                     creds :: mongoose_credentials:t()
+                     creds      :: mongoose_credentials:t()
                      }).
 -type sasl_state() :: #sasl_state{}.
 
@@ -91,16 +91,19 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
                 realm = UserRealm,
                 creds = Creds}.
 
--spec server_start(sasl_state(), Mech :: mechanism(), ClientIn :: binary()) -> Result when
-      Result :: {ok, mongoose_credentials:t()}
-              | {'continue', _, sasl_state()}
-              | error().
-
-server_start(State, Mech, ClientIn) ->
+-spec server_start(State, Mech, ClientIn, Socket) -> Result when
+      State     :: sasl_state(),
+      Mech      :: mechanism(),
+      ClientIn  :: binary(),
+      Socket    :: ejabberd_socket:socket_state(),
+      Result    :: {ok, mongoose_credentials:t()}
+                 | {'continue', _, sasl_state()}
+                 | error().
+server_start(State, Mech, ClientIn, Socket) ->
     Host = State#sasl_state.myname,
     case [M || M <- get_modules(Host), M:mechanism() =:= Mech, is_module_supported(Host, M)] of
         [Module] ->
-            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds),
+            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds, Socket),
             server_step(State#sasl_state{mech_mod = Module,
                                          mech_state = MechState},
                         ClientIn);

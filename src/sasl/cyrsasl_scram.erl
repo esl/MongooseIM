@@ -27,7 +27,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([mech_new/3, mech_step/2]).
+-export([mech_new/3, mech_new/4, mech_step/2]).
 
 -include("mongoose.hrl").
 
@@ -37,17 +37,21 @@
 
 
 -record(state,
-        {step = 2              :: 2 | 4,
-         stored_key = <<"">>   :: binary(),
-         server_key = <<"">>   :: binary(),
-         username = <<"">>     :: binary(),
-         creds                 :: mongoose_credentials:t(),
-         auth_message = <<"">> :: binary(),
-         client_nonce = <<"">> :: binary(),
-         server_nonce = <<"">> :: binary(),
-         auth_module           :: ejabberd_gen_auth:t(),
-         sha                   :: sha()}).
+        {step = 2                  :: 2 | 4,
+         stored_key = <<"">>       :: binary(),
+         server_key = <<"">>       :: binary(),
+         username = <<"">>         :: binary(),
+         creds                     :: mongoose_credentials:t(),
+         auth_message = <<"">>     :: binary(),
+         client_nonce = <<"">>     :: binary(),
+         server_nonce = <<"">>     :: binary(),
+         auth_module               :: ejabberd_gen_auth:t(),
+         sha                       :: sha(),
+         plus_variant = none       :: plus_variant(),
+         tls_last_message = <<"">> :: binary()
+        }).
 
+-type state() :: #state{}.
 -type sha() :: sha | sha224 | sha256 | sha384 | sha512.
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
@@ -58,13 +62,26 @@
 -type channel_binding() :: term().
 -type client_proof() :: term().
 -type error() :: {error, binary()} | {error, binary(), binary()}.
+-type plus_variant() :: none | tls_unique.
 
 -define(SALT_LENGTH, 16).
 
 -define(NONCE_LENGTH, 16).
 
 mech_new(_Host, Creds, Sha) ->
-    {ok, #state{step = 2, creds = Creds, sha = Sha}}.
+    {ok, #state{step = 2,
+                creds = Creds,
+                sha = Sha,
+                plus_variant = none,
+                tls_last_message = <<"">>}}.
+
+mech_new(_Host, Creds, Sha, Socket) ->
+    {PlusVariant, TlsLastMessage} = maybe_get_tls_last_message(Socket),
+    {ok, #state{step = 2,
+                creds = Creds,
+                sha = Sha,
+                plus_variant = PlusVariant,
+                tls_last_message = TlsLastMessage}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
     ClientInList = binary:split(ClientIn, <<",">>, [global]),
