@@ -88,7 +88,7 @@ mech_step(#state{step = 2} = State, ClientIn) ->
     ClientInSteps = [ fun parse_step2_client_in/1,
                       fun parse_username_attribute/1,
                       fun unescape_username_attribute/1 ],
-    case parse_attributes(ClientInList, ClientInSteps) of
+    case parse_attributes({ClientInList, State}, ClientInSteps) of
         {ok, {UserName, ClientNonce}} ->
             Creds = State#state.creds,
             LServer = mongoose_credentials:lserver(Creds),
@@ -117,8 +117,9 @@ mech_step(#state{step = 2} = State, ClientIn) ->
 mech_step(#state{step = 4} = State, ClientIn) ->
     ClientInList = binary:split(ClientIn, <<",">>, [global]),
     ClientInSteps = [ fun parse_step4_client_in/1,
-                      fun parse_channel_binding_attribute/1],
-    case parse_attributes(ClientInList, ClientInSteps) of
+                      fun parse_channel_binding_attribute/1,
+                      fun verify_channel_binding/1],
+    case parse_attributes({ClientInList, State}, ClientInSteps) of
         {ok, {NonceAtt, ClientProofAtt}} ->
             Nonce = <<(State#state.client_nonce)/binary,
                       (State#state.server_nonce)/binary>>,
@@ -154,13 +155,21 @@ parse_attributes(ClientInList, Steps) ->
                     (F, Args) -> F(Args)
                 end, ClientInList, Steps).
 
--spec parse_step2_client_in(client_in()) -> {username_att(), nonce_attr()} | error().
-parse_step2_client_in([_,_,_,_, Extension | _]) when Extension /= [] ->
+-spec parse_step2_client_in({client_in(), state()}) -> {username_att(), nonce_attr()} | error().
+parse_step2_client_in({[_,_,_,_, Extension | _], _}) when Extension /= [] ->
     {error, <<"protocol-error-extension-not-supported">>};
-parse_step2_client_in([CBind | _]) when (CBind =/= <<"y">>) andalso (CBind =/= <<"n">>) ->
-    {error, <<"bad-protocol">>};
-parse_step2_client_in([_CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _]) ->
-    {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)}.
+parse_step2_client_in({[CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _], State}) ->
+    case supported_channel_binding_flag(CBind, State#state.plus_variant) of
+        true ->
+            {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)};
+        false ->
+            {error, <<"bad-protocol">>}
+    end.
+
+supported_channel_binding_flag(<<"n">>, none) -> true;
+supported_channel_binding_flag(<<"y">>, none) -> true;
+supported_channel_binding_flag(<<"p=tls-unique">>, tls_unique) -> true;
+supported_channel_binding_flag(_, _) -> false.
 
 -spec parse_username_attribute({username_att(), nonce_attr()}) ->
     {jid:username(), nonce()} | error().
@@ -204,27 +213,33 @@ create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
         jlib:encode_base64(Salt), <<",i=">>, integer_to_list(IterationCount)]).
 
 -spec parse_step4_client_in(client_in()) ->
-    {channel_binding(), nonce_attr(), client_proof()} | error().
-parse_step4_client_in(AttributesList) when length(AttributesList) == 3 ->
+    {channel_binding(), nonce_attr(), client_proof(), state()} | error().
+parse_step4_client_in({AttributesList, State}) when length(AttributesList) == 3 ->
     [CBind,
      NonceAtt,
      ClientProofAtt] = [parse_attribute(Attribute) || Attribute <-AttributesList],
-     {CBind, NonceAtt, ClientProofAtt};
+     {CBind, NonceAtt, ClientProofAtt, State};
 parse_step4_client_in(_) ->
     {error, <<"bad-protocol">>}.
 
--spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof()}) ->
+-spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof(), state()}) ->
     {ok, {nonce(), client_proof()}} | error().
-parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt}) ->
-    CBind = binary:at(jlib:decode_base64(CVal), 0),
-    check_channel_binding({CBind, NonceAtt, ClientProofAtt});
+parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt, State}) ->
+    PlusVariant = State#state.plus_variant,
+    TlsLastMessage = State#state.tls_last_message,
+    {base64:decode(CVal), PlusVariant, TlsLastMessage, NonceAtt, ClientProofAtt};
 parse_channel_binding_attribute(_) ->
     {error, <<"bad-protocol">>}.
 
-check_channel_binding({CBind, _, _ }) when (CBind =/= $n) andalso (CBind =/=$y) ->
-    {error, <<"bad-channel-binding">>};
-check_channel_binding({_CBind, NonceAtt, ClientProofAtt}) ->
-    {ok, {NonceAtt, ClientProofAtt}}.
+verify_channel_binding({<<"p=tls-unique,,", TlsLastMessage/binary>>, tls_unique, TlsLastMessage, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding({<<"y", _/binary>>, none, _TlsLastMessage, NonceAtt, ClientProofAtt}) ->
+    %TODO: verify if -PLUS mechanisms were advertised, if yes then fail
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding({<<"n", _/binary>>, none, _TlsLastMessage, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding(_) ->
+    {error, <<"bad-channel-binding">>}.
 
 verify_nonce([{{$r, Nonce}, Nonce} | Args]) ->
     Args;
@@ -255,6 +270,13 @@ verify_stored_key(_) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+maybe_get_tls_last_message(Socket) ->
+    TlsLastMessage = ejabberd_tls:get_tls_last_message(peer, Socket),
+    case TlsLastMessage of
+        <<"">> -> {none, <<"">>};
+        {ok, Msg} -> {tls_unique, Msg}
+    end.
 
 parse_attribute(Attribute) when byte_size(Attribute) >= 3 ->
     parse_attribute(Attribute, 0);
