@@ -92,6 +92,7 @@
          archived/1,
          message_with_stanzaid/1,
          retract_message/1,
+         retract_wrong_message/1,
          filter_forwarded/1,
          offline_message/1,
          nostore_hint/1,
@@ -386,7 +387,8 @@ stanzaid_cases() ->
     [message_with_stanzaid].
 
 retract_cases() ->
-    [retract_message].
+    [retract_message,
+     retract_wrong_message].
 
 nostore_cases() ->
     [offline_message,
@@ -886,7 +888,8 @@ init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
 init_per_testcase(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=retract_message, Config) ->
+init_per_testcase(C, Config) when C =:= retract_message;
+                                  C =:= retract_wrong_message ->
     skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
@@ -1770,6 +1773,55 @@ retract_message(Config) ->
         [ArcMsg3, ArcMsg4] = respond_messages(assert_respond_size(2, wait_archive_respond(Bob))),
         #forwarded_message{message_body = undefined,
                            message_children = [#xmlel{name = <<"retracted">>}]} = parse_forwarded_message(ArcMsg3),
+        #forwarded_message{message_body = undefined,
+                           message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg4),
+
+        ok
+    end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+retract_wrong_message(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+
+        %% GIVEN Alice sends a message with 'origin-id' to Bob...
+        Body = <<"OH, HAI!">>,
+        Msg = #xmlel{children = Children} = escalus_stanza:chat_to(Bob, Body),
+        Msg2 = Msg#xmlel{children = Children ++ [origin_id_element(<<"orig-id-1">>)]},
+        escalus:send(Alice, Msg2),
+
+        %% ...and Bob receives it
+        Msg3 = escalus:wait_for_stanza(Bob),
+        OriginId = exml_query:subelement(Msg3, <<"origin-id">>),
+        <<"urn:xmpp:sid:0">> = exml_query:attr(OriginId, <<"xmlns">>),
+        <<"orig-id-1">> = exml_query:attr(OriginId, <<"id">>),
+
+        %% WHEN Alice tries to retract a non-existing message
+        ApplyToElement = apply_to_element(<<"orig-id-2">>),
+        RetractMsg = #xmlel{name = <<"message">>,
+                            attrs = [{<<"type">>, <<"chat">>},
+                                     {<<"to">>, escalus_utils:get_jid(Bob)}],
+                            children = [ApplyToElement]},
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the message with 'retract'...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ApplyTo = exml_query:subelement(RecvRetract, <<"apply-to">>),
+        <<"urn:xmpp:fasten:0">> = exml_query:attr(ApplyTo, <<"xmlns">>),
+
+        maybe_wait_for_archive(Config),
+
+        %% ... and Alice and Bob have the original message and the 'retract' message in their archives
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Alice))),
+
+        #forwarded_message{message_body = Body} = parse_forwarded_message(ArcMsg1),
+        #forwarded_message{message_body = undefined,
+                           message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2),
+
+        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
+        [ArcMsg3, ArcMsg4] = respond_messages(assert_respond_size(2, wait_archive_respond(Bob))),
+        #forwarded_message{message_body = Body} = parse_forwarded_message(ArcMsg3),
         #forwarded_message{message_body = undefined,
                            message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg4),
 
