@@ -24,6 +24,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(mongoose_helper, [check_subscription_stanzas/2, check_subscription_stanzas/3]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -236,19 +238,18 @@ invisible_presence(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
-        PushReqB = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_roster_set, PushReqB),
+        Response1 = escalus:wait_for_stanzas(Bob, 2),
+        escalus:assert_many([is_roster_set, is_iq_result], Response1),
+        [PushReqB] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, Response1),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
-        Stanzas = escalus:wait_for_stanzas(Alice, 2),
+        Stanzas = escalus:wait_for_stanzas(Alice, 3),
 
-        check_subscription_stanzas(Stanzas, <<"subscribed">>),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+        check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
 
         %% Bob receives roster push
         PushReqB1 = escalus:wait_for_stanza(Bob),
@@ -343,19 +344,18 @@ versioning(Config) ->
         Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
                                                    bobs_default_name()),
         escalus:send(Alice, Stanza),
-        Received = escalus:wait_for_stanzas(Alice, 2),
+        Received = escalus:wait_for_stanzas(Alice, 3),
 
         escalus:assert_many([is_roster_set, is_iq_result], Received),
 
-        RosterSet = hd(Received),
+        [RosterSet] = [R || R <- Received, escalus_pred:is_roster_set(R)],
 
         Ver2 = exml_query:path(RosterSet, [{element, <<"query">>}, {attr, <<"ver">>}]),
 
         true = Ver2 /= undefined,
 
-        Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
-        escalus:assert(count_roster_items, [1], Result),
-        escalus:send(Alice, escalus_stanza:iq_result(Result)),
+        escalus:assert(count_roster_items, [1], RosterSet),
+        escalus:send(Alice, escalus_stanza:iq_result(RosterSet)),
 
         %% check roster, send old ver
         escalus:send(Alice, escalus_stanza:roster_get(Ver)),
@@ -411,20 +411,19 @@ subscribe(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
         PushReqB = escalus:wait_for_stanza(Bob),
         escalus:assert(is_roster_set, PushReqB),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid,
                      <<"subscribed">>)),
 
         %% Alice receives subscribed
-        Stanzas = escalus:wait_for_stanzas(Alice, 2),
+        Stanzas = escalus:wait_for_stanzas(Alice, 3),
 
-        check_subscription_stanzas(Stanzas, <<"subscribed">>),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+        check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
 
         %% Bob receives roster push
         PushReqB1 = escalus:wait_for_stanza(Bob),
@@ -572,18 +571,17 @@ unsubscribe(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
+
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
         PushReqB = escalus:wait_for_stanza(Bob),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
-        Stanzas = escalus:wait_for_stanzas(Alice, 2),
-
-        check_subscription_stanzas(Stanzas, <<"subscribed">>),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+        Stanzas = escalus:wait_for_stanzas(Alice, 3),
+        check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
 
         %% Bob receives roster push
         PushReqB1 = escalus:wait_for_stanza(Bob),
@@ -592,19 +590,16 @@ unsubscribe(Config) ->
         %% Alice sends unsubscribe
         escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribe">>)),
 
-        PushReqA2 = escalus:wait_for_stanza(Alice),
-        escalus_assert:is_roster_set(PushReqA2),
-        escalus:send(Alice, escalus_stanza:iq_result(PushReqA2)),
+        Stanzas1 = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([is_roster_set, fun(S) -> escalus_pred:is_presence_with_type(<<"unavailable">>, S) end],
+                            Stanzas1),
 
         %% Bob receives unsubscribe
 
         StanzasB = escalus:wait_for_stanzas(Bob, 2),
-
         check_subscription_stanzas(StanzasB, <<"unsubscribe">>),
-
-        %% Alice receives unsubscribed
-        escalus:assert(is_presence_with_type, [<<"unavailable">>],
-                       escalus:wait_for_stanza(Alice))
+        
+        ok
     end).
 
 remove_unsubscribe(Config) ->
@@ -627,19 +622,17 @@ remove_unsubscribe(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                             <<"Alice">>)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
         PushReqB = escalus:wait_for_stanza(Bob),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
-        Stanzas = [escalus:wait_for_stanza(Alice),
-                   escalus:wait_for_stanza(Alice)],
+        Stanzas = escalus:wait_for_stanzas(Alice, 3),
 
-        check_subscription_stanzas(Stanzas, <<"subscribed">>),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+        check_subscription_stanzas(Stanzas, <<"subscribed">>, <<"available">>),
 
         %% Bob receives roster push
         PushReqB1 = escalus:wait_for_stanza(Bob),
@@ -680,12 +673,6 @@ add_sample_contact(Alice, Bob) ->
     escalus:assert(count_roster_items, [1], Result),
     escalus:send(Alice, escalus_stanza:iq_result(Result)).
 
-check_subscription_stanzas(Stanzas, Type) ->
-    IsPresWithType = fun(S) ->
-                         escalus_pred:is_presence_with_type(Type, S)
-                     end,
-    escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
-
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
                                  Item <- escalus_users:get_usp(Config, UserSpec)],
@@ -725,7 +712,6 @@ check_roster_count(User, ExpectedCount) ->
     % the user sends get_roster iq
     escalus_client:send(User, escalus_stanza:roster_get()),
     Roster = escalus_client:wait_for_stanza(User),
-    ct:pal("Roster: ~p", [Roster]),
     % Roster contains all created users excluding user
     escalus:assert(is_roster_result, Roster),
     escalus:assert(count_roster_items, [ExpectedCount], Roster).
