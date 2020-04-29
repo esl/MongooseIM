@@ -271,17 +271,12 @@ verify_stored_key(_) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-maybe_get_tls_last_message(Socket, ScramPlus) ->
-    IsTlsSocket = ejabberd_tls:is_tls_socket(Socket),
-    maybe_do_get_tls_last_message(Socket, ScramPlus, IsTlsSocket).
-
-maybe_do_get_tls_last_message(Socket, true, true) ->
-    TlsLastMessage = ejabberd_tls:get_tls_last_message(peer, Socket),
-    case TlsLastMessage of
+maybe_get_tls_last_message(Socket, true) ->
+    case ejabberd_tls:get_tls_last_message(peer, Socket) of
         <<"">> -> {none, <<"">>};
         {ok, Msg} -> {tls_unique, Msg}
     end;
-maybe_do_get_tls_last_message(_, _, _) ->
+maybe_get_tls_last_message(_, _) ->
     {none, <<"">>}.
 
 is_scram_plus_advertised(sha, Mech)    -> lists:member(<<"SCRAM-SHA-1-PLUS">>, Mech);
