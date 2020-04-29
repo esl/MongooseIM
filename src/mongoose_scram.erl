@@ -51,12 +51,11 @@
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
--define(SCRAM_SHA_PREFIX, "===SHA1===").
+-define(SCRAM_SHA1_PREFIX, "===SHA1===").
 -define(SCRAM_SHA224_PREFIX, "==SHA224==").
 -define(SCRAM_SHA256_PREFIX, "==SHA256==").
 -define(SCRAM_SHA384_PREFIX, "==SHA384==").
 -define(SCRAM_SHA512_PREFIX, "==SHA512==").
--define(SCRAM_SHA1_PLUS_PREFIX, "=SHA1PLUS=").
 
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
@@ -263,7 +262,7 @@ do_check_digest([{Sha,_Prefix} | RemainingSha], ScramMap, Digest, DigestGen, Pas
     end.
 
 supported_sha_types() ->
-    [{sha,      <<?SCRAM_SHA_PREFIX>>},
+    [{sha,      <<?SCRAM_SHA1_PREFIX>>},
      {sha224,   <<?SCRAM_SHA224_PREFIX>>},
      {sha256,   <<?SCRAM_SHA256_PREFIX>>},
      {sha384,   <<?SCRAM_SHA384_PREFIX>>},
