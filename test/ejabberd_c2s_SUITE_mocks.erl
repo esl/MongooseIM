@@ -19,10 +19,11 @@ setup() ->
     meck:expect(ejabberd_socket, monitor,
                 fun(_) -> ok  end),
     meck:expect(ejabberd_socket, change_shaper, fun(_, _) -> ok end),
+    meck:expect(ejabberd_socket, get_socket, fun(_) -> ok end),
 
     meck:new(cyrsasl),
     meck:expect(cyrsasl, server_new, fun(_, _, _, _, _) -> saslstate end),
-    meck:expect(cyrsasl, server_start, fun(_, _, _) -> {ok, dummy_creds} end),
+    meck:expect(cyrsasl, server_start, fun(_, _, _, _) -> {ok, dummy_creds} end),
     meck:expect(cyrsasl, listmech, fun(_) -> [] end),
 
     meck:new(mongoose_credentials),
