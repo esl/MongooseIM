@@ -16,7 +16,7 @@
 
 -export([
          enabled/1,
-         can_login_with_configured_password_format/2,
+         enabled/2,
          iterations/0,
          iterations/1,
          password_to_scram/2,
@@ -112,18 +112,16 @@ enabled(Host) ->
         _ -> false
     end.
 
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha1) ->
-    is_password_format_allowed(Host, sha);
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha1_plus) ->
-    is_password_format_allowed(Host, sha);
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha224) ->
-    is_password_format_allowed(Host, sha224);
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha256) ->
-    is_password_format_allowed(Host, sha256);
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha384) ->
-    is_password_format_allowed(Host, sha384);
-can_login_with_configured_password_format(Host, cyrsasl_scram_sha512) ->
-    is_password_format_allowed(Host, sha512).
+enabled(Host, cyrsasl_scram_sha1)   -> is_password_format_allowed(Host, sha);
+enabled(Host, cyrsasl_scram_sha224) -> is_password_format_allowed(Host, sha224);
+enabled(Host, cyrsasl_scram_sha256) -> is_password_format_allowed(Host, sha256);
+enabled(Host, cyrsasl_scram_sha384) -> is_password_format_allowed(Host, sha384);
+enabled(Host, cyrsasl_scram_sha512) -> is_password_format_allowed(Host, sha512);
+enabled(Host, cyrsasl_scram_sha1_plus) -> is_password_format_allowed(Host, sha);
+enabled(Host, cyrsasl_scram_sha224_plus) -> is_password_format_allowed(Host, sha224);
+enabled(Host, cyrsasl_scram_sha256_plus) -> is_password_format_allowed(Host, sha256);
+enabled(Host, cyrsasl_scram_sha384_plus) -> is_password_format_allowed(Host, sha384);
+enabled(Host, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(Host, sha512).
 
 is_password_format_allowed(Host, Sha) ->
     case ejabberd_auth:get_opt(Host, password_format) of
