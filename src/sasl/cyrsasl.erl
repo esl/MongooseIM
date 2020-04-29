@@ -99,11 +99,11 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
       Result    :: {ok, mongoose_credentials:t()}
                  | {'continue', _, sasl_state()}
                  | error().
-server_start(State, Mech, ClientIn, Socket) ->
+server_start(State, Mech, ClientIn, SocketData) ->
     Host = State#sasl_state.myname,
     case [M || M <- get_modules(Host), M:mechanism() =:= Mech, is_module_supported(Host, M)] of
         [Module] ->
-            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds, Socket),
+            {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds, SocketData),
             server_step(State#sasl_state{mech_mod = Module,
                                          mech_state = MechState},
                         ClientIn);

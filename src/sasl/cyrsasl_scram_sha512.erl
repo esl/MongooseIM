@@ -1,6 +1,6 @@
 -module(cyrsasl_scram_sha512).
 
--export([mechanism/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/3, mech_step/2]).
 
 -include("mongoose.hrl").
 
@@ -12,8 +12,9 @@
 mechanism() ->
     <<"SCRAM-SHA-512">>.
 
-mech_new(Host, Creds) ->
-    cyrsasl_scram:mech_new(Host, Creds, sha512).
+mech_new(Host, Creds, #{socket := Socket, auth_mech := AuthMech}) ->
+    cyrsasl_scram:mech_new(Host, Creds, #{sha => sha512, scram_plus => false,
+                                          socket => Socket, auth_mech => AuthMech}).
 
 mech_step(State, ClientIn) ->
     cyrsasl_scram:mech_step(State, ClientIn).

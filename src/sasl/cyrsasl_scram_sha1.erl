@@ -12,8 +12,9 @@
 mechanism() ->
     <<"SCRAM-SHA-1">>.
 
-mech_new(Host, Creds, _Socket) ->
-    cyrsasl_scram:mech_new(Host, Creds, sha).
+mech_new(Host, Creds, #{socket := Socket, auth_mech := AuthMech}) ->
+    cyrsasl_scram:mech_new(Host, Creds, #{sha => sha, scram_plus => false,
+                                          socket => Socket, auth_mech => AuthMech}).
 
 mech_step(State, ClientIn) ->
     cyrsasl_scram:mech_step(State, ClientIn).

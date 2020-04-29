@@ -27,7 +27,7 @@
 
 -author('stephen.roettger@googlemail.com').
 
--export([mech_new/3, mech_new/4, mech_step/2]).
+-export([mech_new/3, mech_step/2]).
 
 -include("mongoose.hrl").
 
@@ -48,6 +48,7 @@
          auth_module               :: ejabberd_gen_auth:t(),
          sha                       :: sha(),
          plus_variant = none       :: plus_variant(),
+         plus_advertised           :: boolean(),
          tls_last_message = <<"">> :: binary()
         }).
 
@@ -68,15 +69,11 @@
 
 -define(NONCE_LENGTH, 16).
 
-mech_new(_Host, Creds, Sha) ->
-    {ok, #state{step = 2,
-                creds = Creds,
-                sha = Sha,
-                plus_variant = none,
-                tls_last_message = <<"">>}}.
-
-mech_new(_Host, Creds, Sha, Socket) ->
-    {PlusVariant, TlsLastMessage} = maybe_get_tls_last_message(Socket),
+mech_new(_Host, Creds, #{sha := Sha,
+                         socket := Socket,
+                         auth_mech := AuthMech,
+                         scram_plus := ScramPlus}) ->
+    {PlusVariant, TlsLastMessage} = maybe_get_tls_last_message(Socket, ScramPlus),
     {ok, #state{step = 2,
                 creds = Creds,
                 sha = Sha,

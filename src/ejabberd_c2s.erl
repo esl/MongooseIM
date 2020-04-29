@@ -512,8 +512,12 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
         {?NS_SASL, <<"auth">>} when TLSEnabled or not TLSRequired ->
             Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            Socket = ejabberd_socket:get_socket(StateData#state.socket),
-            StepResult = cyrsasl:server_start(StateData#state.sasl_state, Mech, ClientIn, Socket),
+            SaslState = StateData#state.sasl_state,
+            Server = StateData#state.server,
+            AuthMech = [M || M <- cyrsasl:listmech(Server), filter_mechanism(M, StateData)],
+            SocketData = #{socket => ejabberd_socket:get_socket(StateData#state.socket),
+                           auth_mech => AuthMech},
+            StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
         {?NS_TLS, <<"starttls">>} when TLS == true,
