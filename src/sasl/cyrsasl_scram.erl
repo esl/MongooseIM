@@ -157,17 +157,17 @@ parse_attributes(ClientInList, Steps) ->
 parse_step2_client_in({[_,_,_,_, Extension | _], _}) when Extension /= [] ->
     {error, <<"protocol-error-extension-not-supported">>};
 parse_step2_client_in({[CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _], State}) ->
-    case supported_channel_binding_flag(CBind, State#state.plus_variant) of
+    case supported_channel_binding_flag(CBind, State#state.plus_variant, State#state.plus_advertised) of
         true ->
             {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)};
         false ->
             {error, <<"bad-protocol">>}
     end.
 
-supported_channel_binding_flag(<<"n">>, none) -> true;
-supported_channel_binding_flag(<<"y">>, none) -> true;
-supported_channel_binding_flag(<<"p=tls-unique">>, tls_unique) -> true;
-supported_channel_binding_flag(_, _) -> false.
+supported_channel_binding_flag(<<"p=tls-unique">>, tls_unique, true) -> true;
+supported_channel_binding_flag(<<"y">>, none, false) -> true;
+supported_channel_binding_flag(<<"n">>, _, _) -> true;
+supported_channel_binding_flag(_, _, _) -> false.
 
 -spec parse_username_attribute({username_att(), nonce_attr()}) ->
     {jid:username(), nonce()} | error().
@@ -224,17 +224,20 @@ parse_step4_client_in(_) ->
     {ok, {nonce(), client_proof()}} | error().
 parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt, State}) ->
     PlusVariant = State#state.plus_variant,
-    TlsLastMessage = State#state.tls_last_message,
-    {base64:decode(CVal), PlusVariant, TlsLastMessage, NonceAtt, ClientProofAtt};
+    TlsLastMsg = State#state.tls_last_message,
+    IsPlusListed = State#state.plus_advertised,
+    {base64:decode(CVal), PlusVariant, IsPlusListed, TlsLastMsg, NonceAtt, ClientProofAtt};
 parse_channel_binding_attribute(_) ->
     {error, <<"bad-protocol">>}.
 
-verify_channel_binding({<<"p=tls-unique,,", TlsLastMessage/binary>>, tls_unique, TlsLastMessage, NonceAtt, ClientProofAtt}) ->
+verify_channel_binding({<<"p=tls-unique,,", TlsLastMsg/binary>>,
+                        tls_unique, true, TlsLastMsg, NonceAtt, ClientProofAtt}) ->
     {ok, {NonceAtt, ClientProofAtt}};
-verify_channel_binding({<<"y", _/binary>>, none, _TlsLastMessage, NonceAtt, ClientProofAtt}) ->
-    %TODO: verify if -PLUS mechanisms were advertised, if yes then fail
+verify_channel_binding({<<"y", _/binary>>,
+                        none, false, _TlsLastMsg, NonceAtt, ClientProofAtt}) ->
     {ok, {NonceAtt, ClientProofAtt}};
-verify_channel_binding({<<"n", _/binary>>, none, _TlsLastMessage, NonceAtt, ClientProofAtt}) ->
+verify_channel_binding({<<"n", _/binary>>,
+                        none, _, _TlsLastMsg, NonceAtt, ClientProofAtt}) ->
     {ok, {NonceAtt, ClientProofAtt}};
 verify_channel_binding(_) ->
     {error, <<"bad-channel-binding">>}.
