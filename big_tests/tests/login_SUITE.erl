@@ -59,7 +59,11 @@ scram_tests() ->
      log_one_scram_sha256,
      log_one_scram_sha384,
      log_one_scram_sha512,
-     log_one_scram_sha1_plus].
+     log_one_scram_sha1_plus,
+     log_one_scram_sha224_plus,
+     log_one_scram_sha256_plus,
+     log_one_scram_sha384_plus,
+     log_one_scram_sha512_plus].
 
 configure_specific_scram_test() ->
     [configure_sha1_log_with_sha1,
@@ -67,11 +71,21 @@ configure_specific_scram_test() ->
      configure_sha256_log_with_sha256,
      configure_sha384_log_with_sha384,
      configure_sha512_log_with_sha512,
+     configure_sha1_log_with_sha1_plus,
+     configure_sha224_log_with_sha224_plus,
+     configure_sha256_log_with_sha256_plus,
+     configure_sha384_log_with_sha384_plus,
+     configure_sha512_log_with_sha512_plus,
      configure_sha1_fail_log_with_sha224,
      configure_sha224_fail_log_with_sha256,
      configure_sha256_fail_log_with_sha384,
      configure_sha384_fail_log_with_sha512,
-     configure_sha512_fail_log_with_sha1].
+     configure_sha512_fail_log_with_sha1,
+     configure_sha1_plus_fail_log_with_sha1,
+     configure_sha224_plus_fail_log_with_sha224,
+     configure_sha256_plus_fail_log_with_sha256,
+     configure_sha384_plus_fail_log_with_sha384,
+     configure_sha512_plus_fail_log_with_sha512].
 
 all_tests() ->
     [log_one,
@@ -172,14 +186,13 @@ log_one(Config) ->
 
         end).
 
-log_one_scram_sha_plus(Config) ->
+log_one_scram_plus(Config) ->
     escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
 
         escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
 
         end).
-
 
 log_one_digest(Config) ->
     log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
@@ -200,7 +213,19 @@ log_one_scram_sha512(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-512">>} | Config]).
 
 log_one_scram_sha1_plus(Config) ->
-    log_one_scram_sha_plus([{escalus_auth_method, <<"SCRAM-SHA-1-PLUS">>} | Config]).
+    log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-1-PLUS">>} | Config]).
+
+log_one_scram_sha224_plus(Config) ->
+    log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-224-PLUS">>} | Config]).
+
+log_one_scram_sha256_plus(Config) ->
+    log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-256-PLUS">>} | Config]).
+
+log_one_scram_sha384_plus(Config) ->
+    log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-384-PLUS">>} | Config]).
+
+log_one_scram_sha512_plus(Config) ->
+    log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-512-PLUS">>} | Config]).
 
 configure_sha1_log_with_sha1(Config) ->
         configure_and_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
@@ -217,6 +242,21 @@ configure_sha384_log_with_sha384(Config) ->
 configure_sha512_log_with_sha512(Config) ->
     configure_and_log_scram(Config, sha512, <<"SCRAM-SHA-512">>).
 
+configure_sha1_log_with_sha1_plus(Config) ->
+    configure_and_log_scram_plus(Config, sha, <<"SCRAM-SHA-1-PLUS">>).
+
+configure_sha224_log_with_sha224_plus(Config) ->
+    configure_and_log_scram_plus(Config, sha224, <<"SCRAM-SHA-224-PLUS">>).
+
+configure_sha256_log_with_sha256_plus(Config) ->
+    configure_and_log_scram_plus(Config, sha256, <<"SCRAM-SHA-256-PLUS">>).
+
+configure_sha384_log_with_sha384_plus(Config) ->
+    configure_and_log_scram_plus(Config, sha384, <<"SCRAM-SHA-384-PLUS">>).
+
+configure_sha512_log_with_sha512_plus(Config) ->
+    configure_and_log_scram_plus(Config, sha512, <<"SCRAM-SHA-512-PLUS">>).
+
 configure_sha1_fail_log_with_sha224(Config) ->
     configure_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-224">>).
 
@@ -231,6 +271,29 @@ configure_sha384_fail_log_with_sha512(Config) ->
 
 configure_sha512_fail_log_with_sha1(Config) ->
     configure_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-1">>).
+
+%%
+%% configure_sha*_plus_fail_log_with_sha* tests are succeeding due to the fact that
+%% escalus, when login with scram, sets channel binding flag to 'y'. This indicates that
+%% escalus supports channel binding but the server does not. The server did advertise the
+%% SCRAM PLUS mechanism, so this flag is incorrect and could be the result of the
+%% man-in-the-middle attack attempting to downgrade the authentication mechanism.
+%% Because of that, the authentication should fail.
+%%
+configure_sha1_plus_fail_log_with_sha1(Config) ->
+    configure_scram_plus_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
+
+configure_sha224_plus_fail_log_with_sha224(Config) ->
+    configure_scram_plus_and_fail_log_scram(Config, sha224, <<"SCRAM-SHA-224">>).
+
+configure_sha256_plus_fail_log_with_sha256(Config) ->
+    configure_scram_plus_and_fail_log_scram(Config, sha256, <<"SCRAM-SHA-256">>).
+
+configure_sha384_plus_fail_log_with_sha384(Config) ->
+    configure_scram_plus_and_fail_log_scram(Config, sha384, <<"SCRAM-SHA-384">>).
+
+configure_sha512_plus_fail_log_with_sha512(Config) ->
+    configure_scram_plus_and_fail_log_scram(Config, sha512, <<"SCRAM-SHA-512">>).
 
 log_non_existent_plain(Config) ->
     {auth_failed, _, Xmlel} = log_non_existent(Config),
@@ -354,13 +417,28 @@ configure_and_log_scram(Config, Sha, Mech) ->
     assert_password_format({scram, Sha}, Config),
     log_one([{escalus_auth_method, Mech} | Config]).
 
+configure_and_log_scram_plus(Config, Sha, Mech) ->
+    set_store_password({scram, [Sha]}),
+    assert_password_format({scram, Sha}, Config),
+    log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
+
 configure_and_fail_log_scram(Config, Sha, Mech) ->
     set_store_password({scram, [Sha]}),
     assert_password_format({scram, Sha}, Config),
     {expected_challenge, _, _} = fail_log_one([{escalus_auth_method, Mech} | Config]).
 
+configure_scram_plus_and_fail_log_scram(Config, Sha, Mech) ->
+    set_store_password({scram, [Sha]}),
+    assert_password_format({scram, Sha}, Config),
+    {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
+
 fail_log_one(Config) ->
     [{alice, UserSpec}] = escalus_users:get_users([alice]),
+    {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
+    R.
+
+fail_log_one_scram_plus(Config) ->
+    [{neustradamus, UserSpec}] = escalus_users:get_users([neustradamus]),
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
 
