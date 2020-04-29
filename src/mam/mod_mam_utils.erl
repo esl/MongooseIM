@@ -33,7 +33,7 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_archivable_message/4,
-         get_retract_id/1,
+         get_retract_id/3,
          get_origin_id/1,
          tombstone/2,
          wrap_message/6,
@@ -389,6 +389,12 @@ has_chat_marker(Packet) ->
         #xmlel{name = <<"displayed">>}    -> true;
         #xmlel{name = <<"acknowledged">>} -> true;
         _                                 -> false
+    end.
+
+get_retract_id(Module, Host, Packet) ->
+    case has_message_retraction(Module, Host) of
+        true -> get_retract_id(Packet);
+        false -> none
     end.
 
 get_retract_id(Packet) ->
@@ -791,6 +797,10 @@ packet_to_search_body(Module, Host, Packet) ->
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->
     gen_mod:get_module_opt(Host, Module, full_text_search, true).
+
+-spec has_message_retraction(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
+has_message_retraction(Module, Host) ->
+    gen_mod:get_module_opt(Host, Module, message_retraction, true).
 
 %% -----------------------------------------------------------------------
 %% JID serialization
