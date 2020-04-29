@@ -435,7 +435,28 @@ filter_mechanism(<<"EXTERNAL">>, S) ->
         error -> false;
         _ -> true
     end;
+filter_mechanism(<<"SCRAM-SHA-1-PLUS">>, S) ->
+    is_channel_binding_supported(S);
+filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>, S) ->
+    is_channel_binding_supported(S);
 filter_mechanism(_, _) -> true.
+
+is_channel_binding_supported(State) ->
+    TLSEnabled = State#state.tls_enabled,
+    TLSRequired = State#state.tls_required,
+    Socket = State#state.socket,
+    case TLSEnabled or not TLSRequired of
+        true ->
+            SockMod =(State#state.sockmod):get_sockmod(Socket),
+            is_fast_tls_configured(SockMod, Socket);
+        false ->
+            false
+    end.
+
+is_fast_tls_configured(ejabberd_tls, Socket) ->
+    fast_tls == ejabberd_tls:get_sockmod(ejabberd_socket:get_socket(Socket));
+is_fast_tls_configured(_, _) ->
+    false.
 
 get_xml_lang(Attrs) ->
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
