@@ -58,7 +58,8 @@ scram_tests() ->
      log_one_scram_sha224,
      log_one_scram_sha256,
      log_one_scram_sha384,
-     log_one_scram_sha512].
+     log_one_scram_sha512,
+     log_one_scram_sha1_plus].
 
 configure_specific_scram_test() ->
     [configure_sha1_log_with_sha1,
@@ -103,7 +104,7 @@ init_per_group(GroupName, Config) when
             {skip, "scram password type not supported"};
         true ->
             config_password_format(GroupName),
-            Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+            Config2 = escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus])),
             assert_password_format(GroupName, Config2)
     end;
 init_per_group(login_specific_scram, Config) ->
@@ -111,7 +112,7 @@ init_per_group(login_specific_scram, Config) ->
         false ->
             {skip, "scram password type not supported"};
         true ->
-            escalus:create_users(Config, escalus:get_users([alice, bob]))
+            escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus]))
     end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
@@ -119,7 +120,7 @@ init_per_group(_GroupName, Config) ->
 end_per_group(GroupName, Config) when
     GroupName == login_scram; GroupName == login_specific_scram ->
     set_store_password(plain),
-    escalus:delete_users(Config, escalus:get_users([alice, bob]));
+    escalus:delete_users(Config, escalus:get_users([alice, bob, neustradamus]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
@@ -171,6 +172,15 @@ log_one(Config) ->
 
         end).
 
+log_one_scram_sha_plus(Config) ->
+    escalus:fresh_story(Config, [{neustradamus, 1}], fun(Neustradamus) ->
+
+        escalus_client:send(Neustradamus, escalus_stanza:chat_to(Neustradamus, <<"Hi!">>)),
+        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Neustradamus))
+
+        end).
+
+
 log_one_digest(Config) ->
     log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
 
@@ -188,6 +198,9 @@ log_one_scram_sha256(Config) ->
 
 log_one_scram_sha512(Config) ->
     log_one([{escalus_auth_method, <<"SCRAM-SHA-512">>} | Config]).
+
+log_one_scram_sha1_plus(Config) ->
+    log_one_scram_sha_plus([{escalus_auth_method, <<"SCRAM-SHA-1-PLUS">>} | Config]).
 
 configure_sha1_log_with_sha1(Config) ->
         configure_and_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
