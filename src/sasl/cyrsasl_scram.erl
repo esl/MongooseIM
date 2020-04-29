@@ -78,6 +78,7 @@ mech_new(_Host, Creds, #{sha := Sha,
                 creds = Creds,
                 sha = Sha,
                 plus_variant = PlusVariant,
+                plus_advertised = is_scram_plus_advertised(Sha, AuthMech),
                 tls_last_message = TlsLastMessage}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
@@ -267,13 +268,24 @@ verify_stored_key(_) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+maybe_get_tls_last_message(Socket, ScramPlus) ->
+    IsTlsSocket = ejabberd_tls:is_tls_socket(Socket),
+    maybe_do_get_tls_last_message(Socket, ScramPlus, IsTlsSocket).
 
-maybe_get_tls_last_message(Socket) ->
+maybe_do_get_tls_last_message(Socket, true, true) ->
     TlsLastMessage = ejabberd_tls:get_tls_last_message(peer, Socket),
     case TlsLastMessage of
         <<"">> -> {none, <<"">>};
         {ok, Msg} -> {tls_unique, Msg}
-    end.
+    end;
+maybe_do_get_tls_last_message(_, _, _) ->
+    {none, <<"">>}.
+
+is_scram_plus_advertised(sha, Mech)    -> lists:member(<<"SCRAM-SHA-1-PLUS">>, Mech);
+is_scram_plus_advertised(sha224, Mech) -> lists:member(<<"SCRAM-SHA-224-PLUS">>, Mech);
+is_scram_plus_advertised(sha256, Mech) -> lists:member(<<"SCRAM-SHA-256-PLUS">>, Mech);
+is_scram_plus_advertised(sha384, Mech) -> lists:member(<<"SCRAM-SHA-384-PLUS">>, Mech);
+is_scram_plus_advertised(sha512, Mech) -> lists:member(<<"SCRAM-SHA-512-PLUS">>, Mech).
 
 parse_attribute(Attribute) when byte_size(Attribute) >= 3 ->
     parse_attribute(Attribute, 0);
