@@ -26,6 +26,8 @@
 
 -import(mongoose_helper, [check_subscription_stanzas/2, check_subscription_stanzas/3]).
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -670,10 +672,10 @@ block_jid_iq(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
-        %% activate it
+        %% activate it (this is actually redundant, but asserts iq result always comes through)
         Stanza = escalus_stanza:privacy_activate(<<"deny_localhost_iq">>),
         escalus_client:send(Alice, Stanza),
-        timer:sleep(500), %% we must let it sink in
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)), % we should get a result
 
         %% bob queries for version and gets an error, Alice doesn't receive the query
         escalus_client:send(Bob, version_iq(<<"get">>, Bob, Alice)),
@@ -689,8 +691,22 @@ block_jid_iq(Config) ->
         escalus_client:send(Bob, version_iq(<<"result">>, Bob, Alice)),
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice),
-        escalus_assert:has_no_stanzas(Bob)
+        escalus_assert:has_no_stanzas(Bob),
 
+        %% assert iqs upon my request are received
+        RStanza = escalus_stanza:roster_add_contact(Bob, [], <<"a random guy">>),
+        escalus:send(Alice, RStanza),
+        Received = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([is_roster_set, is_iq_result], Received),
+
+        %% assert direct iq from server is received
+        ServerStanza = version_iq(<<"get">>, <<"localhost">>, escalus_utils:get_jid(Alice)),
+        rpc(mim(), ejabberd_router, route, [jid:from_binary(<<"localhost">>),
+                                            jid:from_binary(escalus_utils:get_jid(Alice)),
+                                            ServerStanza]),
+        escalus:assert(is_iq_get, escalus:wait_for_stanza(Alice)) ,
+
+        ok
         end).
 
 block_jid_all(Config) ->
@@ -703,6 +719,7 @@ block_jid_all(Config) ->
         %% Alice blocks Bob
         Stanza = escalus_stanza:privacy_activate(<<"deny_jid_all">>),
         escalus_client:send(Alice, Stanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)), % we should get a result
 
         %% IQ response is blocked;
         %% do magic wait for the request to take effect
@@ -738,8 +755,8 @@ block_jid_all(Config) ->
         %% ...that nothing else reached Bob
         escalus_assert:has_no_stanzas(Bob),
         %% ...that Alice got a privacy push
-        Responses = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(fun privacy_helper:is_privacy_list_push/1, Responses),
+        Responses = escalus_client:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([fun privacy_helper:is_privacy_list_push/1, is_iq_result], Responses),
         %% and Alice didn't get anything else
         escalus_assert:has_no_stanzas(Alice)
 

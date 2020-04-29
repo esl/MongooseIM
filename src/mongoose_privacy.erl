@@ -61,15 +61,33 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
                        _ ->
                            {Acc0, mongoose_acc:stanza_name(Acc0), mongoose_acc:stanza_type(Acc0)}
                    end,
-    % check if it is there, if not then set default and run a hook
-    Key = {cached_check, Server, User, From, To, Name, Type, Dir},
-    case mongoose_acc:get(privacy, Key, undefined, Acc) of
-        undefined ->
-            Acc1 = mongoose_hooks:privacy_check_packet(Server, Acc, User, PrivacyList,
-                                                       {From, To, Name, Type}, Dir),
-            Res = mongoose_acc:get(hook, result, Acc1),
-            {mongoose_acc:set(privacy, Key, Res, Acc1), Res};
-        Res ->
-            {Acc, Res}
+    case basic_check(Name, From, To, PrivacyList) of
+        allow ->
+            {Acc, allow};
+        check ->
+            % check if it is there, if not then set default and run a hook
+            Key = {cached_check, Server, User, From, To, Name, Type, Dir},
+            case mongoose_acc:get(privacy, Key, undefined, Acc) of
+                undefined ->
+                    Acc1 = mongoose_hooks:privacy_check_packet(Server, Acc, User, PrivacyList,
+                                                               {From, To, Name, Type}, Dir),
+                    Res = mongoose_acc:get(hook, result, Acc1),
+                    {mongoose_acc:set(privacy, Key, Res, Acc1), Res};
+                Res ->
+                    {Acc, Res}
+            end
     end.
 
+%% allow iq result send in response to my own request
+basic_check(<<"iq">>,
+            #jid{luser = U, lserver = S} = _From,
+            #jid{luser = U, lserver = S} = _To,
+            _) -> allow;
+%% allow iqs sent to me by my server (privacy is meant to block other users)
+basic_check(<<"iq">>,
+            #jid{luser = <<>>, lserver = S} = _From,
+            #jid{lserver = S} = _To,
+            _) -> allow;
+%% do not bother checking if privacy list is empty
+basic_check(_, _, _, #privacy{lists = []}) -> allow;
+basic_check(_, _, _, _) -> check.
