@@ -172,7 +172,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     Please note that the list of advertised authentication mechanisms is filtered out by the supported password formats to assure that it is possible to authenticate using authentication mechanisms that are offered.
     * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
     * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sh384, cyrsasl_scram_sha512, cyrsasl_scram_sha1_plus, cyrsasl_scram_sha224_plus, cyrsasl_scram_sha256_plus, cyrsasl_scram_sh384_plus, cyrsasl_scram_sha512_plus, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
-    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sha384,cyrsasl_scram_sha512, cyrsasl_scram_sha1_plus, cyrsasl_scram_sha224_plus, cyrsasl_scram_sha256_plus, cyrsasl_scram_sh384_plus, cyrsasl_scram_sha512_plus, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
+    * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256, cyrsasl_scram_sha384, cyrsasl_scram_sha512, cyrsasl_scram_sha1_plus, cyrsasl_scram_sha224_plus, cyrsasl_scram_sha256_plus, cyrsasl_scram_sh384_plus, cyrsasl_scram_sha512_plus, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
     * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram_sha256_plus]`
 
 * **extauth_instances** (local)
