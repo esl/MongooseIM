@@ -758,7 +758,6 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
-    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U),
     SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
@@ -778,12 +777,14 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
     NewStateData0#state{sid = SID,
                         conn = Conn,
                         replaced_pids = RefsAndPids,
-                        pending_invitations = Pending,
-                        privacy_list = PrivList},
+                        pending_invitations = Pending},
     StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
                                                            mongoose_c2s_presence:initialise_state(Fs1, Ts1),
                                                            NewStateData),
-    {established, Acc1, StateWithRoster}.
+    StateWithPrivacy = ejabberd_c2s_state:set_handler_state(mod_privacy,
+                                                            mongoose_c2s_privacy:initialise_state(JID),
+                                                            StateWithRoster),
+    {established, Acc1, StateWithPrivacy}.
 
 get_replaced_wait_timeout(S) ->
     ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
@@ -1346,7 +1347,9 @@ handle_routed_iq(_From, _To, Acc, IQ, StateData)
     {mongoose_acc:t(), broadcast_result()}.
 handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
     case mongoose_hooks:privacy_updated_list(StateData#state.server,
-                                 false, StateData#state.privacy_list, PrivList) of
+                                 false,
+                                 mongoose_c2s_privacy:get_privacy_list(StateData),
+                                 PrivList) of
         false ->
             {Acc, {new_state, StateData}};
         NewPL ->
@@ -1355,13 +1358,13 @@ handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) 
             T = StateData#state.jid,
             PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
             Acc1 = maybe_update_presence(Acc, StateData, NewPL),
-            Res = {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}},
+            Res = {send_new, F, T, PrivPushEl, mongoose_c2s_privacy:set_privacy_list(NewPL, StateData)},
             {Acc1, Res}
     end;
 handle_routed_broadcast(Acc, {blocking, UserList, Action, JIDs}, StateData) ->
     blocking_push_to_resources(Action, JIDs, StateData),
     blocking_presence_to_contacts(Action, JIDs, StateData),
-    Res = {new_state, StateData#state{privacy_list = UserList}},
+    Res = {new_state, mongoose_c2s_privacy:set_privacy_list(UserList, StateData)},
     {Acc, Res};
 handle_routed_broadcast(Acc, _, StateData) ->
     {Acc, {new_state, StateData}}.
@@ -1987,12 +1990,7 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, To, Dir, StateData) ->
-    mongoose_privacy:privacy_check_packet(Acc,
-                                          StateData#state.server,
-                                          StateData#state.user,
-                                          StateData#state.privacy_list,
-                                          To,
-                                          Dir).
+    mongoose_c2s_privacy:check_packet(Acc, To, Dir, StateData).
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                            Packet :: exml:element(),
@@ -2001,13 +1999,7 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
-    mongoose_privacy:privacy_check_packet({Acc, Packet},
-                                          StateData#state.server,
-                                          StateData#state.user,
-                                          StateData#state.privacy_list,
-                                          From,
-                                          To,
-                                          Dir).
+    mongoose_c2s_privacy:check_packet(Acc, Packet, From, To, Dir, StateData).
 
 -spec presence_broadcast(Acc :: mongoose_acc:t(),
                          JIDSet :: [jid:jid()],
@@ -2131,7 +2123,8 @@ process_privacy_iq(Acc, get, To, StateData) ->
     {IQ, Acc1} = mongoose_iq:info(Acc),
     Acc2 = mongoose_hooks:privacy_iq_get(StateData#state.server,
                                          Acc1,
-                                         From, To, IQ, StateData#state.privacy_list),
+                                         From, To, IQ,
+                                         mongoose_c2s_privacy:get_privacy_list(StateData)),
     {Acc2, StateData};
 process_privacy_iq(Acc, set, To, StateData) ->
     From = mongoose_acc:from_jid(Acc),
@@ -2142,7 +2135,7 @@ process_privacy_iq(Acc, set, To, StateData) ->
     case mongoose_acc:get(hook, result, undefined, Acc2) of
         {result, _, NewPrivList} ->
             Acc3 = maybe_update_presence(Acc2, StateData, NewPrivList),
-            NState = StateData#state{privacy_list = NewPrivList},
+            NState = mongoose_c2s_privacy:set_privacy_list(NewPrivList, StateData),
             {Acc3, NState};
         _ -> {Acc2, StateData}
     end.
@@ -2398,7 +2391,7 @@ send_unavail_if_newly_blocked(Acc, StateData = #state{jid = JID},
     %% the only place where the list to check against changes
     OldResult = privacy_check_packet(Packet, JID, ContactJID, out, StateData),
     NewResult = privacy_check_packet(Packet, JID, ContactJID, out,
-                                     StateData#state{privacy_list = NewList}),
+                                     mongoose_c2s_privacy:set_privacy_list(NewList, StateData)),
     send_unavail_if_newly_blocked(Acc, OldResult, NewResult, JID,
                                   ContactJID, Packet).
 
@@ -2893,7 +2886,6 @@ merge_state(OldSD, SD) ->
                 #state.server,
                 #state.resource,
                 #state.handlers,
-                #state.privacy_list,
                 #state.aux_fields,
                 #state.csi_buffer,
                 #state.stream_mgmt,
