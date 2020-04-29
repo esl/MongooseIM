@@ -321,21 +321,26 @@ supports_sasl_module(Host, cyrsasl_anonymous) ->
     is_sasl_anonymous_enabled(Host);
 supports_sasl_module(Host, cyrsasl_plain) ->
     is_login_anonymous_enabled(Host);
-supports_sasl_module(Host, cyrsasl_scram_sha1 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha224 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha256 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha384 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha512 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
+supports_sasl_module(H, cyrsasl_scram_sha1 = S)   ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha224 = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha256 = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha384 = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha512 = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha1_plus = S)   ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha224_plus = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha256_plus = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha384_plus = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
+supports_sasl_module(H, cyrsasl_scram_sha512_plus = S) ->
+    is_login_anonymous_enabled(H) andalso mongoose_scram:enabled(H, S);
 supports_sasl_module(Host, cyrsasl_digest) ->
     is_login_anonymous_enabled(Host);
 supports_sasl_module(_, _) ->
