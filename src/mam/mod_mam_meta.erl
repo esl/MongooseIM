@@ -131,6 +131,7 @@ valid_core_mod_opts(mod_mam) ->
      archive_chat_markers,
      extra_lookup_params,
      full_text_search,
+     message_retraction,
      archive_groupchats,
      default_result_limit,
      max_result_limit
@@ -142,6 +143,7 @@ valid_core_mod_opts(mod_mam_muc) ->
      host,
      extra_lookup_params,
      full_text_search,
+     message_retraction,
      default_result_limit,
      max_result_limit
     ].

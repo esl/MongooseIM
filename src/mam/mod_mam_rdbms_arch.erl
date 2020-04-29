@@ -173,7 +173,7 @@ do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, Origin
     retract_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet).
 
 retract_message(Host, _MessID, UserID, LocJID, RemJID, _SrcJID, _OriginID, Dir, Packet) ->
-    case mod_mam_utils:get_retract_id(Packet) of
+    case mod_mam_utils:get_retract_id(mod_mam, Host, Packet) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
     end.

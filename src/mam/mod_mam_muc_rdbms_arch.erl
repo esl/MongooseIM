@@ -143,7 +143,7 @@ archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
     end.
 
 retract_message(Host, _MessID, RoomID, SenderJID, _UserRoomJID, _OriginID, Packet) ->
-    case mod_mam_utils:get_retract_id(Packet) of
+    case mod_mam_utils:get_retract_id(mod_mam_muc, Host, Packet) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, RoomID, SenderJID, OriginIDToRetract)
     end.
