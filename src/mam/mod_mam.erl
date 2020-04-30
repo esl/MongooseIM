@@ -84,7 +84,8 @@
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
-         is_mam_result_message/1]).
+         is_mam_result_message/1,
+         features/2]).
 
 %% Forms
 -import(mod_mam_utils,
@@ -196,8 +197,7 @@ start(Host, Opts) ->
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, ?NS_MAM_04),
-    mod_disco:register_feature(Host, ?NS_MAM_06),
+    [mod_disco:register_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
@@ -229,8 +229,7 @@ stop(Host) ->
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
-    mod_disco:unregister_feature(Host, ?NS_MAM_04),
-    mod_disco:unregister_feature(Host, ?NS_MAM_06),
+    [mod_disco:unregister_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     ok.
 
 %% ----------------------------------------------------------------------

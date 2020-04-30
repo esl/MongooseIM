@@ -220,7 +220,8 @@ disco_features(Config) ->
 disco_features_with_mam(Config) ->
     muc_helper:disco_features_story(Config, [?NS_MUC,
                                              mam_helper:mam_ns_binary_v04(),
-                                             mam_helper:mam_ns_binary_v06()]).
+                                             mam_helper:mam_ns_binary_v06(),
+                                             mam_helper:retract_ns()]).
 
 disco_info(Config) ->
     muc_helper:disco_info_story(Config, [?NS_MUC]).
@@ -228,7 +229,8 @@ disco_info(Config) ->
 disco_info_with_mam(Config) ->
     muc_helper:disco_info_story(Config, [?NS_MUC,
                                          mam_helper:mam_ns_binary_v04(),
-                                         mam_helper:mam_ns_binary_v06()]).
+                                         mam_helper:mam_ns_binary_v06(),
+                                         mam_helper:retract_ns()]).
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->

@@ -183,6 +183,7 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         retract_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -346,8 +347,10 @@ basic_groups() ->
          [
           {mam04, [], disabled_text_search_cases()}
          ]},
-     {disabled_retraction, [], [{mam06, [], disabled_retract_cases()}]},
-     {muc_disabled_retraction, [], [{muc06, [], disabled_muc_retract_cases()}]}
+     {disabled_retraction, [],
+      [{mam06, [parallel], disabled_retract_cases() ++ [mam_service_discovery]}]},
+     {muc_disabled_retraction, [],
+      [{muc06, [parallel], disabled_muc_retract_cases() ++ [muc_service_discovery]}]}
     ].
 
 
@@ -2884,7 +2887,7 @@ mam_service_discovery(Config) ->
     _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
-        discover_features(Config, Client, Server)
+        discover_features(Config, Alice, Server)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
@@ -2899,7 +2902,7 @@ muc_service_discovery(Config) ->
         escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
 
-        discover_features(Config, Client, muc_host())
+        discover_features(Config, Alice, muc_host())
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
@@ -2908,7 +2911,8 @@ discover_features(Config, Client, Service) ->
     Stanza = escalus:wait_for_stanza(Client),
     escalus:assert(is_iq_result, Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
-    escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza).
+    escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
+    ?assert_equal(message_retraction_is_enabled(Config), escalus_pred:has_feature(retract_ns(), Stanza)).
 
 metric_incremented_on_archive_request(ConfigIn) ->
     P = ?config(props, ConfigIn),
@@ -3053,9 +3057,11 @@ check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
     end.
 
 message_should_be_retracted(Config) ->
+    message_retraction_is_enabled(Config) andalso origin_id_to_retract(Config) =:= origin_id().
+
+message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
-    BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction
-        andalso origin_id_to_retract(Config) =:= origin_id().
+    BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
 
 expect_tombstone_and_retraction_message(Client, ApplyToElement) ->
     [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
