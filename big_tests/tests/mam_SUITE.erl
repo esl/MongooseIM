@@ -182,6 +182,7 @@
          parse_prefs_result_iq/1,
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
+         mam_ns_binary_v06/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -2883,16 +2884,7 @@ mam_service_discovery(Config) ->
     _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
-        escalus:send(Alice, escalus_stanza:disco_info(Server)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        try
-        escalus:assert(is_iq_result, Stanza),
-        escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
-        ok
-        catch Class:Reason:StackTrace ->
-            ct:pal("Stanza ~p.", [Stanza]),
-            erlang:raise(Class, Reason, StackTrace)
-        end
+        discover_features(Config, Client, Server)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
@@ -2906,9 +2898,17 @@ muc_service_discovery(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
-        ok
+
+        discover_features(Config, Client, muc_host())
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
+
+discover_features(Config, Client, Service) ->
+    escalus:send(Client, escalus_stanza:disco_info(Service)),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_result, Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza).
 
 metric_incremented_on_archive_request(ConfigIn) ->
     P = ?config(props, ConfigIn),
