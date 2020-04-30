@@ -19,12 +19,12 @@
          mam_set_prefs/7,
          mam_remove_archive/4,
          mam_lookup_messages/3,
-         mam_archive_message/9,
+         mam_archive_message/10,
          mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/4,
          mam_muc_lookup_messages/3,
-         mam_muc_archive_message/9,
+         mam_muc_archive_message/10,
          mam_muc_flush_messages/3]).
 
 -type metrics_notify_return() :: mongoose_metrics_hooks:metrics_notify_return().
@@ -90,9 +90,10 @@ mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
 -spec mam_archive_message(Result :: any(), Host :: jid:server(),
     _MessId :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
     _LocJID :: jid:jid(), _RemJID :: jid:jid(),
-    _SrcJID :: jid:jid(), _Dir :: atom(), _Packet :: exml:element()) -> any().
+    _SrcJID :: jid:jid(), _OriginID :: binary(),
+    _Dir :: atom(), _Packet :: exml:element()) -> any().
 mam_archive_message(Result, Host,
-    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _OriginID, _Dir, _Packet) ->
     mongoose_metrics:update(Host, modMamArchived, 1),
     Result.
 
@@ -122,7 +123,7 @@ mam_muc_lookup_messages(Result = {error, _},
 
 
 mam_muc_archive_message(Result, Host,
-    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _OriginID, _Dir, _Packet) ->
     mongoose_metrics:update(Host, modMucMamArchived, 1),
     Result.
 

@@ -56,7 +56,7 @@
 -export([get_personal_data/2]).
 
 %%private
--export([archive_message/8]).
+-export([archive_message/9]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
@@ -484,11 +484,12 @@ handle_package(Dir, ReturnMessID,
          andalso should_archive_if_groupchat(Host, exml_query:attr(Packet, <<"type">>)) of
         true ->
             ArcID = archive_id_int(Host, LocJID),
+            OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(Host, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = generate_message_id(),
                     Result = archive_message(Host, MessID, ArcID,
-                                             LocJID, RemJID, SrcJID, Dir, Packet),
+                                             LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
                     return_external_message_id_if_ok(ReturnMessID, Result, MessID);
                 false ->
                     undefined
@@ -589,12 +590,13 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 
 -spec archive_message(Host :: jid:server(), MessID :: message_id(),
                       ArcID :: archive_id(), LocJID :: jid:jid(), RemJID :: jid:jid(),
-                      SrcJID :: jid:jid(), Dir :: incoming | outgoing, Packet :: term()
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
+                      Dir :: incoming | outgoing, Packet :: term()
                      ) -> ok | {error, timeout}.
-archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
     StartT = os:timestamp(),
     R = mongoose_hooks:mam_archive_message(Host, ok, MessID, ArcID,
-                                           LocJID, RemJID, SrcJID, Dir, Packet),
+                                           LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     Diff = timer:now_diff(os:timestamp(), StartT),
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.

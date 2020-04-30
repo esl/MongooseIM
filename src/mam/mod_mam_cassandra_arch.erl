@@ -18,7 +18,7 @@
 
 %% MAM hook handlers
 -export([archive_size/4,
-         archive_message/9,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -148,7 +148,7 @@ insert_query_cql() ->
         "VALUES (?, ?, ?, ?, ?, ?)".
 
 archive_message(Result, Host, MessID, _UserID,
-                LocJID, RemJID, SrcJID, Dir, Packet) ->
+                LocJID, RemJID, SrcJID, _OriginID, Dir, Packet) ->
     try
         archive_message2(Result, Host, MessID,
                          LocJID, RemJID, SrcJID, Dir, Packet)
