@@ -272,9 +272,11 @@ verify_stored_key(_) ->
 %% Helpers
 %%--------------------------------------------------------------------
 maybe_get_tls_last_message(Socket, true) ->
-    case ejabberd_tls:get_tls_last_message(peer, ejabberd_socket:get_socket(Socket)) of
-        <<"">> -> {none, <<"">>};
-        {ok, Msg} -> {tls_unique, Msg}
+    case ejabberd_tls:get_tls_last_message(ejabberd_socket:get_socket(Socket)) of
+        {error, _Error} ->
+            {none, <<"">>};
+        {ok, Msg} ->
+            {tls_unique, Msg}
     end;
 maybe_get_tls_last_message(_, _) ->
     {none, <<"">>}.
