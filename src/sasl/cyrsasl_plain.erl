@@ -37,7 +37,7 @@ mechanism() ->
 
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
-               Socket :: ejabberd_socket:socket_state()) -> {ok, tuple()}.
+               Socket :: term()) -> {ok, tuple()}.
 mech_new(_Host, Creds, _Socket) ->
     {ok, Creds}.
 

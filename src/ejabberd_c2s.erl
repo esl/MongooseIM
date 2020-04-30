@@ -515,7 +515,7 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
             SaslState = StateData#state.sasl_state,
             Server = StateData#state.server,
             AuthMech = [M || M <- cyrsasl:listmech(Server), filter_mechanism(M, StateData)],
-            SocketData = #{socket => ejabberd_socket:get_socket(StateData#state.socket),
+            SocketData = #{socket => StateData#state.socket,
                            auth_mech => AuthMech},
             StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),

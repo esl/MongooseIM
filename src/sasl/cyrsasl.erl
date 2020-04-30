@@ -95,7 +95,7 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
       State     :: sasl_state(),
       Mech      :: mechanism(),
       ClientIn  :: binary(),
-      Socket    :: ejabberd_socket:socket_state(),
+      Socket    :: term(),
       Result    :: {ok, mongoose_credentials:t()}
                  | {'continue', _, sasl_state()}
                  | error().
