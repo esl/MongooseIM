@@ -30,6 +30,8 @@
          mech_new/3,
          mech_step/2]).
 
+-deprecated({'_', '_', next_major_release}).
+
 -include("mongoose.hrl").
 
 -behaviour(cyrsasl).
