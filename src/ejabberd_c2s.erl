@@ -447,7 +447,7 @@ is_channel_binding_supported(State) ->
     Socket = State#state.socket,
     case TLSEnabled or not TLSRequired of
         true ->
-            SockMod =(State#state.sockmod):get_sockmod(Socket),
+            SockMod = (State#state.sockmod):get_sockmod(Socket),
             is_fast_tls_configured(SockMod, Socket);
         false ->
             false

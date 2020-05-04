@@ -210,7 +210,7 @@ create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
     iolist_to_binary([<<"r=">>, ClientNonce, ServerNonce, <<",s=">>,
         jlib:encode_base64(Salt), <<",i=">>, integer_to_list(IterationCount)]).
 
--spec parse_step4_client_in(client_in()) ->
+-spec parse_step4_client_in({client_in(), state()}) ->
     {channel_binding(), nonce_attr(), client_proof(), state()} | error().
 parse_step4_client_in({AttributesList, State}) when length(AttributesList) == 3 ->
     [CBind,

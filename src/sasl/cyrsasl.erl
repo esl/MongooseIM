@@ -91,14 +91,14 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
                 realm = UserRealm,
                 creds = Creds}.
 
--spec server_start(State, Mech, ClientIn, Socket) -> Result when
-      State     :: sasl_state(),
-      Mech      :: mechanism(),
-      ClientIn  :: binary(),
-      Socket    :: term(),
-      Result    :: {ok, mongoose_credentials:t()}
-                 | {'continue', _, sasl_state()}
-                 | error().
+-spec server_start(State, Mech, ClientIn, SocketData) -> Result when
+      State      :: sasl_state(),
+      Mech       :: mechanism(),
+      ClientIn   :: binary(),
+      SocketData :: map(),
+      Result     :: {ok, mongoose_credentials:t()}
+                  | {'continue', _, sasl_state()}
+                  | error().
 server_start(State, Mech, ClientIn, SocketData) ->
     Host = State#sasl_state.myname,
     case [M || M <- get_modules(Host), M:mechanism() =:= Mech, is_module_supported(Host, M)] of
