@@ -2,19 +2,14 @@
 
 -export([mechanism/0, mech_new/3, mech_step/2]).
 
--include("mongoose.hrl").
-
--include("jlib.hrl").
-
 -behaviour(cyrsasl).
 
 -spec mechanism() -> cyrsasl:mechanism().
 mechanism() ->
     <<"SCRAM-SHA-1-PLUS">>.
 
-mech_new(Host, Creds, #{socket := Socket, auth_mech := AuthMech}) ->
-    cyrsasl_scram:mech_new(Host, Creds, #{sha => sha, scram_plus => true,
-                                          socket => Socket, auth_mech => AuthMech}).
+mech_new(Host, Creds, #{} = SocketData) ->
+    cyrsasl_scram:mech_new(Host, Creds, SocketData#{sha => sha, scram_plus => true}).
 
 mech_step(State, ClientIn) ->
     cyrsasl_scram:mech_step(State, ClientIn).
