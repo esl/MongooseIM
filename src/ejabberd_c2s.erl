@@ -751,13 +751,8 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U),
-    {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
-    LJID = jid:to_lower(jid:to_bare(JID)),
-    Fs1 = [LJID | Fs],
-    Ts1 = [LJID | Ts],
     SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
@@ -776,15 +771,9 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
     NewStateData =
     NewStateData0#state{sid = SID,
                         conn = Conn,
-                        replaced_pids = RefsAndPids,
-                        pending_invitations = Pending},
-    StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
-                                                           mongoose_c2s_presence:initialise_state(Fs1, Ts1),
-                                                           NewStateData),
-    StateWithPrivacy = ejabberd_c2s_state:set_handler_state(mod_privacy,
-                                                            mongoose_c2s_privacy:initialise_state(JID),
-                                                            StateWithRoster),
-    {established, Acc1, StateWithPrivacy}.
+                        replaced_pids = RefsAndPids},
+    {Acc2, StateWithHandlers} = mongoose_hooks:initialise_c2s_state(S, {Acc, NewStateData}),
+    {established, Acc2, StateWithHandlers}.
 
 get_replaced_wait_timeout(S) ->
     ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
@@ -1876,7 +1865,8 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                                                      {[], [], []}, Acc3),
                   Acc4 = resend_offline_messages(Acc3, StateData),
                   resend_subscription_requests(Acc4,
-                                               StateData#state{pending_invitations = Pending});
+                                               Pending,
+                                               StateData);
               false ->
                   {Acc2, StateData}
               end,
@@ -2178,8 +2168,8 @@ check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
         _ -> Acc2
     end.
 
--spec resend_subscription_requests(mongoose_acc:t(), state()) -> {mongoose_acc:t(), state()}.
-resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateData) ->
+-spec resend_subscription_requests(mongoose_acc:t(), list(), state()) -> {mongoose_acc:t(), state()}.
+resend_subscription_requests(Acc, Pending, StateData) ->
     {NewAcc, NewState} = lists:foldl(
                  fun(XMLPacket, {A, #state{} = State}) ->
                          A1 = send_element(A, XMLPacket, State),
@@ -2194,7 +2184,7 @@ resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateD
                          A2 = maybe_send_ack_request(A1, BufferedStateData),
                          {A2, BufferedStateData}
                  end, {Acc, StateData}, Pending),
-    {NewAcc, NewState#state{pending_invitations = []}}.
+    {NewAcc, NewState}.
 
 
 get_showtag(undefined) ->

@@ -30,7 +30,6 @@
                 server = <<>>         :: jid:server(),
                 resource = <<>>       :: jid:resource(),
                 sid                   :: ejabberd_sm:sid() | undefined,
-                pending_invitations = [],
                 privacy_list = #userlist{} :: mongoose_privacy:userlist(),
                 conn = unknown,
                 auth_module     :: ejabberd_auth:authmodule(),

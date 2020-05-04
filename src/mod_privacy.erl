@@ -34,6 +34,7 @@
          stop/1,
          process_iq_set/4,
          process_iq_get/5,
+         initialise_state/1,
          get_user_list/3,
          check_packet/6,
          remove_user/3,
@@ -119,6 +120,8 @@ start(Host, Opts) ->
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
     mod_privacy_backend:init(Host, Opts),
+    ejabberd_hooks:add(initialise_c2s_state, Host,
+                       ?MODULE, initialise_state, 50),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -135,6 +138,8 @@ start(Host, Opts) ->
         ?MODULE, remove_user, 50).
 
 stop(Host) ->
+    ejabberd_hooks:delete(initialise_c2s_state, Host,
+                          ?MODULE, initialise_state, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host,
               ?MODULE, process_iq_get, 50),
     ejabberd_hooks:delete(privacy_iq_set, Host,
@@ -153,6 +158,12 @@ stop(Host) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
+
+initialise_state({Acc, State}) ->
+    JID = ejabberd_c2s_state:jid(State),
+    {Acc, ejabberd_c2s_state:set_handler_state(mod_privacy,
+                                                mongoose_c2s_privacy:initialise_state(JID),
+                                                State)}.
 process_iq_get(Acc,
                _From = #jid{luser = LUser, lserver = LServer},
                _To,

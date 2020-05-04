@@ -13,6 +13,7 @@
          failed_to_store_message/4,
          filter_local_packet/2,
          filter_packet/1,
+         initialise_c2s_state/2,
          host_config_update/4,
          inbox_unread_count/3,
          local_send_to_resource_hook/5,
@@ -226,6 +227,11 @@ failed_to_store_message(LServer, Acc, From, Packet) ->
     Result :: {F :: jid:jid(), T :: jid:jid(), A :: mongoose_acc:t(), P :: exml:element()} | drop.
 filter_local_packet(Server, {From, To, Acc, Packet}) ->
     ejabberd_hooks:run_fold(filter_local_packet, Server, {From, To, Acc, Packet}, []).
+
+-spec initialise_c2s_state(jid:server(), {mongoose_acc:t(), ejabberd_c2s:state()}) ->
+    {mongoose_acc:t(), ejabberd_c2s:state()}.
+initialise_c2s_state(Server, {Acc, State}) ->
+    ejabberd_hooks:run_fold(initialise_c2s_state, Server, {Acc, State}, []).
 
 %%% @doc The `filter_packet' hook is called to filter out stanzas routed with `mongoose_router_global'.
 -spec filter_packet({From, To, Acc, Packet}) -> Result when
