@@ -53,6 +53,12 @@ mechanism() ->
                Creds  :: mongoose_credentials:t(),
                Socket :: term()) -> {ok, state()}.
 mech_new(Host, Creds, _Socket) ->
+    mongoose_deprecations:log(
+        {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
+        "The DIGEST-MD5 authentication mechanism is deprecated and "
+        " will be removed in the next release, please consider using"
+        " any of the SCRAM-SHA methods or equivalent instead.",
+        [{log_level, warning}]),
     {ok, #state{step = 1,
                 nonce = mongoose_bin:gen_from_crypto(),
                 host = Host,
