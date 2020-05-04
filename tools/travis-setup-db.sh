@@ -34,6 +34,9 @@ CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
 # Default ElasticSearch version
 ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
 
+MYSQL_VERSION=${MYSQL_VERSION:-8.0.20}
+
+
 # There is one odbc.ini for both mssql and pgsql
 # Allows to run both in parallel
 function install_odbc_ini
@@ -121,7 +124,7 @@ if [ "$db" = 'mysql' ]; then
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
-        mysql:8.0.18
+        mysql:$MYSQL_VERSION
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
