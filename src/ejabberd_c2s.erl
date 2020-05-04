@@ -1129,8 +1129,8 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             fsm_next_state(StateName, StateData);
         {_, To} ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
-            case privacy_check_packet(FinalPacket, From, To, in, StateData) of
-                allow ->
+            case privacy_check_packet(Acc, FinalPacket, From, To, in, StateData) of
+                {_, allow} ->
                     {Act, _, NStateData} = send_and_maybe_buffer_stanza(Acc,
                                                                         {From, To, FinalPacket},
                                                                         StateData),
@@ -1960,21 +1960,6 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
    end.
 
 
--spec privacy_check_packet(Packet :: exml:element(),
-                           From :: jid:jid(),
-                           To :: jid:jid(),
-                           Dir :: 'in' | 'out',
-                           StateData :: state()) -> allow|deny|block.
-privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
-    % in some cases we need an accumulator-less privacy check
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => StateData#state.server,
-                              element => Packet }),
-    {_, Res} = privacy_check_packet(Acc, To, Dir, StateData),
-    Res.
-
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                            To :: jid:jid(),
                            Dir :: 'in' | 'out',
@@ -2378,9 +2363,14 @@ send_unavail_if_newly_blocked(Acc, StateData = #state{jid = JID},
     Packet = #xmlel{name = <<"presence">>,
                     attrs = [{<<"type">>, <<"unavailable">>}]},
     %% WARNING: we can not use accumulator to cache privacy check result - this is
-    %% the only place where the list to check against changes
-    OldResult = privacy_check_packet(Packet, JID, ContactJID, out, StateData),
-    NewResult = privacy_check_packet(Packet, JID, ContactJID, out,
+    %% the only place where the list to check against changes, and so does stanza name
+    EmptyAcc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => JID,
+                              to_jid => ContactJID,
+                              lserver => StateData#state.server,
+                              element => Packet }),
+    {_, OldResult} = privacy_check_packet(EmptyAcc, Packet, JID, ContactJID, out, StateData),
+    {_, NewResult} = privacy_check_packet(EmptyAcc, Packet, JID, ContactJID, out,
                                      mongoose_c2s_privacy:set_privacy_list(NewList, StateData)),
     send_unavail_if_newly_blocked(Acc, OldResult, NewResult, JID,
                                   ContactJID, Packet).
