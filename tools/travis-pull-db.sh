@@ -17,12 +17,14 @@ CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
 # Default ElasticSearch version
 ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
 
+MYSQL_VERSION=${MYSQL_VERSION:-8.0.20}
+
 function setup_db(){
 db=${1:-none}
 echo "Pulling up db: $db"
 
 if [ "$db" = 'mysql' ]; then
-    docker image pull mysql
+    docker image pull mysql:$MYSQL_VERSION
 
 elif [ "$db" = 'pgsql' ]; then
     docker image pull postgres
