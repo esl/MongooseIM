@@ -5,9 +5,6 @@
 -include("mod_privacy.hrl").
 -include("jlib.hrl").
 
--record(privacy_state, {userlist}).
-
--type privacy_state() :: #privacy_state{}.
 
 -export([initialise_state/1, check_packet/4, check_packet/6]).
 -export([process_privacy_iq/3]).
@@ -44,7 +41,7 @@ check_packet(Acc, Packet, From, To, Dir, StateData) ->
                                           Dir).
 
 %% this is called remotely by the process that received an iq
--spec update_privacy_list(privacy_state(), atom, term(), ejabberd_c2s:state()) -> privacy_state().
+-spec update_privacy_list(privacy_state(), atom(), term(), ejabberd_c2s:state()) -> privacy_state().
 update_privacy_list(_HandlerState, mod_privacy, {privacy_change, ListName, Userlist}, C2SState) ->
     JID = ejabberd_c2s_state:jid(C2SState),
     Server = ejabberd_c2s_state:server(C2SState),

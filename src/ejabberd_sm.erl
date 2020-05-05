@@ -174,7 +174,7 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
-      Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -183,30 +183,9 @@ route(From, To, #xmlel{} = Packet) ->
                               from_jid => From,
                               to_jid => To }),
     route(From, To, Acc);
-route(From, To, {broadcast, #xmlel{} = Payload}) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => To#jid.lserver,
-                              element => Payload }),
-    route(From, To, Acc, {broadcast, Payload});
-route(From, To, {broadcast, Payload}) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => To#jid.lserver,
-                              element => undefined }),
-    route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).
 
-route(From, To, Acc, {broadcast, Payload}) ->
-    case (catch do_route(Acc, From, To, {broadcast, Payload})) of
-        {'EXIT', {Reason, StackTrace}} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-            "broadcast=~p~n~nstack_trace=~p~n",
-                [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, Payload, StackTrace]);
-        Acc1 -> Acc1
-    end;
 route(From, To, Acc, El) ->
     case (catch do_route(Acc, From, To, El)) of
         {'EXIT', {Reason, StackTrace}} ->
@@ -218,7 +197,6 @@ route(From, To, Acc, El) ->
     end.
 
 %% @doc runs remote hook in all active sessions of this user
-%% this is going to eventually replace the infamous route({broadcast...
 -spec run_in_all_sessions(jid:jid(), atom(), term()) -> [term()].
 run_in_all_sessions(#jid{luser = LUser, lserver = LServer}, Tag, Args) ->
     lists:map(fun({_, Pid}) -> ejabberd_c2s:run_remote_hook(Pid, Tag, Args) end,
@@ -654,29 +632,7 @@ do_filter(From, To, Packet) ->
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
-    Payload :: exml:element() | ejabberd_c2s:broadcast().
-do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
-    ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
-    #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
-    case LResource of
-        <<>> ->
-            CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = mongoose_hooks:sm_broadcast(To#jid.lserver, Acc, From, To,
-                                               Broadcast, length(CurrentPids)),
-            ?DEBUG("bc_to=~p~n", [CurrentPids]),
-            BCast = {broadcast, Payload},
-            lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
-            Acc1;
-        _ ->
-            case get_session_pid(To) of
-                none ->
-                    Acc; % do nothing
-                Pid when is_pid(Pid) ->
-                    ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! Broadcast,
-                    Acc
-            end
-    end;
+    Payload :: exml:element().
 do_route(Acc, From, To, El) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Acc, 8]),

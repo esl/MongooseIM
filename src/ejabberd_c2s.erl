@@ -69,8 +69,6 @@
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
--export_type([broadcast/0, packet/0]).
-
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 
 %%%----------------------------------------------------------------------
@@ -1106,13 +1104,6 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     % it seems to be sometimes, by event sent from s2s
     send_text(StateData, Text),
     fsm_next_state(StateName, StateData);
-handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                               lserver => StateData#state.server,
-                               element => undefined }),
-    ?DEBUG("event=broadcast,data=~p", [Broadcast]),
-    {Acc1, Res} = handle_routed_broadcast(Acc, Broadcast, StateData),
-    handle_broadcast_result(Acc1, Res, StateName, StateData);
 handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
@@ -1330,24 +1321,6 @@ handle_routed_iq(_From, To, Acc, #iq{}, StateData) ->
 handle_routed_iq(_From, _To, Acc, IQ, StateData)
   when (IQ == invalid) or (IQ == not_iq) ->
     {invalid, Acc, StateData}.
-
--spec handle_routed_broadcast(Acc :: mongoose_acc:t(),
-                              Broadcast :: broadcast_type(),
-                              StateData :: state()) ->
-    {mongoose_acc:t(), broadcast_result()}.
-handle_routed_broadcast(Acc, {blocking, UserList, Action, JIDs}, StateData) ->
-    blocking_push_to_resources(Action, JIDs, StateData),
-    blocking_presence_to_contacts(Action, JIDs, StateData),
-    Res = {new_state, mongoose_c2s_privacy:set_privacy_list(UserList, StateData)},
-    {Acc, Res};
-handle_routed_broadcast(Acc, _, StateData) ->
-    {Acc, {new_state, StateData}}.
-
--spec handle_broadcast_result(mongoose_acc:t(), broadcast_result(), StateName :: atom(),
-    StateData :: state()) ->
-    any().
-handle_broadcast_result(_Acc, {new_state, NewState}, StateName, _StateData) ->
-    fsm_next_state(StateName, NewState).
 
 -spec handle_routed_presence(From :: jid:jid(), To :: jid:jid(),
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
@@ -2267,103 +2240,6 @@ get_msg([]) ->
     after 0 ->
         {error, no_messages}
     end.
-
-%%%----------------------------------------------------------------------
-%%% XEP-0016
-%%%----------------------------------------------------------------------
-
-maybe_update_presence(Acc, StateData, NewList) ->
-    % Our own jid is added to pres_f, even though we're not a "contact", so for
-    % the purposes of this check we don't want it:
-    FromsExceptSelf = mongoose_c2s_presence:get_subscriptions(from_except_self, StateData),
-
-    lists:foldl(
-      fun(T, Ac) ->
-              send_unavail_if_newly_blocked(Ac, StateData, jid:make(T), NewList)
-      end, Acc, FromsExceptSelf).
-
-send_unavail_if_newly_blocked(Acc, StateData = #state{jid = JID},
-                              ContactJID, NewList) ->
-    Packet = #xmlel{name = <<"presence">>,
-                    attrs = [{<<"type">>, <<"unavailable">>}]},
-    %% WARNING: we can not use accumulator to cache privacy check result - this is
-    %% the only place where the list to check against changes, and so does stanza name
-    EmptyAcc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => JID,
-                              to_jid => ContactJID,
-                              lserver => StateData#state.server,
-                              element => Packet }),
-    {_, OldResult} = privacy_check_packet(EmptyAcc, Packet, JID, ContactJID, out, StateData),
-    {_, NewResult} = privacy_check_packet(EmptyAcc, Packet, JID, ContactJID, out,
-                                     mongoose_c2s_privacy:set_privacy_list(NewList, StateData)),
-    send_unavail_if_newly_blocked(Acc, OldResult, NewResult, JID,
-                                  ContactJID, Packet).
-
-send_unavail_if_newly_blocked(Acc, allow, deny, From, To, Packet) ->
-    ejabberd_router:route(From, To, Acc, Packet);
-send_unavail_if_newly_blocked(Acc, _, _, _, _, _) ->
-    Acc.
-
-%%%----------------------------------------------------------------------
-%%% XEP-0191
-%%%----------------------------------------------------------------------
-
--spec blocking_push_to_resources(Action :: blocking_type(),
-                                 JIDS :: [binary()],
-                                 State :: state()) -> ok.
-blocking_push_to_resources(Action, JIDs, StateData) ->
-    SubEl =
-    case Action of
-        block ->
-            #xmlel{name = <<"block">>,
-                   attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
-                   children = lists:map(
-                                fun(JID) ->
-                                        #xmlel{name = <<"item">>,
-                                               attrs = [{<<"jid">>, JID}]}
-                                end, JIDs)};
-        unblock ->
-            #xmlel{name = <<"unblock">>,
-                   attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
-                   children = lists:map(
-                                fun(JID) ->
-                                        #xmlel{name = <<"item">>,
-                                               attrs = [{<<"jid">>, JID}]}
-                                end, JIDs)}
-    end,
-    PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
-                     id = <<"push">>,
-                     sub_el = [SubEl]},
-    F = jid:to_bare(StateData#state.jid),
-    T = StateData#state.jid,
-    PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
-    ejabberd_router:route(F, T, PrivPushEl),
-    ok.
-
--spec blocking_presence_to_contacts(Action :: blocking_type(),
-                                    JIDs :: [binary()],
-                                    State :: state()) -> ok.
-blocking_presence_to_contacts(_Action, [], _StateData) ->
-    ok;
-blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
-    Pres = case Action of
-               block ->
-                   #xmlel{name = <<"presence">>,
-                       attrs = [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"unavailable">>}]
-                   };
-               unblock ->
-                   mongoose_c2s_presence:get_last_presence(StateData)
-           end,
-    T = jid:from_binary(Jid),
-    case mongoose_c2s_presence:is_subscribed_to_my_presence(T, StateData) of
-        true ->
-            F = jid:to_bare(StateData#state.jid),
-            ejabberd_router:route(F, T, Pres);
-        false ->
-            ok
-    end,
-    blocking_presence_to_contacts(Action, JIDs, StateData).
-
 
 %%%----------------------------------------------------------------------
 %%% XEP-0352: Client State Indication
