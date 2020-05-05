@@ -435,7 +435,21 @@ filter_mechanism(<<"EXTERNAL">>, S) ->
         error -> false;
         _ -> true
     end;
+filter_mechanism(<<"SCRAM-SHA-1-PLUS">>, S) ->
+    is_channel_binding_supported(S);
+filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>, S) ->
+    is_channel_binding_supported(S);
 filter_mechanism(_, _) -> true.
+
+is_channel_binding_supported(State) ->
+    Socket = State#state.socket,
+    SockMod = (State#state.sockmod):get_sockmod(Socket),
+    is_fast_tls_configured(SockMod, Socket).
+
+is_fast_tls_configured(ejabberd_tls, Socket) ->
+    fast_tls == ejabberd_tls:get_sockmod(ejabberd_socket:get_socket(Socket));
+is_fast_tls_configured(_, _) ->
+    false.
 
 get_xml_lang(Attrs) ->
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
@@ -491,7 +505,12 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
         {?NS_SASL, <<"auth">>} when TLSEnabled or not TLSRequired ->
             Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            StepResult = cyrsasl:server_start(StateData#state.sasl_state, Mech, ClientIn),
+            SaslState = StateData#state.sasl_state,
+            Server = StateData#state.server,
+            AuthMech = [M || M <- cyrsasl:listmech(Server), filter_mechanism(M, StateData)],
+            SocketData = #{socket => StateData#state.socket,
+                           auth_mech => AuthMech},
+            StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
         {?NS_TLS, <<"starttls">>} when TLS == true,

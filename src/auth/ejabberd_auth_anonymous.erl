@@ -321,25 +321,15 @@ supports_sasl_module(Host, cyrsasl_anonymous) ->
     is_sasl_anonymous_enabled(Host);
 supports_sasl_module(Host, cyrsasl_plain) ->
     is_login_anonymous_enabled(Host);
-supports_sasl_module(Host, cyrsasl_scram_sha1 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha224 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha256 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha384 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
-supports_sasl_module(Host, cyrsasl_scram_sha512 = ScramSha) ->
-    is_login_anonymous_enabled(Host) andalso
-    mongoose_scram:can_login_with_configured_password_format(Host, ScramSha);
 supports_sasl_module(Host, cyrsasl_digest) ->
     is_login_anonymous_enabled(Host);
-supports_sasl_module(_, _) ->
-    false.
+supports_sasl_module(Host, Mechanism) ->
+   case mongoose_scram:enabled(Host, Mechanism) of
+      true ->
+          is_login_anonymous_enabled(Host);
+      _ ->
+          false
+end.
 
 get_vh_registered_users_number(_LServer) -> 0.
 

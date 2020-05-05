@@ -25,7 +25,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([mechanism/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/3, mech_step/2]).
 
 -behaviour(cyrsasl).
 
@@ -39,9 +39,10 @@
 mechanism() ->
     <<"EXTERNAL">>.
 
--spec mech_new(Host :: ejabberd:server(),
-               Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
-mech_new(_Host, Creds) ->
+-spec mech_new(Host   :: ejabberd:server(),
+               Creds  :: mongoose_credentials:t(),
+               Socket :: term()) -> {ok, sasl_external_state()}.
+mech_new(_Host, Creds, _Socket) ->
     Cert = mongoose_credentials:get(Creds, client_cert, no_cert),
     maybe_extract_certs(Cert, Creds).
 
@@ -202,4 +203,3 @@ verify_server(Jid, Server) ->
         _ ->
             {error, <<"not-authorized">>}
     end.
-

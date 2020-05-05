@@ -27,7 +27,7 @@
 -author('alexey@sevcom.net').
 
 -export([mechanism/0,
-         mech_new/2,
+         mech_new/3,
          mech_step/2]).
 
 -include("mongoose.hrl").
@@ -49,9 +49,10 @@
 mechanism() ->
     <<"DIGEST-MD5">>.
 
--spec mech_new(Host :: jid:server(),
-               Creds :: mongoose_credentials:t()) -> {ok, state()}.
-mech_new(Host, Creds) ->
+-spec mech_new(Host   :: jid:server(),
+               Creds  :: mongoose_credentials:t(),
+               Socket :: term()) -> {ok, state()}.
+mech_new(Host, Creds, _Socket) ->
     {ok, #state{step = 1,
                 nonce = mongoose_bin:gen_from_crypto(),
                 host = Host,

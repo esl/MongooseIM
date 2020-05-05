@@ -20,6 +20,7 @@
          peername/1,
          setopts/2,
          get_peer_certificate/1,
+         get_tls_last_message/1,
          close/1]).
 
 -export([get_sockmod/1]).
@@ -130,10 +131,19 @@ get_peer_certificate(#ejabberd_tls_socket{tls_module = fast_tls, tls_socket = S,
 -spec close(socket()) -> ok.
 close(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 
-
 -spec get_sockmod(socket()) -> module().
 get_sockmod(#ejabberd_tls_socket{tls_module = Module}) -> Module.
 
+-spec get_tls_last_message(ejabberd_socket:socket()) -> {ok, binary()} | {error, term()}.
+get_tls_last_message(#ejabberd_tls_socket{} = Socket) ->
+    case get_sockmod(Socket) of
+        fast_tls ->
+            fast_tls:get_tls_last_message(peer, Socket#ejabberd_tls_socket.tls_socket);
+        _ ->
+            {error, undefined}
+    end;
+get_tls_last_message(_) ->
+    {error, undefined}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions

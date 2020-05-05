@@ -135,7 +135,7 @@ assert_has_text([_ | Tail]) ->
 mechanism() ->
     ?TEST_MECHANISM.
 
-mech_new(_Host, _Creds) ->
+mech_new(_Host, _Creds, _Socket) ->
     {ok, state}.
 
 mech_step(_State, _ClientIn) ->

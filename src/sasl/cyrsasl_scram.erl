@@ -37,17 +37,22 @@
 
 
 -record(state,
-        {step = 2              :: 2 | 4,
-         stored_key = <<"">>   :: binary(),
-         server_key = <<"">>   :: binary(),
-         username = <<"">>     :: binary(),
-         creds                 :: mongoose_credentials:t(),
-         auth_message = <<"">> :: binary(),
-         client_nonce = <<"">> :: binary(),
-         server_nonce = <<"">> :: binary(),
-         auth_module           :: ejabberd_gen_auth:t(),
-         sha                   :: sha()}).
+        {step = 2                  :: 2 | 4,
+         stored_key = <<"">>       :: binary(),
+         server_key = <<"">>       :: binary(),
+         username = <<"">>         :: binary(),
+         creds                     :: mongoose_credentials:t(),
+         auth_message = <<"">>     :: binary(),
+         client_nonce = <<"">>     :: binary(),
+         server_nonce = <<"">>     :: binary(),
+         auth_module               :: ejabberd_gen_auth:t(),
+         sha                       :: sha(),
+         plus_variant = none       :: plus_variant(),
+         plus_advertised           :: boolean(),
+         tls_last_message = <<"">> :: binary()
+        }).
 
+-type state() :: #state{}.
 -type sha() :: sha | sha224 | sha256 | sha384 | sha512.
 -type client_in() :: [binary()].
 -type username_att() :: {term(), binary()}.
@@ -58,20 +63,30 @@
 -type channel_binding() :: term().
 -type client_proof() :: term().
 -type error() :: {error, binary()} | {error, binary(), binary()}.
+-type plus_variant() :: none | tls_unique.
 
 -define(SALT_LENGTH, 16).
 
 -define(NONCE_LENGTH, 16).
 
-mech_new(_Host, Creds, Sha) ->
-    {ok, #state{step = 2, creds = Creds, sha = Sha}}.
+mech_new(_Host, Creds, #{sha := Sha,
+                         socket := Socket,
+                         auth_mech := AuthMech,
+                         scram_plus := ScramPlus}) ->
+    {PlusVariant, TlsLastMessage} = maybe_get_tls_last_message(Socket, ScramPlus),
+    {ok, #state{step = 2,
+                creds = Creds,
+                sha = Sha,
+                plus_variant = PlusVariant,
+                plus_advertised = is_scram_plus_advertised(Sha, AuthMech),
+                tls_last_message = TlsLastMessage}}.
 
 mech_step(#state{step = 2} = State, ClientIn) ->
     ClientInList = binary:split(ClientIn, <<",">>, [global]),
     ClientInSteps = [ fun parse_step2_client_in/1,
                       fun parse_username_attribute/1,
                       fun unescape_username_attribute/1 ],
-    case parse_attributes(ClientInList, ClientInSteps) of
+    case parse_attributes({ClientInList, State}, ClientInSteps) of
         {ok, {UserName, ClientNonce}} ->
             Creds = State#state.creds,
             LServer = mongoose_credentials:lserver(Creds),
@@ -100,8 +115,9 @@ mech_step(#state{step = 2} = State, ClientIn) ->
 mech_step(#state{step = 4} = State, ClientIn) ->
     ClientInList = binary:split(ClientIn, <<",">>, [global]),
     ClientInSteps = [ fun parse_step4_client_in/1,
-                      fun parse_channel_binding_attribute/1],
-    case parse_attributes(ClientInList, ClientInSteps) of
+                      fun parse_channel_binding_attribute/1,
+                      fun verify_channel_binding/1],
+    case parse_attributes({ClientInList, State}, ClientInSteps) of
         {ok, {NonceAtt, ClientProofAtt}} ->
             Nonce = <<(State#state.client_nonce)/binary,
                       (State#state.server_nonce)/binary>>,
@@ -137,13 +153,21 @@ parse_attributes(ClientInList, Steps) ->
                     (F, Args) -> F(Args)
                 end, ClientInList, Steps).
 
--spec parse_step2_client_in(client_in()) -> {username_att(), nonce_attr()} | error().
-parse_step2_client_in([_,_,_,_, Extension | _]) when Extension /= [] ->
+-spec parse_step2_client_in({client_in(), state()}) -> {username_att(), nonce_attr()} | error().
+parse_step2_client_in({[_,_,_,_, Extension | _], _}) when Extension /= [] ->
     {error, <<"protocol-error-extension-not-supported">>};
-parse_step2_client_in([CBind | _]) when (CBind =/= <<"y">>) andalso (CBind =/= <<"n">>) ->
-    {error, <<"bad-protocol">>};
-parse_step2_client_in([_CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _]) ->
-    {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)}.
+parse_step2_client_in({[CBind, _AuthIdentity, UserNameAtt, ClientNonceAtt | _], State}) ->
+    case supported_channel_binding_flag(CBind, State#state.plus_variant, State#state.plus_advertised) of
+        true ->
+            {parse_attribute(UserNameAtt), parse_attribute(ClientNonceAtt)};
+        false ->
+            {error, <<"bad-protocol">>}
+    end.
+
+supported_channel_binding_flag(<<"p=tls-unique">>, tls_unique, true) -> true;
+supported_channel_binding_flag(<<"y">>, none, false) -> true;
+supported_channel_binding_flag(<<"n">>, _, _) -> true;
+supported_channel_binding_flag(_, _, _) -> false.
 
 -spec parse_username_attribute({username_att(), nonce_attr()}) ->
     {jid:username(), nonce()} | error().
@@ -186,28 +210,37 @@ create_server_first_message(ClientNonce, ServerNonce, Salt, IterationCount) ->
     iolist_to_binary([<<"r=">>, ClientNonce, ServerNonce, <<",s=">>,
         jlib:encode_base64(Salt), <<",i=">>, integer_to_list(IterationCount)]).
 
--spec parse_step4_client_in(client_in()) ->
-    {channel_binding(), nonce_attr(), client_proof()} | error().
-parse_step4_client_in(AttributesList) when length(AttributesList) == 3 ->
+-spec parse_step4_client_in({client_in(), state()}) ->
+    {channel_binding(), nonce_attr(), client_proof(), state()} | error().
+parse_step4_client_in({AttributesList, State}) when length(AttributesList) == 3 ->
     [CBind,
      NonceAtt,
      ClientProofAtt] = [parse_attribute(Attribute) || Attribute <-AttributesList],
-     {CBind, NonceAtt, ClientProofAtt};
+     {CBind, NonceAtt, ClientProofAtt, State};
 parse_step4_client_in(_) ->
     {error, <<"bad-protocol">>}.
 
--spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof()}) ->
+-spec parse_channel_binding_attribute({channel_binding(), nonce_attr(), client_proof(), state()}) ->
     {ok, {nonce(), client_proof()}} | error().
-parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt}) ->
-    CBind = binary:at(jlib:decode_base64(CVal), 0),
-    check_channel_binding({CBind, NonceAtt, ClientProofAtt});
+parse_channel_binding_attribute({{$c, CVal}, NonceAtt, ClientProofAtt, State}) ->
+    PlusVariant = State#state.plus_variant,
+    TlsLastMsg = State#state.tls_last_message,
+    IsPlusListed = State#state.plus_advertised,
+    {base64:decode(CVal), PlusVariant, IsPlusListed, TlsLastMsg, NonceAtt, ClientProofAtt};
 parse_channel_binding_attribute(_) ->
     {error, <<"bad-protocol">>}.
 
-check_channel_binding({CBind, _, _ }) when (CBind =/= $n) andalso (CBind =/=$y) ->
-    {error, <<"bad-channel-binding">>};
-check_channel_binding({_CBind, NonceAtt, ClientProofAtt}) ->
-    {ok, {NonceAtt, ClientProofAtt}}.
+verify_channel_binding({<<"p=tls-unique,,", TlsLastMsg/binary>>,
+                        tls_unique, true, TlsLastMsg, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding({<<"y", _/binary>>,
+                        none, false, _TlsLastMsg, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding({<<"n", _/binary>>,
+                        none, _, _TlsLastMsg, NonceAtt, ClientProofAtt}) ->
+    {ok, {NonceAtt, ClientProofAtt}};
+verify_channel_binding(_) ->
+    {error, <<"bad-channel-binding">>}.
 
 verify_nonce([{{$r, Nonce}, Nonce} | Args]) ->
     Args;
@@ -238,6 +271,21 @@ verify_stored_key(_) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+maybe_get_tls_last_message(Socket, true) ->
+    case ejabberd_tls:get_tls_last_message(ejabberd_socket:get_socket(Socket)) of
+        {error, _Error} ->
+            {none, <<"">>};
+        {ok, Msg} ->
+            {tls_unique, Msg}
+    end;
+maybe_get_tls_last_message(_, _) ->
+    {none, <<"">>}.
+
+is_scram_plus_advertised(sha, Mech)    -> lists:member(<<"SCRAM-SHA-1-PLUS">>, Mech);
+is_scram_plus_advertised(sha224, Mech) -> lists:member(<<"SCRAM-SHA-224-PLUS">>, Mech);
+is_scram_plus_advertised(sha256, Mech) -> lists:member(<<"SCRAM-SHA-256-PLUS">>, Mech);
+is_scram_plus_advertised(sha384, Mech) -> lists:member(<<"SCRAM-SHA-384-PLUS">>, Mech);
+is_scram_plus_advertised(sha512, Mech) -> lists:member(<<"SCRAM-SHA-512-PLUS">>, Mech).
 
 parse_attribute(Attribute) when byte_size(Attribute) >= 3 ->
     parse_attribute(Attribute, 0);

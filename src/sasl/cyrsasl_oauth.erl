@@ -1,7 +1,7 @@
 -module(cyrsasl_oauth).
 -author('adrian.stachurski@erlang-solutions.com').
 
--export([mechanism/0, mech_new/2, mech_step/2]).
+-export([mechanism/0, mech_new/3, mech_step/2]).
 
 -behaviour(cyrsasl).
 
@@ -11,9 +11,10 @@
 mechanism() ->
     <<"X-OAUTH">>.
 
--spec mech_new(Host :: jid:server(),
-               Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
-mech_new(_Host, Creds) ->
+-spec mech_new(Host   :: jid:server(),
+               Creds  :: mongoose_credentials:t(),
+               Socket :: term()) -> {ok, tuple()}.
+mech_new(_Host, Creds, _Socket) ->
     {ok, #state{creds = Creds}}.
 
 -spec mech_step(State :: tuple(),
