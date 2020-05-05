@@ -10,19 +10,14 @@ set -e
 TOOLS=`dirname $0`
 
 source tools/travis-common-vars.sh
-
-# Default cassandra version
-CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
-
-# Default ElasticSearch version
-ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
+source tools/travis-db-versions.sh
 
 function setup_db(){
 db=${1:-none}
 echo "Pulling up db: $db"
 
 if [ "$db" = 'mysql' ]; then
-    docker image pull mysql
+    docker image pull mysql:$MYSQL_VERSION
 
 elif [ "$db" = 'pgsql' ]; then
     docker image pull postgres

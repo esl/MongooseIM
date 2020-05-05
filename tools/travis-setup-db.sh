@@ -9,6 +9,7 @@
 set -e
 
 source tools/travis-common-vars.sh
+source tools/travis-db-versions.sh
 
 MIM_PRIV_DIR=${BASE}/priv
 
@@ -28,11 +29,6 @@ fi
 # DATA_ON_VOLUME variable and data_on_volume function come from travis-common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 
-# Default cassandra version
-CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
-
-# Default ElasticSearch version
-ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
 
 # There is one odbc.ini for both mssql and pgsql
 # Allows to run both in parallel
@@ -121,7 +117,7 @@ if [ "$db" = 'mysql' ]; then
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
-        mysql:8.0.18
+        mysql:$MYSQL_VERSION
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then

@@ -125,7 +125,9 @@ An example configuration can look as follows:
 {outgoing_pools, [
  {rdbms, global, default, [{workers, 5}],
   [{server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
-             [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"},
+             [{versions, ['tlsv1.2']},
+              {verify, verify_peer},
+              {cacertfile, "path/to/cacert.pem"},
               {server_name_indication, disable}]}}]}
 ]}.
 ```
