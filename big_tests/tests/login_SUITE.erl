@@ -34,6 +34,7 @@
 %%--------------------------------------------------------------------
 
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
+-define(CERT_FILE, "priv/ssl/fake_server.pem").
 
 all() ->
     [
@@ -41,6 +42,7 @@ all() ->
      {group, login_scram},
      {group, login_scram_store_plain},
      {group, login_specific_scram},
+     {group, login_scram_tls},
      {group, messages}
     ].
 
@@ -48,6 +50,7 @@ groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
          {login_scram_store_plain, [parallel], scram_tests()},
+         {login_scram_tls, [parallel], scram_tests()},
          {login_specific_scram, [sequence], configure_specific_scram_test()},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
@@ -121,6 +124,16 @@ init_per_group(GroupName, Config) when
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus])),
             assert_password_format(GroupName, Config2)
     end;
+init_per_group(login_scram_tls, Config) ->
+    case are_sasl_scram_modules_supported() of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
+            Config1 = config_ejabberd_node_tls(Config),
+            config_password_format(login_scram),
+            Config2 = create_tls_users(Config1),
+            assert_password_format(scram, Config2)
+    end;
 init_per_group(login_specific_scram, Config) ->
     case are_sasl_scram_modules_supported() of
         false ->
@@ -135,6 +148,10 @@ end_per_group(GroupName, Config) when
     GroupName == login_scram; GroupName == login_specific_scram ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([alice, bob, neustradamus]));
+end_per_group(login_scram_tls, Config) ->
+    restore_config(Config),
+    set_store_password(plain),
+    delete_tls_users(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
@@ -228,7 +245,7 @@ log_one_scram_sha512_plus(Config) ->
     log_one_scram_plus([{escalus_auth_method, <<"SCRAM-SHA-512-PLUS">>} | Config]).
 
 configure_sha1_log_with_sha1(Config) ->
-        configure_and_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
+    configure_and_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
 
 configure_sha224_log_with_sha224(Config) ->
     configure_and_log_scram(Config, sha224, <<"SCRAM-SHA-224">>).
@@ -274,11 +291,11 @@ configure_sha512_fail_log_with_sha1(Config) ->
 
 %%
 %% configure_sha*_plus_fail_log_with_sha* tests are succeeding due to the fact that
-%% escalus, when login with scram, sets channel binding flag to 'y'. This indicates that
-%% escalus supports channel binding but the server does not. The server did advertise the
-%% SCRAM PLUS mechanism, so this flag is incorrect and could be the result of the
-%% man-in-the-middle attack attempting to downgrade the authentication mechanism.
-%% Because of that, the authentication should fail.
+%% escalus, when configured with fast_tls and login with scram, sets channel binding
+%% flag to 'y'. This indicates that escalus supports channel binding but the server
+%% does not. The server did advertise the SCRAM PLUS mechanism, so this flag is
+%% incorrect and could be the result of the man-in-the-middle attack attempting to
+%% downgrade the authentication mechanism. Because of that, the authentication should fail.
 %%
 configure_sha1_plus_fail_log_with_sha1(Config) ->
     configure_scram_plus_and_fail_log_scram(Config, sha, <<"SCRAM-SHA-1">>).
@@ -356,6 +373,31 @@ message_zlib_limit(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+config_ejabberd_node_tls(Config) ->
+    Config1 = ejabberd_node_utils:init(Config),
+    ejabberd_node_utils:backup_config_file(Config1),
+    ejabberd_node_utils:modify_config_file([{tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}], Config1),
+    ejabberd_node_utils:restart_application(mongooseim),
+    Config1.
+
+restore_config(Config) ->
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:restart_application(mongooseim).
+
+create_tls_users(Config) ->
+   Config1 = escalus:create_users(Config, escalus:get_users([alice, neustradamus])),
+   Users = proplists:get_value(escalus_users, Config1, []),
+   NSpec = lists:keydelete(starttls, 1, proplists:get_value(neustradamus, Users)),
+   NSpec2 = {neustradamus, lists:keystore(ssl, 1, NSpec, {ssl, true})},
+   NewUsers = lists:keystore(neustradamus, 1, Users, NSpec2),
+   AliceSpec = proplists:get_value(alice, Users),
+   AliceSpec2 = {alice, lists:keystore(ssl, 1, AliceSpec, {ssl, true})},
+   NewUsers2 = lists:keystore(alice, 1, NewUsers, AliceSpec2),
+   lists:keystore(escalus_users, 1, Config1, {escalus_users, NewUsers2}).
+
+delete_tls_users(Config) ->
+    escalus:delete_users(Config, escalus:get_users([alice, neustradamus])).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
