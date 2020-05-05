@@ -10,14 +10,7 @@ set -e
 TOOLS=`dirname $0`
 
 source tools/travis-common-vars.sh
-
-# Default cassandra version
-CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
-
-# Default ElasticSearch version
-ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
-
-MYSQL_VERSION=${MYSQL_VERSION:-8.0.20}
+source tools/travis-db-versions.sh
 
 function setup_db(){
 db=${1:-none}

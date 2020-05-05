@@ -9,6 +9,7 @@
 set -e
 
 source tools/travis-common-vars.sh
+source tools/travis-db-versions.sh
 
 MIM_PRIV_DIR=${BASE}/priv
 
@@ -27,14 +28,6 @@ fi
 
 # DATA_ON_VOLUME variable and data_on_volume function come from travis-common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
-
-# Default cassandra version
-CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
-
-# Default ElasticSearch version
-ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
-
-MYSQL_VERSION=${MYSQL_VERSION:-8.0.20}
 
 
 # There is one odbc.ini for both mssql and pgsql
