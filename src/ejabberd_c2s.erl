@@ -442,16 +442,9 @@ filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>, S) ->
 filter_mechanism(_, _) -> true.
 
 is_channel_binding_supported(State) ->
-    TLSEnabled = State#state.tls_enabled,
-    TLSRequired = State#state.tls_required,
     Socket = State#state.socket,
-    case TLSEnabled or not TLSRequired of
-        true ->
-            SockMod = (State#state.sockmod):get_sockmod(Socket),
-            is_fast_tls_configured(SockMod, Socket);
-        false ->
-            false
-    end.
+    SockMod = (State#state.sockmod):get_sockmod(Socket),
+    is_fast_tls_configured(SockMod, Socket).
 
 is_fast_tls_configured(ejabberd_tls, Socket) ->
     fast_tls == ejabberd_tls:get_sockmod(ejabberd_socket:get_socket(Socket));
