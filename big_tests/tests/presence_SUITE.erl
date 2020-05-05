@@ -411,10 +411,7 @@ subscribe(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-        PushReqB = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_roster_set, PushReqB),
-        escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
+        complete_roster_transaction(Bob),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid,
@@ -571,10 +568,7 @@ unsubscribe(Config) ->
         escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
-
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-        PushReqB = escalus:wait_for_stanza(Bob),
-        escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
+        complete_roster_transaction(Bob),
 
         %% Bob sends subscribed presence
         escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
@@ -715,4 +709,11 @@ check_roster_count(User, ExpectedCount) ->
     % Roster contains all created users excluding user
     escalus:assert(is_roster_result, Roster),
     escalus:assert(count_roster_items, [ExpectedCount], Roster).
+
+complete_roster_transaction(Client) ->
+    Response1 = escalus:wait_for_stanzas(Client, 2),
+    escalus:assert_many([is_roster_set, is_iq_result], Response1),
+    [PushReqB] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, Response1),
+    escalus:send(Client, escalus_stanza:iq_result(PushReqB)),
+    ok.
 
