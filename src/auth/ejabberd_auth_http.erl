@@ -45,19 +45,9 @@ start(_Host) ->
     ok.
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(_, cyrsasl_plain) -> true;
-supports_sasl_module(H, cyrsasl_scram_sha1 = S)   -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha224 = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha256 = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha384 = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha512 = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha1_plus = S)   -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha224_plus = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha256_plus = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha384_plus = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_scram_sha512_plus = S) -> mongoose_scram:enabled(H, S);
-supports_sasl_module(H, cyrsasl_digest) ->  not mongoose_scram:enabled(H);
-supports_sasl_module(_, _) -> false.
+supports_sasl_module(_Host, cyrsasl_plain) -> true;
+supports_sasl_module(Host, cyrsasl_digest) ->  not mongoose_scram:enabled(Host);
+supports_sasl_module(Host, Mechanism) -> mongoose_scram:enabled(Host, Mechanism).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.

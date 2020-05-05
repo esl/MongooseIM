@@ -120,7 +120,8 @@ enabled(Host, cyrsasl_scram_sha1_plus) -> is_password_format_allowed(Host, sha);
 enabled(Host, cyrsasl_scram_sha224_plus) -> is_password_format_allowed(Host, sha224);
 enabled(Host, cyrsasl_scram_sha256_plus) -> is_password_format_allowed(Host, sha256);
 enabled(Host, cyrsasl_scram_sha384_plus) -> is_password_format_allowed(Host, sha384);
-enabled(Host, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(Host, sha512).
+enabled(Host, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(Host, sha512);
+enabled(_Host, _Mechanism) -> false.
 
 is_password_format_allowed(Host, Sha) ->
     case ejabberd_auth:get_opt(Host, password_format) of
