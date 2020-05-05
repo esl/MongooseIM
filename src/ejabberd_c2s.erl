@@ -40,6 +40,7 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
+         preprocess_and_ship/5,
          store_session_info/3,
          remove_session_info/3,
          get_info/1,
@@ -882,9 +883,9 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     El = mongoose_acc:element(Acc),
     {_Acc, NState} = case XMLNS of
                          ?NS_PRIVACY ->
-                             process_privacy_iq(Acc, ToJID, StateData);
+                             mongoose_c2s_privacy:process_privacy_iq(Acc, ToJID, StateData);
                          ?NS_BLOCKING ->
-                             process_privacy_iq(Acc, ToJID, StateData);
+                             mongoose_c2s_privacy:process_privacy_iq(Acc, ToJID, StateData);
                          _ ->
                              Acc2 = mongoose_hooks:user_send_packet(
                                                             LServer,
@@ -1334,22 +1335,6 @@ handle_routed_iq(_From, _To, Acc, IQ, StateData)
                               Broadcast :: broadcast_type(),
                               StateData :: state()) ->
     {mongoose_acc:t(), broadcast_result()}.
-handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
-    case mongoose_hooks:privacy_updated_list(StateData#state.server,
-                                 false,
-                                 mongoose_c2s_privacy:get_privacy_list(StateData),
-                                 PrivList) of
-        false ->
-            {Acc, {new_state, StateData}};
-        NewPL ->
-            PrivPushIQ = privacy_list_push_iq(PrivListName),
-            F = jid:to_bare(StateData#state.jid),
-            T = StateData#state.jid,
-            PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
-            Acc1 = maybe_update_presence(Acc, StateData, NewPL),
-            Res = {send_new, F, T, PrivPushEl, mongoose_c2s_privacy:set_privacy_list(NewPL, StateData)},
-            {Acc1, Res}
-    end;
 handle_routed_broadcast(Acc, {blocking, UserList, Action, JIDs}, StateData) ->
     blocking_push_to_resources(Action, JIDs, StateData),
     blocking_presence_to_contacts(Action, JIDs, StateData),
@@ -1361,19 +1346,8 @@ handle_routed_broadcast(Acc, _, StateData) ->
 -spec handle_broadcast_result(mongoose_acc:t(), broadcast_result(), StateName :: atom(),
     StateData :: state()) ->
     any().
-handle_broadcast_result(Acc, {send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
-    {Act, _, NewStateData} = ship_to_local_user(Acc, {From, To, Stanza}, NewState),
-    finish_state(Act, StateName, NewStateData);
 handle_broadcast_result(_Acc, {new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
-
-privacy_list_push_iq(PrivListName) ->
-    #iq{type = set, xmlns = ?NS_PRIVACY,
-        id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
-        sub_el = [#xmlel{name = <<"query">>,
-                         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
-                         children = [#xmlel{name = <<"list">>,
-                                            attrs = [{<<"name">>, PrivListName}]}]}]}.
 
 -spec handle_routed_presence(From :: jid:jid(), To :: jid:jid(),
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
@@ -2063,56 +2037,6 @@ get_priority_from_presence(PresencePacket) ->
                 _ ->
                     0
             end
-    end.
-
--spec process_privacy_iq(Acc :: mongoose_acc:t(),
-                         To :: jid:jid(),
-                         StateData :: state()) -> {mongoose_acc:t(), state()}.
-process_privacy_iq(Acc1, To, StateData) ->
-    case mongoose_iq:info(Acc1) of
-        {#iq{type = Type, sub_el = SubEl} = IQ, Acc2} when Type == get; Type == set ->
-            From = mongoose_acc:from_jid(Acc2),
-            {Acc3, NewStateData} = process_privacy_iq(Acc2, Type, To, StateData),
-            Res = mongoose_acc:get(hook, result,
-                                   {error, mongoose_xmpp_errors:feature_not_implemented()}, Acc3),
-            IQRes = case Res of
-                        {result, Result} ->
-                            IQ#iq{type = result, sub_el = Result};
-                        {result, Result, _} ->
-                            IQ#iq{type = result, sub_el = Result};
-                        {error, Error} ->
-                            IQ#iq{type = error, sub_el = [SubEl, Error]}
-                    end,
-            Acc4 = ejabberd_router:route(To, From, Acc3, jlib:iq_to_xml(IQRes)),
-            {Acc4, NewStateData};
-        _ ->
-            {Acc1, StateData}
-    end.
-
--spec process_privacy_iq(Acc :: mongoose_acc:t(),
-                         Type :: get | set,
-                         To :: jid:jid(),
-                         StateData :: state()) -> {mongoose_acc:t(), state()}.
-process_privacy_iq(Acc, get, To, StateData) ->
-    From = mongoose_acc:from_jid(Acc),
-    {IQ, Acc1} = mongoose_iq:info(Acc),
-    Acc2 = mongoose_hooks:privacy_iq_get(StateData#state.server,
-                                         Acc1,
-                                         From, To, IQ,
-                                         mongoose_c2s_privacy:get_privacy_list(StateData)),
-    {Acc2, StateData};
-process_privacy_iq(Acc, set, To, StateData) ->
-    From = mongoose_acc:from_jid(Acc),
-    {IQ, Acc1} = mongoose_iq:info(Acc),
-    Acc2 = mongoose_hooks:privacy_iq_set(StateData#state.server,
-                                         Acc1,
-                                         From, To, IQ),
-    case mongoose_acc:get(hook, result, undefined, Acc2) of
-        {result, _, NewPrivList} ->
-            Acc3 = maybe_update_presence(Acc2, StateData, NewPrivList),
-            NState = mongoose_c2s_privacy:set_privacy_list(NewPrivList, StateData),
-            {Acc3, NState};
-        _ -> {Acc2, StateData}
     end.
 
 

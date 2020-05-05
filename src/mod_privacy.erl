@@ -121,7 +121,7 @@ start(Host, Opts) ->
                                                  get_default_list]),
     mod_privacy_backend:init(Host, Opts),
     ejabberd_hooks:add(initialise_c2s_state, Host,
-                       ?MODULE, initialise_state, 50),
+               ?MODULE, initialise_state, 50),
     ejabberd_hooks:add(privacy_iq_get, Host,
                ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
@@ -134,12 +134,14 @@ start(Host, Opts) ->
                ?MODULE, updated_list, 50),
     ejabberd_hooks:add(remove_user, Host,
                ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(c2s_remote_hook, Host,
+                mongoose_c2s_privacy, update_privacy_list, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
         ?MODULE, remove_user, 50).
 
 stop(Host) ->
     ejabberd_hooks:delete(initialise_c2s_state, Host,
-                          ?MODULE, initialise_state, 50),
+              ?MODULE, initialise_state, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host,
               ?MODULE, process_iq_get, 50),
     ejabberd_hooks:delete(privacy_iq_set, Host,
@@ -152,6 +154,8 @@ stop(Host) ->
               ?MODULE, updated_list, 50),
     ejabberd_hooks:delete(remove_user, Host,
               ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(c2s_remote_hook, Host,
+              mongoose_c2s_privacy, update_privacy_list, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
         ?MODULE, remove_user, 50).
 
@@ -164,6 +168,7 @@ initialise_state({Acc, State}) ->
     {Acc, ejabberd_c2s_state:set_handler_state(mod_privacy,
                                                 mongoose_c2s_privacy:initialise_state(JID),
                                                 State)}.
+
 process_iq_get(Acc,
                _From = #jid{luser = LUser, lserver = LServer},
                _To,
@@ -280,7 +285,7 @@ remove_privacy_list(LUser, LServer, Name) ->
     case mod_privacy_backend:remove_privacy_list(LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
-            broadcast_privacy_list(LUser, LServer, Name, UserList),
+            push_privacy_change(LUser, LServer, Name, UserList),
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
@@ -294,7 +299,7 @@ replace_privacy_list(LUser, LServer, Name, List) ->
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
-            broadcast_privacy_list(LUser, LServer, Name, UserList),
+            push_privacy_change(LUser, LServer, Name, UserList),
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -666,16 +671,10 @@ binary_to_order_s(Order) ->
     end.
 
 
-%% Ejabberd
-%% ------------------------------------------------------------------
-
-broadcast_privacy_list(LUser, LServer, Name, UserList) ->
-    UserJID = jid:make(LUser, LServer, <<>>),
-    ejabberd_sm:route(UserJID, UserJID, broadcast_privacy_list_packet(Name, UserList)).
-
-%% TODO this is dirty
-broadcast_privacy_list_packet(Name, UserList) ->
-    {broadcast, {privacy_list, UserList, Name}}.
+push_privacy_change(LUser, LServer, Name, Userlist) ->
+    ejabberd_sm:run_in_all_sessions(jid:make(LUser, LServer, <<>>),
+                                    mod_privacy, {privacy_change, Name, Userlist}),
+    ok.
 
 roster_get_jid_info(Host, User, LJID) ->
     mongoose_hooks:roster_get_jid_info(Host,
