@@ -55,7 +55,7 @@
   0},
  {<<"fast_tls">>,
   {git,"https://github.com/processone/fast_tls.git",
-       {ref,"3a42d7d478853ea231fad466cf0e4b773909d806"}},
+       {ref,"ceb277f5b172d94ec2a0c8b13cfb7e887961b55a"}},
   0},
  {<<"fusco">>,
   {git,"https://github.com/esl/fusco.git",
