@@ -39,6 +39,7 @@
 all() ->
     [
      {group, login},
+     {group, login_digest},
      {group, login_scram},
      {group, login_scram_store_plain},
      {group, login_specific_scram},
@@ -48,6 +49,7 @@ all() ->
 
 groups() ->
     G = [{login, [parallel], all_tests()},
+         {login_digest, [sequence], digest_tests()},
          {login_scram, [parallel], scram_tests()},
          {login_scram_store_plain, [parallel], scram_tests()},
          {login_scram_tls, [parallel], scram_tests()},
@@ -93,12 +95,14 @@ configure_specific_scram_test() ->
 all_tests() ->
     [log_one,
      log_non_existent_plain,
-     log_one_digest,
-     log_non_existent_digest,
      log_one_scram_sha1,
      log_non_existent_scram,
      blocked_user
     ].
+
+digest_tests() ->
+    [log_one_digest,
+     log_non_existent_digest].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -161,7 +165,8 @@ init_per_testcase(CaseName, Config) when
         false ->
             {skip, "digest password type not supported"};
         true ->
-            escalus:init_per_testcase(CaseName, Config)
+            Config1 = configure_digest(Config),
+            escalus:init_per_testcase(CaseName, Config1)
     end;
 init_per_testcase(CaseName, Config) when
       CaseName =:= log_one_scram_sha1; CaseName =:= log_non_existent_scram ->
@@ -188,6 +193,10 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, escalus:get_users([hacker]));
+end_per_testcase(CaseName, Config) when
+    CaseName =:= log_one_digest; CaseName =:= log_non_existent_digest ->
+    restore_config(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -378,6 +387,13 @@ config_ejabberd_node_tls(Config) ->
     Config1 = ejabberd_node_utils:init(Config),
     ejabberd_node_utils:backup_config_file(Config1),
     ejabberd_node_utils:modify_config_file([{tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}], Config1),
+    ejabberd_node_utils:restart_application(mongooseim),
+    Config1.
+
+configure_digest(Config) ->
+    Config1 = ejabberd_node_utils:init(Config),
+    ejabberd_node_utils:backup_config_file(Config1),
+    ejabberd_node_utils:modify_config_file([{sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_digest]}."}], Config1),
     ejabberd_node_utils:restart_application(mongooseim),
     Config1.
 
