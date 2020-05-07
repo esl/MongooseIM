@@ -44,6 +44,7 @@
          stop/1,
          process_iq/4,
          process_local_iq/4,
+         initialise_state/1,
          get_user_roster/2,
          get_subscription_lists/3,
          get_roster_entry/3,
@@ -219,6 +220,7 @@ stop(Host) ->
 
 hooks(Host) ->
     [{roster_get, Host, ?MODULE, get_user_roster, 50},
+     {initialise_c2s_state, Host,?MODULE, initialise_state, 50},
      {roster_in_subscription, Host, ?MODULE, in_subscription, 50},
      {roster_out_subscription, Host, ?MODULE, out_subscription, 50},
      {roster_get_subscription_lists, Host, ?MODULE, get_subscription_lists, 50},
@@ -231,6 +233,18 @@ hooks(Host) ->
      %% or create here a handler which would call that module
      %% not sure which is better
      {c2s_remote_hook, Host, mongoose_c2s_presence, handle_remote_hook, 100}].
+
+initialise_state({Acc, State}) ->
+    JID = ejabberd_c2s_state:jid(State),
+    Acc1 = mongoose_hooks:roster_get_subscription_lists(JID#jid.server, Acc, JID#jid.user),
+    {FromSubs, ToSubs, _Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
+    LJID = jid:to_lower(jid:to_bare(JID)),
+    FromSubsWithMe = [LJID | FromSubs],
+    ToSubsWithMe = [LJID | ToSubs],
+    StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
+                                                           mongoose_c2s_presence:initialise_state(FromSubsWithMe, ToSubsWithMe),
+                                                           State),
+    {Acc1, StateWithRoster}.
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
