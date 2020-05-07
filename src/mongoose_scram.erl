@@ -35,13 +35,14 @@
                          Salt :: binary(), Iterations :: non_neg_integer() }.
 
 -type scram_map() ::
-    #{salt := binary(),
-      iteration_count := non_neg_integer(),
+    #{iteration_count := non_neg_integer(),
       sha_key() := server_and_stored_key_type()}.
 
 -type sha_key() :: sha | sha224 | sha256 | sha384 | sha512.
 
--type server_and_stored_key_type() :: #{server_key := binary(), stored_key := binary()}.
+-type server_and_stored_key_type() :: #{salt       := binary(),
+                                        server_key := binary(),
+                                        stored_key := binary()}.
 
 -type scram() :: #scram{}.
 
