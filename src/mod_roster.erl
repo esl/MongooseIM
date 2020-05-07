@@ -80,6 +80,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -export_type([roster/0, sub_presence/0]).
 
@@ -117,7 +118,7 @@
     Acc :: term(),
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    Result :: term().
+    Result :: [roster()].
 -callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
@@ -584,28 +585,38 @@ get_subscription_lists(Acc, User, Server) ->
     mongoose_acc:set(roster, subscription_lists, SubLists, Acc).
 
 
-fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
+-spec fill_subscription_lists(JID :: jid:jid(),
+                              LServer :: jid:lserver(),
+                              RosterList :: [roster()],
+                              FromSubs :: [jid:simple_jid()],
+                              ToSubs :: [jid:simple_jid()],
+                              PendingSubs :: [exml:element()]) ->
+    {[jid:simple_jid()],
+     [jid:simple_jid()],
+     [exml:element()]}.
+fill_subscription_lists(JID, LServer, [#roster{} = I | Is], FromSubs, ToSubs, PendingSubs) ->
     J = element(3, I#roster.usj),
 
-    NewP = build_pending(I, JID, P),
+    NewP = build_pending(I, JID, PendingSubs),
 
     case I#roster.subscription of
         both ->
-            fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
+            fill_subscription_lists(JID, LServer, Is, [J | FromSubs], [J | ToSubs], NewP);
         from ->
-            fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
-        to -> fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
-        _ -> fill_subscription_lists(JID, LServer, Is, F, T, NewP)
+            fill_subscription_lists(JID, LServer, Is, [J | FromSubs], ToSubs, NewP);
+        to -> fill_subscription_lists(JID, LServer, Is, FromSubs, [J | ToSubs], NewP);
+        _ -> fill_subscription_lists(JID, LServer, Is, FromSubs, ToSubs, NewP)
     end;
-fill_subscription_lists(JID, LServer, [RawI | Is], F, T, P) ->
+fill_subscription_lists(JID, LServer, [RawI | Is], FromSubs, ToSubs, PendingSubs) ->
     I = mod_roster_backend:raw_to_record(LServer, RawI),
     case I of
         %% Bad JID in database:
-        error -> fill_subscription_lists(JID, LServer, Is, F, T, P);
-        _ -> fill_subscription_lists(JID, LServer, [I | Is], F, T, P)
+        error -> fill_subscription_lists(JID, LServer, Is, FromSubs, ToSubs, PendingSubs);
+        _ -> fill_subscription_lists(JID, LServer, [I | Is], FromSubs, ToSubs, PendingSubs)
     end;
-fill_subscription_lists(_, _LServer, [], F, T, P) -> {F, T, P}.
+fill_subscription_lists(_, _LServer, [], FromSubs, ToSubs, PendingSubs) -> {FromSubs, ToSubs, PendingSubs}.
 
+-spec build_pending(roster(), jid:jid(), [exml:element()]) -> [exml:element()].
 build_pending(#roster{ask = Ask} = I, JID, P)
   when Ask == in; Ask == both ->
     Status = case I#roster.askmessage of

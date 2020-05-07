@@ -2050,7 +2050,7 @@ check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
         _ -> Acc2
     end.
 
--spec resend_subscription_requests(mongoose_acc:t(), list(), state()) -> {mongoose_acc:t(), state()}.
+-spec resend_subscription_requests(mongoose_acc:t(), [exml:element()], state()) -> {mongoose_acc:t(), state()}.
 resend_subscription_requests(Acc, Pending, StateData) ->
     {NewAcc, NewState} = lists:foldl(
                  fun(XMLPacket, {A, #state{} = State}) ->

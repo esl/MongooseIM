@@ -50,7 +50,9 @@ stop(Host) ->
 update_blocking_list(_HandlerState, mod_privacy, {blocking_change, UserList, Action, JIDs}, C2SState) ->
     blocking_push_to_resources(Action, JIDs, C2SState),
     blocking_presence_to_contacts(Action, JIDs, C2SState),
-    #privacy_state{userlist = UserList}.
+    #privacy_state{userlist = UserList};
+update_blocking_list(HandlerState, _, _, _) ->
+    HandlerState.
 
 process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->
@@ -234,25 +236,7 @@ blocking_query_response(Lst) ->
                                  JIDS :: [binary()],
                                  State :: ejabberd_c2s:state()) -> ok.
 blocking_push_to_resources(Action, JIDs, StateData) ->
-    SubEl =
-    case Action of
-        block ->
-            #xmlel{name = <<"block">>,
-                   attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
-                   children = lists:map(
-                       fun(JID) ->
-                           #xmlel{name = <<"item">>,
-                                  attrs = [{<<"jid">>, JID}]}
-                       end, JIDs)};
-        unblock ->
-            #xmlel{name = <<"unblock">>,
-                   attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
-                   children = lists:map(
-                       fun(JID) ->
-                           #xmlel{name = <<"item">>,
-                                  attrs = [{<<"jid">>, JID}]}
-                       end, JIDs)}
-    end,
+    SubEl = build_push_xmlel(Action, JIDs),
     PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
                      id = <<"push">>,
                      sub_el = [SubEl]},
@@ -261,6 +245,19 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
     PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
     ejabberd_router:route(F, T, PrivPushEl),
     ok.
+
+build_push_xmlel(block, JIDs) ->
+    build_push_xmlel(<<"block">>, JIDs);
+build_push_xmlel(unblock, JIDs) ->
+    build_push_xmlel(<<"unblock">>, JIDs);
+build_push_xmlel(Action, JIDs) ->
+    #xmlel{name = Action,
+           attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
+           children = lists:map(
+               fun(JID) ->
+                   #xmlel{name = <<"item">>,
+                          attrs = [{<<"jid">>, JID}]}
+               end, JIDs)}.
 
 -spec blocking_presence_to_contacts(Action :: blocking_type(),
                                     JIDs :: [binary()],
