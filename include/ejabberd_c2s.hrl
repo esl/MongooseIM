@@ -73,25 +73,6 @@
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
 
--type blocking_type() :: 'block' | 'unblock'.
-
--type broadcast_type() :: {exit, Reason :: binary()}
-                        | {item, IJID :: jid:simple_jid() | jid:jid(),
-                           ISubscription :: from | to | both | none | remove}
-                        | {privacy_list, PrivList :: mongoose_privacy:userlist(),
-                           PrivListName :: binary()}
-                        | {blocking, UserList :: mongoose_privacy:userlist(), What :: blocking_type(),
-                                     [binary()]}
-                        | unknown.
-
--type broadcast() :: {broadcast, broadcast_type() | mongoose_acc:t()}.
-
--type broadcast_result() :: {new_state, NewState :: state()}
-                          | {exit, Reason :: binary()}
-                          | {send_new, From :: jid:jid(), To :: jid:jid(),
-                             Packet :: exml:element(),
-                             NewState :: state()}.
-
 -type routing_result_atom() :: allow | deny | forbidden | ignore | block | invalid | probe.
 
 -type routing_result() :: {DoRoute :: routing_result_atom(), NewAcc :: mongoose_acc:t(),

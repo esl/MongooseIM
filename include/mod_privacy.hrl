@@ -35,4 +35,8 @@
 
 -record(userlist, {name = none, list = [], needdb = false }).
 
+-record(privacy_state, {userlist}).
+
+-type privacy_state() :: #privacy_state{}.
+
 

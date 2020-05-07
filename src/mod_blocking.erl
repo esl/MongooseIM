@@ -15,6 +15,7 @@
 -export([start/2,
          process_iq_get/5,
          process_iq_set/4,
+         update_blocking_list/4,
          stop/1
         ]).
 
@@ -24,12 +25,16 @@
 
 -type listitem() :: #listitem{}.
 
+-type blocking_type() :: 'block' | 'unblock'.
+
 start(Host, _Opts) ->
     mod_disco:register_feature(Host, ?NS_BLOCKING),
     ejabberd_hooks:add(privacy_iq_get, Host,
         ?MODULE, process_iq_get, 50),
     ejabberd_hooks:add(privacy_iq_set, Host,
         ?MODULE, process_iq_set, 50),
+    ejabberd_hooks:add(c2s_remote_hook, Host,
+        ?MODULE, update_blocking_list, 50),
     ok.
 
 stop(Host) ->
@@ -37,7 +42,17 @@ stop(Host) ->
         ?MODULE, process_iq_get, 50),
     ejabberd_hooks:delete(privacy_iq_set, Host,
         ?MODULE, process_iq_set, 50),
+    ejabberd_hooks:delete(c2s_remote_hook, Host,
+        ?MODULE, update_blocking_list, 50),
     ok.
+
+-spec update_blocking_list(privacy_state(), atom(), term(), ejabberd_c2s:state()) -> privacy_state().
+update_blocking_list(_HandlerState, mod_privacy, {blocking_change, UserList, Action, JIDs}, C2SState) ->
+    blocking_push_to_resources(Action, JIDs, C2SState),
+    blocking_presence_to_contacts(Action, JIDs, C2SState),
+    #privacy_state{userlist = UserList};
+update_blocking_list(HandlerState, _, _, _) ->
+    HandlerState.
 
 process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->
@@ -127,11 +142,9 @@ complete_iq_set(blocking_command, Acc, _, _, {error, Reason}) ->
 complete_iq_set(blocking_command, Acc, LUser, LServer, {ok, Changed, List, Type}) ->
     UserList = #userlist{name = <<"blocking">>, list = List, needdb = false},
     % send the list to all users c2s processes (resources) to make it effective immediately
-    Acc1 = broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type),
+    Acc1 = push_blocking_info(Acc, LUser, LServer, UserList, Changed, Type),
     % return a response here so that c2s sets the list in its state
     {Acc1, {result, [], UserList}}.
-%%complete_iq_set(blocking_command, _, _, _) ->
-%%    {result, []}.
 
 -spec blocking_list_modify(Type :: block | unblock, New :: [binary()], Old :: [listitem()]) ->
     {block|unblock|unblock_all, [binary()], [listitem()]}.
@@ -200,15 +213,16 @@ make_blocking_list_entry(J) ->
 
 %% @doc send iq confirmation to all of the user's resources
 %% if we unblock all contacts then we don't list who's been unblocked
-broadcast_blocking_command(Acc, LUser, LServer, UserList, _Changed, unblock_all) ->
-    broadcast_blocking_command(Acc, LUser, LServer, UserList, [], unblock);
-broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
+push_blocking_info(Acc, LUser, LServer, UserList, _Changed, unblock_all) ->
+    push_blocking_info(Acc, LUser, LServer, UserList, [], unblock);
+push_blocking_info(Acc, LUser, LServer, UserList, Changed, Type) ->
     case jid:make(LUser, LServer, <<>>) of
         error ->
             Acc;
         UserJID ->
-            Bcast = {blocking, UserList, Type, Changed},
-            ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast})
+            ejabberd_sm:run_in_all_sessions(UserJID,
+                                            mod_privacy, {blocking_change, UserList, Type, Changed}),
+            Acc
     end.
 
 blocking_query_response(Lst) ->
@@ -218,3 +232,53 @@ blocking_query_response(Lst) ->
         children = [#xmlel{name= <<"item">>,
                            attrs = [{<<"jid">>, jid:to_binary(J#listitem.value)}]} || J <- Lst]}.
 
+-spec blocking_push_to_resources(Action :: blocking_type(),
+                                 JIDS :: [binary()],
+                                 State :: ejabberd_c2s:state()) -> ok.
+blocking_push_to_resources(Action, JIDs, StateData) ->
+    SubEl = build_push_xmlel(Action, JIDs),
+    PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
+                     id = <<"push">>,
+                     sub_el = [SubEl]},
+    T = ejabberd_c2s_state:jid(StateData),
+    F = jid:to_bare(T),
+    PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
+    ejabberd_router:route(F, T, PrivPushEl),
+    ok.
+
+build_push_xmlel(block, JIDs) ->
+    build_push_xmlel(<<"block">>, JIDs);
+build_push_xmlel(unblock, JIDs) ->
+    build_push_xmlel(<<"unblock">>, JIDs);
+build_push_xmlel(Action, JIDs) ->
+    #xmlel{name = Action,
+           attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
+           children = lists:map(
+               fun(JID) ->
+                   #xmlel{name = <<"item">>,
+                          attrs = [{<<"jid">>, JID}]}
+               end, JIDs)}.
+
+-spec blocking_presence_to_contacts(Action :: blocking_type(),
+                                    JIDs :: [binary()],
+                                    State :: ejabberd_c2s:state()) -> ok.
+blocking_presence_to_contacts(_Action, [], _StateData) ->
+    ok;
+blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
+    Pres = case Action of
+               block ->
+                   #xmlel{name = <<"presence">>,
+                          attrs = [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"unavailable">>}]
+                   };
+               unblock ->
+                   mongoose_c2s_presence:get_last_presence(StateData)
+           end,
+    T = jid:from_binary(Jid),
+    case mongoose_c2s_presence:is_subscribed_to_my_presence(T, StateData) of
+        true ->
+            F = jid:to_bare(ejabberd_c2s_state:jid(StateData)),
+            ejabberd_router:route(F, T, Pres);
+        false ->
+            ok
+    end,
+    blocking_presence_to_contacts(Action, JIDs, StateData).
