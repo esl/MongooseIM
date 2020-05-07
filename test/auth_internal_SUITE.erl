@@ -29,7 +29,7 @@ passwords_as_records_are_still_supported(_C) ->
     NewScramMap = ejabberd_auth_internal:get_password(U, S),
     %% then new map with sha key is returned
     ?assertMatch(#{iteration_count := _,
-                   sha := #{salt := _,
+                   sha := #{salt       := _,
                             server_key := _,
                             stored_key := _}}, NewScramMap),
     %% even though in db there is old record stored
