@@ -28,8 +28,10 @@ passwords_as_records_are_still_supported(_C) ->
     %% when we read the password via the `ejabberd_auth_internal:get_password/2
     NewScramMap = ejabberd_auth_internal:get_password(U, S),
     %% then new map with sha key is returned
-    ?assertMatch(#{iteration_count := _, salt := _,
-                   sha := #{server_key := _, stored_key := _}}, NewScramMap),
+    ?assertMatch(#{iteration_count := _,
+                   sha := #{salt       := _,
+                            server_key := _,
+                            stored_key := _}}, NewScramMap),
     %% even though in db there is old record stored
     OldScram = mnesia:dirty_read({passwd, {U, S}}),
     ?assertMatch([{passwd, _, {scram, _, _, _, _}}], OldScram).
@@ -52,14 +54,29 @@ passwords_in_plain_can_be_converted_to_scram(_C) ->
     AfterMigrationPlain = mnesia:dirty_read({passwd, {U, S}}),
     %% then plain text passwords are converted to new map with sha and sha256
     ?assertMatch([{passwd, _,
-                   #{iteration_count := _, salt := _,
-                     sha := #{server_key := _, stored_key := _},
-                     sha256 := #{server_key := _, stored_key := _}}}], AfterMigrationPlain),
+                   #{iteration_count := _,
+                     sha    := #{salt       := _,
+                                 server_key := _,
+                                 stored_key := _},
+                     sha224 := #{salt       := _,
+                                 server_key := _,
+                                 stored_key := _},
+                     sha256 := #{salt       := _,
+                                 server_key := _,
+                                 stored_key := _},
+                     sha384 := #{salt       := _,
+                                 server_key := _,
+                                 stored_key := _},
+                     sha512 := #{salt       := _,
+                                 server_key := _,
+                                 stored_key := _}}}], AfterMigrationPlain),
     %% and the old scram format remains the same
     AfterMigrationScram = mnesia:dirty_read({passwd, {U2, S2}}),
     ?assertMatch([{passwd, _,
-                 #{iteration_count := _, salt := _,
-                   sha := #{server_key := _, stored_key := _}}}], AfterMigrationScram),
+                 #{iteration_count := _,
+                   sha := #{salt       := _,
+                            server_key := _,
+                            stored_key := _}}}], AfterMigrationScram),
     meck:unload().
 
 gen_user() ->

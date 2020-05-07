@@ -441,15 +441,15 @@ verify_format(GroupName, {_User, Props}) ->
     do_verify_format(GroupName, Password, SPassword).
 
 
-do_verify_format(GroupName, _P, #{salt   := _S, iteration_count := _IC,
-                                  sha    := #{stored_key := _, server_key := _},
-                                  sha224 := #{stored_key := _, server_key := _},
-                                  sha256 := #{stored_key := _, server_key := _},
-                                  sha384 := #{stored_key := _, server_key := _},
-                                  sha512 := #{stored_key := _, server_key := _}}) when
+do_verify_format(GroupName, _P, #{iteration_count := _IC,
+                                  sha    := #{salt := _, stored_key := _, server_key := _},
+                                  sha224 := #{salt := _, stored_key := _, server_key := _},
+                                  sha256 := #{salt := _, stored_key := _, server_key := _},
+                                  sha384 := #{salt := _, stored_key := _, server_key := _},
+                                  sha512 := #{salt := _, stored_key := _, server_key := _}}) when
                  GroupName == login_scram orelse GroupName == scram ->
     true;
-do_verify_format({scram, Sha}, _Password, ScramMap = #{salt := _S, iteration_count := _IC}) ->
+do_verify_format({scram, Sha}, _Password, ScramMap = #{iteration_count := _IC}) ->
    maps:is_key(Sha, ScramMap);
 do_verify_format(login_scram, _Password, SPassword) ->
     %% returned password is a tuple containing scram data

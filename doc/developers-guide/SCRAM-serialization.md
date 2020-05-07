@@ -5,10 +5,10 @@ Developers can use this information to create advanced endpoints for `ejabberd_a
 
 ## Format description
 
-`==MULTI_SCRAM==,<salt>,<iteration count>,===SHA1===<stored key>|<server key>,==SHA224==<stored key>|<server key>,==SHA256==<stored key>|<server key>,==SHA384==<stored key>|<server key>,==SHA512==<stored key>|<server key>`
+`==MULTI_SCRAM==,<iteration count>,===SHA1===<salt>|<stored key>|<server key>,==SHA224==<salt>|<stored key>|<server key>,==SHA256==<salt>|<stored key>|<server key>,==SHA384==<salt>|<stored key>|<server key>,==SHA512=<salt>|<stored key>|<server key>`
 
-* `<salt>` - Base64-encoded Salt
 * `<iteration count>` - Iteration Count formatted as a human-readable integer
+* `<salt>` - Base64-encoded Salt
 * `<stored key>` - Base64-encoded Stored Key
 * `<server key>` - Base64-encoded Server Key
 
@@ -24,41 +24,43 @@ In order to learn more about the meaning of the Stored Key, Server Key, Salt and
 * *Erlang map:*
 ```
 #{iteration_count => 4096,
-  salt => <<"aml22qUoKvwJHccCCH00eQ==">>,
   sha =>
-      #{server_key => <<"gkoblYUZnW8GRBhIyJnbflHlLYs=">>,
-        stored_key => <<"+nm4+0ONdpgnoypippxdzV5sQ80=">>},
+      #{salt => <<"QClQsw/sfPEnwj4AEp6E1w==">>,
+        server_key => <<"EJvxXWM42tO7BgW21lNZyBc1dD0=">>,
+        stored_key => <<"ys1104hRhqMoRputBY5sLHKXoSw=">>},
   sha224 =>
-      #{server_key =>
-            <<"JwSXbKqMRJEwOr/iNmqN+x3UzxRikmKym9E71g==">>,
+      #{salt => <<"dk0ImXFVPoUfqD5FveV7YA==">>,
+        server_key => <<"EvE2EkZcUb3k4CooeOcVFy95P32t+NDX0xbQUA==">>,
         stored_key =>
-            <<"nUi8YwRBRMAusH/KpINo3/AO32UWzlSONX9wMA==">>},
+            <<"G0ibQ/YYuCtoun4I+1IF2zJ7Q8x2T23ETnq5Gg==">>},
   sha256 =>
-      #{server_key =>
-            <<"y0cB/hZ7AKtVMC2WCkXlo4XTNfOQVg30PLfIhK+Wf/U=">>,
+      #{salt => <<"M7BYKSo04XbzBr4C7b056g==">>,
+        server_key =>
+            <<"XhtGFf6NDWsnVSCO4xkzPD3qc046fPL0pATZi7RmaWo=">>,
         stored_key =>
-            <<"tiDUGNpvmt75PGcCvwoTLVOF/og/BiX1FOpihXlYqW8=">>},
+            <<"A779MC05nSGQln5no0hKTGHFSaQ7oguKBZgORW3s+es=">>},
   sha384 =>
-      #{server_key =>
-            <<"LJKetdkPytdOXg6aj4NN25KmJatJsl5zaU78bzjowYrBcjG+wux/I5q7E78sQVSn">>,
+      #{salt => <<"Ryu0fA29gbwgqFOBk5Mczw==">>,
+        server_key =>
+            <<"kR+LMI/E0QBG3oF405/MTAT6NAlCOfPrFOaWH3WBVGM0Viu9Brk6kGwVwXjSP8v0">>,
         stored_key =>
-            <<"s7SdIo5a+LH/EsKIMoqa4PPEveScCnDwP1LeaAzVdANT5pPSMio/CoMDN4uXfnHr">>},
+            <<"k3QwC0Lb1y1/V/31byC5KML5t3mH4JTPjFyeAz7lV2l4SPfzi3JHvLEdoNB5K/VY">>},
   sha512 =>
-      #{server_key =>
-            <<"TCuJFv5dmpshThJbQnURW0LOz7D55d5hgYndA3jdklQd2omL6PpfgfIgToyVvYlsF9sRGYOg255y+Q+ltwW3tQ==">>,
+      #{salt => <<"SLNuVNcWiNBmnYZNIdj+zg==">>,
+        server_key =>
+            <<"jUUDbuQ9ae4UnAWS6RV6W4yifX3La3ESjfZjGol+TBROIb/ihR8UawPHrSHkp4yyDJXtRhR9RlHCHy4bcCm1Yg==">>,
         stored_key =>
-            <<"4ATRLxRB+d6YyZXxi3PorT6kyS4Mr6tEuKUVhInJcRU0NDpXh94Y/Yrd+EDOSZUnPno8aAzj78NUXOTyoB98rg==">>}}
+            <<"3ey3gzSsmbxcLnoc1VKCR/739uKX6uuPCyAzn6x8o87ibcjOdUaU8qhL5X4MUI9UPTt667GagNpVTmAWTFNsjA==">>}}
+
 ```
 * *Serialized password:*
 ```
-
-==MULTI_SCRAM==,aml22qUoKvwJHccCCH00eQ==,4096,
-===SHA1===+nm4+0ONdpgnoypippxdzV5sQ80=|gkoblYUZnW8GRBhIyJnbflHlLYs=,
-==SHA224==nUi8YwRBRMAusH/KpINo3/AO32UWzlSONX9wMA==|JwSXbKqMRJEwOr/iNmqN+x3UzxRikmKym9E71g==,
-==SHA256==tiDUGNpvmt75PGcCvwoTLVOF/og/BiX1FOpihXlYqW8=|y0cB/hZ7AKtVMC2WCkXlo4XTNfOQVg30PLfIhK+Wf/U=,
-==SHA384==s7SdIo5a+LH/EsKIMoqa4PPEveScCnDwP1LeaAzVdANT5pPSMio/CoMDN4uXfnHr|LJKetdkPytdOXg6aj4NN25KmJatJsl5zaU78bzjowYrBcjG+wux/I5q7E78sQVSn,
-==SHA512==4ATRLxRB+d6YyZXxi3PorT6kyS4Mr6tEuKUVhInJcRU0NDpXh94Y/Yrd+EDOSZUnPno8aAzj78NUXOTyoB98rg==|TCuJFv5dmpshThJbQnURW0LOz7D55d5hgYndA3jdklQd2omL6PpfgfIgToyVvYlsF9sRGYOg255y+Q+ltwW3tQ==
-
+==MULTI_SCRAM==,4096,
+===SHA1===QClQsw/sfPEnwj4AEp6E1w==|ys1104hRhqMoRputBY5sLHKXoSw=|EJvxXWM42tO7BgW21lNZyBc1dD0=,
+==SHA224==dk0ImXFVPoUfqD5FveV7YA==|G0ibQ/YYuCtoun4I+1IF2zJ7Q8x2T23ETnq5Gg==|EvE2EkZcUb3k4CooeOcVFy95P32t+NDX0xbQUA==,
+==SHA256==M7BYKSo04XbzBr4C7b056g==|A779MC05nSGQln5no0hKTGHFSaQ7oguKBZgORW3s+es=|XhtGFf6NDWsnVSCO4xkzPD3qc046fPL0pATZi7RmaWo=,
+==SHA384==Ryu0fA29gbwgqFOBk5Mczw==|k3QwC0Lb1y1/V/31byC5KML5t3mH4JTPjFyeAz7lV2l4SPfzi3JHvLEdoNB5K/VY|kR+LMI/E0QBG3oF405/MTAT6NAlCOfPrFOaWH3WBVGM0Viu9Brk6kGwVwXjSP8v0,
+==SHA512==SLNuVNcWiNBmnYZNIdj+zg==|3ey3gzSsmbxcLnoc1VKCR/739uKX6uuPCyAzn6x8o87ibcjOdUaU8qhL5X4MUI9UPTt667GagNpVTmAWTFNsjA==|jUUDbuQ9ae4UnAWS6RV6W4yifX3La3ESjfZjGol+TBROIb/ihR8UawPHrSHkp4yyDJXtRhR9RlHCHy4bcCm1Yg==
 ```
 
 ## Legacy format description
