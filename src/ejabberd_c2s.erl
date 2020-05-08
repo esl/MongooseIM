@@ -773,7 +773,7 @@ do_open_session(Acc, JID, StateData) ->
 do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U),
-    {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
+    {Fs, Ts, _} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
@@ -797,7 +797,6 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
     NewStateData0#state{sid = SID,
                         conn = Conn,
                         replaced_pids = RefsAndPids,
-                        pending_invitations = Pending,
                         privacy_list = PrivList},
     StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
                                                            mongoose_c2s_presence:initialise_state(Fs1, Ts1),
@@ -1892,7 +1891,8 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                                                      {[], [], []}, Acc3),
                   Acc4 = resend_offline_messages(Acc3, StateData),
                   resend_subscription_requests(Acc4,
-                                               StateData#state{pending_invitations = Pending});
+                                               Pending,
+                                               StateData);
               false ->
                   {Acc2, StateData}
               end,
@@ -2204,8 +2204,8 @@ check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
         _ -> Acc2
     end.
 
--spec resend_subscription_requests(mongoose_acc:t(), state()) -> {mongoose_acc:t(), state()}.
-resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateData) ->
+-spec resend_subscription_requests(mongoose_acc:t(), [exml:element()], state()) -> {mongoose_acc:t(), state()}.
+resend_subscription_requests(Acc, Pending, StateData) ->
     {NewAcc, NewState} = lists:foldl(
                  fun(XMLPacket, {A, #state{} = State}) ->
                          A1 = send_element(A, XMLPacket, State),
@@ -2220,7 +2220,7 @@ resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateD
                          A2 = maybe_send_ack_request(A1, BufferedStateData),
                          {A2, BufferedStateData}
                  end, {Acc, StateData}, Pending),
-    {NewAcc, NewState#state{pending_invitations = []}}.
+    {NewAcc, NewState}.
 
 
 get_showtag(undefined) ->
