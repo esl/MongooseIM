@@ -56,7 +56,7 @@ update_privacy_list(_HandlerState, mod_privacy, {privacy_change, ListName, Userl
     BareJID = jid:to_bare(JID),
     PrivPushEl = jlib:replace_from_to(BareJID, JID, jlib:iq_to_xml(PrivPushIQ)),
     Acc1 = maybe_update_presence(Acc, C2SState, NewPL),
-    _Acc2 = ejabberd_c2s:preprocess_and_ship(Acc1, BareJID, JID, PrivPushEl, C2SState),
+    _Acc2 = ejabberd_c2s:send_to_local_user(Acc1, BareJID, JID, PrivPushEl, C2SState),
     #privacy_state{userlist = NewPL};
 update_privacy_list(HandlerState, _, _, _) ->
     HandlerState.
@@ -96,7 +96,7 @@ process_privacy_iq(Acc1, To, StateData) ->
                         {error, Error} ->
                             IQ#iq{type = error, sub_el = [SubEl, Error]}
                     end,
-            Acc4 = ejabberd_c2s:preprocess_and_ship(Acc3, To, From, jlib:iq_to_xml(IQRes), StateData),
+            Acc4 = ejabberd_c2s:send_to_local_user(Acc3, To, From, jlib:iq_to_xml(IQRes), StateData),
             {Acc4, NewStateData};
         _ ->
             {Acc1, StateData}

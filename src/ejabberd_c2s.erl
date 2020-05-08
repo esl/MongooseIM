@@ -40,7 +40,7 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
-         preprocess_and_ship/5,
+         send_to_local_user/5,
          store_session_info/3,
          remove_session_info/3,
          get_info/1,
@@ -1229,9 +1229,9 @@ process_incoming_stanza(From, To, Acc, StateName, StateData) ->
     #xmlel{ name = Name } = Packet = mongoose_acc:element(Acc),
     {Act, _NextAcc, NextState} = case handle_routed(Name, From, To, Acc, StateData) of
                                      {allow, NewAcc, NewPacket, NewState} ->
-                                         preprocess_and_ship(NewAcc, From, To, NewPacket, NewState);
+                                         send_to_local_user(NewAcc, From, To, NewPacket, NewState);
                                      {allow, NewAcc, NewState} ->
-                                         preprocess_and_ship(NewAcc, From, To, Packet, NewState);
+                                         send_to_local_user(NewAcc, From, To, Packet, NewState);
                                      {Reason, NewAcc, NewState} ->
                                          response_negative(Name, Reason, From, To, NewAcc),
                                          {ok, NewAcc, NewState}
@@ -1239,12 +1239,12 @@ process_incoming_stanza(From, To, Acc, StateName, StateData) ->
     finish_state(Act, StateName, NextState).
 
 
--spec preprocess_and_ship(Acc :: mongoose_acc:t(),
-                          From :: jid:jid(),
-                          To :: jid:jid(),
-                          El :: exml:element(),
-                          StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
-preprocess_and_ship(Acc, From, To, El, StateData) ->
+-spec send_to_local_user(Acc :: mongoose_acc:t(),
+                         From :: jid:jid(),
+                         To :: jid:jid(),
+                         El :: exml:element(),
+                         StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
+send_to_local_user(Acc, From, To, El, StateData) ->
     #xmlel{attrs = Attrs} = El,
     Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
         jid:to_binary(To),
@@ -1253,7 +1253,7 @@ preprocess_and_ship(Acc, From, To, El, StateData) ->
     Acc2 = mongoose_hooks:user_receive_packet(StateData#state.server,
                                               Acc,
                                               StateData#state.jid, From, To, FixedEl),
-    ship_to_local_user(Acc2, {From, To, FixedEl}, StateData).
+    maybe_csi_inactive_optimisation(Acc2, {From, To, FixedEl}, StateData).
 
 response_negative(<<"iq">>, forbidden, From, To, Acc) ->
     send_back_error(mongoose_xmpp_errors:forbidden(), From, To, Acc);
@@ -2276,11 +2276,6 @@ maybe_activate_session(_, State) ->
 resend_csi_buffer(State) ->
     NewState = flush_csi_buffer(State),
     fsm_next_state(session_established, NewState#state{csi_state=active}).
-
--spec ship_to_local_user(mongoose_acc:t(), packet(), state()) ->
-    {ok | resume, mongoose_acc:t(), state()}.
-ship_to_local_user(Acc, Packet, State) ->
-    maybe_csi_inactive_optimisation(Acc, Packet, State).
 
 -spec maybe_csi_inactive_optimisation(mongoose_acc:t(), packet(), state()) ->
     {ok | resume, mongoose_acc:t(), state()}.
