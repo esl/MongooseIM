@@ -773,10 +773,6 @@ do_open_session(Acc, JID, StateData) ->
 do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U),
-    {Fs, Ts, _} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
-    LJID = jid:to_lower(jid:to_bare(JID)),
-    Fs1 = [LJID | Fs],
-    Ts1 = [LJID | Ts],
     PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U),
     SID = {erlang:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
@@ -798,10 +794,8 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
                         conn = Conn,
                         replaced_pids = RefsAndPids,
                         privacy_list = PrivList},
-    StateWithRoster = ejabberd_c2s_state:set_handler_state(mod_roster,
-                                                           mongoose_c2s_presence:initialise_state(Fs1, Ts1),
-                                                           NewStateData),
-    {established, Acc1, StateWithRoster}.
+    {Acc2, FinalState} = mongoose_hooks:initialise_c2s_state(S, {Acc1, NewStateData}),
+    {established, Acc2, FinalState}.
 
 get_replaced_wait_timeout(S) ->
     ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
