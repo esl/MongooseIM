@@ -673,6 +673,7 @@ block_jid_iq(Config) ->
         %% activate it
         Stanza = escalus_stanza:privacy_activate(<<"deny_localhost_iq">>),
         escalus_client:send(Alice, Stanza),
+        escalus:assert(is_iq_result, escalus_client:wait_for_stanza(Alice)),
         timer:sleep(500), %% we must let it sink in
 
         %% bob queries for version and gets an error, Alice doesn't receive the query
@@ -694,7 +695,7 @@ block_jid_iq(Config) ->
         end).
 
 block_jid_all(Config) ->
-    %% unexprected presence unavalable
+    %% unexpected presence unavalable
     mongoose_helper:kick_everyone(),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
@@ -703,6 +704,7 @@ block_jid_all(Config) ->
         %% Alice blocks Bob
         Stanza = escalus_stanza:privacy_activate(<<"deny_jid_all">>),
         escalus_client:send(Alice, Stanza),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
         %% IQ response is blocked;
         %% do magic wait for the request to take effect
@@ -732,6 +734,7 @@ block_jid_all(Config) ->
         %% Just set the toy list and en~sure that only
         %% the notification push comes back.
         privacy_helper:send_set_list(Alice, {<<"deny_client">>, Bob}),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
         %% verify
         timer:sleep(?SLEEP_TIME),
