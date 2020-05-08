@@ -276,13 +276,22 @@ init_per_testcase(CaseName, Config)
         true -> {skip, vhost_rdbms_incompatible};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
-init_per_testcase(CaseName, Config)
-    when CaseName == check_password_hash;
-         CaseName == delete_old_users ->
+init_per_testcase(check_password_hash, Config) ->
+    {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
+    case lists:member(ejabberd_auth_ldap, AuthMods) of
+        true ->
+            {skip, not_fully_supported_with_ldap};
+        false ->
+            Config1 = mongoose_helper:backup_auth_config(Config),
+            mongoose_helper:set_store_password(plain),
+            Config2 = escalus:create_users(Config1, escalus:get_users([carol])),
+            escalus:init_per_testcase(check_password_hash, Config2)
+    end;
+init_per_testcase(delete_old_users, Config) ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
     case lists:member(ejabberd_auth_ldap, AuthMods) of
         true -> {skip, not_fully_supported_with_ldap};
-        false -> escalus:init_per_testcase(CaseName, Config)
+        false -> escalus:init_per_testcase(delete_old_users, Config)
     end;
 init_per_testcase(CaseName, Config) when CaseName == real_upload_without_content_type;
                                          CaseName == real_upload_with_content_type ->
@@ -300,6 +309,9 @@ end_per_testcase(delete_old_users, Config) ->
                 rpc(mim(), ejabberd_auth, try_register, [Username, Domain, Pass])
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
+end_per_testcase(check_password_hash, Config) ->
+    mongoose_helper:restore_auth_config(Config),
+    escalus:delete_users(Config, escalus:get_users([carol]));
 end_per_testcase(CaseName, Config) ->
     %% Because kick_session fails with unexpected stanza received:
     %% <presence from="alicE@localhost/res3"
@@ -408,7 +420,7 @@ change_password(Config) ->
     escalus_client:stop(Config, Alice2).
 
 check_password_hash(Config) ->
-    {User, Domain, Pass} = get_user_data(alice, Config),
+    {User, Domain, Pass} = get_user_data(carol, Config),
     MD5Hash = get_md5(Pass),
     MD5HashBad = get_md5(<<Pass/binary, "bad">>),
     SHAHash = get_sha(Pass),

@@ -110,14 +110,16 @@ init_per_group(GroupName, Config0) ->
                  commands -> ejabberd_node_utils:init(Config0);
                  _ -> Config0
              end,
+    Config1 = mongoose_helper:backup_auth_config(Config),
     config_password_format(GroupName),
-    Config2 = escalus:create_users(Config, escalus:get_users([bob, alice])),
+    Config2 = escalus:create_users(Config1, escalus:get_users([bob, alice])),
     assert_password_format(GroupName, Config2).
 
 end_per_group(cleanup, Config) ->
+    mongoose_helper:restore_auth_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(_GroupName, Config) ->
-    set_store_password(plain),
+    mongoose_helper:restore_auth_config(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
@@ -355,16 +357,10 @@ extract_tokens(#xmlel{name = <<"iq">>, children = [#xmlel{name = <<"items">>} = 
     RTD = exml_query:path(Items, [{element, <<"refresh_token">>}, cdata]),
     {base64:decode(ATD), base64:decode(RTD)}.
 
-set_store_password(Type) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
-    NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
-
 config_password_format(login_scram) ->
-    set_store_password(scram);
+    monggose_helper:set_store_password(scram);
 config_password_format(_) ->
-    set_store_password(plain).
+    mongoose_helper:set_store_password(plain).
 
 assert_password_format(GroupName, Config) ->
     Users = proplists:get_value(escalus_users, Config),
