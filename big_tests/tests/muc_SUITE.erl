@@ -2918,7 +2918,8 @@ disco_features_with_mam(Config) ->
                                   ?NS_RSM,
                                   <<"vcard-temp">>,
                                   mam_helper:mam_ns_binary_v04(),
-                                  mam_helper:mam_ns_binary_v06()]).
+                                  mam_helper:mam_ns_binary_v06(),
+                                  mam_helper:retract_ns()]).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -2953,7 +2954,8 @@ disco_info_with_mam(Config) ->
                                          <<"muc_moderated">>,
                                          <<"muc_unsecured">>,
                                          mam_helper:mam_ns_binary_v04(),
-                                         mam_helper:mam_ns_binary_v06()]).
+                                         mam_helper:mam_ns_binary_v06(),
+                                         mam_helper:retract_ns()]).
 
 disco_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
