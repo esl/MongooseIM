@@ -315,7 +315,7 @@ roster_change(Item, StateData, C2SState) ->
     #roster{jid = IJID, subscription = ISubscription} = Item,
     {BecomeAvailable, BecomeUnavailable, NState} = do_roster_change(IJID, ISubscription, From, StateData),
     send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
-    send_roster_iq(From, Item),
+    send_roster_iq(From, Item, C2SState),
     NState.
 
 send_updated_presence(true, _, From, To, C2SState) ->
@@ -338,7 +338,7 @@ send_updated_presence(_, true, From, To, C2SState) ->
 send_updated_presence(_, _, _From, _To, _C2SState) ->
     ok.
 
-send_roster_iq(From, Item) ->
+send_roster_iq(From, Item, C2SState) ->
     Server = From#jid.lserver,
     LUser = From#jid.luser,
     RosterVersion = case mod_roster:roster_versioning_enabled(Server) of
@@ -360,7 +360,7 @@ send_roster_iq(From, Item) ->
                 [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
                         children = [mod_roster:item_to_xml(Item)]}]},
-    ejabberd_router:route(jid:to_bare(From), From, jlib:iq_to_xml(ResIQ)).
+    ejabberd_c2s:send_to_local_user(jid:to_bare(From), From, jlib:iq_to_xml(ResIQ), C2SState).
 
 do_roster_change(IJID, ISubscription, OwnerJid, StateData) ->
     LIJID = jid:to_lower(IJID),

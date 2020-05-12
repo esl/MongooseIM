@@ -54,6 +54,10 @@
                                    _Group}.
 -type subs() :: atom() | binary().
 
+-type push_action() :: remove
+                       | none
+                       | {add, Nick :: binary(), Subs :: subs(),
+   Group :: binary() | string()}.
 -type delete_action() :: {'delete', Subs :: [atom()], Asks :: [atom()],
                                     [jid:user()], Contacts :: [binary()]}.
 -type list_action() :: {'list', Subs :: [atom()], Asks :: [atom()],
@@ -175,7 +179,8 @@ add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
     end.
 
 %% @doc returns result of mnesia or rdbms transaction
--spec subscribe(LocalUser :: jid:user(),
+%% add to roster directly, without generating a roster push (in case we do bulk inserts)
+-spec subscribe_silent(LocalUser :: jid:user(),
                 LocalServer :: jid:server(),
                 User :: jid:user(),
                 Server :: jid:server(),
@@ -183,11 +188,25 @@ add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
                 Group :: binary() | string(),
                 Subs :: subs(),
                 _Xattrs :: [jlib:binary_pair()]) -> any().
+subscribe_silent(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
+    ItemEl = build_roster_item(User, Server, {add, Nick, SubscriptionS, Group}),
+    QueryEl = #xmlel{ name = <<"query">>,
+                      attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
+                      children = [ItemEl]},
+    mod_roster:set_items(LU, LS, QueryEl).
+
+-spec subscribe(LocalUser :: jid:user(),
+                LocalServer :: jid:server(),
+                User :: jid:user(),
+                Server :: jid:server(),
+                Nick :: binary(),
+                Group :: binary() | string(),
+                Subs :: subs(),
+                _Xattrs :: [jlib:binary_pair()]) -> ok | error.
 subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
     Owner = jid:make(LU, LS, <<>>),
     PeerBin = jid:to_binary(jid:make(User, Server, <<>>)),
     mod_roster:set_roster_entry(Owner, PeerBin, Nick, [Group], binary_to_existing_atom(SubscriptionS, utf8)).
-
 
 -spec delete_rosteritem(LocalUser :: jid:user(),
                         LocalServer :: jid:server(),
@@ -304,7 +323,7 @@ subscribe_roster({Name, Server, Group, Nick}, [{Name, Server, _, _} | Roster]) -
     subscribe_roster({Name, Server, Group, Nick}, Roster);
 %% Subscribe Name2 to Name1
 subscribe_roster({Name1, Server1, Group1, Nick1}, [{Name2, Server2, Group2, Nick2} | Roster]) ->
-    subscribe(Name1, Server1, Name2, Server2, Nick2, Group2, <<"both">>, []),
+    subscribe_silent(Name1, Server1, Name2, Server2, Nick2, Group2, <<"both">>, []),
     subscribe_roster({Name1, Server1, Group1, Nick1}, Roster).
 
 
@@ -324,6 +343,20 @@ build_list_users(_Group, [], Res) ->
 build_list_users(Group, [{User, Server}|Users], Res) ->
     build_list_users(Group, Users, [{User, Server, Group, User}|Res]).
 
+
+-spec build_roster_item(jid:user(), jid:server(), push_action()
+                       ) -> exml:element().
+build_roster_item(U, S, {add, Nick, Subs, Group}) ->
+    #xmlel{ name = <<"item">>,
+            attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                     {<<"name">>, Nick},
+                     {<<"subscription">>, Subs}],
+            children = [#xmlel{name = <<"group">>, children = [#xmlcdata{content = Group}]}]
+    };
+build_roster_item(U, S, remove) ->
+    #xmlel{ name = <<"item">>,
+            attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                     {<<"subscription">>, <<"remove">>}]}.
 
 %%-----------------------------
 %% Purge roster items

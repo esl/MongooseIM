@@ -32,6 +32,8 @@
          terminate_session/2,
          start_link/2,
          send_text/2,
+         send_to_local_user/4,
+         send_to_local_user/5,
          socket_type/0,
          get_presence/1,
          get_aux_field/2,
@@ -1244,18 +1246,36 @@ check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID,
     end.
 
 process_incoming_stanza(From, To, Acc, StateName, StateData) ->
-    #xmlel{ name = Name } = Packet = mongoose_acc:element(Acc),
-    {Act, _NextAcc, NextState} = case handle_routed(Name, From, To, Acc, StateData) of
-                                     {allow, NewAcc, NewPacket, NewState} ->
-                                         preprocess_and_ship(NewAcc, From, To, NewPacket, NewState);
-                                     {allow, NewAcc, NewState} ->
-                                         preprocess_and_ship(NewAcc, From, To, Packet, NewState);
-                                     {Reason, NewAcc, NewState} ->
-                                         response_negative(Name, Reason, From, To, NewAcc),
-                                         {ok, NewAcc, NewState}
-                                 end,
+    Packet = mongoose_acc:element(Acc),
+    {Act, _NextAcc, NextState} = send_to_local_user(From, To, Acc, Packet, StateData),
     finish_state(Act, StateName, NextState).
 
+-spec send_to_local_user(From :: jid:jid(),
+                         To :: jid:jid(),
+                         Packet :: exml:element(),
+                         StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
+send_to_local_user(From, To, Packet, StateData) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => From#jid.lserver,
+                              from_jid => From,
+                              to_jid => To,
+                              element => Packet }),
+    send_to_local_user(From, To, Acc, Packet, StateData).
+-spec send_to_local_user(From :: jid:jid(),
+                         To :: jid:jid(),
+                         Acc :: mongoose_acc:t(),
+                         Packet :: exml:element(),
+                         StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
+send_to_local_user(From, To, Acc, #xmlel{name = Name} = Packet, StateData) ->
+    case handle_routed(Name, From, To, Acc, StateData) of
+        {allow, NewAcc, NewPacket, NewState} ->
+            preprocess_and_ship(NewAcc, From, To, NewPacket, NewState);
+        {allow, NewAcc, NewState} ->
+            preprocess_and_ship(NewAcc, From, To, Packet, NewState);
+        {Reason, NewAcc, NewState} ->
+            response_negative(Name, Reason, From, To, NewAcc),
+            {ok, NewAcc, NewState}
+    end.
 
 -spec preprocess_and_ship(Acc :: mongoose_acc:t(),
                           From :: jid:jid(),
