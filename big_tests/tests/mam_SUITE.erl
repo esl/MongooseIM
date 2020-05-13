@@ -41,6 +41,8 @@
          long_text_search_request/1,
          text_search_is_available/1,
          muc_message_with_stanzaid/1,
+         retract_muc_message/1,
+         retract_wrong_muc_message/1,
          muc_text_search_request/1,
          muc_archive_request/1,
          muc_multiple_devices/1,
@@ -90,6 +92,8 @@
          after_complete_true_after11/1,
          archived/1,
          message_with_stanzaid/1,
+         retract_message/1,
+         retract_wrong_message/1,
          filter_forwarded/1,
          offline_message/1,
          nostore_hint/1,
@@ -178,6 +182,8 @@
          parse_prefs_result_iq/1,
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
+         mam_ns_binary_v06/0,
+         retract_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -267,7 +273,8 @@ basic_group_names() ->
      muc_light,
      prefs_cases,
      impl_specific,
-     disabled_text_search
+     disabled_text_search,
+     disabled_retraction
     ].
 
 all() ->
@@ -308,7 +315,7 @@ basic_groups() ->
      {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
             {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
-            {mam06, [parallel], mam_cases() ++ stanzaid_cases()},
+            {mam06, [parallel], mam_cases() ++ stanzaid_cases() ++ retract_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -329,7 +336,7 @@ basic_groups() ->
                                  dont_archive_chat_markers]},
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
-            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases()},
+            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -339,7 +346,11 @@ basic_groups() ->
      {disabled_text_search, [],
          [
           {mam04, [], disabled_text_search_cases()}
-         ]}
+         ]},
+     {disabled_retraction, [],
+      [{mam06, [parallel], disabled_retract_cases() ++ [mam_service_discovery]}]},
+     {muc_disabled_retraction, [],
+      [{muc06, [parallel], disabled_muc_retract_cases() ++ [muc_service_discovery]}]}
     ].
 
 
@@ -383,6 +394,13 @@ archived_cases() ->
 stanzaid_cases() ->
     [message_with_stanzaid].
 
+retract_cases() ->
+    [retract_message,
+     retract_wrong_message].
+
+disabled_retract_cases() ->
+    [retract_message].
+
 nostore_cases() ->
     [offline_message,
      nostore_hint].
@@ -403,6 +421,13 @@ muc_cases() ->
 
 muc_stanzaid_cases() ->
     [muc_message_with_stanzaid].
+
+muc_retract_cases() ->
+    [retract_muc_message,
+     retract_wrong_muc_message].
+
+disabled_muc_retract_cases() ->
+    [retract_muc_message].
 
 muc_configurable_archiveid_cases() ->
     [
@@ -661,61 +686,69 @@ init_modules(elasticsearch, muc_all, Config) ->
     init_module(host(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(rdbms, muc_all, Config) ->
+init_modules(rdbms, C, Config) when C =:= muc_all;
+                                    C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_simple, muc_all, Config) ->
+init_modules(rdbms_simple, C, Config) when C =:= muc_all;
+                                           C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_async_pool, muc_all, Config) ->
+init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
+                                               C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_mnesia, muc_all, Config) ->
+init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
+                                           C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_cache, muc_all, Config) ->
+init_modules(rdbms_cache, C, Config) when C =:= muc_all;
+                                          C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_async_cache, muc_all, Config) ->
+init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
+                                                C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_mnesia_muc_cache, muc_all, Config) ->
+init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
+                                                     C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
     skip;
-init_modules(rdbms_mnesia_cache, muc_all, Config) ->
+init_modules(rdbms_mnesia_cache, C, Config) when C =:= muc_all;
+                                                 C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
     Config;
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
@@ -815,6 +848,9 @@ muc_domain(Config) ->
 
 addin_mam_options(disabled_text_search, Config) ->
     [{full_text_search, false} | addin_mam_options(Config)];
+addin_mam_options(C, Config) when C =:= disabled_retraction;
+                                  C =:= muc_disabled_retraction ->
+    [{message_retraction, false} | addin_mam_options(Config)];
 addin_mam_options(chat_markers, Config) ->
     [{archive_chat_markers, true} | addin_mam_options(Config)];
 addin_mam_options(_BasicGroup, Config) ->
@@ -878,6 +914,9 @@ init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
 init_per_testcase(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
+init_per_testcase(C, Config) when C =:= retract_message;
+                                  C =:= retract_wrong_message ->
+    skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -913,6 +952,13 @@ init_per_testcase(C=only_stanzaid, Config) ->
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C, Config) when C =:= retract_muc_message;
+                                  C =:= retract_wrong_muc_message ->
+    Init = fun() ->
+                   Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+                   escalus:init_per_testcase(C, start_alice_room(Config1))
+           end,
+    skip_if_retraction_not_supported(Config, Init);
 init_per_testcase(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -980,6 +1026,14 @@ init_per_testcase(C=dont_archive_chat_markers, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+skip_if_retraction_not_supported(Config, Init) ->
+    case lists:member(?config(configuration, Config), rdbms_configs(true)) of
+        false ->
+            {skip, "message retraction not supported"};
+        true ->
+            Init()
+    end.
+
 skip_if_riak(C, Config) ->
     case ?config(configuration, Config) of
         riak_timed_yz_buckets ->
@@ -1030,6 +1084,9 @@ end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_message_with_stanzaid, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=retract_muc_message, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
@@ -1702,6 +1759,42 @@ message_with_stanzaid(Config) ->
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retract_wrong_message(Config) ->
+    retract_message([{origin_id, <<"wrong-id">>} | Config]).
+
+retract_message(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        %% GIVEN Alice sends a message with 'origin-id' to Bob
+        Body = <<"OH, HAI!">>,
+        OriginIdElement = origin_id_element(origin_id()),
+        Msg = #xmlel{children = Children} = escalus_stanza:chat_to(Bob, Body),
+        escalus:send(Alice, Msg#xmlel{children = Children ++ [OriginIdElement]}),
+
+        %% ... and Bob receives the message
+        RecvMsg = escalus:wait_for_stanza(Bob),
+        ?assert_equal(OriginIdElement, exml_query:subelement(RecvMsg, <<"origin-id">>)),
+
+        %% WHEN Alice retracts the message
+        ApplyToElement = apply_to_element(origin_id_to_retract(Config)),
+        RetractMsg = retraction_message(<<"chat">>, escalus_utils:get_jid(Bob), ApplyToElement),
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the message with 'retract' ...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
+
+        maybe_wait_for_archive(Config),
+
+        %% ... and Alice and Bob have both messages in their archives
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
+        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
+        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
+
+        ok
+    end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 filter_forwarded(Config) ->
     P = ?config(props, Config),
@@ -1805,7 +1898,51 @@ muc_message_with_stanzaid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retract_wrong_muc_message(Config) ->
+    retract_muc_message([{origin_id, <<"wrong-id">>} | Config]).
 
+retract_muc_message(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% GIVEN Alice sends a message with 'origin-id' to the chat room ...
+        Body = <<"Hi, Bob!">>,
+        OriginIdElement = origin_id_element(origin_id()),
+        Msg = #xmlel{children = Children} = escalus_stanza:groupchat_to(RoomAddr, Body),
+        escalus:send(Alice, Msg#xmlel{children = Children ++ [OriginIdElement]}),
+
+        %% ... and Bob receives the message
+        RecvMsg = escalus:wait_for_stanza(Bob),
+        ?assert_equal(OriginIdElement, exml_query:subelement(RecvMsg, <<"origin-id">>)),
+
+        %% WHEN Alice retracts the message
+        ApplyToElement = apply_to_element(origin_id_to_retract(Config)),
+        RetractMsg = retraction_message(<<"groupchat">>, RoomAddr, ApplyToElement),
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the message with 'retract' ...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
+
+        maybe_wait_for_archive(Config),
+
+        %% ... and finds both messages in the room archive
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
+
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     P = ?config(props, Config),
@@ -2750,16 +2887,7 @@ mam_service_discovery(Config) ->
     _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
-        escalus:send(Alice, escalus_stanza:disco_info(Server)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        try
-        escalus:assert(is_iq_result, Stanza),
-        escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
-        ok
-        catch Class:Reason:StackTrace ->
-            ct:pal("Stanza ~p.", [Stanza]),
-            erlang:raise(Class, Reason, StackTrace)
-        end
+        discover_features(Config, Alice, Server)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
@@ -2773,9 +2901,18 @@ muc_service_discovery(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
-        ok
+
+        discover_features(Config, Alice, muc_host())
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
+
+discover_features(Config, Client, Service) ->
+    escalus:send(Client, escalus_stanza:disco_info(Service)),
+    Stanza = escalus:wait_for_stanza(Client),
+    escalus:assert(is_iq_result, Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
+    ?assert_equal(message_retraction_is_enabled(Config), escalus_pred:has_feature(retract_ns(), Stanza)).
 
 metric_incremented_on_archive_request(ConfigIn) ->
     P = ?config(props, ConfigIn),
@@ -2910,3 +3047,59 @@ when_pm_message_is_sent(Sender, Receiver, Body) ->
 
 then_pm_message_is_received(Receiver, Body) ->
     escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Receiver)).
+
+%% Message retraction helpers
+
+check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
+    case message_should_be_retracted(Config) of
+        true -> expect_tombstone_and_retraction_message(Client, ApplyToElement);
+        false -> expect_original_and_retraction_message(Client, ApplyToElement, Body)
+    end.
+
+message_should_be_retracted(Config) ->
+    message_retraction_is_enabled(Config) andalso origin_id_to_retract(Config) =:= origin_id().
+
+message_retraction_is_enabled(Config) ->
+    BasicGroup = ?config(basic_group, Config),
+    BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
+
+expect_tombstone_and_retraction_message(Client, ApplyToElement) ->
+    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
+    #forwarded_message{message_body = undefined,
+                       message_children = [#xmlel{name = <<"retracted">>}]} = parse_forwarded_message(ArcMsg1),
+    #forwarded_message{message_body = undefined,
+                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2).
+
+expect_original_and_retraction_message(Client, ApplyToElement, Body) ->
+    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
+    #forwarded_message{message_body = Body} = parse_forwarded_message(ArcMsg1),
+    #forwarded_message{message_body = undefined,
+                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2).
+
+retraction_message(Type, To, ApplyToElement) ->
+    #xmlel{name = <<"message">>,
+           attrs = [{<<"type">>, Type},
+                    {<<"to">>, To}],
+           children = [ApplyToElement]}.
+
+origin_id_element(OriginId) ->
+    #xmlel{name = <<"origin-id">>,
+           attrs = [{<<"xmlns">>, <<"urn:xmpp:sid:0">>},
+                    {<<"id">>, OriginId}]}.
+
+apply_to_element(OriginId) ->
+    #xmlel{name = <<"apply-to">>,
+           attrs = [{<<"id">>, OriginId},
+                    {<<"xmlns">>, <<"urn:xmpp:fasten:0">>}],
+           children = [retract_element()]
+          }.
+
+retract_element() ->
+    #xmlel{name = <<"retract">>,
+           attrs = [{<<"xmlns">>, <<"urn:xmpp:message-retract:0">>}]}.
+
+origin_id_to_retract(Config) ->
+    proplists:get_value(origin_id, Config, origin_id()).
+
+origin_id() ->
+    <<"orig-id-1">>.

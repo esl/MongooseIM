@@ -56,7 +56,7 @@
 -export([get_personal_data/2]).
 
 %%private
--export([archive_message/8]).
+-export([archive_message/9]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
@@ -84,7 +84,8 @@
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
-         is_mam_result_message/1]).
+         is_mam_result_message/1,
+         features/2]).
 
 %% Forms
 -import(mod_mam_utils,
@@ -196,8 +197,7 @@ start(Host, Opts) ->
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, ?NS_MAM_04),
-    mod_disco:register_feature(Host, ?NS_MAM_06),
+    [mod_disco:register_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
@@ -229,8 +229,7 @@ stop(Host) ->
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
-    mod_disco:unregister_feature(Host, ?NS_MAM_04),
-    mod_disco:unregister_feature(Host, ?NS_MAM_06),
+    [mod_disco:unregister_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     ok.
 
 %% ----------------------------------------------------------------------
@@ -484,11 +483,12 @@ handle_package(Dir, ReturnMessID,
          andalso should_archive_if_groupchat(Host, exml_query:attr(Packet, <<"type">>)) of
         true ->
             ArcID = archive_id_int(Host, LocJID),
+            OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(Host, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = generate_message_id(),
                     Result = archive_message(Host, MessID, ArcID,
-                                             LocJID, RemJID, SrcJID, Dir, Packet),
+                                             LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
                     return_external_message_id_if_ok(ReturnMessID, Result, MessID);
                 false ->
                     undefined
@@ -589,12 +589,13 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 
 -spec archive_message(Host :: jid:server(), MessID :: message_id(),
                       ArcID :: archive_id(), LocJID :: jid:jid(), RemJID :: jid:jid(),
-                      SrcJID :: jid:jid(), Dir :: incoming | outgoing, Packet :: term()
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
+                      Dir :: incoming | outgoing, Packet :: term()
                      ) -> ok | {error, timeout}.
-archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
     StartT = os:timestamp(),
     R = mongoose_hooks:mam_archive_message(Host, ok, MessID, ArcID,
-                                           LocJID, RemJID, SrcJID, Dir, Packet),
+                                           LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     Diff = timer:now_diff(os:timestamp(), StartT),
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.

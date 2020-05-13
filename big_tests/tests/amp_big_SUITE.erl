@@ -120,7 +120,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, ConfigWithRules).
 
 setup_meck(mam_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 9, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 10, {error, simulated}]);
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 3, {error, simulated}]);
 setup_meck(_) -> ok.

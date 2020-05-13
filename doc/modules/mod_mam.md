@@ -15,6 +15,15 @@ Configure MAM with different storage backends:
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
+#### Message retraction
+This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone. The following criteria are used to find the original message:
+
+* The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` element of the original message.
+* Both messages need to originate from the same user.
+* Both messages need to be addressed to the same user.
+
+If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the origin ID.
+
 #### Full Text Search
 This module allows message filtering by their text body (if enabled, see *Common backend options*).
 This means that an XMPP client, while requesting messages from the archive may not only specify standard form fields (`with`, `start`, `end`), but also `full-text-search` (of type `text-single`).
@@ -46,8 +55,9 @@ Also note that the default separator for the search query is `AND` (which roughl
  If this option has value other then undefined, function `extra_lookup_params/2` from this module will be called when building MAM lookup parameters.
  This can be used to extend currently supported MAM query fields by a custom field or fields.
  This field(s) can be added to lookup params later passed to MAM backend.
+* **message_retraction** (boolean, default: `true`) - Enables [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html). This functionality is currently implemented only for the `rdbms` backend. [Retraction messages](https://xmpp.org/extensions/xep-0424.html#example-4) are always archived regardless of this option.
 
-**backend**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+**backend**, **no_stanzaid_element**, **is_archivable_message** and **message_retraction** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
 
 #### PM-specific options
 

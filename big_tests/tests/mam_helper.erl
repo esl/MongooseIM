@@ -90,6 +90,7 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         retract_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -224,6 +225,7 @@ nick(User) ->
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
+retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -485,13 +487,13 @@ parse_children_message_result_forwarded_message(#xmlel{name = <<"x">>,
     M#forwarded_message{has_x_user_element = IsUser,
                         message_xs = [XEl | M#forwarded_message.message_xs]};
 %% Parse `<archived />' or chat markers.
-parse_children_message_result_forwarded_message(MaybeChatMarker, M) ->
-    case exml_query:attr(MaybeChatMarker, <<"xmlns">>) of
+parse_children_message_result_forwarded_message(Elem, M) ->
+    case exml_query:attr(Elem, <<"xmlns">>) of
         ?NS_CHAT_MARKERS ->
-            M#forwarded_message{ chat_marker = MaybeChatMarker#xmlel.name };
+            M#forwarded_message{ chat_marker = Elem#xmlel.name };
         _ ->
             % Not relevant
-            M
+            M#forwarded_message{ message_children = [Elem | M#forwarded_message.message_children] }
     end.
 
 %% Num is 1-based.
@@ -891,8 +893,8 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
-    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
+    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, none, outgoing, Packet]),
+    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, none, incoming, Packet]).
 
 archive_message(Args) ->
     rpc_apply(mod_mam, archive_message, Args).
@@ -940,7 +942,7 @@ archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
     rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
-                                             FromJID, SrcJID, incoming, Packet]).
+                                             FromJID, SrcJID, none, incoming, Packet]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->

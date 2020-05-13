@@ -33,6 +33,9 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_archivable_message/4,
+         get_retract_id/3,
+         get_origin_id/1,
+         tombstone/2,
          wrap_message/6,
          wrap_message/7,
          result_set/4,
@@ -44,7 +47,8 @@
          decode_optimizations/1,
          form_borders_decode/1,
          form_decode_optimizations/1,
-         is_mam_result_message/1]).
+         is_mam_result_message/1,
+         features/2]).
 
 %% Forms
 -export([
@@ -123,6 +127,7 @@
 
 -include("mod_mam.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose_ns.hrl").
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
@@ -367,20 +372,18 @@ is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->
     Body       = exml_query:subelement(Packet, <<"body">>, false),
     ChatMarker = ArchiveChatMarkers
                  andalso has_chat_marker(Packet),
+    Retract    = get_retract_id(Packet) =/= none,
     %% Used in MAM
     Result     = exml_query:subelement(Packet, <<"result">>, false),
     %% Used in mod_offline
     Delay      = exml_query:subelement(Packet, <<"delay">>, false),
     %% Message Processing Hints (XEP-0334)
     NoStore    = exml_query:subelement(Packet, <<"no-store">>, false),
-    is_valid_message_children(Body, ChatMarker, Result, Delay, NoStore).
 
-%% Forwarded by MAM message, or just a message without body or chat marker
-is_valid_message_children(false, false, _,     _,     _    ) -> false;
-is_valid_message_children(_,     _,     false, false, false) -> true;
-%% Forwarded by MAM message or delivered by mod_offline
-%% See mam_SUITE:offline_message for a test case
-is_valid_message_children(_,     _,     _,    _,     _    ) -> false.
+    has_any([Body, ChatMarker, Retract]) andalso not has_any([Result, Delay, NoStore]).
+
+has_any(Elements) ->
+    lists:any(fun(El) -> El =/= false end, Elements).
 
 has_chat_marker(Packet) ->
     case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
@@ -389,6 +392,39 @@ has_chat_marker(Packet) ->
         #xmlel{name = <<"acknowledged">>} -> true;
         _                                 -> false
     end.
+
+get_retract_id(Module, Host, Packet) ->
+    case has_message_retraction(Module, Host) of
+        true -> get_retract_id(Packet);
+        false -> none
+    end.
+
+get_retract_id(Packet) ->
+    case exml_query:subelement_with_name_and_ns(Packet, <<"apply-to">>, ?NS_FASTEN) of
+        El = #xmlel{} ->
+            case exml_query:subelement_with_name_and_ns(El, <<"retract">>, ?NS_RETRACT) of
+                #xmlel{} -> exml_query:attr(El, <<"id">>, none);
+                undefined -> none
+            end;
+        undefined -> none
+    end.
+
+get_origin_id(Packet) ->
+    exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
+                             {attr, <<"id">>}], none).
+
+tombstone(Packet, OriginID) ->
+    Packet#xmlel{children = [retracted_element(OriginID)]}.
+
+retracted_element(OriginID) ->
+    Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
+    #xmlel{name = <<"retracted">>,
+           attrs = [{<<"xmlns">>, ?NS_RETRACT},
+                    {<<"stamp">>, list_to_binary(Timestamp)}],
+           children = [#xmlel{name = <<"origin-id">>,
+                              attrs = [{<<"xmlns">>, ?NS_STANZAID},
+                                       {<<"id">>, OriginID}]}
+                      ]}.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
@@ -639,10 +675,20 @@ is_mam_result_message(_) ->
 maybe_get_result_namespace(Packet) ->
     exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
-is_mam_namespace(?NS_MAM_04) -> true;
-is_mam_namespace(?NS_MAM_06) -> true;
-is_mam_namespace(_)          -> false.
+is_mam_namespace(NS) ->
+    lists:member(NS, mam_features()).
 
+features(Module, Host) ->
+    mam_features() ++ retraction_features(Module, Host).
+
+mam_features() ->
+    [?NS_MAM_04, ?NS_MAM_06].
+
+retraction_features(Module, Host) ->
+    case has_message_retraction(Module, Host) of
+        true -> [?NS_RETRACT];
+        false -> []
+    end.
 
 %% -----------------------------------------------------------------------
 %% Forms
@@ -763,6 +809,12 @@ packet_to_search_body(Module, Host, Packet) ->
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->
     gen_mod:get_module_opt(Host, Module, full_text_search, true).
+
+%% Message retraction
+
+-spec has_message_retraction(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
+has_message_retraction(Module, Host) ->
+    gen_mod:get_module_opt(Host, Module, message_retraction, true).
 
 %% -----------------------------------------------------------------------
 %% JID serialization
