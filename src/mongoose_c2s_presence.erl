@@ -308,7 +308,7 @@ pack_string(String, Pack) ->
 
 -spec roster_change(Item :: roster(),
                     StateData :: roster_state(),
-                    State :: ejabberd_c2s:state()) -> {update_buffers, roster_state(), ejabberd_c2s:state()}.
+                    State :: ejabberd_c2s:state()) -> {update_c2s_state, roster_state(), ejabberd_c2s:state()}.
 roster_change(Item, StateData, C2SState) ->
     From = ejabberd_c2s_state:jid(C2SState),
     To = jid:make(Item#roster.jid),
@@ -317,7 +317,7 @@ roster_change(Item, StateData, C2SState) ->
     send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
     C2SState1 = send_roster_iq(From, Item, C2SState),
     % because we send iq from this process and have to update stream management buffer
-    {update_buffers, NState, C2SState1}.
+    {update_c2s_state, NState, C2SState1}.
 
 send_updated_presence(true, _, From, To, C2SState) ->
     P = get_last_presence(C2SState),
