@@ -308,15 +308,16 @@ pack_string(String, Pack) ->
 
 -spec roster_change(Item :: roster(),
                     StateData :: roster_state(),
-                    State :: ejabberd_c2s:state()) -> roster_state().
+                    State :: ejabberd_c2s:state()) -> {update_c2s_state, roster_state(), ejabberd_c2s:state()}.
 roster_change(Item, StateData, C2SState) ->
     From = ejabberd_c2s_state:jid(C2SState),
     To = jid:make(Item#roster.jid),
     #roster{jid = IJID, subscription = ISubscription} = Item,
     {BecomeAvailable, BecomeUnavailable, NState} = do_roster_change(IJID, ISubscription, From, StateData),
     send_updated_presence(BecomeAvailable, BecomeUnavailable, From, To, C2SState),
-    send_roster_iq(From, Item),
-    NState.
+    C2SState1 = send_roster_iq(From, Item, C2SState),
+    % because we send iq from this process and have to update stream management buffer
+    {update_c2s_state, NState, C2SState1}.
 
 send_updated_presence(true, _, From, To, C2SState) ->
     P = get_last_presence(C2SState),
@@ -338,7 +339,7 @@ send_updated_presence(_, true, From, To, C2SState) ->
 send_updated_presence(_, _, _From, _To, _C2SState) ->
     ok.
 
-send_roster_iq(From, Item) ->
+send_roster_iq(From, Item, C2SState) ->
     Server = From#jid.lserver,
     LUser = From#jid.luser,
     RosterVersion = case mod_roster:roster_versioning_enabled(Server) of
@@ -360,7 +361,8 @@ send_roster_iq(From, Item) ->
                 [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
                         children = [mod_roster:item_to_xml(Item)]}]},
-    ejabberd_router:route(jid:to_bare(From), From, jlib:iq_to_xml(ResIQ)).
+    {_, _, NewState} = ejabberd_c2s:send_to_local_user(jid:to_bare(From), From, jlib:iq_to_xml(ResIQ), C2SState),
+    NewState.
 
 do_roster_change(IJID, ISubscription, OwnerJid, StateData) ->
     LIJID = jid:to_lower(IJID),

@@ -681,21 +681,12 @@ presence_after_add_rosteritem(Config) ->
          end).
 
 push_roster(Config) ->
-    % subscribe Alice to all contacts from the file
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 BobJid = escalus_users:get_jid(Config, bob),
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
                 {_, 0} = ejabberdctl("push_roster", [TemplatePath, AliceName, Domain], Config),
-                Sets = escalus:wait_for_stanzas(Alice, 4),
-                % four new contacts, nobody is online
-                escalus:assert_many([is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set
-                                    ],
-                                   Sets),
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
@@ -877,26 +868,10 @@ process_rosteritems_delete_advanced2(Config) ->
     end).
 
 push_roster_all(Config) ->
-    % take the roster file, subscribe everybody to everybody
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
                 {_, 0} = ejabberdctl("push_roster_all", [TemplatePath], Config),
-                SetsAlice = escalus:wait_for_stanzas(Alice, 5),
-                % four new contacts, one is online so we receive one presence
-                escalus:assert_many([is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set,
-                                     is_presence ],
-                                    SetsAlice),
-                SetsBob = escalus:wait_for_stanzas(Bob, 5),
-                escalus:assert_many([is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set,
-                                     is_presence ],
-                                    SetsBob),
 
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
@@ -915,7 +890,6 @@ push_roster_all(Config) ->
         end).
 
 push_roster_alltoall(Config) ->
-    % subscribe everybody to everybody else system-wide
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 BobJid = escalus_users:get_jid(Config, bob),
                 MikeJid = escalus_users:get_jid(Config, mike),
@@ -923,11 +897,6 @@ push_roster_alltoall(Config) ->
                 {_, Domain, _} = get_user_data(alice, Config),
 
                 {_, 0} = ejabberdctl("push_roster_alltoall", [Domain, "MyGroup"], Config),
-                SetsAlice = escalus:wait_for_stanzas(Alice, 3),
-                escalus:assert_many([is_roster_set,
-                                     is_roster_set,
-                                     is_roster_set],
-                                    SetsAlice),
 
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster = escalus:wait_for_stanza(Alice),

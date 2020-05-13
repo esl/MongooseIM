@@ -886,7 +886,7 @@ send_presence_type(From, To, Type) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% used for testing only - should be removed
+%% used by ejabberdctl
 set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jid:nodeprep(User),
