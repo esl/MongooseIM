@@ -308,7 +308,7 @@ pack_string(String, Pack) ->
 
 -spec roster_change(Item :: roster(),
                     StateData :: roster_state(),
-                    State :: ejabberd_c2s:state()) -> roster_state().
+                    State :: ejabberd_c2s:state()) -> {update_buffers, roster_state(), ejabberd_c2s:state()}.
 roster_change(Item, StateData, C2SState) ->
     From = ejabberd_c2s_state:jid(C2SState),
     To = jid:make(Item#roster.jid),

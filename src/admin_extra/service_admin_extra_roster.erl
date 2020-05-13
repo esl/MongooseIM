@@ -54,8 +54,7 @@
                                    _Group}.
 -type subs() :: atom() | binary().
 
--type push_action() :: remove
-                       | none
+-type push_action() :: none
                        | {add, Nick :: binary(), Subs :: subs(),
    Group :: binary() | string()}.
 -type delete_action() :: {'delete', Subs :: [atom()], Asks :: [atom()],
@@ -352,11 +351,7 @@ build_roster_item(U, S, {add, Nick, Subs, Group}) ->
                      {<<"name">>, Nick},
                      {<<"subscription">>, Subs}],
             children = [#xmlel{name = <<"group">>, children = [#xmlcdata{content = Group}]}]
-    };
-build_roster_item(U, S, remove) ->
-    #xmlel{ name = <<"item">>,
-            attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
-                     {<<"subscription">>, <<"remove">>}]}.
+    }.
 
 %%-----------------------------
 %% Purge roster items
