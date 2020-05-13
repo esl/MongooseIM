@@ -160,7 +160,7 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
 				              "{verify, verify_peer}," ++ VerifyMode ++
 					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
-                       {cyrsasl_external, "{cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
+                       {cyrsasl_external, ", {cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim).
