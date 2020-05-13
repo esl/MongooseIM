@@ -1184,6 +1184,13 @@ handle_incoming_message({run_remote_hook, HandlerName, Args}, StateName, StateDa
                        [HandlerName, Args, HandlerState, E]),
             fsm_next_state(StateName,
                            StateData);
+        {update_buffers, NewHandlerState, NewStateData} ->
+            % if a handler sent some stanzas directly it has to pass updated state like this
+            % so that we update stream management buffers
+            StateData1 = StateData#state{stream_mgmt_buffer_size = NewStateData#state.stream_mgmt_buffer_size,
+                                         stream_mgmt_buffer = NewStateData#state.stream_mgmt_buffer},
+            fsm_next_state(StateName,
+                           ejabberd_c2s_state:set_handler_state(HandlerName, NewHandlerState, StateData1));
         NewHandlerState ->
             fsm_next_state(StateName,
                            ejabberd_c2s_state:set_handler_state(HandlerName, NewHandlerState, StateData))
