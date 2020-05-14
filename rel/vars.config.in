@@ -46,8 +46,8 @@
 
 {sm_backend, "{mnesia, []}"}.
 {auth_method, "internal"}.
-{cyrsasl_external, "{cyrsasl_external, standard}"}.
-{ext_auth_script, "%%{extauth_program, \"/path/to/authentication/script\"}."}.
+{password_format, "{password_format, plain}"}.
+{cyrsasl_external, ",{cyrsasl_external, standard}"}.
 {tls_config, "{certfile, \"priv/ssl/fake_server.pem\"}, starttls,"}.
 {tls_module, ""}.
 {https_config, "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"}, {keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"}]},"}. %% Applies to Websockets, BOSH and metrics; PEM format
