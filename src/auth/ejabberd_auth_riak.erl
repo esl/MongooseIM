@@ -65,7 +65,10 @@ set_password(LUser, LServer, Password) ->
             {error, invalid_password};
         Password ->
             User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
-            do_set_password(User, LUser, LServer, Password)
+            do_set_password(User, LUser, LServer, Password);
+        {<<>>, Scram} ->
+            User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
+            do_set_password(User, LUser, LServer, {<<>>, Scram})
     end.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}

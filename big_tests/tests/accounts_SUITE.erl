@@ -229,7 +229,7 @@ not_allowed_registration_cancelation(Config) ->
 
 registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users([alice, bob]),
-		
+
 	%% The first user should be created successfully
 	wait_for_user(Config, Alice, ?REGISTRATION_TIMEOUT),
 
@@ -245,7 +245,7 @@ registration_timeout(Config) ->
 
     %% After timeout, the user should be registered successfully
     wait_for_user(Config, Alice, erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)).
-			
+
 registration_failure_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT + 1)),
     [Alice] = escalus_users:get_users([alice]),
@@ -385,5 +385,3 @@ watcher(Watcher) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
-
-			

@@ -106,10 +106,10 @@ mask(Key, Data) ->
     <<C:KeySize>>.
 
 enabled(Host) ->
-    case ejabberd_auth:get_opt(Host, password_format) of
-        scram -> true;
-        {scram, _ScramSha} -> true;
-        _ -> false
+    case ejabberd_auth:get_opt(Host, password_format, scram) of
+        plain -> false;
+        {scram, _Sha} -> true;
+        scram -> true
     end.
 
 enabled(Host, cyrsasl_scram_sha1)   -> is_password_format_allowed(Host, sha);
@@ -125,8 +125,7 @@ enabled(Host, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(Host, sha
 enabled(_Host, _Mechanism) -> false.
 
 is_password_format_allowed(Host, Sha) ->
-    case ejabberd_auth:get_opt(Host, password_format) of
-        undefined -> true;
+    case ejabberd_auth:get_opt(Host, password_format, scram) of
         plain -> true;
         scram -> true;
         {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)

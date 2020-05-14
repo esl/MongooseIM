@@ -149,7 +149,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
              MongooseIM supports SHA-1, SHA-224, SHA-256 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration.
              The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha224, sha256, sha384, sha512]}` are equivalent configurations)
-             * **Default:** `plain` (for compatibility reasons, might change soon)
+             * **Default:** `scram`
 
         * **auth_scram_iterations**
              * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
