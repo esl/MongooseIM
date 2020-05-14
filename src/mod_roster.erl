@@ -56,7 +56,6 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
-         set_roster_entry/5,
          remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
@@ -188,7 +187,6 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
      << <<(exml:to_binary(X))>> || X <- XS >>
     ].
 
-
 %%--------------------------------------------------------------------
 %% mod_roster's callbacks
 %%--------------------------------------------------------------------
@@ -226,11 +224,7 @@ hooks(Host) ->
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
      {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50},
-     %% because mongoose_c2s_presence is not a mod_, we have to either attach its handler here,
-     %% or create here a handler which would call that module
-     %% not sure which is better
-     {c2s_remote_hook, Host, mongoose_c2s_presence, handle_remote_hook, 100}].
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
@@ -464,7 +458,7 @@ process_item_set(_From, _To, _) -> ok.
 
 do_process_item_set(error, _, _, _) -> ok;
 do_process_item_set(JID1,
-                    #jid{luser = LUser, lserver = LServer} = From,
+                    #jid{user = User, luser = LUser, lserver = LServer} = From,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
     LJID = jid:to_lower(JID1),
@@ -472,17 +466,18 @@ do_process_item_set(JID1,
                     Item1 = process_item_attrs(Item, Attrs),
                     process_item_els(Item1, Els)
                 end,
-    set_roster_item(LUser, LServer, LJID, From, To, MakeItem2).
+    set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2).
 
 %% @doc this is run when a roster item is to be added, updated or removed
 %% the interface of this func could probably be a bit simpler
--spec set_roster_item(LUser :: binary(),
+-spec set_roster_item(User :: binary(),
+                      LUser :: binary(),
                       LServer :: binary(),
                       LJID :: jid:simple_jid() | error,
                       From ::jid:jid(),
                       To ::jid:jid(),
                       MakeItem2 :: fun( (roster()) -> roster())) -> ok.
-set_roster_item(LUser, LServer, LJID, From, To, MakeItem2) ->
+set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
                 Item = case get_roster_entry(LUser, LServer, LJID) of
                            does_not_exist ->
@@ -506,7 +501,7 @@ set_roster_item(LUser, LServer, LJID, From, To, MakeItem2) ->
         end,
     case transaction(LServer, F) of
         {atomic, {OldItem, NewItem}} ->
-            push_item(To, NewItem),
+            push_item(User, LServer, To, NewItem),
             case NewItem#roster.subscription of
                 remove ->
                     send_unsubscribing_presence(From, OldItem), ok;
@@ -554,9 +549,49 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
-push_item(From, #roster{} = Item) ->
-    ejabberd_sm:run_in_all_sessions(From, mod_roster, {roster_change, Item}),
-    ok.
+push_item(User, Server, From, Item) ->
+    #jid{luser = LUser} = JID = jid:make(User, Server, <<"">>),
+    ejabberd_sm:route(jid:make(<<"">>, <<"">>, <<"">>), JID,
+                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
+    case roster_versioning_enabled(Server) of
+        true ->
+            push_item_version(JID, Server, User, From, Item,
+                              roster_version(Server, LUser));
+        false ->
+            lists:foreach(fun (Resource) ->
+                                  push_item(User, Server, Resource, From, Item)
+                          end,
+                          ejabberd_sm:get_user_resources(JID))
+    end.
+
+push_item(User, Server, Resource, From, Item) ->
+    mongoose_hooks:roster_push(Server, ok, From, Item),
+    push_item(User, Server, Resource, From, Item, not_found).
+
+push_item(User, Server, Resource, From, Item, RosterVersion) ->
+    ExtraAttrs = case RosterVersion of
+                     not_found -> [];
+                     _ -> [{<<"ver">>, RosterVersion}]
+                 end,
+    ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
+                %% @doc Roster push, calculate and include the version attribute.
+                %% TODO: don't push to those who didn't load roster
+                id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
+                sub_el =
+                [#xmlel{name = <<"query">>,
+                        attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
+                        children = [item_to_xml(Item)]}]},
+    ejabberd_router:route(From,
+                          jid:make(User, Server, Resource),
+                          jlib:iq_to_xml(ResIQ)).
+
+push_item_version(JID, Server, User, From, Item,
+                  RosterVersion) ->
+    lists:foreach(fun (Resource) ->
+                          push_item(User, Server, Resource, From, Item,
+                                    RosterVersion)
+                  end,
+                  ejabberd_sm:get_user_resources(JID)).
 
 -spec get_subscription_lists(Acc :: mongoose_acc:t(),
                              User :: binary(),
@@ -664,7 +699,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                 {push, #roster{ subscription = none, ask = in }} ->
                     true;
                 {push, Item} ->
-                    push_item(jid:make(User, Server, <<"">>), Item),
+                    push_item(User, Server, jid:make(User, Server, <<"">>), Item),
                     true;
                 none -> false
             end;
@@ -886,7 +921,6 @@ send_presence_type(From, To, Type) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% used for testing only - should be removed
 set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jid:nodeprep(User),
@@ -908,7 +942,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups) ->
                        ContactBin :: binary(),
                        Name :: binary() | unchanged,
                        Groups :: [binary()] | unchanged,
-                       NewSubscription :: binary() | remove | unchanged) -> ok|error.
+                       NewSubscription :: remove | unchanged) -> ok|error.
 set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
     LUser = UserJid#jid.luser,
     LServer = UserJid#jid.lserver,
@@ -921,6 +955,7 @@ set_roster_entry(UserJid, ContactBin, Name, Groups, NewSubscription) ->
                             modify_roster_item(Item, Name, Groups, NewSubscription)
                         end,
             set_roster_item(
+                LUser, % User
                 LUser, % LUser
                 LServer, % LServer
                 LJID, % LJID
@@ -937,7 +972,7 @@ modify_roster_item(Item, Name, Groups, NewSubscription) ->
             end,
     Item2 = case Groups of
                 unchanged -> Item1;
-                _ -> Item1#roster{groups = Groups}
+                _ -> Item#roster{groups = Groups}
             end,
     case NewSubscription of
         unchanged -> Item2;

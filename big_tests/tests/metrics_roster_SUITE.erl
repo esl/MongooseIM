@@ -177,7 +177,7 @@ subscribe(ConfigIn) ->
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription request
+        %% Bob receives subscription reqest
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob adds new contact to his roster
@@ -231,7 +231,7 @@ decline_subscription(ConfigIn) ->
 unsubscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
 
@@ -250,15 +250,17 @@ unsubscribe(ConfigIn) ->
                             escalus_stanza:roster_add_contact(Alice,
                                                               [<<"enemies">>],
                                                               <<"Alice">>)),
-        PushAndResB = escalus_client:wait_for_stanzas(Bob, 2),
-        [PushReqB] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, PushAndResB),
+        PushReqB = escalus_client:wait_for_stanza(Bob),
         escalus_client:send(Bob, escalus_stanza:iq_result(PushReqB)),
+        escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
         escalus_client:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
 
         %% Alice receives subscribed
-        escalus_client:wait_for_stanzas(Alice, 3),
+        escalus_client:wait_for_stanzas(Alice, 2),
+
+        escalus_client:wait_for_stanza(Alice),
 
         %% Bob receives roster push
         PushReqB1 = escalus_client:wait_for_stanza(Bob),
@@ -267,8 +269,7 @@ unsubscribe(ConfigIn) ->
         %% Alice sends unsubscribe
         escalus_client:send(Alice, escalus_stanza:presence_direct(BobJid, <<"unsubscribe">>)),
 
-        PushAndPresA2 = escalus_client:wait_for_stanzas(Alice, 2),
-        [PushReqA2] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, PushAndPresA2),
+        PushReqA2 = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReqA2)),
 
         %% Bob receives unsubscribe
@@ -287,11 +288,10 @@ add_sample_contact(Alice, Bob) ->
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,
         escalus_stanza:roster_add_contact(Bob, Groups, Name)),
-    R = escalus_client:wait_for_stanzas(Alice, 2),
-    escalus:assert_many([is_iq_result, is_roster_set], R),
-    [RosterPush] = lists:filter(fun(S) -> escalus_pred:is_roster_set(S) end, R),
+    RosterPush = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_roster_set, RosterPush),
     escalus_client:send(Alice, escalus_stanza:iq_result(RosterPush)),
-    ok.
+    escalus_client:wait_for_stanza(Alice).
 
 
 remove_roster(Config, UserSpec) ->
