@@ -422,5 +422,11 @@ set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config({hosts, mim, domain})),
     AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
-    NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
+    NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
     rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
+
+build_new_auth_opts(scram, AuthOpts) ->
+    NewAuthOpts0 = lists:keystore(password_format, 1, AuthOpts, {password_format, scram}),
+    lists:keystore(password_format, 1, NewAuthOpts0, {scram_iterations, 64});
+build_new_auth_opts(Type, AuthOpts) ->
+    lists:keystore(password_format, 1, AuthOpts, {password_format, Type}).

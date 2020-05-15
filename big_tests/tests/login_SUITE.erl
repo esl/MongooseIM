@@ -147,6 +147,7 @@ init_per_group(login_scram_tls, Config) ->
             {skip, "scram password type not supported"};
         true ->
             Config1 = config_ejabberd_node_tls(Config),
+            config_password_format(login_scram_tls),
             Config2 = create_tls_users(Config1),
             assert_password_format(scram, Config2)
     end;
@@ -418,7 +419,7 @@ create_tls_users(Config) ->
 delete_tls_users(Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, neustradamus])).
 
-config_password_format(login_scram) ->
+config_password_format(GN) when GN == login_scram; GN == login_scram_tls ->
     mongoose_helper:set_store_password(scram);
 config_password_format(_) ->
     mongoose_helper:set_store_password(plain).
