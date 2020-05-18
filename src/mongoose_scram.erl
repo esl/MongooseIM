@@ -49,7 +49,7 @@
 -export_type([scram_tuple/0, scram/0, scram_map/0]).
 
 -define(SALT_LENGTH, 16).
--define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
+-define(SCRAM_DEFAULT_ITERATION_COUNT, 10000).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 -define(MULTI_SCRAM_SERIAL_PREFIX, "==MULTI_SCRAM==,").
 -define(SCRAM_SHA1_PREFIX, "===SHA1===").

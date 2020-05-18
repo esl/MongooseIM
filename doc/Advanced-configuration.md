@@ -146,14 +146,19 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
         * **auth_password_format**
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database.
              Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version.
-             MongooseIM supports SHA-1, SHA-224, SHA-256 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration.
+             MongooseIM supports SHA-1, SHA-224, SHA-256, SHA-384 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration.
              The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
              * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha224, sha256, sha384, sha512]}` are equivalent configurations)
              * **Default:** `scram`
 
         * **auth_scram_iterations**
-             * **Description:** Hash function round count. The higher the value, the more difficult breaking the hashes is. We advise against setting it too low.
-             * **Default:** 4096
+             * **Description:** Hash function round count.
+               This is a tradeoff between latency and security.
+               The higher the value, the more difficult breaking the hashes is: it is a work factor: increasing the count increases the work it requires to compute a full hash, which effectively slows down brute-force attacks.
+               But it adds load on both client and server, so this parameter should be tuned as high as the business-rules allow.
+               Note that increasing the security of a password has a higher impact over the security of the algorithm, without impacting its load.
+               See more information in this [NIST guide, Appendix A.2.2](https://csrc.nist.gov/publications/detail/sp/800-132/final),
+             * **Default:** 10000, as recommended in this [XEP](https://xmpp.org/extensions/xep-0438.html#pbkdf2) and this [NIST Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html#sec5)
 
         * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
 
