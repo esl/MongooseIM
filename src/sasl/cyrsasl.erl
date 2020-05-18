@@ -143,16 +143,16 @@ get_modules(Host) ->
     end.
 
 default_modules() ->
-    [cyrsasl_plain,
-     cyrsasl_scram_sha1,
-     cyrsasl_scram_sha224,
-     cyrsasl_scram_sha256,
-     cyrsasl_scram_sha384,
+    [cyrsasl_scram_sha512_plus,
      cyrsasl_scram_sha512,
-     cyrsasl_scram_sha1_plus,
-     cyrsasl_scram_sha224_plus,
-     cyrsasl_scram_sha256_plus,
      cyrsasl_scram_sha384_plus,
-     cyrsasl_scram_sha512_plus,
+     cyrsasl_scram_sha384,
+     cyrsasl_scram_sha256_plus,
+     cyrsasl_scram_sha256,
+     cyrsasl_scram_sha224_plus,
+     cyrsasl_scram_sha224,
+     cyrsasl_scram_sha1_plus,
+     cyrsasl_scram_sha1,
+     cyrsasl_plain,
      cyrsasl_anonymous,
      cyrsasl_oauth].
