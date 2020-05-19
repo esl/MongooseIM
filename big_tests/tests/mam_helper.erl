@@ -893,13 +893,25 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, none, outgoing, Packet]),
-    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, none, incoming, Packet]).
+    archive_message([Host, #{message_id => MsgIdOwner,
+                             archive_id => FromArcID,
+                             local_jid => FromJID,
+                             remote_jid => ToJID,
+                             source_jid => Source,
+                             origin_id => none,
+                             direction => outgoing,
+                             packet => Packet}]),
+    archive_message([Host, #{message_id => MsgIdRemote,
+                             archive_id => ToArcID,
+                             local_jid => ToJID,
+                             remote_jid => FromJID,
+                             source_jid => Source,
+                             origin_id => none,
+                             direction => incoming,
+                             packet => Packet}]).
 
 archive_message(Args) ->
     rpc_apply(mod_mam, archive_message, Args).
-
-
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
@@ -941,8 +953,14 @@ put_muc_msgs(Msgs) ->
 archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
-    rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
-                                             FromJID, SrcJID, none, incoming, Packet]).
+    rpc_apply(mod_mam_muc, archive_message, [Host, #{message_id => MsgID,
+                                                     archive_id => RoomArcID,
+                                                     local_jid => RoomJID,
+                                                     remote_jid => FromJID,
+                                                     source_jid => SrcJID,
+                                                     origin_id => none,
+                                                     direction => incoming,
+                                                     packet => Packet}]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->

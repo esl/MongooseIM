@@ -18,7 +18,7 @@
 
 %% MAM hook handlers
 -export([archive_size/4,
-         archive_message/10,
+         archive_message/3,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -147,19 +147,18 @@ insert_query_cql() ->
         "(id, user_jid, from_jid, remote_jid, with_jid, message) "
         "VALUES (?, ?, ?, ?, ?, ?)".
 
-archive_message(Result, Host, MessID, _UserID,
-                LocJID, RemJID, SrcJID, _OriginID, Dir, Packet) ->
+archive_message(_Result, _Host, Params) ->
     try
-        archive_message2(Result, Host, MessID,
-                         LocJID, RemJID, SrcJID, Dir, Packet)
+        archive_message2(Params)
     catch _Type:Reason ->
             {error, Reason}
     end.
 
-archive_message2(_Result, _Host, MessID,
-                 LocJID = #jid{},
-                 RemJID = #jid{},
-                 SrcJID = #jid{}, _Dir, Packet) ->
+archive_message2(#{message_id := MessID,
+                   local_jid := LocJID,
+                   remote_jid := RemJID,
+                   source_jid := SrcJID,
+                   packet := Packet}) ->
     BLocJID = bare_jid(LocJID),
     BRemBareJID = bare_jid(RemJID),
     BRemFullJID = full_jid(RemJID),

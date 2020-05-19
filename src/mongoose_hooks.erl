@@ -91,7 +91,7 @@
          mam_get_prefs/4,
          mam_remove_archive/4,
          mam_lookup_messages/3,
-         mam_archive_message/10]).
+         mam_archive_message/3]).
 
 -export([mam_muc_archive_id/3,
          mam_muc_archive_size/4,
@@ -100,7 +100,7 @@
          mam_muc_get_prefs/4,
          mam_muc_remove_archive/4,
          mam_muc_lookup_messages/3,
-         mam_muc_archive_message/10,
+         mam_muc_archive_message/3,
          mam_muc_flush_messages/3]).
 
 -export([get_mam_pm_gdpr_data/3,
@@ -1036,23 +1036,15 @@ mam_lookup_messages(HookServer, InitialValue, Params) ->
                             [HookServer, Params]).
 
 %%% @doc The `mam_archive_message' hook is called in order to store the message in the archive.
--spec mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
+-spec mam_archive_message(HookServer, InitialValue, Params) ->
     Result when
     HookServer :: jid:lserver(),
     InitialValue :: ok,
-    MessageID :: mod_mam:message_id(),
-    ArchiveID :: undefined | mod_mam:archive_id(),
-    OwnerJID :: jid:jid(),
-    RemoteJID :: jid:jid(),
-    SenderJID :: jid:jid(),
-    OriginID :: binary() | none,
-    Dir :: incoming | outgoing,
-    Packet :: term(),
+    Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
+mam_archive_message(HookServer, InitialValue, Params) ->
     ejabberd_hooks:run_fold(mam_archive_message, HookServer, InitialValue,
-                            [HookServer, MessageID, ArchiveID, OwnerJID,
-                             RemoteJID, SenderJID, OriginID, Dir, Packet]).
+                            [HookServer, Params]).
 
 
 %% MAM MUC related hooks
@@ -1148,23 +1140,15 @@ mam_muc_lookup_messages(HookServer, InitialValue, Params) ->
                             [HookServer, Params]).
 
 %%% @doc The `mam_muc_archive_message' hook is called in order to store the MUC message in the archive.
--spec mam_muc_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
+-spec mam_muc_archive_message(HookServer, InitialValue, Params) ->
     Result when
     HookServer :: jid:lserver(),
     InitialValue :: ok,
-    MessageID :: mod_mam:message_id(),
-    ArchiveID :: undefined | mod_mam:archive_id(),
-    OwnerJID :: jid:jid(),
-    RemoteJID :: jid:jid(),
-    SenderJID :: jid:jid(),
-    OriginID :: binary() | none,
-    Dir :: incoming | outgoing,
-    Packet :: term(),
+    Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_muc_archive_message(HookServer, InitialValue, MessageID, ArchiveID, OwnerJID, RemoteJID, SenderJID, OriginID, Dir, Packet) ->
+mam_muc_archive_message(HookServer, InitialValue, Params) ->
     ejabberd_hooks:run_fold(mam_muc_archive_message, HookServer, InitialValue,
-                            [HookServer, MessageID, ArchiveID, OwnerJID,
-                             RemoteJID, SenderJID, OriginID, Dir, Packet]).
+                            [HookServer, Params]).
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write happens for MUC messages despite the result of the write.
 -spec mam_muc_flush_messages(HookServer :: jid:lserver(), InitialValue :: ok, MessageCount :: integer()) -> ok.

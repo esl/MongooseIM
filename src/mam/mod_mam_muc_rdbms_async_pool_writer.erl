@@ -15,7 +15,7 @@
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
-         archive_message/10,
+         archive_message/3,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -152,23 +152,18 @@ stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
 
--spec archive_message(_Result, Host :: jid:server(), MessID :: mod_mam:message_id(),
-                      RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
-                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(),
-                      OriginID :: binary() | none, _Dir :: atom(),
-                      Packet :: packet()) -> ok | {error, timeout}.
-archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
-                SenderJID = #jid{}, UserRoomJID = #jid{}, OriginID, _Dir, Packet) ->
-    Args = [Host, MessID, RoomID, SenderJID, UserRoomJID, OriginID, Packet],
+-spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) ->
+          ok | {error, timeout}.
+archive_message(_Result, Host, Params = #{archive_id := RoomID}) ->
     Worker = select_worker(Host, RoomID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
     case is_overloaded(WorkerPid) of
         false ->
-            gen_server:cast(Worker, {archive_message, Args});
+            gen_server:cast(Worker, {archive_message, Params});
         true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:cast(Worker, {archive_message, Args})
+                                                  gen_server:cast(Worker, {archive_message, Params})
                                           end),
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
@@ -243,7 +238,7 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
-    Rows = [apply(mod_mam_muc_rdbms_arch, prepare_message, Args) || Args <- Acc],
+    Rows = [mod_mam_muc_rdbms_arch:prepare_message(Host, Params) || Params <- Acc],
 
     InsertResult =
         case MessageCount of
@@ -265,7 +260,7 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
             ok
     end,
 
-    [apply(mod_mam_muc_rdbms_arch, retract_message, Args) || Args <- Acc],
+    [mod_mam_muc_rdbms_arch:retract_message(Host, Params) || Params <- Acc],
 
     spawn_link(fun() ->
                        mongoose_hooks:mam_muc_flush_messages(Host, ok, MessageCount)
@@ -310,14 +305,14 @@ init([Host, MaxSize]) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({archive_message, Args},
+handle_cast({archive_message, Params},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
                          max_batch_size=Max}) ->
     TRef2 = case {Acc, TRef} of
                 {[], undefined} -> erlang:send_after(Int, self(), flush);
                 {_, _} -> TRef
             end,
-    State2 = State#state{acc=[Args|Acc], flush_interval_tref=TRef2},
+    State2 = State#state{acc=[Params|Acc], flush_interval_tref=TRef2},
     case length(Acc) + 1 >= Max of
         true -> {noreply, run_flush(State2)};
         false -> {noreply, State2}
