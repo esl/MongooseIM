@@ -45,7 +45,7 @@
          remove_user/2, % for tests
          remove_user/3,
          determine_amp_strategy/5,
-         amp_failed_event/3]).
+         amp_failed_event/1]).
 
 %% Internal exports
 -export([start_link/3]).
@@ -167,36 +167,31 @@ hooks(Host) ->
 %% Server side functions
 %% ------------------------------------------------------------------
 
-amp_failed_event(Acc, From, _Packet) ->
-    mod_amp:check_packet(Acc, From, offline_failed).
+amp_failed_event(Acc) ->
+    mod_amp:check_packet(Acc, offline_failed).
 
 handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
-    Msgs = receive_all(US, [Msg]),
+    Msgs = receive_all(US, [{Acc, Msg}]),
     MaxOfflineMsgs = get_max_user_messages(AccessMaxOfflineMsgs, LUser, LServer),
     Len = length(Msgs),
     case is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) of
         false ->
-            write_messages(Acc, LUser, LServer, Msgs);
+            write_messages(LUser, LServer, Msgs);
         true ->
-            discard_warn_sender(Acc, Msgs)
+            discard_warn_sender(Msgs)
     end.
 
-write_messages(Acc, LUser, LServer, Msgs) ->
-    case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
+write_messages(LUser, LServer, Msgs) ->
+    MsgsWithoutAcc = [Msg || {_Acc, Msg} <- Msgs],
+    case mod_offline_backend:write_messages(LUser, LServer, MsgsWithoutAcc) of
         ok ->
-            lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
-                                  NAcc = mongoose_acc:new(#{ location => ?LOCATION,
-                                                             lserver => LServer,
-                                                             from_jid => From,
-                                                             to_jid => To,
-                                                             element => Packet }),
-                                  mod_amp:check_packet(NAcc, From, archived)
-                          end, Msgs);
+            [mod_amp:check_packet(Acc, archived) || {Acc, _Msg} <- Msgs],
+            ok;
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),
-            discard_warn_sender(Acc, Msgs)
+            discard_warn_sender(Msgs)
     end.
 
 -spec is_message_count_threshold_reached(integer(), jid:luser(),
@@ -223,7 +218,7 @@ get_max_user_messages(AccessRule, LUser, Host) ->
 
 receive_all(US, Msgs) ->
     receive
-        #offline_msg{us=US} = Msg ->
+        {_Acc, #offline_msg{us=US}} = Msg ->
             receive_all(US, [Msg | Msgs])
     after 0 ->
               Msgs
@@ -576,13 +571,13 @@ remove_user(User, Server) ->
     mod_offline_backend:remove_user(LUser, LServer).
 
 %% Warn senders that their messages have been discarded:
-discard_warn_sender(Acc, Msgs) ->
+discard_warn_sender(Msgs) ->
     lists:foreach(
-      fun(#offline_msg{from=From, to=To, packet=Packet}) ->
+      fun({Acc, #offline_msg{from=From, to=To, packet=Packet}}) ->
               ErrText = <<"Your contact offline message queue is full."
                           " The message has been discarded.">>,
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-              amp_failed_event(Acc, From, Packet),
+              amp_failed_event(Acc),
               {Acc1, Err} = jlib:make_error_reply(
                       Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
               ejabberd_router:route(To, From, Acc1, Err)
