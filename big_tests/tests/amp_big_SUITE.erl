@@ -103,6 +103,7 @@ notify_deliver_test_cases() ->
      notify_deliver_to_online_user_recipient_privacy_test,
      notify_deliver_to_offline_user_test,
      notify_deliver_to_offline_user_recipient_privacy_test,
+     notify_deliver_to_online_user_broken_connection_test,
      notify_deliver_to_stranger_test,
      notify_deliver_to_malformed_jid_test].
 
@@ -121,8 +122,22 @@ drop_deliver_test_cases() ->
 init_per_suite(Config) ->
     rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
     ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun conf/1}]} | Config],
+    {Mod, Code} = escalus_ejabberd:rpc(dynamic_compile, from_string,
+                                       [amp_test_helper_code()]),
+    escalus_ejabberd:rpc(code,load_binary, [Mod, "amp_test_helper.erl", Code]),
     setup_meck(suite),
     escalus:init_per_suite(ConfigWithHooks).
+
+amp_test_helper_code() ->
+    "-module(amp_test_helper).\n"
+    "-compile(export_all).\n"
+    "setup_meck() ->\n"
+    "  meck:expect(ejabberd_socket, send, fun ejabberd_socket_send/2).\n"
+    "ejabberd_socket_send(Socket, Data) ->\n"
+    "  case catch binary:match(Data, <<\"Recipient connection breaks\">>) of\n"
+    "    {N, _} when is_integer(N) -> {error, simulated};\n"
+    "    _ -> meck:passthrough([Socket, Data])\n"
+    "  end.\n".
 
 end_per_suite(C) ->
     rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
@@ -137,6 +152,9 @@ init_per_group(GroupName, Config) ->
     setup_meck(GroupName),
     save_offline_status(GroupName, ConfigWithRules).
 
+setup_meck(suite) ->
+    ok = escalus_ejabberd:rpc(meck, new, [ejabberd_socket, [passthrough, no_link]]),
+    ok = escalus_ejabberd:rpc(amp_test_helper, setup_meck, []);
 setup_meck(mam_odbc_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 10, {error, simulated}]);
 setup_meck(offline_failure) ->
@@ -282,6 +300,12 @@ notify_deliver_to_online_user_bare_jid_test(Config) ->
       end).
 
 notify_deliver_to_online_user_recipient_privacy_test(Config) ->
+    case is_module_loaded(mod_mam) of
+        true -> skipped; %% MAM does not support privacy lists
+        false -> do_notify_deliver_to_online_user_recipient_privacy_test(Config)
+    end.
+
+do_notify_deliver_to_online_user_recipient_privacy_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
@@ -300,6 +324,30 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
                   false -> ok
               end,
               client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
+              client_receives_nothing(Alice),
+              client_receives_nothing(Bob)
+      end).
+
+notify_deliver_to_online_user_broken_connection_test(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% given
+              Rule = {deliver, case ?config(offline_storage, Config) of
+                                   mam -> stored;
+                                   _ -> none
+                               end, notify},
+              Rules = rules(Config, [Rule]),
+              Msg = amp_message_to(Bob, Rules, <<"Recipient connection breaks">>),
+
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              case lists:member(Rule, Rules) of
+                  true -> client_receives_notification(Alice, Bob, Rule);
+                  false -> ok
+              end,
               client_receives_nothing(Alice),
               client_receives_nothing(Bob)
       end).

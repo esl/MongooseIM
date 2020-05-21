@@ -12,6 +12,7 @@
 -export([extract_requested_rules/1,
          make_response/3,
          make_error_response/4,
+         update_rules/2,
          rule_to_xmlel/1,
          strip_amp_el/1,
 
@@ -109,6 +110,13 @@ make_error_el(Errors, Rules) ->
            attrs = [{<<"type">>, <<"modify">>},
                     {<<"code">>, error_code(hd(Errors))}],
            children = [ErrorMarker, RuleContainer]}.
+
+-spec update_rules(#xmlel{}, [amp_rule()]) -> #xmlel{}.
+update_rules(Packet = #xmlel{children = Children}, Rules) ->
+    Packet#xmlel{children = [case is_amp_el(El) of
+                                 true -> El#xmlel{children = [rule_to_xmlel(R) || R <- Rules]};
+                                 false -> El
+                             end || El <- Children]}.
 
 -spec rule_to_xmlel(amp_any_rule()) -> #xmlel{}.
 rule_to_xmlel(#amp_rule{condition=C, value=V, action=A}) ->
