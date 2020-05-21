@@ -23,7 +23,7 @@ all() ->
     [{group, G} || G <- main_group_names(), is_enabled(G)].
 
 groups() ->
-    group_spec(main_group_names()).
+    ct_helper:repeat_all_until_all_ok(group_spec(main_group_names())).
 
 is_enabled(mam) -> mongoose_helper:is_rdbms_enabled(domain());
 is_enabled(_) -> true.
@@ -98,6 +98,7 @@ deliver_test_cases(notify) ->
      notify_deliver_to_online_user_recipient_privacy_test,
      notify_deliver_to_offline_user_test,
      notify_deliver_to_offline_user_recipient_privacy_test,
+     notify_deliver_to_online_user_broken_connection_test,
      notify_deliver_to_stranger_test,
      notify_deliver_to_malformed_jid_test];
 deliver_test_cases(error) ->
@@ -114,8 +115,21 @@ deliver_test_cases(drop) ->
 init_per_suite(Config) ->
     rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
     ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun tests_with_config/1}]} | Config],
+    {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [amp_test_helper_code()]),
+    rpc(mim(), code, load_binary, [Mod, "amp_test_helper.erl", Code]),
     setup_meck(suite),
     escalus:init_per_suite(ConfigWithHooks).
+
+amp_test_helper_code() ->
+    "-module(amp_test_helper).\n"
+    "-compile(export_all).\n"
+    "setup_meck() ->\n"
+    "  meck:expect(ejabberd_socket, send, fun ejabberd_socket_send/2).\n"
+    "ejabberd_socket_send(Socket, Data) ->\n"
+    "  case catch binary:match(Data, <<\"Recipient connection breaks\">>) of\n"
+    "    {N, _} when is_integer(N) -> {error, simulated};\n"
+    "    _ -> meck:passthrough([Socket, Data])\n"
+    "  end.\n".
 
 end_per_suite(C) ->
     rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
@@ -135,6 +149,9 @@ init_per_group(GroupName, Config) ->
     setup_meck(GroupName),
     save_offline_status(GroupName, Config1).
 
+setup_meck(suite) ->
+    ok = rpc(mim(), meck, new, [ejabberd_socket, [passthrough, no_link]]),
+    ok = rpc(mim(), amp_test_helper, setup_meck, []);
 setup_meck(mam_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {error, simulated}]);
 setup_meck(offline_failure) ->
@@ -155,8 +172,11 @@ end_per_group(GroupName, Config) ->
         false -> ok
     end.
 
-teardown_meck(G) when G == mam_failure;
-                      G == offline_failure ->
+teardown_meck(mam_failure) ->
+    rpc(mim(), meck, unload, [mod_mam_rdbms_arch]);
+teardown_meck(offline_failure) ->
+    rpc(mim(), meck, unload, [mod_offline_mnesia]);
+teardown_meck(suite) ->
     rpc(mim(), meck, unload, []);
 teardown_meck(_) -> ok.
 
@@ -283,6 +303,12 @@ notify_deliver_to_online_user_bare_jid_test(Config) ->
       end).
 
 notify_deliver_to_online_user_recipient_privacy_test(Config) ->
+    case is_module_loaded(mod_mam) of
+        true -> {skip, "MAM does not support privacy lists"};
+        false -> do_notify_deliver_to_online_user_recipient_privacy_test(Config)
+    end.
+
+do_notify_deliver_to_online_user_recipient_privacy_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
@@ -301,6 +327,32 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
                   false -> ok
               end,
               client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
+              client_receives_nothing(Alice),
+              client_receives_nothing(Bob)
+      end).
+
+notify_deliver_to_online_user_broken_connection_test(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% given
+              Rule = {deliver, case ?config(offline_storage, Config) of
+                                   mam -> stored;
+                                   _ -> none
+                               end, notify},
+              Rules = rules(Config, [Rule]),
+              %% This special message is matched by the ejabberd_socket mock
+              %% (see amp_test_helper_code/0)
+              Msg = amp_message_to(Bob, Rules, <<"Recipient connection breaks">>),
+
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              case lists:member(Rule, Rules) of
+                  true -> client_receives_notification(Alice, Bob, Rule);
+                  false -> ok
+              end,
               client_receives_nothing(Alice),
               client_receives_nothing(Bob)
       end).
@@ -344,7 +396,7 @@ is_offline_storage_working(Config) ->
 
 notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     case is_module_loaded(mod_mam) of
-        true -> skipped; %% MAM does not support privacy lists
+        true -> {skip, "MAM does not support privacy lists"};
         false -> do_notify_deliver_to_offline_user_recipient_privacy_test(Config)
     end.
 

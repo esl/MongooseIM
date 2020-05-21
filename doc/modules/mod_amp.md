@@ -45,7 +45,7 @@ mod_amp supports.
 
 * 3.3 Defined Conditions
 
-  * 3.3.1 deliver: **supported** for values: `direct`, `stored`, and `none`. The `stored` condition works with `mod_mam` and `mod_offline`.
+  * 3.3.1 deliver: **supported** for values: `direct`, `stored`, and `none`. The `stored` condition works with `mod_mam` and `mod_offline`. **Note**: if both `mod_mam` and `mod_offline` are enabled, some delivery conditions may not work correctly.
   * 3.3.2 expire-at: **not supported**
   * 3.3.3 match-resource: **supported**
 
@@ -74,3 +74,56 @@ mod_amp supports.
 implemented. It follows that `mod_amp`, in its current state, should only be
 enabled for servers/domains where user presence leaks are not a threat, i.e
 services where all users can see each other's presence by default.
+
+### Modifications
+
+The following behaviour differs from or extends the guidelines provided in the XEP.
+
+* The action for the `deliver` condition with value `stored` is deferred until the message is stored by `mod_mam` or `mod_offline`.
+* The action for the `deliver` condition with value `direct` is deferred until the message is sent to the recipient's socket.
+
+### Server Processing Details
+
+When a message with AMP rules is being processed by the server, several system events may occur. For a given event, the rules are processed and each of them can get the *matched* or *undecided* status or, if the conditions are not met, it gets no status. If any rules get the *matched* status, the action for the first of them is performed. After that, the rule list is filtered so that only the *undecided* ones are left in the message, as they may be matched later.
+
+The following system events are defined:
+
+* *initial check* - always occurs first, when the message enters the system.
+* *mod_mam failed* - `mod_mam` is enabled but fails to store the message.
+* *mod_offline failed* - the recipient is offline and `mod_offline` is enabled but fails to store the message.
+* *archived* - either `mod_mam` or `mod_offline` has successfully stored the message.
+* *delivery failed* - the message was about to be delivered, but it could not be sent.
+* *delivered* - the message has been sent to the recipient. Mutually exclusive with *delivery failed*.
+
+Rule status is determined for each system event in the following way:
+
+* **initial check**
+
+    * If the recipient is online, rules for the `direct` and `none` values of the `deliver` condition become *undecided*, except rules for the `direct` value with action `error` or `drop`, which become *matched*. If `mod_mam` is enabled, rules for the `stored` value of the `deliver` condition become *undecided*.
+        * If the recipient has a session for the target resource, rules for the `exact` and `any` values of the `match-resource` condition become *matched*.
+        * Otherwise, rules for the `other` and `any` values of the `match-resource` condition become *matched*.
+    * If the recipient is offline:
+        * If `mod_mam` or `mod_offline` is enabled, rules for the `stored` and `none` values of the `deliver` conditions become *undecided*, except rules for the `stored` value with action `error` or `drop`, which become *matched*.
+        * If both `mod_mam` and `mod_offline` are disabled, rules for the `none` delivery condition become *matched*.
+
+* **mod_mam failed**
+
+    * If the recipient is online, rules for `direct` and `none` values of the `deliver` condition become *undecided*.
+    * If the recipient is offline, rules for the `none` value of the `deliver` condition become *matched*.
+
+* **mod_offline failed**
+
+    * Rules for the `none` value of the `deliver` condition become *matched*.
+
+* **archived**
+
+    * If the recipient is online, rules for `direct` and `stored` values of the `deliver` condition become *undecided*.
+    * If the recipient is offline, rules for the `stored` value of the `deliver` condition become *matched*.
+
+* **delivery failed**
+
+    * Rules for the `none` and `stored` value of the `deliver` condition become *matched*.
+
+* **delivered**
+
+    * Rules for the `direct` value of the `deliver` condition become *matched*.

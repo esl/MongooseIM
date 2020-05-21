@@ -58,7 +58,7 @@ deliver_error_drop_match_test(_) ->
                            #amp_rule{condition = deliver, value = Dr, action = A})) ||
         Ds <- strategy_deliver_values(),
         Dr <- rule_deliver_values(),
-        [Dr] == Ds orelse (Ds /= undefined andalso Dr /= none andalso lists:member(Dr, Ds)),
+        hd(Ds) == Dr,
         A <- [error, drop]],
     ok.
 
@@ -67,7 +67,7 @@ deliver_error_drop_no_match_test(_) ->
                               #amp_rule{condition = deliver, value = Dr, action = A})) ||
         Ds <- strategy_deliver_values(),
         Dr <- rule_deliver_values(),
-        [Dr] /= Ds,
+        hd(Ds) /= Dr,
         Ds == undefined orelse Dr == none orelse not lists:member(Dr, Ds),
         A <- [error, drop]],
     ok.
