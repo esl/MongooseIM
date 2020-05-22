@@ -33,6 +33,8 @@
 -export([wait_for_route_message_count/2]).
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
+-export([backup_auth_config/1, restore_auth_config/1]).
+-export([set_store_password/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -405,3 +407,26 @@ wait_for_pid_to_die(Pid) ->
 supports_sasl_module(Module) ->
     Host = ct:get_config({hosts, mim, domain}),
     rpc(mim(), ejabberd_auth, supports_sasl_module, [Host, Module]).
+
+backup_auth_config(Config) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
+    [{auth_opts, AuthOpts} | Config].
+
+restore_auth_config(Config) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    AuthOpts = proplists:get_value(auth_opts, Config),
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, AuthOpts]).
+
+set_store_password(Type) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(
+                   ct:get_config({hosts, mim, domain})),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
+    NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
+
+build_new_auth_opts(scram, AuthOpts) ->
+    NewAuthOpts0 = lists:keystore(password_format, 1, AuthOpts, {password_format, scram}),
+    lists:keystore(password_format, 1, NewAuthOpts0, {scram_iterations, 64});
+build_new_auth_opts(Type, AuthOpts) ->
+    lists:keystore(password_format, 1, AuthOpts, {password_format, Type}).

@@ -240,7 +240,7 @@ creds_with_cert(Config, Username) ->
 meck_config(Config) ->
     meck:unload(),
     ScramOpts = case lists:keyfind(scram_group, 1, Config) of
-                    {_, true} -> [{password_format, scram}];
+                    {_, false} -> [{password_format, plain}];
                     _ -> []
                 end,
     meck:new(ejabberd_config),

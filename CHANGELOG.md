@@ -1,3 +1,74 @@
+# [MongooseIM 3.7.0](https://github.com/esl/MongooseIM/releases/tag/3.7.0) - 2020-05-20
+
+## Highlights
+
+- Authentication methods improvements
+    - Support for `SCRAM-SHA-256`, `SCRAM-SHA-512`, `SCRAM-SHA-224`, `SCRAM-SHA-384` authentication methods
+    - Support for channel binding for all the SCRAM based authentication methods
+- Support for [XEP-0424: Message Retraction][XEP-0424]
+- Support for [Proxy Protocol]
+
+There were some changes to the database schema so please take a look at the [Migration guide](doc/migrations/3.6.0_3.7.0.md) when upgrading from a previous version.
+
+## All changes
+
+### Added
+
+- Support for new `SCRAM` based authentication methods:
+    - `SCRAM-SHA-256` (#2685)
+    - `SCRAM-SHA-[224, 384, 512]` (#2701, #2713)
+    - `SCRAM-SHA-*-PLUS` (#2725)
+- Support for [XEP-0424: Message Retraction][XEP-0424] (#2739)
+- Support for [Proxy Protocol] (#2674)
+- RDBMS backend for MUC (#2635)
+- Possibility to store MUC messages in offline storage (#2640)
+- Support for MySQL's new authentication methods (#2644)
+- System metrics
+   - Type of outgoing pools (#2657)
+   - Stanza count (#2672)
+- Chat markers cache (#2676)
+- `mongooseimctl bootstrap` command which can be run to execute user defined init scripts (#2692)
+   - Support for templating the config files before MongooseIM starts (#2712)
+- `c2s_remote_hook_call` to run a hook in the context of the c2s process (#2700)
+- `mongooseimctl http_upload` command to help debug HTTP file upload configuration (#2708)
+
+### Changed
+
+- All hooks have been wrapped in the `mongooseim_hooks` module with proper specs (#2642)
+- Stream error reporting when the server receives unexpected stanza on a given stream state (#2667)
+- Server sent ping scalability improvements (#2531)
+- Docker base image to be based on Ubuntu 18.04 with OpenSSL 1.1 (#2693)
+- HTTP file upload tests with min.io running in the container (#2696)
+- Fixed issue related to passing `x-amz-acl` header to S3 (#2708)
+- Default format for password storage (#2737)
+
+### Removed
+
+- Support for MySQL versions older then `5.7.9`
+
+### Other
+
+- Fix to push notifications integration making sure all parameters are sent in a request to MongoosePush (#2645)
+- Extract `jid` related functionality to an external library (#2654)
+
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.7.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2020-01-29..2020-05-20+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-01-30&to=2020-05-20&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-01-30..2020-05-20%22%20sort%3Acreated-asc%20)
+
+## Special thanks to our contributors:
+- [@Neustradamus](https://github.com/Neustradamus) For pushing us with the extension of SCRAM authentication methods and the small PR #2719
+- [@alishir](https://github.com/alishir) #2705
+- [@jasl](https://github.com/jasl) #2697
+- [@tomaszwojcikowski](https://github.com/tomaszwojcikowski) #2690
+
+[XEP-0424]: https://xmpp.org/extensions/xep-0424.html
+[Proxy Protocol]: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+
 # [MongooseIM 3.6.2](https://github.com/esl/MongooseIM/releases/tag/3.6.2) - 2020-02-20
 
 ## Highlights

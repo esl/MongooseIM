@@ -75,23 +75,14 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://mongooseim.readthedocs.org/en/latest/)
+* [3.7.0](https://mongooseim.readthedocs.io/en/3.7.0/)
 * [3.6.2](https://mongooseim.readthedocs.io/en/3.6.2/)
-* [3.6.1](https://mongooseim.readthedocs.io/en/3.6.1/)
-* [3.6.0](https://mongooseim.readthedocs.io/en/3.6.0/)
 * [3.5.0](https://mongooseim.readthedocs.io/en/3.5.0/)
 * [3.4.0](https://mongooseim.readthedocs.io/en/3.4.0/)
 * [3.3.0](https://mongooseim.readthedocs.io/en/3.3.0/)
 * [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
 * [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
 * [3.0.0](https://mongooseim.readthedocs.io/en/3.0.0/)
-* [2.2.2](https://mongooseim.readthedocs.io/en/2.2.2/)
-* [2.1.1](https://mongooseim.readthedocs.io/en/2.1.1/)
-* [2.1.0](https://mongooseim.readthedocs.io/en/2.1.0/)
-* [2.0.1](https://mongooseim.readthedocs.io/en/2.0.1/)
-* [2.0.0](https://mongooseim.readthedocs.io/en/2.0.0/)
-* [1.6.2](https://mongooseim.readthedocs.io/en/1.6.2/)
-* [1.6.1](https://mongooseim.readthedocs.io/en/1.6.1/)
-* [1.6.0](https://mongooseim.readthedocs.io/en/1.6.0/)
 
 
 When developing new features/modules, please make sure you add basic documentation to the `doc/` directory, and add a link to your document in `doc/README.md.`

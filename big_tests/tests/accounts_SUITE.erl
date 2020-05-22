@@ -27,7 +27,8 @@ all() ->
      {group, bad_registration},
      {group, bad_cancelation},
      {group, registration_timeout},
-     {group, change_account_details}
+     {group, change_account_details},
+     {group, change_account_details_store_plain}
     ].
 
 groups() ->
@@ -41,14 +42,17 @@ groups() ->
                                         not_allowed_registration_cancelation]},
          {registration_timeout, [sequence], [registration_timeout,
                                              registration_failure_timeout]},
-         {change_account_details, [parallel], [change_password,
-                                               change_password_to_null]}
+         {change_account_details, [parallel], change_password_tests()},
+         {change_account_details_store_plain, [parallel], change_password_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
+change_password_tests() ->
+    [change_password,
+     change_password_to_null].
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -77,6 +81,10 @@ init_per_group(bad_cancelation, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(change_account_details, Config) ->
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config];
+init_per_group(change_account_details_store_plain, Config) ->
+    Config1 = mongoose_helper:backup_auth_config(Config),
+    mongoose_helper:set_store_password(plain),
+    [{escalus_user_db,  {module, escalus_ejabberd}} |Config1];
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
 init_per_group(_GroupName, Config) ->
@@ -84,6 +92,10 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(change_account_details, Config) ->
     escalus_fresh:clean(),
+    [{escalus_user_db, xmpp} | Config];
+end_per_group(change_account_details_store_plain, Config) ->
+    escalus_fresh:clean(),
+    mongoose_helper:restore_auth_config(Config),
     [{escalus_user_db, xmpp} | Config];
 end_per_group(bad_cancelation, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
@@ -229,7 +241,7 @@ not_allowed_registration_cancelation(Config) ->
 
 registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users([alice, bob]),
-		
+
 	%% The first user should be created successfully
 	wait_for_user(Config, Alice, ?REGISTRATION_TIMEOUT),
 
@@ -245,7 +257,7 @@ registration_timeout(Config) ->
 
     %% After timeout, the user should be registered successfully
     wait_for_user(Config, Alice, erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)).
-			
+
 registration_failure_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT + 1)),
     [Alice] = escalus_users:get_users([alice]),
@@ -385,5 +397,3 @@ watcher(Watcher) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
-
-			
