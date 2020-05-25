@@ -307,7 +307,7 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
 
 notify_deliver_to_offline_user_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus_fresh:story(
+    escalus:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -350,7 +350,7 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
 
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:fresh_story(
+    escalus:story(
       FreshConfig, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
 
@@ -519,7 +519,7 @@ error_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, error},
     Rules = rules(Config, [Rule]),
-    escalus:fresh_story(
+    escalus:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -602,7 +602,7 @@ drop_deliver_to_offline_user_test(Config) ->
                      end, drop},
     Rules = rules(Config, [Rule]),
     Message = <<"A message in a bottle...">>,
-    escalus:fresh_story(
+    escalus:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
