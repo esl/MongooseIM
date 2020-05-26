@@ -64,13 +64,15 @@ Firstly, prepare the following files structure:
         * prod_key.pem - Production APNS app certificate's private key
         * dev_cert.pem - Development APNS app certificate
         * dev_key.pem - Development APNS app certificate's private key
+    * fcm/
+        * token.json - FCM service account JSON file
 
 If your _FCM_ app token is `MY_FCM_SECRET_TOKEN` and you have the `priv` directory with all
 certificates in the current directory, start MongoosePush with the following command:
 
 ```bash
 docker run -v `pwd`/priv:/opt/app/priv \
-  -e PUSH_FCM_APP_KEY="MY_FCM_SECRET_TOKEN" \
+  -e PUSH_FCM_APP_FILE="MY_FCM_SECRET_TOKEN" \
   -e PUSH_HTTPS_CERTFILE="/opt/app/priv/ssl/rest_cert.pem" \
   -e PUSH_HTTPS_KEYFILE="/opt/app/priv/ssl/rest_key.pem" \
   -it --rm mongooseim/mongoose-push:2.0.0
