@@ -43,7 +43,7 @@ deliver_strategy({offline, []}, initial_check) -> [none];
 deliver_strategy({_Session, _ }, initial_check) -> [direct, none];
 deliver_strategy({offline, []}, archived) -> [stored];
 deliver_strategy({_Session, _}, archived) -> [direct, stored];
-deliver_strategy(_, delivery_failed) -> [none];
+deliver_strategy(_, delivery_failed) -> [stored, none];
 deliver_strategy({offline, []}, mam_failed) -> [none];
 deliver_strategy({_Session, _}, mam_failed) -> [direct, none];
 deliver_strategy(_, offline_failed) -> [none];
