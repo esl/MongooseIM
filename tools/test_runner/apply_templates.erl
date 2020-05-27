@@ -52,9 +52,9 @@ erts_templates(RelDir) ->
     [{"rel/files/nodetool", ErtsDir ++ "/bin/nodetool"} || ErtsDir <- ErtsDirs].
 
 render_template(In, Out, Vars) ->
-    {ok, BinIn} = file:read_file(In),
+    BinIn = bbmustache:parse_file(In),
     %% Do render twice to allow templates in variables
-    BinTmp = bbmustache:render(BinIn, Vars, render_opts()),
+    BinTmp = bbmustache:compile(BinIn, Vars, render_opts()),
     BinOut = bbmustache:render(BinTmp, Vars, render_opts()),
     case file:write_file(Out, BinOut) of
         ok ->
@@ -64,7 +64,7 @@ render_template(In, Out, Vars) ->
     end.
 
 render_opts() ->
-    [{escape_fun, fun(X) -> X end}, {key_type, atom}, {value_serializer, fun(X) -> X end}].
+    [{key_type, atom}].
 
 %% Prints if VERBOSE env variable is set
 log(Format, Args) ->
