@@ -34,18 +34,21 @@ null_strategy() ->
                   'expire-at' = undefined}.
 
 %% Internals
-get_target_resources(MessageTarget) ->
-    ResourceSession = ejabberd_sm:get_session(MessageTarget),
-    UserResources = ejabberd_sm:get_user_resources(MessageTarget),
-    {ResourceSession, UserResources}.
+get_target_resources(MessageTarget = #jid{lresource = TargetRes}) ->
+    Resources = ejabberd_sm:get_user_resources(MessageTarget),
+    ResStatus = case lists:member(TargetRes, Resources) of
+                    true -> online;
+                    false -> offline
+                end,
+    {ResStatus, Resources}.
 
 deliver_strategy({offline, []}, initial_check) -> [none];
-deliver_strategy({_Session, _ }, initial_check) -> [direct, none];
+deliver_strategy({_Status, _}, initial_check) -> [direct, none];
 deliver_strategy({offline, []}, archived) -> [stored];
-deliver_strategy({_Session, _}, archived) -> [direct, stored];
+deliver_strategy({_Status, _}, archived) -> [direct, stored];
 deliver_strategy(_, delivery_failed) -> [stored, none];
 deliver_strategy({offline, []}, mam_failed) -> [none];
-deliver_strategy({_Session, _}, mam_failed) -> [direct, none];
+deliver_strategy({_Status, _}, mam_failed) -> [direct, none];
 deliver_strategy(_, offline_failed) -> [none];
 deliver_strategy(_, delivered) -> [direct].
 
@@ -57,6 +60,6 @@ deliver_strategy(_, delivered) -> [direct].
 %% the server will either match the exact resource, or not. (See match_res_any CT test)
 %% in test/amp_resolver_SUITE.erl
 %%
-match_resource_strategy({offline, []})            -> undefined;
-match_resource_strategy({offline, [_|_ManyRes]})  -> other;
-match_resource_strategy({_Session, [_|_ManyRes]}) -> exact.
+match_resource_strategy({offline, []}) -> undefined;
+match_resource_strategy({offline, [_|_ManyRes]}) -> other;
+match_resource_strategy({online, [_|_ManyRes]}) -> exact.
