@@ -70,9 +70,7 @@ render_file(Src, Dst, Params) ->
     ok = file:change_mode(Dst, Mode).
 
 mustache_opts() ->
-    [{escape_fun, fun id/1}, {key_type, atom}, {value_serializer, fun id/1}].
-
-id(X) -> X.
+    [{key_type, atom}].
 
 check_mim_dir(false) ->
     halt_with_error("MIM_DIR is not set");
