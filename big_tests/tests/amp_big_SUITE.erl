@@ -354,8 +354,12 @@ notify_deliver_to_online_user_broken_connection_test(Config) ->
                   false -> ok
               end,
               client_receives_nothing(Alice),
-              client_receives_nothing(Bob)
-      end).
+
+              %% Kill Bob's connection to avoid errors with closing the stream
+              %% while the session is being resumed after the simulated error
+              escalus_connection:kill(Bob)
+      end),
+    ok.
 
 notify_deliver_to_offline_user_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
