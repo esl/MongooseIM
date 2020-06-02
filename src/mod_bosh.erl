@@ -68,7 +68,8 @@
 -type headers_list() :: [{binary(), binary()}].
 
 %% Request State
--record(rstate, {req_sid}).
+-record(rstate, {req_sid :: binary(),
+                 extra_headers :: [{binary(), binary()}]}).
 -type rstate() :: #rstate{}.
 -type req() :: cowboy_req:req().
 
@@ -160,12 +161,14 @@ node_cleanup(Acc, Node) ->
 
 -type option() :: {atom(), any()}.
 -spec init(req(), _Opts :: [option()]) -> {cowboy_loop, req(), rstate()}.
-init(Req, _Opts) ->
+init(Req, Opts) ->
     ?DEBUG("issue=bosh_init", []),
     Msg = init_msg(Req),
     self() ! Msg,
+    ExtraHeaders = proplists:get_value(headers, Opts, []),
+    Req1 = cowboy:set_resp_headers(ExtraHeaders, Req),
     %% Upgrade to cowboy_loop behaviour to enable long polling
-    {cowboy_loop, Req, #rstate{}}.
+    {cowboy_loop, Req1, #rstate{extra_headers = ExtraHeaders}}.
 
 
 %% ok return keep the handler looping.
@@ -175,7 +178,7 @@ info(accept_options, Req, State) ->
     Origin = cowboy_req:header(<<"origin">>, Req),
     Headers = ac_all(Origin),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
-    Req1 = cowboy_reply(200, Headers, <<>>, Req),
+    Req1 = cowboy_reply(200, Headers, <<>>, Req, State),
     {stop, Req1, State};
 info(accept_get, Req, State) ->
     Headers = [content_type(),
@@ -183,7 +186,7 @@ info(accept_get, Req, State) ->
                ac_allow_headers(),
                ac_max_age()],
     Body = <<"MongooseIM bosh endpoint">>,
-    Req1 = cowboy_reply(200, Headers, Body, Req),
+    Req1 = cowboy_reply(200, Headers, Body, Req, State),
     {stop, Req1, State};
 info(forward_body, Req, S) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
@@ -198,28 +201,27 @@ info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
     ?DEBUG("issue=bosh_send sid=~ts req_sid=~ts reply_body=~p",
            [exml_query:attr(El, <<"sid">>, <<"missing">>), S#rstate.req_sid, BEl]),
-    Headers = bosh_reply_headers(),
-    Req1 = cowboy_reply(200, Headers, BEl, Req),
+    Req1 = cowboy_reply(200, bosh_reply_headers(), BEl, Req, S),
     {stop, Req1, S};
 
 info({close, Sid}, Req, S) ->
     ?DEBUG("issue=bosh_close sid=~ts", [Sid]),
-    Req1 = cowboy_reply(200, [], <<>>, Req),
+    Req1 = cowboy_reply(200, [], <<>>, Req, S),
     {stop, Req1, S};
 info(no_body, Req, State) ->
     ?DEBUG("issue=bosh_stop reason=missing_request_body req=~p", [Req]),
-    Req1 = no_body_error(Req),
+    Req1 = no_body_error(Req, State),
     {stop, Req1, State};
 info({wrong_method, Method}, Req, State) ->
     ?DEBUG("issue=bosh_stop reason=wrong_request_method method=~p req=~p",
            [Method, Req]),
-    Req1 = method_not_allowed_error(Req),
+    Req1 = method_not_allowed_error(Req, State),
     {stop, Req1, State};
 info(item_not_found, Req, S) ->
-    Req1 = terminal_condition(<<"item-not-found">>, Req),
+    Req1 = terminal_condition(<<"item-not-found">>, Req, S),
     {stop, Req1, S};
 info(policy_violation, Req, S) ->
-    Req1 = terminal_condition(<<"policy-violation">>, Req),
+    Req1 = terminal_condition(<<"policy-violation">>, Req, S),
     {stop, Req1, S}.
 
 
@@ -299,7 +301,7 @@ forward_body(Req, #xmlel{} = Body, S) ->
     Type = to_event_type(Body),
     case Type of
         streamstart ->
-            {SessionStarted, Req1} = maybe_start_session(Req, Body),
+            {SessionStarted, Req1} = maybe_start_session(Req, Body, S),
             case SessionStarted of
                 true ->
                     {ok, Req1, S};
@@ -316,7 +318,7 @@ forward_body(Req, #xmlel{} = Body, S) ->
                 {error, item_not_found} ->
                     ?WARNING_MSG("issue=bosh_stop "
                                  "reason=session_not_found sid=~ts", [Sid]),
-                    Req1 = terminal_condition(<<"item-not-found">>, Req),
+                    Req1 = terminal_condition(<<"item-not-found">>, Req, S),
                     {stop, Req1, S}
             end
     end.
@@ -337,15 +339,15 @@ get_session_socket(Sid) ->
     end.
 
 
--spec maybe_start_session(req(), exml:element()) ->
+-spec maybe_start_session(req(), exml:element(), rstate()) ->
     {SessionStarted :: boolean(), req()}.
-maybe_start_session(Req, Body) ->
+maybe_start_session(Req, Body, State) ->
     Host = exml_query:attr(Body, <<"to">>),
     case is_known_host(Host) of
         true ->
             maybe_start_session_on_known_host(Req, Body);
         false ->
-            Req1 = terminal_condition(<<"host-unknown">>, Req),
+            Req1 = terminal_condition(<<"host-unknown">>, Req, State),
             {false, Req1}
     end.
 
@@ -395,32 +397,32 @@ make_sid() ->
 %% HTTP errors
 %%--------------------------------------------------------------------
 
--spec no_body_error(cowboy_req:req()) -> cowboy_req:req().
-no_body_error(Req) ->
+-spec no_body_error(cowboy_req:req(), rstate()) -> cowboy_req:req().
+no_body_error(Req, State) ->
     cowboy_reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
-                 <<"Missing request body">>, Req).
+                 <<"Missing request body">>, Req, State).
 
 
--spec method_not_allowed_error(cowboy_req:req()) -> cowboy_req:req().
-method_not_allowed_error(Req) ->
+-spec method_not_allowed_error(cowboy_req:req(), rstate()) -> cowboy_req:req().
+method_not_allowed_error(Req, State) ->
     cowboy_reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
-                 <<"Use POST request method">>, Req).
+                 <<"Use POST request method">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% BOSH Terminal Binding Error Conditions
 %%--------------------------------------------------------------------
 
--spec terminal_condition(binary(), cowboy_req:req()) -> cowboy_req:req().
-terminal_condition(Condition, Req) ->
-    terminal_condition(Condition, [], Req).
+-spec terminal_condition(binary(), cowboy_req:req(), rstate()) -> cowboy_req:req().
+terminal_condition(Condition, Req, State) ->
+    terminal_condition(Condition, [], Req, State).
 
 
--spec terminal_condition(binary(), [exml:element()], cowboy_req:req())
+-spec terminal_condition(binary(), [exml:element()], cowboy_req:req(), rstate())
             -> cowboy_req:req().
-terminal_condition(Condition, Details, Req) ->
+terminal_condition(Condition, Details, Req, State) ->
     Body = terminal_condition_body(Condition, Details),
     Headers = [content_type()] ++ ac_all(?DEFAULT_ALLOW_ORIGIN),
-    cowboy_reply(200, Headers, Body, Req).
+    cowboy_reply(200, Headers, Body, Req, State).
 
 
 -spec terminal_condition_body(binary(), [exml:element()]) -> binary().
@@ -480,9 +482,10 @@ maybe_set_max_hold(ClientHold, #xmlel{attrs = Attrs} = Body) when ClientHold > 1
 maybe_set_max_hold(_, _) ->
     {error, invalid_hold}.
 
--spec cowboy_reply(non_neg_integer(), headers_list(), binary(), req()) -> req().
-cowboy_reply(Code, Headers, Body, Req) when is_list(Headers) ->
-    cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).
+-spec cowboy_reply(non_neg_integer(), headers_list(), binary(), req(), rstate()) -> req().
+cowboy_reply(Code, Headers, Body, Req, State) when is_list(Headers) ->
+    Headers1 = maps:from_list(Headers) ++ State#rstate.extra_headers,
+    cowboy_req:reply(Code, Headers1, Body, Req).
 
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}

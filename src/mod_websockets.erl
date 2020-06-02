@@ -66,10 +66,12 @@ init(Req, Opts) ->
     Req1 = add_sec_websocket_protocol_header(Req),
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     Timeout = gen_mod:get_opt(timeout, Opts, 60000),
-
-    AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
+    ExtraHeaders = proplists:get_value(headers, Opts, []),
+    Req2 = cowboy:set_resp_headers(ExtraHeaders, Req1),
+    Opts1 = proplists:delete(headers, Opts),
+    AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts1],
     %% upgrade protocol
-    {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
+    {cowboy_websocket, Req2, AllModOpts, #{idle_timeout => Timeout}}.
 
 terminate(_Reason, _Req, _State) ->
     ok.
