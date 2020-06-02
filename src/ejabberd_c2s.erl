@@ -1788,10 +1788,11 @@ process_presence_probe(From, To, Acc, StateData) ->
                   specifically_visible_to(LFrom, StateData)} of
                 {true, _} ->
                     Timestamp = StateData#state.pres_timestamp,
+                    TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}]),
                     Packet = xml:append_subtags(
                                StateData#state.pres_last,
                                %% To is the one sending the presence (the target of the probe)
-                               [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>)]),
+                               [jlib:timestamp_to_xml(TS, To, <<>>)]),
                     check_privacy_and_route_probe(StateData, From, To, Acc, Packet);
                 {false, true} ->
                     ejabberd_router:route(To, From, Acc, #xmlel{name = <<"presence">>});
@@ -1932,7 +1933,7 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                           get_priority_from_presence(OldPresence)
                   end,
     NewPriority = get_priority_from_presence(Packet),
-    Timestamp = calendar:universal_time(),
+    Timestamp = erlang:system_time(second),
     Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
 
     NewStateData = StateData#state{pres_last = Packet,
@@ -2923,7 +2924,7 @@ buffer_out_stanza(Acc, Packet, #state{server = Server,
                                       stream_mgmt_buffer_size = BufferSize,
                                       stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
-    Timestamp = os:timestamp(),
+    Timestamp = os:system_time(microsecond),
     {From, To, El} = maybe_add_timestamp(Packet, Timestamp, Server),
     Acc1 = update_stanza(From, To, El, Acc),
     NS = case is_buffer_full(NewSize, BufferMax) of
@@ -3185,12 +3186,10 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
 maybe_add_timestamp(Packet, _Timestamp, _Server) ->
     Packet.
 
-add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
-    {D, {H, M, S}} = calendar:now_to_universal_time(TimeStamp),
-    Time = {D, {H, M, S, Micro}},
+add_timestamp(TimeStamp, Server, Packet) ->
     case xml:get_subtag(Packet, <<"delay">>) of
         false ->
-            TimeStampXML = timestamp_xml(Server, Time),
+            TimeStampXML = timestamp_xml(Server, TimeStamp),
             xml:append_subtags(Packet, [TimeStampXML]);
         _ ->
             Packet
@@ -3198,7 +3197,8 @@ add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
 
 timestamp_xml(Server, Time) ->
     FromJID = jid:make_noprep(<<>>, Server, <<>>),
-    jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).
+    TS = calendar:system_time_to_rfc3339(Time, [{offset, "Z"}, {unit, microsecond}]),
+    jlib:timestamp_to_xml(TS, FromJID, <<"SM Storage">>).
 
 defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undefined} = State)->
     Seconds = timer:seconds(?CONSTRAINT_CHECK_TIMEOUT),

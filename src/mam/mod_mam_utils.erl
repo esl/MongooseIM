@@ -6,11 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_utils).
 %% Time
--export([maybe_microseconds/1,
-         now_to_microseconds/1,
-         microseconds_to_now/1,
-         datetime_to_microseconds/1,
-         microseconds_to_datetime/1]).
+-export([maybe_microseconds/1]).
 
 %% UID
 -export([generate_message_id/0,
@@ -103,8 +99,6 @@
 -compile({inline, [
                    rsm_ns_binary/0,
                    mam_ns_binary/0,
-                   now_to_microseconds/1,
-                   iso8601_datetime_binary_to_timestamp/1,
                    is_archived_elem_for/2,
                    is_valid_message/3,
                    is_valid_message_type/3,
@@ -157,41 +151,9 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
                           (<<>>) -> undefined.
 maybe_microseconds(<<>>) -> undefined;
 maybe_microseconds(ISODateTime) ->
-    case iso8601_datetime_binary_to_timestamp(ISODateTime) of
-        undefined -> undefined;
-        Stamp -> now_to_microseconds(Stamp)
+    try calendar:rfc3339_to_system_time(binary_to_list(ISODateTime), [{unit, microsecond}])
+    catch error:_Error -> undefined
     end.
-
-
--spec now_to_microseconds(erlang:timestamp()) -> unix_timestamp().
-now_to_microseconds({Mega, Secs, Micro}) ->
-    (1000000 * Mega + Secs) * 1000000 + Micro.
-
-
--spec microseconds_to_now(unix_timestamp()) -> erlang:timestamp().
-microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
-    Seconds = MicroSeconds div 1000000,
-    {Seconds div 1000000, Seconds rem 1000000, MicroSeconds rem 1000000}.
-
-
-%% @doc Returns time in `timestamp()' format.
--spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
-        -> erlang:timestamp() | undefined.
-iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
-    jlib:datetime_binary_to_timestamp(DateTime).
-
-
--spec datetime_to_microseconds(calendar:datetime()) -> integer().
-datetime_to_microseconds({{_, _, _}, {_, _, _}} = DateTime) ->
-    S1 = calendar:datetime_to_gregorian_seconds(DateTime),
-    S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-    Seconds = S1 - S0,
-    Seconds * 1000000.
-
-
--spec microseconds_to_datetime(non_neg_integer()) -> calendar:datetime().
-microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
-    calendar:now_to_datetime(mod_mam_utils:microseconds_to_now(MicroSeconds)).
 
 %% -----------------------------------------------------------------------
 %% UID
@@ -428,23 +390,24 @@ retracted_element(OriginID) ->
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
-                   MessageUID :: term(), DateTime :: calendar:datetime(),
+                   MessageUID :: term(), TS :: calendar:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
-wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
-    wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), DateTime, SrcJID).
+wrap_message(MamNs, Packet, QueryID, MessageUID, TS, SrcJID) ->
+    wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), TS, SrcJID).
 
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
-                   MessageUID :: term(), WrapperI :: binary(), DateTime :: calendar:datetime(),
+                   MessageUID :: term(), WrapperI :: binary(),
+                   TS :: calendar:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
-wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, DateTime, SrcJID) ->
+wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
     #xmlel{ name = <<"message">>,
             attrs = [{<<"id">>, WrapperID}],
             children = [result(MamNs, QueryID, MessageUID,
-                               [forwarded(Packet, DateTime, SrcJID)])] }.
+                               [forwarded(Packet, TS, SrcJID)])] }.
 
--spec forwarded(exml:element(), calendar:datetime(), jid:jid())
+-spec forwarded(exml:element(), calendar:rfc3339_string(), jid:jid())
                -> exml:element().
-forwarded(Packet, DateTime, SrcJID) ->
+forwarded(Packet, TS, SrcJID) ->
     #xmlel{
        name = <<"forwarded">>,
        attrs = [{<<"xmlns">>, ?NS_FORWARD}],
@@ -452,11 +415,11 @@ forwarded(Packet, DateTime, SrcJID) ->
        %% - delay.from - optional XEP-0297 (TODO: depricate adding it?)
        %% - message.from - required XEP-0313
        %% Also, mod_mam_muc will replace it again with SrcJID
-       children = [delay(DateTime, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
+       children = [delay(TS, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
--spec delay(calendar:datetime(), jid:jid()) -> exml:element().
-delay(DateTime, SrcJID) ->
-    jlib:timestamp_to_xml(DateTime, utc, SrcJID, <<>>).
+-spec delay(calendar:rfc3339_string(), jid:jid()) -> exml:element().
+delay(TS, SrcJID) ->
+    jlib:timestamp_to_xml(TS, SrcJID, <<>>).
 
 replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
     Attrs1 = lists:keydelete(<<"from">>, 1, Attrs),

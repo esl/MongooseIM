@@ -388,15 +388,16 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
 
 -spec get_or_build_timestamp_from_packet(exml:element()) -> erlang:timestamp().
 get_or_build_timestamp_from_packet(Packet) ->
-    case exml_query:subelement(Packet, <<"delay">>) of
+    case exml_query:path(Packet, [{element, <<"delay">>},
+                                  {attr, <<"stamp">>}]) of
         undefined -> erlang:timestamp();
-        #xmlel{name = <<"delay">>} = DelayEl ->
-            case exml_query:attr(DelayEl, <<"stamp">>, <<>>) of
-                <<"">> -> erlang:timestamp();
-                Stamp -> jlib:datetime_binary_to_timestamp(Stamp)
-            end
+        Stamp -> try calendar:rfc3339_to_system_time(binary_to_list(Stamp),
+                                                     [{unit, microsecond}]) of
+                     TS -> usec:to_now(TS)
+                 catch error:_Error ->
+                         erlang:timestamp()
+                 end
     end.
-
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
@@ -515,11 +516,11 @@ get_personal_data(Acc, #jid{ user = User, server = Server }) ->
 offline_messages_to_gdpr_format(MsgList) ->
     [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
 
-offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From,
+offline_msg_to_gdpr_format(#offline_msg{timestamp = TimeStamp, from = From,
                                         to = To, packet = Packet}) ->
-    NowUniversal = calendar:now_to_universal_time(Timestamp),
-    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
-    UTC = list_to_binary(UTCTime ++ UTCDiff),
+    SystemTime = usec:to_sec(usec:from_now(TimeStamp)),
+    UTCTime = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
+    UTC = list_to_binary(UTCTime),
     {UTC, jid:to_binary(From), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
 
 skip_expired_messages(TimeStamp, Rs) ->
@@ -542,15 +543,15 @@ resend_offline_message_packet(Server,
 
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
-add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
-    {D, {H, M, S}} = calendar:now_to_universal_time(TimeStamp),
-    Time = {D, {H, M, S, Micro}},
+add_timestamp(TimeStamp, Server, Packet) ->
+    Time = usec:from_now(TimeStamp),
     TimeStampXML = timestamp_xml(Server, Time),
     xml:append_subtags(Packet, [TimeStampXML]).
 
 timestamp_xml(Server, Time) ->
     FromJID = jid:make(<<>>, Server, <<>>),
-    jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
+    TS = calendar:system_time_to_rfc3339(Time, [{offset, "Z"}, {unit, microsecond}]),
+    jlib:timestamp_to_xml(TS, FromJID, <<"Offline Storage">>).
 
 remove_expired_messages(Host) ->
     mod_offline_backend:remove_expired_messages(Host).

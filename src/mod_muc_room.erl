@@ -2030,16 +2030,14 @@ count_stanza_shift(Nick, Els, StateData) ->
          false ->
              0;
          _ ->
-             Sin = calendar:datetime_to_gregorian_seconds(Since),
-             count_seconds_shift(Sin, HL)
+             count_seconds_shift(Since, HL)
          end,
     Seconds = extract_history(Els, <<"seconds">>),
     Shift1 = case Seconds of
          false ->
              0;
          _ ->
-             Sec = calendar:datetime_to_gregorian_seconds(
-                 calendar:now_to_universal_time(os:timestamp())) - Seconds,
+             Sec = os:system_time(seconds) - Seconds,
              count_seconds_shift(Sec, HL)
          end,
     MaxStanzas = extract_history(Els, <<"maxstanzas">>),
@@ -2064,8 +2062,7 @@ count_seconds_shift(Seconds, HistoryList) ->
     lists:sum(
       lists:map(
         fun({_Nick, _Packet, _HaveSubject, TimeStamp, _Size}) ->
-                T = calendar:datetime_to_gregorian_seconds(TimeStamp),
-                case T < Seconds of
+                case TimeStamp < Seconds of
                     true -> 1;
                     false -> 0
                 end
@@ -2078,7 +2075,7 @@ count_maxstanzas_shift(MaxStanzas, HistoryList) ->
     max(0, S).
 
 
--spec count_maxchars_shift(mod_muc:nick(), non_neg_integer() | calendar:datetime(),
+-spec count_maxchars_shift(mod_muc:nick(), non_neg_integer(),
                           [any()]) -> non_neg_integer().
 count_maxchars_shift(Nick, MaxSize, HistoryList) ->
     NLen = string:len(binary_to_list(Nick)) + 1,
@@ -2089,13 +2086,13 @@ count_maxchars_shift(Nick, MaxSize, HistoryList) ->
     calc_shift(MaxSize, Sizes).
 
 
--spec calc_shift(non_neg_integer() | calendar:datetime(), [number()]) -> non_neg_integer().
+-spec calc_shift(non_neg_integer(), [number()]) -> non_neg_integer().
 calc_shift(MaxSize, Sizes) ->
     Total = lists:sum(Sizes),
     calc_shift(MaxSize, Total, 0, Sizes).
 
 
--spec calc_shift(_MaxSize :: non_neg_integer() | calendar:datetime(),
+-spec calc_shift(_MaxSize :: non_neg_integer(),
         _Size :: number(), Shift :: non_neg_integer(), TSizes :: [number()]
         ) -> non_neg_integer().
 calc_shift(_MaxSize, _Size, Shift, []) ->
@@ -2107,7 +2104,7 @@ calc_shift(MaxSize, Size, Shift, [S | TSizes]) ->
 
 
 -spec extract_history([jlib:xmlcdata() | exml:element()], Type :: binary()) ->
-    false | non_neg_integer() | calendar:datetime1970().
+    false | non_neg_integer().
 extract_history([], _Type) ->
     false;
 extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
@@ -2120,13 +2117,13 @@ extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
 extract_history([_ | Els], Type) ->
     extract_history(Els, Type).
 
--spec parse_history_val(binary(), binary()) -> false | non_neg_integer() | calendar:datetime1970().
+-spec parse_history_val(binary(), binary()) -> false | non_neg_integer().
 parse_history_val(AttrVal, <<"since">>) ->
-    case jlib:datetime_binary_to_timestamp(AttrVal) of
-        undefined ->
-            false;
-        TS ->
-            calendar:now_to_universal_time(TS)
+    case catch calendar:rfc3339_to_system_time(binary_to_list(AttrVal)) of
+        IntVal when is_integer(IntVal) and (IntVal >= 0) ->
+            IntVal;
+        _ ->
+            false
     end;
 parse_history_val(AttrVal, _) ->
     case catch binary_to_integer(AttrVal) of
@@ -2572,7 +2569,8 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
               _ ->
               true
           end,
-    TimeStamp = calendar:now_to_universal_time(os:timestamp()),
+    SystemTime = os:system_time(second),
+    TimeStamp = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
     %% Chatroom history is stored as XMPP packets, so
     %% the decision to include the original sender's JID or not is based on the
     %% chatroom configuration when the message was originally sent.
@@ -2581,14 +2579,13 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     true -> StateData#state.jid;
     false -> FromJID
     end,
-    TSPacket = xml:append_subtags(Packet,
-                  [jlib:timestamp_to_xml(TimeStamp, utc, SenderJid, <<>>)]),
+    TSPacket = xml:append_subtags(Packet, [jlib:timestamp_to_xml(TimeStamp, SenderJid, <<>>)]),
     SPacket = jlib:replace_from_to(
         jid:replace_resource(StateData#state.jid, FromNick),
         StateData#state.jid,
         TSPacket),
     Size = element_size(SPacket),
-    Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, TimeStamp, Size},
+    Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, SystemTime, Size},
            StateData#state.history),
     add_to_log(text, {FromNick, Packet}, StateData),
     mongoose_hooks:room_packet(StateData#state.host,

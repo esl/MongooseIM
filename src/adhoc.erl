@@ -124,7 +124,10 @@ produce_response(#adhoc_response{lang = _Lang,
     SessionID = if is_binary(ProvidedSessionID), ProvidedSessionID /= <<"">> ->
                         ProvidedSessionID;
                    true ->
-                        jlib:now_to_utc_binary(os:timestamp())
+                        USec = os:system_time(microsecond),
+                        TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"},
+                                                                    {unit, microsecond}]),
+                        list_to_binary(TS)
                 end,
     ActionsEls = case Actions of
                      [] ->

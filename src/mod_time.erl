@@ -38,31 +38,16 @@ process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
                   attrs = [{<<"xmlns">>, ?NS_TIME}],
                   children =
                   [#xmlel{name = <<"tzo">>, attrs = [],
-                          children = [#xmlcdata{content = iolist_to_binary(TZODiff)}]},
+                          children = [#xmlcdata{content = list_to_binary(TZODiff)}]},
                    #xmlel{name = <<"utc">>, attrs = [],
                           children =
-                          [#xmlcdata{content = UTC}]}]}]},
+                          [#xmlcdata{content = list_to_binary(UTC)}]}]}]},
     {Acc, R}.
 
 %% Internals
 calculate_time() ->
-    Now = erlang:timestamp(),
-    NowUniversal = calendar:now_to_universal_time(Now),
-    NowLocal = calendar:now_to_local_time(Now),
-    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
-    UTC = list_to_binary(UTCTime ++ UTCDiff),
-    SecondsDiff = difference_in_secs(NowLocal, NowUniversal),
-    {Hd, Md, _} = calendar:seconds_to_time(abs(SecondsDiff)),
-    {_, TZODiff} = jlib:timestamp_to_iso({{2000, 1, 1},
-                                          {0, 0, 0}},
-                                         {sign(SecondsDiff), {Hd, Md}}),
-    {UTC, TZODiff}.
-
-difference_in_secs(LocalTime, UniversalTime) ->
-    LocalSeconds = calendar:datetime_to_gregorian_seconds(LocalTime),
-    UniversalSeconds = calendar:datetime_to_gregorian_seconds(UniversalTime),
-    LocalSeconds - UniversalSeconds.
-
-
-sign(N) when N < 0 -> <<"-">>;
-sign(_) -> <<"+">>.
+    SystemTime = erlang:system_time(second),
+    UTCString = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
+    LocalString = calendar:system_time_to_rfc3339(SystemTime),
+    DateTimeLength = length(UTCString) - 1,
+    {UTCString, string:slice(LocalString, DateTimeLength)}.

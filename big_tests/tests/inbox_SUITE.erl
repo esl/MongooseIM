@@ -1289,7 +1289,7 @@ timestamp_is_updated_on_new_message(Config) ->
 
          TStamp2 = inbox_helper:timestamp_from_item(Item2),
 
-         case timer:now_diff(TStamp2, TStamp1) > 0 of
+         case TStamp2 > TStamp1 of
              true -> ok;
              false -> error(#{ type => timestamp_is_not_greater,
                                item1 => Item1,

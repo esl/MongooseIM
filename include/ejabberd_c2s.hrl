@@ -52,7 +52,7 @@
                 pres_i = gb_sets:new() :: jid_set() | debug_presences(),
                 pending_invitations = [],
                 pres_last, pres_pri,
-                pres_timestamp :: calendar:datetime() | undefined,
+                pres_timestamp :: integer() | undefined, % unix time in seconds
                 %% Are we invisible?
                 pres_invis = false :: boolean(),
                 privacy_list = #userlist{} :: mongoose_privacy:userlist(),

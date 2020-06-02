@@ -194,7 +194,7 @@ check_result(Packet, ExpectedResult) ->
 timestamp_from_item(Item) ->
     ISOTStamp = exml_query:path(Item, [{element, <<"result">>}, {element, <<"forwarded">>},
                                        {element, <<"delay">>}, {attr, <<"stamp">>}]),
-    escalus_ejabberd:rpc(jlib, datetime_binary_to_timestamp, [ISOTStamp]).
+    calendar:rfc3339_to_system_time(binary_to_list(ISOTStamp), [{unit, microsecond}]).
 
 clear_inbox_all() ->
     clear_inboxes([alice, bob, kate, mike], domain()).
@@ -565,11 +565,9 @@ to_bare_lower(User) ->
 %% Returns mim1-side time in ISO format
 -spec server_side_time() -> binary().
 server_side_time() ->
-    {_, _, Micro} = Timestamp = escalus_ejabberd:rpc(erlang, timestamp, []),
-    {Day, {H, M, S}} = calendar:now_to_datetime(Timestamp),
-    DateTimeMicro = {Day, {H, M, S, Micro}},
-    {String, TZ} = escalus_ejabberd:rpc(jlib, timestamp_to_iso, [DateTimeMicro, utc]),
-    list_to_binary(String ++ TZ).
+    USec = escalus_ejabberd:rpc(erlang, system_time, [microsecond]),
+    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    list_to_binary(TS).
 
 %% ---------------------------------------------------------
 %% Error reporting

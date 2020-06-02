@@ -43,11 +43,7 @@
          iq_to_xml/1,
          parse_xdata_submit/1,
          parse_xdata_fields/1,
-         timestamp_to_xml/4,
-         timestamp_to_iso/2,
-         now_to_utc_binary/1,
-         now_to_utc_string/1,
-         datetime_binary_to_timestamp/1,
+         timestamp_to_xml/3,
          decode_base64/1,
          encode_base64/1,
          ip_to_list/1,
@@ -89,24 +85,6 @@
               xmlch/0,
               iq/0
              ]).
-
-%% Datetime format where all or some elements may be 'false' or integer()
--type maybe_datetime() :: {
-                        { 'false' | non_neg_integer(),
-                          'false' | non_neg_integer(),
-                          'false' | non_neg_integer() },
-                      integer(),
-                      'false' | integer(),
-                      'false' | integer()
-                      }.
-%% Timezone format where all or some elements may be 'false' or integer()
--type maybe_tz() :: {'false' | non_neg_integer(), 'false' | non_neg_integer()}.
-
-%% Time format where all or some elements may be 'false' or integer()
--type maybe_time() :: {'false' | non_neg_integer(),
-                       'false' | non_neg_integer(),
-                       'false' | non_neg_integer()}.
-
 
 -spec make_result_iq_reply(exml:element()) -> exml:element();
                           (iq()) -> iq().
@@ -491,52 +469,10 @@ rsm_encode_count(Count, Arr)->
 -spec i2b(integer()) -> binary().
 i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I)).
 
--type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
--type tz() :: 'utc' | {Sign :: string() | binary(), tzoffset()} | tzoffset().
-
--type hour() :: 0..23.
--type minute() :: 0..59.
--type second() :: 0..59.
--type datetime_micro() :: {calendar:date(), {hour(), minute(), second(),
-                                             Micro :: non_neg_integer()}}.
-%% @doc Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
-%% Hours = integer()
-%% Minutes = integer()
--spec timestamp_to_iso(calendar:datetime() | datetime_micro(), tz()) -> {string(), io_lib:chars()}.
-timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
-    TimestampString =
-        lists:flatten(
-          io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
-                        [Year, Month, Day, Hour, Minute, Second, Micro])),
-    TimezoneString = timezone_to_iso(Timezone),
-    {TimestampString, TimezoneString};
-timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
-    TimestampString =
-        lists:flatten(
-          io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w",
-                        [Year, Month, Day, Hour, Minute, Second])),
-    TimezoneString = timezone_to_iso(Timezone),
-    {TimestampString, TimezoneString}.
-
-timezone_to_iso(Timezone) ->
-    case Timezone of
-        utc -> "Z";
-        {Sign, {TZh, TZm}} ->
-            io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
-        {TZh, TZm} ->
-            Sign = case TZh >= 0 of
-                       true -> "+";
-                       false -> "-"
-                   end,
-            io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh), TZm])
-    end.
-
--spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
-                       Timezone :: tz(),
+-spec timestamp_to_xml(TimestampString :: calendar:rfc3339_string(),
                        FromJID :: jid:simple_jid() | jid:jid() | undefined,
                        Desc :: iodata() | undefined) -> exml:element().
-timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
-    {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
+timestamp_to_xml(TimestampString, FromJID, Desc) ->
     Text = case Desc of
                undefined -> [];
                _ -> [#xmlcdata{content = Desc}]
@@ -547,132 +483,8 @@ timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
            end,
     #xmlel{name = <<"delay">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY},
-                    {<<"stamp">>, list_to_binary(TString ++ TzString)} | From],
+                    {<<"stamp">>, list_to_binary(TimestampString)} | From],
            children = Text}.
-
--spec now_to_utc_string(erlang:timestamp()) -> string().
-now_to_utc_string({MegaSecs, Secs, MicroSecs}) ->
-    {{Year, Month, Day}, {Hour, Minute, Second}} =
-        calendar:now_to_universal_time({MegaSecs, Secs, MicroSecs}),
-    lists:flatten(
-      io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0wZ",
-                    [Year, Month, Day, Hour, Minute, Second, MicroSecs])).
-now_to_utc_binary(Timestamp) ->
-    list_to_binary(now_to_utc_string(Timestamp)).
-
-
-%% @doc yyyy-mm-ddThh:mm:ss[.sss]{Z|{+|-}hh:mm} -> {MegaSecs, Secs, MicroSecs}
--spec datetime_binary_to_timestamp(binary()) -> undefined | erlang:timestamp().
-datetime_binary_to_timestamp(TimeBin) ->
-    %% Operations on short strings are actually faster than on binaries,
-    %% even if we include time for binary_to_list/1
-    case catch parse_datetime(binary_to_list(TimeBin)) of
-        {'EXIT', _Err} ->
-            undefined;
-        TimeStamp ->
-            TimeStamp
-    end.
-
--spec parse_datetime(string()) -> erlang:timestamp().
-parse_datetime(TimeStr) ->
-    [Date, Time] = string:tokens(TimeStr, "T"),
-    D = parse_date(Date),
-    {T, MS, TZH, TZM} = parse_time(Time),
-    S = calendar:datetime_to_gregorian_seconds({D, T}),
-    S1 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-    Seconds = (S - S1) - TZH * 60 * 60 - TZM * 60,
-    {Seconds div 1000000, Seconds rem 1000000, MS}.
-
-%% @doc yyyy-mm-dd
--spec parse_date(nonempty_string()) -> 'false' | calendar:date().
-parse_date(Date) ->
-    [Y, M, D] = string:tokens(Date, "-"),
-    Date1 = {list_to_integer(Y), list_to_integer(M), list_to_integer(D)},
-    case calendar:valid_date(Date1) of
-        true ->
-            Date1;
-        _ ->
-            false
-    end.
-
-
-%% @doc hh:mm:ss[.sss]TZD
--spec parse_time(nonempty_string()) -> 'false' | maybe_datetime().
-parse_time(Time) ->
-    case string:str(Time, "Z") of
-        0 ->
-            parse_time_with_timezone(Time);
-        _ ->
-            [T | _] = string:tokens(Time, "Z"),
-            {TT, MS} = parse_time1(T),
-            {TT, MS, 0, 0}
-    end.
-
-
--spec parse_time_with_timezone(nonempty_string()) -> 'false' | maybe_datetime().
-parse_time_with_timezone(Time) ->
-    case string:str(Time, "+") of
-        0 ->
-            case string:str(Time, "-") of
-                0 ->
-                    false;
-                _ ->
-                    parse_time_with_timezone(Time, "-")
-            end;
-        _ ->
-            parse_time_with_timezone(Time, "+")
-    end.
-
-
--spec parse_time_with_timezone(nonempty_string(),
-                               Delim :: [43 | 45, ...]) -> maybe_datetime().
-parse_time_with_timezone(Time, Delim) ->
-    [T, TZ] = string:tokens(Time, Delim),
-    {TZH, TZM} = parse_timezone(TZ),
-    {TT, MS} = parse_time1(T),
-    case Delim of
-        "-" ->
-            {TT, MS, -TZH, -TZM};
-        "+" ->
-            {TT, MS, TZH, TZM}
-    end.
-
-
--spec parse_timezone(nonempty_string()) -> maybe_tz().
-parse_timezone(TZ) ->
-    [H, M] = string:tokens(TZ, ":"),
-    {[H1, M1], true} = check_list([{H, 12}, {M, 60}]),
-    {H1, M1}.
-
-
--spec parse_time1(nonempty_string()) -> {maybe_time(), integer()}.
-parse_time1(Time) ->
-    [HMS | T] =  string:tokens(Time, "."),
-    MS = case T of
-             [] ->
-                 0;
-             [Val] ->
-                 list_to_integer(string:left(Val, 6, $0))
-         end,
-    [H, M, S] = string:tokens(HMS, ":"),
-    {[H1, M1, S1], true} = check_list([{H, 24}, {M, 60}, {S, 60}]),
-    {{H1, M1, S1}, MS}.
-
-
--spec check_list([{nonempty_string(), 12 | 24 | 60}, ...]) ->
-    {['false' | non_neg_integer(), ...], _}.
-check_list(List) ->
-    lists:mapfoldl(
-        fun({L, N}, B)->
-            V = list_to_integer(L),
-            case V of
-                V when V >= 0, V =< N ->
-                    {V, B};
-                _V ->
-                    {false, false}
-            end
-        end, true, List).
-
 
 -spec decode_base64(binary() | string()) -> binary().
 decode_base64(S) ->

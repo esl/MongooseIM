@@ -394,7 +394,8 @@ dump_reload_state(From, ReloadContext) ->
 
 dump_reload_state_filename() ->
     {ok, Pwd} = file:get_cwd(),
-    DateTime = jlib:now_to_utc_string(os:timestamp()),
+    DateTime = calendar:system_time_to_rfc3339(os:system_time(microsecond),
+                                               [{offset, "Z"}, {unit, microsecond}]),
     Filename = "reload_state_" ++ DateTime ++ ".dump",
     filename:join(Pwd, Filename).
 
