@@ -2919,7 +2919,8 @@ disco_features_with_mam(Config) ->
                                   <<"vcard-temp">>,
                                   mam_helper:mam_ns_binary_v04(),
                                   mam_helper:mam_ns_binary_v06(),
-                                  mam_helper:retract_ns()]).
+                                  mam_helper:retract_ns(),
+                                  mam_helper:retract_tombstone_ns()]).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -2937,25 +2938,19 @@ disco_rooms(Config) ->
     end).
 
 disco_info(Config) ->
-    muc_helper:disco_info_story(Config, [?NS_MUC,
-                                         <<"muc_public">>,
-                                         <<"muc_persistent">>,
-                                         <<"muc_open">>,
-                                         <<"muc_semianonymous">>,
-                                         <<"muc_moderated">>,
-                                         <<"muc_unsecured">>]).
+    muc_helper:disco_info_story(Config, muc_namespaces()).
 
 disco_info_with_mam(Config) ->
-    muc_helper:disco_info_story(Config, [?NS_MUC,
-                                         <<"muc_public">>,
-                                         <<"muc_persistent">>,
-                                         <<"muc_open">>,
-                                         <<"muc_semianonymous">>,
-                                         <<"muc_moderated">>,
-                                         <<"muc_unsecured">>,
-                                         mam_helper:mam_ns_binary_v04(),
-                                         mam_helper:mam_ns_binary_v06(),
-                                         mam_helper:retract_ns()]).
+    muc_helper:disco_info_story(Config, muc_namespaces() ++ mam_helper:namespaces()).
+
+muc_namespaces() ->
+    [?NS_MUC,
+     <<"muc_public">>,
+     <<"muc_persistent">>,
+     <<"muc_open">>,
+     <<"muc_semianonymous">>,
+     <<"muc_moderated">>,
+     <<"muc_unsecured">>].
 
 disco_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
