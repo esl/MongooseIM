@@ -87,10 +87,12 @@
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
          parse_prefs_result_iq/1,
+         namespaces/0,
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
          retract_ns/0,
+         retract_tombstone_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -219,10 +221,17 @@ nick(User) ->
     Name = escalus_utils:get_username(User),
     <<"unique_", Name/binary, "_nickname">>.
 
+namespaces() ->
+    [mam_ns_binary_v04(),
+     mam_ns_binary_v06(),
+     retract_ns(),
+     retract_tombstone_ns()].
+
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
+retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].

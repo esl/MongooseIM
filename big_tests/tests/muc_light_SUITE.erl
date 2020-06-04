@@ -306,9 +306,7 @@ disco_features_story(Config, HasMAM) ->
                                                         {element, <<"identity">>},
                                                         {attr, <<"category">>}]),
             FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
-                true -> [mam_helper:mam_ns_binary_v04(),
-                         mam_helper:mam_ns_binary_v06(),
-                         mam_helper:retract_ns()];
+                true -> mam_helper:namespaces();
                 false -> []
             end,
             FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},
@@ -329,9 +327,7 @@ disco_info_story(Config, HasMAM) ->
             escalus:send(Alice, DiscoStanza),
             Stanza = escalus:wait_for_stanza(Alice),
             FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
-                true -> [mam_helper:mam_ns_binary_v04(),
-                         mam_helper:mam_ns_binary_v06(),
-                         mam_helper:retract_ns()];
+                true -> mam_helper:namespaces();
                 false -> []
             end,
             FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},

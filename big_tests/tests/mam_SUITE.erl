@@ -184,6 +184,7 @@
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
          retract_ns/0,
+         retract_tombstone_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -2912,7 +2913,9 @@ discover_features(Config, Client, Service) ->
     escalus:assert(is_iq_result, Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
-    ?assert_equal(message_retraction_is_enabled(Config), escalus_pred:has_feature(retract_ns(), Stanza)).
+    escalus:assert(has_feature, [retract_ns()], Stanza),
+    ?assert_equal(message_retraction_is_enabled(Config),
+                  escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
 
 metric_incremented_on_archive_request(ConfigIn) ->
     P = ?config(props, ConfigIn),

@@ -649,8 +649,8 @@ mam_features() ->
 
 retraction_features(Module, Host) ->
     case has_message_retraction(Module, Host) of
-        true -> [?NS_RETRACT];
-        false -> []
+        true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE];
+        false -> [?NS_RETRACT]
     end.
 
 %% -----------------------------------------------------------------------
