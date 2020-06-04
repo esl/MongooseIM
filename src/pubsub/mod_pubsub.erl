@@ -3390,12 +3390,12 @@ items_event_stanza(Node, Items) ->
     case Items of
         [LastItem] ->
             {ModifNow, ModifUSR} = LastItem#pubsub_item.modification,
-            DateTime = calendar:now_to_datetime(ModifNow),
-            {TString, TzString} = jlib:timestamp_to_iso(DateTime, utc),
+            Sec = usec:to_sec(usec:from_now(ModifNow)),
+            TString = calendar:system_time_to_rfc3339(Sec, [{offset, "Z"}]),
             [#xmlel{name = <<"delay">>,
                     attrs = [{<<"xmlns">>, ?NS_DELAY},
                              {<<"from">>, jid:to_binary(ModifUSR)},
-                             {<<"stamp">>, iolist_to_binary([TString, TzString])}],
+                             {<<"stamp">>, list_to_binary(TString)}],
                     children = [{xmlcdata, <<>>}]}];
         _ ->
             []

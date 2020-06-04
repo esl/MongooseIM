@@ -188,10 +188,7 @@ wait_for_complete_archive_response(P, Alice, ExpectedCompleteValue)
                         #{mam_props => P, parsed_iq => ParsedIQ}).
 
 make_iso_time(Micro) ->
-    Now = usec:to_now(Micro),
-    DateTime = calendar:now_to_datetime(Now),
-    {Time, TimeZone} = rpc_apply(jlib, timestamp_to_iso, [DateTime, utc]),
-    Time ++ TimeZone.
+    calendar:system_time_to_rfc3339(usec:to_sec(Micro), [{offset, "Z"}]).
 
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
@@ -866,7 +863,7 @@ generate_msg_for_date_user(Owner, Remote, DateTime) ->
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
     MicrosecDateTime = datetime_to_microseconds(DateTime),
-    NowMicro = rpc_apply(mod_mam_utils, now_to_microseconds, [rpc_apply(erlang, now, [])]),
+    NowMicro = rpc_apply(erlang, system_time, [microsecond]),
     Microsec = min(NowMicro, MicrosecDateTime),
     MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
     MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),

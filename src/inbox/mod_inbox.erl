@@ -103,9 +103,13 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
         hidden_read => false
        },
     Entries = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
-    ProcessedEntries = [{ RemJID, Content, UnreadCount, jlib:now_to_utc_string(Timestamp) } ||
-                        { RemJID, Content, UnreadCount, Timestamp } <- Entries],
+    ProcessedEntries = lists:map(fun process_entry/1, Entries),
     [{inbox, Schema, ProcessedEntries} | Acc].
+
+process_entry({RemJID, Content, UnreadCount, Timestamp}) ->
+    USec = usec:from_now(Timestamp),
+    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    {RemJID, Content, UnreadCount, TS}.
 
 %%--------------------------------------------------------------------
 %% inbox callbacks
@@ -340,10 +344,10 @@ build_forward_el(Content, Timestamp) ->
            children = [Delay, Parsed]}.
 
 -spec build_delay_el(Timestamp :: erlang:timestamp()) -> exml:element().
-build_delay_el({_, _, Micro} = Timestamp) ->
-    {Day, {H, M, S}} = calendar:now_to_datetime(Timestamp),
-    DateTimeMicro = {Day, {H, M, S, Micro}},
-    jlib:timestamp_to_xml(DateTimeMicro, utc, undefined, undefined).
+build_delay_el(Timestamp) ->
+    USec = usec:from_now(Timestamp),
+    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    jlib:timestamp_to_xml(TS, undefined, undefined).
 
 -spec build_inbox_form() -> exml:element().
 build_inbox_form() ->
@@ -437,20 +441,20 @@ form_to_params(FormEl) ->
 fields_to_params([], Acc) ->
     Acc;
 fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
-    case jlib:datetime_binary_to_timestamp(StartISO) of
-        undefined ->
-            ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
-            {error, bad_request, invalid_field_value(<<"start">>, StartISO)};
+    try calendar:rfc3339_to_system_time(binary_to_list(StartISO), [{unit, microsecond}]) of
         StartStamp ->
-            fields_to_params(RFields, Acc#{ start => StartStamp })
+            fields_to_params(RFields, Acc#{ start => usec:to_now(StartStamp) })
+    catch error:_Error ->
+            ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
+            {error, bad_request, invalid_field_value(<<"start">>, StartISO)}
     end;
 fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
-    case jlib:datetime_binary_to_timestamp(EndISO) of
-        undefined ->
-            ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
-            {error, bad_request, invalid_field_value(<<"end">>, EndISO)};
+    try calendar:rfc3339_to_system_time(binary_to_list(EndISO), [{unit, microsecond}]) of
         EndStamp ->
-            fields_to_params(RFields, Acc#{ 'end' => EndStamp })
+            fields_to_params(RFields, Acc#{ 'end' => usec:to_now(EndStamp) })
+    catch error:_Error ->
+            ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
+            {error, bad_request, invalid_field_value(<<"end">>, EndISO)}
     end;
 fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
     case binary_to_order(OrderBin) of

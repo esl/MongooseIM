@@ -203,7 +203,7 @@ convert_value_from_binaries([Bin], boolean) ->
 convert_value_from_binaries([Bin], integer) ->
     binary_to_integer(Bin);
 convert_value_from_binaries([Bin], datetime) ->
-    jlib:datetime_binary_to_timestamp(Bin);
+    usec:to_now(calendar:rfc3339_to_system_time(binary_to_list(Bin), [{unit, microsecond}]));
 convert_value_from_binaries(Bins, list) when is_list(Bins) ->
     Bins.
 
@@ -215,7 +215,9 @@ convert_value_to_binaries(Value, boolean) ->
 convert_value_to_binaries(Value, integer) ->
     [integer_to_binary(Value)];
 convert_value_to_binaries(Value, datetime) ->
-    jlib:now_to_utc_binary(Value);
+    USec = usec:from_now(Value),
+    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    list_to_binary(TS);
 convert_value_to_binaries(Value, list) when is_list(Value) ->
     Value.
 

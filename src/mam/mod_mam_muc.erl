@@ -60,9 +60,6 @@
 %% ----------------------------------------------------------------------
 %% Imports
 
--import(mod_mam_utils,
-        [microseconds_to_now/1]).
-
 %% UID
 -import(mod_mam_utils,
         [generate_message_id/0,
@@ -509,12 +506,12 @@ archive_message(Host, Params) ->
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
 
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
-    DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
+    TS = calendar:system_time_to_rfc3339(usec:to_sec(Microseconds), [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
     Packet2 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet1),
     Packet3 = replace_from_to_attributes(SrcJID, Packet2),
-    wrap_message(MamNs, Packet3, QueryID, BExtMessID, DateTime, SrcJID).
+    wrap_message(MamNs, Packet3, QueryID, BExtMessID, TS, SrcJID).
 
 maybe_delete_x_user_element(true, ReceiverJID, Packet) ->
     PacketJID = packet_to_x_user_jid(Packet),
