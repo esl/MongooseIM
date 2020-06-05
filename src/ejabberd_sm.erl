@@ -419,12 +419,9 @@ close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
 -spec get_session_pid(JID) -> none | pid() when
       JID :: jid:jid().
 get_session_pid(JID) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
-        [#session{sid = {_, Pid}}] ->
-            Pid;
-        _ ->
-            none
+    case get_session(JID) of
+        offline -> none;
+        {_, {_, Pid}, _, _} -> Pid
     end.
 
 -spec get_unique_sessions_number() -> integer().
