@@ -72,3 +72,22 @@ Scalability highly depends on variables such as:
     * Presences
     * HTTP notifications (with queuing systems such as RabbitMQ or Kafka)
 * latency of messaging, both real-time and archived messages
+
+#### OS configuration
+
+To achieve high scalability you have to adjust the configuration of your operating system.
+
+First, set some network related parameters - this is what we use for load testing:
+
+Parameter                    | Value
+-----------------------------|----
+net.ipv4.ip_local_port_range | 1024 65535
+net.ipv4.tcp_mem             | 16777216 16777216 16777216
+net.ipv4.tcp_wmem            | 4096 87380 16777216
+net.ipv4.tcp_rmem            | 4096 87380 16777216
+
+Then, you have to increase the number of file descriptors allowed for the user running your MongooseIM server process.
+In Linux, this is most commonly done in `/etc/security/limits.conf`.
+You should remember, though, that there is a limit to it — you can't increase it above an upper bound which is set by the `fs.file-max` kernel parameter.
+And there is a limit to a possible increase in `fs.file-max` as well — you can't increase it beyond 1048576, which is 2^20 and is set by another kernel parameter, `fs.nr_open`.
+Once you increase that one, you are good to go. 
