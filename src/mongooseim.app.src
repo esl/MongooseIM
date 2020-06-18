@@ -51,7 +51,8 @@
                   erl_csv_generator,
                   trails,
                   cowboy_swagger,
-                  erlang_doctor
+                  erlang_doctor,
+                  tomerl
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
