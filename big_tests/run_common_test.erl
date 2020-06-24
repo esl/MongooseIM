@@ -19,7 +19,7 @@
 %% one preset.
 -module(run_common_test).
 
--export([main/1, analyze/2]).
+-export([init/0, main/1, analyze/2]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -50,7 +50,7 @@ opts() ->
 %% Args are {key :: atom(), val :: string()} pairs.
 %% "=" is an invalid character in option name or value.
 main(RawArgs) ->
-    {ok, _} = application:ensure_all_started(jid),
+    init(),
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
     Opts = apply_preset_enabled(args_to_opts(Args)),
     try
@@ -78,6 +78,9 @@ main(RawArgs) ->
         timer:sleep(5000),
         init:stop("run_common_test:main/1 crashed")
     end.
+
+init() ->
+    {ok, _} = application:ensure_all_started(jid).
 
 run(#opts{test = quick, cover = Cover, spec = Spec}) ->
     do_run_quick_test(tests_to_run(Spec), Cover);

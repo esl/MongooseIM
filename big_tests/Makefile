@@ -95,7 +95,7 @@ priv/ssl/cert.pem priv/ssl/key.pem priv/ssl/cacert.pem: \
 	cat priv/ssl/key.pem >> priv/ssl/cert.pem
 
 console: $(PREPARE)
-	erl $(COMMON_OPTS) $(ADD_OPTS)
+	erl $(COMMON_OPTS) $(ADD_OPTS) -s run_common_test init
 
 compile: get-deps deps
 	$(RUN) $(REBAR) compile
