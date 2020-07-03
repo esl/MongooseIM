@@ -1,0 +1,359 @@
+[general]
+  loglevel = 3
+  hosts = [
+    "localhost",
+    "anonymous.localhost",
+    "localhost.bis"
+  ]
+  registration_timeout = "infinity"
+  language = "en"
+  all_metrics_are_global = false
+  sm_backend = "mnesia"
+  max_fsm_queue = 1000
+
+[[listen.cowboy]]
+  port = 5280
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.cowboy.modules.mod_bosh]]
+    host = "_"
+    path = "/http_bind"
+
+  [[listen.cowboy.modules.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
+
+    [listen.cowboy.modules.mod_websockets.ejabberd_service]
+      access = "all"
+      shaper_rule = "fast"
+      password = "secret"
+
+[[listen.cowboy]]
+  port = 5285
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+  tls.certfile = "priv/ssl/fake_cert.pem"
+  tls.keyfile = "priv/ssl/fake_key.pem"
+  tls.password = ""
+
+  [[listen.cowboy.modules.mod_bosh]]
+    host = "_"
+    path = "/http_bind"
+
+  [[listen.cowboy.modules.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
+
+[[listen.cowboy]]
+  port = 8088
+  ip_address = "127.0.0.1"
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.cowboy.modules.mongoose_api_admin]]
+    host = "localhost"
+    path = "/api"
+
+[[listen.cowboy]]
+  port = 8089
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+  protocol.compress = true
+  tls.certfile = "priv/ssl/fake_cert.pem"
+  tls.keyfile = "priv/ssl/fake_key.pem"
+  tls.password = ""
+
+  [[listen.cowboy.modules.lasse_handler]]
+    host = "_"
+    path = "/api/sse"
+    options = ["mongoose_client_api_sse"]
+
+  [[listen.cowboy.modules.mongoose_client_api_messages]]
+    host = "_"
+    path = "/api/messages/[:with]"
+
+  [[listen.cowboy.modules.mongoose_client_api_contacts]]
+    host = "_"
+    path = "/api/contacts/[:jid]"
+
+  [[listen.cowboy.modules.mongoose_client_api_rooms]]
+    host = "_"
+    path = "/api/rooms/[:id]"
+
+  [[listen.cowboy.modules.mongoose_client_api_rooms_config]]
+    host = "_"
+    path = "/api/rooms/[:id]/config"
+
+  [[listen.cowboy.modules.mongoose_client_api_rooms_users]]
+    host = "_"
+    path = "/api/rooms/:id/users/[:user]"
+
+  [[listen.cowboy.modules.mongoose_client_api_rooms_messages]]
+    host = "_"
+    path = "/api/rooms/[:id]/messages"
+
+  [[listen.cowboy.modules.cowboy_swagger_redirect_handler]]
+    host = "_"
+    path = "/api-docs"
+
+  [[listen.cowboy.modules.cowboy_swagger_json_handler]]
+    host = "_"
+    path = "/api-docs/swagger.json"
+
+  [[listen.cowboy.modules.cowboy_static]]
+    host = "_"
+    path = "/api-docs/[...]"
+    type = "priv_dir"
+    app = "cowboy_swagger"
+    content_path = "swagger"
+
+[[listen.cowboy]]
+  port = 5288
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.cowboy.modules.mongoose_api]]
+    host = "localhost"
+    path = "/api"
+    handlers = ["mongoose_api_metrics", "mongoose_api_users"]
+
+[[listen.c2s]]
+  port = 5222
+  certfile = "priv/ssl/fake_server.pem"
+  starttls = true
+  zlib = 10000
+  access = "c2s"
+  shaper = "c2s_shaper"
+  max_stanza_size = 65536
+  dhfile = "priv/ssl/fake_dh_server.pem"
+
+[[listen.c2s]]
+  port = 5223
+  zlib = 4096
+  access = "c2s"
+  shaper = "c2s_shaper"
+  max_stanza_size = 65536
+
+[[listen.s2s]]
+  port = 5269
+  shaper = "c2s_shaper"
+  max_stanza_size = 131072
+  dhfile = "priv/ssl/fake_dh_server.pem"
+
+[[listen.service]]
+  port = 8888
+  access = "all"
+  shaper_rule = "fast"
+  ip_address = "127.0.0.1"
+  password = "secret"
+
+[[listen.service]]
+  port = 8666
+  access = "all"
+  conflict_behaviour = "kick_old"
+  shaper_rule = "fast"
+  ip_address = "127.0.0.1"
+  password = "secret"
+
+[[listen.service]]
+  port = 8189
+  access = "all"
+  hidden_components = true
+  shaper_rule = "fast"
+  ip_address = "127.0.0.1"
+  password = "secret"
+
+[s2s]
+  use_starttls = "optional"
+  certfile = "priv/ssl/fake_server.pem"
+  default_policy = "allow"
+  outgoing_port = 5299
+
+  [[s2s.address]]
+    host = "fed1"
+    ip_address = "127.0.0.1"
+
+[auth]
+  methods = ["rdbms"]
+  password.format = "scram"
+  password.hash = ["sha256"]
+  scram_iterations = 64
+
+[[host_config]]
+  host = "anonymous.localhost"
+
+  [host_config.auth]
+    methods = ["anonymous"]
+    allow_multiple_connections = true
+    anonymous_protocol = "both"
+
+[outgoing_pools.redis.global_distrib]
+  scope = "single_host"
+  host = "localhost"
+  workers = 10
+
+[outgoing_pools.rdbms.default]
+  scope = "global"
+  workers = 5
+
+  [outgoing_pools.rdbms.default.connection]
+    driver = "pgsql"
+    host = "localhost"
+    database = "ejabberd"
+    username = "ejabberd"
+    password = "mongooseim_secret"
+    tls.required = true
+    tls.verify_peer = true
+    tls.cacertfile = "priv/ssl/cacert.pem"
+    tls.server_name_indication = false
+
+[shaper.normal]
+  max_rate = 1000
+
+[shaper.fast]
+  max_rate = 50_000
+
+[shaper.mam_shaper]
+  max_rate = 1
+
+[shaper.mam_global_shaper]
+  max_rate = 1000
+
+[access]
+  max_user_sessions = [
+    {acl = "all", value = 10}
+  ]
+
+  max_user_offline_messages = [
+    {acl = "admin", value = 5000},
+    {acl = "all", value = 100}
+  ]
+
+  local = [
+    {acl = "all", value = "allow"}
+  ]
+
+  c2s = [
+    {acl = "blocked", value = "deny"},
+    {acl = "all", value = "allow"}
+  ]
+
+  c2s_shaper = [
+    {acl = "admin", value = "none"},
+    {acl = "all", value = "normal"}
+  ]
+
+  s2s_shaper = [
+    {acl = "all", value = "fast"}
+  ]
+
+  muc_admin = [
+    {acl = "admin", value = "allow"}
+  ]
+
+  muc_create = [
+    {acl = "local", value = "allow"}
+  ]
+
+  muc = [
+    {acl = "all", value = "allow"}
+  ]
+
+  register = [
+    {acl = "all", value = "allow"}
+  ]
+
+  mam_set_prefs = [
+    {acl = "all", value = "default"}
+  ]
+
+  mam_get_prefs = [
+    {acl = "all", value = "default"}
+  ]
+
+  mam_lookup_messages = [
+    {acl = "all", value = "default"}
+  ]
+
+  mam_set_prefs_shaper = [
+    {acl = "all", value = "mam_shaper"}
+  ]
+
+  mam_get_prefs_shaper = [
+    {acl = "all", value = "mam_shaper"}
+  ]
+
+  mam_lookup_messages_shaper = [
+    {acl = "all", value = "mam_shaper"}
+  ]
+
+  mam_set_prefs_global_shaper = [
+    {acl = "all", value = "mam_global_shaper"}
+  ]
+
+  mam_get_prefs_global_shaper = [
+    {acl = "all", value = "mam_global_shaper"}
+  ]
+
+  mam_lookup_messages_global_shaper = [
+    {acl = "all", value = "mam_global_shaper"}
+  ]
+
+[services.service_admin_extra]
+  submods = ["node", "account", "sessions", "vcard", "gdpr", "upload",
+             "roster", "last", "private", "stanza", "stats"]
+
+[services.service_mongoose_system_metrics]
+  initial_report = 300_000
+  periodic_report = 10_800_000
+
+[modules.mod_adhoc]
+
+[modules.mod_amp]
+
+[modules.mod_disco]
+  users_can_see_hidden_services = false
+
+[modules.mod_commands]
+
+[modules.mod_muc_commands]
+
+[modules.mod_muc_light_commands]
+
+[modules.mod_last]
+  backend = "rdbms"
+
+[modules.mod_stream_management]
+
+[modules.mod_offline]
+  backend = "rdbms"
+
+[modules.mod_privacy]
+  backend = "rdbms"
+
+[modules.mod_blocking]
+
+[modules.mod_private]
+  backend = "rdbms"
+
+[modules.mod_register]
+  welcome_message = ""
+  ip_access = [
+    {addr = "127.0.0.0/8", value = "allow"},
+    {addr = "0.0.0.0/0", value = "deny"}
+  ]
+  access = "register"
+
+[modules.mod_roster]
+  backend = "rdbms"
+
+[modules.mod_sic]
+
+[modules.mod_vcard]
+  backend = "rdbms"
+  host = "vjud.@HOST@"
+
+[modules.mod_bosh]
+
+[modules.mod_carboncopy]
