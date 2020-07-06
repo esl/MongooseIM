@@ -1,3 +1,5 @@
+%undefine __brp_mangle_shebangs
+
 Name:              mongooseim
 Version:           %{version}
 Release:           %{release}
