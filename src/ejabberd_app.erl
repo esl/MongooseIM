@@ -38,7 +38,6 @@
 %%%
 
 start(normal, _Args) ->
-    init_log(),
     mongoose_fips:notify(),
     write_pid_file(),
     update_status_file(starting),
@@ -227,29 +226,4 @@ delete_pid_file() ->
             ok;
         PidFilename ->
             file:delete(PidFilename)
-    end.
-
-init_log() ->
-    maybe_disable_default_logger(),
-    ejabberd_loglevel:init(),
-    case application:get_env(mongooseim, keep_lager_intact, false) of
-        true ->
-            skip;
-        false ->
-            ejabberd_loglevel:set(4)
-    end.
-
-maybe_disable_default_logger() ->
-    try
-
-        Loggers = logger:get_handler_ids(),
-        case lists:member(default, Loggers) of
-            true ->
-                logger:remove_handler(default);
-            _ ->
-                ok
-        end
-    catch
-        _E:_R ->
-            ok
     end.
