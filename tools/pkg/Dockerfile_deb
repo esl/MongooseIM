@@ -4,6 +4,7 @@ ARG dockerfile_platform
 FROM $dockerfile_platform AS builder
 
 # Install build deps
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
 RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev
 
