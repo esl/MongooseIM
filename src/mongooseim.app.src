@@ -14,6 +14,7 @@
                   cowboy,
                   cpool,
                   crypto,
+                  fast_scram,
                   csv,
                   eredis,
                   eldap,
