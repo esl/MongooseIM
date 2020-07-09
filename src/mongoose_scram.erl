@@ -79,19 +79,12 @@ client_signature(Sha, StoredKey, AuthMessage) ->
 
 -spec client_proof_key(binary(), binary()) -> binary().
 client_proof_key(ClientProof, ClientSignature) ->
-    mask(ClientProof, ClientSignature).
+    crypto:exor(ClientProof, ClientSignature).
 
 -spec server_signature(sha_type(), binary(), binary()) -> binary().
 server_signature(Sha, ServerKey, AuthMessage) ->
     crypto:hmac(Sha, ServerKey, AuthMessage).
 
--spec mask(binary(), binary()) -> binary().
-mask(Key, Data) ->
-    KeySize = size(Key) * 8,
-    <<A:KeySize>> = Key,
-    <<B:KeySize>> = Data,
-    C = A bxor B,
-    <<C:KeySize>>.
 
 enabled(Host) ->
     case ejabberd_auth:get_opt(Host, password_format, scram) of
