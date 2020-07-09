@@ -10,6 +10,7 @@
 %% --------------------------------------------------------------
 
 init() ->
+    application:ensure_all_started(gun),
     case ets:info(?MODULE) of
         undefined ->
             Heir = case whereis(ejabberd_sup) of
@@ -25,7 +26,7 @@ init() ->
 
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(http, Host, Tag),
-    WpoolOpts = wpool_spec(Host, WpoolOptsIn, ConnOpts),
+    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
     case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
@@ -54,15 +55,8 @@ get_params(Host, Tag) ->
 %% Internal functions
 %% --------------------------------------------------------------
 
-wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
+wpool_spec(WpoolOptsIn, ConnOpts) ->
     TargetServer = gen_mod:get_opt(server, ConnOpts),
-    HttpClient = gen_mod:get_opt(http_client, ConnOpts, fusco),
-    case HttpClient of
-        fusco ->
-            HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
-            Worker = {fusco, {TargetServer, HttpOpts}};
-        gun ->
-            HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, #{}),
-            Worker = {mongoose_gun_worker, {TargetServer, HttpOpts}}
-    end,
+    HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, #{}),
+    Worker = {mongoose_gun_worker, {TargetServer, HttpOpts}},
     [{worker, Worker} | WpoolOptsIn].

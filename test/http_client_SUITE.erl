@@ -64,7 +64,7 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_group(fusco, Config) ->
-    [{connection_opts, [{server, "http://localhost:8080"}, {http_client, fusco}]} | Config];
+    [{connection_opts, [{server, {"http://localhost", 8080}}, {http_client, fusco}]} | Config];
 init_per_group(gun_http1, Config) ->
     application:ensure_all_started(gun),
     [{connection_opts, [{server, {"127.0.0.1", 8080}}, {http_client, gun}]} | Config];
