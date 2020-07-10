@@ -1,3 +1,9 @@
+%%%-------------------------------------------------------------------
+%%% @doc
+%%% This module a wpool worker capable of establishing HTTP/2
+%%% connections using the `Gun' library.
+%%% @end
+%%%-------------------------------------------------------------------
 -module(mongoose_gun_worker).
 
 -behaviour(gen_server).
@@ -80,6 +86,10 @@ handle_call({request, FullPath, Method, Headers, Query, _Retries, Timeout} = Req
 handle_cast(_R, State) ->
     {noreply, State}.
 
+%% @doc Handles gun messages.
+%% `gun_response' is a message that informs about the response to the request
+%% and provides the response headers and status. If there is no body, the `fin'
+%% flag is set.
 handle_info({gun_response, ConnPid, StreamRef, fin, Status, Headers},
             #state{pid = ConnPid, requests = Requests} = State) ->
     {_Req, ResData} = maps:get(StreamRef, Requests),
@@ -98,6 +108,8 @@ handle_info({gun_response, ConnPid, StreamRef, nofin, Status, Headers},
     {Req, ResData} = maps:get(StreamRef, Requests),
     NewData = ResData#response_data{status = integer_to_binary(Status), headers = Headers},
     {noreply, State#state{requests = Requests#{StreamRef := {Req, NewData}}}};
+%% `gun_data' is a message that carries the response body. With the last part of
+%% the body, the `fin' flag is set.
 handle_info({gun_data, ConnPid, StreamRef, nofin, Data},
             #state{pid = ConnPid, requests = Requests} = State) ->
     {Req, ResData} = maps:get(StreamRef, Requests),
@@ -120,6 +132,9 @@ handle_info({gun_data, ConnPid, StreamRef, fin, Data},
                            NewData#response_data.timestamp - Now}}),
 
     {noreply, State#state{requests = maps:remove(StreamRef, Requests)}};
+%% `timeout' is a message responsible for terminating and restarting requests
+%% that take too long to complete. There is no such functionality in Gun, so it
+%% is sent from this module.
 handle_info({timeout, StreamRef}, #state{requests = Requests} = State) ->
     case maps:get(StreamRef, Requests, undefined) of
         undefined ->
@@ -132,17 +147,24 @@ handle_info({timeout, StreamRef}, #state{requests = Requests} = State) ->
 
             {noreply, State#state{requests = Requests2}}
     end;
+%% `gun_down' is a message informing that Gun has lost the connection.
+%% It may try to reconnect, according to the `retry' and `retry_timeout' options,
+%% passed in the init options. They default to 5 retries, each with 5 second
+%% timeout.
 handle_info({gun_down, PID, Protocol, Reason, KilledStreams, UnprocessedStreams}, State) ->
-    ?WARNING_MSG("gun_down in mongoose_gun_worker."
-                 "Gun has lost the ~p connection ~p because of ~p, killing ~p streams.",
+    ?WARNING_MSG("gun_down in mongoose_gun_worker. "
+                 "Gun has lost the ~p connection ~p because of \"~p\", killing ~p streams.",
                  [Protocol, PID, Reason, length(KilledStreams) + length(UnprocessedStreams)]),
     ?DEBUG("gun_down in mongoose_gun_worker. Killed streams: ~p. Unprocessed streams: ~p",
            [KilledStreams, UnprocessedStreams]),
     {noreply, State};
+%% `gun_up' is a message informing that Gun has reconnected after a `gun_down'.
 handle_info({gun_up, ConnPid, _Protocol},
             State = #state{pid = ConnPid}) ->
     ?DEBUG("gun_up in mongoose_gun_worker. Connection is back up with PID: ~p", [ConnPid]),
     {noreply, State};
+%% `gun_error' is a message informing about any errors concerning connections or
+%% streams handled by Gun.
 handle_info({gun_error, ConnPid, Reason},
             State = #state{pid = ConnPid}) ->
     ?WARNING_MSG("gun_error in mongoose_gun_worker. Reason: ~p.", [Reason]),
@@ -152,6 +174,9 @@ handle_info({gun_error, ConnPid, StreamRef, Reason},
     ?WARNING_MSG("gun_error in mongoose_gun_worker. Reason: ~p. Stream reference: ~p",
                  [Reason, StreamRef]),
     {noreply, State};
+%% After `retry' number of `gun_down' messages, the connection process dies.
+%% Because it is monitored, we receive a `DOWN' message and may restart the
+%% connection.
 handle_info({'DOWN', MRef, process, ConnPid, Reason},
             #state{pid = ConnPid, monitor = MRef} = State) ->
     ?WARNING_MSG("Mongoose_gun_worker has lost the connection with PID ~p. Reason ~p.",
