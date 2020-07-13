@@ -315,8 +315,14 @@ handle_table_does_not_exist_error(Table) ->
 %%--------------------------------------------------------------------
 -spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
-    Terms = get_plain_terms_file(ConfigFile),
-    mongoose_config_parser:parse_terms(Terms).
+    TOMLFile = filename:rootname(ConfigFile) ++ ".toml",
+    case filelib:is_file(TOMLFile) of
+        true ->
+            mongoose_config_parser_toml:read_file(TOMLFile);
+        false ->
+            Terms = get_plain_terms_file(ConfigFile),
+            mongoose_config_parser:parse_terms(Terms)
+    end.
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->

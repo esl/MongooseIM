@@ -16,6 +16,11 @@
          state_to_required_files/1,
          can_override/2]).
 
+%% for TOML parsing
+-export([opts_to_state/2,
+         dedup_state_opts/1,
+         add_dep_modules/1]).
+
 %% for unit tests
 -export([group_host_changes/1]).
 
@@ -504,6 +509,9 @@ allow_override_local_only(State = #state{}) ->
     State#state{override_global = false,
                 override_local  = true,
                 override_acls   = false}.
+
+opts_to_state(Opts, Hosts) ->
+    #state{opts = Opts, hosts = Hosts}.
 
 state_to_opts(#state{opts = Opts}) ->
     lists:reverse(Opts).
