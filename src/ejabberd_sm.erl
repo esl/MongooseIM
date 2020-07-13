@@ -855,7 +855,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                 true ->
                     mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet);
                 false ->
-                    mongoose_hooks:failed_to_store_message(LServer, Acc)
+                    mongoose_hooks:failed_to_store_message(LServer, Acc, From, Packet)
             end;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(

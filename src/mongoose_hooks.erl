@@ -10,7 +10,7 @@
          anonymous_purge_hook/3,
          auth_failed/2,
          ejabberd_ctl_process/2,
-         failed_to_store_message/2,
+         failed_to_store_message/4,
          filter_local_packet/2,
          filter_packet/1,
          host_config_update/4,
@@ -204,12 +204,17 @@ auth_failed(Server, Username) ->
 ejabberd_ctl_process(Acc, Args) ->
     ejabberd_hooks:run_fold(ejabberd_ctl_process, Acc, [Args]).
 
--spec failed_to_store_message(LServer, Acc) -> Result when
+-spec failed_to_store_message(LServer, Acc, From, Packet) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    Packet :: exml:element(),
     Result :: mongoose_acc:t().
-failed_to_store_message(LServer, Acc) ->
-    ejabberd_hooks:run_fold(failed_to_store_message, LServer, Acc, []).
+failed_to_store_message(LServer, Acc, From, Packet) ->
+    ejabberd_hooks:run_fold(failed_to_store_message,
+                            LServer,
+                            Acc,
+                            [From, Packet]).
 
 %%% @doc The `filter_local_packet' hook is called to filter out stanzas routed with `mongoose_local_delivery'.
 -spec filter_local_packet(Server, {From, To, Acc, Packet}) -> Result when

@@ -1274,8 +1274,8 @@ response_negative(<<"iq">>, deny, From, To, Acc) ->
     IqType = mongoose_acc:stanza_type(Acc),
     response_iq_deny(IqType, From, To, Acc);
 response_negative(<<"message">>, deny, From, To, Acc) ->
-    Acc1 = mod_amp:check_packet(Acc, delivery_failed),
-    send_back_error(mongoose_xmpp_errors:service_unavailable(), From, To, Acc1);
+    mod_amp:check_packet(Acc, From, delivery_failed),
+    send_back_error(mongoose_xmpp_errors:service_unavailable(), From, To, Acc);
 response_negative(_, _, _, _, Acc) ->
     Acc.
 
@@ -1725,24 +1725,25 @@ send_trailer(StateData) ->
 -spec send_and_maybe_buffer_stanza(mongoose_acc:t(), packet(), state()) ->
     {ok | resume, mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
+    StrippedStanza = mod_amp:strip_amp_el_from_request(El),
     {SendResult, _, BufferedStateData} = send_and_maybe_buffer_stanza_no_ack(Acc,
-                                                                          {J1, J2, El},
+                                                                          {J1, J2, StrippedStanza},
                                                                           State),
-    Acc1 = mod_amp:check_packet(Acc, result_to_amp_event(SendResult)),
+    mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
-            try maybe_send_ack_request(Acc1, BufferedStateData) of
+            try maybe_send_ack_request(Acc, BufferedStateData) of
                 ResAcc ->
                     {ok, ResAcc, BufferedStateData}
             catch
                 _:E ->
                     ?DEBUG("event=send_ack_request_error,error=~p", [E]),
                     ?DEBUG("event=enter_resume_session", []),
-                    {resume, Acc1, BufferedStateData}
+                    {resume, Acc, BufferedStateData}
             end;
         _ ->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
-            {resume, Acc1, BufferedStateData}
+            {resume, Acc, BufferedStateData}
     end.
 
 result_to_amp_event(ok) -> delivered;

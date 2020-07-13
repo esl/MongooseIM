@@ -289,6 +289,7 @@ user_send_packet(Acc, From, To, Packet) ->
 filter_packet(drop) ->
     drop;
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
+    % let them to their amp-related mambo jumbo on stanza
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
     {AmpEvent, PacketAfterArchive} =
@@ -296,7 +297,8 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
             false ->
                 {mam_failed, Packet};
             true ->
-                case process_incoming_packet(From, To, Packet) of
+                PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
+                case process_incoming_packet(From, To, PacketWithoutAmp) of
                     undefined -> {mam_failed, Packet};
                     MessID -> {archived, maybe_add_arcid_elems(
                                            To, MessID, Packet,
@@ -306,8 +308,9 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
     Acc1 = mongoose_acc:update_stanza(#{ element => PacketAfterArchive,
                                          from_jid => From,
                                          to_jid => To }, Acc),
-    Acc2 = mod_amp:check_packet(Acc1, AmpEvent),
+    Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
     {From, To, Acc2, mongoose_acc:element(Acc2)}.
+
 
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
