@@ -52,7 +52,7 @@
 -export([get_personal_data/2]).
 
 %% private
--export([archive_message/2]).
+-export([archive_message/9]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 -export([handle_set_message_form/3]).
@@ -221,15 +221,8 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
             OriginID = mod_mam_utils:get_origin_id(Packet),
-            Params = #{message_id => MessID,
-                       archive_id => ArcID,
-                       local_jid => RoomJID,
-                       remote_jid => FromJID,
-                       source_jid => SrcJID,
-                       origin_id => OriginID,
-                       direction => incoming,
-                       packet => Packet1},
-            Result = archive_message(Host, Params),
+            Result = archive_message(Host, MessID, ArcID,
+                                     RoomJID, FromJID, SrcJID, OriginID, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
             case Result of
                 ok ->
@@ -494,9 +487,14 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
             mongoose_hooks:mam_muc_lookup_messages(Host, {ok, {0, 0, []}}, Params)
     end.
 
--spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
-archive_message(Host, Params) ->
-    mongoose_hooks:mam_muc_archive_message(Host, ok, Params).
+
+-spec archive_message(jid:server(), MessId :: mod_mam:message_id(),
+                      ArcId :: mod_mam:archive_id(), LocJID :: jid:jid(),
+                      SenderJID :: jid:jid(), SrcJID :: jid:jid(), OriginID :: binary() | none,
+                      Dir :: 'incoming', packet()) -> any().
+archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, OriginID, Dir, Packet) ->
+    mongoose_hooks:mam_muc_archive_message(Host, ok, MessID, ArcID,
+                                           LocJID, SenderJID, SrcJID, OriginID, Dir, Packet).
 
 %% ----------------------------------------------------------------------
 %% Helpers

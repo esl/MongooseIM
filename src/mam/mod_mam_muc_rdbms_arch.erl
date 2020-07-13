@@ -19,12 +19,12 @@
 -callback decode(binary()) -> term().
 
 -export([archive_size/4,
-         archive_message/3,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/2, retract_message/2, prepare_insert/2]).
+-export([prepare_message/7, retract_message/7, prepare_insert/2]).
 
 %gdpr
 -export([get_mam_muc_gdpr_data/2]).
@@ -124,22 +124,25 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
        "WHERE room_id = ", use_escaped_integer(escape_room_id(RoomID))]),
     mongoose_rdbms:result_to_integer(BSize).
 
--spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
-archive_message(_Result, Host, Params = #{direction := incoming}) ->
+-spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
+                      RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
+                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(),
+                      OriginID :: binary() | none, incoming, Packet :: packet()) -> ok.
+archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
+                SenderJID = #jid{}, UserRoomJID = #jid{}, OriginID, incoming, Packet) ->
     try
-        Row = prepare_message(Host, Params),
+        Row = prepare_message(Host, MessID, RoomID, SenderJID, UserRoomJID, OriginID, Packet),
         {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),
-        retract_message(Host, Params),
+        retract_message(Host, MessID, RoomID, SenderJID, UserRoomJID, OriginID, Packet),
         ok
     catch _Type:Reason:StackTrace ->
-            ?ERROR_MSG("event=archive_message_failed params='~p' reason='~p' stacktrace=~p",
-                       [Params, Reason, StackTrace]),
+            ?ERROR_MSG("event=archive_message_failed mess_id=~p room_id=~p "
+                       "from_nick=~p reason='~p' stacktrace=~p",
+                       [MessID, RoomID, UserRoomJID#jid.lresource, Reason, StackTrace]),
             {error, Reason}
     end.
 
-retract_message(Host, #{archive_id := RoomID,
-                        remote_jid := SenderJID,
-                        packet := Packet}) ->
+retract_message(Host, _MessID, RoomID, SenderJID, _UserRoomJID, _OriginID, Packet) ->
     case mod_mam_utils:get_retract_id(mod_mam_muc, Host, Packet) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, RoomID, SenderJID, OriginIDToRetract)
@@ -179,14 +182,11 @@ query_to_make_tombstone(STombstoneData, SRoomID, BMessID) ->
     ["UPDATE mam_muc_message SET message = ", STombstoneData, ", search_body = ''"
      " WHERE room_id = ", SRoomID, " AND id = '", BMessID, "'"].
 
--spec prepare_message(Host :: jid:server(), Params :: mod_mam:archive_message_params()) ->
-          [binary() | integer()].
-prepare_message(Host, #{message_id := MessID,
-                        archive_id := RoomID,
-                        remote_jid := SenderJID,
-                        source_jid := #jid{lresource = FromNick},
-                        origin_id := OriginID,
-                        packet := Packet}) ->
+-spec prepare_message(Host :: jid:server(), MessID :: mod_mam:message_id(),
+                      RoomID :: mod_mam:archive_id(), SenderJID :: jid:jid(),
+                      UserRoomJID :: jid:jid(), OriginID :: binary() | none,
+                      Packet :: packet()) -> [binary() | integer()].
+prepare_message(Host, MessID, RoomID, SenderJID, #jid{ lresource = FromNick }, OriginID, Packet) ->
     BareSenderJID = jid:to_bare(SenderJID),
     Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),

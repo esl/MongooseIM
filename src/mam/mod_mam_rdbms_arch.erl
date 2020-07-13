@@ -21,14 +21,14 @@
 -callback decode(binary()) -> term().
 
 -export([archive_size/4,
-         archive_message/3,
+         archive_message/10,
          lookup_messages/3,
          remove_archive/4]).
 
 -export([get_mam_pm_gdpr_data/2]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/2, retract_message/2, prepare_insert/2]).
+-export([prepare_message/9, retract_message/9, prepare_insert/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -149,27 +149,30 @@ index_hint_sql(Host) ->
     end.
 
 
--spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
-archive_message(_Result, Host, Params) ->
+-spec archive_message(_Result, Host :: jid:server(),
+                      MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
+                      LocJID :: jid:jid(), RemJID :: jid:jid(),
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
+                      Dir :: atom(), Packet :: any()) -> ok.
+archive_message(Result, Host, MessID, UserID,
+                LocJID, RemJID, SrcJID, OriginID, Dir, Packet) when is_integer(UserID) ->
     try
-        do_archive_message(Host, Params)
+        do_archive_message(Result, Host, MessID, UserID,
+                           LocJID, RemJID, SrcJID, OriginID, Dir, Packet)
     catch _Type:Reason:StackTrace ->
-            ?ERROR_MSG("event=archive_message_failed params='~p' reason='~p' stacktrace=~p",
-                       [Params, Reason, StackTrace]),
+            ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
+                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
+                       [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
+                        Reason, StackTrace]),
             {error, Reason}
     end.
 
-do_archive_message(Host, Params) ->
-    Row = prepare_message(Host, Params),
+do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
+    Row = prepare_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
-    retract_message(Host, Params).
+    retract_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet).
 
--spec retract_message(jid:server(), mod_mam:archive_message_params()) -> ok.
-retract_message(Host, #{archive_id := UserID,
-                        local_jid := LocJID,
-                        remote_jid := RemJID,
-                        direction := Dir,
-                        packet := Packet}) ->
+retract_message(Host, _MessID, UserID, LocJID, RemJID, _SrcJID, _OriginID, Dir, Packet) ->
     case mod_mam_utils:get_retract_id(mod_mam, Host, Packet) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
@@ -210,15 +213,8 @@ query_to_make_tombstone(STombstoneData, SUserID, BMessID) ->
     ["UPDATE mam_message SET message = ", STombstoneData, ", search_body = ''"
      " WHERE user_id = ", SUserID, " AND id = '", BMessID, "'"].
 
--spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
-prepare_message(Host, #{message_id := MessID,
-                        archive_id := UserID,
-                        local_jid := LocJID,
-                        remote_jid := RemJID = #jid{lresource = RemLResource},
-                        source_jid := SrcJID,
-                        origin_id := OriginID,
-                        direction := Dir,
-                        packet := Packet}) ->
+prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
+                SrcJID, OriginID, Dir, Packet) ->
     SBareRemJID = jid_to_stored_binary(Host, LocJID, jid:to_bare(RemJID)),
     SSrcJID = jid_to_stored_binary(Host, LocJID, SrcJID),
     SDir = encode_direction(Dir),

@@ -56,7 +56,7 @@
 -export([get_personal_data/2]).
 
 %%private
--export([archive_message/2]).
+-export([archive_message/9]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
@@ -132,16 +132,6 @@
 -type preference() :: {DefaultMode :: archive_behaviour(),
                        AlwaysJIDs  :: [jid:literal_jid()],
                        NeverJIDs   :: [jid:literal_jid()]}.
-
--type archive_message_params() :: #{message_id := mod_mam:message_id(),
-                                    archive_id := mod_mam:archive_id(),
-                                    local_jid := jid:jid(),
-                                    remote_jid := jid:jid(),
-                                    source_jid := jid:jid(),
-                                    origin_id := binary() | none,
-                                    direction := atom(),
-                                    packet := exml:element()}.
-
 -export_type([rewriter_fun/0,
               borders/0,
               preference/0,
@@ -151,8 +141,7 @@
               archive_id/0,
               lookup_result/0,
               message_id/0,
-              restore_option/0,
-              archive_message_params/0
+              restore_option/0
              ]).
 
 %% ----------------------------------------------------------------------
@@ -495,15 +484,8 @@ handle_package(Dir, ReturnMessID,
             case is_interesting(Host, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = generate_message_id(),
-                    Params = #{message_id => MessID,
-                               archive_id => ArcID,
-                               local_jid => LocJID,
-                               remote_jid => RemJID,
-                               source_jid => SrcJID,
-                               origin_id => OriginID,
-                               direction => Dir,
-                               packet => Packet},
-                    Result = archive_message(Host, Params),
+                    Result = archive_message(Host, MessID, ArcID,
+                                             LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
                     return_external_message_id_if_ok(ReturnMessID, Result, MessID);
                 false ->
                     undefined
@@ -601,10 +583,16 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
             R
     end.
 
--spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
-archive_message(Host, Params) ->
+
+-spec archive_message(Host :: jid:server(), MessID :: message_id(),
+                      ArcID :: archive_id(), LocJID :: jid:jid(), RemJID :: jid:jid(),
+                      SrcJID :: jid:jid(), OriginID :: binary() | none,
+                      Dir :: incoming | outgoing, Packet :: term()
+                     ) -> ok | {error, timeout}.
+archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, OriginID, Dir, Packet) ->
     StartT = os:timestamp(),
-    R = mongoose_hooks:mam_archive_message(Host, ok, Params),
+    R = mongoose_hooks:mam_archive_message(Host, ok, MessID, ArcID,
+                                           LocJID, RemJID, SrcJID, OriginID, Dir, Packet),
     Diff = timer:now_diff(os:timestamp(), StartT),
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
