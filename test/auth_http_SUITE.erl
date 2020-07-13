@@ -78,7 +78,7 @@ init_per_suite(Config) ->
               % This would be started via outgoing_pools in normal case
               Pool = {http, host, auth,
                       [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
-                      [{path_prefix, "/auth/"}, {http_opts, []}, {server, ?AUTH_HOST}]},
+                      [{path_prefix, "/auth/"}, {http_opts, #{}}, {server, ?AUTH_HOST}]},
               Hosts = [?DOMAIN1, ?DOMAIN2],
               mongoose_wpool:start_configured_pools([Pool], Hosts),
               mongoose_wpool_http:init(),
