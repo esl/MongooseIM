@@ -1,3 +1,25 @@
+# [MongooseIM 3.7.1](https://github.com/esl/MongooseIM/releases/tag/3.7.1) - 2020-07-13
+
+## Highlights
+- Integration of the highly performant NIFs to compute the SCRAM challenge from [esl/fast_scram](https://github.com/esl/fast_scram/)
+
+## All changes
+
+### Changed
+- Implementation of the SCRAM challenge algorithm to be NIF-based (#2787)
+- Fix a bug during session resumption, where stanzas were not routed to the user (#2780)
+- Fix AMP logic regarding storage of messages when delivery failed but archiving was successful (#2757)
+
+### Other
+- Update Rebar and its plugins (#2760)
+- Update dependencies (#2761) (#2764) (#2765)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.7.1)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-05-23&to=2020-07-12&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-05-23..2020-07-12%22%20sort%3Acreated-asc%20)
+
 # [MongooseIM 3.7.0](https://github.com/esl/MongooseIM/releases/tag/3.7.0) - 2020-05-20
 
 ## Highlights
