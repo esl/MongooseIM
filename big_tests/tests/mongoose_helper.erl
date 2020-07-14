@@ -37,6 +37,8 @@
 -export([backup_sasl_mechanisms_config/1, restore_sasl_mechanisms_config/1]).
 -export([set_sasl_mechanisms/2]).
 -export([set_store_password/1]).
+-export([get_listener_opts/2]).
+-export([restart_listener_with_opts/3]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -451,3 +453,13 @@ build_new_auth_opts(scram, AuthOpts) ->
     lists:keystore(password_format, 1, NewAuthOpts0, {scram_iterations, 64});
 build_new_auth_opts(Type, AuthOpts) ->
     lists:keystore(password_format, 1, AuthOpts, {password_format, Type}).
+
+get_listener_opts(#{} = Spec, Port) ->
+    Listeners = rpc(Spec, ejabberd_config, get_local_option, [listen]),
+    [Item || {{ListenerPort, _, _}, _, _} = Item <- Listeners, ListenerPort =:= Port].
+
+restart_listener_with_opts(Spec, Listener, NewOpts) ->
+    {PortIPProto, Module, _Opts} = Listener,
+    rpc(Spec, ejabberd_listener, stop_listener, [PortIPProto, Module]),
+    rpc(Spec, ejabberd_listener, start_listener, [PortIPProto, Module, NewOpts]).
+
