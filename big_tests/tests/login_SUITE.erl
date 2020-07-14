@@ -112,16 +112,19 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config1 = mongoose_helper:backup_auth_config(Config),
+    Config0 = mongoose_helper:backup_auth_config(Config),
+    Config1 = mongoose_helper:backup_sasl_mechanisms_config(Config0),
     mongoose_helper:set_store_password(scram),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:restore_auth_config(Config),
+    mongoose_helper:restore_sasl_mechanisms_config(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(login_digest, Config) ->
+init_per_group(login_digest, ConfigIn) ->
+    Config = mongoose_helper:backup_sasl_mechanisms_config(ConfigIn),
     mongoose_helper:set_store_password(plain),
     case mongoose_helper:supports_sasl_module(cyrsasl_digest) of
         false ->
@@ -162,8 +165,8 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(login_digest, Config) ->
-    restore_config(Config),
     mongoose_helper:set_store_password(scram),
+    mongoose_helper:restore_sasl_mechanisms_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(GroupName, Config) when
     GroupName == login_scram; GroupName == login_specific_scram ->
@@ -394,12 +397,9 @@ config_ejabberd_node_tls(Config) ->
     Config1.
 
 configure_digest(Config) ->
-    Config1 = ejabberd_node_utils:init(Config),
-    ejabberd_node_utils:backup_config_file(Config1),
-    ejabberd_node_utils:modify_config_file([{sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_digest]}."}], Config1),
-    ejabberd_node_utils:restart_application(mongooseim),
+    mongoose_helper:set_sasl_mechanisms(sasl_mechanisms, [cyrsasl_digest]),
     mongoose_helper:set_store_password(plain),
-    Config1.
+    Config.
 
 restore_config(Config) ->
     ejabberd_node_utils:restore_config_file(Config),

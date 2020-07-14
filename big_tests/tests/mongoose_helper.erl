@@ -34,6 +34,8 @@
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
 -export([backup_auth_config/1, restore_auth_config/1]).
+-export([backup_sasl_mechanisms_config/1, restore_sasl_mechanisms_config/1]).
+-export([set_sasl_mechanisms/2]).
 -export([set_store_password/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
@@ -413,10 +415,29 @@ backup_auth_config(Config) ->
     AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
     [{auth_opts, AuthOpts} | Config].
 
+backup_sasl_mechanisms_config(Config) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    GlobalSASLMechanisms = rpc(mim(), ejabberd_config, get_local_option, [sasl_mechanisms]),
+    HostSASLMechanisms = rpc(mim(), ejabberd_config, get_local_option, [{sasl_mechanisms, XMPPDomain}]),
+    [{global_sasl_mechanisms, GlobalSASLMechanisms},
+     {host_sasl_mechanisms, HostSASLMechanisms} | Config].
+
+
 restore_auth_config(Config) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
     AuthOpts = proplists:get_value(auth_opts, Config),
     rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, AuthOpts]).
+
+restore_sasl_mechanisms_config(Config) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    GlobalSASLMechanisms = proplists:get_value(global_sasl_mechanisms, Config),
+    HostSASLMechanisms = proplists:get_value(host_sasl_mechanisms, Config),
+    rpc(mim(), ejabberd_config, add_local_option, [sasl_mechanisms, GlobalSASLMechanisms]),
+    rpc(mim(), ejabberd_config, add_local_option, [{sasl_mechanisms, XMPPDomain}, HostSASLMechanisms]).
+
+set_sasl_mechanisms(GlobalOrHostSASLMechanisms, Mechanisms) ->
+    rpc(mim(), ejabberd_config, add_local_option, [GlobalOrHostSASLMechanisms, Mechanisms]).
+
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
