@@ -122,7 +122,7 @@
 [[listen.c2s]]
   port = 5222
   certfile = "tools/ssl/mongooseim/server.pem"
-  starttls = true
+  tls.mode = "starttls"
   zlib = 10000
   access = "c2s"
   shaper = "c2s_shaper"
