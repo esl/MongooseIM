@@ -616,16 +616,16 @@ get_categorized_options() ->
 %% (i.e. mongoose_config_parser and mongoose_config_reload).
 config_state() ->
     ConfigFile = get_ejabberd_config_path(),
-    Terms = get_plain_terms_file(ConfigFile),
+    State = parse_file(ConfigFile),
     %% Performance optimization hint:
     %% terms_to_missing_and_required_files/1 actually parses Terms into State.
     #{missing_files := MissingFiles,
       required_files := RequiredFiles} =
-        terms_to_missing_and_required_files(Terms),
+        state_to_missing_and_required_files(State),
     #{mongoose_node => node(),
       config_file => ConfigFile,
       loaded_categorized_options => get_categorized_options(),
-      ondisc_config_terms => Terms,
+      ondisc_config_state => State,
       missing_files => MissingFiles,
       required_files => RequiredFiles}.
 
@@ -682,8 +682,7 @@ assert_required_files_exist(State) ->
                            filenames => MissingFiles})
     end.
 
-terms_to_missing_and_required_files(Terms) ->
-    State = mongoose_config_parser:parse_terms(Terms),
+state_to_missing_and_required_files(State) ->
     RequiredFiles = mongoose_config_parser:state_to_required_files(State),
     MissingFiles = missing_files(RequiredFiles),
     #{missing_files => MissingFiles, required_files => RequiredFiles}.
