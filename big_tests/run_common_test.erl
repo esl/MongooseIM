@@ -263,16 +263,16 @@ is_test_host_enabled(HostName) ->
             lists:member(atom_to_binary(HostName, utf8), BinHosts)
     end.
 
-enable_preset_on_node(Node, PresetVars, HostVars) ->
+enable_preset_on_node(Node, PresetVars, HostVarsFile) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([repo_dir(), "rel", "files", "mongooseim.cfg"]),
-    Vars = filename:join([repo_dir(), "rel", HostVars]),
-    CfgFile = filename:join([Cwd, "etc", "mongooseim.cfg"]),
+    Cfg = filename:join([repo_dir(), "rel", "files", "mongooseim.toml"]),
+    Vars = filename:join([repo_dir(), "rel", "vars-toml.config"]),
+    NodeVars = filename:join([repo_dir(), "rel", HostVarsFile]),
+    CfgFile = filename:join([Cwd, "etc", "mongooseim.toml"]),
     {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
     {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
-    NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
-                              lists:keystore(Var, 1, Acc, {Var, Val})
-                          end, Default, PresetVars),
+    {ok, NodeDefault} = handle_file_error(NodeVars, file:consult(NodeVars)),
+    NewVars = merge_vars([Default, NodeDefault, PresetVars]),
     %% Render twice to replace variables in variables
     Tmp = bbmustache:render(Template, NewVars, [{key_type, atom}]),
     NewCfgFile = bbmustache:render(Tmp, NewVars, [{key_type, atom}]),
@@ -280,6 +280,13 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
     call(Node, application, stop, [mongooseim]),
     call(Node, application, start, [mongooseim]),
     ok.
+
+merge_vars([Vars1, Vars2|Rest]) ->
+    Vars = lists:foldl(fun ({Var, Val}, Acc) ->
+                               lists:keystore(Var, 1, Acc, {Var, Val})
+                       end, Vars1, Vars2),
+    merge_vars([Vars|Rest]);
+merge_vars([Vars]) -> Vars.
 
 call(Node, M, F, A) ->
     case rpc:call(Node, M, F, A) of
