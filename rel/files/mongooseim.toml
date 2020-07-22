@@ -1,18 +1,16 @@
 [general]
   loglevel = 3
-  hosts = [
-    "localhost",
-    "anonymous.localhost",
-    "localhost.bis"
-  ]
+  hosts = [{{{hosts}}}]
   registration_timeout = "infinity"
   language = "en"
-  all_metrics_are_global = false
-  sm_backend = "mnesia"
+  all_metrics_are_global = {{{all_metrics_are_global}}}
+  sm_backend = {{{sm_backend}}}
   max_fsm_queue = 1000
+  {{{http_server_name}}}
+  {{{rdbms_server_type}}}
 
 [[listen.http]]
-  port = 5280
+  port = {{{http_port}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -30,12 +28,10 @@
       password = "secret"
 
 [[listen.http]]
-  port = 5285
+  port = {{{https_port}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
-  tls.certfile = "priv/ssl/fake_cert.pem"
-  tls.keyfile = "priv/ssl/fake_key.pem"
-  tls.password = ""
+  {{{https_config}}}
 
   [[listen.http.handlers.mod_bosh]]
     host = "_"
@@ -46,8 +42,7 @@
     path = "/ws-xmpp"
 
 [[listen.http]]
-  port = 8088
-  ip_address = "127.0.0.1"
+  {{{http_api_endpoint}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -56,13 +51,11 @@
     path = "/api"
 
 [[listen.http]]
-  port = 8089
+  {{{http_api_client_endpoint}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
   protocol.compress = true
-  tls.certfile = "priv/ssl/fake_cert.pem"
-  tls.keyfile = "priv/ssl/fake_key.pem"
-  tls.password = ""
+  {{{https_config}}}
 
   [[listen.http.handlers.lasse_handler]]
     host = "_"
@@ -109,8 +102,7 @@
     content_path = "swagger"
 
 [[listen.http]]
-  port = 5288
-  ip_address = "127.0.0.1"
+  {{{http_api_old_endpoint}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -120,77 +112,54 @@
     handlers = ["mongoose_api_metrics", "mongoose_api_users"]
 
 [[listen.c2s]]
-  port = 5222
-  certfile = "priv/ssl/fake_server.pem"
-  starttls = true
-  zlib = 10000
+  port = {{{c2s_port}}}
+  {{{tls_config}}}
+  {{{tls_module}}}
+  {{{proxy_protocol}}}
+  {{{zlib}}}
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
-  dhfile = "priv/ssl/fake_dh_server.pem"
+  {{{c2s_dhfile}}}
 
-[[listen.c2s]]
-  port = 5223
-  zlib = 4096
-  access = "c2s"
-  shaper = "c2s_shaper"
-  max_stanza_size = 65536
+{{{secondary_c2s}}}
 
 [[listen.s2s]]
-  port = 5269
+  port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
   max_stanza_size = 131072
-  dhfile = "priv/ssl/fake_dh_server.pem"
+  {{{s2s_dhfile}}}
 
-[[listen.service]]
-  port = 8888
-  access = "all"
-  shaper_rule = "fast"
-  ip_address = "127.0.0.1"
-  password = "secret"
-
-[[listen.service]]
-  port = 8666
-  access = "all"
-  conflict_behaviour = "kick_old"
-  shaper_rule = "fast"
-  ip_address = "127.0.0.1"
-  password = "secret"
-
-[[listen.service]]
-  port = 8189
-  access = "all"
-  hidden_components = true
-  shaper_rule = "fast"
-  ip_address = "127.0.0.1"
-  password = "secret"
+{{{listen_service}}}
 
 [auth]
-  methods = ["rdbms"]
-  password.format = "scram"
-  password.hash = ["sha256"]
-  scram_iterations = 64
-  cyrsasl_external = ["standard"]
+  {{{auth_ldap}}}
+  methods = [{{{auth_method}}}]
+  {{{password_format}}}
+  {{{scram_iterations}}}
+  cyrsasl_external = [{{{cyrsasl_external}}}]
+  {{{sasl_mechanisms}}}
 
-[outgoing_pools.redis.global_distrib]
-  scope = "single_host"
-  host = "localhost"
-  workers = 10
-
-[outgoing_pools.rdbms.default]
-  scope = "global"
-  workers = 5
-
-  [outgoing_pools.rdbms.default.connection]
-    driver = "pgsql"
-    host = "localhost"
-    database = "ejabberd"
-    username = "ejabberd"
-    password = "mongooseim_secret"
-    tls.required = true
-    tls.verify_peer = true
-    tls.cacertfile = "priv/ssl/cacert.pem"
-    tls.server_name_indication = false
+{{{outgoing_pools}}}
+#[outgoing_pools.redis.global_distrib]
+#  scope = "single_host"
+#  host = "localhost"
+#  workers = 10
+#
+#[outgoing_pools.rdbms.default]
+#  scope = "global"
+#  workers = 5
+#
+#  [outgoing_pools.rdbms.default.connection]
+#    driver = "pgsql"
+#    host = "localhost"
+#    database = "ejabberd"
+#    username = "ejabberd"
+#    password = "mongooseim_secret"
+#    tls.required = true
+#    tls.verify_peer = true
+#    tls.cacertfile = "priv/ssl/cacert.pem"
+#    tls.server_name_indication = false
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
@@ -202,7 +171,7 @@
 
 [modules.mod_adhoc]
 
-[modules.mod_amp]
+{{{mod_amp}}}
 
 [modules.mod_disco]
   users_can_see_hidden_services = false
@@ -213,21 +182,17 @@
 
 [modules.mod_muc_light_commands]
 
-[modules.mod_last]
-  backend = "rdbms"
+{{{mod_last}}}
 
 [modules.mod_stream_management]
 
-[modules.mod_offline]
-  backend = "rdbms"
+{{{mod_offline}}}
 
-[modules.mod_privacy]
-  backend = "rdbms"
+{{{mod_privacy}}}
 
-[modules.mod_blocking]
+{{{mod_blocking}}}
 
-[modules.mod_private]
-  backend = "rdbms"
+{{{mod_private}}}
 
 [modules.mod_register]
   welcome_message = ""
@@ -237,18 +202,17 @@
   ]
   access = "register"
 
-[modules.mod_roster]
-  backend = "rdbms"
+{{{mod_roster}}}
 
 [modules.mod_sic]
 
-[modules.mod_vcard]
-  backend = "rdbms"
-  host = "vjud.@HOST@"
+{{{mod_vcard}}}
 
 [modules.mod_bosh]
 
 [modules.mod_carboncopy]
+
+{{{mod_http_notification}}}
 
 [shaper.normal]
   max_rate = 1000
@@ -346,19 +310,18 @@
   ]
 
 [s2s]
-  use_starttls = "optional"
-  certfile = "priv/ssl/fake_server.pem"
-  default_policy = "allow"
-  outgoing_port = 5299
+  {{{s2s_use_starttls}}}
+  {{{s2s_certfile}}}
+  default_policy = {{{s2s_default_policy}}}
+  outgoing_port = {{{outgoing_s2s_port}}}
 
-  [[s2s.address]]
-    host = "fed1"
-    ip_address = "127.0.0.1"
+  {{{s2s_addr}}}
 
-[[host_config]]
-  host = "anonymous.localhost"
-
-  [host_config.auth]
-    methods = ["anonymous"]
-    allow_multiple_connections = true
-    anonymous_protocol = "both"
+{{{host_config}}}
+#[[host_config]]
+#  host = "anonymous.localhost"
+#
+#  [host_config.auth]
+#    methods = ["anonymous"]
+#    allow_multiple_connections = true
+#    anonymous_protocol = "both"
