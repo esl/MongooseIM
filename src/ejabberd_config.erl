@@ -294,9 +294,8 @@ get_local_option_or_default(Opt, Default) ->
 
 %% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
-    mnesia:dirty_select(local_config,
-                        [{#local_config{key   = {auth_method, '$1'},
-                                        value = AuthMethod}, [], ['$1']}]).
+    lists:filter(fun(Host) -> lists:member(AuthMethod, ejabberd_auth:auth_methods(Host)) end,
+                 ?MYHOSTS).
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),

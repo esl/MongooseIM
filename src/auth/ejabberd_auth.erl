@@ -55,7 +55,8 @@
 
 -export([check_digest/4]).
 
--export([auth_modules/1]).
+-export([auth_modules/1,
+         auth_methods/1]).
 
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
@@ -589,9 +590,13 @@ auth_modules() ->
 %% Return the list of authenticated modules for a given host
 -spec auth_modules(Server :: jid:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
-    Method = ejabberd_config:get_local_option({auth_method, LServer}),
-    Methods = get_auth_method_as_a_list(Method),
+    Methods = auth_methods(LServer),
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
+
+-spec auth_methods(jid:lserver()) -> [atom()].
+auth_methods(LServer) ->
+    Method = ejabberd_config:get_local_option({auth_method, LServer}),
+    get_auth_method_as_a_list(Method).
 
 get_auth_method_as_a_list(undefined) -> [];
 get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
