@@ -525,7 +525,7 @@ get_components(Opts, Config) ->
 
 add_domain(Config) ->
     Node = default_node(),
-    Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
+    Hosts = {hosts, "\"localhost\", \"sogndal\""},
     backup_ejabberd_config_file(Node, Config),
     ejabberd_node_utils:modify_config_file([Hosts], Config),
     reload_through_ctl(Node, Config),

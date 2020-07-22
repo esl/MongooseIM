@@ -389,14 +389,15 @@ message_zlib_limit(Config) ->
 config_ejabberd_node_tls(Config) ->
     Config1 = ejabberd_node_utils:init(Config),
     ejabberd_node_utils:backup_config_file(Config1),
-    ejabberd_node_utils:modify_config_file([{tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}], Config1),
+    ejabberd_node_utils:modify_config_file([{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
+                                                         "  tls.mode = \"tls\""}], Config1),
     ejabberd_node_utils:restart_application(mongooseim),
     Config1.
 
 configure_digest(Config) ->
     Config1 = ejabberd_node_utils:init(Config),
     ejabberd_node_utils:backup_config_file(Config1),
-    ejabberd_node_utils:modify_config_file([{sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_digest]}."}], Config1),
+    ejabberd_node_utils:modify_config_file([{sasl_mechanisms, "sasl_mechanisms = [\"cyrsasl_digest\"]"}], Config1),
     ejabberd_node_utils:restart_application(mongooseim),
     mongoose_helper:set_store_password(plain),
     Config1.

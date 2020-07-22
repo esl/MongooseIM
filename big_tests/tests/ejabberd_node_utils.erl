@@ -34,13 +34,13 @@ cwd(Node, Config) ->
     ?config({ejabberd_cwd, Node}, Config).
 
 current_config_path(Node, Config) ->
-    filename:join([cwd(Node, Config), "etc", "mongooseim.cfg"]).
+    filename:join([cwd(Node, Config), "etc", "mongooseim.toml"]).
 
 backup_config_path(Node, Config) ->
-    filename:join([cwd(Node, Config), "etc","mongooseim.cfg.bak"]).
+    filename:join([cwd(Node, Config), "etc","mongooseim.toml.bak"]).
 
 config_template_path(Config) ->
-    filename:join([path_helper:repo_dir(Config), "rel", "files", "mongooseim.cfg"]).
+    filename:join([path_helper:repo_dir(Config), "rel", "files", "mongooseim.toml"]).
 
 config_vars_path(File, Config) ->
     filename:join([path_helper:repo_dir(Config), "rel", File]).
@@ -149,7 +149,7 @@ file_exists(Node, Filename) ->
       Value :: string().
 modify_config_file(CfgVarsToChange, Config) ->
     Node = distributed_helper:mim(),
-    modify_config_file(Node, "vars.config", CfgVarsToChange, Config).
+    modify_config_file(Node, "vars-toml.config", CfgVarsToChange, Config).
 
 -spec modify_config_file(distributed_helper:rpc_spec(), string(), [{ConfigVariable, Value}], ct_config()) -> ok when
       ConfigVariable :: atom(),
@@ -157,7 +157,7 @@ modify_config_file(CfgVarsToChange, Config) ->
 modify_config_file(#{node := Node} = RPCSpec, VarsFile, CfgVarsToChange, Config) ->
     CurrentCfgPath = current_config_path(Node, Config),
     {ok, CfgTemplate} = file:read_file(config_template_path(Config)),
-    CfgVarsPath = config_vars_path("vars.config", Config),
+    CfgVarsPath = config_vars_path("vars-toml.config", Config),
     {ok, DefaultVars} = file:consult(CfgVarsPath),
     {ok, NodeVars} = file:consult(config_vars_path(VarsFile, Config)),
     PresetVars = case proplists:get_value(preset, Config) of
@@ -177,6 +177,7 @@ modify_config_file(#{node := Node} = RPCSpec, VarsFile, CfgVarsToChange, Config)
     %% Render twice to replace variables in variables
     UpdatedCfgFileTmp = bbmustache:render(CfgTemplate, UpdatedCfgVars, [{key_type, atom}]),
     UpdatedCfgFile = bbmustache:render(UpdatedCfgFileTmp, UpdatedCfgVars, [{key_type, atom}]),
+    ct:pal("Updated config file: ~s", [UpdatedCfgFile]),
     ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
 
 -spec get_cwd(node(), ct_config()) -> string().

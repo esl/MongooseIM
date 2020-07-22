@@ -160,7 +160,7 @@ change_domain_in_config_file(Config) ->
       [mk_value_for_hosts_pattern(?RELOADED_DOMAIN)], Config).
 
 mk_value_for_hosts_pattern(Domain) ->
-    {hosts, "[\"" ++ binary_to_list(Domain) ++ "\"]"}.
+    {hosts, "\"" ++ binary_to_list(Domain) ++ "\""}.
 
 run_config_file_modification_fun(Config) ->
     Fun = ?config(modify_config_file_fun, Config),
