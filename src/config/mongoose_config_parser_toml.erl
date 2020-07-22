@@ -141,7 +141,7 @@ process_general(<<"max_fsm_queue">>, V) ->
 process_general(<<"http_server_name">>, V) ->
     #local_config{key = cowboy_server_name, value = b2l(V)};
 process_general(<<"rdbms_server_type">>, V) ->
-    #local_config{key = rdbms_server_type, value = V}.
+    #local_config{key = rdbms_server_type, value = b2a(V)}.
 
 process_s2s_option(<<"use_starttls">>, V) ->
     [#local_config{key = s2s_use_starttls, value = b2a(V)}];
@@ -383,6 +383,8 @@ ldap_option(<<"tls">>, Options) -> {tls_options, client_tls_options(Options)}.
 
 riak_option(<<"address">>, Addr) -> {address, b2l(Addr)};
 riak_option(<<"port">>, Port) -> {port, Port};
+riak_option(<<"username">>, UserName) -> {username, b2l(UserName)};
+riak_option(<<"password">>, Password) -> {password, b2l(Password)};
 riak_option(<<"cacertfile">>, Path) -> {cacertfile, b2l(Path)};
 riak_option(<<"tls">>, Options) -> {ssl_opts, client_tls_options(Options)}.
 
@@ -424,7 +426,8 @@ tls_cipher(#{<<"key_exchange">> := KEx,
              <<"cipher">> := Cipher,
              <<"mac">> := MAC,
              <<"prf">> := PRF}) ->
-    #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)}.
+    #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)};
+tls_cipher(Cipher) -> b2l(Cipher).
 
 verify_peer(false) -> verify_none;
 verify_peer(true) -> verify_peer.
