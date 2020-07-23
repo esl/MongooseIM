@@ -133,7 +133,7 @@
  {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.8.4">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
  {<<"re2">>,
-  {git,"https://github.com/tuncer/re2.git",
+  {git,"https://github.com/dukesoferl/re2.git",
        {ref,"2471e06ed7e548ca1af522e95b16867135afdfdc"}},
   1},
  {<<"recon">>,{pkg,<<"recon">>,<<"2.5.1">>},0},
