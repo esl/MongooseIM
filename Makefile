@@ -15,6 +15,7 @@ clean:
 	-rm -rf _build
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
+	-rm rel/var-toml.config
 
 # REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
@@ -22,7 +23,7 @@ ct:
 		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
 		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
-rel: certs configure.out rel/vars.config
+rel: certs configure.out rel/vars.config rel/vars-toml.config
 	. ./configure.out && $(REBAR) as prod release
 
 shell: certs etc/mongooseim.cfg
@@ -38,6 +39,9 @@ rock:
 rel/vars.config: rel/vars.config.in rel/configure.vars.config
 	cat $^ > $@
 
+rel/vars-toml.config: rel/vars-toml.config.in rel/configure.vars.config
+	cat $^ > $@
+
 ## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:
 	./tools/configure with-all without-jingle-sip
@@ -51,7 +55,7 @@ devrel: $(DEVNODES)
 print_devnodes:
 	@echo $(DEVNODES)
 
-$(DEVNODES): certs configure.out rel/vars.config
+$(DEVNODES): certs configure.out rel/vars.config rel/vars-toml.config
 	@echo "building $@"
 	(. ./configure.out && \
 	DEVNODE=true $(RUN) $(REBAR) as $@ release)

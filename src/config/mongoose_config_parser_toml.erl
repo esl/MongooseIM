@@ -62,6 +62,8 @@ process_module(Mod, Opts) ->
 
 module_opt(<<"mod_disco">>, <<"users_can_see_hidden_services">>, V) ->
     {users_can_see_hidden_services, V};
+module_opt(<<"mod_offline">>, <<"access_max_user_messages">>, V) ->
+    {access_max_user_messages, b2a(V)};
 module_opt(<<"mod_register">>, <<"welcome_message">>, V) ->
     {welcome_message, {b2l(V)}};
 module_opt(<<"mod_register">>, <<"ip_access">>, V) ->
@@ -71,6 +73,10 @@ module_opt(<<"mod_register">>, <<"access">>, V) ->
     {access, b2a(V)};
 module_opt(<<"mod_vcard">>, <<"host">>, V) ->
     {host, b2l(V)};
+module_opt(<<"mod_vcard">>, <<"ldap_base">>, V) ->
+    {ldap_base, b2l(V)};
+module_opt(<<"mod_vcard">>, <<"ldap_filter">>, V) ->
+    {ldap_filter, b2l(V)};
 module_opt(_, <<"backend">>, V) ->
     {backend, b2a(V)}.
 
@@ -94,14 +100,26 @@ auth_option(<<"password">>, #{<<"format">> := Format}) ->
 auth_option(<<"scram_iterations">>, V) ->
     {scram_iterations, V};
 auth_option(<<"cyrsasl_external">>, V) ->
-    {cyrsasl_external, [b2a(M) || M <- V]};
+    {cyrsasl_external, [cyrsasl_external(M) || M <- V]};
 auth_option(<<"allow_multiple_connections">>, V) ->
     {allow_multiple_connections, V};
 auth_option(<<"anonymous_protocol">>, V) ->
-    {anonymous_protocol, b2a(V)}.
+    {anonymous_protocol, b2a(V)};
+auth_option(<<"sasl_mechanisms">>, V) ->
+    {sasl_mechanisms, [b2a(M) || M <- V]};
+auth_option(<<"ldap_base">>, V) ->
+    {ldap_base, b2l(V)};
+auth_option(<<"ldap_filter">>, V) ->
+    {ldap_filter, b2l(V)}.
+
+cyrsasl_external(<<"standard">>) -> standard;
+cyrsasl_external(<<"common_name">>) -> common_name;
+cyrsasl_external(<<"auth_id">>) -> auth_id;
+cyrsasl_external(M) -> {mod, b2a(M)}.
 
 auth_option_placement(<<"allow_multiple_connections">>) -> outer;
 auth_option_placement(<<"anonymous_protocol">>) -> outer;
+auth_option_placement(<<"sasl_mechanisms">>) -> outer;
 auth_option_placement(_) -> inner.
 
 process_general(<<"loglevel">>, V) ->
@@ -119,7 +137,11 @@ process_general(<<"all_metrics_are_global">>, V) ->
 process_general(<<"sm_backend">>, V) ->
     #config{key = sm_backend, value = {b2a(V), []}};
 process_general(<<"max_fsm_queue">>, V) ->
-    #local_config{key = max_fsm_queue, value = V}.
+    #local_config{key = max_fsm_queue, value = V};
+process_general(<<"http_server_name">>, V) ->
+    #local_config{key = cowboy_server_name, value = b2l(V)};
+process_general(<<"rdbms_server_type">>, V) ->
+    #local_config{key = rdbms_server_type, value = V}.
 
 process_s2s_option(<<"use_starttls">>, V) ->
     [#local_config{key = s2s_use_starttls, value = b2a(V)}];
@@ -156,7 +178,8 @@ listener_opt(_, <<"proto">>, Proto) -> [{proto, b2a(Proto)}];
 listener_opt(_, <<"ip_version">>, 6) -> [inet6];
 listener_opt(_, <<"ip_version">>, 4) -> [inet];
 listener_opt(_, <<"backlog">>, N) -> [{backlog, N}];
-listener_opt(<<"http">>, <<"tls">>, Opts) -> [{ssl, client_tls_options(Opts)}];
+listener_opt(_, <<"proxy_protocol">>, V) -> [{proxy_protocol, V}];
+listener_opt(<<"http">>, <<"tls">>, Opts) -> [{ssl, https_options(Opts)}];
 listener_opt(<<"http">>, <<"transport">>, Opts) ->
     [{transport_options,
       [{b2a(K), cowboy_transport_opt(K, V)} || {K, V} <- maps:to_list(Opts)]
@@ -173,19 +196,15 @@ listener_opt(<<"c2s">>, <<"access">>, V) -> [{access, b2a(V)}];
 listener_opt(<<"c2s">>, <<"shaper">>, V) -> [{shaper, b2a(V)}];
 listener_opt(<<"c2s">>, <<"xml_socket">>, V) -> [{xml_socket, V}];
 listener_opt(<<"c2s">>, <<"zlib">>, V) -> [{zlib, V}];
-listener_opt(<<"c2s">>, <<"verify_peer">>, V) -> [{verify_peer, V}];
+listener_opt(<<"c2s">>, <<"verify_peer">>, true) -> [verify_peer];
 listener_opt(<<"c2s">>, <<"hibernate_after">>, V) -> [{hibernate_after, V}];
-listener_opt(<<"c2s">>, <<"starttls">>, true) -> [starttls];
-listener_opt(<<"c2s">>, <<"starttls">>, false) -> [];
-listener_opt(<<"c2s">>, <<"starttls_required">>, true) -> [starttls_required];
-listener_opt(<<"c2s">>, <<"starttls_required">>, false) -> [];
-listener_opt(<<"c2s">>, <<"tls">>, true) -> [tls];
-listener_opt(<<"c2s">>, <<"tls">>, false) -> [];
+listener_opt(<<"c2s">>, <<"tls">>, V) -> listener_tls_opts(V);
 listener_opt(<<"c2s">>, <<"certfile">>, V) -> [{certfile, b2l(V)}];
 listener_opt(<<"c2s">>, <<"dhfile">>, V) -> [{dhfile, b2l(V)}];
 listener_opt(<<"c2s">>, <<"cafile">>, V) -> [{cafile, b2l(V)}];
 listener_opt(<<"c2s">>, <<"ciphers">>, V) -> [{ciphers, b2l(V)}];
 listener_opt(<<"c2s">>, <<"max_stanza_size">>, V) -> [{max_stanza_size, V}];
+listener_opt(<<"c2s">>, <<"password">>, V) -> [{password, b2l(V)}];
 listener_opt(<<"s2s">>, <<"access">>, V) -> [{access, b2a(V)}];
 listener_opt(<<"s2s">>, <<"shaper">>, V) -> [{shaper, b2a(V)}];
 listener_opt(<<"s2s">>, <<"zlib">>, V) -> [{zlib, V}];
@@ -199,6 +218,39 @@ listener_opt(<<"service">>, <<"check_from">>, V) -> [{service_check_from, V}];
 listener_opt(<<"service">>, <<"hidden_components">>, V) -> [{hidden_components, V}];
 listener_opt(<<"service">>, <<"conflict_behaviour">>, V) -> [{conflict_behaviour, b2a(V)}];
 listener_opt(<<"service">>, <<"password">>, V) -> [{password, b2l(V)}].
+
+https_options(M) ->
+    VM = case M of
+             #{<<"verify_mode">> := Mode} -> [{verify_mode, b2a(Mode)}];
+             _ -> []
+         end,
+    Opts = maps:without([<<"verify_mode">>], M),
+    VM ++ client_tls_options(Opts).
+
+listener_tls_opts(M = #{<<"module">> := <<"just_tls">>}) ->
+    VM = case M of
+             #{<<"verify_mode">> := VMode, <<"disconnect_on_failure">> := D} ->
+                 [{verify_fun, {b2a(VMode), D}}];
+             #{<<"verify_mode">> := VMode} ->
+                 [{verify_fun, {b2a(VMode), true}}];
+             _ -> []
+         end,
+    Mode = listener_tls_mode(M),
+    Opts = maps:without([<<"mode">>, <<"module">>, <<"verify_mode">>, <<"disconnect_on_failure">>],
+                        M),
+    Mode ++ [{tls_module, just_tls},
+             {ssl_options, VM ++ client_tls_options(Opts)}];
+listener_tls_opts(M) ->
+    Mode = listener_tls_mode(M),
+    VM = case M of
+             #{<<"verify_mode">> := VMode} -> [{verify_mode, b2a(VMode)}];
+             _ -> []
+         end,
+    Opts = maps:without([<<"mode">>, <<"module">>, <<"verify_mode">>], M),
+    Mode ++ VM ++ client_tls_options(Opts).
+
+listener_tls_mode(#{<<"mode">> := Mode}) -> [b2a(Mode)];
+listener_tls_mode(_) -> [].
 
 cowboy_module(Type, #{<<"host">> := Host, <<"path">> := Path} = Options) ->
     Opts = maps:without([<<"host">>, <<"path">>], Options),
@@ -286,7 +338,15 @@ process_pool(Type, Tag, M) ->
 connection_options(rdbms, Options) ->
     [{server, rdbms_server(Options)}];
 connection_options(redis, Options) ->
-    [{b2a(K), redis_option(K, V)} || {K, V} <- maps:to_list(Options)].
+    [{b2a(K), redis_option(K, V)} || {K, V} <- maps:to_list(Options)];
+connection_options(ldap, Options) ->
+    [ldap_option(K, V) || {K, V} <- maps:to_list(Options)];
+connection_options(riak, Options = #{<<"username">> := UserName,
+                                     <<"password">> := Password}) ->
+    [{credentials, b2l(UserName), b2l(Password)} |
+     [riak_option(K, V) || {K, V} <- maps:to_list(Options)]];
+connection_options(cassandra, Options) ->
+    [cassandra_option(K, V) || {K, V} <- maps:to_list(Options)].
 
 rdbms_server(#{<<"driver">> := <<"odbc">>,
                <<"settings">> := Settings}) ->
@@ -312,6 +372,21 @@ redis_option(<<"host">>, Host) -> b2l(Host);
 redis_option(<<"port">>, Port) -> Port;
 redis_option(<<"database">>, Database) -> b2l(Database);
 redis_option(<<"password">>, Password) -> b2l(Password).
+
+ldap_option(<<"host">>, Host) -> {host, b2l(Host)};
+ldap_option(<<"port">>, Port) -> {port, Port};
+ldap_option(<<"rootdn">>, RootDN) -> {rootdn, b2l(RootDN)};
+ldap_option(<<"password">>, Password) -> {password, b2l(Password)};
+ldap_option(<<"encrypt">>, <<"tls">>) -> {encrypt, tls};
+ldap_option(<<"encrypt">>, <<"none">>) -> {encrypt, none};
+ldap_option(<<"tls">>, Options) -> {tls_options, client_tls_options(Options)}.
+
+riak_option(<<"address">>, Addr) -> {address, b2l(Addr)};
+riak_option(<<"port">>, Port) -> {port, Port};
+riak_option(<<"cacertfile">>, Path) -> {cacertfile, b2l(Path)};
+riak_option(<<"tls">>, Options) -> {ssl_opts, client_tls_options(Options)}.
+
+cassandra_option(<<"tls">>, Options) -> {ssl, client_tls_options(Options)}.
 
 db_tls(#{<<"driver">> := Driver, <<"tls">> := TLS}) -> db_tls_options(Driver, TLS);
 db_tls(_) -> no_tls.
@@ -341,7 +416,15 @@ client_tls_option(<<"certfile">>, V) -> {certfile, b2l(V)};
 client_tls_option(<<"cacertfile">>, V) -> {cacertfile, b2l(V)};
 client_tls_option(<<"keyfile">>, V) -> {keyfile, b2l(V)};
 client_tls_option(<<"password">>, V) -> {password, b2l(V)};
-client_tls_option(<<"server_name_indication">>, false) -> {server_name_indication, disable}.
+client_tls_option(<<"server_name_indication">>, false) -> {server_name_indication, disable};
+client_tls_option(<<"ciphers">>, L) -> {ciphers, [tls_cipher(C) || C <- L]};
+client_tls_option(<<"versions">>, L) -> {versions, [b2a(V) || V <- L]}.
+
+tls_cipher(#{<<"key_exchange">> := KEx,
+             <<"cipher">> := Cipher,
+             <<"mac">> := MAC,
+             <<"prf">> := PRF}) ->
+    #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)}.
 
 verify_peer(false) -> verify_none;
 verify_peer(true) -> verify_peer.

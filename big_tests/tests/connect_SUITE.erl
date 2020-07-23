@@ -175,8 +175,7 @@ init_per_group(fast_tls,Config)->
 init_per_group(session_replacement, Config) ->
     Config;
 init_per_group(proxy_protocol, Config) ->
-    %% Use 'tls_config' to add the listener option for the proxy protocol
-    ejabberd_node_utils:modify_config_file([{tls_config, "{proxy_protocol, true},"}], Config),
+    ejabberd_node_utils:modify_config_file([{proxy_protocol, "proxy_protocol = true"}], Config),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(_, Config) ->
@@ -772,22 +771,30 @@ assert_cert_file_exists() ->
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
 config_ejabberd_node_tls(Config, Fun) ->
-    TLSModConf = "{tls_module," ++ atom_to_list(?config(tls_module, Config)) ++ "},",
-    ejabberd_node_utils:modify_config_file([Fun(), {tls_module, TLSModConf}], Config).
+    TLSModConf = case ?config(tls_module, Config) of
+                     just_tls -> "tls.module = \"just_tls\"";
+                     fast_tls -> "tls.module = \"fast_tls\"";
+                     undefined -> ""
+                 end,
+    ejabberd_node_utils:modify_config_file([{tls_module, TLSModConf}|Fun()], Config).
 
 mk_value_for_starttls_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls,"}.
+    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
+                  "  tls.mode = \"starttls\"\n"}].
 
 mk_value_for_tls_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
+    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
+                  "  tls.mode = \"tls\"\n"}].
 
 mk_value_for_compression_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
-                 "starttls_required,  {zlib, 10000},"}.
+    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
+                  "  tls.mode = \"starttls_required\"\n"},
+     {zlib, "zlib = 10_000"}].
 
 mk_value_for_starttls_required_config_pattern() ->
-    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
-                 "starttls_required, {dhfile, \"" ++ ?DH_FILE ++ "\"},"}.
+    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
+                  "  tls.mode = \"starttls_required\"\n"},
+     {c2s_dhfile, "dhfile = \"" ++ ?DH_FILE ++ "\""}].
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].

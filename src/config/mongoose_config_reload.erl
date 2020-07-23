@@ -40,7 +40,7 @@
         mongoose_node => node(),
         config_file => string(),
         loaded_categorized_options => categorized_options(),
-        ondisc_config_terms => list(),
+        ondisc_config_state => state(),
         missing_files => list(file:filename()),
         required_files => list(file:filename())}.
 
@@ -458,15 +458,14 @@ node_values(Key, NodeStates) ->
 %% mongoose_node => node(),
 %% config_file => string(),
 %% loaded_categorized_options => categorized_options(),
-%% ondisc_config_terms => list()
+%% ondisc_config_state => state()
 
 extend_node_states(NodeStates) ->
     lists:map(fun(NodeState) -> extend_node_state(NodeState) end, NodeStates).
 
 extend_node_state(NodeState=#{
                     loaded_categorized_options := LoadedCatOptions,
-                    ondisc_config_terms := OndiscTerms}) ->
-    OndiscState = mongoose_config_parser:parse_terms(OndiscTerms),
+                    ondisc_config_state := OndiscState}) ->
     OndiscCatOptions = state_to_categorized_options(OndiscState),
     NodeSpecificPatterns = mongoose_config_parser:state_to_global_opt(node_specific_options, OndiscState, []),
     LoadedFlatGlobalOptions = categorize_options_to_flat_global_config_opts(LoadedCatOptions),

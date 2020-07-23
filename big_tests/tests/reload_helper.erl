@@ -63,9 +63,9 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
                 end, CfgVars, CfgVarsToChange).
 
 node_cfg(N, current, C) ->
-    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg");
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.toml");
 node_cfg(N, backup, C)  ->
-    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg.bak").
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.toml.bak").
 
 node_ctl(N, C) ->
     filename:join(ejabberd_node_utils:node_cwd(N, C), "bin/mongooseimctl").

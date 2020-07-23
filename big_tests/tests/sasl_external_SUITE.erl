@@ -105,21 +105,22 @@ init_per_group(fast_tls, Config) ->
     [{tls_module, "fast_tls"} | Config];
 init_per_group(ca_signed, Config) ->
     SSLOpts = case escalus_config:get_config(tls_module, Config) of
-                 "just_tls" ->
-                     "{ssl_options, [{verify_fun, {peer, false}}]},";
-                 "fast_tls" ->
-                     ""
-             end,
-    [{signed, ca}, {ssl_options, SSLOpts}, {verify_mode, ""} | Config];
+                  "just_tls" ->
+                      "\n  tls.disconnect_on_failure = false";
+                  "fast_tls" ->
+                      ""
+              end,
+    [{signed, ca}, {ssl_options, SSLOpts},
+     {verify_mode, "\n  tls.verify_mode = \"peer\""} | Config];
 init_per_group(self_signed, Config) ->
-    SSLOpts = "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},",
-    [{signed, self}, {ssl_options, SSLOpts}, {verify_mode, "{verify_mode, selfsigned_peer},"} | Config];
+    [{signed, self}, {ssl_options, ""},
+     {verify_mode, "\n  tls.verify_mode = \"selfsigned_peer\""} | Config];
 init_per_group(standard, Config) ->
-    modify_config_and_restart("standard", Config),
+    modify_config_and_restart("\"standard\"", Config),
     Config;
 init_per_group(standard_keep_auth, Config) ->
     Config1 = [{auth_methods, []} | Config],
-    modify_config_and_restart("standard", Config1),
+    modify_config_and_restart("\"standard\"", Config1),
     case mongoose_helper:supports_sasl_module(cyrsasl_external) of
         false -> {skip, "SASL External not supported"};
         true -> Config1
@@ -127,19 +128,19 @@ init_per_group(standard_keep_auth, Config) ->
 init_per_group(registered, Config) ->
     escalus:create_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
 init_per_group(use_common_name, Config) ->
-    modify_config_and_restart("use_common_name", Config),
+    modify_config_and_restart("\"standard\", \"common_name\"", Config),
     Config;
 init_per_group(allow_just_user_identity, Config) ->
-    modify_config_and_restart("allow_just_user_identity", Config),
+    modify_config_and_restart("\"standard\", \"auth_id\"", Config),
     Config;
 init_per_group(demo_verification_module, Config) ->
-    modify_config_and_restart("[{mod, cyrsasl_external_verification}]", Config),
+    modify_config_and_restart("\"cyrsasl_external_verification\"", Config),
     Config;
 init_per_group(self_signed_certs_allowed, Config) ->
-    modify_config_and_restart("standard", Config),
+    modify_config_and_restart("\"standard\"", Config),
     Config;
 init_per_group(self_signed_certs_not_allowed, Config) ->
-    modify_config_and_restart("standard", Config),
+    modify_config_and_restart("\"standard\"", Config),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -148,20 +149,24 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
     SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
     TLSModule = escalus_config:get_config(tls_module, Config, "just_tls"),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
-    AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "pki"}]),
+    AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "\"pki\""}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
-    NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
-			            "starttls, verify_peer,"
-				    "{cafile, \"" ++ CACertFile ++ "\"},"
-                                    ++ SSLOpts},
-		       {tls_module, "{tls_module, " ++ TLSModule ++ "},"},
-		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
-			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
-				              "{verify, verify_peer}," ++ VerifyMode ++
-					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
-                       {cyrsasl_external, ", {cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
-		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."} | AuthMethods],
+    NewConfigValues = [{tls_config, "certfile = \"priv/ssl/fake_server.pem\"\n"
+                                    "  tls.mode = \"starttls\"\n"
+                                    "  password = \"\"\n"
+                                    "  verify_peer = true\n"
+                                    "  cafile = \"" ++ CACertFile ++ "\""
+                                    ++ VerifyMode ++ SSLOpts},
+		       {tls_module, "tls.module = \"" ++ TLSModule ++ "\""},
+		       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
+                                      "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
+                                      "  tls.password = \"\"\n"
+                                      "  tls.verify_peer = true\n"
+                                      "  tls.cacertfile = \"" ++ CACertFile ++ "\""
+                                      ++ VerifyMode},
+                       {cyrsasl_external, CyrsaslExternalConfig},
+		       {sasl_mechanisms, "sasl_mechanisms = [\"cyrsasl_external\"]"} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim).
 

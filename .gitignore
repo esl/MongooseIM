@@ -60,6 +60,7 @@ priv/mibs/EJABBERD-MIB.bin
 ebin/ejabberd.app
 rel/configure.vars.config
 rel/vars.config
+rel/vars-toml.config
 compile_commands.json
 # Compilation/test ephemera
 *.d
