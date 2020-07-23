@@ -346,7 +346,9 @@ connection_options(riak, Options = #{<<"username">> := UserName,
     [{credentials, b2l(UserName), b2l(Password)} |
      [riak_option(K, V) || {K, V} <- maps:to_list(Options)]];
 connection_options(cassandra, Options) ->
-    [cassandra_option(K, V) || {K, V} <- maps:to_list(Options)].
+    [cassandra_option(K, V) || {K, V} <- maps:to_list(Options)];
+connection_options(elastic, Options) ->
+    [elastic_option(K, V) || {K, V} <- maps:to_list(Options)].
 
 rdbms_server(#{<<"driver">> := <<"odbc">>,
                <<"settings">> := Settings}) ->
@@ -388,7 +390,15 @@ riak_option(<<"password">>, Password) -> {password, b2l(Password)};
 riak_option(<<"cacertfile">>, Path) -> {cacertfile, b2l(Path)};
 riak_option(<<"tls">>, Options) -> {ssl_opts, client_tls_options(Options)}.
 
+cassandra_option(<<"servers">>, Servers) -> {servers, [cassandra_server(S) || S <- Servers]};
+cassandra_option(<<"keyspace">>, KeySpace) -> {keyspace, b2a(KeySpace)};
 cassandra_option(<<"tls">>, Options) -> {ssl, client_tls_options(Options)}.
+
+elastic_option(<<"host">>, Host) -> {host, b2l(Host)};
+elastic_option(<<"port">>, Port) -> {port, Port}.
+
+cassandra_server(#{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> {b2l(IPAddr), Port};
+cassandra_server(#{<<"ip_address">> := IPAddr}) -> b2l(IPAddr).
 
 db_tls(#{<<"driver">> := Driver, <<"tls">> := TLS}) -> db_tls_options(Driver, TLS);
 db_tls(_) -> no_tls.
