@@ -1204,8 +1204,8 @@ remove_old_messages_test(Config) ->
         %% given
         JidA = nick_to_jid(alice, Config),
         JidB = nick_to_jid(bob, Config),
-        JidRecordAlice = rpc_call(jid, from_binary, [JidA]),
-        JidRecordBob = rpc_call(jid, from_binary, [JidB]),
+        JidRecordAlice = jid:from_binary(JidA),
+        JidRecordBob = jid:from_binary(JidB),
         Domain = domain(),
         Msg1 = escalus_stanza:chat_to(<<"bob@", Domain/binary>>,
                                       "Hi, how are you? Its old message!"),
@@ -1228,8 +1228,8 @@ remove_expired_messages_test(Config) ->
         %% given
         JidA = nick_to_jid(mike, Config),
         JidB = nick_to_jid(kate, Config),
-        JidRecordMike = rpc_call(jid, from_binary, [JidA]),
-        JidRecordKate = rpc_call(jid, from_binary, [JidB]),
+        JidRecordMike = jid:from_binary(JidA),
+        JidRecordKate = jid:from_binary(JidB),
         Domain = domain(),
         Msg1 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
                                       "Rolling stones"),
