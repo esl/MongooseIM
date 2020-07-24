@@ -57,7 +57,10 @@
 %% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
 %% truly unknown: before a client is authorized.
 
--type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
+-type location() :: #{mfa := {module(), atom(), non_neg_integer()},
+                      line := non_neg_integer(),
+                      file := string()}.
+
 -type stanza_metadata() :: #{
         element := exml:element(),
         from_jid := jid:jid() | undefined,
