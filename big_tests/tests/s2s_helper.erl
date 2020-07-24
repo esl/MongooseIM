@@ -28,12 +28,12 @@ init_s2s(Config) ->
     Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
     Node1S2SPort = ct:get_config({hosts, mim, incoming_s2s_port}),
-    [Node1S2SListener] = get_listener_opts(mim(), Node1S2SPort),
+    [Node1S2SListener] = mongoose_helper:get_listener_opts(mim(), Node1S2SPort),
 
     Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
     Node2S2SPort = ct:get_config({hosts, fed, incoming_s2s_port}),
-    [Node2S2SListener] = get_listener_opts(fed(), Node2S2SPort),
+    [Node2S2SListener] = mongoose_helper:get_listener_opts(fed(), Node2S2SPort),
     S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
                     node1_s2s_use_starttls = Node1S2SUseStartTLS,
                     node1_s2s_listener = Node1S2SListener,
@@ -132,12 +132,6 @@ restart_s2s(#{} = Spec, S2SListener) ->
     [rpc(Spec, erlang, exit, [Pid, kill]) ||
      {_, Pid, _, _} <- ChildrenIn],
 
-    {PortIPProto, ejabberd_s2s_in, Opts} = S2SListener,
+    {_PortIPProto, ejabberd_s2s_in, Opts} = S2SListener,
+    mongoose_helper:restart_listener_with_opts(Spec, S2SListener, Opts).
 
-    rpc(Spec, ejabberd_listener, stop_listener, [PortIPProto, ejabberd_s2s_in]),
-    rpc(Spec, ejabberd_listener, start_listener, [PortIPProto, ejabberd_s2s_in, Opts]).
-
-get_listener_opts(#{} = Spec, Port) ->
-    Listeners = rpc(Spec, ejabberd_config, get_local_option, [listen]),
-
-    [Item || {{ListenerPort, _, _}, _, _} = Item <- Listeners, ListenerPort =:= Port].

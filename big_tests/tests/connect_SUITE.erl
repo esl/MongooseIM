@@ -128,36 +128,30 @@ suite() ->
 
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
-    Config1 = ejabberd_node_utils:init(Config0),
-    ejabberd_node_utils:backup_config_file(Config1),
+    C2SPort = ct:get_config({hosts, mim, c2s_port}),
+    [{_, ejabberd_c2s, _} = C2SListener] = mongoose_helper:get_listener_opts(mim(), C2SPort),
+    Config1 = [{c2s_listener, C2SListener} | Config0],
     assert_cert_file_exists(),
     escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
-    restore_ejabberd_node(Config),
+    restore_c2s_listener(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(c2s_noproc, Config) ->
-    config_ejabberd_node_tls(Config,
-                             fun mk_value_for_starttls_config_pattern/0),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [starttls]),
     Config;
 init_per_group(session_replacement, Config) ->
-    config_ejabberd_node_tls(Config,
-                             fun mk_value_for_starttls_config_pattern/0),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [starttls]),
     lager_ct_backend:start(),
     Config;
 init_per_group(starttls, Config) ->
-    config_ejabberd_node_tls(Config,
-                             fun mk_value_for_starttls_required_config_pattern/0),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [starttls_required]),
     Config;
 init_per_group(tls, Config) ->
-    config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [tls]),
     Users = proplists:get_value(escalus_users, Config, []),
     JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
@@ -165,8 +159,7 @@ init_per_group(tls, Config) ->
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
-    config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [starttls_required, {zlib, 10000}]),
     Config;
 init_per_group(just_tls,Config)->
     [{tls_module, just_tls} | Config];
@@ -175,8 +168,7 @@ init_per_group(fast_tls,Config)->
 init_per_group(session_replacement, Config) ->
     Config;
 init_per_group(proxy_protocol, Config) ->
-    ejabberd_node_utils:modify_config_file([{proxy_protocol, "proxy_protocol = true"}], Config),
-    ejabberd_node_utils:restart_application(mongooseim),
+    config_ejabberd_node_c2s(Config, [{proxy_protocol, true}]),
     Config;
 init_per_group(_, Config) ->
     Config.
@@ -330,7 +322,6 @@ clients_can_connect_with_advertised_ciphers(Config) ->
     ?assert(length(ciphers_working_with_ssl_clients(Config)) > 0).
 
 'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384'(Config) ->
-    
     ?assert(lists:member("ECDHE-RSA-AES256-GCM-SHA384",
                          ciphers_working_with_ssl_clients(Config))).
 
@@ -762,39 +753,29 @@ openssl_client_can_use_cipher(Cipher, Port) ->
     {done, ReturnCode, _Result} = erlsh:oneliner(Cmd),
     0 == ReturnCode.
 
-restore_ejabberd_node(Config) ->
-    ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(mongooseim).
+restore_c2s_listener(Config) ->
+    {_, _, Opts} = C2SListener = ?config(c2s_listener, Config),
+    mongoose_helper:restart_listener_with_opts(mim(), C2SListener, Opts).
 
 assert_cert_file_exists() ->
     ejabberd_node_utils:file_exists(?CERT_FILE) orelse
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
-config_ejabberd_node_tls(Config, Fun) ->
-    TLSModConf = case ?config(tls_module, Config) of
-                     just_tls -> "tls.module = \"just_tls\"";
-                     fast_tls -> "tls.module = \"fast_tls\"";
-                     undefined -> ""
-                 end,
-    ejabberd_node_utils:modify_config_file([{tls_module, TLSModConf}|Fun()], Config).
+config_ejabberd_node_c2s(Config, ExtraC2SOpts) ->
+    Opts = ExtraC2SOpts ++ common_c2s_opts(Config),
+    C2SListener = ?config(c2s_listener, Config),
+    mongoose_helper:restart_listener_with_opts(mim(), C2SListener, Opts).
 
-mk_value_for_starttls_config_pattern() ->
-    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
-                  "  tls.mode = \"starttls\"\n"}].
-
-mk_value_for_tls_config_pattern() ->
-    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
-                  "  tls.mode = \"tls\"\n"}].
-
-mk_value_for_compression_config_pattern() ->
-    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
-                  "  tls.mode = \"starttls_required\"\n"},
-     {zlib, "zlib = 10_000"}].
-
-mk_value_for_starttls_required_config_pattern() ->
-    [{tls_config, "certfile = \"" ++ ?CERT_FILE ++ "\"\n"
-                  "  tls.mode = \"starttls_required\"\n"},
-     {c2s_dhfile, "dhfile = \"" ++ ?DH_FILE ++ "\""}].
+common_c2s_opts(Config) ->
+    TLSModule = ?config(tls_module, Config),
+    [{tls_module, TLSModule},
+     {certfile, ?CERT_FILE},
+     %starttls,
+     %{zlib, 10000},
+     {access, c2s},
+     {shaper, c2s_shaper},
+     {max_stanza_size, 65536},
+     {dhfile, "priv/ssl/fake_dh_server.pem"}].
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].

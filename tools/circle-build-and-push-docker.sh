@@ -12,7 +12,7 @@ export BUILDS=`pwd`
 # git tag when building from tag itself, and is unique in any other case
 VERSION=`tools/generate_vsn.sh`
 DOCKERHUB_TAG=${VERSION}
-GIT_REF=`git rev-parse --short HEAD`
+GIT_REF=`git rev-parse HEAD`
 GIT_COMMIT_MSG=`git log --format=%B -n 1 HEAD`
 
 if [ -n "$CIRCLE_PULL_REQUEST" ]; then
