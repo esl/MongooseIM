@@ -1192,12 +1192,9 @@ dump_table(Config) ->
 
 get_loglevel(Config) ->
     {R, 0} = ejabberdctl("get_loglevel", [], Config),
-    LogLevel = rpc_call(ejabberd_loglevel, get, []),
-    RegList = [io_lib:format("(.|\n|\r)*loglevel for ~p is ~p(.|\n|\r)*",
-                                        [M, Lev]) || {M, {Lev, _}} <- LogLevel],
-    Regexp = lists:flatten(RegList),
-    Len = length(R),
-    {match, [{0, Len}]} = re:run(R, Regexp, [{capture, first}]).
+    LogLevel = rpc_call(mongoose_logs, get_global_loglevel, []),
+    Regexp = io_lib:format("~p", [LogLevel]),
+    {match, _} = re:run(R, Regexp, [{capture, first}]).
 
 remove_old_messages_test(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_) ->
