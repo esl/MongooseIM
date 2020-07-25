@@ -448,15 +448,10 @@ do_register(List) ->
     {bad_csv, Info}.
 
 get_loglevel() ->
-    BackendList = ejabberd_loglevel:get(),
-    F = fun({Backend, Level}) ->
-        {Number, Name} = Level,
-        io_lib:format("loglevel for ~p is ~p which is '~p'",
-                      [Backend, Number, Name])
-        end,
-    StringList = lists:map(F, BackendList),
-    JoinedList = string:join(StringList, "\n"),
-    {ok, JoinedList}.
+    Level = mongoose_logs:get_global_loglevel(),
+    Number = mongoose_logs:loglevel_number_keyword(Level),
+    String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
+    {ok, String}.
 
 %%%
 %%% Purge DB
