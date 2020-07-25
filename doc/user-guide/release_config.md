@@ -147,7 +147,7 @@ var/lib/mongooseim/vcard_search.DCD
 var/lib/mongooseim/pid
 var/lib/mongooseim/status
 var/log/mongooseim/crash.log
-var/log/mongooseim/ejabberd.log
+var/log/mongooseim/mongooseim.log
 var/log/mongooseim/erlang.log.1
 var/log/mongooseim/run_erl.log
 ```

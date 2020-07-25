@@ -194,15 +194,15 @@ Save and exit your editor, restart MongooseIM and check your loglevel from the c
 mongooseimctl get_loglevel
 ```
 
-Read the `ejabberd.log` file:
+Read the `mongooseim.log` file:
 ```bash
-/var/log/mongooseim/ejabberd.log
+/var/log/mongooseim/mongooseim.log
 ```
 
 You can use commands such `cat`, `more` or `less`, even `head` or `tail`.
 In order to see live logs:
 ```bash
-tail -f /var/log/mongooseim/ejabberd.log
+tail -f /var/log/mongooseim/mongooseim.log
 ```
 Type `Ctrl+C` to exit.
 
@@ -353,7 +353,7 @@ You can even run `mongooseimctl` without arguments for a list of available comma
 
 You know basic entries in files:
 `/etc/mongooseim/mongooseim.cfg`
-`/var/log/mongooseim/ejabberd.log`
+`/var/log/mongooseim/mongooseim.log`
 
 ### Summary: client/app
 

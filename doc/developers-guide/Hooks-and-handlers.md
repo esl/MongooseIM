@@ -345,10 +345,8 @@ false
 {ok,ok}
 (mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
-(mongooseim@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
-[{{lager_file_backend,"ejabberd.log"},ok},
- {lager_console_backend,ok},
- {lager_manager_killer,ok}]
+(mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, 4).
+ok
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
 17:48:55.421 [info] First handler
   value: 5
