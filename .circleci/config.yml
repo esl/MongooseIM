@@ -255,8 +255,8 @@ orbs:
                 echo "Failure!"
                 if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
                 if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
-                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
+                tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
           - run:
               name: Upload results
               when: always
