@@ -1,8 +1,8 @@
-%%% @doc Copy ejabberd.log into CT reports
+%%% @doc Copy mongooseim.log into CT reports
 -module(ct_mongoose_log_hook).
 
 %% @doc Add the following line in your *.spec file to
-%% copy ejabberd.log into CT reports:
+%% copy mongooseim.log into CT reports:
 %% {ct_hooks, [ct_mongoose_log_hook]}.
 
 %% Callbacks
@@ -110,7 +110,7 @@ terminate(State) ->
 spawn_log_reader(Node, Cookie) ->
     %% Set cookie permanently
     erlang:set_cookie(Node, Cookie),
-    AbsName = rpc:call(Node, filename, absname, ["log/ejabberd.log"], 5000),
+    AbsName = rpc:call(Node, filename, absname, ["log/mongooseim.log.1"], 5000),
     case is_list(AbsName) of
         true ->
             ReaderNode = choose_reader_node(Node),
