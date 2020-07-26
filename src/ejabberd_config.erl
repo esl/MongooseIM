@@ -569,7 +569,7 @@ remove_virtual_host(Host) ->
 reload_listeners(#{to_start := Add,
                    to_stop := Del,
                    to_reload := Change} = ChangedListeners) ->
-    ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
+    ?DEBUG("reload listeners: ~p", [ChangedListeners]),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
                       ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),
