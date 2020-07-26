@@ -29,9 +29,8 @@ groups() ->
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    application:ensure_all_started(lager),
     ok = mnesia:create_schema([node()]),
-    ok = mnesia:start(), 
+    ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
     C.
 
@@ -98,7 +97,7 @@ basic_routing(_C) ->
 do_not_reroute_errors(_) ->
     From = <<"ja@localhost">>,
     To = <<"ty@localhost">>,
-    Stanza = #xmlel{name = <<"iq">>, 
+    Stanza = #xmlel{name = <<"iq">>,
         attrs = [{<<"from">>, From}, {<<"to">>, To}, {<<"type">>, <<"get">>} ]
     },
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -110,7 +109,7 @@ do_not_reroute_errors(_) ->
     meck:expect(xmpp_router_a, route, fun resend_as_error/4),
     ejabberd_router:route(From, To, Acc, Stanza),
     ok.
-     
+
 update_tables_hidden_components(_C) ->
     %% Tables as of b076e4a62a8b21188245f13c42f9cfd93e06e6b7
     create_component_tables([domain, handler, node]),

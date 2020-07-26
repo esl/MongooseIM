@@ -46,7 +46,6 @@ all() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:ensure_all_started(lager),
     ok = meck:new(wpool, [no_link, passthrough]),
     ok = meck:new(mongoose_wpool, [no_link, passthrough]),
     ok = meck:new(ejabberd_config, [no_link]),
