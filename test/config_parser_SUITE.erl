@@ -19,13 +19,13 @@ end_per_suite(_Config) ->
     ok.
 
 equivalence(Config) ->
-    {ok, Terms} = file:consult(ejabberd_helper:data(Config, "mongooseim-pgsql.cfg")),
-    State1 = mongoose_config_parser:parse_terms(Terms),
+    CfgPath = ejabberd_helper:data(Config, "mongooseim-pgsql.cfg"),
+    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
     Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
     Opts1 = mongoose_config_parser:state_to_opts(State1),
 
     TOMLPath = ejabberd_helper:data(Config, "mongooseim-pgsql.toml"),
-    State2 = mongoose_config_parser_toml:read_file(TOMLPath),
+    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
     Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
 
