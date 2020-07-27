@@ -13,6 +13,10 @@
 -export([states_to_reloading_context/1]).
 -export([context_to_failed_checks/1]).
 -export([context_to_changes_to_apply/1]).
+-export([check_hosts/2]).
+-export([can_be_ignored/1]).
+-export([group_host_changes/1]).
+-export([is_not_host_specific/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -539,3 +543,29 @@ subtract_lists(List, Except) ->
     SetList = ordsets:from_list(List),
     SetExcept = ordsets:from_list(Except),
     ordsets:subtract(SetList, SetExcept).
+
+-spec check_hosts([jid:server()], [jid:server()]) ->
+    {[jid:server()], [jid:server()]}.
+check_hosts(NewHosts, OldHosts) ->
+    Old = sets:from_list(OldHosts),
+    New = sets:from_list(NewHosts),
+    ListToAdd = sets:to_list(sets:subtract(New, Old)),
+    ListToDel = sets:to_list(sets:subtract(Old, New)),
+    {ListToDel, ListToAdd}.
+
+-spec can_be_ignored(Key :: atom() | tuple()) -> boolean().
+can_be_ignored(Key) when is_atom(Key);
+                         is_tuple(Key) ->
+    L = [domain_certfile, s2s, all_metrics_are_global, rdbms],
+    lists:member(Key, L).
+
+-spec is_not_host_specific(atom()
+                           | {atom(), jid:server()}
+                           | {atom(), atom(), atom()}) -> boolean().
+is_not_host_specific(Key) when is_atom(Key) ->
+    true;
+is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
+    false;
+is_not_host_specific({Key, PoolType, PoolName})
+  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
+    true.
