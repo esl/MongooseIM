@@ -26,7 +26,7 @@
 -import(distributed_helper, [rpc/4]).
 
 -define(CTL_RELOAD_OUTPUT_PREFIX,
-        "done").
+        <<"done">>).
 
 backup_ejabberd_config_file(#{node := Node} = RPCSpec, Config) ->
     {ok, _} = rpc(RPCSpec, file, copy, [node_cfg(Node, current, Config),
@@ -46,10 +46,14 @@ reload_through_ctl(#{node := Node} = RPCSpec, Config) ->
     OutputStr = rpc(RPCSpec, os, cmd, [ReloadCmd]),
     ok = verify_reload_output(ReloadCmd, OutputStr).
 
-verify_reload_output(ReloadCmd, OutputStr) ->
-    ExpectedOutput = ?CTL_RELOAD_OUTPUT_PREFIX,
-    case lists:sublist(OutputStr, length(ExpectedOutput)) of
-        ExpectedOutput ->
+%% Log messages could be part of the output,
+%% so we want to check that the output, however big it is,
+%% contains the expected return value.
+verify_reload_output(ReloadCmd, OutputStrList) ->
+    OutputStr = list_to_binary(OutputStrList),
+    Lines = binary:split(OutputStr, <<"\n">>, [global]),
+    case lists:any(fun(El) -> ?CTL_RELOAD_OUTPUT_PREFIX =:= El end, Lines) of
+        true ->
             ok;
         _ ->
             ct:pal("ReloadCmd: ~p", [ReloadCmd]),
