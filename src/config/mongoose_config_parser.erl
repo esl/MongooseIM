@@ -51,11 +51,12 @@
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
 
--type host() :: any(). % TODO: specify this
+-type host() :: jid:server().
 -type state() :: #state{}.
 
 %% Parser API
 
+-spec parse_file(FileName :: string()) -> state().
 parse_file(FileName) ->
     ParserModule = parser_module(filename:extension(FileName)),
     ParserModule:parse_file(FileName).
@@ -65,44 +66,56 @@ parser_module(".cfg") -> mongoose_config_parser_cfg.
 
 %% State API
 
+-spec new_state() -> state().
 new_state() ->
     #state{}.
 
+-spec allow_override_all(state()) -> state().
 allow_override_all(State = #state{}) ->
     State#state{override_global = true,
                 override_local  = true,
                 override_acls   = true}.
 
+-spec allow_override_local_only(state()) -> state().
 allow_override_local_only(State = #state{}) ->
     State#state{override_global = false,
                 override_local  = true,
                 override_acls   = false}.
 
+-spec override_global(state()) -> state().
 override_global(State) ->
     State#state{override_global = true}.
 
+-spec override_local(state()) -> state().
 override_local(State) ->
     State#state{override_local = true}.
 
+-spec override_acls(state()) -> state().
 override_acls(State) ->
     State#state{override_acls = true}.
 
+-spec set_opts(Opts :: list(), state()) -> state().
 set_opts(Opts, State) ->
     State#state{opts = Opts}.
 
+-spec set_hosts([host()], state()) -> state().
 set_hosts(Hosts, State) ->
     State#state{hosts = Hosts}.
 
+-spec get_opts(state()) -> list().
 get_opts(State) ->
     State#state.opts.
 
-%% final getter - reverses the accumulated options
+%% @doc Final getter - reverses the accumulated options.
+-spec state_to_opts(state()) -> list().
 state_to_opts(#state{opts = Opts}) ->
     lists:reverse(Opts).
 
+-spec state_to_host_opts(state()) -> [host()].
 state_to_host_opts(#state{hosts = Hosts}) ->
     Hosts.
 
+-spec can_override(global | local | acls, state()) -> boolean().
 can_override(global, #state{override_global = Override}) ->
     Override;
 can_override(local, #state{override_local = Override}) ->
@@ -110,6 +123,7 @@ can_override(local, #state{override_local = Override}) ->
 can_override(acls, #state{override_acls = Override}) ->
     Override.
 
+-spec state_to_global_opt(OptName :: atom(), state(), Default :: any()) -> any().
 state_to_global_opt(OptName, State, Default) ->
     Opts = state_to_opts(State),
     opts_to_global_opt(Opts, OptName, Default).
@@ -129,6 +143,7 @@ opts_to_global_opt([], _OptName, Default) ->
 
 %% Config post-processing
 
+-spec dedup_state_opts(state()) -> state().
 dedup_state_opts(State = #state{opts = RevOpts}) ->
     {RevOpts2, _Removed} = dedup_state_opts_list(RevOpts, [], [], sets:new()),
     State#state{opts = RevOpts2}.
@@ -148,6 +163,7 @@ dedup_state_opts_list([H|List], Removed, Keep, Set) ->
 dedup_state_opts_list([], Removed, Keep, _Set) ->
     {Keep, Removed}.
 
+-spec add_dep_modules(state()) -> state().
 add_dep_modules(State = #state{opts = Opts}) ->
     Opts2 = add_dep_modules_opts(Opts),
     State#state{opts = Opts2}.
