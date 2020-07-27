@@ -97,9 +97,9 @@ start() ->
 
 
 %% @doc Get the filename of the ejabberd configuration file.
-%% The filename can be specified with: erl -config "/path/to/mongooseim.cfg".
+%% The filename can be specified with: erl -config "/path/to/mongooseim.toml".
 %% It can also be specified with the environtment variable EJABBERD_CONFIG_PATH.
-%% If not specified, the default value 'mongooseim.cfg' is assumed.
+%% If not specified, the default value 'mongooseim.toml' is assumed.
 -spec get_ejabberd_config_path() -> string().
 get_ejabberd_config_path() ->
     DefaultPath = case os:getenv("EJABBERD_CONFIG_PATH") of
@@ -314,11 +314,10 @@ handle_table_does_not_exist_error(Table) ->
 %%--------------------------------------------------------------------
 -spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
-    TOMLFile = filename:rootname(ConfigFile) ++ ".toml",
-    case filelib:is_file(TOMLFile) of
-        true ->
-            mongoose_config_parser_toml:read_file(TOMLFile);
-        false ->
+    case filename:extension(ConfigFile) of
+        ".toml" ->
+            mongoose_config_parser_toml:read_file(ConfigFile);
+        ".cfg" ->
             Terms = get_plain_terms_file(ConfigFile),
             mongoose_config_parser:parse_terms(Terms)
     end.
