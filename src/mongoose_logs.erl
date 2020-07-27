@@ -8,7 +8,9 @@
 -export([dir/0]).
 -export([loglevel_number_keyword/1]).
 
--type level() :: none | logger:level() | all | -1..8.
+-type atom_log_level() :: none | logger:level() | all.
+-type int_log_level() :: -1..8.
+-type level() :: atom_log_level() | int_log_level().
 
 -spec get_global_loglevel() -> logger:level().
 get_global_loglevel() ->
@@ -45,8 +47,8 @@ dir() ->
             ""
     end.
 
--spec loglevel_number_keyword(-1..8) -> none | logger:level();
-                             (none | logger:level()) -> -1..8.
+-spec loglevel_number_keyword(int_log_level())  -> atom_log_level();
+                             (atom_log_level()) -> int_log_level().
 loglevel_number_keyword(-1) -> none;
 loglevel_number_keyword(0) -> emergency;
 loglevel_number_keyword(1) -> alert;

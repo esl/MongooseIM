@@ -13,7 +13,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(logfile, "log/mongooseim.log.1").
+-define(LOGFILE, "log/mongooseim.log.1").
 
 all() ->
     [
@@ -47,7 +47,6 @@ something_is_logged(Config) ->
     ?assertNotEqual(timeout, get_at_least_n_log_lines(File, length(Before) + 1, timer:seconds(5))).
 
 set_get_loglevel(_Config) ->
-    %% hint: [0, 1, ..., 5, none, critical, ..., debug]
     LevelsToTest = ([ {Keyword, Number} || {Number, Keyword} <- levels() ] ++
                     [ {Keyword, Keyword} || {_, Keyword} <- levels() ]),
     Assertion = fun(Expected, Level) ->
@@ -57,7 +56,6 @@ set_get_loglevel(_Config) ->
     [ Assertion(Expected, Level) || {Expected, Level} <- LevelsToTest ].
 
 set_custom_loglevel(_Config) ->
-    % Backend = ?config(logger_backend, Config),
     ExampleMod = mongooseim_loglevel_SUITE_helper,
     ExampleLvl = info,
     ?assertEqual(ok, mongoose_logs:set_module_loglevel(ExampleMod, ExampleLvl)).
@@ -73,21 +71,20 @@ log_at_every_level(_Config) ->
 
 log_at_level(none) ->
     %% When log level `none` is set and we log on each possible level...
-    Before = get_log(?logfile),
+    Before = get_log(?LOGFILE),
     [ logger:log(LevelName, "", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then nothing ends up in the log file.
     %% (polling doesn't make sense in this one case, we have to sleep)
-    timer:sleep(timer:seconds(1)),
-    After = get_log(?logfile),
-    ?assertEqual([], After -- Before);
+    Fun = fun() -> get_log(?LOGFILE) -- Before end,
+    async_helper:wait_until(Fun, []);
 log_at_level(LName) ->
     %% When current log level is L and we log on each possible level...
-    Before = get_log(?logfile),
+    Before = get_log(?LOGFILE),
     [ logger:log(LevelName, "match-this ~s", [LevelName]) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then for each sensible level (i.e. less or equal to current level)
     %% we get a line in the log file.
     ExpectedContents = levels_less_than_or_equal_to(LName),
-    After = case get_at_least_n_log_lines(?logfile,
+    After = case get_at_least_n_log_lines(?LOGFILE,
                                           length(Before) + length(ExpectedContents),
                                           timer:seconds(5)) of
                 timeout -> ct:fail("timed out waiting for messages to reach the log file");
@@ -103,19 +100,21 @@ log_at_custom_level(_Config) ->
     mongoose_logs:set_global_loglevel(critical),
     mongoose_logs:set_module_loglevel(mongooseim_loglevel_SUITE_helper, debug),
     %% when we log from here and from the helper module
-    Before = get_log(?logfile),
-    logger:log(debug, "suite", []), % <- This is not supposed to be logged
-    mongooseim_loglevel_SUITE_helper:log(debug, "helper module", []), % <- but this should
+    Before = get_log(?LOGFILE),
+    NotSupposedToBeLogged = "This should not be in the logs!",
+    ShouldBeSuccessfullyLogged = "This MUST appear in the logs successfully",
+    logger:log(debug, NotSupposedToBeLogged),
+    mongooseim_loglevel_SUITE_helper:log(debug, ShouldBeSuccessfullyLogged),
     %% then
-    After = case get_at_least_n_log_lines(?logfile, length(Before) + 1, timer:seconds(5)) of
+    After = case get_at_least_n_log_lines(?LOGFILE, length(Before) + 1, timer:seconds(5)) of
                 timeout -> ct:fail("timeout waiting for messages to reach the log file");
                 Res -> Res
             end,
     Diff = After -- Before,
     %% ...nothing logged from the suite reaches the log file
-    ?assertEqual([], filter_out_non_matching(Diff, <<"suite">>)),
+    ?assertEqual([], filter_out_non_matching(Diff, list_to_binary(NotSupposedToBeLogged))),
     %% ...logs from the helper module are found in the log file
-    [LogLine] = filter_out_non_matching(Diff, <<"helper module">>),
+    [LogLine] = filter_out_non_matching(Diff, list_to_binary(ShouldBeSuccessfullyLogged)),
     ?assert('contains?'(LogLine, <<"debug">>)).
 
 %%
@@ -136,7 +135,7 @@ levels() ->
     ].
 
 mongoose_logger_running() ->
-    File = ?logfile,
+    File = ?LOGFILE,
     HandlerID = disk_log,
     HandlerModule = logger_disk_log_h,
     HandlerConfig = #{config => #{
@@ -151,10 +150,10 @@ mongoose_logger_running() ->
     {ok, FileBackend}.
 
 levels_less_than_or_equal_to(LName) ->
-    {L, LName} = lists:keyfind(LName, 2, levels()),
-    {_, ListOfNamesLessThanOrEqual} = lists:unzip(
-              lists:takewhile(fun({LNum, _}) -> LNum =< L end, levels())
-             ),
+    {LNumber, LName} = lists:keyfind(LName, 2, levels()),
+    ListOfNamesLessThanOrEqual = lists:filtermap(
+        fun({LNum, Name}) when LNum =< LNumber-> {true, Name};
+           (_) -> false end, levels()),
     ListsAtoms = lists:delete(none, ListOfNamesLessThanOrEqual),
     lists:map(fun(El) -> atom_to_binary(El, utf8) end, ListsAtoms).
 
@@ -176,21 +175,11 @@ get_at_least_n_log_lines(LogFile, NLines, Timeout) ->
 
 get_at_least_n_log_lines(_LogFile, NLines, TRef, Lines)
   when length(Lines) >= NLines ->
-    cancel_timer(TRef),
+    erlang:cancel_timer(TRef),
     Lines;
 get_at_least_n_log_lines(LogFile, NLines, TRef, _Lines) ->
     receive
-        {timeout, TRef, get_at_least_n_log_lines} ->
-            timeout
+        {timeout, TRef, get_at_least_n_log_lines} -> timeout
     after 100 ->
             get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile))
-    end.
-
-cancel_timer(TRef) ->
-    case erlang:cancel_timer(TRef) of
-        false ->
-            receive {timeout, TRef, get_at_least_n_log_lines} -> ok
-            after 0 -> ok end;
-        _ ->
-            ok
     end.

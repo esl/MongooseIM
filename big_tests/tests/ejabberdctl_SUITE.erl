@@ -1193,7 +1193,7 @@ dump_table(Config) ->
 get_loglevel(Config) ->
     {R, 0} = ejabberdctl("get_loglevel", [], Config),
     LogLevel = rpc_call(mongoose_logs, get_global_loglevel, []),
-    Regexp = io_lib:format("~p", [LogLevel]),
+    Regexp = io_lib:format("global loglevel is \(.\)\{1,2\}, which means '~p'", [LogLevel]),
     {match, _} = re:run(R, Regexp, [{capture, first}]).
 
 remove_old_messages_test(Config) ->
