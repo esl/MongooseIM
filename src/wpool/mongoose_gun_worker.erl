@@ -59,8 +59,12 @@ start_link(Destination, Options) ->
 -spec init({{inet:hostname() | inet:ip_address(), inet:port_number()}, gun:opts()}) ->
     {ok, State :: #state{}, {continue, init}}.
 init({{Host, Port}, Opts}) ->
-    {ok,
-     #state{host = Host, port = Port, opts = maps:merge(default_opts(), Opts), requests = #{}},
+    {H, _P, O} = parse_uri(Host),
+    {ok, #state{host = H, port = Port, opts = maps:merge(O, Opts), requests = #{}},
+     {continue, init}};
+init({Host, Opts}) ->
+    {H, P, O} = parse_uri(Host),
+    {ok, #state{host = H, port = P, opts = maps:merge(O, Opts), requests = #{}},
      {continue, init}}.
 
 handle_continue(init, State) ->
@@ -95,7 +99,6 @@ handle_info({gun_response, ConnPid, StreamRef, fin, Status, Headers},
     {_Req, ResData} = maps:get(StreamRef, Requests),
     timer:cancel(ResData#response_data.timeout_timer),
     Now = erlang:monotonic_time(millisecond),
-
     gen_server:reply(ResData#response_data.from, {ok, {{integer_to_binary(Status), reason},
                                                        Headers,
                                                        no_data,
@@ -191,6 +194,15 @@ handle_info(M, S) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+parse_uri(Host) ->
+    M = uri_string:parse(Host),
+    H = maps:get(host, M, "") ++ maps:get(path, M, ""),
+    Tls = case maps:get(scheme, M, undefined) of
+        "https" -> #{transport => tls};
+              _ -> #{}
+    end,
+    {H, maps:get(port, M, undefined), maps:merge(default_opts(), Tls)}.
 
 open_connection(State) ->
     {ok, PID} = gun:open(State#state.host, State#state.port, State#state.opts),
