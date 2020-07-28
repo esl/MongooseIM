@@ -108,14 +108,10 @@ simple_push(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            Send = fun(Body) ->
-                       Stanza = escalus_stanza:chat_to(Bob, Body),
-                       escalus_client:send(Alice, Stanza)
-                   end,
-            Send(<<"hej">>),
+            send(Alice, Bob, <<"hej">>),
             [R] = got_push(push, 1),
             check_default_format(Alice, Bob, <<"hej">>, R),
-            Send(<<>>),
+            send(Alice, Bob, <<>>),
             got_no_push(push),
             ok
         end).

@@ -207,16 +207,13 @@ Below is a sample configuration:
 
 `ConnectionOptions` can take the following `{key, value}` pairs:
 
-* `{http_client, Client}` - `gun` or `fusco`, defaults to `fusco`.
-This choice requires correct `http_opts` passed for a given client.
 * `{server, {Host, Port}}` - Host or IP address and a port to connect to.
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`Host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
 * `{http_opts, HTTPOptions}` - extra parameters to the library responsible for making the HTTP calls.
-Defaults to an empty structure (`[]` for Fusco and `#{}` for Gun).
-  More details about the possible `http_opts` can be found in [fusco]'s or [gun]'s documentation.
+Defaults to an empty structure (`#{}` for Gun).
+  More details about the possible `http_opts` can be found in [gun]'s documentation.
 
-[fusco]: https://github.com/esl/fusco
 [gun]: https://ninenines.eu/docs/en/gun/2.0/manual/
 
 ##### Example configuration
@@ -242,7 +239,7 @@ If peer certificate verification is required, the pool can be configured in the 
 ]}.
 ```
 
-Please note the `connect_options` passed to [fusco] via the pool's `http_opts` parameter.
+Please note the `connect_options` passed to [gun] via the pool's `http_opts` parameter.
 
 
 ## Redis connection setup
