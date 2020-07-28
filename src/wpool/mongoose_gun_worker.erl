@@ -96,45 +96,59 @@ handle_cast(_R, State) ->
 %% flag is set.
 handle_info({gun_response, ConnPid, StreamRef, fin, Status, Headers},
             #state{pid = ConnPid, requests = Requests} = State) ->
-    {_Req, ResData} = maps:get(StreamRef, Requests),
-    timer:cancel(ResData#response_data.timeout_timer),
-    Now = erlang:monotonic_time(millisecond),
-    gen_server:reply(ResData#response_data.from, {ok, {{integer_to_binary(Status), reason},
-                                                       Headers,
-                                                       no_data,
-                                                       0,
-                                                       ResData#response_data.timestamp - Now}}),
-
-    {noreply, State#state{requests = maps:remove(StreamRef, Requests)}};
+    case maps:get(StreamRef, Requests, undefined) of
+        undefined ->
+            {noreply, State};
+        {_Req, ResData} ->
+            timer:cancel(ResData#response_data.timeout_timer),
+            Now = erlang:monotonic_time(millisecond),
+            gen_server:reply(ResData#response_data.from,
+                {ok, {{integer_to_binary(Status), reason},
+                       Headers,
+                       no_data,
+                       0,
+                       ResData#response_data.timestamp - Now}}),
+            {noreply, State#state{requests = maps:remove(StreamRef, Requests)}}
+    end;
 handle_info({gun_response, ConnPid, StreamRef, nofin, Status, Headers},
             #state{pid = ConnPid, requests = Requests} = State) ->
-    {Req, ResData} = maps:get(StreamRef, Requests),
-    NewData = ResData#response_data{status = integer_to_binary(Status), headers = Headers},
-    {noreply, State#state{requests = Requests#{StreamRef := {Req, NewData}}}};
+    case maps:get(StreamRef, Requests, undefined) of
+        undefined ->
+            {noreply, State};
+        {Req, ResData} ->
+            NewData = ResData#response_data{status = integer_to_binary(Status), headers = Headers},
+            {noreply, State#state{requests = Requests#{StreamRef := {Req, NewData}}}}
+    end;
 %% `gun_data' is a message that carries the response body. With the last part of
 %% the body, the `fin' flag is set.
 handle_info({gun_data, ConnPid, StreamRef, nofin, Data},
             #state{pid = ConnPid, requests = Requests} = State) ->
-    {Req, ResData} = maps:get(StreamRef, Requests),
-    Acc = ResData#response_data.acc,
-    NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
-    {noreply, State#state{requests = Requests#{StreamRef := {Req, NewData}}}};
+    case maps:get(StreamRef, Requests, undefined) of
+        undefined ->
+            {noreply, State};
+        {Req, ResData} ->
+            Acc = ResData#response_data.acc,
+            NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
+            {noreply, State#state{requests = Requests#{StreamRef := {Req, NewData}}}}
+    end;
 handle_info({gun_data, ConnPid, StreamRef, fin, Data},
             #state{pid = ConnPid, requests = Requests} = State) ->
     Now = erlang:monotonic_time(millisecond),
-    {_Req, ResData} = maps:get(StreamRef, Requests),
-    timer:cancel(ResData#response_data.timeout_timer),
-    Acc = ResData#response_data.acc,
-    NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
-
-    gen_server:reply(NewData#response_data.from,
-                     {ok, {{NewData#response_data.status, reason},
-                           NewData#response_data.headers,
-                           NewData#response_data.acc,
-                           byte_size(NewData#response_data.acc),
-                           NewData#response_data.timestamp - Now}}),
-
-    {noreply, State#state{requests = maps:remove(StreamRef, Requests)}};
+    case maps:get(StreamRef, Requests, undefined) of
+    undefined ->
+        {noreply, State};
+    {_Req, ResData} ->
+        timer:cancel(ResData#response_data.timeout_timer),
+        Acc = ResData#response_data.acc,
+        NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
+        gen_server:reply(NewData#response_data.from,
+                        {ok, {{NewData#response_data.status, reason},
+                            NewData#response_data.headers,
+                            NewData#response_data.acc,
+                            byte_size(NewData#response_data.acc),
+                            NewData#response_data.timestamp - Now}}),
+        {noreply, State#state{requests = maps:remove(StreamRef, Requests)}}
+    end;
 %% `timeout' is a message responsible for terminating and restarting requests
 %% that take too long to complete. There is no such functionality in Gun, so it
 %% is sent from this module.
