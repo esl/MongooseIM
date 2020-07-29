@@ -66,7 +66,7 @@ lang_files_directory() ->
         Path -> Path
     end.
 
--spec load_translations_from_dir(file:filename()) -> ok | {error, lager_not_running}.
+-spec load_translations_from_dir(file:filename()) -> ok.
 load_translations_from_dir(Dir) ->
     case file:list_dir(Dir) of
         {ok, Files} ->

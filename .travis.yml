@@ -48,11 +48,10 @@ script:
     - SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
 after_failure:
-        - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
         - if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
         - if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-        - tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
-        - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+        - tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
+        - tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
 
 after_script:
         - cat travis-pull-db.log

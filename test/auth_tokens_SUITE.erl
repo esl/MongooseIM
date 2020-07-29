@@ -40,12 +40,10 @@ groups() ->
     ].
 
 init_per_suite(C) ->
-    %lager:start(),
     {ok, _} = application:ensure_all_started(jid),
     C.
 
 end_per_suite(C) ->
-    %application:stop(lager),
     C.
 
 init_per_testcase(Test, Config)

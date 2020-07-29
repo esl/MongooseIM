@@ -491,7 +491,7 @@ handle_local_config_del(#local_config{key = Key} = El) ->
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
 handle_local_config_change({loglevel, _Old, Loglevel}) ->
-    ejabberd_loglevel:set(Loglevel),
+    mongoose_logs:set_global_loglevel(Loglevel),
     ok;
 handle_local_config_change({Key, _Old, _New} = El) ->
     ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
@@ -569,7 +569,7 @@ remove_virtual_host(Host) ->
 reload_listeners(#{to_start := Add,
                    to_stop := Del,
                    to_reload := Change} = ChangedListeners) ->
-    ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
+    ?DEBUG("reload listeners: ~p", [ChangedListeners]),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
                       ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),
