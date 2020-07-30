@@ -220,8 +220,9 @@ parse_uri(Host) ->
 
 open_connection(State) ->
     {ok, PID} = gun:open(State#state.host, State#state.port, State#state.opts),
-    {ok, Protocol} = gun:await_up(PID),
-    State#state{pid = PID, protocol = Protocol, monitor = monitor(process, PID)}.
+    MonitorRef = monitor(process, PID),
+    {ok, Protocol} = gun:await_up(PID, 10000, MonitorRef),
+    State#state{pid = PID, protocol = Protocol, monitor = MonitorRef}.
 
 queue_request(FullPath, Method, LHeaders, Query, Timeout, PID) ->
     StreamRef = gun:request(PID, Method, FullPath, LHeaders, Query),
