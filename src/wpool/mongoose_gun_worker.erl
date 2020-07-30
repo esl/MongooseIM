@@ -28,7 +28,7 @@
 
 -record(response_data, {from :: {pid(), term()},
                         timestamp :: integer(),
-                        timeout_timer :: timer:tref(),
+                        timeout_timer :: reference(),
                         status :: binary() | undefined,
                         headers :: gun:headers(),
                         acc = <<>> :: binary()}).
@@ -100,7 +100,7 @@ handle_info({gun_response, ConnPid, StreamRef, fin, Status, Headers},
         undefined ->
             {noreply, State};
         {_Req, ResData} ->
-            timer:cancel(ResData#response_data.timeout_timer),
+            erlang:cancel_timer(ResData#response_data.timeout_timer),
             Now = erlang:monotonic_time(millisecond),
             gen_server:reply(ResData#response_data.from,
                 {ok, {{integer_to_binary(Status), reason},
@@ -138,7 +138,7 @@ handle_info({gun_data, ConnPid, StreamRef, fin, Data},
     undefined ->
         {noreply, State};
     {_Req, ResData} ->
-        timer:cancel(ResData#response_data.timeout_timer),
+        erlang:cancel_timer(ResData#response_data.timeout_timer),
         Acc = ResData#response_data.acc,
         NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
         gen_server:reply(NewData#response_data.from,
@@ -225,7 +225,7 @@ open_connection(State) ->
 
 queue_request(FullPath, Method, LHeaders, Query, Timeout, PID) ->
     StreamRef = gun:request(PID, Method, FullPath, LHeaders, Query),
-    {ok, TRef} = timer:send_after(Timeout, {timeout, StreamRef}),
+    {ok, TRef} = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
     {StreamRef, TRef}.
 
 retry_all(State) ->
@@ -238,7 +238,7 @@ retry_all(State) ->
 retry_request(PID, {Req, Res}, ReqAcc) ->
     {request, FullPath, Method, Headers, Query, Retries, Timeout} = Req,
     LHeaders = lowercase_headers(Headers),
-    timer:cancel(Res#response_data.timeout_timer),
+    erlang:cancel_timer(Res#response_data.timeout_timer),
     case Retries of
         0 ->
             ?DEBUG("Mongoose_gun_worker dropping request ~w", [Req]),
