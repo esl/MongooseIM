@@ -225,7 +225,7 @@ open_connection(State) ->
 
 queue_request(FullPath, Method, LHeaders, Query, Timeout, PID) ->
     StreamRef = gun:request(PID, Method, FullPath, LHeaders, Query),
-    {ok, TRef} = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
+    TRef = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
     {StreamRef, TRef}.
 
 retry_all(State) ->
