@@ -1,14 +1,18 @@
+%% @doc Config parsing and processing for the TOML format
 -module(mongoose_config_parser_toml).
 
--export([read_file/1, parse/1]).
+-behaviour(mongoose_config_parser).
+
+-export([parse_file/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
 -define(HOST_F(Expr), fun(Host) -> Expr end).
 
-read_file(File) ->
-    {ok, Content} = tomerl:read_file(File),
+-spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
+parse_file(FileName) ->
+    {ok, Content} = tomerl:read_file(FileName),
     Config = parse(Content),
     [Hosts] = lists:filtermap(fun(#config{key = hosts, value = Hosts}) ->
                                       {true, Hosts};
@@ -16,9 +20,12 @@ read_file(File) ->
                               end, Config),
     {FOpts, Opts} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
     HOpts = lists:flatmap(fun(F) -> [F(Host) || Host <- Hosts] end, FOpts),
-    State = mongoose_config_parser:opts_to_state(Opts ++ HOpts, Hosts),
-    State1 = mongoose_config_parser:dedup_state_opts(State),
-    mongoose_config_parser:add_dep_modules(State1).
+    lists:foldl(fun(F, StateIn) -> F(StateIn) end,
+                mongoose_config_parser:new_state(),
+                [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
+                 fun(S) -> mongoose_config_parser:set_opts(Opts ++ HOpts, S) end,
+                 fun mongoose_config_parser:dedup_state_opts/1,
+                 fun mongoose_config_parser:add_dep_modules/1]).
 
 parse(Content) ->
     lists:append([process_section(Section, SecContent) ||
