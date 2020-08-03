@@ -7,6 +7,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-define(ETS_TABLE, push_http).
+
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
 %%--------------------------------------------------------------------
@@ -34,20 +36,21 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    start_http_listener(),
     start_pool(),
     setup_modules(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     stop_pool(),
+    stop_http_listener(),
     teardown_modules(),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) ->
     Config2 = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(),
-                                   required_modules(GroupName)),
+    dynamic_modules:ensure_modules(domain(), required_modules(GroupName)),
     escalus:create_users(Config2, escalus:get_users([alice, bob])).
 
 end_per_group(_, Config) ->
@@ -55,11 +58,11 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
-    start_http_listener(),
+    create_events_collection(),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    stop_http_listener(),
+    clear_events_collection(),
     escalus:end_per_testcase(CaseName, Config).
 
 required_modules(single) ->
@@ -121,14 +124,9 @@ custom_push(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            Send = fun(Body) ->
-                       Stanza = escalus_stanza:chat_to(Bob, Body),
-                ct:pal("Stanza: ~p", [Stanza]),
-                       escalus_client:send(Alice, Stanza)
-                   end,
-            Send(<<"hej">>),
-            Send(<<>>),
-%%            now we receive them both ways, and with a custom body
+            send(Alice, Bob, <<"hej">>),
+            send(Alice, Bob, <<>>),
+            % now we receive them both ways, and with a custom body
             Res = got_push(push, 4),
             ?assertEqual([<<"in-">>,<<"in-hej">>,<<"out-">>,<<"out-hej">>], lists:sort(Res)),
             ok
@@ -138,82 +136,53 @@ push_to_many(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            Send = fun(Body) ->
-                       Stanza = escalus_stanza:chat_to(Bob, Body),
-                       escalus_client:send(Alice, Stanza)
-                   end,
-            Send(<<"hej">>),
-            Send(<<>>),
-%%            now we receive them both ways, and with a custom body
+            send(Alice, Bob, <<"hej">>),
+            send(Alice, Bob, <<>>),
+            % now we receive them both ways, and with a custom body
             Res = got_push(push, 4),
             ?assertEqual([<<"in-">>,<<"in-hej">>,<<"out-">>,<<"out-hej">>], lists:sort(Res)),
-%%            while the other backend sends only those 'out'
+            % while the other backend sends only those 'out'
             Res2 = got_push(push2, 2),
             ?assertEqual([<<"2-out-">>,<<"2-out-hej">>], lists:sort(Res2)),
             ok
         end).
 
-start_pool() ->
-    Pool = {http, host, http_pool,
-            [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
-            [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}]},
-    ejabberd_node_utils:call_fun(mongoose_wpool,
-                                 start_configured_pools,
-                                 [[Pool], [<<"localhost">>]]),
-    ok.
-
-stop_pool() ->
-    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]),
-    ok.
-
 %%--------------------------------------------------------------------
 %% Libs
 %%--------------------------------------------------------------------
 
-receive_push(Type) ->
-    receive
-        {{got_http_push, Type}, Bin} ->
-            ct:pal("{Type, Bin}: ~p", [{Type, Bin}]),
-            Bin
-    after 1000 ->
-        nothing
-    end.
-
-got_push(Type) ->
-    case receive_push(Type) of
-        nothing -> ct:fail(http_request_timeout);
-        Bin -> Bin
-    end.
-
 got_no_push(Type) ->
-    case receive_push(Type) of
-        nothing -> ok;
-        _ -> ct:fail(unwanted_push)
-    end.
+    ?assertEqual(0, length(ets:lookup(?ETS_TABLE, {got_http_push, Type})), unwanted_push).
 
 got_push(Type, Count)->
-    got_push(Type, Count, []).
+    Key = {got_http_push, Type},
+    mongoose_helper:wait_until(
+      fun() -> length(ets:lookup(?ETS_TABLE, Key)) end,
+      Count, #{name => http_request_timeout}),
+    Bins = lists:map(fun({_, El}) -> El end, ets:lookup(?ETS_TABLE, Key)),
+    ?assertEqual(Count, length(Bins)), % Assert that this didn't magically grow in the meantime
+    ets:delete(?ETS_TABLE, Key),
+    Bins.
 
-got_push(Type, 0, Res) ->
-    got_no_push(Type),
-    lists:reverse(Res);
-got_push(Type, N, Res) ->
-    got_push(Type, N - 1, [got_push(Type) | Res]).
+create_events_collection() ->
+    ets:new(?ETS_TABLE, [duplicate_bag, named_table, public]).
 
+clear_events_collection() ->
+    ets:delete_all_objects(?ETS_TABLE).
 
 start_http_listener() ->
-    Pid = self(),
-    http_helper:start(http_notifications_port(), '_', fun(Req) -> process_notification(Req, Pid) end).
+    http_helper:start(http_notifications_port(), '_', fun process_notification/1).
 
 stop_http_listener() ->
     http_helper:stop().
 
-process_notification(Req, Pid) ->
+process_notification(Req) ->
     <<$/, BType/binary>> = cowboy_req:path(Req),
     Type = binary_to_atom(BType, utf8),
     {ok, Body, Req1} = cowboy_req:read_body(Req),
     Req2 = cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req1),
-    Pid ! {{got_http_push, Type}, Body},
+    Event = {{got_http_push, Type}, Body},
+    ets:insert(?ETS_TABLE, Event),
     Req2.
 
 check_default_format(From, To, Body, Msg) ->
@@ -223,6 +192,16 @@ check_default_format(From, To, Body, Msg) ->
     ?assertEqual(Body, proplists:get_value(<<"message">>, Attrs)),
     ?assertEqual(<<"localhost">>, proplists:get_value(<<"server">>, Attrs)),
     ok.
+
+start_pool() ->
+    PoolOpts = [{strategy, random_worker}, {call_timeout, 5000}, {workers, 10}],
+    HTTPOpts = [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}],
+    Pool = {http, host, http_pool, PoolOpts, HTTPOpts},
+    ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
+                                 [[Pool], [<<"localhost">>]]).
+
+stop_pool() ->
+    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]).
 
 setup_modules() ->
     {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
@@ -279,3 +258,7 @@ to_lower(B) ->
             )
         )
     ).
+
+send(Alice, Bob, Body) ->
+    Stanza = escalus_stanza:chat_to(Bob, Body),
+    escalus_client:send(Alice, Stanza).
