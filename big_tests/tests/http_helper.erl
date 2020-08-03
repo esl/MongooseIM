@@ -24,7 +24,7 @@
     {ok, pid()}.
 start(Port, Path, HandleFun) ->
     application:ensure_all_started(cowboy),
-    Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, [HandleFun]}]}]),
+    Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, HandleFun}]}]),
     {ok, _} = cowboy:start_clear(http_helper_listener, [{port, Port}],
                                  #{env => #{dispatch => Dispatch}}).
 
@@ -35,6 +35,6 @@ port() ->
     ranch:get_port(http_helper_listener).
 
 %% Cowboy handler callbacks
-init(Req, [HandleFun] = State) ->
+init(Req, HandleFun = State) ->
     Req2 = HandleFun(Req),
     {ok, Req2, State}.
