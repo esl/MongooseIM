@@ -49,11 +49,10 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 init_per_suite(Config0) ->
-    Config1 = escalus:init_per_suite(Config0),
-    escalus:create_users(Config1, escalus:get_users([alice, bob])).
+    escalus:init_per_suite(Config0).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(no_prefix, Config) ->
@@ -80,36 +79,30 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 %%% offline tests
 %%%===================================================================
-proper_http_message_encode_decode(Config0) ->
-    Config = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
-    {ok, Alice} = escalus_client:start(Config, alice, <<"res1">>),
-    escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
-    {ok, Bob} = escalus_client:start(Config, bob, <<"res1">>),
-    escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
+proper_http_message_encode_decode(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            Sender = jid:nameprep(escalus_client:username(Alice)),
+            Receiver = jid:nameprep(escalus_client:username(Bob)),
+            Server = jid:nodeprep(escalus_users:get_host(Config, alice)),
+            Message = <<"Hi Test!&escape=Hello">>,
 
-    Sender = jid:nameprep(escalus_users:get_username(Config, alice)),
-    Server = jid:nodeprep(escalus_users:get_host(Config, alice)),
-    Receiver = jid:nameprep(escalus_users:get_username(Config, bob)),
-    Message = <<"Hi Test!&escape=Hello">>,
+            Stanza = escalus_stanza:chat_to(Bob, Message),
+            escalus:send(Alice, Stanza),
+            escalus:wait_for_stanza(Bob),
 
-    BobJid = escalus_users:get_jid(Config, bob),
-    Stanza = escalus_stanza:chat_to(BobJid, Message),
-    escalus:send(Alice, Stanza),
-    escalus:wait_for_stanzas(Bob, 2),
+            Body = get_http_request(),
 
-    escalus_client:stop(Config, Alice),
-    escalus_client:stop(Config, Bob),
+            ExtractedAndDecoded = rpc(mim(), cow_qs, parse_qs, [Body]),
+            ExpectedList = [{<<"author">>,<<Sender/binary>>},
+                            {<<"server">>,<<Server/binary>>},
+                            {<<"receiver">>,<<Receiver/binary>>},
+                            {<<"message">>,<<Message/binary>>}],
+            SortedExtractedAndDecoded = lists:sort(ExtractedAndDecoded),
+            SortedExpectedList = lists:sort(ExpectedList),
+            ?assertEqual(SortedExpectedList, SortedExtractedAndDecoded)
+        end).
 
-    Body = get_http_request(),
-
-    ExtractedAndDecoded = rpc(mim(), cow_qs, parse_qs, [Body]),
-    ExpectedList = [{<<"author">>,<<Sender/binary>>},
-                    {<<"server">>,<<Server/binary>>},
-                    {<<"receiver">>,<<Receiver/binary>>},
-                    {<<"message">>,<<Message/binary>>}],
-    SortedExtractedAndDecoded = lists:sort(ExtractedAndDecoded),
-    SortedExpectedList = lists:sort(ExpectedList),
-    ?assertEqual(SortedExpectedList, SortedExtractedAndDecoded).
 
 simple_message(Config) ->
     %% we expect one notification message
