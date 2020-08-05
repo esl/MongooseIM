@@ -8,6 +8,6 @@ transform_extra(Extra) when is_map(Extra) ->
     %% which is good for debugging (because it helps to match code and output)
     ExtraArgs = maps:fold(fun(MK, MV, A) -> A ++ [MK, MV] end, [], Extra),
     ExtraFmt = lists:append(lists:duplicate(maps:size(Extra), "~n\t~p = ~p")),
-    lager_format:format(ExtraFmt, ExtraArgs, 25000);
+    lists:flatten(io_lib:format(ExtraFmt, ExtraArgs, [{chars_limit, 25000}]));
 transform_extra(Extra) ->
-    lager_format:format("~n\tExtra ~p", [Extra], 25000).
+    lists:flatten(io_lib:format("~n\tExtra ~p", Extra, [{chars_limit, 25000}])).

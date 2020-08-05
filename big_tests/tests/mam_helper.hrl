@@ -19,7 +19,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(safe_fail(FmtStr, Args),
-        ct:fail("~ts", [lager_format:format(FmtStr, Args, 25000)])).
+        ct:fail("~ts", [lists:flatten(io_lib:format(FmtStr, Args, [{chars_limit, 25000}]))])).
 
 -define(assert_equal(E, V), (
     [?safe_fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])

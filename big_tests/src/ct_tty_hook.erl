@@ -143,11 +143,11 @@ maybe_print_test_case({testcase, Name,{error, Content},_}) ->
     io:format("~n====== Reason:    ~p~n", [Content]).
 
 print_group_enter(Group, #state{print_group = true}, Msg) ->
-    rpc(mim(), error_logger, warning_msg, ["====== ~s GROUP ~p", [Msg, Group]]);
+    rpc(mim(), logger, warning, ["====== ~s GROUP ~p", [Msg, Group]]);
 print_group_enter(_Group, _State, _Msg) ->
     ok.
 
 print_case_enter(Group, #state{print_case = true}, Msg) ->
-    rpc(mim(), error_logger, warning_msg, ["====== ~s CASE ~p", [Msg, Group]]);
+    rpc(mim(), logger, warning, ["====== ~s CASE ~p", [Msg, Group]]);
 print_case_enter(_Group, _State, _Msg) ->
     ok.
