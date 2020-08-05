@@ -180,7 +180,7 @@ should_delete_when_owner_removed() -> true.
 %% @doc Check mod_caps is enabled, otherwise show warning.
 %% The PEP plugin for mod_pubsub requires mod_caps to be enabled in the host.
 %% Check that the mod_caps module is enabled in that Jabber Host
-%% If not, show a warning message in the ejabberd log file.
+%% If not, log a warning message.
 complain_if_modcaps_disabled(ServerHost) ->
     ?WARNING_MSG_IF(
        not gen_mod:is_loaded(ServerHost, mod_caps),

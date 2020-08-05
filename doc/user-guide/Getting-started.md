@@ -183,7 +183,7 @@ Save (and optionally backup, archive, or version) the configuration file and res
 
 ### Logging
 
-Change your own loglevel in the configuration file:
+Set your own loglevel in the configuration file:
 ```erlang
 % {loglevel, 3}.
 {loglevel, 4}.

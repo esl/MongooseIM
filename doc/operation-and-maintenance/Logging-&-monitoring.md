@@ -1,38 +1,14 @@
 ## Logs
 
 We strongly recommend storing logs in one centralized place when working in a clustered environment.
-MongooseIM uses Lager - the logging framework.
-Its backend can be easily replaced; the `syslog` backend is included by default in MongooseIM.
-
-
-### Using syslog
-
-To activate the syslog backend you have to edit `rel/files/app.config` and uncomment the line:
-
-    %% use below line to add syslog backend for Lager
-    %        {lager_syslog_backend, [ "mongooseim", local0, info]},
-
-Remember to provide a parameter list to make your lager syslog backend running:
-
-* The first parameter is a string to tag all the syslog messages with.
- The default is `mongooseim`.
-* The second one is the facility to log to (see the syslog documentation).
-* The last parameter is the lager level at which the backend accepts messages.
- In our case it's `info`.
-
-Depending on the system platform you use, remember also to add the appropriate line in the syslog config file:
-
-    local0.info                     /var/log/mongooseim.log
-
-Now all the logs of level `info` will be passed to the `/var/log/mongooseim.log` file.
-
-Example log (e.g `tail -f /var/log/mongooseim.log`):
-
-    Apr  1 12:36:49 User.local mongooseim[6068]: [info] <0.7.0> Application mnesia started on node mongooseim@localhost
+MongooseIM uses the standard OTP logging framework: [Logger](Logger).
+Its handlers can be replaced and customised, according to Logger's documentation.
 
 ### Further / multiserver integration
 
-For more advanced processing and analysis of logs, including gathering logs from multiple machines, you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk), which collect data from the syslog and are beyond the scope of this documentation.
+For more advanced processing and analysis of logs, including gathering logs from multiple machines,
+you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk),
+by redirecting mongoose logs to such service with an appropriate [Logger](Logger)'s handler
 
 ## Monitoring
 
@@ -129,3 +105,4 @@ Parts of the names are indexed from `0`.
 Time-based metrics in MongooseIM are given in **microseconds**, so to display human-readable values in graph's legend, the Y-axis unit has to be edited on the `Axes` tab.
 
 [MAM]: ../modules/mod_mam.md
+[Logger]: https://erlang.org/doc/apps/kernel/logger_chapter.html#handlers
