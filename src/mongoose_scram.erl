@@ -60,7 +60,7 @@
 
 -spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Sha, Password, Salt, IterationCount) ->
-    hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
+    fast_scram:hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 -spec client_key(sha_type(), binary()) -> binary().
 client_key(Sha, SaltedPassword) ->
@@ -79,31 +79,12 @@ client_signature(Sha, StoredKey, AuthMessage) ->
 
 -spec client_proof_key(binary(), binary()) -> binary().
 client_proof_key(ClientProof, ClientSignature) ->
-    mask(ClientProof, ClientSignature).
+    crypto:exor(ClientProof, ClientSignature).
 
 -spec server_signature(sha_type(), binary(), binary()) -> binary().
 server_signature(Sha, ServerKey, AuthMessage) ->
     crypto:hmac(Sha, ServerKey, AuthMessage).
 
--spec hi(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
-hi(Sha, Password, Salt, IterationCount) ->
-    U1 = crypto:hmac(Sha, Password, <<Salt/binary, 0, 0, 0, 1>>),
-    mask(U1, hi_round(Sha, Password, U1, IterationCount - 1)).
-
--spec hi_round(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
-hi_round(Sha, Password, UPrev, 1) ->
-    crypto:hmac(Sha, Password, UPrev);
-hi_round(Sha, Password, UPrev, IterationCount) ->
-    U = crypto:hmac(Sha, Password, UPrev),
-    mask(U, hi_round(Sha, Password, U, IterationCount - 1)).
-
--spec mask(binary(), binary()) -> binary().
-mask(Key, Data) ->
-    KeySize = size(Key) * 8,
-    <<A:KeySize>> = Key,
-    <<B:KeySize>> = Data,
-    C = A bxor B,
-    <<C:KeySize>>.
 
 enabled(Host) ->
     case ejabberd_auth:get_opt(Host, password_format, scram) of
