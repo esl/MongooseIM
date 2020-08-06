@@ -248,7 +248,7 @@ retry_request(PID, {Req, Res}, ReqAcc) ->
     end.
 
 default_opts() ->
-    #{}.
+    #{retry => 1, retry_timeout => 1000}.
 
 lowercase_request({request, FullPath, Method, Headers, Query, Retries, Timeout}) ->
     {request, FullPath, Method, lowercase_headers(Headers), Query, Retries, Timeout}.
