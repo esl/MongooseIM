@@ -61,7 +61,7 @@ init({Host, Opts}) ->
      {continue, init}}.
 
 handle_continue(init, State) ->
-    NewState = open_connection(State),
+    NewState = launch_connection(State),
     {noreply, NewState}.
 
 -spec handle_call(Request, From, State) -> Result when
@@ -69,14 +69,12 @@ handle_continue(init, State) ->
       From :: {pid(), term()},
       State :: gun_worker_state(),
       Result :: {noreply, gun_worker_state()}.
-handle_call({request, FullPath, Method, Headers, Query, _Retries, Timeout} = Request,
-            From,
-            #gun_worker_state{pid = GunPid, requests = Requests} = State) ->
+handle_call(Request, From, #gun_worker_state{pid = GunPid, requests = Requests} = State) ->
     Now = erlang:monotonic_time(millisecond),
-    LHeaders = lowercase_headers(Headers),
-    {StreamRef, TRef} = queue_request(FullPath, Method, LHeaders, Query, Timeout, GunPid),
+    LRequest = lowercase_request(Request),
+    {StreamRef, TRef} = queue_request(LRequest, GunPid),
     ResponseData = #response_data{from = From, timestamp = Now, timeout_timer = TRef},
-    NewRequests = Requests#{StreamRef => {Request, ResponseData}},
+    NewRequests = Requests#{StreamRef => {LRequest, ResponseData}},
     {noreply, State#gun_worker_state{requests = NewRequests}}.
 
 -spec handle_cast(any(), gun_worker_state()) -> {noreply, gun_worker_state()}.
@@ -158,6 +156,12 @@ handle_info({timeout, StreamRef}, #gun_worker_state{requests = Requests} = State
 
             {noreply, State#gun_worker_state{requests = Requests2}}
     end;
+%% `gun_up' informs the owner process that the connection or reconnection completed.
+handle_info({gun_up, ConnPid, Protocol},
+            State = #gun_worker_state{pid = ConnPid, protocol = Protocol}) ->
+    ?DEBUG("gun_up in mongoose_gun_worker. "
+           "Connection is up with PID: ~p and protocol ~p", [ConnPid, Protocol]),
+    {noreply, State};
 %% `gun_down' is a message informing that Gun has lost the connection.
 %% It may try to reconnect, according to the `retry' and `retry_timeout' options,
 %% passed in the init options. They default to 5 retries, each with 5 second
@@ -168,11 +172,6 @@ handle_info({gun_down, PID, Protocol, Reason, KilledStreams, UnprocessedStreams}
                  [Protocol, PID, Reason, length(KilledStreams) + length(UnprocessedStreams)]),
     ?DEBUG("gun_down in mongoose_gun_worker. Killed streams: ~p. Unprocessed streams: ~p",
            [KilledStreams, UnprocessedStreams]),
-    {noreply, State};
-%% `gun_up' is a message informing that Gun has reconnected after a `gun_down'.
-handle_info({gun_up, ConnPid, _Protocol},
-            State = #gun_worker_state{pid = ConnPid}) ->
-    ?DEBUG("gun_up in mongoose_gun_worker. Connection is back up with PID: ~p", [ConnPid]),
     {noreply, State};
 %% `gun_error' is a message informing about any errors concerning connections or
 %% streams handled by Gun.
@@ -192,7 +191,7 @@ handle_info({'DOWN', MRef, process, ConnPid, Reason},
             #gun_worker_state{pid = ConnPid, monitor = MRef} = State) ->
     ?WARNING_MSG("Mongoose_gun_worker has lost the connection with PID ~p. Reason ~p.",
                  [ConnPid, Reason]),
-    ConnectedState = open_connection(State),
+    ConnectedState = launch_connection(State),
     NewState = retry_all(ConnectedState),
     {noreply, NewState};
 handle_info(M, S) ->
@@ -212,13 +211,13 @@ parse_uri(Host) ->
     end,
     {H, maps:get(port, M, undefined), maps:merge(default_opts(), Tls)}.
 
-open_connection(State) ->
-    {ok, PID} = gun:open(State#gun_worker_state.host, State#gun_worker_state.port, State#gun_worker_state.opts),
-    MonitorRef = monitor(process, PID),
-    {ok, Protocol} = gun:await_up(PID, 10000, MonitorRef),
-    State#gun_worker_state{pid = PID, protocol = Protocol, monitor = MonitorRef}.
+launch_connection(#gun_worker_state{host = H, port = P, opts = Opts} = State) ->
+    {ok, PID} = gun:open(H, P, Opts),
+    MRef = monitor(process, PID),
+    State#gun_worker_state{pid = PID, monitor = MRef}.
 
-queue_request(FullPath, Method, LHeaders, Query, Timeout, PID) ->
+queue_request(LRequest, PID) ->
+    {request, FullPath, Method, LHeaders, Query, _Retries, Timeout} = LRequest,
     StreamRef = gun:request(PID, Method, FullPath, LHeaders, Query),
     TRef = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
     {StreamRef, TRef}.
@@ -230,8 +229,7 @@ retry_all(#gun_worker_state{requests = Requests} = State) ->
     State#gun_worker_state{requests = NewRequests}.
 
 retry_request(PID, {Req, Res}, ReqAcc) ->
-    {request, FullPath, Method, Headers, Query, Retries, Timeout} = Req,
-    LHeaders = lowercase_headers(Headers),
+    {request, FullPath, Method, LHeaders, Query, Retries, Timeout} = Req,
     erlang:cancel_timer(Res#response_data.timeout_timer),
     case Retries of
         0 ->
@@ -240,7 +238,7 @@ retry_request(PID, {Req, Res}, ReqAcc) ->
             ReqAcc;
         _N ->
             ?DEBUG("Mongoose_gun_worker retrying request ~w", [Req]),
-            {NewStreamRef, TRef} = queue_request(FullPath, Method, LHeaders, Query, Timeout, PID),
+            {NewStreamRef, TRef} = queue_request(Req, PID),
 
             ReqAcc#{NewStreamRef => {
                 {request, FullPath, Method, LHeaders, Query, Retries - 1, Timeout},
@@ -251,6 +249,9 @@ retry_request(PID, {Req, Res}, ReqAcc) ->
 
 default_opts() ->
     #{}.
+
+lowercase_request({request, FullPath, Method, Headers, Query, Retries, Timeout}) ->
+    {request, FullPath, Method, lowercase_headers(Headers), Query, Retries, Timeout}.
 
 lowercase_headers(Headers) ->
     [{string:lowercase(K), V} || {K, V} <- Headers].
