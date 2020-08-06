@@ -82,14 +82,12 @@ handle_continue(init, State) ->
       Result :: {noreply, gun_worker_state()}.
 handle_call({request, FullPath, Method, Headers, Query, _Retries, Timeout} = Request,
             From,
-            #gun_worker_state{requests = Requests} = State) ->
+            #gun_worker_state{pid = GunPid, requests = Requests} = State) ->
     Now = erlang:monotonic_time(millisecond),
     LHeaders = lowercase_headers(Headers),
-
-    {StreamRef, TRef} = queue_request(FullPath, Method, LHeaders, Query, Timeout, State#gun_worker_state.pid),
-    NewRequests = Requests#{StreamRef => {Request, #response_data{from = From,
-                                                                  timestamp = Now,
-                                                                  timeout_timer = TRef}}},
+    {StreamRef, TRef} = queue_request(FullPath, Method, LHeaders, Query, Timeout, GunPid),
+    ResponseData = #response_data{from = From, timestamp = Now, timeout_timer = TRef},
+    NewRequests = Requests#{StreamRef => {Request, ResponseData}},
     {noreply, State#gun_worker_state{requests = NewRequests}}.
 
 -spec handle_cast(any(), gun_worker_state()) -> {noreply, gun_worker_state()}.
@@ -236,11 +234,10 @@ queue_request(FullPath, Method, LHeaders, Query, Timeout, PID) ->
     TRef = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
     {StreamRef, TRef}.
 
-retry_all(State) ->
-    Requests = State#gun_worker_state.requests,
-    NewRequests = maps:fold(fun(_K, V, Acc) -> retry_request(State#gun_worker_state.pid, V, Acc) end,
-                            #{},
-                            Requests),
+retry_all(#gun_worker_state{requests = Requests} = State) ->
+    NewRequests = maps:fold(fun(_K, V, Acc) ->
+                                    retry_request(State#gun_worker_state.pid, V, Acc)
+                            end, #{}, Requests),
     State#gun_worker_state{requests = NewRequests}.
 
 retry_request(PID, {Req, Res}, ReqAcc) ->
