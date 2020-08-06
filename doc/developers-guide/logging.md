@@ -22,7 +22,7 @@ ERROR_MSG("event=error_event reason=~1000p", [Arg]),
 CRITICAL_MSG("event=critical_event reason=~1000p", [Arg]),
 ```
 
-Use them to log on the corresponding log level.
+Use them in correspondence with the appropriate log level.
 Please be mindful of what is logged and which log level is used for it.
 
 # Logging levels
@@ -39,7 +39,7 @@ A system operator can choose the global log level by setting `loglevel` in `mong
 - level 1 - alert
 - level 0 - emergency
 
-If a user sets log level to `all`, then he would see all messages in logs.
+If a user sets the log level to `all`, then they would see all messages in logs.
 
 Levels `warning` and `error` are the most commonly used for production systems.
 

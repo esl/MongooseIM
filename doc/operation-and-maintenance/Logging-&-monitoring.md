@@ -8,7 +8,7 @@ Its handlers can be replaced and customised, according to Logger's documentation
 
 For more advanced processing and analysis of logs, including gathering logs from multiple machines,
 you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk),
-by redirecting mongoose logs to such service with an appropriate [Logger](Logger)'s handler
+by redirecting mongoose logs to such service with an appropriate [Logger](Logger)'s handler.
 
 ## Monitoring
 
