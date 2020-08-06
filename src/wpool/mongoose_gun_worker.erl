@@ -8,9 +8,6 @@
 
 -behaviour(gen_server).
 
-%% API
--export([start_link/2]).
-
 %% gen_server callbacks
 -export([init/1,
          handle_continue/2,
@@ -50,16 +47,8 @@
 -include("mongoose_logger.hrl").
 
 %%%===================================================================
-%%% API
-%%%===================================================================
-
-start_link(Destination, Options) ->
-    gen_server:start_link(?MODULE, {Destination, Options}, []).
-
-%%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-
 -spec init({{inet:hostname() | inet:ip_address(), inet:port_number()}, gun:opts()}) ->
     {ok, State :: gun_worker_state(), {continue, init}}.
 init({{Host, Port}, Opts}) ->
