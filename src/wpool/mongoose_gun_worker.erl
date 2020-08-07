@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% This module a wpool worker capable of establishing HTTP/2
+%%% This module implements a wpool worker capable of establishing HTTP/2
 %%% connections using the `Gun' library.
 %%% @end
 %%%-------------------------------------------------------------------

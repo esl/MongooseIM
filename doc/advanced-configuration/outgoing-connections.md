@@ -190,8 +190,8 @@ sslrootcert = /path/to/ca/cert
 
 ## HTTP connections setup
 
-Some MongooseIM modules need an HTTP connection to external service.
-These pools need to be configured and started before the module needs them.
+Some MongooseIM modules need an HTTP connection to an external service.
+These pools need to be configured and started before the module that needs them.
 Below is a sample configuration:
 
 ```erlang
@@ -199,8 +199,8 @@ Below is a sample configuration:
  {http, global, default, PoolOptions, ConnectionOptions}
 ]}.
 ```
-
-`PoolOptions` are described above, below there are the recommended `PoolOptions` for `HTTP` pools:
+where `PoolOptions` is as previously described.
+Recommended `PoolOptions` for `HTTP` pools are:
 
 * `strategy` - the recommended value is `available_worker`
 * `call_timeout` - it should be equal or longer than the value set in `request_timeout` below.
