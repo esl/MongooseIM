@@ -13,15 +13,16 @@
          handle_continue/2,
          handle_call/3,
          handle_cast/2,
-         handle_info/2]).
+         handle_info/2,
+         terminate/2
+        ]).
 
 -record(gun_worker_state, {
           host :: inet:hostname() | inet:ip_address(),
           port :: inet:port_number(),
           opts :: gun:opts(),
-          pid :: pid() | undefined,
+          pid = undefined :: pid() | undefined,
           monitor :: reference() | undefined,
-          protocol :: http | http2 | undefined,
           requests = #{} :: #{reference() := {request(), response_data()}}
          }).
 -type gun_worker_state() :: #gun_worker_state{}.
@@ -60,6 +61,8 @@ init({Host, Opts}) ->
     {ok, #gun_worker_state{host = H, port = P, opts = maps:merge(O, Opts)},
      {continue, init}}.
 
+-spec handle_continue(term(), gun_worker_state()) ->
+    {noreply, gun_worker_state()}.
 handle_continue(init, State) ->
     NewState = launch_connection(State),
     {noreply, NewState}.
@@ -69,7 +72,8 @@ handle_continue(init, State) ->
       From :: {pid(), term()},
       State :: gun_worker_state(),
       Result :: {noreply, gun_worker_state()}.
-handle_call(Request, From, #gun_worker_state{pid = GunPid, requests = Requests} = State) ->
+handle_call(Request, From, #gun_worker_state{pid = GunPid, requests = Requests} = State)
+  when is_pid(GunPid) ->
     Now = erlang:monotonic_time(millisecond),
     LRequest = lowercase_request(Request),
     {StreamRef, TRef} = queue_request(LRequest, GunPid),
@@ -110,6 +114,7 @@ handle_info({gun_response, ConnPid, StreamRef, nofin, Status, Headers},
             NewData = ResData#response_data{status = integer_to_binary(Status), headers = Headers},
             {noreply, State#gun_worker_state{requests = Requests#{StreamRef := {Req, NewData}}}}
     end;
+
 %% `gun_data' is a message that carries the response body. With the last part of
 %% the body, the `fin' flag is set.
 handle_info({gun_data, ConnPid, StreamRef, nofin, Data},
@@ -124,23 +129,23 @@ handle_info({gun_data, ConnPid, StreamRef, nofin, Data},
     end;
 handle_info({gun_data, ConnPid, StreamRef, fin, Data},
             #gun_worker_state{pid = ConnPid, requests = Requests} = State) ->
-    Now = erlang:monotonic_time(millisecond),
     case maps:get(StreamRef, Requests, undefined) of
-    undefined ->
-        {noreply, State};
-    {_Req, ResData} ->
-        erlang:cancel_timer(ResData#response_data.timeout_timer),
-        Acc = ResData#response_data.acc,
-        NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
-        % ?ERROR_MSG("NewDataaaaaaa ~p", [NewData]),
-        gen_server:reply(NewData#response_data.from,
-                        {ok, {{NewData#response_data.status, reason},
-                            NewData#response_data.headers,
-                            NewData#response_data.acc,
-                            byte_size(NewData#response_data.acc),
-                            NewData#response_data.timestamp - Now}}),
-        {noreply, State#gun_worker_state{requests = maps:remove(StreamRef, Requests)}}
+        undefined ->
+            {noreply, State};
+        {_Req, ResData} ->
+            Now = erlang:monotonic_time(millisecond),
+            erlang:cancel_timer(ResData#response_data.timeout_timer),
+            Acc = ResData#response_data.acc,
+            NewData = ResData#response_data{acc = <<Acc/binary, Data/binary>>},
+            gen_server:reply(NewData#response_data.from,
+                             {ok, {{NewData#response_data.status, reason},
+                                   NewData#response_data.headers,
+                                   NewData#response_data.acc,
+                                   byte_size(NewData#response_data.acc),
+                                   NewData#response_data.timestamp - Now}}),
+            {noreply, State#gun_worker_state{requests = maps:remove(StreamRef, Requests)}}
     end;
+
 %% `timeout' is a message responsible for terminating and restarting requests
 %% that take too long to complete. There is no such functionality in Gun, so it
 %% is sent from this module.
@@ -149,23 +154,21 @@ handle_info({timeout, StreamRef}, #gun_worker_state{requests = Requests} = State
         undefined ->
             {noreply, State}; % The request was already removed, but the timer sent a message while
                               % it was being processed. This should be a very rare case.
-        {Req, Res} ->
-            New = retry_request(State#gun_worker_state.pid, {Req, Res}, #{}),
+        {_Req, ResData} ->
+            gen_server:reply(ResData#response_data.from, {error, timeout}),
             Requests1 = maps:remove(StreamRef, Requests),
-            Requests2 = maps:merge(New, Requests1),
-
-            {noreply, State#gun_worker_state{requests = Requests2}}
+            {noreply, State#gun_worker_state{requests = Requests1}}
     end;
+
 %% `gun_up' informs the owner process that the connection or reconnection completed.
 handle_info({gun_up, ConnPid, Protocol},
-            State = #gun_worker_state{pid = ConnPid, protocol = Protocol}) ->
-    ?DEBUG("gun_up in mongoose_gun_worker. "
-           "Connection is up with PID: ~p and protocol ~p", [ConnPid, Protocol]),
+            State = #gun_worker_state{pid = ConnPid}) ->
+    ?DEBUG("gun_up in mongoose_gun_worker. Connection is up with PID: ~p and protocol ~p", [ConnPid, Protocol]),
     {noreply, State};
+
 %% `gun_down' is a message informing that Gun has lost the connection.
 %% It may try to reconnect, according to the `retry' and `retry_timeout' options,
-%% passed in the init options. They default to 5 retries, each with 5 second
-%% timeout.
+%% passed in the init options.
 handle_info({gun_down, PID, Protocol, Reason, KilledStreams, UnprocessedStreams}, State) ->
     ?WARNING_MSG("gun_down in mongoose_gun_worker. "
                  "Gun has lost the ~p connection ~p because of \"~p\", killing ~p streams.",
@@ -173,6 +176,7 @@ handle_info({gun_down, PID, Protocol, Reason, KilledStreams, UnprocessedStreams}
     ?DEBUG("gun_down in mongoose_gun_worker. Killed streams: ~p. Unprocessed streams: ~p",
            [KilledStreams, UnprocessedStreams]),
     {noreply, State};
+
 %% `gun_error' is a message informing about any errors concerning connections or
 %% streams handled by Gun.
 handle_info({gun_error, ConnPid, Reason},
@@ -184,6 +188,7 @@ handle_info({gun_error, ConnPid, StreamRef, Reason},
     ?WARNING_MSG("gun_error in mongoose_gun_worker. Reason: ~p. Stream reference: ~p",
                  [Reason, StreamRef]),
     {noreply, State};
+
 %% After `retry' number of `gun_down' messages, the connection process dies.
 %% Because it is monitored, we receive a `DOWN' message and may restart the
 %% connection.
@@ -194,9 +199,23 @@ handle_info({'DOWN', MRef, process, ConnPid, Reason},
     ConnectedState = launch_connection(State),
     NewState = retry_all(ConnectedState),
     {noreply, NewState};
+
 handle_info(M, S) ->
     ?ERROR_MSG("Unexpected message in gun_worker ~p", [M]),
     {noreply, S}.
+
+terminate(_Reason, #gun_worker_state{pid = undefined}) ->
+    ok;
+terminate(_Reason, #gun_worker_state{pid = GunPid, requests = Requests}) ->
+    maps:fold(
+     fun(StreamRef, {_Request, #response_data{from = From, timeout_timer = TRef}}, _) ->
+             erlang:cancel_timer(TRef),
+             gun:cancel(GunPid, StreamRef),
+             gun:flush(StreamRef),
+             gen_server:reply(From, {error, request_timeout})
+     end, ok, Requests),
+    gun:flush(GunPid),
+    gun:shutdown(GunPid).
 
 %%%===================================================================
 %%% Internal functions

@@ -10,7 +10,6 @@
 %% --------------------------------------------------------------
 
 init() ->
-    application:ensure_all_started(gun),
     case ets:info(?MODULE) of
         undefined ->
             Heir = case whereis(ejabberd_sup) of
