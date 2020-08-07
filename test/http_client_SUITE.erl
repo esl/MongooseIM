@@ -26,7 +26,8 @@ all() ->
 
 groups() ->
     [{gun_http1, [], tests()},
-     {gun_http2, [], tests()}].
+     {gun_http2, [], tests()},
+     {gunworker, [], [terminating_correctly]}].
 
 tests() ->
     [get_test,
@@ -68,7 +69,9 @@ init_per_group(gun_http1, Config) ->
     [{connection_opts, [{server, {"127.0.0.1", 8080}}]} | Config];
 init_per_group(gun_http2, Config) ->
     [{connection_opts, [{server, {"127.0.0.1", 8080}},
-                        {http_opts, #{protocols => [http2]}}]} | Config].
+                        {http_opts, #{protocols => [http2]}}]} | Config];
+init_per_group(gunworker, Config) ->
+    Config.
 
 end_per_group(_, Config) ->
     Config.
@@ -100,6 +103,8 @@ init_per_testcase(pool_timeout_test, Config) ->
                                             ConnOpts}],
                                           [<<"a.com">>]),
     Config;
+init_per_testcase(terminating_correctly, Config) ->
+    Config;
 init_per_testcase(_TC, Config) ->
     ConnOpts = proplists:get_value(connection_opts, Config),
     mongoose_wpool:start_configured_pools([{http, global, pool(), [],
@@ -107,8 +112,32 @@ init_per_testcase(_TC, Config) ->
                                           [<<"a.com">>]),
     Config.
 
+end_per_testcase(terminating_correctly, _Config) ->
+    ok;
 end_per_testcase(_TC, _Config) ->
     mongoose_wpool:stop(http, global, pool()).
+
+terminating_correctly(_Config) ->
+    Server = {"127.0.0.1", 8080},
+    Opts = #{protocols => [http2]},
+    gen_server:start({local, gun_worker}, mongoose_gun_worker, {Server, Opts}, []),
+    Pid = self(),
+    N = 5,
+    [spawn(fun() ->
+                   {ok, {{Code, _}, _, RespBody, _, _}} =
+                       gen_server:call(gun_worker, {request, <<"/some/path">>, <<"GET">>, [], <<>>, 1, 5000}),
+                   R = {ok, {Code, RespBody}},
+                   Pid ! R
+           end) || _ <- lists:seq(1, N)],
+    timer:sleep(50),
+    [spawn(fun() ->
+            R = gen_server:call(
+                  gun_worker, {request, <<"/some/path?sleep=true">>, <<"GET">>, [], <<>>, 1, 5000}),
+            Pid ! R
+           end) || _ <- lists:seq(1, N)],
+    ?assertEqual(ok, gen_server:stop(gun_worker, shutdown, 5000)),
+    receive_results(N, {ok, {<<"200">>, <<"OK">>}}),
+    receive_results(N, {error, request_timeout}).
 
 get_test(_Config) ->
     Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
@@ -157,17 +186,16 @@ multiple_requests_test(_Config) ->
         Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
         Pid ! Result
         end) || _ <- lists:seq(1, N)],
-    receive_results(N).
+    receive_results(N, {ok, {<<"200">>, <<"OK">>}}).
 
-receive_results(0) ->
+receive_results(0, _) ->
     ok;
-receive_results(N) ->
+receive_results(N, Expected) ->
     receive
-        Result ->
-            ?assertEqual({ok, {<<"200">>, <<"OK">>}}, Result),
-            receive_results(N-1)
+        Expected ->
+            receive_results(N - 1, Expected)
     after 100 ->
-        error(results_timeout)
+        error({results_timeout, N, Expected})
     end.
 
 pool() -> tmp_pool.
