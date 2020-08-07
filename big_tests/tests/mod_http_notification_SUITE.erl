@@ -40,6 +40,7 @@ all_tests() ->
      simple_message,
      simple_message_no_listener,
      simple_message_failing_listener,
+     listener_up_and_down_and_up_again,
      proper_http_message_encode_decode
     ].
 
@@ -135,6 +136,35 @@ do_simple_message(Config0, Msg) ->
     escalus_new_assert:mix_match([is_presence, is_chat(Msg)], Stanzas),
     escalus_client:stop(Config, Bob).
 
+listener_up_and_down_and_up_again(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg1">>)),
+            escalus:wait_for_stanza(Bob),
+
+            Body1 = get_http_request(),
+            http_request_body_as(Body1, <<"Msg1">>),
+
+            stop_http_listener(?FUNCTION_NAME),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg2">>)),
+            escalus:wait_for_stanza(Bob),
+
+            start_http_listener(?FUNCTION_NAME, get_prefix(Config)),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Msg3">>)),
+            escalus:wait_for_stanza(Bob),
+
+            Body3 = get_http_request(),
+            http_request_body_as(Body3, <<"Msg3">>)
+
+        end).
+
+http_request_body_as(Body, ExpectedMsg) ->
+    Expected = {<<"message">>, ExpectedMsg},
+    ExtractedAndDecoded = rpc(mim(), cow_qs, parse_qs, [Body]),
+    ?assertEqual(Expected, lists:keyfind(<<"message">>, 1, ExtractedAndDecoded)).
+
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
@@ -187,6 +217,8 @@ start_http_listener(simple_message_no_listener, _) ->
 start_http_listener(simple_message_failing_listener, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun(Req) -> Req end);
 start_http_listener(proper_http_message_encode_decode, Prefix) ->
+    http_helper:start(http_notifications_port(), Prefix, fun process_notification/1);
+start_http_listener(listener_up_and_down_and_up_again, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1).
 
 stop_http_listener(simple_message_no_listener) ->
