@@ -232,14 +232,14 @@ If peer certificate verification is required, the pool can be configured in the 
   {http, global, mongoose_push_http,
    [{workers, 50}],
    [{server, "https://localhost:8443"},
-    {http_opts, [
-                 {connect_options, [{verify, verify_peer}]}
-                 ]}
+    {http_opts, #{
+                     transport_opts => [{verify, verify_peer}]
+                 }}
    ]}
 ]}.
 ```
 
-Please note the `connect_options` passed to [gun] via the pool's `http_opts` parameter.
+Please note the `transport_opts` passed to [gun] via the pool's `http_opts` parameter.
 
 
 ## Redis connection setup
