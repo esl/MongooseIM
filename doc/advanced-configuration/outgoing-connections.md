@@ -207,11 +207,11 @@ Recommended `PoolOptions` for `HTTP` pools are:
 
 `ConnectionOptions` can take the following `{key, value}` pairs:
 
-* `{server, {Host, Port}}` - Host or IP address and a port to connect to.
+* `{server, HostName}` - string - the URL of the destination HTTP server (including a port number if needed).
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`Host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
 * `{http_opts, HTTPOptions}` - extra parameters to the library responsible for making the HTTP calls.
-Defaults to an empty structure (`#{}` for Gun).
+Defaults to the map: `#{retry => 1, retry_timeout => 1000}`.
   More details about the possible `http_opts` can be found in [gun]'s documentation.
 
 [gun]: https://ninenines.eu/docs/en/gun/2.0/manual/

@@ -21,7 +21,7 @@
           host :: inet:hostname() | inet:ip_address(),
           port :: inet:port_number(),
           opts :: gun:opts(),
-          pid = undefined :: pid() | undefined,
+          pid  :: pid() | undefined,
           monitor :: reference() | undefined,
           requests = #{} :: #{reference() := {request(), response_data()}}
          }).
@@ -53,12 +53,12 @@
 -spec init({{inet:hostname() | inet:ip_address(), inet:port_number()}, gun:opts()}) ->
     {ok, State :: gun_worker_state(), {continue, init}}.
 init({{Host, Port}, Opts}) ->
-    {H, _P, O} = parse_uri(Host),
-    {ok, #gun_worker_state{host = H, port = Port, opts = maps:merge(O, Opts)},
+    {H, _P, O} = parse_uri_and_opts(Host, Opts),
+    {ok, #gun_worker_state{host = H, port = Port, opts = O},
      {continue, init}};
 init({Host, Opts}) ->
-    {H, P, O} = parse_uri(Host),
-    {ok, #gun_worker_state{host = H, port = P, opts = maps:merge(O, Opts)},
+    {H, P, O} = parse_uri_and_opts(Host, Opts),
+    {ok, #gun_worker_state{host = H, port = P, opts = O},
      {continue, init}}.
 
 -spec handle_continue(term(), gun_worker_state()) ->
@@ -221,14 +221,15 @@ terminate(_Reason, #gun_worker_state{pid = GunPid, requests = Requests}) ->
 %%% Internal functions
 %%%===================================================================
 
-parse_uri(Host) ->
+parse_uri_and_opts(Host, Opts) ->
     M = uri_string:parse(Host),
     H = maps:get(host, M, "") ++ maps:get(path, M, ""),
     Tls = case maps:get(scheme, M, undefined) of
         "https" -> #{transport => tls};
               _ -> #{}
     end,
-    {H, maps:get(port, M, undefined), maps:merge(default_opts(), Tls)}.
+    O = maps:merge(maps:merge(default_opts(), Tls), Opts),
+    {H, maps:get(port, M, undefined), O}.
 
 launch_connection(#gun_worker_state{host = H, port = P, opts = Opts} = State) ->
     {ok, PID} = gun:open(H, P, Opts),

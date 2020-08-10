@@ -71,7 +71,9 @@ init_per_group(gun_http2, Config) ->
     [{connection_opts, [{server, {"127.0.0.1", 8080}},
                         {http_opts, #{protocols => [http2]}}]} | Config];
 init_per_group(gunworker, Config) ->
-    Config.
+    Server = {"127.0.0.1", 8080},
+    Opts = #{protocols => [http2]},
+    [{server, Server}, {connection_opts, Opts} | Config].
 
 end_per_group(_, Config) ->
     Config.
@@ -117,9 +119,9 @@ end_per_testcase(terminating_correctly, _Config) ->
 end_per_testcase(_TC, _Config) ->
     mongoose_wpool:stop(http, global, pool()).
 
-terminating_correctly(_Config) ->
-    Server = {"127.0.0.1", 8080},
-    Opts = #{protocols => [http2]},
+terminating_correctly(Config) ->
+    Server = ?config(server, Config),
+    Opts = ?config(connection_opts, Config),
     gen_server:start({local, gun_worker}, mongoose_gun_worker, {Server, Opts}, []),
     Pid = self(),
     N = 5,
