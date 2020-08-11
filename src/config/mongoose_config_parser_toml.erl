@@ -8,7 +8,7 @@
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
--define(HOST_F(Expr), fun(Host) -> Expr end).
+-define(HOST_F(Expr), [fun(Host) -> Expr end]).
 
 -spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
 parse_file(FileName) ->
@@ -19,7 +19,7 @@ parse_file(FileName) ->
                                  (_) -> false
                               end, Config),
     {FOpts, Opts} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
-    HOpts = lists:flatmap(fun(F) -> [F(Host) || Host <- Hosts] end, FOpts),
+    HOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
     lists:foldl(fun(F, StateIn) -> F(StateIn) end,
                 mongoose_config_parser:new_state(),
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
@@ -28,134 +28,141 @@ parse_file(FileName) ->
                  fun mongoose_config_parser:add_dep_modules/1]).
 
 parse(Content) ->
-    lists:append([process_section(Section, SecContent) ||
-                     {Section, SecContent} <- maps:to_list(Content)]).
+    parse_map(fun process_section/2, Content).
+
+parse_map(F, M) ->
+    lists:flatmap(fun({K, V}) -> F(K, V) end, maps:to_list(M)).
+
+parse_list(F, L) ->
+    lists:flatmap(F, L).
 
 process_section(<<"acl">>, Content) ->
-    [process_acl(Name, global, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_acl(Name, global, C) end, Content);
 process_section(<<"access">>, Content) ->
-    [process_access_rule(Name, global, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_access_rule(Name, global, C) end, Content);
 process_section(<<"shaper">>, Content) ->
-    [process_shaper(Name, global, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_shaper(Name, global, C) end, Content);
 process_section(<<"outgoing_pools">>, Content) ->
-    Pools = lists:append([process_pool_type(Type, C) || {Type, C} <- maps:to_list(Content)]),
+    Pools = parse_map(fun process_pool_type/2, Content),
     [#local_config{key = outgoing_pools, value = Pools}];
 process_section(<<"host_config">>, Content) ->
-    lists:append([process_host_item(C) || C <- Content]);
+    parse_list(fun process_host_item/1, Content);
 process_section(<<"listen">>, Content) ->
-    Listeners = lists:append([process_listener_type(Type, C)
-                              || {Type, C} <- maps:to_list(Content)]),
+    Listeners = parse_map(fun process_listener_type/2, Content),
     [#local_config{key = listen, value = Listeners}];
 process_section(<<"general">>, Content) ->
-    [process_general(Name, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun process_general/2, Content);
 process_section(<<"s2s">>, Content) ->
-    lists:append([process_s2s_option(Name, C) || {Name, C} <- maps:to_list(Content)]);
-process_section(<<"auth">>, Content = #{<<"methods">> := Methods}) ->
-    AuthOpts = auth_opts(maps:without([<<"methods">>], Content)),
-    [?HOST_F(#local_config{key = {auth_method, Host},
-                           value = [b2a(Method) || Method <- Methods]}),
-     ?HOST_F(#local_config{key = {auth_opts, Host},
-                           value = [Opt || {inner, Opt} <- AuthOpts]}) |
-     [?HOST_F(#local_config{key = {K, Host}, value = V}) || {outer, {K, V}} <- AuthOpts]];
+    parse_map(fun process_s2s_option/2, Content);
+process_section(<<"auth">>, Content) ->
+    AuthOpts = parse_map(fun auth_option/2, Content),
+    ?HOST_F(process_auth_opts(AuthOpts, Host));
 process_section(<<"modules">>, Content) ->
-    Mods = [process_module(Mod, Opts) || {Mod, Opts} <- maps:to_list(Content)],
-    [?HOST_F(#local_config{key = {modules, Host}, value = Mods})];
+    Mods = parse_map(fun process_module/2, Content),
+    ?HOST_F([#local_config{key = {modules, Host}, value = Mods}]);
 process_section(<<"services">>, Content) ->
-    Services = [process_service(S, Opts) || {S, Opts} <- maps:to_list(Content)],
+    Services = parse_map(fun process_service/2, Content),
     [#local_config{key = services, value = Services}].
 
 process_module(Mod, Opts) ->
-    {b2a(Mod), [module_opt(Mod, K, V) || {K, V} <- maps:to_list(Opts)]}.
+    [{b2a(Mod), parse_map(fun(K, V) -> module_opt(Mod, K, V) end, Opts)}].
 
 module_opt(<<"mod_disco">>, <<"users_can_see_hidden_services">>, V) ->
-    {users_can_see_hidden_services, V};
+    [{users_can_see_hidden_services, V}];
 module_opt(<<"mod_offline">>, <<"access_max_user_messages">>, V) ->
-    {access_max_user_messages, b2a(V)};
+    [{access_max_user_messages, b2a(V)}];
 module_opt(<<"mod_register">>, <<"welcome_message">>, V) ->
-    {welcome_message, {b2l(V)}};
+    [{welcome_message, {b2l(V)}}];
 module_opt(<<"mod_register">>, <<"ip_access">>, V) ->
-    Rules = [{b2a(P), b2l(Addr)} || #{<<"address">> := Addr, <<"policy">> := P} <- V],
-    {ip_access, Rules};
+    Rules = parse_list(fun(#{<<"address">> := Addr, <<"policy">> := P}) ->
+                               [{b2a(P), b2l(Addr)}]
+                       end, V),
+    [{ip_access, Rules}];
 module_opt(<<"mod_register">>, <<"access">>, V) ->
-    {access, b2a(V)};
+    [{access, b2a(V)}];
 module_opt(<<"mod_vcard">>, <<"host">>, V) ->
-    {host, b2l(V)};
+    [{host, b2l(V)}];
 module_opt(<<"mod_vcard">>, <<"ldap_base">>, V) ->
-    {ldap_base, b2l(V)};
+    [{ldap_base, b2l(V)}];
 module_opt(<<"mod_vcard">>, <<"ldap_filter">>, V) ->
-    {ldap_filter, b2l(V)};
+    [{ldap_filter, b2l(V)}];
 module_opt(_, <<"backend">>, V) ->
-    {backend, b2a(V)}.
+    [{backend, b2a(V)}].
 
 process_service(S, Opts) ->
-    {b2a(S), [service_opt(S, K, V) || {K, V} <- maps:to_list(Opts)]}.
+    [{b2a(S), parse_map(fun(K, V) -> service_opt(S, K, V) end, Opts)}].
 
 service_opt(<<"service_admin_extra">>, <<"submods">>, V) ->
-    {submods, [b2a(M) || M <- V]};
+    [{submods, [b2a(M) || M <- V]}];
 service_opt(<<"service_mongoose_system_metrics">>, <<"initial_report">>, V) ->
-    {initial_report, V};
+    [{initial_report, V}];
 service_opt(<<"service_mongoose_system_metrics">>, <<"periodic_report">>, V) ->
-    {periodic_report, V}.
+    [{periodic_report, V}].
 
-auth_opts(Content) ->
-    [{auth_option_placement(K), auth_option(K, V)} || {K, V} <- maps:to_list(Content)].
+process_auth_opts(AuthOpts, Host) ->
+    {InnerOpts, OuterOpts} = lists:partition(fun({K, _}) -> is_inner_auth_opt(K) end, AuthOpts),
+    [#local_config{key = {auth_opts, Host}, value = InnerOpts} |
+     [#local_config{key = {K, Host}, value = V} || {K, V} <- OuterOpts]].
 
+auth_option(<<"methods">>, Methods) ->
+    [{auth_method, [b2a(Method) || Method <- Methods]}];
 auth_option(<<"password">>, #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
-    {password_format, {scram, [b2a(H) || H <- Hashes]}};
+    [{password_format, {scram, [b2a(H) || H <- Hashes]}}];
 auth_option(<<"password">>, #{<<"format">> := Format}) ->
-    {password_format, b2a(Format)};
+    [{password_format, b2a(Format)}];
 auth_option(<<"scram_iterations">>, V) ->
-    {scram_iterations, V};
+    [{scram_iterations, V}];
 auth_option(<<"cyrsasl_external">>, V) ->
-    {cyrsasl_external, [cyrsasl_external(M) || M <- V]};
+    [{cyrsasl_external, [cyrsasl_external(M) || M <- V]}];
 auth_option(<<"allow_multiple_connections">>, V) ->
-    {allow_multiple_connections, V};
+    [{allow_multiple_connections, V}];
 auth_option(<<"anonymous_protocol">>, V) ->
-    {anonymous_protocol, b2a(V)};
+    [{anonymous_protocol, b2a(V)}];
 auth_option(<<"sasl_mechanisms">>, V) ->
-    {sasl_mechanisms, [b2a(M) || M <- V]};
+    [{sasl_mechanisms, [b2a(M) || M <- V]}];
 auth_option(<<"ldap_base">>, V) ->
-    {ldap_base, b2l(V)};
+    [{ldap_base, b2l(V)}];
 auth_option(<<"ldap_filter">>, V) ->
-    {ldap_filter, b2l(V)}.
+    [{ldap_filter, b2l(V)}].
 
 cyrsasl_external(<<"standard">>) -> standard;
 cyrsasl_external(<<"common_name">>) -> common_name;
 cyrsasl_external(<<"auth_id">>) -> auth_id;
 cyrsasl_external(M) -> {mod, b2a(M)}.
 
-auth_option_placement(<<"allow_multiple_connections">>) -> outer;
-auth_option_placement(<<"anonymous_protocol">>) -> outer;
-auth_option_placement(<<"sasl_mechanisms">>) -> outer;
-auth_option_placement(_) -> inner.
+is_inner_auth_opt(auth_method) -> false;
+is_inner_auth_opt(allow_multiple_connections) -> false;
+is_inner_auth_opt(anonymous_protocol) -> false;
+is_inner_auth_opt(sasl_mechanisms) -> false;
+is_inner_auth_opt(_) -> true.
 
 process_general(<<"loglevel">>, V) ->
-    #local_config{key = loglevel, value = b2a(V)};
+    [#local_config{key = loglevel, value = b2a(V)}];
 process_general(<<"hosts">>, Hosts) ->
-    #config{key = hosts, value = [jid:nodeprep(H) || H <- Hosts]};
+    [#config{key = hosts, value = [jid:nodeprep(H) || H <- Hosts]}];
 process_general(<<"registration_timeout">>, <<"infinity">>) ->
-    #local_config{key = registration_timeout, value = infinity};
+    [#local_config{key = registration_timeout, value = infinity}];
 process_general(<<"registration_timeout">>, V) ->
-    #local_config{key = registration_timeout, value = V};
+    [#local_config{key = registration_timeout, value = V}];
 process_general(<<"language">>, V) ->
-    #config{key = language, value = V};
+    [#config{key = language, value = V}];
 process_general(<<"all_metrics_are_global">>, V) ->
-    #local_config{key = all_metrics_are_global, value = V};
+    [#local_config{key = all_metrics_are_global, value = V}];
 process_general(<<"sm_backend">>, V) ->
-    #config{key = sm_backend, value = {b2a(V), []}};
+    [#config{key = sm_backend, value = {b2a(V), []}}];
 process_general(<<"max_fsm_queue">>, V) ->
-    #local_config{key = max_fsm_queue, value = V};
+    [#local_config{key = max_fsm_queue, value = V}];
 process_general(<<"http_server_name">>, V) ->
-    #local_config{key = cowboy_server_name, value = b2l(V)};
+    [#local_config{key = cowboy_server_name, value = b2l(V)}];
 process_general(<<"rdbms_server_type">>, V) ->
-    #local_config{key = rdbms_server_type, value = b2a(V)}.
+    [#local_config{key = rdbms_server_type, value = b2a(V)}].
 
 process_s2s_option(<<"use_starttls">>, V) ->
     [#local_config{key = s2s_use_starttls, value = b2a(V)}];
 process_s2s_option(<<"certfile">>, V) ->
     [#local_config{key = s2s_certfile, value = b2l(V)}];
 process_s2s_option(<<"default_policy">>, V) ->
-    [?HOST_F(#local_config{key = {s2s_default_policy, Host}, value = b2a(V)})];
+    ?HOST_F([#local_config{key = {s2s_default_policy, Host}, value = b2a(V)}]);
 process_s2s_option(<<"outgoing_port">>, V) ->
     [#local_config{key = outgoing_s2s_port, value = V}];
 process_s2s_option(<<"address">>, Addrs) ->
@@ -168,15 +175,15 @@ s2s_address(#{<<"ip_address">> := IP}) ->
     b2l(IP).
 
 process_listener_type(Type, Content) ->
-    [process_listener(Type, C) || C <- Content].
+    parse_list(fun(L) -> process_listener(Type, L) end, Content).
 
 process_listener(Type, Content) ->
     Options = maps:without([<<"port">>, <<"ip_address">>], Content),
     PortIP = listener_portip(Content),
-    Opts = lists:flatmap(fun({K, V}) -> listener_opt(Type, K, V) end, maps:to_list(Options)),
+    Opts = parse_map(fun(K, V) -> listener_opt(Type, K, V) end, Options),
     {Port, IPT, _, _, Proto, OptsClean} =
         ejabberd_listener:parse_listener_portip(PortIP, Opts),
-    {{Port, IPT, Proto}, listener_module(Type), OptsClean}.
+    [{{Port, IPT, Proto}, listener_module(Type), OptsClean}].
 
 listener_portip(#{<<"port">> := Port, <<"ip_address">> := Addr}) -> {Port, b2l(Addr)};
 listener_portip(#{<<"port">> := Port}) -> Port.
@@ -188,17 +195,11 @@ listener_opt(_, <<"backlog">>, N) -> [{backlog, N}];
 listener_opt(_, <<"proxy_protocol">>, V) -> [{proxy_protocol, V}];
 listener_opt(<<"http">>, <<"tls">>, Opts) -> [{ssl, https_options(Opts)}];
 listener_opt(<<"http">>, <<"transport">>, Opts) ->
-    [{transport_options,
-      [{b2a(K), cowboy_transport_opt(K, V)} || {K, V} <- maps:to_list(Opts)]
-     }];
+    [{transport_options, parse_map(fun cowboy_transport_opt/2, Opts)}];
 listener_opt(<<"http">>, <<"protocol">>, Opts) ->
-    [{protocol_options,
-      [{b2a(K), cowboy_protocol_opt(K, V)} || {K, V} <- maps:to_list(Opts)]
-     }];
+    [{protocol_options, parse_map(fun cowboy_protocol_opt/2, Opts)}];
 listener_opt(<<"http">>, <<"handlers">>, Handlers) ->
-    [{modules,
-      [cowboy_module(Type, M) || {Type, Mods} <- maps:to_list(Handlers), M <- Mods]
-     }];
+    [{modules, parse_map(fun cowboy_modules/2, Handlers)}];
 listener_opt(<<"c2s">>, <<"access">>, V) -> [{access, b2a(V)}];
 listener_opt(<<"c2s">>, <<"shaper">>, V) -> [{shaper, b2a(V)}];
 listener_opt(<<"c2s">>, <<"xml_socket">>, V) -> [{xml_socket, V}];
@@ -259,14 +260,16 @@ listener_tls_opts(M) ->
 listener_tls_mode(#{<<"mode">> := Mode}) -> [b2a(Mode)];
 listener_tls_mode(_) -> [].
 
+cowboy_modules(Type, Modules) ->
+    parse_list(fun(M) -> cowboy_module(Type, M) end, Modules).
+
 cowboy_module(Type, #{<<"host">> := Host, <<"path">> := Path} = Options) ->
     Opts = maps:without([<<"host">>, <<"path">>], Options),
     ModuleOpts = cowboy_module_options(Type, Opts),
-    {b2l(Host), b2l(Path), b2a(Type), ModuleOpts}.
+    [{b2l(Host), b2l(Path), b2a(Type), ModuleOpts}].
 
 cowboy_module_options(<<"mod_websockets">>, #{<<"ejabberd_service">> := Opts}) ->
-    [{ejabberd_service,
-      lists:append([listener_opt(<<"service">>, K, V) || {K, V} <- maps:to_list(Opts)])}];
+    [{ejabberd_service, parse_map(fun(K, V) -> listener_opt(<<"service">>, K, V) end, Opts)}];
 cowboy_module_options(<<"lasse_handler">>, #{<<"modules">> := Modules}) ->
     [b2a(Mod) || Mod <- Modules];
 cowboy_module_options(<<"cowboy_static">>, #{<<"type">> := Type,
@@ -279,10 +282,10 @@ cowboy_module_options(<<"mongoose_api">>, #{<<"handlers">> := Handlers}) ->
     [{handlers, [b2a(H) || H <- Handlers]}];
 cowboy_module_options(_, _) -> [].
 
-cowboy_transport_opt(<<"num_acceptors">>, N) -> N;
-cowboy_transport_opt(<<"max_connections">>, N) -> N.
+cowboy_transport_opt(<<"num_acceptors">>, N) -> [{num_acceptors, N}];
+cowboy_transport_opt(<<"max_connections">>, N) -> [{max_connections, N}].
 
-cowboy_protocol_opt(<<"compress">>, V) -> V.
+cowboy_protocol_opt(<<"compress">>, V) -> [{compress, V}].
 
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> ejabberd_c2s;
@@ -291,27 +294,23 @@ listener_module(<<"service">>) -> ejabberd_service.
 
 process_host_item(M) ->
     {Host, Sections} = maps:take(<<"host">>, M),
-    lists:append([process_host_section(K, Host, V) || {K, V} <- maps:to_list(Sections)]).
+    parse_map(fun(K, V) -> process_host_section(K, Host, V) end, Sections).
 
 process_host_section(<<"acl">>, Host, Content) ->
-    [process_acl(Name, Host, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_acl(Name, Host, C) end, Content);
 process_host_section(<<"access">>, Host, Content) ->
-    [process_access_rule(Name, Host, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_access_rule(Name, Host, C) end, Content);
 process_host_section(<<"shaper">>, Host, Content) ->
-    [process_shaper(Name, Host, C) || {Name, C} <- maps:to_list(Content)];
+    parse_map(fun(Name, C) -> process_shaper(Name, Host, C) end, Content);
 process_host_section(<<"modules">>, Host, Content) ->
-    Mods = [process_module(Mod, Opts) || {Mod, Opts} <- maps:to_list(Content)],
+    Mods = parse_map(fun process_module/2, Content),
     [#local_config{key = {modules, Host}, value = Mods}];
-process_host_section(<<"auth">>, Host, Content = #{<<"methods">> := Methods}) ->
-    AuthOpts = auth_opts(maps:without([<<"methods">>], Content)),
-    [#local_config{key = {auth_method, Host},
-                   value = [b2a(Method) || Method <- Methods]},
-     #local_config{key = {auth_opts, Host},
-                   value = [Opt || {inner, Opt} <- AuthOpts]} |
-     [#local_config{key = {K, Host}, value = V} || {outer, {K, V}} <- AuthOpts]].
+process_host_section(<<"auth">>, Host, Content) ->
+    AuthOpts = parse_map(fun auth_option/2, Content),
+    process_auth_opts(AuthOpts, Host).
 
 process_acl(ACLName, Host, Content) ->
-    acl:to_record(Host, b2a(ACLName), acl_data(Content)).
+    [acl:to_record(Host, b2a(ACLName), acl_data(Content))].
 
 acl_data(Content) when is_map(Content) ->
     case maps:to_list(Content) of
@@ -325,38 +324,37 @@ acl_data(Value) when is_binary(Value) -> b2a(Value).
 process_access_rule(Name, Host, Contents) ->
     Rules = [{access_rule_value(Value), b2a(ACL)} ||
                 #{<<"acl">> := ACL, <<"value">> := Value} <- Contents],
-    #config{key = {access, b2a(Name), Host}, value = Rules}.
+    [#config{key = {access, b2a(Name), Host}, value = Rules}].
 
 access_rule_value(B) when is_binary(B) -> b2a(B);
 access_rule_value(V) -> V.
 
 process_shaper(Name, Host, #{<<"max_rate">> := MaxRate}) ->
-    #config{key = {shaper, b2a(Name), Host}, value = {maxrate, MaxRate}}.
+    [#config{key = {shaper, b2a(Name), Host}, value = {maxrate, MaxRate}}].
 
 process_pool_type(Type, Content) ->
-    [process_pool(b2a(Type), b2a(Name), C) || {Name, C} <- maps:to_list(Content)].
+    parse_map(fun(Name, C) -> process_pool(b2a(Type), b2a(Name), C) end, Content).
 
 process_pool(Type, Tag, M) ->
     ConnectionOptions = maps:get(<<"connection">>, M, #{}),
     Scope = pool_scope(M),
     Options = maps:without([<<"scope">>, <<"host">>, <<"connection">>], M),
-    {Type, Scope, Tag, pool_options(Options), connection_options(Type, ConnectionOptions)}.
+    [{Type, Scope, Tag, pool_options(Options), connection_options(Type, ConnectionOptions)}].
 
 connection_options(rdbms, Options) ->
     [{server, rdbms_server(Options)}];
 connection_options(redis, Options) ->
-    [{b2a(K), redis_option(K, V)} || {K, V} <- maps:to_list(Options)];
+    parse_map(fun redis_option/2, Options);
 connection_options(ldap, Options) ->
-    [ldap_option(K, V) || {K, V} <- maps:to_list(Options)];
+    parse_map(fun ldap_option/2, Options);
 connection_options(riak, Options = #{<<"username">> := UserName,
                                      <<"password">> := Password}) ->
     M = maps:without([<<"username">>, <<"password">>], Options),
-    [{credentials, b2l(UserName), b2l(Password)} |
-     [riak_option(K, V) || {K, V} <- maps:to_list(M)]];
+    [{credentials, b2l(UserName), b2l(Password)} | parse_map(fun riak_option/2, M)];
 connection_options(cassandra, Options) ->
-    [cassandra_option(K, V) || {K, V} <- maps:to_list(Options)];
+    parse_map(fun cassandra_option/2, Options);
 connection_options(elastic, Options) ->
-    [elastic_option(K, V) || {K, V} <- maps:to_list(Options)].
+    parse_map(fun elastic_option/2, Options).
 
 rdbms_server(#{<<"driver">> := <<"odbc">>,
                <<"settings">> := Settings}) ->
@@ -378,30 +376,30 @@ rdbms_server(#{<<"driver">> := Driver,
         {Port, TLS} -> {DriverA, HostS, Port, DatabaseS, UserNameS, PasswordS, TLS}
     end.
 
-redis_option(<<"host">>, Host) -> b2l(Host);
-redis_option(<<"port">>, Port) -> Port;
-redis_option(<<"database">>, Database) -> b2l(Database);
-redis_option(<<"password">>, Password) -> b2l(Password).
+redis_option(<<"host">>, Host) -> [{host, b2l(Host)}];
+redis_option(<<"port">>, Port) -> [{port, Port}];
+redis_option(<<"database">>, Database) -> [{database, b2l(Database)}];
+redis_option(<<"password">>, Password) -> [{password, b2l(Password)}].
 
-ldap_option(<<"host">>, Host) -> {host, b2l(Host)};
-ldap_option(<<"port">>, Port) -> {port, Port};
-ldap_option(<<"rootdn">>, RootDN) -> {rootdn, b2l(RootDN)};
-ldap_option(<<"password">>, Password) -> {password, b2l(Password)};
-ldap_option(<<"encrypt">>, <<"tls">>) -> {encrypt, tls};
-ldap_option(<<"encrypt">>, <<"none">>) -> {encrypt, none};
-ldap_option(<<"tls">>, Options) -> {tls_options, client_tls_options(Options)}.
+ldap_option(<<"host">>, Host) -> [{host, b2l(Host)}];
+ldap_option(<<"port">>, Port) -> [{port, Port}];
+ldap_option(<<"rootdn">>, RootDN) -> [{rootdn, b2l(RootDN)}];
+ldap_option(<<"password">>, Password) -> [{password, b2l(Password)}];
+ldap_option(<<"encrypt">>, <<"tls">>) -> [{encrypt, tls}];
+ldap_option(<<"encrypt">>, <<"none">>) -> [{encrypt, none}];
+ldap_option(<<"tls">>, Options) -> [{tls_options, client_tls_options(Options)}].
 
-riak_option(<<"address">>, Addr) -> {address, b2l(Addr)};
-riak_option(<<"port">>, Port) -> {port, Port};
-riak_option(<<"cacertfile">>, Path) -> {cacertfile, b2l(Path)};
-riak_option(<<"tls">>, Options) -> {ssl_opts, client_tls_options(Options)}.
+riak_option(<<"address">>, Addr) -> [{address, b2l(Addr)}];
+riak_option(<<"port">>, Port) -> [{port, Port}];
+riak_option(<<"cacertfile">>, Path) -> [{cacertfile, b2l(Path)}];
+riak_option(<<"tls">>, Options) -> [{ssl_opts, client_tls_options(Options)}].
 
-cassandra_option(<<"servers">>, Servers) -> {servers, [cassandra_server(S) || S <- Servers]};
-cassandra_option(<<"keyspace">>, KeySpace) -> {keyspace, b2a(KeySpace)};
-cassandra_option(<<"tls">>, Options) -> {ssl, client_tls_options(Options)}.
+cassandra_option(<<"servers">>, Servers) -> [{servers, [cassandra_server(S) || S <- Servers]}];
+cassandra_option(<<"keyspace">>, KeySpace) -> [{keyspace, b2a(KeySpace)}];
+cassandra_option(<<"tls">>, Options) -> [{ssl, client_tls_options(Options)}].
 
-elastic_option(<<"host">>, Host) -> {host, b2l(Host)};
-elastic_option(<<"port">>, Port) -> {port, Port}.
+elastic_option(<<"host">>, Host) -> [{host, b2l(Host)}];
+elastic_option(<<"port">>, Port) -> [{port, Port}].
 
 cassandra_server(#{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> {b2l(IPAddr), Port};
 cassandra_server(#{<<"ip_address">> := IPAddr}) -> b2l(IPAddr).
@@ -420,23 +418,23 @@ db_tls_options(<<"pgsql">>, Opts) ->
     [{ssl, SSLMode}, {ssl_opts, client_tls_options(Opts1)}].
 
 pool_options(Opts) ->
-    [{b2a(K), pool_option(K, V)} || {K, V} <- maps:to_list(Opts)].
+    parse_map(fun pool_option/2, Opts).
 
-pool_option(<<"workers">>, V) -> V;
-pool_option(<<"strategy">>, V) -> b2a(V);
-pool_option(<<"call_timeout">>, V) -> V.
+pool_option(<<"workers">>, V) -> [{workers, V}];
+pool_option(<<"strategy">>, V) -> [{strategy, b2a(V)}];
+pool_option(<<"call_timeout">>, V) -> [{call_timeout, V}].
 
 client_tls_options(Opts) ->
-    [client_tls_option(K, V) || {K, V} <- maps:to_list(Opts)].
+    parse_map(fun client_tls_option/2, Opts).
 
-client_tls_option(<<"verify_peer">>, V) -> {verify, verify_peer(V)};
-client_tls_option(<<"certfile">>, V) -> {certfile, b2l(V)};
-client_tls_option(<<"cacertfile">>, V) -> {cacertfile, b2l(V)};
-client_tls_option(<<"keyfile">>, V) -> {keyfile, b2l(V)};
-client_tls_option(<<"password">>, V) -> {password, b2l(V)};
-client_tls_option(<<"server_name_indication">>, false) -> {server_name_indication, disable};
-client_tls_option(<<"ciphers">>, L) -> {ciphers, [tls_cipher(C) || C <- L]};
-client_tls_option(<<"versions">>, L) -> {versions, [b2a(V) || V <- L]}.
+client_tls_option(<<"verify_peer">>, V) -> [{verify, verify_peer(V)}];
+client_tls_option(<<"certfile">>, V) -> [{certfile, b2l(V)}];
+client_tls_option(<<"cacertfile">>, V) -> [{cacertfile, b2l(V)}];
+client_tls_option(<<"keyfile">>, V) -> [{keyfile, b2l(V)}];
+client_tls_option(<<"password">>, V) -> [{password, b2l(V)}];
+client_tls_option(<<"server_name_indication">>, false) -> [{server_name_indication, disable}];
+client_tls_option(<<"ciphers">>, L) -> [{ciphers, [tls_cipher(C) || C <- L]}];
+client_tls_option(<<"versions">>, L) -> [{versions, [b2a(V) || V <- L]}].
 
 tls_cipher(#{<<"key_exchange">> := KEx,
              <<"cipher">> := Cipher,
