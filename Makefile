@@ -15,7 +15,7 @@ clean:
 	-rm -rf _build
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
-	-rm rel/var-toml.config
+	-rm rel/vars-toml.config
 
 # REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
