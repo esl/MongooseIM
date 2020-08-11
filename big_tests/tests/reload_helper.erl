@@ -44,12 +44,11 @@ restart_ejabberd_node(Node) ->
 reload_through_ctl(#{node := Node} = RPCSpec, Config) ->
     ReloadCmd = node_ctl(Node, Config) ++ " reload_local",
     OutputStr = rpc(RPCSpec, os, cmd, [ReloadCmd]),
-    ok = verify_reload_output(ReloadCmd, OutputStr).
+    ok = reload_output_contains_done(ReloadCmd, OutputStr).
 
-verify_reload_output(ReloadCmd, OutputStr) ->
-    ExpectedOutput = ?CTL_RELOAD_OUTPUT_PREFIX,
-    case lists:sublist(OutputStr, length(ExpectedOutput)) of
-        ExpectedOutput ->
+reload_output_contains_done(ReloadCmd, OutputStr) ->
+    case re:run(list_to_binary(OutputStr), <<"\n", ?CTL_RELOAD_OUTPUT_PREFIX, "\n">>) of
+        {match, _} ->
             ok;
         _ ->
             ct:pal("ReloadCmd: ~p", [ReloadCmd]),

@@ -120,7 +120,7 @@ get_all_logs(Username, Domain, TmpDir) ->
 
 -spec get_logs(gdpr:username(), gdpr:domain(), file:name()) -> file:name().
 get_logs(Username, Domain, TmpDir) ->
-    FileList = [filename:absname(F) || F <- ejabberd_loglevel:get_log_files()],
+    FileList = [filename:absname(F) || F <- mongoose_logs:get_log_files()],
     Cmd = code:priv_dir(mongooseim) ++ "/parse_logs.sh",
     FileName = "logs-" ++ atom_to_list(node()) ++ ".txt",
     FilePath = TmpDir ++ "/" ++ FileName,

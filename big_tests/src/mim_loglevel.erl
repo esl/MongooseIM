@@ -10,8 +10,8 @@ disable_logging(Hosts, Levels) ->
 
 set_custom(Host, Module, Level) ->
     Node = ct:get_config({hosts, Host, node}),
-    mongoose_helper:successful_rpc(#{node => Node}, ejabberd_loglevel, set_custom, [Module, Level]).
+    mongoose_helper:successful_rpc(#{node => Node}, mongoose_logs, set_module_loglevel, [Module, Level]).
 
 clear_custom(Host, Module, _Level) ->
     Node = ct:get_config({hosts, Host, node}),
-    mongoose_helper:successful_rpc(#{node => Node}, ejabberd_loglevel, clear_custom, [Module]).
+    mongoose_helper:successful_rpc(#{node => Node}, mongoose_logs, clear_module_loglevel, [Module]).

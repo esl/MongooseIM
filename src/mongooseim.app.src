@@ -28,8 +28,6 @@
                   fusco,
                   idna,
                   kernel,
-                  lager,
-                  lager_syslog,
                   lasse,
                   mnesia,
                   observer_cli,

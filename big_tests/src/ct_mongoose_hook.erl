@@ -113,7 +113,7 @@ terminate(_State) ->
 maybe_print_on_server(false, _, _, _) ->
     ok;
 maybe_print_on_server(true, Event, EventName, EvenType) ->
-    rpc(mim(), error_logger, warning_msg, ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
+    rpc(mim(), logger, warning, ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
 
 check_server_purity(Suite, Config) ->
     case escalus_server:name(Config) of

@@ -375,9 +375,8 @@ Let's explore the default options.
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
 
-* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by default they are overridden with the value set in `mongooseim.cfg`.
+* `logger` - check [Logger's documentation](https://erlang.org/doc/man/logger.html) for more information.
 * `ejabberd`
-    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value set in `mongooseim.cfg`.
     * `config` (default: `"etc/mongooseim.cfg"`) - path to MongooseIM config file.
 * `ssl`
     * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.

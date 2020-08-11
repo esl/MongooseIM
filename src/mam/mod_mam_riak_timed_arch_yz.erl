@@ -399,8 +399,8 @@ remove_archive(Host, ArchiveJID) ->
     Result = do_remove_archive(100, R, Host, ArchiveJID),
     case Result of
         {stopped, N} ->
-            lager:warning("archive removal stopped for jid after processing ~p "
-                          "items out of ~p total", [ArchiveJID, N, TotalCount]),
+            ?WARNING_MSG("archive removal stopped for jid after processing ~p "
+                         "items out of ~p total", [ArchiveJID, N, TotalCount]),
             ok;
         {ok, _} ->
             ok

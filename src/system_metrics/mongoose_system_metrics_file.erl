@@ -7,7 +7,7 @@
 
 -spec location() -> string().
 location() ->
-    LogDir = ejabberd_loglevel:dir(),
+    LogDir = mongoose_logs:dir(),
     LogDir ++ "/system_metrics_report.json".
 
 -spec save([mongoose_system_metrics_collector:report_struct()]) -> ok.
