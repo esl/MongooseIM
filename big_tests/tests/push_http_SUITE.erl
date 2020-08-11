@@ -108,14 +108,10 @@ simple_push(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
-            Send = fun(Body) ->
-                       Stanza = escalus_stanza:chat_to(Bob, Body),
-                       escalus_client:send(Alice, Stanza)
-                   end,
-            Send(<<"hej">>),
+            send(Alice, Bob, <<"hej">>),
             [R] = got_push(push, 1),
             check_default_format(Alice, Bob, <<"hej">>, R),
-            Send(<<>>),
+            send(Alice, Bob, <<>>),
             got_no_push(push),
             ok
         end).
@@ -195,7 +191,7 @@ check_default_format(From, To, Body, Msg) ->
 
 start_pool() ->
     PoolOpts = [{strategy, random_worker}, {call_timeout, 5000}, {workers, 10}],
-    HTTPOpts = [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}],
+    HTTPOpts = [{path_prefix, "/"}, {http_opts, #{}}, {server, http_notifications_host()}],
     Pool = {http, host, http_pool, PoolOpts, HTTPOpts},
     ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
                                  [[Pool], [<<"localhost">>]]).

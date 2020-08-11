@@ -17,9 +17,9 @@
 %%% @doc
 %% options and defaults:
 %%     * server - (required)
-%%     * path_prefix - ""
+%%     * path_prefix - "/"
 %%     * request_timeout - 2000,
-%%     * http_opts - [] % passed to fusco
+%%     * http_opts - a map, passed to Gun
 %%%
 %%% @end
 %%% Created : 26. Jun 2018 13:07
