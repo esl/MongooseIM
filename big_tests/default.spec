@@ -80,6 +80,7 @@
 {suites, "tests", mongoose_elasticsearch_SUITE}.
 {suites, "tests", sasl_external_SUITE}.
 {suites, "tests", persistent_cluster_id_SUITE}.
+{suites, "tests", config_format_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.

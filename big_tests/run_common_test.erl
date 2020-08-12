@@ -165,8 +165,8 @@ run_test(Test, PresetsToRun, CoverOpts) ->
     prepare_cover(Test, CoverOpts),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
     {ConfigFile, Props} = get_ct_config(Test),
-    case proplists:lookup(ejabberd_presets, Props) of
-        {ejabberd_presets, Presets} ->
+    case get_presets(Props) of
+        {ok, Presets} ->
             Presets1 = case PresetsToRun of
                            all ->
                                Presets;
@@ -186,12 +186,25 @@ run_test(Test, PresetsToRun, CoverOpts) ->
             save_count(Test, Presets1),
             analyze_coverage(Test, CoverOpts),
             R;
-        _ ->
+        {error, not_found} ->
             error_logger:info_msg("Presets were not found in the config file ~ts",
                                   [ConfigFile]),
             R = do_run_quick_test(Test, CoverOpts),
             analyze_coverage(Test, CoverOpts),
             R
+    end.
+
+get_presets(Props) ->
+    case proplists:lookup(presets, Props) of
+        {presets, Presets} ->
+            case proplists:lookup(toml, Presets) of
+                {toml, Preset} ->
+                    {ok, Preset};
+                _ ->
+                    {error, not_found}
+            end;
+        _ ->
+            {error, not_found}
     end.
 
 get_ct_config(Opts) ->
@@ -263,23 +276,28 @@ is_test_host_enabled(HostName) ->
             lists:member(atom_to_binary(HostName, utf8), BinHosts)
     end.
 
-enable_preset_on_node(Node, PresetVars, HostVarsFile) ->
+enable_preset_on_node(Node, PresetVars, HostVarsFilePrefix) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([repo_dir(), "rel", "files", "mongooseim.toml"]),
-    Vars = filename:join([repo_dir(), "rel", "vars-toml.config"]),
-    NodeVars = filename:join([repo_dir(), "rel", HostVarsFile]),
-    CfgFile = filename:join([Cwd, "etc", "mongooseim.toml"]),
-    {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
-    {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
-    {ok, NodeDefault} = handle_file_error(NodeVars, file:consult(NodeVars)),
-    NewVars = merge_vars([Default, NodeDefault, PresetVars]),
-    %% Render twice to replace variables in variables
-    Tmp = bbmustache:render(Template, NewVars, [{key_type, atom}]),
-    NewCfgFile = bbmustache:render(Tmp, NewVars, [{key_type, atom}]),
-    ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
+    TemplatePath = filename:join([repo_dir(), "rel", "files", "mongooseim.toml"]),
+    DefaultVarsPath = filename:join([repo_dir(), "rel", "vars-toml.config"]),
+    NodeVarsPath = filename:join([repo_dir(), "rel", HostVarsFilePrefix ++ ".vars-toml.config"]),
+
+    {ok, Template} = handle_file_error(TemplatePath, file:read_file(TemplatePath)),
+    {ok, DefaultVars} = handle_file_error(DefaultVarsPath, file:consult(DefaultVarsPath)),
+    {ok, NodeVars} = handle_file_error(NodeVarsPath, file:consult(NodeVarsPath)),
+
+    TemplatedConfig = template_config(Template, [DefaultVars, NodeVars, PresetVars]),
+    CfgPath = filename:join([Cwd, "etc", "mongooseim.toml"]),
+    ok = call(Node, file, write_file, [CfgPath, TemplatedConfig]),
     call(Node, application, stop, [mongooseim]),
     call(Node, application, start, [mongooseim]),
     ok.
+
+template_config(Template, Vars) ->
+    MergedVars = merge_vars(Vars),
+    %% Render twice to replace variables in variables
+    Tmp = bbmustache:render(Template, MergedVars, [{key_type, atom}]),
+    bbmustache:render(Tmp, MergedVars, [{key_type, atom}]).
 
 merge_vars([Vars1, Vars2|Rest]) ->
     Vars = lists:foldl(fun ({Var, Val}, Acc) ->

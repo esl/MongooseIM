@@ -350,8 +350,9 @@ connection_options(ldap, Options) ->
     [ldap_option(K, V) || {K, V} <- maps:to_list(Options)];
 connection_options(riak, Options = #{<<"username">> := UserName,
                                      <<"password">> := Password}) ->
+    M = maps:without([<<"username">>, <<"password">>], Options),
     [{credentials, b2l(UserName), b2l(Password)} |
-     [riak_option(K, V) || {K, V} <- maps:to_list(Options)]];
+     [riak_option(K, V) || {K, V} <- maps:to_list(M)]];
 connection_options(cassandra, Options) ->
     [cassandra_option(K, V) || {K, V} <- maps:to_list(Options)];
 connection_options(elastic, Options) ->
@@ -392,8 +393,6 @@ ldap_option(<<"tls">>, Options) -> {tls_options, client_tls_options(Options)}.
 
 riak_option(<<"address">>, Addr) -> {address, b2l(Addr)};
 riak_option(<<"port">>, Port) -> {port, Port};
-riak_option(<<"username">>, UserName) -> {username, b2l(UserName)};
-riak_option(<<"password">>, Password) -> {password, b2l(Password)};
 riak_option(<<"cacertfile">>, Path) -> {cacertfile, b2l(Path)};
 riak_option(<<"tls">>, Options) -> {ssl_opts, client_tls_options(Options)}.
 
