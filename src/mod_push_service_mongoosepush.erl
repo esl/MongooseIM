@@ -86,7 +86,7 @@ push_notifications(_AccIn, Host, Notifications, Options) ->
     {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     Fun = fun(Notification) ->
-            ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
+            ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
             {ok, JSON} =
                 make_notification(Notification, Options),
             Payload = jiffy:encode(JSON),

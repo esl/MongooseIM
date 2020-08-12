@@ -29,7 +29,6 @@ all() ->
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    application:ensure_all_started(lager),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),

@@ -127,14 +127,14 @@ end_per_suite(Config) ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_group(log_transparency, Config) ->
-    lager_ct_backend:start(),
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:start(),
+    logger_ct_backend:capture(warning),
     Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(log_transparency, Config) ->
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
@@ -325,42 +325,42 @@ just_removed_from_config_logs_question(_Config) ->
 in_config_unmodified_logs_request_for_agreement(_Config) ->
     %% WHEN
     disable_system_metrics(mim()),
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:capture(warning),
     enable_system_metrics(mim()),
     %% THEN
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "MongooseIM docs", [global]) /= nomatch
                 end,
-    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
+    mongoose_helper:wait_until(fun() -> length(logger_ct_backend:recv(FilterFun)) end, 1),
     %% CLEAN
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
     disable_system_metrics(mim()).
 
 in_config_with_explicit_no_report_goes_off_silently(_Config) ->
     %% WHEN
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:capture(warning),
     start_system_metrics_module(mim(), [no_report]),
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
                         re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
                    (_,_) -> false
                 end,
-    [] = lager_ct_backend:recv(FilterFun),
+    [] = logger_ct_backend:recv(FilterFun),
     %% CLEAN
     disable_system_metrics(mim()).
 
 in_config_with_explicit_reporting_goes_on_silently(_Config) ->
     %% WHEN
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:capture(warning),
     start_system_metrics_module(mim(), [report]),
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
                         re:run(Msg, "MongooseIM docs", [global]) /= nomatch;
                    (_,_) -> false
                 end,
-    [] = lager_ct_backend:recv(FilterFun),
+    [] = logger_ct_backend:recv(FilterFun),
     %% CLEAN
     disable_system_metrics(mim()).
 

@@ -146,7 +146,7 @@ MongooseIM node mongooseim@localhost:
     uptime: 0 days 00:00:12
     distribution protocol: inet_tcp
     logs:
-        log/ejabberd.log
+        log/mongooseim.log
 ```
 
 

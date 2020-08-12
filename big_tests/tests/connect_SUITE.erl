@@ -145,7 +145,7 @@ init_per_group(c2s_noproc, Config) ->
     Config;
 init_per_group(session_replacement, Config) ->
     config_ejabberd_node_c2s(Config, [starttls]),
-    lager_ct_backend:start(),
+    logger_ct_backend:start(),
     Config;
 init_per_group(starttls, Config) ->
     config_ejabberd_node_c2s(Config, [starttls_required]),
@@ -174,7 +174,7 @@ init_per_group(_, Config) ->
     Config.
 
 end_per_group(session_replacement, Config) ->
-    lager_ct_backend:stop(),
+    logger_ct_backend:stop(),
     Config;
 end_per_group(_, Config) ->
     Config.
@@ -603,19 +603,19 @@ same_resource_replaces_session(Config) ->
     escalus_connection:stop(Alice2).
 
 clean_close_of_replaced_session(Config) ->
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:capture(warning),
 
     same_resource_replaces_session(Config),
 
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "replaced_wait_timeout") /= nomatch
                 end,
-    [] = lager_ct_backend:recv(FilterFun).
+    [] = logger_ct_backend:recv(FilterFun).
 
 replaced_session_cannot_terminate(Config) ->
     % GIVEN a session that is frozen and cannot terminate
-    lager_ct_backend:capture(warning),
+    logger_ct_backend:capture(warning),
     UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
     {ok, _Alice1, _} = escalus_connection:start(UserSpec),
     [C2SPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
@@ -628,10 +628,11 @@ replaced_session_cannot_terminate(Config) ->
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "replaced_wait_timeout") /= nomatch
                 end,
-    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
+    mongoose_helper:wait_until(
+      fun() -> length(logger_ct_backend:recv(FilterFun)) end, 1),
 
     rpc(mim(), sys, resume, [C2SPid]),
-    lager_ct_backend:stop_capture(),
+    logger_ct_backend:stop_capture(),
 
     escalus_connection:stop(Alice2).
 

@@ -151,7 +151,7 @@ process(["status"]) ->
                                  {mongoose_status, MongooseStatus},
                                  {os_pid, os:getpid()}, get_uptime(),
                                  {dist_proto, get_dist_proto()},
-                                 {logs, ejabberd_loglevel:get_log_files()}])]),
+                                 {logs, mongoose_logs:get_log_files()}])]),
     case MongooseStatus of
         not_running -> ?STATUS_ERROR;
         {running, _, _Version} -> ?STATUS_SUCCESS

@@ -134,9 +134,11 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
     end.
 
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     Extra :: any()) ->
-    ok | {error, lager_not_running}.
+-spec process_packet(Acc :: mongoose_acc:t(),
+                     From :: jid:jid(),
+                     To ::jid:jid(),
+                     El :: exml:element(),
+                     Extra :: any()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)

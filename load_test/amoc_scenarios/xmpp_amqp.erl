@@ -326,21 +326,21 @@ amqp_do(State) ->
         #'basic.consume_ok'{} ->
             State;
         Msg ->
-            lager:info("Got unhandled msg: ~p", [Msg]),
+            logger:info("Got unhandled msg: ~p", [Msg]),
             State
     end,
     amqp_do(NewState).
 
 -spec process_presence_message(#'amqp_msg'{}) -> ok.
 process_presence_message(#'amqp_msg'{payload = P}) ->
-    lager:debug("Got presence message ~p", [P]),
+    logger:debug("Got presence message ~p", [P]),
     ok.
 
 -spec process_chat_message(#'amqp_msg'{}) -> ok.
 process_chat_message(#'amqp_msg'{payload = P}) ->
     #{<<"message">> := BinaryTimestamp} = jiffy:decode(P, [return_maps]),
     report_message_ttd(BinaryTimestamp, amqp),
-    lager:debug("Got chat message ~p", [P]),
+    logger:debug("Got chat message ~p", [P]),
     ok.
 
 %================================================
@@ -411,7 +411,7 @@ open_channel(Retries) ->
     catch
         Error ->
             exometer:update(?OPEN_CHANNEL_FAILURE, 1),
-            lager:error("Could not open channel to Rabbit, reason=~p", [Error]),
+            logger:error("Could not open channel to Rabbit, reason=~p", [Error]),
             timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
             open_channel(Retries - 1)
     end.
@@ -421,11 +421,11 @@ create_queue(ChannelPid, QueueName) ->
     Declare = #'queue.declare'{queue = QueueName},
     try amqp_channel:call(ChannelPid, Declare) of
         #'queue.declare_ok'{} ->
-            lager:info("Declared queue for ~p", [QueueName]),
+            logger:info("Declared queue for ~p", [QueueName]),
             ok
     catch
         Err ->
-            lager:error("Couldnt declare queue ~p", [Err]),
+            logger:error("Couldnt declare queue ~p", [Err]),
             error
     end.
 
@@ -437,7 +437,7 @@ subscribe_to_queue(ChannelPid, QueueName) ->
                                no_ack = true},
     try amqp_channel:subscribe(ChannelPid, Consume, self()) of
         #'basic.consume_ok'{} ->
-            lager:info("Successfully subscribed to queue ~p ", [QueueName]),
+            logger:info("Successfully subscribed to queue ~p ", [QueueName]),
             ok
     catch
         Err ->
@@ -496,7 +496,7 @@ bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey) ->
             ok
     catch
         Err ->
-            lager:error("Could not bind queue ~p to exchange ~p error: ~p", [Queue, Exchange, Err]),
+            logger:error("Could not bind queue ~p to exchange ~p error: ~p", [Queue, Exchange, Err]),
             error
     end.
 
@@ -628,7 +628,7 @@ generic_connect(ConnectFun, Role, Retries) ->
     catch
         Error ->
             exometer:update(?CONNECTION_FAILURE(Role), 1),
-            lager:error("Could not connect to ~p, reason=~p", [Role, Error]),
+            logger:error("Could not connect to ~p, reason=~p", [Role, Error]),
             timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
             generic_connect(ConnectFun, Role, Retries - 1)
     end.
