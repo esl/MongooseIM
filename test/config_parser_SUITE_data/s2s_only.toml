@@ -1,0 +1,29 @@
+[general]
+  hosts = [
+    "localhost",
+    "grubalubadubdub"
+  ]
+[s2s]
+  use_starttls = "optional"
+  certfile = "tools/ssl/mongooseim/server.pem"
+  default_policy = "allow"
+  outgoing_port = 5299
+  ciphers = "TLSv1.2:TLSv1.3"
+  connection_timeout = 10000
+  preferred_ip_version = 4
+  shared = "shared secret"
+  dns_timeout = 30
+  dns_retries = 1
+  max_retry_delay = 30
+
+  [[s2s.address]]
+    host = "fed1"
+    ip_address = "127.0.0.1"
+
+  [[s2s.domain_certfile]]
+    domain = "example.com"
+    certfile = "/path/to/example_com.pem"
+  
+  [[s2s.domain_certfile]]
+    domain = "example.org"
+    certfile = "/path/to/example_org.pem"
