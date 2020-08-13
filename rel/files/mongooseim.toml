@@ -1,5 +1,5 @@
 [general]
-  loglevel = 3
+  loglevel = "warning"
   hosts = [{{{hosts}}}]
   registration_timeout = "infinity"
   language = "en"

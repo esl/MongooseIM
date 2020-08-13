@@ -25,8 +25,7 @@
 
 -import(distributed_helper, [rpc/4]).
 
--define(CTL_RELOAD_OUTPUT_PREFIX,
-        "done").
+-define(CTL_RELOAD_OUTPUT, "done").
 
 backup_ejabberd_config_file(#{node := Node} = RPCSpec, Config) ->
     {ok, _} = rpc(RPCSpec, file, copy, [node_cfg(Node, current, Config),
@@ -47,10 +46,10 @@ reload_through_ctl(#{node := Node} = RPCSpec, Config) ->
     ok = reload_output_contains_done(ReloadCmd, OutputStr).
 
 reload_output_contains_done(ReloadCmd, OutputStr) ->
-    case re:run(list_to_binary(OutputStr), <<"\n", ?CTL_RELOAD_OUTPUT_PREFIX, "\n">>) of
-        {match, _} ->
+    case lists:member(?CTL_RELOAD_OUTPUT, string:split(OutputStr, "\n", all)) of
+        true ->
             ok;
-        _ ->
+        false ->
             ct:pal("ReloadCmd: ~p", [ReloadCmd]),
             ct:pal("OutputStr: ~ts", [OutputStr]),
             error(config_reload_failed, [OutputStr])
