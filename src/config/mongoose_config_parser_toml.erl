@@ -130,7 +130,7 @@ auth_option_placement(<<"sasl_mechanisms">>) -> outer;
 auth_option_placement(_) -> inner.
 
 process_general(<<"loglevel">>, V) ->
-    #local_config{key = loglevel, value = V};
+    #local_config{key = loglevel, value = b2a(V)};
 process_general(<<"hosts">>, Hosts) ->
     #config{key = hosts, value = [jid:nodeprep(H) || H <- Hosts]};
 process_general(<<"registration_timeout">>, <<"infinity">>) ->
