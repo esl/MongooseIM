@@ -222,8 +222,9 @@ init([{SockMod, Socket}, Opts]) ->
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
         true ->
-            ?INFO_MSG("Connection attempt from blacklisted IP: ~s (~w)",
-                      [jlib:ip_to_list(IP), IP]),
+            ?LOG_INFO(#{what => c2s_blacklisted_ip,
+                        text => <<"Connection attempt from blacklisted IP">>,
+                        ip => IP}),
             {stop, normal};
         false ->
             Socket1 =
@@ -307,6 +308,8 @@ stream_start_error(Error, StateData) ->
       State :: state(),
       Result :: {stop, normal, state()}.
 c2s_stream_error(Error, StateData) ->
+    ?LOG_DEBUG(#{what => c2s_stream_error,
+                 xml_error => Error, c2s_state => StateData}),
     send_element_from_server_jid(StateData, Error),
     send_trailer(StateData),
     {stop, normal, StateData}.
@@ -743,9 +746,9 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             do_open_session(Acc, JID, StateData);
         _ ->
             Acc1 = mongoose_hooks:forbidden_session_hook(StateData#state.server, Acc, JID),
-            ?INFO_MSG("(~w) Forbidden session for ~s",
-                      [StateData#state.socket,
-                       jid:to_binary(JID)]),
+            ?LOG_INFO(#{what => forbidden_session,
+                        text => <<"User not allowed to open session">>,
+                        jid => JID, acc => Acc, c2s_state => StateData}),
             {Acc2, Err} = jlib:make_error_reply(Acc1, mongoose_xmpp_errors:not_allowed()),
             Acc3 = send_element(Acc2, Err, StateData),
             {wait, Acc3, StateData}
@@ -754,7 +757,9 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
 -spec do_open_session(mongoose_acc:t(), jid:jid(), state()) ->
     {stop | established, mongoose_acc:t(), state()}.
 do_open_session(Acc, JID, StateData) ->
-    ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
+    ?LOG_INFO(#{what => c2s_opened_session,
+                text => <<"Opened session">>,
+                jid => JID, acc => Acc, c2s_state => StateData}),
     Resp = jlib:make_result_iq_reply(mongoose_acc:element(Acc)),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
     case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
@@ -872,7 +877,9 @@ session_established({xmlstreamerror, <<"child element too big">> = E}, StateData
 session_established({xmlstreamerror, _}, StateData) ->
     c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 session_established(closed, StateData) ->
-    ?DEBUG("Session established closed - trying to enter resume_session", []),
+    ?LOG_DEBUG(#{what => c2s_closed,
+                 text => <<"Session established closed - trying to enter resume_session">>,
+                 c2s_state => StateData}),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -953,7 +960,10 @@ resume_session(closed, StateData) ->
 resume_session(timeout, StateData) ->
     {next_state, resume_session, StateData, hibernate()};
 resume_session(Msg, StateData) ->
-    ?WARNING_MSG("unexpected message ~p", [Msg]),
+    ?LOG_WARNING(#{what => <<"unexpected_message">>,
+                   text => <<"Unexpected message in resume_session state">>,
+                   state_name => resume_session, c2s_state => StateData,
+                   unexpected_msg => Msg}),
     {next_state, resume_session, StateData, hibernate()}.
 
 
@@ -1059,15 +1069,18 @@ handle_info(new_offline_messages, session_established,
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
-handle_info({'DOWN', Monitor, _Type, Object, _Info}, StateName,
+handle_info({'DOWN', Monitor, _Type, Object, Info}, StateName,
             #state{ replaced_pids = ReplacedPids } = StateData) ->
     case lists:keytake(Monitor, 1, ReplacedPids) of
         {value, {Monitor, Object}, NReplacedPids} ->
             NStateData = StateData#state{ replaced_pids = NReplacedPids },
             fsm_next_state(StateName, NStateData);
         _ ->
-            ?WARNING_MSG("event=unexpected_c2s_down_info,monitor=~p,monitored_pid=~p",
-                         [Monitor, Object]),
+            ?LOG_WARNING(#{what => unexpected_c2s_down_info,
+                           text => <<"C2S process got DOWN message from unknown process">>,
+                           monitor => Monitor, monitored_pid => Object,
+                           down_info => Info,
+                           state_name => StateName, c2s_state => StateData}),
             fsm_next_state(StateName, StateData)
     end;
 handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = [] } = StateData) ->
@@ -1075,8 +1088,11 @@ handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = [] } = Sta
 handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = ReplacedPids } = StateData) ->
     lists:foreach(
       fun({Monitor, Pid}) ->
-              ?WARNING_MSG("event=replaced_wait_timeout,monitor=~p,replaced_pid=~p",
-                           [Monitor, Pid])
+              ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
+                             text => <<"Some processes are not responding when handling replace messages">>,
+                             monitor => Monitor,
+                             replaced_pid => Pid,
+                             state_name => StateName, c2s_state => StateData})
       end, ReplacedPids),
     fsm_next_state(StateName, StateData#state{ replaced_pids = [] });
 handle_info(system_shutdown, StateName, StateData) ->
@@ -1134,7 +1150,9 @@ handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                lserver => StateData#state.server,
                                element => undefined }),
-    ?DEBUG("event=broadcast,data=~p", [Broadcast]),
+    ?LOG_DEBUG(#{what => c2s_broadcast,
+                 brodcast_data => Broadcast,
+                 state_name => StateName, c2s_state => StateData}),
     {Acc1, Res} = handle_routed_broadcast(Acc, Broadcast, StateData),
     handle_broadcast_result(Acc1, Res, StateName, StateData);
 handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
@@ -1150,7 +1168,9 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
-            ?DEBUG("Dropping packet from ~p to ~p", [jid:to_binary(From), jid:to_binary(To)]),
+            ?LOG_DEBUG(#{what => c2s_dropped_packet,
+                         text => <<"c2s_filter_packet hook dropped a packet">>,
+                         acc => Acc}),
             fsm_next_state(StateName, StateData);
         {_, To} ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
@@ -1173,17 +1193,21 @@ handle_incoming_message({run_remote_hook, HandlerName, Args}, StateName, StateDa
     HandlerState = maps:get(HandlerName, StateData#state.handlers, empty_state),
     case mongoose_hooks:c2s_remote_hook(Host, HandlerName, Args, HandlerState, StateData) of
         {error, E} ->
-            ?ERROR_MSG("event=custom_c2s_hook_handler_error tag=~p,data=~p "
-                       "extra=~p reason=~p",
-                       [HandlerName, Args, HandlerState, E]),
+            ?LOG_ERROR(#{what => custom_c2s_hook_handler_error,
+                         text => <<"c2s_remote_hook failed">>, reason => E,
+                         handler_name => HandlerName, handler_args => Args,
+                         handler_state => HandlerState,
+                         state_name => StateName, c2s_state => StateData}),
             fsm_next_state(StateName, StateData);
         NewHandlerState ->
             NewStates = maps:put(HandlerName, NewHandlerState, StateData#state.handlers),
             fsm_next_state(StateName, StateData#state{handlers = NewStates})
     end;
 handle_incoming_message(Info, StateName, StateData) ->
-    ?ERROR_MSG("event=unexpected_info info=~p state_name=~p host=~p",
-               [Info, StateName, ejabberd_c2s_state:server(StateData)]),
+    ?LOG_ERROR(#{what => unexpected_info,
+                 text => <<"C2S process received an unexpected erlang message">>,
+                 info_msg => Info,
+                 state_name => StateName, c2s_state => StateData}),
     fsm_next_state(StateName, StateData).
 
 process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData) ->
@@ -1191,10 +1215,10 @@ process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData)
         conflict -> %% A race condition detected
             %% Same jid, but different sids
             OriginSID = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
-            ?WARNING_MSG("event=conflict_check_failed "
-                          "jid=~ts c2s_sid=~p origin_sid=~p acc=~1000p",
-                         [jid:to_binary(StateData#state.jid), StateData#state.sid,
-                          OriginSID, Acc]),
+            ?LOG_WARNING(#{what => conflict_check_failed,
+                           text => <<"Drop Acc that is addressed to another connection">>,
+                           c2s_sid => StateData#state.sid, origin_sid => OriginSID,
+                           acc => Acc, state_name => StateName, c2s_state => StateData}),
             finish_state(ok, StateName, StateData);
         _ -> %% Continue processing
             process_incoming_stanza(From, To, Acc, StateName, StateData)
@@ -1514,9 +1538,9 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
             ok;
         %% if we are in an state which has a session established
         {_, replaced} ->
-            ?INFO_MSG("(~w) Replaced session for ~s",
-                      [StateData#state.socket,
-                       jid:to_binary(StateData#state.jid)]),
+            ?LOG_INFO(#{what => replaced_session,
+                        text => <<"Replaced by new connection">>,
+                        state_name => StateName, c2s_state => StateData}),
             StatusEl = #xmlel{name = <<"status">>,
                               children = [#xmlcdata{content = <<"Replaced by new connection">>}]},
             Packet = #xmlel{name = <<"presence">>,
@@ -1537,14 +1561,12 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                                StateData#state.lang, <<"Resumed by new connection">>),
             maybe_send_element_from_server_jid_safe(StateData, StreamConflict),
             maybe_send_trailer_safe(StateData),
-            ?INFO_MSG("(~w) Stream ~p resumed for ~s",
-                      [StateData#state.socket,
-                       StateData#state.stream_mgmt_id,
-                       jid:to_binary(StateData#state.jid)]);
+            ?LOG_INFO(#{what => stream_resumed,
+                        stream_mgmt_in => StateData#state.stream_mgmt_id,
+                        state_name => StateName, c2s_state => StateData});
         _ ->
-            ?INFO_MSG("(~w) Close session for ~s",
-                      [StateData#state.socket,
-                       jid:to_binary(StateData#state.jid)]),
+            ?LOG_INFO(#{what => close_session,
+                        state_name => StateName, c2s_state => StateData}),
 
             EmptySet = gb_sets:new(),
             case StateData of
@@ -1576,7 +1598,8 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
 
 -spec reroute_unacked_messages(StateData :: state(), list()) -> any().
 reroute_unacked_messages(StateData, UnreadMessages) ->
-    ?DEBUG("rerouting unacked messages", []),
+    ?LOG_DEBUG(#{what => rerouting_unacked_messages,
+                 unread_messages => UnreadMessages, c2s_state => StateData}),
     flush_stream_mgmt_buffer(StateData),
     bounce_csi_buffer(StateData),
     bounce_messages(UnreadMessages).
@@ -1615,7 +1638,8 @@ change_shaper(StateData, JID) ->
 
 -spec send_text(state(), Text :: binary()) -> any().
 send_text(StateData, Text) ->
-    ?DEBUG("Send XML on stream = ~p", [Text]),
+    ?LOG_DEBUG(#{what => c2s_send_text, text => <<"Send XML to the socket">>,
+                 text => Text, c2s_state => StateData}),
     Size = size(Text),
     mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
@@ -1736,12 +1760,15 @@ send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
                     {ok, ResAcc, BufferedStateData}
             catch
                 _:E ->
-                    ?DEBUG("event=send_ack_request_error,error=~p", [E]),
-                    ?DEBUG("event=enter_resume_session", []),
+                    ?LOG_DEBUG(#{what => send_ack_request_error,
+                                 text => <<"maybe_send_ack_request crashed, entering resume session next">>,
+                                 reason => E, c2s_state => State}),
                     {resume, Acc1, BufferedStateData}
             end;
         _ ->
-            ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
+            ?LOG_DEBUG(#{what => send_element_error,
+                         text => <<"Sending element failed, entering resume session next">>,
+                         reason => SendResult, c2s_state => State}),
             {resume, Acc1, BufferedStateData}
     end.
 
@@ -1941,7 +1968,9 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                                    pres_timestamp = Timestamp},
 
     FromUnavail = (StateData#state.pres_last == undefined) or StateData#state.pres_invis,
-    ?DEBUG("from unavail = ~p~n", [FromUnavail]),
+    ?LOG_DEBUG(#{what => presence_update_to_available,
+                 text => <<"Presence changes from unavailable to available">>,
+                 from_unavail => FromUnavail, acc => Acc, c2s_state => StateData}),
     presence_update_to_available(FromUnavail, Acc1, OldPriority, NewPriority, From,
                                  Packet, NewStateData).
 
@@ -2201,7 +2230,8 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
         undefined ->
             {Acc, StateData#state{pres_f = FSet, pres_t = TSet}};
         P ->
-            ?DEBUG("roster changed for ~p~n", [StateData#state.user]),
+            ?LOG_DEBUG(#{what => roster_changed, roster_jid => LIJID,
+                         acc => Acc, c2s_state => StateData}),
             From = StateData#state.jid,
             To = jid:make(IJID),
             IsntInvisible = not StateData#state.pres_invis,
@@ -2212,7 +2242,8 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
                                 and (ImAvailableTo or ImInvisibleTo),
             case {BecomeAvailable, BecomeUnavailable} of
                 {true, _} ->
-                    ?DEBUG("become_available_to: ~p~n", [LIJID]),
+                    ?LOG_DEBUG(#{what => become_available_to, roster_jid => LIJID,
+                                 acc => Acc, c2s_state => StateData}),
                     Acc1 = check_privacy_and_route_or_ignore(Acc, StateData, From, To, P, out),
                     A = gb_sets:add_element(LIJID,
                                           StateData#state.pres_a),
@@ -2221,7 +2252,8 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
                                              pres_t = TSet},
                     {Acc1, NState};
                 {_, true} ->
-                    ?DEBUG("become_unavailable_to: ~p~n", [LIJID]),
+                    ?LOG_DEBUG(#{what => become_unavailable_to, roster_jid => LIJID,
+                                 acc => Acc, c2s_state => StateData}),
                     PU = #xmlel{name = <<"presence">>,
                                 attrs = [{<<"type">>, <<"unavailable">>}]},
                     Acc1 = check_privacy_and_route_or_ignore(Acc, StateData, From, To, PU, out),
@@ -2322,7 +2354,8 @@ process_privacy_iq(Acc, set, To, StateData) ->
 
 -spec resend_offline_messages(mongoose_acc:t(), state()) -> mongoose_acc:t().
 resend_offline_messages(Acc, StateData) ->
-    ?DEBUG("resend offline messages~n", []),
+    ?LOG_DEBUG(#{what => resend_offline_messages,
+                 acc => Acc, c2s_state => StateData}),
     Acc1 = mongoose_hooks:resend_offline_messages_hook(
                                    StateData#state.server,
                                    Acc,
@@ -2866,7 +2899,9 @@ calc_to_drop(Handled, OldAcked) ->
 
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, StreamMgmt, _NIncoming, NextState, StateData)
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
-    ?WARNING_MSG("received <r/> but stream management is off!", []),
+    ?LOG_WARNING(#{what => unexpected_r,
+                   text => <<"received <r/> but stream management is off!">>,
+                   c2s_state => StateData}),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
                   NextState, StateData) ->
@@ -3053,8 +3088,10 @@ maybe_resume_session(NextState, El, StateData) ->
             FromSMID = mod_stream_management:get_session_from_smid(SMID),
             do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
-            ?INFO_MSG("ignoring <resume/> element "
-                      "with invalid namespace ~s~n", [InvalidNS]),
+            ?LOG_INFO(#{what => c2s_ignores_resume,
+                        text => <<"ignoring <resume/> element with invalid namespace">>,
+                        invalid_ns => InvalidNS,
+                        c2s_state => StateData}),
             fsm_next_state(NextState, StateData)
     end.
 
@@ -3098,25 +3135,32 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 catch
                     %% errors from send_element
                     _:_ ->
-                        ?INFO_MSG("resumption error while resending old stanzas"
-                                  " entering resume state again smid: ~p~n", [SMID]),
+                        ?LOG_INFO(#{what => resumption_error,
+                                    text => <<"resumption error while resending old stanzas"
+                                             " entering resume state again">>,
+                                    smid => SMID, c2s_state => NSD}),
                         maybe_enter_resume_session(SMID, NSD)
                 end
         end
     catch
-        _:_ ->
-            ?WARNING_MSG("event=resumption_error reason=invalid_response pid=~p", [Pid]),
+        _Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => resumption_error, reason => invalid_response,
+                           text => <<"Resumption error because of invalid response">>,
+                           error => Reason, stacktrace => Stacktrace,
+                           c2s_state => StateData}),
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
 do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
-    ?INFO_MSG("event=resumption_error reason=session_resumption_timed_out smid=~p h=~p", [SMID, H]),
+    ?LOG_INFO(#{what => resumption_error, reason => session_resumption_timed_out,
+                smid => SMID, stale_h => H, c2s_state => StateData}),
     send_element_from_server_jid(
       StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
     fsm_next_state(wait_for_feature_after_auth, StateData);
 do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
-    ?INFO_MSG("event=resumption_error reason=no_previous_session_for_smid smid=~p", [SMID]),
+    ?LOG_INFO(#{what => resumption_error, reason => no_previous_session_for_smid,
+                smid => SMID, c2s_state => StateData}),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 
@@ -3248,14 +3292,16 @@ handle_sasl_success(State, Creds) ->
     send_element_from_server_jid(State, sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     AuthModule = mongoose_credentials:get(Creds, auth_module),
+    StreamID = new_id(),
     Server = State#state.server,
-    ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
-              [State#state.socket, User, AuthModule]),
-    NewState = State#state{ streamid = new_id(),
+    NewState = State#state{ streamid = StreamID,
                             authenticated = true,
                             auth_module = AuthModule,
                             user = User,
                             jid = jid:make(User, Server, <<>>)},
+    ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
+                stream_id => StreamID, auth_module => AuthModule,
+                c2s_state => NewState}),
     {wait_for_stream, NewState}.
 
 handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
@@ -3268,8 +3314,10 @@ handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
             {wait_for_sasl_response, State#state{sasl_state = NewSASLState}};
         {error, Error, Username} ->
             IP = peerip(State#state.sockmod, Sock),
-            ?INFO_MSG("(~w) Failed authentication for ~s@~s from IP ~s (~w)",
-                      [Sock, Username, Server, jlib:ip_to_list(IP), IP]),
+            ?LOG_INFO(#{what => auth_failed,
+                        text => <<"Failed SASL authentication">>,
+                        user => Username, server => Server,
+                        ip => IP, c2s_state => State}),
             mongoose_hooks:auth_failed(Server, Username),
             send_element_from_server_jid(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State};
