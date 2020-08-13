@@ -156,8 +156,11 @@ set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) -
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
     catch Type:Error:StackTrace ->
-            ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
-                       [Type, Error, StackTrace]),
+              ?LOG_ERROR(#{what => mam_set_prefs_failed,
+                           user_jid => UserJID,
+                           default_mode => DefaultMode,
+                           always_jids => AlwaysJIDs, never_jids => NeverJIDs,
+                           class => Type, reason => Error, stacktrace => StackTrace}),
             {error, Error}
     end.
 
@@ -176,7 +179,10 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Queries = [DelQuery, SetQuery],
     Res = [mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, Query, Params)
            || {Query, Params} <- Queries],
-    ?DEBUG("issue=set_prefs1, result=~p", [Res]),
+    ?LOG_DEBUG(#{what => mam_set_prefs, user_jid => UserJID,
+                 default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
+                 result => Res}),
     ok.
 
 encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->

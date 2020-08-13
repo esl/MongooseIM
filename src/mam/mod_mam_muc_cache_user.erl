@@ -210,7 +210,7 @@ handle_cast({remove_user, ArcJID}, State) ->
     ets:delete(tbl_name_archive_id(), su_key(ArcJID)),
     {noreply, State};
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_cast, cast_message => Msg, state => State}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -224,7 +224,9 @@ handle_cast(Msg, State) ->
 handle_info({'DOWN', MonRef, process, Pid, Reason}, State) ->
     case ets:lookup(tbl_name_archive_id(), MonRef) of
         [] ->
-            ?WARNING_MSG("Unknown monitor ~p from ~p with ~p.", [MonRef, Pid, Reason]);
+            ?LOG_WARNING(#{what => unknown_monitor,
+                           monitor_ref => MonRef, monitor_pid => Pid,
+                           reason => Reason, state => State});
         [{MonRef, Key}] ->
             ets:delete(tbl_name_archive_id(), MonRef),
             ets:delete(tbl_name_monitor(), Key)

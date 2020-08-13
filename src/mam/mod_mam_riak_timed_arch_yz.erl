@@ -137,12 +137,14 @@ archive_message(_Result, Host, #{message_id := MessId,
                                  local_jid := LocJID,
                                  remote_jid := RemJID,
                                  source_jid := SrcJID,
-                                 packet := Packet}) ->
+                                 packet := Packet} = Params) ->
     try
         archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
-    catch _Type:Reason:StackTrace ->
-            ?WARNING_MSG("Could not write message to archive, reason: ~p",
-                         [{Reason, StackTrace}]),
+    catch Class:Reason:StackTrace ->
+            ?LOG_WARNING(maps:merge(Params,
+                         #{what => archive_message_failed,
+                           text => <<"Could not write message to archive">>,
+                           class => Class, reason => Reason, stacktrace => StackTrace})),
             mongoose_metrics:update(Host, modMamDropped, 1),
             {error, Reason}
     end.
@@ -154,13 +156,15 @@ archive_message_muc(_Result, Host, #{message_id := MessId,
                                      local_jid := LocJID,
                                      remote_jid := FromJID,
                                      source_jid := SrcJID,
-                                     packet := Packet}) ->
+                                     packet := Packet} = Params) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
         archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)
-    catch _Type:Reason:StackTrace ->
-        ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
-                     [{Reason, StackTrace}]),
+    catch Class:Reason:StackTrace ->
+        ?LOG_WARNING(maps:merge(Params,
+                     #{what => archive_muc_message_failed,
+                       text => <<"Could not write MUC message to archive">>,
+                       class => Class, reason => Reason, stacktrace => StackTrace})),
         mongoose_metrics:update(Host, modMamDropped, 1),
         {error, Reason}
     end.
@@ -399,8 +403,11 @@ remove_archive(Host, ArchiveJID) ->
     Result = do_remove_archive(100, R, Host, ArchiveJID),
     case Result of
         {stopped, N} ->
-            ?WARNING_MSG("archive removal stopped for jid after processing ~p "
-                         "items out of ~p total", [ArchiveJID, N, TotalCount]),
+            ?LOG_WARNING(#{what => remove_archive_failed,
+                           text => <<"archive removal stopped for jid after "
+                                "processing {processed_count} items out of {total_count}">>,
+                           archive_jid => ArchiveJID,
+                           processed_count => N, total_count => TotalCount}),
             ok;
         {ok, _} ->
             ok
@@ -462,7 +469,8 @@ fold_archive(Host, Fun, Query, SearchOpts, InitialAcc) ->
         {ok, {search_results, Results, _Score, Count}} ->
             {ok, Count, length(Results), do_fold_archive(Fun, Results, InitialAcc)};
         {error, R} = Err ->
-            ?WARNING_MSG("Error reading archive key_filters=~p, reason=~p", [Query, R]),
+            ?LOG_WARNING(#{what => mam_read_error,
+                           cql_query => Query, reason => R}),
             Err
     end.
 

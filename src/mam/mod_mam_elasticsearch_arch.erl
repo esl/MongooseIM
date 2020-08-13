@@ -85,9 +85,10 @@ archive_message(_Result, Host, #{message_id := MessageId,
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
             ok;
-        {error, _} = Err ->
-            ?ERROR_MSG("event=archive_message_failed server=~s user=~s remote=~s mess_id=~p reason=~1000p",
-                       [Host, Owner, Remote, MessageId, Err]),
+        {error, Reason} = Err ->
+            ?LOG_ERROR(#{what => archive_message_failed,
+                         user => Owner, server => Host, remote => Remote,
+                         message_id => MessageId, reason => Reason}),
             mongoose_metrics:update(Host, modMamDropped, 1),
             Err
     end.
@@ -101,7 +102,7 @@ lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} 
 lookup_messages(Result, Host, Params) ->
     do_lookup_messages(Result, Host, Params).
 
-lookup_message_page(AccResult, Host, #rsm_in{id = ID} = RSM, Params) ->
+lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->
     PageSize = maps:get(page_size, Params),
     case do_lookup_messages(AccResult, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
@@ -119,9 +120,10 @@ do_lookup_messages(_Result, Host, Params) ->
     case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
         {ok, Result} ->
             {ok, search_result_to_mam_lookup_result(Result, Params)};
-        {error, _} = Err ->
-            ?ERROR_MSG("event=lookup_messages_failed server=~s reason=~1000p",
-                       [Host, Err]),
+        {error, Reason} = Err ->
+            ?LOG_ERROR(maps:merge(Params,
+                                  #{what => lookup_messages_failed,
+                                    server => Host, reason => Reason})),
             Err
     end.
 
@@ -146,9 +148,9 @@ remove_archive(Host, OwnerJid) ->
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->
             ok;
-        {error, _} = Err ->
-            ?ERROR_MSG("event=remove_archive_failed server=~s user=~s reason=~1000p",
-                       [Host, jid:to_binary(OwnerJid), Err]),
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => remove_archive_failed,
+                         server => Host, user_jid => OwnerJid, reason => Reason}),
             ok
     end.
 
@@ -329,7 +331,9 @@ archive_size(Query) ->
     case mongoose_elasticsearch:count(?INDEX_NAME, ?TYPE_NAME, Query) of
         {ok, Count} ->
             Count;
-        {error, _} = Err ->
-            ?ERROR_MSG("Failed to retrieve count of messages from ElasticSearch: ~p", [Err]),
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => archive_size_failed,
+                         text => <<"Failed to retrieve count of messages from ElasticSearch">>,
+                         reason => Reason, es_query => Query}),
             0
     end.

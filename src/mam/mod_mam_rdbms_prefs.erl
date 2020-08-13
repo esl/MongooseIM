@@ -207,15 +207,15 @@ run_transaction_or_retry_on_abort(F, UserID, Retries) ->
         {atomic, _} ->
             Result;
         {aborted, Reason} when Retries > 0 ->
-            ?WARNING_MSG("event=\"Transaction aborted. Restart\", "
-                          "user_id=~p, reason=~p, retries=~p",
-                         [UserID, Reason, Retries]),
+            ?LOG_WARNING(#{what => mam_transaction_aborted,
+                           text => <<"Transaction aborted. Restart">>,
+                           user_id => UserID, reason => Reason, retries => Retries}),
             timer:sleep(100),
             run_transaction_or_retry_on_abort(F, UserID, Retries-1);
         _ ->
-            ?ERROR_MSG("event=\"Transaction failed\", "
-                        "user_id=~p, reason=~p, retries=~p",
-                         [UserID, Result, Retries]),
+            ?LOG_ERROR(#{what => mam_transaction_failed,
+                         text => <<"Transaction failed. Do not restart">>,
+                         user_id => UserID, reason => Result, retries => Retries}),
             erlang:error({transaction_failed, #{user_id => UserID, result => Result}})
     end.
 
@@ -266,7 +266,8 @@ query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID, CheckBare) ->
                        [" OR remote_jid=", use_escaped_string(SRemLBareJID)]
                end,
          ")"]),
-    ?DEBUG("query_behaviour query returns ~p", [Result]),
+    ?LOG_DEBUG(#{what => mam_query_behaviour_result,
+                 user_id => SUserID, result => Result}),
     Result.
 
 %% ----------------------------------------------------------------------

@@ -132,8 +132,9 @@ archive_message(_Result, Host, Params = #{direction := incoming}) ->
         retract_message(Host, Params),
         ok
     catch _Type:Reason:StackTrace ->
-            ?ERROR_MSG("event=archive_message_failed params='~p' reason='~p' stacktrace=~p",
-                       [Params, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => archive_message_failed,
+                         host => Host, mam_params => Params,
+                         reason => Reason, stacktrace => StackTrace}),
             {error, Reason}
     end.
 
@@ -155,8 +156,10 @@ retract_message(Host, RoomID, SenderJID, OriginID) ->
     make_tombstone(Host, SRoomID, OriginID, Rows),
     ok.
 
-make_tombstone(_Host, _SRoomID, OriginID, []) ->
-    ?INFO_MSG("Message to retract with origin id '~s' not found", [OriginID]);
+make_tombstone(_Host, SRoomID, OriginID, []) ->
+    ?LOG_INFO(#{what => make_tombstone_failed,
+                text => <<"Message to retract was not found by origin id">>,
+                room_id => SRoomID, origin_id => OriginID});
 make_tombstone(Host, SRoomID, OriginID, [{ResMessID, ResData}]) ->
     Data = mongoose_rdbms:unescape_binary(Host, ResData),
     Packet = stored_binary_to_packet(Host, Data),
@@ -429,12 +432,18 @@ extract_messages(_Host, _Filter, _IOffset, 0, _) ->
 extract_messages(Host, Filter, IOffset, IMax, false) ->
     {selected, MessageRows} =
         do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id "),
-    ?DEBUG("extract_messages query returns ~p", [MessageRows]),
+    ?LOG_DEBUG(#{what => mam_extract_messages,
+                 text => <<"extract_messages query returns...">>,
+                 mam_filter => Filter, offset => IOffset, max => IMax,
+                 host => Host, message_rows => MessageRows}),
     MessageRows;
 extract_messages(Host, Filter, IOffset, IMax, true) ->
     {selected, MessageRows} =
         do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id DESC "),
-    ?DEBUG("extract_messages query returns ~p", [MessageRows]),
+    ?LOG_DEBUG(#{what => mam_extract_messages,
+                 text => <<"extract_messages query returns...">>,
+                 mam_filter => Filter, offset => IOffset, max => IMax,
+                 host => Host, message_rows => MessageRows}),
     lists:reverse(MessageRows).
 
 do_extract_messages(Host, Filter, 0, IMax, Order) ->

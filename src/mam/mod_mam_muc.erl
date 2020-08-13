@@ -123,7 +123,7 @@ get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
-    ?DEBUG("Remove room ~p from ~p.", [RoomName, SubHost]),
+    ?LOG_DEBUG(#{what => mam_delete_room, room => RoomName, sub_host => SubHost}),
     ArcJID = jid:make(RoomName, SubHost, <<>>),
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     ArcID = archive_id_int(Host, ArcJID),
@@ -152,7 +152,7 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?DEBUG("mod_mam_muc starting", []),
+    ?LOG_DEBUG(#{what => mod_mam_muc_starting}),
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
@@ -171,7 +171,7 @@ start(Host, Opts) ->
 
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
-    ?DEBUG("mod_mam stopping", []),
+    ?LOG_DEBUG(#{what => mod_mam_muc_stopping}),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
@@ -187,7 +187,8 @@ stop(Host) ->
 -spec filter_room_packet(Packet :: packet(), EventData :: list()) -> packet().
 filter_room_packet(Packet, EventData) ->
     {room_jid, #jid{lserver = LServer}} = lists:keyfind(room_jid, 1, EventData),
-    ?DEBUG("Incoming room packet.", []),
+    ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
+                 packet => Packet, event_data => EventData}),
     IsArchivable = is_archivable_message(LServer, incoming, Packet),
     case IsArchivable of
         true ->
@@ -339,8 +340,10 @@ handle_mam_iq(Action, From, To, IQ) ->
 handle_set_prefs(ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
-    ?DEBUG("Parsed data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-           [DefaultMode, AlwaysJIDs, NeverJIDs]),
+    ?LOG_DEBUG(#{what => mam_muc_set_prefs,
+                 default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
+                 archive_jid => ArcJID, iq => IQ}),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
@@ -360,14 +363,16 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     Res = get_prefs(Host, ArcID, ArcJID, always),
-    handle_get_prefs_result(Res, IQ).
+    handle_get_prefs_result(ArcJID, Res, IQ).
 
-handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
-    ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-           [DefaultMode, AlwaysJIDs, NeverJIDs]),
+handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
+    ?LOG_DEBUG(#{what => mam_muc_get_prefs_result,
+                 default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
+                 archive_jid => ArcJID, iq => IQ}),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
-handle_get_prefs_result({error, Reason}, IQ) ->
+handle_get_prefs_result(_ArcJID, {error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
 
 -spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
@@ -593,8 +598,8 @@ report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
 report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, IQ) ->
-    ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
-               [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
+    ?LOG_ERROR(#{what => mod_mam_muc_error, issue => Issue, reason => Reason,
+                 user => LUser, server => LServer, iq => IQ, stacktrace => Stacktrace}).
 
 -spec is_archivable_message(MUCHost :: ejabberd:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().

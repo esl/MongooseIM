@@ -170,7 +170,8 @@ query_archive_id(Host, Server, UserName) ->
     query_archive_id(Host, Server, UserName, Tries).
 
 query_archive_id(Host, Server, UserName, 0) ->
-    ?ERROR_MSG("event=query_archive_id_failed username=~ts", [UserName]),
+    ?LOG_ERROR(#{what => query_archive_id_failed,
+                 host => Host, server => Server, user => UserName}),
     error(query_archive_id_failed);
 query_archive_id(Host, Server, UserName, Tries) when Tries > 0 ->
     SServer   = mongoose_rdbms:escape_string(Server),
@@ -208,8 +209,9 @@ create_user_archive(Host, Server, UserName) ->
             %% - {error, duplicate_key}
             %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
             %% Let's ignore the errors and just retry in query_archive_id
-            ?WARNING_MSG("event=create_user_archive_failed "
-                          "username=~ts reason=~p", [UserName, Res]),
+            ?LOG_WARNING(#{what => create_user_archive_failed,
+                           user => UserName, host => Host, server => Server,
+                           reason => Res}),
             ok
     end.
 

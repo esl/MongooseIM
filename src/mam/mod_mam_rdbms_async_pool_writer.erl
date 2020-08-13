@@ -241,7 +241,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
 do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
                                           flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
-    ?DEBUG("Flushed ~p entries.", [MessageCount]),
+    ?LOG_DEBUG(#{what => mam_flush, message_count => MessageCount}),
 
     Rows = [mod_mam_rdbms_arch:prepare_message(Host, Params) || Params <- Acc],
 
@@ -261,7 +261,9 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
         {updated, _Count} -> ok;
         {error, Reason} ->
             mongoose_metrics:update(Host, modMamDropped2, MessageCount),
-            ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
+            ?LOG_ERROR(#{what => archive_message_failed,
+                         text => <<"archive_message query failed">>,
+                         message_count => MessageCount, reason => Reason}),
             ok
     end,
 
@@ -330,7 +332,7 @@ handle_cast({archive_message, Params},
         false -> {noreply, State2}
     end;
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_cast, cast_message => Msg, state => State}),
     {noreply, State}.
 
 
