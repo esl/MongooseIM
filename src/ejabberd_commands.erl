@@ -260,7 +260,10 @@ register_commands(Commands) ->
     lists:foreach(
       fun(Command) ->
               Inserted = ets:insert_new(ejabberd_commands, Command),
-              ?DEBUG_IF(not Inserted, "This command is already defined:~n~p", [Command])
+              ?LOG_DEBUG_IF(not Inserted,
+                            #{what => register_command_duplicate,
+                              text => <<"This command is already defined">>,
+                              command => Command})
       end,
       Commands).
 
@@ -341,7 +344,10 @@ execute_command(AccessCommands, Auth, Name, Arguments) ->
 execute_command2(Command, Arguments) ->
     Module = Command#ejabberd_commands.module,
     Function = Command#ejabberd_commands.function,
-    ?DEBUG("Executing command ~p:~p with Args=~p", [Module, Function, Arguments]),
+    ?LOG_DEBUG(#{what => execute_command,
+                 command_module => Module,
+                 command_function => Function,
+                 command_args => Arguments}),
     apply(Module, Function, Arguments).
 
 
