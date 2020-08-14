@@ -67,6 +67,12 @@ process_section(<<"general">>, Content) ->
 process_section(<<"listen">>, Content) ->
     Listeners = parse_map(fun process_listener_type/2, Content),
     [#local_config{key = listen, value = Listeners}];
+process_section(<<"auth">>, Content) ->
+    AuthOpts = parse_map(fun auth_option/2, Content),
+    ?HOST_F(partition_auth_opts(AuthOpts, Host));
+process_section(<<"outgoing_pools">>, Content) ->
+    Pools = parse_map(fun process_pool_type/2, Content),
+    [#local_config{key = outgoing_pools, value = Pools}];
 process_section(<<"services">>, Content) ->
     Services = parse_map(fun process_service/2, Content),
     [#local_config{key = services, value = Services}];
@@ -497,7 +503,7 @@ process_s2s_option(<<"use_starttls">>, V) ->
 process_s2s_option(<<"certfile">>, V) ->
     [#local_config{key = s2s_certfile, value = b2l(V)}];
 process_s2s_option(<<"default_policy">>, V) ->
-    [?HOST_F(#local_config{key = {s2s_default_policy, Host}, value = b2a(V)})];
+    ?HOST_F([#local_config{key = {s2s_default_policy, Host}, value = b2a(V)}]);
 process_s2s_option(<<"outgoing_port">>, V) ->
     [#local_config{key = outgoing_s2s_port, value = V}];
 process_s2s_option(<<"address">>, Addrs) ->
@@ -516,10 +522,10 @@ process_s2s_option(<<"preferred_ip_version">>, V) ->
     [#local_config{key = preferred_address_family, 
         value = s2s_preferred_address_family(V)}];
 process_s2s_option(<<"shared">>, V) ->
-    [?HOST_F(#local_config{key = {s2s_shared, Host}, value = V})];
+    ?HOST_F([#local_config{key = {s2s_shared, Host}, value = V}]);
 
 process_s2s_option(<<"max_retry_delay">>, V) ->
-    [?HOST_F(#local_config{key = {s2s_max_retry_delay, Host}, value = V})].
+    ?HOST_F([#local_config{key = {s2s_max_retry_delay, Host}, value = V}]).
 
 
 s2s_outgoing_opts(_Content = #{<<"connection_timeout">> := Timeout, <<"preferred_ip_version">> := IPV}) ->
