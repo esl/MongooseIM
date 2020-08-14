@@ -36,4 +36,17 @@
 -define(CRITICAL_MSG_IF(Condition, Format, Args),
     ?LOG_IF(critical, Condition, Format, Args)).
 
+
+-define(LOG_DEBUG_IF(Condition, Map),
+        ((Condition) == true andalso ?LOG_DEBUG(Map))).
+
+-define(LOG_WARNING_IF(Condition, Map),
+        ((Condition) == true andalso ?LOG_WARNING(Map))).
+
+-define(LOG_ERROR_IF(Condition, Map),
+        ((Condition) == true andalso ?LOG_ERROR(Map))).
+
+-define(LOG_INFO_IF(Condition, Map),
+        ((Condition) == true andalso ?LOG_INFO(Map))).
+
 -endif.
