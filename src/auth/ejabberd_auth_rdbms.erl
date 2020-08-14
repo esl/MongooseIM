@@ -121,14 +121,15 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         {selected, []} ->
             false; %% Account does not exist
         {error, Error} ->
-            ?ERROR_MSG("event=check_password_failed "
-                       "reason=~p user=~ts", [Error, LUser]),
+            ?LOG_ERROR(#{what => check_password_failed,
+                         user => LUser, server => LServer,
+                         reason => Error}),
             false %% Typical error is that table doesn't exist
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=check_password_failed "
-                       "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, StackTrace]),
+            ?LOG_ERROR(#{what => check_password_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             false %% Typical error is database not accessible
     end.
 
@@ -152,15 +153,15 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
         {selected, []} ->
             not_exists; %% Account does not exist
         {error, Error} ->
-            ?ERROR_MSG("event=check_password_failed "
-                       "reason=~p user=~ts ",
-                       [Error, LUser]),
+            ?LOG_ERROR(#{what => check_password_failed,
+                         user => LUser, server => LServer,
+                         reason => Error}),
             false %% Typical error is that table doesn't exist
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=check_password_failed "
-                       "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, StackTrace]),
+            ?LOG_ERROR(#{what => check_password_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             false %% Typical error is database not accessible
     end.
 
@@ -176,7 +177,9 @@ set_password(LUser, LServer, Password) ->
         {atomic, ok} ->
             ok;
         Error ->
-            ?WARNING_MSG("Failed SQL request: ~p", [Error]),
+            ?LOG_WARNING(#{what => set_password_failed,
+                           text => <<"Failed SQL request for set_password">>,
+                           user => LUser, server => LServer, reason => Error}),
             {error, not_allowed}
     end.
 
@@ -193,8 +196,9 @@ try_register(LUser, LServer, Password) ->
         {updated, 0} ->
             {error, exists};
         Other ->
-            ?ERROR_MSG("event=try_register_failed "
-                       "user=~ts reason=~p ", [LUser, Other]),
+            ?LOG_ERROR(#{what => registration_failed,
+                         text => <<"Failed SQL request for try_register">>,
+                         user => LUser, server => LServer, reason => Other}),
             {error, exists} %% XXX wrong error type - fix type in a separate PR
     end.
 
@@ -213,14 +217,12 @@ get_vh_registered_users(LServer) ->
         {selected, Res} ->
             [{U, LServer} || {U} <- Res];
         Other ->
-            ?ERROR_MSG("event=get_vh_registered_users_failed "
-                       "reason=~1000p", [Other]),
+            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
+                         server => LServer, reason => Other}),
             []
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=get_vh_registered_users_failed "
-                   "reason=~p:~p "
-                   "stacktrace=~1000p",
-                   [Class, Reason, StackTrace]),
+        ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
+                     class => Class, reason => Reason, stacktrace => StackTrace}),
         []
     end.
 
@@ -232,13 +234,12 @@ get_vh_registered_users(LServer, Opts) ->
         {selected, Res} ->
             [{U, LServer} || {U} <- Res];
         Other ->
-            ?ERROR_MSG("event=get_vh_registered_users_failed "
-                       "reason=~1000p opts=~1000p ", [Other, Opts]),
+            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
+                         server => LServer, opts => Opts, reason => Other}),
             []
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=get_vh_registered_users_failed "
-                   "reason=~p:~p opts=~1000p stacktrace=~1000p",
-                   [Class, Reason, Opts, StackTrace]),
+        ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
+                     class => Class, reason => Reason, stacktrace => StackTrace}),
         []
     end.
 
@@ -252,13 +253,12 @@ get_vh_registered_users_number(LServer) ->
         {selected, [{Res}]} ->
             mongoose_rdbms:result_to_integer(Res);
         Other ->
-            ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
-                       "reason=~1000p", [Other]),
+            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
+                         server => LServer, reason => Other}),
             0
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
-                   "reason=~p:~p stacktrace=~1000p",
-                   [Class, Reason, StackTrace]),
+        ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
+                     class => Class, reason => Reason, stacktrace => StackTrace}),
         0
     end.
 
@@ -270,8 +270,8 @@ get_vh_registered_users_number(LServer, Opts) ->
         {selected, [{Res}]} ->
             list_to_integer(Res);
         Other ->
-            ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
-                       "reason=~1000p opts=~1000p ", [Other, Opts]),
+            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
+                         server => LServer, opts => Opts, reason => Other}),
             0
     end.
 
@@ -292,8 +292,8 @@ get_password(LUser, LServer) ->
         {selected, []} ->
             false;
         Other ->
-            ?ERROR_MSG("event=get_password_failed "
-                       "reason=~1000p user=~ts", [Other, LUser]),
+            ?LOG_ERROR(#{what => get_password_failed,
+                         user => LUser, server => LServer, reason => Other}),
             false
     end.
 
@@ -308,8 +308,8 @@ get_password_s(LUser, LServer) ->
         {selected, []} ->
             <<>>;
         Other ->
-            ?ERROR_MSG("event=get_password_s_failed "
-                       "reason=~1000p user=~ts", [Other, LUser]),
+            ?LOG_ERROR(#{what => get_password_s_failed,
+                         user => LUser, server => LServer, reason => Other}),
             <<>>
     end.
 
@@ -325,14 +325,14 @@ does_user_exist(LUser, LServer) ->
         {selected, []} ->
             false; %% Account does not exist
         {error, Error} ->
-            ?ERROR_MSG("event=does_user_exist_failed "
-                       "reason=~1000p user=~ts", [Error, LUser]),
+            ?LOG_ERROR(#{what => does_user_exist_failed,
+                         user => LUser, server => LServer, reason => Error}),
             {error, Error} %% Typical error is that table doesn't exist
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=does_user_exist_failed "
-                       "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, StackTrace]),
+            ?LOG_ERROR(#{what => does_user_exist_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, Reason} %% Typical error is database not accessible
     end.
 
@@ -346,9 +346,9 @@ remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:del_user(LServer, Username)
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=remove_user_failed "
-                   "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, StackTrace]),
+        ?LOG_ERROR(#{what => remove_user_failed,
+                     user => LUser, server => LServer,
+                     class => Class, reason => Reason, stacktrace => StackTrace}),
         ok
     end,
     ok.
@@ -386,21 +386,27 @@ scram_passwords(Server, ScramIterationCount) ->
 
 scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
-    ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
+    ?LOG_INFO(#{what => scram_passwords, server => Server,
+                text => <<"Converting the stored passwords into SCRAM bits">>}),
     ToConvertCount = case catch rdbms_queries:get_users_without_scram_count(LServer) of
         {selected, [{Res}]} -> binary_to_integer(Res);
         _ -> 0
     end,
 
-    ?INFO_MSG("Users to scrammify: ~p", [ToConvertCount]),
+    ?LOG_INFO(#{what => scram_passwords, server => Server,
+                convert_count => ToConvertCount,
+                text => <<"Users to scrammify">>}),
     scram_passwords1(LServer, Count, Interval, ScramIterationCount).
 
 scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
     case rdbms_queries:get_users_without_scram(LServer, Count) of
         {selected, []} ->
-            ?INFO_MSG("All users scrammed.", []);
+            ?LOG_INFO(#{what => scram_passwords_completed,
+                        text => <<"All users scrammed">>});
         {selected, Results} ->
-            ?INFO_MSG("Scramming ~p users...", [length(Results)]),
+            ?LOG_INFO(#{what => scram_passwords_progress,
+                        user_count => length(Results),
+                        text => <<"Scramming users in progress...">>}),
             lists:foreach(
               fun({Username, Password}) ->
                 ScrammedPassword = prepare_scrammed_password(LServer,
@@ -408,17 +414,24 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
                                                              Password),
                 write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
               end, Results),
-            ?INFO_MSG("Scrammed. Waiting for ~pms", [Interval]),
+            ?LOG_INFO(#{what => scram_passwords_progress,
+                        user_count => length(Results), interval => Interval,
+                        text => io_lib:format("Scrammed. Waiting for ~pms", [Interval])}),
             timer:sleep(Interval),
             scram_passwords1(LServer, Count, Interval, ScramIterationCount);
         Other ->
-            ?ERROR_MSG("Interrupted scramming because: ~p", [Other])
+            ?LOG_ERROR(#{what => scram_passwords_failed,
+                         text => <<"Interrupted scramming">>,
+                         server => LServer, reason => Other})
     end.
 
 write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword) ->
     case catch rdbms_queries:set_password_t(LServer, Username,
                                             ScrammedPassword) of
         {atomic, ok} -> ok;
-        Other -> ?ERROR_MSG("Could not scrammify user ~s@~s because: ~p",
-                            [Username, LServer, Other])
+        Other ->
+            ?LOG_ERROR(#{what => scrammify_user_failed,
+                         text => <<"Could not scrammify user">>,
+                         user => Username, server => LServer, reason => Other}),
+            Other
     end.

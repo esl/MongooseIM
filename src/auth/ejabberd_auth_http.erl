@@ -203,13 +203,18 @@ make_req(Method, Path, LUser, LServer, Password) ->
                       [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
               end,
 
-    ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
+    ?LOG_DEBUG(#{what => http_auth_request, text => <<"Making HTTP request">>,
+                 path => Path, user => LUser, server => LServer}),
+
     {ok, {Code, RespBody}} = case Method of
         get -> mongoose_http_client:get(LServer, auth, <<Path/binary, "?", Query/binary>>, Header);
         post -> mongoose_http_client:post(LServer, auth, Path, Header, Query)
     end,
 
-    ?DEBUG("Request result: ~s: ~p", [Code, RespBody]),
+    ?LOG_DEBUG(#{what => http_auth_result, text => <<"Received HTTP request result">>,
+                 path => Path, user => LUser, server => LServer,
+                 code => Code, result => RespBody}),
+
     case Code of
         <<"409">> -> {error, conflict};
         <<"404">> -> {error, not_found};

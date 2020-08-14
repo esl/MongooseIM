@@ -178,7 +178,8 @@ remove_user(LUser, LServer) ->
     case mongoose_riak:delete(bucket_type(LServer), LUser) of
         ok -> ok;
         Error ->
-            ?WARNING_MSG("Failed Riak query: ~p", [Error]),
+            ?LOG_WARNING(#{what => remove_user_failed, reason => Error,
+                           user => LUser, server => LServer}),
             {error, not_allowed}
     end.
 

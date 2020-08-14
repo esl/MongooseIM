@@ -144,16 +144,21 @@ loop(Port, Timeout, ProcessName, ExtPrg) ->
             port_command(Port, encode(Msg)),
             receive
                 {Port, {data, Data}} ->
-                    ?DEBUG("extauth call '~p' received data response:~n~p", [Msg, Data]),
+                    ?LOG_DEBUG(#{what => extauth_result,
+                                 extauth_call => Msg, result => Data,
+                                 text => <<"extauth call received data response">>}),
                     Caller ! {eauth, decode(Data)},
                     loop(Port, ?CALL_TIMEOUT, ProcessName, ExtPrg);
                 {Port, Other} ->
-                    ?ERROR_MSG("extauth call '~p' received strange response:~n~p", [Msg, Other]),
+                    ?LOG_ERROR(#{what => extauth_unexpected_message,
+                                 extauth_call => Msg, unexpected_message => Other,
+                                 text => <<"extauth call received strange response">>}),
                     Caller ! {eauth, false},
                     loop(Port, ?CALL_TIMEOUT, ProcessName, ExtPrg)
             after
                 Timeout ->
-                    ?ERROR_MSG("extauth call '~p' didn't receive response", [Msg]),
+                    ?LOG_ERROR(#{what => extauth_timeout, extauth_call => Msg,
+                                 text => <<"extauth call didn't receive response, restarting instance">>}),
                     Caller ! {eauth, false},
                     Pid = restart_instance(ProcessName, ExtPrg),
                     flush_buffer_and_forward_messages(Pid),
@@ -166,7 +171,9 @@ loop(Port, Timeout, ProcessName, ExtPrg) ->
                     exit(normal)
             end;
         {'EXIT', Port, Reason} ->
-            ?CRITICAL_MSG("extauth script has exitted abruptly with reason '~p'", [Reason]),
+            ?LOG_CRITICAL(#{what => extauth_crash,
+                            text => <<"extauth script has exitted abruptly, restarting instance">>,
+                            reason => Reason}),
             Pid = restart_instance(ProcessName, ExtPrg),
             flush_buffer_and_forward_messages(Pid),
             exit(port_terminated)
