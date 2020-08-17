@@ -44,7 +44,6 @@ miscellaneous(Config) ->
     Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
 
-    % ?eq([], Opts1),
     ?eq(Hosts1, Hosts2),
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
@@ -78,6 +77,10 @@ compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
+compare_values(services, V1, V2) ->
+    V1_m = proplists:get_value(service_mongoose_system_metrics, V1),
+    V2_m = proplists:get_value(service_mongoose_system_metrics, V2),
+    compare_unordered_lists(V1_m, V2_m);
 compare_values(K, V1, V2) ->
     ?eq({K, V1}, {K, V2}).
 

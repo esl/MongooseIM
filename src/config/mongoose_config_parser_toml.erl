@@ -205,7 +205,9 @@ listener_opt(<<"service">>, <<"shaper_rule">>, V) -> [{shaper_rule, b2a(V)}];
 listener_opt(<<"service">>, <<"check_from">>, V) -> [{service_check_from, V}];
 listener_opt(<<"service">>, <<"hidden_components">>, V) -> [{hidden_components, V}];
 listener_opt(<<"service">>, <<"conflict_behaviour">>, V) -> [{conflict_behaviour, b2a(V)}];
-listener_opt(<<"service">>, <<"password">>, V) -> [{password, b2l(V)}].
+listener_opt(<<"service">>, <<"password">>, V) -> [{password, b2l(V)}];
+listener_opt(<<"service">>, <<"max_fsm_queue">>, V) -> [{max_fsm_queue, V}].
+
 
 %% path: listen.http[].tls
 -spec https_options(toml_section()) -> [option()].
@@ -302,7 +304,9 @@ auth_option(<<"sasl_mechanisms">>, V) ->
 auth_option(<<"ldap_base">>, V) ->
     [{ldap_base, b2l(V)}];
 auth_option(<<"ldap_filter">>, V) ->
-    [{ldap_filter, b2l(V)}].
+    [{ldap_filter, b2l(V)}];
+auth_option(<<"extauth_instances">>, V) ->
+    [{extauth_instances, V}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
 -spec cyrsasl_external(toml_key()) -> option().
@@ -314,14 +318,20 @@ cyrsasl_external(M) -> {mod, b2a(M)}.
 -spec partition_auth_opts([{atom(), any()}], ejabberd:server()) -> [config()].
 partition_auth_opts(AuthOpts, Host) ->
     {InnerOpts, OuterOpts} = lists:partition(fun({K, _}) -> is_inner_auth_opt(K) end, AuthOpts),
-    [#local_config{key = {auth_opts, Host}, value = InnerOpts} |
-     [#local_config{key = {K, Host}, value = V} || {K, V} <- OuterOpts]].
+    case InnerOpts of
+        [] ->
+            [#local_config{key = {K, Host}, value = V} || {K, V} <- OuterOpts];
+        _ ->
+            [#local_config{key = {auth_opts, Host}, value = InnerOpts} |
+                [#local_config{key = {K, Host}, value = V} || {K, V} <- OuterOpts]]
+            end.
 
 -spec is_inner_auth_opt(atom()) -> boolean().
 is_inner_auth_opt(auth_method) -> false;
 is_inner_auth_opt(allow_multiple_connections) -> false;
 is_inner_auth_opt(anonymous_protocol) -> false;
 is_inner_auth_opt(sasl_mechanisms) -> false;
+is_inner_auth_opt(extauth_instances) -> false;
 is_inner_auth_opt(_) -> true.
 
 %% path: outgoing_pools.*
@@ -458,7 +468,17 @@ service_opt(<<"service_admin_extra">>, <<"submods">>, V) ->
 service_opt(<<"service_mongoose_system_metrics">>, <<"initial_report">>, V) ->
     [{initial_report, V}];
 service_opt(<<"service_mongoose_system_metrics">>, <<"periodic_report">>, V) ->
-    [{periodic_report, V}].
+    [{periodic_report, V}];
+service_opt(<<"service_mongoose_system_metrics">>, <<"report">>, true) ->
+    [report];
+service_opt(<<"service_mongoose_system_metrics">>, <<"report">>, false) ->
+    [];
+service_opt(<<"service_mongoose_system_metrics">>, <<"no_report">>, true) ->
+    [no_report];
+service_opt(<<"service_mongoose_system_metrics">>, <<"no_report">>, false) ->
+    [];
+service_opt(<<"service_mongoose_system_metrics">>, <<"tracking_id">>, V) ->
+    [{tracking_id, b2l(V)}].
 
 %% path: modules.*
 -spec process_module(toml_key(), toml_section()) -> [option()].
@@ -550,6 +570,7 @@ process_host_item(M) ->
 %% path: host_config[].*
 -spec process_host_section(toml_key(), ejabberd:server(), toml_section()) -> config_list().
 process_host_section(<<"auth">>, Host, Content) ->
+    ct:pal("In host_config:~n~p~n~p", [Host, Content]),
     AuthOpts = parse_map(fun auth_option/2, Content),
     partition_auth_opts(AuthOpts, Host);
 process_host_section(<<"shaper">>, Host, Content) ->

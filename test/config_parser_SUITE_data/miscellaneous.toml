@@ -18,3 +18,27 @@
     access_rule = "local"
     commands = ["join_cluster"]
     argument_restrictions = ["mongooseim@host", "mongooseim@prime"]
+
+[auth]
+  extauth_instances = 1
+
+[[listen.http]]
+  port = 5280
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
+
+    [listen.http.handlers.mod_websockets.ejabberd_service]
+      access = "all"
+      shaper_rule = "fast"
+      password = "secret"
+      max_fsm_queue = 1000
+
+[services.service_mongoose_system_metrics]
+  report = true
+  initial_report = 300_000
+  periodic_report = 10_800_000
+  tracking_id = "UA-123456789"
