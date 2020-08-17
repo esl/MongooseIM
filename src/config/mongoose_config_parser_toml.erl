@@ -36,7 +36,8 @@ parse_file(FileName) ->
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts ++ HOpts, S) end,
                  fun mongoose_config_parser:dedup_state_opts/1,
-                 fun mongoose_config_parser:add_dep_modules/1]).
+                 fun mongoose_config_parser:add_dep_modules/1,
+                 fun set_overrides/1]).
 
 %% Config processing functions are annotated with paths of the parsed TOML
 %% Path syntax: dotted, like TOML keys with the following additions:
@@ -111,7 +112,34 @@ process_general(<<"max_fsm_queue">>, V) ->
 process_general(<<"http_server_name">>, V) ->
     [#local_config{key = cowboy_server_name, value = b2l(V)}];
 process_general(<<"rdbms_server_type">>, V) ->
-    [#local_config{key = rdbms_server_type, value = b2a(V)}].
+    [#local_config{key = rdbms_server_type, value = b2a(V)}];
+process_general(<<"override_local">>, V) ->
+    [#local_config{key = override_local, value = V}];
+process_general(<<"override_global">>, V) ->
+    [#local_config{key = override_global, value = V}];
+process_general(<<"override_acls">>, V) ->
+    [#local_config{key = override_acls, value = V}];
+process_general(<<"pgsql_users_number_estimate">>, V) ->
+    ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
+process_general(<<"route_subdomain">>, V) ->
+    ?HOST_F([#local_config{key = {route_subdomain, Host}, value = b2a(V)}]);
+process_general(<<"mongooseimctl_access_commands">>, Rules) ->
+    [#local_config{key = mongooseimctl_access_commands, 
+        value = lists:map(fun process_rule/1, Rules)}];
+process_general(<<"routing_modules">>, Mods) ->
+    [#local_config{key = routing_modules, value = lists:map(fun b2a/1, Mods)}];
+process_general(<<"replaced_wait_timeout">>, V) ->
+    ?HOST_F([#local_config{key = {replaced_wait_timeout, Host}, value = V}]);
+process_general(<<"hide_service_name">>, V) ->
+    ?HOST_F([#local_config{key = {hide_service_name, Host}, value = V}]).
+
+process_rule(#{<<"access_rule">> := Rule, 
+    <<"argument_restrictions">> := Arg, <<"commands">> := Comms}) ->
+        {
+            b2a(Rule),
+            lists:map(fun b2l/1, Comms),
+            [list_to_tuple(lists:map(fun b2l/1, Arg))]
+            }.
 
 %% path: listen.*
 -spec process_listener_type(toml_key(), [toml_section()]) -> [option()].
@@ -565,6 +593,26 @@ tls_cipher(#{<<"key_exchange">> := KEx,
              <<"prf">> := PRF}) ->
     #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)};
 tls_cipher(Cipher) -> b2l(Cipher).
+
+set_overrides(State) ->
+    lists:foldl(fun(F, StateIn) -> F(StateIn) end, State, [
+        fun(S) -> maybe_override(S, override_global) end,
+        fun(S) -> maybe_override(S, override_local) end,
+        fun(S) -> maybe_override(S, override_acls) end
+        ]).
+
+maybe_override(S = {state, Config, _, _, _, _}, Name) ->
+    case lists:keyfind(Name, 2, Config) of
+        {_, _, true} ->
+            S1 = mongoose_config_parser:Name(S),
+            C1 = lists:keydelete(Name, 2, Config),
+            mongoose_config_parser:set_opts(C1, S1);
+        {_, _, false} ->
+            C1 = lists:keydelete(Name, 2, Config),
+            mongoose_config_parser:set_opts(C1, S);
+        _ ->
+            S
+        end.
 
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
 b2a(B) -> binary_to_atom(B, utf8).

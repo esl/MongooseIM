@@ -9,7 +9,7 @@
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
-    [equivalence].
+    [equivalence, miscellaneous].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -29,6 +29,22 @@ equivalence(Config) ->
     Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
 
+    ?eq(Hosts1, Hosts2),
+    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
+                            fun handle_config_option/2).
+
+miscellaneous(Config) ->
+    CfgPath = ejabberd_helper:data(Config, "miscellaneous.cfg"),
+    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
+    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
+    Opts1 = mongoose_config_parser:state_to_opts(State1),
+
+    TOMLPath = ejabberd_helper:data(Config, "miscellaneous.toml"),
+    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
+    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
+    Opts2 = mongoose_config_parser:state_to_opts(State2),
+
+    % ?eq([], Opts1),
     ?eq(Hosts1, Hosts2),
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
