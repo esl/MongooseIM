@@ -88,7 +88,9 @@ process_section(<<"access">>, Content) ->
 process_section(<<"s2s">>, Content) ->
     DNS_Opts = s2s_dns_opts(Content),
     Out = s2s_outgoing_opts(Content),
-    Opts = maps:without([<<"dns_timeout">>, <<"dns_retries">>, <<"preferred_ip_version">>, <<"connection_timeout">>], Content),
+    Opts = maps:without(
+        [<<"dns_timeout">>, <<"dns_retries">>, 
+            <<"preferred_ip_version">>, <<"connection_timeout">>], Content),
     S2s_opts = parse_map(fun process_s2s_option/2, Opts),
     Out ++ DNS_Opts ++ S2s_opts;
 process_section(<<"host_config">>, Content) ->
@@ -523,16 +525,16 @@ process_s2s_option(<<"preferred_ip_version">>, V) ->
         value = s2s_preferred_address_family(V)}];
 process_s2s_option(<<"shared">>, V) ->
     ?HOST_F([#local_config{key = {s2s_shared, Host}, value = V}]);
-
 process_s2s_option(<<"max_retry_delay">>, V) ->
     ?HOST_F([#local_config{key = {s2s_max_retry_delay, Host}, value = V}]).
 
-
-s2s_outgoing_opts(_Content = #{<<"connection_timeout">> := Timeout, <<"preferred_ip_version">> := IPV}) ->
-    [#local_config{key = outgoing_s2s_options, value = {s2s_preferred_address_family(IPV), Timeout}}];
-s2s_outgoing_opts(_Content = #{<<"connection_timeout">> := Timeout}) ->
+-spec s2s_outgoing_opts(toml_section()) -> [option()].
+s2s_outgoing_opts(#{<<"connection_timeout">> := Timeout, <<"preferred_ip_version">> := IPV}) ->
+    [#local_config{key = outgoing_s2s_options, 
+        value = {s2s_preferred_address_family(IPV), Timeout}}];
+s2s_outgoing_opts(#{<<"connection_timeout">> := Timeout}) ->
     [#local_config{key = outgoing_s2s_options, value = Timeout}];
-s2s_outgoing_opts(_Content = #{<<"preferred_ip_version">> := IPV}) ->
+s2s_outgoing_opts(#{<<"preferred_ip_version">> := IPV}) ->
     [#local_config{key = outgoing_s2s_options, value = s2s_preferred_address_family(IPV)}];
 s2s_outgoing_opts(_) -> [].
 

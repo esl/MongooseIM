@@ -37,7 +37,6 @@ s2s(Config) ->
     State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
     Opts1 = mongoose_config_parser:state_to_opts(State1),
 
-
     TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
     State2 = mongoose_config_parser_toml:parse_file(TOML_path),
     Opts2 = mongoose_config_parser:state_to_opts(State2),

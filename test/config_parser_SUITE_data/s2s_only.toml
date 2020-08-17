@@ -1,7 +1,7 @@
 [general]
   hosts = [
     "localhost",
-    "grubalubadubdub"
+    "dummy_host"
   ]
 [s2s]
   use_starttls = "optional"
