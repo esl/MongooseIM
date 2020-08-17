@@ -79,12 +79,12 @@ deps(Host, Opts) ->
 %%--------------------------------------------------------------------
 
 init([RefreshInterval]) ->
-    ?DEBUG("refresher starting with interval ~p~n", [RefreshInterval]),
+    ?LOG_DEBUG(#{what => gd_refresher_started, refresh_interval => RefreshInterval}),
     NState = schedule_refresh(#state{ refresh_interval = RefreshInterval }),
     {ok, NState}.
 
 handle_call(pause, _From, State = #state{tref = undefined}) ->
-    ?ERROR_MSG("event=already_paused", []),
+    ?LOG_ERROR(#{what => gd_refresher_already_paused}),
     {reply, ok, State};
 handle_call(pause, _From, State) ->
     erlang:cancel_timer(State#state.tref),
@@ -92,14 +92,19 @@ handle_call(pause, _From, State) ->
 handle_call(unpause, _From, State = #state{tref = undefined}) ->
     {reply, ok, schedule_refresh(State)};
 handle_call(unpause, _From, State = #state{tref = TRef}) ->
-    ?ERROR_MSG("event=not_paused, timer_ref=~p", [TRef]),
+    ?LOG_ERROR(#{what => gd_refresher_already_running,
+                 text => <<"GD Refresher received unpause, when already unpaused. Ignore.">>,
+                 timer_ref => TRef}),
     {reply, ok, State};
 handle_call(Request, From, State) ->
-    ?ERROR_MSG("issue=unknown_call request=~p from=~p", [Request, From]),
+    ?LOG_ERROR(#{what => unexpected_call,
+                 text => <<"GD Refresher received unknown call.">>,
+                 msg => Request, call_from => From}),
     {reply, {error, unknown_request}, State}.
 
 handle_cast(Request, State) ->
-    ?ERROR_MSG("issue=unknown_cast request=~p", [Request]),
+    ?LOG_ERROR(#{what => unexpected_cast, msg => Request,
+                 text => <<"GD Refresher received unknown cast.">>}),
     {noreply, State}.
 
 handle_info({timeout, TRef, refresh}, #state{ tref = TRef } = State) ->
@@ -109,11 +114,14 @@ handle_info({timeout, TRef, refresh}, #state{ tref = TRef } = State) ->
 handle_info({timeout, _, refresh}, State) ->
     %% We got refresh signal from outdated timer
     {noreply, State, hibernate};
-handle_info(Msg, _State) ->
-    ?WARNING_MSG("Unknown message: ~p", Msg).
+handle_info(Msg, State) ->
+    ?LOG_ERROR(#{what => unexpected_message, msg => Msg,
+                 text => <<"GD Refresher received unknown info message.">>}),
+    {noreply, State, hibernate}.
 
 terminate(Reason, _State) ->
-    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: ~p", [Reason]).
+    ?LOG_INFO(#{what => gd_refresher_stopped, reason => Reason,
+                text => <<"mod_global_distrib_refresher has terminated">>}).
 
 code_change(_, State, _) -> {ok, State}.
 
@@ -148,7 +156,8 @@ stop() ->
 refresh() ->
     Hosts = mod_global_distrib_mapping:hosts(),
     LocalHost = local_host(),
-    ?DEBUG("event=fetched_hosts,hosts='~p',local_host='~s'", [Hosts, LocalHost]),
+    ?LOG_DEBUG(#{what => gd_refresher_fetched_hosts,
+                 hosts => Hosts, local_host => LocalHost}),
     lists:foreach(fun mod_global_distrib_outgoing_conns_sup:ensure_server_started/1,
                   lists:delete(LocalHost, Hosts)).
 

@@ -44,8 +44,9 @@ start_link(Endpoint, Server) ->
 
 init([{Addr, Port}, Server]) ->
     ConnID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    ?DEBUG("event=outgoing_gd_connection remote_server=~ts address=~1000p:~p pid=~p conn_id=~ts",
-           [Server, Addr, Port, self(), ConnID]),
+    ?LOG_DEBUG(#{what => gd_new_outgoing_connection,
+                 server => Server, address => Addr, port => Port,
+                 pid => self(), conn_id => ConnID}),
     process_flag(trap_exit, true),
     MetricServer = mod_global_distrib_utils:binary_to_metric_atom(Server),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_SENT(MetricServer), spiral),
@@ -68,8 +69,9 @@ init([{Addr, Port}, Server]) ->
                     peer = mod_global_distrib_transport:peername(Socket)}}
     catch
         error:{badmatch, Reason}:StackTrace ->
-            ?ERROR_MSG("event=gd_connection_failed server=~ts address=~p:~p reason=~1000p conn_id=~ts stacktrace=~1000p",
-                       [Server, Addr, Port, Reason, ConnID, StackTrace]),
+            ?LOG_ERROR(#{what => gd_connection_failed,
+                         server => Server, address => Addr, port => Port,
+                         reason => Reason, conn_id => ConnID, stacktrace => StackTrace}),
             {stop, normal}
     end.
 
@@ -87,8 +89,8 @@ handle_cast({data, Stamp, Data}, #state{socket = Socket, host = ToHost} = State)
         ok ->
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT(ToHost), 1);
         Error ->
-            ?ERROR_MSG("event=cant_send_global_distrib_packet,reason='~p',packet='~p' conn_id=~ts",
-                       [Error, Data, State#state.conn_id]),
+            ?LOG_ERROR(#{what => gd_cant_send_packet,
+                         reason => Error, packet => Data, conn_id => State#state.conn_id}),
             error(Error)
     end,
     {noreply, State}.
@@ -101,8 +103,8 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket} = State) ->
 handle_info({tcp_closed, _}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
-    ?ERROR_MSG("event=outgoing_global_distrib_socket_error,reason='~p',peer='~p',conn_id=~ts",
-               [Reason, State#state.peer, State#state.conn_id]),
+    ?LOG_ERROR(#{what => gd_outgoing_socket_error,
+                 reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_ERRORED(State#state.host), 1),
     {stop, {error, Reason}, State};
 handle_info(_, State) ->
@@ -112,8 +114,8 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 terminate(Reason, State) ->
-    ?WARNING_MSG("event=outgoing_global_distrib_socket_closed,peer='~p' conn_id=~ts reason=~p",
-                 [State#state.peer, State#state.conn_id, Reason]),
+    ?LOG_ERROR(#{what => gd_outgoing_socket_error,
+                 reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_CLOSED(State#state.host), 1),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.

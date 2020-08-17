@@ -31,14 +31,14 @@
 
 
 -spec send(jid:lserver() | pid(), {jid:jid(), jid:jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
-send(Server, Packet) when is_binary(Server) ->
+send(Server, {_,_, Acc, _} = Packet) when is_binary(Server) ->
     try get_process_for(Server) of
         Worker ->
            send(Worker, Packet)
     catch Class:Reason:Stacktrace ->
-              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts "
-                         "reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
-                           [Server, Class, Reason, Packet, Stacktrace]),
+              ?LOG_ERROR(#{what => gd_get_process_for_failed, server => Server,
+                           class => Class, reason => Reason, stacktrace => Stacktrace,
+                           acc => Acc}),
               erlang:raise(Class, Reason, Stacktrace)
     end;
 send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->

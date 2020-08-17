@@ -61,11 +61,12 @@ ensure_metric(Metric, Type) ->
               end,
               Reporters);
         {ok, already_present} ->
-            ?DEBUG("issue=metric_already_exists,metric=\"~p\",type=\"~p\"", [Metric, Type]),
+            ?LOG_DEBUG(#{what => metric_already_present,
+                         metric => Metric, type => Type}),
             ok;
         Other ->
-            ?WARNING_MSG("issue=cannot_create_metric,metric=\"~p\",type=\"~p\",reason=\"~p\"",
-                         [Metric, Type, Other]),
+            ?LOG_WARNING(#{what => cannot_create_metric,
+                           metric => Metric, type => Type, reason => Other}),
             Other
     end.
 
@@ -167,11 +168,16 @@ resolve_endpoint({Addr, Port}) ->
     case to_ip_tuples(Addr) of
         {ok, IpAddrs} ->
             Resolved = [{IpAddr, Port} || IpAddr <- IpAddrs],
-            ?INFO_MSG_IF(is_domain(Addr), "Domain ~p resolved to: ~p", [Addr, IpAddrs]),
+            ?LOG_INFO_IF(is_domain(Addr), #{what => gd_resolve_endpoint,
+                                            text => <<"GD resolved address to IPs">>,
+                                            address => Addr, ip_addresses => IpAddrs}),
             Resolved;
         {error, {Reasonv6, Reasonv4}} ->
-            ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
-                       [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
+            ?LOG_ERROR(#{what => gd_resolve_endpoint_failed,
+                         text => <<"GD Cannot convert address to IP addresses">>,
+                         address => Addr,
+                         ipv6_reason => inet:format_error(Reasonv6),
+                         ipv4_reason => inet:format_error(Reasonv4)}),
             error({domain_not_resolved, {Reasonv6, Reasonv4}})
     end.
 
@@ -267,10 +273,14 @@ to_ip_tuples(Addr) ->
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
         {Addrs, {error, Msg}} ->
-            ?DEBUG("IPv4 address resolution error: ~p ~p", [Addr, Msg]),
+            ?LOG_DEBUG(#{what => resolv_error,
+                         text => <<"IPv4 address resolution error">>,
+                         address => Addr, reason => Msg}),
             Addrs;
         {{error, Msg}, Addrs} ->
-            ?DEBUG("IPv6 address resolution error: ~p ~p", [Addr, Msg]),
+            ?LOG_DEBUG(#{what => resolv_error,
+                         text => <<"IPv6 address resolution error">>,
+                         address => Addr, reason => Msg}),
             Addrs;
         {{ok, Addrs6}, {ok, Addrs4}} ->
             {ok, Addrs6 ++ Addrs4}

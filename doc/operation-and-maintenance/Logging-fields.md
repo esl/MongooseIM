@@ -9,7 +9,7 @@
 | text          | binary  | recommened  | Human readable description                          | `<<"MAM failed to contact MySQL">>` |                                    |
 | path          | binary  |             | HTTP path                                           | `<<"/api/add_user">>`               |                                    |
 | code          | integer |             | HTTP code                                           | 200                                 |                                    |
-| user          | binary  |             | Local Username                                      | `<<"alice">>`                       | Use `#jid.luser` when available    |
+| user          | binary  | recommened  | Local Username                                      | `<<"alice">>`                       | Use `#jid.luser` when available    |
 | server        | binary  |             | Local Server (host) name                            | `<<"localhost">>`                   | Use `#jid.lserver` when available  |
 | sub_host      | binary  |             | Subhost when MUC or pubsub are used                 | `<<"muc.localhost">>`               | It's not the same as `server`      |
 | remote_user   | binary  |             | Remote Username (usually who makes IQ requests)     | `<<"alice">>`                       | Use `#jid.luser` when available    |

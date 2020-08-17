@@ -40,9 +40,8 @@ get_connection(Server) ->
         %% - {'EXIT', {noproc, _}}
         %%  - {case_clause,{'EXIT',{no_connections...
     catch Class:Reason:Stacktrace ->
-            ?ERROR_MSG("event=get_gd_connection_failed "
-                       "server=~ts reason=~p:~p stacktrace=~1000p",
-                       [Server, Class, Reason, Stacktrace]),
+            ?LOG_ERROR(#{what => gd_get_connection_failed, server => Server,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
             %% May be caused by missing server_sup or missing connection manager
             %% The former occurs when a process tries to send a message to Server
             %% for the first time.
