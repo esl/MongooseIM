@@ -99,7 +99,8 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
 -spec handle_packet(From :: jid:jid(), To :: jid:jid(),
                     Packet :: exml:element()) -> ok | skip.
 handle_packet(From = #jid{lserver = Host}, To, Packet) ->
-    ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
+    ?LOG_DEBUG(#{what => sns_handle_packet,
+                 from => From, to => To, packet => exml_Packet}),
 
     case {get_topic(Host, Packet), exml_query:subelement(Packet, <<"body">>)} of
         {undefined, _} -> %% Skip if there is no topic set in configuration for the packet type
@@ -131,8 +132,10 @@ async_publish(Host, TopicARN, Content, Attributes) ->
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
 -spec try_publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes(), TryCount :: integer()) -> MessageId :: string() | dropped | scheduled.
-try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
-    ?WARNING_MSG("Dropped SNS notification ~p", [{Host, TopicARN, Content}]),
+try_publish(Host, TopicARN, Content, Attributes, Retry) when Retry < 0 ->
+    ?LOG_WARNING(#{what => sns_notification_dropped,
+                   server => Host, topic_arn => TopicARN,
+                   attributes => Attributes, content => Content}),
     dropped;
 try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     try publish(Host, TopicARN, Content, Attributes)
@@ -143,9 +146,12 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
                               [generic, Host, pusher_sns,
                                {?MODULE, try_publish,
                                 [Host, TopicARN, Content, Attributes, Retry - 1]}]),
-            ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",
-                         [{Host, TopicARN, Content}, BackoffTime,
-                          {Type, Error}, StackTrace]),
+            ?LOG_WARNING(#{what => sns_notification_retry,
+                           text => <<"Retrying SNS notification after {backoff_time} ms">>,
+                           server => Host, topic_arn => TopicARN,
+                           attributes => Attributes, content => Content,
+                           backoff_time => BackoffTime,
+                           class => Type, reason => Error, stacktrace => StackTrace}),
             scheduled
     end.
 
