@@ -126,7 +126,9 @@ socket_type() ->
 %%----------------------------------------------------------------------
 -spec init(_) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
-    ?DEBUG("started: ~p", [{SockMod, Socket}]),
+    ?LOG_DEBUG(#{what => s2n_in_started,
+                 text => <<"New incoming S2S connection">>,
+                 sockmod => SockMod, socket => Socket}),
     Shaper = case lists:keysearch(shaper, 1, Opts) of
                  {value, {_, S}} -> S;
                  _ -> none
@@ -188,8 +190,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             case SASL of
                 {error_cert_verif, CertError} ->
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
-                    ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
-                      [StateData#state.server, RemoteServer, CertError]),
+                    ?LOG_INFO(#{what => s2s_connection_closing,
+                                text => <<"Closing s2s connection">>,
+                                server => StateData#state.server,
+                                remote_server => RemoteServer,
+                                reason => cert_error,
+                                cert_error => CertError}),
                     send_text(StateData, exml:to_binary(
                                 mongoose_xmpp_errors:policy_violation(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(
@@ -242,7 +248,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
         {?NS_TLS, <<"starttls">>} when TLS == true,
                                    TLSEnabled == false,
                                    SockMod == gen_tcp ->
-            ?DEBUG(<<"starttls">>, []),
+            ?LOG_DEBUG(#{what => s2s_starttls}),
             Socket = StateData#state.socket,
             TLSOpts = case ejabberd_config:get_local_option(
                              {domain_certfile,
@@ -302,7 +308,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     case is_key_packet(El) of
         {key, To, From, Id, Key} ->
-            ?DEBUG("GET KEY: ~p", [{To, From, Id, Key}]),
+            ?LOG_DEBUG(#{what => s2s_in_get_key,
+                         to => To, from => From, message_id => Id, key => Key}),
             LTo = jid:nameprep(To),
             LFrom = jid:nameprep(From),
             %% Checks if the from domain is allowed and if the to
@@ -329,7 +336,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
-            ?DEBUG("VERIFY KEY: ~p", [{To, From, Id, Key}]),
+            ?LOG_DEBUG(#{what => s2s_in_verify_key,
+                         to => To, from => From, message_id => Id, key => Key}),
             LTo = jid:nameprep(To),
             LFrom = jid:nameprep(From),
             Type = case ejabberd_s2s:key({LTo, LFrom}, Id) of
@@ -540,7 +548,9 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%----------------------------------------------------------------------
 -spec handle_info(_, _, _) -> {next_state, atom(), state()} | {stop, normal, state()}.
 handle_info({send_text, Text}, StateName, StateData) ->
-    ?ERROR_MSG("{s2s_in:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
+    ?LOG_ERROR(#{what => s2s_in_send_text,
+                 text => <<"Deprecated send_text info in ejabberd_s2s_in">>,
+                 send_text => Text}),
     send_text(StateData, Text),
     {next_state, StateName, StateData};
 handle_info({timeout, Timer, _}, _StateName,
@@ -557,7 +567,7 @@ handle_info(_, StateName, StateData) ->
 %%----------------------------------------------------------------------
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
-    ?DEBUG("terminated: ~p", [Reason]),
+    ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason}),
     (StateData#state.sockmod):close(StateData#state.socket),
     ok.
 
@@ -686,8 +696,9 @@ handle_auth_res(true, AuthDomain, StateData) ->
     send_element(StateData,
                  #xmlel{name = <<"success">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-    ?DEBUG("(~w) Accepted s2s authentication for ~s",
-           [StateData#state.socket, AuthDomain]),
+    ?LOG_DEBUG(#{what => s2s_auth_success,
+                 text => <<"Accepted s2s authentication">>,
+                 socket => StateData#state.socket, domain => AuthDomain}),
     {next_state, wait_for_stream,
      StateData#state{streamid = new_id(),
                      authenticated = true,
