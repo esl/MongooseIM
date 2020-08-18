@@ -121,30 +121,32 @@ route(From, To, #xmlel{} = Packet) ->
     % (called by broadcasting)
     route(From, To, Acc);
 route(From, To, Acc) ->
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc]),
+    ?LOG_DEBUG(#{what => route, acc => Acc}),
     El = mongoose_acc:element(Acc),
     RoutingModules = routing_modules_list(),
     NewAcc = route(From, To, Acc, El, RoutingModules),
-    ?DEBUG("Routing using modules ~p resulted in ~p",
-           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    ?LOG_DEBUG(#{what => routing_result,
+                 routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
+                 routing_modules => RoutingModules, acc => Acc}),
     NewAcc.
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
             Acc :: mongoose_acc:t(),
             El :: exml:element() | {error, term()}) -> mongoose_acc:t().
-route(From, To, Acc, {error, Reason} = Err) ->
-    ?INFO_MSG("event=cannot_route_stanza,from=~p,to=~p,reason=~p,acc=~p", [From, To, Reason, Acc]),
+route(_From, _To, Acc, {error, Reason} = Err) ->
+    ?LOG_INFO(#{what => cannot_route_stanza, acc => Acc, reason => Reason}),
     mongoose_acc:append(router, result, Err, Acc);
 route(From, To, Acc, El) ->
     Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
                                          to_jid => To,
                                          element => El }, Acc),
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n", [From, To, Acc1]),
+    ?LOG_DEBUG(#{what => route, acc => Acc1}),
     RoutingModules = routing_modules_list(),
     NewAcc = route(From, To, Acc1, El, RoutingModules),
-    ?DEBUG("Routing using modules ~p resulted in ~p",
-           [RoutingModules, mongoose_acc:get(router, result, {drop, undefined}, NewAcc)]),
+    ?LOG_DEBUG(#{what => routing_result,
+                 routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
+                 routing_modules => RoutingModules, acc => Acc}),
     NewAcc.
 
 %% Route the error packet only if the originating packet is not an error itself.
@@ -515,36 +517,32 @@ make_routing_module_source(Mods) ->
             Acc    :: mongoose_acc:t(),
             Packet :: exml:element(),
             [atom()]) -> mongoose_acc:t().
-route(From, To, Acc, Packet, []) ->
-    ?ERROR_MSG("event=no_more_routing_modules,from=~ts,to=~ts,packet=~ts",
-               [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
+route(_From, _To, Acc, _Packet, []) ->
+    ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc}),
     mongoose_metrics:update(global, routingErrors, 1),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
-    case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
-        {'EXIT', {Reason, StackTrace}} ->
-            ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
-                         "packet=~ts~n~nstack_trace=~p~n",
-                         [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                          M, Reason, exml:to_binary(OrigPacket),
-                          StackTrace]),
-            mongoose_acc:append(router, result, {error, {M, Reason}}, Acc);
+    try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket) of
         drop ->
             mongoose_acc:append(router, result, {drop, M}, Acc);
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
-            case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
-                {'EXIT', {Reason, StackTrace}} ->
-                    ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
-                                 "packet=~ts~n~nstack_trace=~p~n",
-                                 [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                                  M, Reason, exml:to_binary(OrigPacketFiltered),
-                                  StackTrace]),
-                    mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc);
+            try xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered) of
                 done ->
                     mongoose_acc:append(router, result, {done, M}, NAcc);
                 {From, To, NAcc1, Packet} ->
                     route(From, To, NAcc1, Packet, Tail)
+                catch Class:Reason:Stacktrace ->
+                    ?LOG_WARNING(#{what => routing_failed,
+                                   router_module => M, acc =>Acc,
+                                   class => Class, reason => Reason, stacktrace => Stacktrace}),
+                    mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc)
             end
+        catch Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => route_filter_failed,
+                           text => <<"Error when filtering packet in router">>,
+                           router_module => M, acc => Acc,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            mongoose_acc:append(router, result, {error, {M, Reason}}, Acc)
     end.
 
 update_tables() ->
