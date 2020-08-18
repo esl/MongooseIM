@@ -215,7 +215,7 @@ get_routes(Modules) ->
     Merge = fun(Paths) -> Paths ++ WildcardPaths end,
     Merged = lists:keymap(Merge, 2, proplists:delete('_', Routes)),
     Final = Merged ++ [{'_', WildcardPaths}],
-    ?DEBUG("Configured Cowboy Routes: ~p", [Final]),
+    ?LOG_DEBUG(#{what => configured_cowboy_routes, routes => Final}),
     Final.
 
 get_routes([], Routes) ->
@@ -295,8 +295,8 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 trails_store(Modules) ->
     try
         trails:store(trails:trails(collect_trails(Modules, [])))
-    catch Class:Exception ->
-        ?WARNING_MSG("Trails Call: [~p:~p/0] catched ~p:~p~n", [?MODULE, trails_store, Class, Exception])
+    catch Class:Reason ->
+              ?LOG_WARNING(#{what => caught_exception, class => Class, reason => Reason})
     end.
 
 %% -------------------------------------------------------------------

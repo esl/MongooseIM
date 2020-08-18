@@ -143,12 +143,9 @@ process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)
     catch
-        _:Reason:StackTrace ->
-            ?ERROR_MSG("event=routing_error,from=~ts,to=~ts,module=~p,"
-                       "reason=~p,packet=~ts,stack_trace=~p",
-                       [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, exml:to_binary(mongoose_acc:element(Acc)),
-                        StackTrace])
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => routing_error, acc => Acc,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
     end.
 
 -spec route_iq(From :: jid:jid(),
@@ -389,8 +386,7 @@ code_change(_OldVsn, State, _Extra) ->
                To :: jid:jid(),
                El :: mongoose_acc:t()) -> mongoose_acc:t().
 do_route(Acc, From, To, El) ->
-    ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
-           [From, To, El, 8]),
+    ?LOG_DEBUG(#{what => local_routing, acc => Acc}),
     case directed_to(To) of
         user ->
             ejabberd_sm:route(From, To, Acc, El);

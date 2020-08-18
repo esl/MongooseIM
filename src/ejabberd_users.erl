@@ -135,7 +135,7 @@ handle_call(_, _From, State=#state{}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_cast, cast_message => Msg}),
     {noreply, State}.
 
 
@@ -146,7 +146,7 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_info, info_message => Msg}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
