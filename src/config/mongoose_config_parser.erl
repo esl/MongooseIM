@@ -82,13 +82,12 @@ allow_override_local_only(State = #state{}) ->
     State#state{override_global = false,
                 override_local  = true,
                 override_acls   = false}.
+
 -spec override(Scope :: atom(), state()) -> state().
-override(global, State) ->
-    override_global(State);
-override(local, State) ->
-    override_local(State);
-override(acls, State) ->
-    override_acls(State).
+override(global, State) -> override_global(State);
+override(local, State) -> override_local(State);
+override(acls, State) -> override_acls(State).
+
 -spec override_global(state()) -> state().
 override_global(State) ->
     State#state{override_global = true}.
