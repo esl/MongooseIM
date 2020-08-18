@@ -145,13 +145,13 @@ transaction(Fun, ErrorDebug, Retries) ->
         {atomic, Result} ->
             Result;
         {aborted, ReasonData} when Retries > 0 ->
-            ?WARNING_MSG("event=transaction_retry retries=~p reason=~p debug=~p",
-                         [Retries, ReasonData, ErrorDebug]),
+            ?LOG_WARNING(#{what => pubsub_transaction_retry, retries => Retries,
+                reason => ReasonData, debug => ErrorDebug}),
             timer:sleep(100),
             transaction(Fun, ErrorDebug, Retries - 1);
         {aborted, ReasonData} ->
-            ?WARNING_MSG("event=transaction_failed reason=~p debug=~p",
-                         [ReasonData, ErrorDebug]),
+            ?LOG_WARNING(#{what => pubsub_transaction_failed, reason => ReasonData,
+                debug => ErrorDebug}),
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
 
@@ -405,7 +405,8 @@ extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
     CyclicNames = [Name || Name <- PPNames, sets:is_element(Name, KnownNodesSet1)],
     case CyclicNames of
         [] -> [];
-        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
+        _ -> ?LOG_WARNING(#{what => pubsub_cyclic_nodes_detected,
+            pubsub_node => InitialNode, cyclic_names => CyclicNames})
     end,
     %% PPNames is ordset, so we don't need to worry about having duplicates in it.
     %% CyclicNames is usually an empty list.
@@ -448,7 +449,8 @@ extract_subnodes(Key, InitialNode, Subnodes, Depth, KnownNodesSet) ->
     CyclicNames = [Name || Name <- SSNames, sets:is_element(Name, KnownNodesSet1)],
     case CyclicNames of
         [] -> [];
-        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
+        _ -> ?LOG_WARNING(#{what => pubsub_cyclic_nodes_detected,
+            pubsub_node => InitialNode, cyclic_names => CyclicNames})
     end,
     SSNamesToGet = SSNames -- CyclicNames,
     case SSNamesToGet of
