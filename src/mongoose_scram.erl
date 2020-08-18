@@ -181,7 +181,7 @@ deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
                             stored_key => StoredKey,
                             server_key => ServerKey}}};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [Serialized]),
+            ?LOG_WARNING(#{what => scram_serialisation_incorrect, scram_data => Serialized}),
             {error, incorrect_scram}
     end;
 deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
@@ -194,11 +194,11 @@ deserialize(<<?MULTI_SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
                                      lists:flatten(DeserializedKeys)),
             {ok, maps:from_list(ResultList)};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [Serialized]),
+            ?LOG_WARNING(#{what => scram_serialisation_incorrect, scram_data => Serialized}),
             {error, incorrect_scram}
     end;
 deserialize(Bin) ->
-    ?WARNING_MSG("Corrupted serialized SCRAM: ~p", [Bin]),
+    ?LOG_WARNING(#{what => scram_serialisation_corrupted, scram_data => Bin}),
     {error, corrupted_scram}.
 
 deserialize([], _) ->
@@ -209,7 +209,7 @@ deserialize([{Sha, Prefix} | _RemainingSha],
         [Salt, StoredKey, ServerKey] ->
             {Sha, #{salt => Salt, server_key => ServerKey, stored_key => StoredKey}};
         _ ->
-            ?WARNING_MSG("Incorrect serialized SCRAM: ~p", [ShaDetails])
+            ?LOG_WARNING(#{what => scram_serialisation_incorrect, scram_data => ShaDetails})
     end;
 deserialize([_CurrentSha | RemainingSha], ShaDetails) ->
     deserialize(RemainingSha, ShaDetails).
