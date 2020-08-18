@@ -161,7 +161,7 @@ node_cleanup(Acc, Node) ->
 -type option() :: {atom(), any()}.
 -spec init(req(), _Opts :: [option()]) -> {cowboy_loop, req(), rstate()}.
 init(Req, _Opts) ->
-    ?DEBUG("issue=bosh_init", []),
+    ?LOG_DEBUG(#{issue => bosh_init}),
     Msg = init_msg(Req),
     self() ! Msg,
     %% Upgrade to cowboy_loop behaviour to enable long polling
@@ -174,7 +174,7 @@ init(Req, _Opts) ->
 info(accept_options, Req, State) ->
     Origin = cowboy_req:header(<<"origin">>, Req),
     Headers = ac_all(Origin),
-    ?DEBUG("OPTIONS response: ~p~n", [Headers]),
+    ?LOG_DEBUG(#{options_response => Headers}),
     Req1 = cowboy_reply(200, Headers, <<>>, Req),
     {stop, Req1, State};
 info(accept_get, Req, State) ->
@@ -191,28 +191,37 @@ info(forward_body, Req, S) ->
     %%       but the session is identified inside the to-be-parsed element
     {ok, BodyElem} = exml:parse(Body),
     Sid = exml_query:attr(BodyElem, <<"sid">>, <<"missing">>),
-    ?DEBUG("issue=bosh_receive sid=~ts request_body=~p", [Sid, Body]),
+    ?LOG_DEBUG(#{issue => bosh_receive, sid => Sid, request_body => Body}),
     %% Remember req_sid, so it can be used to print a debug message in bosh_reply
     forward_body(Req1, BodyElem, S#rstate{req_sid = Sid});
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
-    ?DEBUG("issue=bosh_send sid=~ts req_sid=~ts reply_body=~p",
-           [exml_query:attr(El, <<"sid">>, <<"missing">>), S#rstate.req_sid, BEl]),
+    ?LOG_DEBUG(#{
+        issue => bosh_send,
+        sid => exml_query:attr(El, <<"sid">>, <<"missing">>),
+        req_sid => S#rstate.req_sid,
+        reply_body => BEl}),
     Headers = bosh_reply_headers(),
     Req1 = cowboy_reply(200, Headers, BEl, Req),
     {stop, Req1, S};
 
 info({close, Sid}, Req, S) ->
-    ?DEBUG("issue=bosh_close sid=~ts", [Sid]),
+    ?LOG_DEBUG(#{issue => bosh_close, sid => Sid}),
     Req1 = cowboy_reply(200, [], <<>>, Req),
     {stop, Req1, S};
 info(no_body, Req, State) ->
-    ?DEBUG("issue=bosh_stop reason=missing_request_body req=~p", [Req]),
+    ?LOG_DEBUG(#{
+        issue => bosh_stop,
+        reason => missing_request_body,
+        req => Req}),
     Req1 = no_body_error(Req),
     {stop, Req1, State};
 info({wrong_method, Method}, Req, State) ->
-    ?DEBUG("issue=bosh_stop reason=wrong_request_method method=~p req=~p",
-           [Method, Req]),
+    ?LOG_DEBUG(#{
+        issue => bosh_stop,
+        reason => wrong_request_method,
+        method => Method,
+        req => Req}),
     Req1 = method_not_allowed_error(Req),
     {stop, Req1, State};
 info(item_not_found, Req, S) ->
@@ -224,7 +233,7 @@ info(policy_violation, Req, S) ->
 
 
 terminate(_Reason, _Req, _State) ->
-    ?DEBUG("issue=bosh_terminate", []),
+    ?LOG_DEBUG(#{issue => bosh_terminate}),
     ok.
 
 %%--------------------------------------------------------------------
@@ -314,8 +323,10 @@ forward_body(Req, #xmlel{} = Body, S) ->
                     handle_request(Socket, Type, Body),
                     {ok, Req, S};
                 {error, item_not_found} ->
-                    ?WARNING_MSG("issue=bosh_stop "
-                                 "reason=session_not_found sid=~ts", [Sid]),
+                    ?LOG_WARNING(#{
+                        issue => bosh_stop,
+                        reason => session_not_found,
+                        sid => Sid}),
                     Req1 = terminal_condition(<<"item-not-found">>, Req),
                     {stop, Req1, S}
             end
@@ -355,8 +366,10 @@ maybe_start_session_on_known_host(Req, Body) ->
     catch
         error:Reason ->
             %% It's here because something catch-y was here before
-            ?ERROR_MSG("issue=bosh_stop issue=undefined_condition reason=~p",
-                       [Reason]),
+            ?LOG_ERROR(#{
+                issue => bosh_stop,
+                issue=>undefined_condition,
+                reason => Reason}),
             Req1 = terminal_condition(<<"undefined-condition">>, [], Req),
             {false, Req1}
     end.
@@ -381,7 +394,7 @@ start_session(Peer, PeerCert, Body) ->
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer, PeerCert),
     store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
-    ?DEBUG("issue=bosh_start_seassion sid=~ts", [Sid]).
+    ?LOG_DEBUG(#{issue => bosh_start_session, sid =>Sid}).
 
 -spec store_session(Sid :: sid(), Socket :: pid()) -> any().
 store_session(Sid, Socket) ->
