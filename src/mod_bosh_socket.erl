@@ -181,7 +181,7 @@ init([Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
-    ?LOG_DEBUG(#{mod_bosh_socket => init}),
+    ?LOG_DEBUG(#{what => bosh_socket_init}),
     {ok, accumulate, #state{sid = Sid,
                             c2s_pid = C2SPid,
                             inactivity = mod_bosh:get_inactivity(),
@@ -217,9 +217,7 @@ accumulate(acc_off, #state{pending = Pending} = S) ->
     NS = S#state{pending = []},
     {next_state, normal, send_or_store(Pending, NS)};
 accumulate(Event, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_event,
-        state => accumulate,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_event, state => accumulate,
         event => Event}),
     {next_state, accumulate, State}.
 
@@ -228,16 +226,12 @@ accumulate(Event, State) ->
 normal(acc_off, #state{} = S) ->
     {next_state, normal, S};
 normal(Event, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_event,
-        state => normal,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_event, state => normal,
         event => Event}),
     {next_state, normal, State}.
 
 closing(Event, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_event,
-        state => closing,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_event, state => closing,
         event => Event}),
     {next_state, closing, State}.
 
@@ -260,23 +254,17 @@ closing(Event, State) ->
 %% @end
 %%--------------------------------------------------------------------
 accumulate(Event, _From, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_sync_event,
-        state => accumulate,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_sync_event, state => accumulate,
         event => Event}),
     {reply, ok, accumulate, State}.
 
 normal(Event, _From, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_sync_event,
-        state => normal,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_sync_event, state => normal,
         event => Event}),
     {reply, ok, normal, State}.
 
 closing(Event, _From, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_sync_event,
-        state => closing,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_sync_event, state => closing,
         event => Event}),
     {reply, ok, closing, State}.
 
@@ -310,7 +298,8 @@ handle_event({EventTag, Handler, #xmlel{} = Body}, SName, S) ->
     end;
 
 handle_event(Event, StateName, State) ->
-    ?LOG_DEBUG(#{issue => unhandled_all_state, event => Event}),
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_all_state, state => State,
+        state_name => StateName, event => Event}),
     {next_state, StateName, State}.
 
 
@@ -359,7 +348,8 @@ handle_sync_event(get_cached_responses, _From, StateName,
                   #state{sent = CachedResponses} = S) ->
     {reply, CachedResponses, StateName, S};
 handle_sync_event(Event, _From, StateName, State) ->
-    ?LOG_DEBUG(#{issue => unhandled_sync_all_state, event => Event}),
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_sync_all_state, state => State,
+        state_name => StateName, event => Event}),
     Reply = ok,
     {reply, Reply, StateName, State}.
 
@@ -391,15 +381,11 @@ handle_info(close, _SName, #state{pending = []} = State) ->
 handle_info(close, _SName, State) ->
     {next_state, closing, State};
 handle_info(inactivity_timeout, _SName, State) ->
-    ?LOG_INFO(#{
-        action => terminating,
-        reason => "client inactivity"}),
+    ?LOG_INFO(#{what => bosh_socket_terminating, reason => "client inactivity"}),
     {stop, {shutdown, inactivity_timeout}, State};
 handle_info({wait_timeout, {Rid, Pid}}, SName,
             #state{handlers = Handlers} = S) ->
-    ?LOG_INFO(#{
-        action => wait,
-        reason => "process reached limit",
+    ?LOG_INFO(#{what => bosh_socket_wait, reason => "process reached limit",
         pid => Pid}),
     %% In case some message was being handled when the timer fired
     %% it may turn out that Pid is no longer available in Handlers.
@@ -412,9 +398,7 @@ handle_info({wait_timeout, {Rid, Pid}}, SName,
             {next_state, SName, NS}
     end;
 handle_info(Info, SName, State) ->
-    ?LOG_DEBUG(#{
-        issue => unhandled_info,
-        s_name => SName,
+    ?LOG_DEBUG(#{what => bosh_socket_unhandled_info, s_name => SName,
         state => Info}),
     {next_state, SName, State}.
 
@@ -422,12 +406,8 @@ terminate(_Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
     mod_bosh_backend:delete_session(Sid),
     catch ejabberd_c2s:stop(S#state.c2s_pid),
-    ?LOG_DEBUG(#{
-        issue => closing_session,
-        session_id => Sid,
-        state => StateName,
-        handlers => Handlers,
-        pending => S#state.pending}).
+    ?LOG_DEBUG(#{what => bosh_socket_closing_session, session_id => Sid,
+        state => StateName, handlers => Handlers, pending => S#state.pending}).
 
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
@@ -457,21 +437,13 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
         {_, _, true, _} ->
             process_acked_stream_event(Event, SName, NS);
         {_, _, false, true} ->
-            ?LOG_INFO(#{
-                action => deferring,
-                rid => Rid,
-                expected_rid => ExpectedRid,
-                event_tag => EventTag,
-                body => Body}),
+            ?LOG_INFO(#{what => bosh_socket_deferring, rid => Rid, body => Body,
+                expected_rid => ExpectedRid, event_tag => EventTag}),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
-            ?LOG_ERROR(#{
-                issue =>invalid_rid,
-                rid => Rid,
-                expected_rid =>ExpectedRid,
-                difference => maybe_diff(Rid, ExpectedRid),
-                event_tag => EventTag,
-                body => Body}),
+            ?LOG_ERROR(#{what => bosh_socket_invalid_rid, rid => Rid,body => Body,
+                expected_rid => ExpectedRid, event_tag => EventTag,
+                difference => maybe_diff(Rid, ExpectedRid)}),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
             throw({invalid_rid, NS#state{handlers = []}})
@@ -485,9 +457,8 @@ maybe_is_retransmission(Rid, OldRid, Sent) ->
         {false, false} ->
             false;
         {false, true} ->
-            ?LOG_INFO(#{
+            ?LOG_INFO(#{what => bosh_socket_request_repeated, rid => Rid,
                 issue => "request repeated but no response found in cache",
-                request => Rid,
                 sent => Sent}),
             {true, none};
         {CachedResponse, _} ->
@@ -594,10 +565,8 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
         end
     catch
         error:{badmatch, {resp, false}} ->
-            ?LOG_ERROR(#{
-                issue => "no cached response",
-                rid_offender => ReportRid,
-                responses => Sent}),
+            ?LOG_ERROR(#{what => bosh_socket_no_cached_response, responses => Sent,
+                rid_offender => ReportRid}),
             S
     end.
 
@@ -639,8 +608,7 @@ process_pause_event(Seconds, State) ->
 -spec process_deferred_events(_SName, state()) -> state().
 process_deferred_events(SName, #state{deferred = Deferred} = S) ->
     lists:foldl(fun(Event, State) ->
-                    ?LOG_DEBUG(#{
-                        action => processing_deferred_event,
+                    ?LOG_DEBUG(#{what => bosh_socket_processing_deferred_event,
                         event => Event}),
                     handle_stream_event(Event, none, SName, State)
                 end,
@@ -889,8 +857,8 @@ get_client_acks(streamstart, Element, Default) ->
         <<"1">> ->
             true;
         _ ->
-            ?LOG_INFO(#{
-                action => "ignoring invalid client ack on stream start"}),
+            ?LOG_INFO(#{what => bosh_socket_ignore_ack,
+                details => "ignoring invalid client ack on stream start"}),
             false
     end.
 
@@ -931,6 +899,7 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
             %% Can't wrap remaining stanzas in a stream end body.
             %% Send Stanzas and forfeit sending stream end.
             ?LOG_DEBUG(#{
+                what => bosh_socket_cannot_send_stream_end,
                 issue => "can't send stream end",
                 reason => "pending stanzas"}),
             Pending = S#state.pending,
