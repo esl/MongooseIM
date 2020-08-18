@@ -113,12 +113,18 @@ process_general(<<"http_server_name">>, V) ->
     [#local_config{key = cowboy_server_name, value = b2l(V)}];
 process_general(<<"rdbms_server_type">>, V) ->
     [#local_config{key = rdbms_server_type, value = b2a(V)}];
-process_general(<<"override_local">>, V) ->
-    [#local_config{key = override_local, value = V}];
-process_general(<<"override_global">>, V) ->
-    [#local_config{key = override_global, value = V}];
-process_general(<<"override_acls">>, V) ->
-    [#local_config{key = override_acls, value = V}];
+process_general(<<"override_local">>, true) ->
+    [{override, local}];
+process_general(<<"override_local">>, false) ->
+    [];
+process_general(<<"override_global">>, true) ->
+    [{override, global}];
+process_general(<<"override_global">>, false) ->
+    [];
+process_general(<<"override_acls">>, true) ->
+    [{override, acls}];
+process_general(<<"override_acls">>, false) ->
+    [];
 process_general(<<"pgsql_users_number_estimate">>, V) ->
     ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
 process_general(<<"route_subdomain">>, V) ->
@@ -570,7 +576,6 @@ process_host_item(M) ->
 %% path: host_config[].*
 -spec process_host_section(toml_key(), ejabberd:server(), toml_section()) -> config_list().
 process_host_section(<<"auth">>, Host, Content) ->
-    ct:pal("In host_config:~n~p~n~p", [Host, Content]),
     AuthOpts = parse_map(fun auth_option/2, Content),
     partition_auth_opts(AuthOpts, Host);
 process_host_section(<<"shaper">>, Host, Content) ->
@@ -616,24 +621,16 @@ tls_cipher(#{<<"key_exchange">> := KEx,
 tls_cipher(Cipher) -> b2l(Cipher).
 
 set_overrides(State) ->
-    lists:foldl(fun(F, StateIn) -> F(StateIn) end, State, [
-        fun(S) -> maybe_override(S, override_global) end,
-        fun(S) -> maybe_override(S, override_local) end,
-        fun(S) -> maybe_override(S, override_acls) end
-        ]).
+    Opts = mongoose_config_parser:get_opts(State),
+    lists:foldl(fun maybe_override/2, State, Opts).
 
-maybe_override(S = {state, Config, _, _, _, _}, Name) ->
-    case lists:keyfind(Name, 2, Config) of
-        {_, _, true} ->
-            S1 = mongoose_config_parser:Name(S),
-            C1 = lists:keydelete(Name, 2, Config),
-            mongoose_config_parser:set_opts(C1, S1);
-        {_, _, false} ->
-            C1 = lists:keydelete(Name, 2, Config),
-            mongoose_config_parser:set_opts(C1, S);
-        _ ->
-            S
-        end.
+maybe_override(Override = {override, Type}, State) ->
+    Opts = mongoose_config_parser:get_opts(State),
+    NewOpts = lists:delete(Override, Opts),
+    NewState = mongoose_config_parser:set_opts(NewOpts, State),
+    mongoose_config_parser:override(Type, NewState);
+maybe_override(_, State) ->
+    State.
 
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
 b2a(B) -> binary_to_atom(B, utf8).

@@ -10,6 +10,7 @@
 -export([new_state/0,
          allow_override_all/1,
          allow_override_local_only/1,
+         override/2,
          override_global/1,
          override_local/1,
          override_acls/1,
@@ -81,7 +82,13 @@ allow_override_local_only(State = #state{}) ->
     State#state{override_global = false,
                 override_local  = true,
                 override_acls   = false}.
-
+-spec override(Scope :: atom(), state()) -> state().
+override(global, State) ->
+    override_global(State);
+override(local, State) ->
+    override_local(State);
+override(acls, State) ->
+    override_acls(State).
 -spec override_global(state()) -> state().
 override_global(State) ->
     State#state{override_global = true}.
