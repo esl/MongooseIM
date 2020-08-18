@@ -169,23 +169,21 @@ handle_info({gun_up, ConnPid, _Protocol},
 %% It may try to reconnect, according to the `retry' and `retry_timeout' options,
 %% passed in the init options.
 handle_info({gun_down, PID, Protocol, Reason, KilledStreams, UnprocessedStreams}, State) ->
-    ?WARNING_MSG("event=mongoose_gun_worker_connection,status=down,"
-                 "protocol=~p,connection=~p,reason=\"~p\",streams_killed=~p",
-                 [Protocol, PID, Reason, length(KilledStreams) + length(UnprocessedStreams)]),
-    ?DEBUG("event=mongoose_gun_worker_connection,status=down,reason=~p,killed_streams=~p,unprocessed_streams=~p",
-           [Reason,KilledStreams, UnprocessedStreams]),
+    ?LOG_WARNING(#{what => http_connection_down, reason => Reason, protocol => Protocol,
+                   gun_pid => PID, streams_killed => length(KilledStreams) + length(UnprocessedStreams)}),
+    ?LOG_DEBUG(#{what => http_connection_down, reason => Reason, killed_streams => KilledStreams,
+                 unprocessed_streams => UnprocessedStreams}),
     {noreply, State};
 
 %% `gun_error' is a message informing about any errors concerning connections or
 %% streams handled by Gun.
 handle_info({gun_error, ConnPid, Reason},
             State = #gun_worker_state{pid = ConnPid}) ->
-    ?WARNING_MSG("event=mongoose_gun_worker_error,reason=~p", [Reason]),
+    ?LOG_WARNING(#{what => http_connection_error, reason => Reason}),
     {noreply, State};
 handle_info({gun_error, ConnPid, StreamRef, Reason},
             State = #gun_worker_state{pid = ConnPid}) ->
-    ?WARNING_MSG("event=mongoose_gun_worker_error,reason=~p,stream_reference=~p",
-                 [Reason, StreamRef]),
+    ?LOG_WARNING(#{what => http_stream_error, reason => Reason, stream_reference => StreamRef}),
     {noreply, State};
 
 %% After `retry' number of `gun_down' messages, the connection process dies.
@@ -193,13 +191,14 @@ handle_info({gun_error, ConnPid, StreamRef, Reason},
 %% connection.
 handle_info({'DOWN', MRef, process, ConnPid, Reason},
             #gun_worker_state{pid = ConnPid, monitor = MRef} = State) ->
-    ?WARNING_MSG("event=mongoose_gun_worker_connection,status=lost,worker=~p,reason=~p.", [ConnPid, Reason]),
+    ?LOG_WARNING(#{what => http_connection_lost,
+                   worker => ConnPid, reason => Reason}),
     ConnectedState = launch_connection(State),
     NewState = retry_all(ConnectedState),
     {noreply, NewState};
 
 handle_info(M, S) ->
-    ?ERROR_MSG("event=mongoose_gun_worker_message,status=unexpected,message=~p", [M]),
+    ?LOG_ERROR(#{what => unexpected_gun_message, message => M}),
     {noreply, S}.
 
 terminate(_Reason, #gun_worker_state{pid = undefined}) ->
@@ -237,6 +236,7 @@ launch_connection(#gun_worker_state{host = H, port = P, opts = Opts} = State) ->
 queue_request(LRequest, PID) ->
     {request, FullPath, Method, LHeaders, Query, _Retries, Timeout} = LRequest,
     StreamRef = gun:request(PID, Method, FullPath, LHeaders, Query),
+    ?LOG_DEBUG(#{what => http_request, status => submit, request => LRequest}),
     TRef = erlang:send_after(Timeout, self(), {timeout, StreamRef}),
     {StreamRef, TRef}.
 
@@ -251,11 +251,11 @@ retry_request(PID, {Req, Res}, ReqAcc) ->
     erlang:cancel_timer(Res#response_data.timeout_timer),
     case Retries of
         0 ->
-            ?DEBUG("event=mongoose_gun_worker_request,status=drop,request=~w", [Req]),
+            ?LOG_DEBUG(#{what => http_request, status => drop, request => Req}),
             gen_server:reply(Res#response_data.from, {error, request_timeout}),
             ReqAcc;
         _N ->
-            ?DEBUG("event=mongoose_gun_worker_request,status=retry,request=~w", [Req]),
+            ?LOG_DEBUG(#{what => http_request, status => retry, request => Req}),
             {NewStreamRef, TRef} = queue_request(Req, PID),
 
             ReqAcc#{NewStreamRef => {
