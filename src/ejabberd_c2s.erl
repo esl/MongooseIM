@@ -748,7 +748,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             Acc1 = mongoose_hooks:forbidden_session_hook(StateData#state.server, Acc, JID),
             ?LOG_INFO(#{what => forbidden_session,
                         text => <<"User not allowed to open session">>,
-                        jid => JID, acc => Acc, c2s_state => StateData}),
+                        acc => Acc, c2s_state => StateData}),
             {Acc2, Err} = jlib:make_error_reply(Acc1, mongoose_xmpp_errors:not_allowed()),
             Acc3 = send_element(Acc2, Err, StateData),
             {wait, Acc3, StateData}
@@ -759,7 +759,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
 do_open_session(Acc, JID, StateData) ->
     ?LOG_INFO(#{what => c2s_opened_session,
                 text => <<"Opened session">>,
-                jid => JID, acc => Acc, c2s_state => StateData}),
+                acc => Acc, c2s_state => StateData}),
     Resp = jlib:make_result_iq_reply(mongoose_acc:element(Acc)),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
     case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
