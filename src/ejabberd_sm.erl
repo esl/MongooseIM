@@ -198,22 +198,24 @@ route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).
 
 route(From, To, Acc, {broadcast, Payload}) ->
-    case (catch do_route(Acc, From, To, {broadcast, Payload})) of
-        {'EXIT', {Reason, StackTrace}} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-            "broadcast=~p~n~nstack_trace=~p~n",
-                [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, Payload, StackTrace]);
-        Acc1 -> Acc1
+    try
+        do_route(Acc, From, To, {broadcast, Payload})
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => sm_route_failed,
+                           text => <<"Failed to route broadcast in ejabberd_sm">>,
+                           class => Class, reason => Reason, stacktrace => Stacktrace,
+                           payload => Payload, acc => Acc}),
+              Acc
     end;
 route(From, To, Acc, El) ->
-    case (catch do_route(Acc, From, To, El)) of
-        {'EXIT', {Reason, StackTrace}} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                       "packet=~ts~n~nstack_trace=~p~n",
-                       [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, exml:to_binary(El), StackTrace]);
-        Acc1 -> Acc1
+    try
+        do_route(Acc, From, To, El)
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => sm_route_failed,
+                           text => <<"Failed to route stanza in ejabberd_sm">>,
+                           class => Class, reason => Reason, stacktrace => Stacktrace,
+                           acc => Acc}),
+              Acc
     end.
 
 -spec open_session(SID, JID, Info) -> ReplacedPids when
@@ -531,8 +533,10 @@ hooks(Host) ->
 handle_call({node_cleanup, Node}, _From, State) ->
     BackendModule = sm_backend(),
     {TimeDiff, _R} = timer:tc(fun BackendModule:cleanup/1, [Node]),
-    ?INFO_MSG("sessions cleanup after node=~p, took=~pms",
-              [Node, erlang:round(TimeDiff / 1000)]),
+    ?LOG_INFO(#{what => sm_node_cleanup,
+                text => <<"Cleaning after a node that went down">>,
+                cleanup_node => Node,
+                duration => erlang:round(TimeDiff / 1000)}),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -586,8 +590,10 @@ handle_info(_Info, State) ->
 terminate(_Reason, _State) ->
     try
         ejabberd_commands:unregister_commands(commands())
-    catch E:R:S ->
-        ?ERROR_MSG("Caught error while terminating sm: ~p:~p~n~p", [E, R, S])
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => sm_terminate_failed,
+                           text => <<"Caught error while terminating SM">>,
+                           class => Class, reason => Reason, stacktrace => Stacktrace})
     end,
     ok.
 
@@ -645,14 +651,14 @@ do_filter(From, To, Packet) ->
     To :: jid:jid(),
     Payload :: exml:element() | ejabberd_c2s:broadcast().
 do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
-    ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
+    ?LOG_DEBUG(#{what => sm_route_broadcast, acc => Acc, payload => Payload}),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
             Acc1 = mongoose_hooks:sm_broadcast(To#jid.lserver, Acc, From, To,
                                                Broadcast, length(CurrentPids)),
-            ?DEBUG("bc_to=~p~n", [CurrentPids]),
+            ?LOG_DEBUG(#{what => sm_broadcast, session_pids => CurrentPids}),
             BCast = {broadcast, Payload},
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
             Acc1;
@@ -661,14 +667,13 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
                 none ->
                     Acc; % do nothing
                 Pid when is_pid(Pid) ->
-                    ?DEBUG("sending to process ~p~n", [Pid]),
+                    ?LOG_DEBUG(#{what => sm_broadcast, session_pid => Pid}),
                     Pid ! Broadcast,
                     Acc
             end
     end;
 do_route(Acc, From, To, El) ->
-    ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
-           [From, To, Acc, 8]),
+    ?LOG_DEBUG(#{what => sm_route, acc => Acc}),
     #jid{lresource = LResource} = To,
     #xmlel{name = Name, attrs = Attrs} = El,
     case LResource of
@@ -681,7 +686,8 @@ do_route(Acc, From, To, El) ->
                     do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
                                      From, To, Acc, El);
                 Pid when is_pid(Pid) ->
-                    ?DEBUG("sending to process ~p~n", [Pid]),
+                    ?LOG_DEBUG(#{what => sm_route_to_pid,
+                                 session_pid => Pid, acc => Acc}),
                     Pid ! {route, From, To, Acc},
                     Acc
             end
@@ -764,7 +770,7 @@ do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
         false ->
             route_message(From, To, Acc, Packet);
         true ->
-            ?DEBUG("issue=\"message droped\", to=~1000p", [To]),
+            ?LOG_DEBUG(#{what => sm_offline_dropped, acc => Acc}),
             Acc
     end;
 do_route_offline(<<"iq">>, <<"error">>, _From, _To, Acc, _Packet) ->
@@ -775,7 +781,7 @@ do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err);
 do_route_offline(_, _, _, _, Acc, _) ->
-    ?DEBUG("packet droped~n", []),
+    ?LOG_DEBUG(#{what => sm_packet_dropped, acc => Acc}),
     Acc.
 
 
