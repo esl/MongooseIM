@@ -229,10 +229,12 @@ send(SocketData, Data) ->
              SocketData#socket_state.socket, Data) of
         ok -> ok;
         {error, timeout} ->
-            ?INFO_MSG("Timeout on ~p:send", [SocketData#socket_state.sockmod]),
+            ?LOG_INFO(#{what => socket_error, reason => timeout,
+                        socket => SocketData#socket_state.sockmod}),
             exit(normal);
         Error ->
-            ?DEBUG("Error in ~p:send: ~p", [SocketData#socket_state.sockmod, Error]),
+            ?LOG_INFO(#{what => socket_error, reason => Error,
+                        socket => SocketData#socket_state.sockmod}),
             exit(normal)
     end.
 

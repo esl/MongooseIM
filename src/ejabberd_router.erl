@@ -112,7 +112,7 @@ start_link() ->
     To     :: jid:jid(),
     Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    % ?LOG_ERROR("Deprecated - it should be Acc: ~p", [Packet]),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => From#jid.lserver,
                               element => Packet,
