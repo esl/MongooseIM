@@ -74,7 +74,6 @@ log_at_level(none) ->
     Before = get_log(?LOGFILE),
     [ logger:log(LevelName, "", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then nothing ends up in the log file.
-    %% (polling doesn't make sense in this one case, we have to sleep)
     Fun = fun() -> get_log(?LOGFILE) -- Before end,
     async_helper:wait_until(Fun, []);
 log_at_level(LName) ->
