@@ -367,8 +367,8 @@ maybe_start_session_on_known_host(Req, Body) ->
         error:Reason ->
             %% It's here because something catch-y was here before
             ?LOG_ERROR(#{
-                issue => bosh_stop,
-                issue=>undefined_condition,
+                action => bosh_stop,
+                issue => undefined_condition,
                 reason => Reason}),
             Req1 = terminal_condition(<<"undefined-condition">>, [], Req),
             {false, Req1}
