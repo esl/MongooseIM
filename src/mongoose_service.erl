@@ -119,43 +119,59 @@ run_start_service(Service, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
-        ?INFO_MSG("event=service_startup,status=starting,service=~p,options=~p", [Service, Opts]),
+        ?LOG_INFO(#{what => service_startup, status => starting,
+                    text => <<"Starting MongooseIM service">>,
+                    server => Service, opts => Opts}),
         Res = Service:start(Opts),
-        ?INFO_MSG("event=service_startup,status=started,service=~p", [Service]),
+        ?LOG_INFO(#{what => service_startup, status => started,
+                    text => <<"Started MongooseIM service">>,
+                    server => Service}),
         case Res of
             {ok, _} -> Res;
             _ -> {ok, Res}
         end
     catch
-        Class:Reason:StackTrace ->
+        Class:Reason:Stacktrace ->
             ets:delete(?ETAB, Service),
-            Template = "event=service_startup,status=error,service=~p,options=~p,class=~p,reason=~p~n~p",
-            ErrorText = io_lib:format(Template,
-                                      [Service, Opts, Class, Reason, StackTrace]),
-            ?CRITICAL_MSG(ErrorText, []),
+            ?LOG_CRITICAL(#{what => service_startup, status => error,
+                            text => <<"Failed to start MongooseIM service">>,
+                            service => Service, opts => Opts,
+                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             case is_app_running(mongooseim) of
                 true ->
-                    erlang:raise(Class, Reason, StackTrace);
+                    erlang:raise(Class, Reason, Stacktrace);
                 false ->
-                    ?CRITICAL_MSG("mongooseim initialization was aborted "
-                    "because a service start failed.~n"
-                    "The trace is ~p.", [StackTrace]),
+                    ?LOG_CRITICAL(#{what => stopping_mongooseim,
+                                    text => <<"mongooseim initialization was aborted "
+                                              "because a service start failed.">>,
+                                    service => Service, opts => Opts,
+                                    class => Class, reason => Reason, stacktrace => Stacktrace}),
                     timer:sleep(3000),
-                    erlang:halt(string:substr(lists:flatten(ErrorText),
-                        1, 199))
+                    ErrorText = io_lib:format("Stopping MongooseIM because of bad service~n"
+                                              "service=~p ~nreason=~0p ~nstactrace=~0p",
+                                              [Service, Reason, Stacktrace]),
+                    erlang:halt(string:substr(lists:flatten(ErrorText), 1, 199))
             end
     end.
 
 run_stop_service(Service) ->
-    ?INFO_MSG("stopping service: ~p~n", [Service]),
-    ?INFO_MSG("event=service_stop,status=stopping,service=~p", [Service]),
-    case catch Service:stop() of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("event=service_stop,status=failed,service=~p,reason=~p", [Service, Reason]);
-        _ ->
-            ?INFO_MSG("event=service_stop,status=stopped,service=~p", [Service]),
+    ?LOG_INFO(#{what => service_stop, status => stopping,
+                text => <<"Stopping MongooseIM service">>,
+                service => Service}),
+    try Service:stop()
+    of _ ->
+            ?LOG_INFO(#{what => service_stop, status => stopped,
+                        text => <<"Stopped MongooseIM service">>,
+                        service => Service}),
             ets:delete(?ETAB, Service),
             ok
+    catch
+        Class:Reason:Stacktrace ->
+            ets:delete(?ETAB, Service),
+            ?LOG_ERROR(#{what => service_stop, status => failed,
+                         text => <<"Failed to stop MongooseIM service">>,
+                         service => Service,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
     end.
 
 -spec is_app_running(_) -> boolean().
