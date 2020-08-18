@@ -9,7 +9,7 @@
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
-    [equivalence].
+    [equivalence, s2s].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -28,8 +28,18 @@ equivalence(Config) ->
     State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
     Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
-
     ?eq(Hosts1, Hosts2),
+    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
+                            fun handle_config_option/2).
+
+s2s(Config) ->
+    Cfg_Path = ejabberd_helper:data(Config, "s2s_only.cfg"),
+    State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
+    Opts1 = mongoose_config_parser:state_to_opts(State1),
+
+    TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
+    State2 = mongoose_config_parser_toml:parse_file(TOML_path),
+    Opts2 = mongoose_config_parser:state_to_opts(State2),
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
 

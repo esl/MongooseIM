@@ -83,6 +83,14 @@ process_section([<<"services">>] = Path, Content) ->
 process_section([<<"modules">>] = Path, Content) ->
     Mods = parse_section(Path, Content),
     ?HOST_F([#local_config{key = {modules, Host}, value = Mods}]);
+process_section([<<"s2s">>] = Path, Content) ->
+    DNSOpts = s2s_dns_opts(Content),
+    Out = s2s_outgoing_opts(Content),
+    Opts = maps:without(
+        [<<"dns_timeout">>, <<"dns_retries">>,
+         <<"preferred_ip_version">>, <<"connection_timeout">>], Content),
+    S2sOpts = parse_section(Path, Opts),
+    Out ++ DNSOpts ++ S2sOpts;
 process_section([<<"host_config">>] = Path, Content) ->
     parse_list(Path, Content);
 process_section(Path, Content) ->
@@ -486,6 +494,26 @@ host([{host, Host}, _]) -> Host.
 access_rule_value(B) when is_binary(B) -> b2a(B);
 access_rule_value(V) -> V.
 
+%% path: s2s
+-spec s2s_dns_opts(toml_section()) -> config_list().
+s2s_dns_opts(#{<<"dns_timeout">> := Timeout, <<"dns_retries">> := Retries}) ->
+    [#local_config{key = s2s_dns_options, value = [{timeout, Timeout}, {retries, Retries}]}];
+s2s_dns_opts(#{<<"dns_timeout">> := Timeout}) ->
+    [#local_config{key = s2s_dns_options, value = [{timeout, Timeout}]}];
+s2s_dns_opts(#{<<"dns_retries">> := Retries}) ->
+    [#local_config{key = s2s_dns_options, value = [{retries, Retries}]}];
+s2s_dns_opts(_) -> [].
+
+-spec s2s_outgoing_opts(toml_section()) -> [option()].
+s2s_outgoing_opts(#{<<"connection_timeout">> := Timeout, <<"preferred_ip_version">> := IPV}) ->
+    [#local_config{key = outgoing_s2s_options,
+        value = {s2s_preferred_address_family(IPV), Timeout}}];
+s2s_outgoing_opts(#{<<"connection_timeout">> := Timeout}) ->
+    [#local_config{key = outgoing_s2s_options, value = Timeout}];
+s2s_outgoing_opts(#{<<"preferred_ip_version">> := IPV}) ->
+    [#local_config{key = outgoing_s2s_options, value = s2s_preferred_address_family(IPV)}];
+s2s_outgoing_opts(_) -> [].
+
 %% path: s2s.*
 -spec process_s2s_option(path(), toml_value()) -> config_list().
 process_s2s_option([<<"use_starttls">>|_], V) ->
@@ -498,7 +526,26 @@ process_s2s_option([<<"outgoing_port">>|_], V) ->
     [#local_config{key = outgoing_s2s_port, value = V}];
 process_s2s_option([<<"address">>|_], Addrs) ->
     [#local_config{key = {s2s_addr, Host}, value = s2s_address(Addr)}
-     || Addr = #{<<"host">> := Host} <- Addrs].
+     || Addr = #{<<"host">> := Host} <- Addrs];
+process_s2s_option([<<"ciphers">>|_], V) ->
+    [#local_config{key = s2s_ciphers, value = b2l(V)}];
+process_s2s_option([<<"domain_certfile">>|_], DomCerts) ->
+    [#local_config{key = {domain_certfile, b2l(Dom)}, value = b2l(Cert)}
+        || #{<<"domain">> := Dom, <<"certfile">> := Cert} <- DomCerts];
+process_s2s_option([<<"connection_timeout">>|_], <<"infinity">>) ->
+    [#local_config{key = s2s_connection_timeout, value = infinity}];
+process_s2s_option([<<"connection_timeout">>|_], V) ->
+    [#local_config{key = s2s_connection_timeout, value = V}];
+process_s2s_option([<<"preferred_ip_version">>|_], V) ->
+    [#local_config{key = preferred_address_family,
+        value = s2s_preferred_address_family(V)}];
+process_s2s_option([<<"shared">>|_], V) ->
+    ?HOST_F([#local_config{key = {s2s_shared, Host}, value = V}]);
+process_s2s_option([<<"max_retry_delay">>|_], V) ->
+    ?HOST_F([#local_config{key = {s2s_max_retry_delay, Host}, value = V}]).
+
+s2s_preferred_address_family(4) -> [ipv4, ipv6];
+s2s_preferred_address_family(6) -> [ipv6, ipv4].
 
 %% path: s2s.address[]
 -spec s2s_address(toml_section()) -> option().
