@@ -96,9 +96,9 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             ?LOG_DEBUG(#{what => gd_skip_store_message,
                          text => <<"Not storing global message">>,
                          gd_id => ID, acc => Acc0, bounce_ttl => 0}),
-            ?LOG_ERROR_IF(To#jid.luser == <<>>,
-                          #{what => gd_message_to_component_ttl_zero,
-                            gd_id => ID, acc => Acc0}),
+            ?LOG_IF(error, To#jid.luser == <<>>,
+                    #{what => gd_message_to_component_ttl_zero,
+                      gd_id => ID, acc => Acc0}),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
             FPacket;
         OldTTL ->
@@ -127,11 +127,11 @@ reroute_messages(Acc, From, To, TargetHost) ->
                   end
           end,
           ets:take(?MS_BY_TARGET, Key)),
-    ?LOG_DEBUG_IF(StoredMessages =/= [],
-                  #{what => gd_route_stored,
-                    text => <<"Routing multiple previously stored messages">>,
-                    stored_messages_length => length(StoredMessages),
-                    from_jid => jid:to_binary(From), to_jid => jid:to_binary(To)}),
+    ?LOG_IF(debug, StoredMessages =/= [],
+            #{what => gd_route_stored,
+              text => <<"Routing multiple previously stored messages">>,
+              stored_messages_length => length(StoredMessages),
+              from_jid => jid:to_binary(From), to_jid => jid:to_binary(To)}),
     lists:foreach(pa:bind(fun reroute_message/2, TargetHost), StoredMessages),
     Acc.
 

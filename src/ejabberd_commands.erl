@@ -260,7 +260,7 @@ register_commands(Commands) ->
     lists:foreach(
       fun(Command) ->
               Inserted = ets:insert_new(ejabberd_commands, Command),
-              ?LOG_DEBUG_IF(not Inserted,
+              ?LOG_IF(debug, not Inserted,
                             #{what => register_command_duplicate,
                               text => <<"This command is already defined">>,
                               command => Command})

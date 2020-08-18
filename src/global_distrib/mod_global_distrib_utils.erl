@@ -168,9 +168,9 @@ resolve_endpoint({Addr, Port}) ->
     case to_ip_tuples(Addr) of
         {ok, IpAddrs} ->
             Resolved = [{IpAddr, Port} || IpAddr <- IpAddrs],
-            ?LOG_INFO_IF(is_domain(Addr), #{what => gd_resolve_endpoint,
-                                            text => <<"GD resolved address to IPs">>,
-                                            address => Addr, ip_addresses => IpAddrs}),
+            ?LOG_IF(info, is_domain(Addr), #{what => gd_resolve_endpoint,
+                                             text => <<"GD resolved address to IPs">>,
+                                             address => Addr, ip_addresses => IpAddrs}),
             Resolved;
         {error, {Reasonv6, Reasonv4}} ->
             ?LOG_ERROR(#{what => gd_resolve_endpoint_failed,
