@@ -157,7 +157,7 @@ categorize_option({acl, _, _}, Acc) ->
     %% no need to do extra work here
     Acc;
 categorize_option(Opt, Acc) ->
-    ?ERROR_MSG("event=uncategorized_option option=~p", [Opt]),
+    ?LOG_ERROR(#{what => uncategorized_option, option => Opt}),
     Acc.
 
 as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
