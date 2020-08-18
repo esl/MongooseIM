@@ -88,7 +88,8 @@ get_list_names_only(LUser, LServer) ->
         {error, {notfound, set}} ->
             [];
         Err ->
-            ?ERROR_MSG("~p", [Err]),
+            ?LOG_ERROR(#{what => privacy_get_list_names_only_failed,
+                         user => LUser, server => LServer, reason => Err}),
             []
     end.
 
@@ -99,8 +100,10 @@ get_privacy_list(LUser, LServer, Name) ->
             {ok, Val};
         {error, notfound} ->
             {error, not_found};
-        Err->
-            ?ERROR_MSG("~p", [Err]),
+        Err ->
+            ?LOG_ERROR(#{what => privacy_get_list_names_only_failed,
+                         user => LUser, server => LServer, list_name => Name,
+                         reason => Err}),
             Err
     end.
 
@@ -127,7 +130,9 @@ remove_privacy_list(LUser, LServer, Name) ->
             S2 = riakc_set:del_element(Name, S1),
             mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S2));
         Err ->
-            ?ERROR_MSG("~p", [Err]),
+            ?LOG_ERROR(#{what => privacy_remove_privacy_list_failed,
+                         user => LUser, server => LServer, list_name => Name,
+                         reason => Err}),
             Err
     end.
 

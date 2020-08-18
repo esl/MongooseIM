@@ -72,17 +72,14 @@ get_default_list_name(LUser, LServer) ->
         {selected, [{DefName}]} ->
             DefName;
         Other ->
-            ?ERROR_MSG("event=get_default_list_name_failed "
-                       "user=~ts server=~ts result=~1000p",
-                       [LUser, LServer, Other]),
+            ?LOG_ERROR(#{what => privacy_get_default_list_name_failed,
+                         user => LUser, server => LServer, reason => Other}),
             none
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=get_default_list_name_failed "
-                       "user=~ts server=~ts"
-                       "reason=~p:~p stacktrace=~1000p",
-                       [LUser, LServer,
-                        Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => privacy_get_default_list_name_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             none
     end.
 
@@ -91,17 +88,14 @@ get_list_names_only(LUser, LServer) ->
         {selected, Names} ->
             [Name || {Name} <- Names];
         Other ->
-            ?ERROR_MSG("event=get_list_names_only_failed "
-                       "user=~ts server=~ts result=~1000p",
-                       [LUser, LServer, Other]),
+            ?LOG_ERROR(#{what => privacy_get_list_names_only_failed,
+                         user => LUser, server => LServer, reason => Other}),
             []
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=get_list_names_only_failed "
-                       "user=~ts server=~ts"
-                       "reason=~p:~p stacktrace=~1000p",
-                       [LUser, LServer,
-                        Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => privacy_get_list_names_only_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             []
     end.
 
@@ -114,17 +108,15 @@ get_privacy_list(LUser, LServer, Name) ->
             IntID = mongoose_rdbms:result_to_integer(ID),
             get_privacy_list_by_id(LUser, LServer, Name, IntID, LServer);
         Other ->
-            ?ERROR_MSG("event=get_privacy_list_failed "
-                       "user=~ts server=~ts listname=~ts result=~1000p",
-                       [LUser, LServer, Name, Other]),
+            ?LOG_ERROR(#{what => privacy_get_privacy_list_failed,
+                         user => LUser, server => LServer, list_name => Name,
+                         reason => Other}),
             {error, Other}
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=get_privacy_list_failed "
-                       "user=~ts server=~ts listname=~ts"
-                       "reason=~p:~p stacktrace=~1000p",
-                       [LUser, LServer, Name,
-                        Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => privacy_get_privacy_list_failed,
+                         user => LUser, server => LServer, list_name => Name,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, Reason}
     end.
 
@@ -134,17 +126,15 @@ get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
             Items = raw_to_items(RItems),
             {ok, Items};
         Other ->
-            ?ERROR_MSG("event=get_privacy_list_by_id_failed "
-                       "user=~ts server=~ts listname=~ts id=~p result=~1000p",
-                       [LUser, LServer, Name, ID, Other]),
+            ?LOG_ERROR(#{what => privacy_get_privacy_list_by_id_failed,
+                         user => LUser, server => LServer, list_name => Name, list_id => ID,
+                         reason => Other}),
             {error, Other}
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=get_privacy_list_by_id_failed "
-                       "user=~ts server=~ts listname=~ts id=~p"
-                       "reason=~p:~p stacktrace=~1000p",
-                       [LUser, LServer, Name, ID,
-                        Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => privacy_get_privacy_list_by_id_failed,
+                         user => LUser, server => LServer, list_name => Name, list_id => ID,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, Reason}
     end.
 
@@ -157,17 +147,14 @@ forget_default_list(LUser, LServer) ->
         {updated, _} ->
             ok;
         Other ->
-            ?ERROR_MSG("event=forget_default_list_failed "
-                       "user=~ts server=~ts result=~1000p",
-                       [LUser, LServer, Other]),
+            ?LOG_ERROR(#{what => privacy_forget_default_list_failed,
+                         user => LUser, server => LServer, reason => Other}),
             {error, Other}
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=forget_default_list_failed "
-                       "user=~ts server=~ts"
-                       "reason=~p:~p stacktrace=~1000p",
-                       [LUser, LServer,
-                        Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => privacy_forget_default_list_failed,
+                         user => LUser, server => LServer,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, Reason}
     end.
 
