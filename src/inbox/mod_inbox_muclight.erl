@@ -69,7 +69,8 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite ->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?DEBUG("event=irrelevant_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
+            ?LOG_DEBUG(#{what => irrelevant_system_message_for_mod_inbox_muclight,
+                         room => Room, exml_packet => Packet}),
             ok
     end.
 
@@ -141,8 +142,9 @@ is_system_message(Sender, Receiver, Packet) ->
         {MUCLightDomain, _RoomUser} ->
             false;
         Other ->
-            ?WARNING_MSG("event=unknown_message_for_mod_inbox_muclight,packet='~p',error='~p'",
-                         [Packet, Other])
+            ?LOG_WARNING(#{what => unknown_message_for_mod_inbox_muclight,
+                           sender => jid:to_binary(Sender), receiver => jid:to_binary(Receiver),
+                           packet => Packet})
     end.
 
 

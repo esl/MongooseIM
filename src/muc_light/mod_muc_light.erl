@@ -302,8 +302,9 @@ remove_user(Acc, User, Server) ->
     UserUS = {LUser, LServer},
     Version = mongoose_bin:gen_from_timestamp(),
     case mod_muc_light_db_backend:remove_user(UserUS, Version) of
-        {error, _} = Err ->
-            ?ERROR_MSG("hook=remove_user, error=~p", [Err]);
+        {error, Reason} = Err ->
+            ?LOG_ERROR(#{what => muc_remove_user_failed,
+                         reason => Reason, acc => Acc});
         AffectedRooms ->
             bcast_removed_user(UserUS, AffectedRooms, Version),
             maybe_forget_rooms(AffectedRooms),
@@ -473,7 +474,9 @@ handle_disco_info_get(From, To, DiscoInfo) ->
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->
-            ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
+            ?LOG_ERROR(#{what => muc_get_user_rooms_failed,
+                         text => <<"Couldn't get room list for user">>,
+                         from_jid => From, reason => Error}),
             mod_muc_light_codec_backend:encode_error(
               {error, internal_server_error}, From, To, OrigPacket, fun ejabberd_router:route/3);
         Rooms ->
@@ -612,8 +615,10 @@ bcast_removed_user(UserJID,
     mod_muc_light_codec_backend:encode({set, Affiliations, OldAffUsers, NewAffUsers},
                                        UserJID, RoomUS, fun ejabberd_router:route/3),
     bcast_removed_user(UserJID, RAffected, Version, ID);
-bcast_removed_user(UserJID, [{RoomUS, Error} | RAffected], Version, ID) ->
-    ?ERROR_MSG("user=~p, room=~p, remove_user_error=~p", [UserJID, RoomUS, Error]),
+bcast_removed_user(UserJID, [{{RoomU, RoomS} = RoomUS, Error} | RAffected], Version, ID) ->
+    ?LOG_ERROR(#{what => muc_remove_user_failed,
+                 user_jid => jid:to_binary(UserJID), room => RoomU, sub_host => RoomS,
+                 reason => Error}),
     bcast_removed_user(UserJID, RAffected, Version, ID).
 
 -spec maybe_forget_rooms(AffectedRooms :: mod_muc_light_db:remove_user_return()) -> ok.

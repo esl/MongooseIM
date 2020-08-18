@@ -212,11 +212,12 @@ handle_call(stop, _From, State) ->
     ({set_room_occupants, pid(), jid:jid(), [mod_muc_room:user()]}, logstate()) ->
         {noreply, logstate()}.
 handle_cast({add_to_log, Type, Data, Room, Opts}, State) ->
-    case catch add_to_log2(Type, Data, Room, Opts, State) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]);
-        _ ->
-            ok
+    try
+        add_to_log2(Type, Data, Room, Opts, State)
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => muc_add_to_log_failed, room => Room,
+                           class => Class, reason => Reason, stacktrace => Stacktrace,
+                           log_type => Type, log_data => Data}, State)
     end,
     {noreply, State};
 handle_cast({set_room_occupants, RoomPID, RoomJID, Users}, State) ->
@@ -241,11 +242,15 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', MonitorRef, process, Pid, _Info}, State) ->
+handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
     #logstate{occupants = OldOccupantsMap, room_monitors = OldMonitors} = State,
     case maps:find(MonitorRef, OldMonitors) of
         error ->
-            ?WARNING_MSG("Unknown monitored process ~p is now down", [Pid]),
+            ?LOG_WARNING(#{what => muc_unknown_monitor,
+                           text => <<"Unknown monitored process is now down">>,
+                           monitor_ref => MonitorRef,
+                           monitor_pid => Pid,
+                           reason => Info}),
             {noreply, State};
         {ok, RoomJID} ->
             Monitors = maps:remove(MonitorRef, OldMonitors),

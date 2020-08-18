@@ -166,8 +166,9 @@ validate_room_id(RoomIDOrJID, Server) ->
             {ok, RoomID};
         #jid{luser = RoomID, lserver = MUCLightDomain, lresource = <<>>} ->
             {ok, RoomID};
-        _ ->
-            ?WARNING_MSG("issue=invalid_room_id id=~p muclight_domain=~p",
-                         [RoomIDOrJID, MUCLightDomain]),
+        Other ->
+            ?LOG_WARNING(#{what => muc_invalid_room_id,
+                           text => <<"REST received room_id field is unknown format">>,
+                           server => Server, room => RoomIDOrJID, reason => Other}),
             error
     end.
