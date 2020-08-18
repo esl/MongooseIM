@@ -209,9 +209,6 @@ maybe_add_rtcp_mux(_, Els) ->
 
 parse_candidate_extra_args([], Candidate) ->
     Candidate;
-parse_candidate_extra_args([V], Candidate) ->
-    ?WARNING_MSG("Unrecognised candidate extra arg: ~p", [V]),
-    Candidate;
 parse_candidate_extra_args([<<"typ">>, Value | Rest], Candidate) ->
     NewCandidate = Candidate#{type => Value},
     parse_candidate_extra_args(Rest, NewCandidate);
@@ -228,7 +225,9 @@ parse_candidate_extra_args([<<"tcptype">>, Value | Rest], Candidate) ->
     NewCandidate = Candidate#{tcptype => Value},
     parse_candidate_extra_args(Rest, NewCandidate);
 parse_candidate_extra_args(Rest, Candidate) ->
-    ?WARNING_MSG("Unrecognised candidate extra args: ~p", [Rest]),
+    ?LOG_WARNING(#{what => sip_unrecognised_candidate_extra_args,
+                   text => <<"Unrecognised candidate extra arg">>,
+                   extra_args => Rest}),
     Candidate.
 
 

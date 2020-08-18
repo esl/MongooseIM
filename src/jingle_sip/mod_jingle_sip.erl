@@ -150,12 +150,15 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
       route_result(Result, From, To, IQ)
     catch Class:Error:StackTrace ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
-            ?ERROR_MSG("error=~p, while translating to sip, class=~p, stack_trace=~p",
-                       [Class, Error, StackTrace])
+            ?LOG_ERROR(#{what => sip_translate_failed,
+                         acc => Acc,
+                         class => Class, reason => Error, stacktrace => StackTrace})
     end,
     mongoose_acc:set(hook, result, drop, Acc);
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
-    ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
+    ?LOG_WARNING(#{what => sip_unknown_action,
+                   text => <<"Forwarding unknown action to SIP">>,
+                   jingle_action => JingleAction, acc => Acc}),
     Acc.
 
 route_result(ok, From, To, IQ)  ->
@@ -168,7 +171,8 @@ route_result({error, item_not_found}, From, To, IQ) ->
     Error = mongoose_xmpp_errors:item_not_found(),
     route_error_reply(From, To, IQ, Error);
 route_result(Other, From, To, IQ) ->
-    ?WARNING_MSG("Unknown result: ~p for IQ ~p", [Other, IQ]),
+    ?LOG_WARNING(#{what => sip_unknown_result,
+                   reason => Other, iq => IQ}),
     Error = mongoose_xmpp_errors:internal_server_error(),
     route_error_reply(From, To, IQ, Error).
 
@@ -217,7 +221,13 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
                                         %% Internal options
                                         async,
                                         {callback, fun jingle_sip_callbacks:invite_resp_callback/1}]),
-    mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
+    Result = mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
+    {_, SrvId, DialogId, _CallId} = nksip_sipmsg:parse_handle(Handle),
+    ?LOG_INFO(#{what => sip_session_start,
+                event => set_outgoing_request,
+                jingle_action => 'session-initiate',
+                from_jid => From, to_jid => To,
+                call_id => SID, server_id => SrvId, dialog_id => DialogId}),
     {ok, Handle};
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     LServer = mongoose_acc:lserver(Acc),
@@ -239,13 +249,13 @@ translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SDP = make_sdp_for_ice_candidate(Jingle),
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
+            ?LOG_ERROR(#{what => sip_missing_dialog, sid => SID, acc => Acc}),
             {error, item_not_found};
         {ok, Handle} ->
             nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
                                     {body, SDP}]);
         _ ->
-            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
+            ?LOG_ERROR(#{what => missing_sip_session, sid => SID, acc => Acc}),
             {error, item_not_found}
     end;
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
@@ -272,13 +282,12 @@ translate_source_change_to_sip(ActionName, Jingle, Acc) ->
 
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
+            ?LOG_ERROR(#{what => sip_missing_dialod, sid => SID, acc => Acc}),
             {error, item_not_found};
         {ok, Handle} ->
-            nksip_uac:invite(Handle, [auto_2xx_ack,
-                                      {body, SDP}]);
+            nksip_uac:invite(Handle, [auto_2xx_ack, {body, SDP}]);
         _ ->
-            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
+            ?LOG_ERROR(#{what => sip_missing_session, sid => SID, acc => Acc}),
             {error, item_not_found}
     end.
 
