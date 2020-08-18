@@ -1639,7 +1639,7 @@ change_shaper(StateData, JID) ->
 -spec send_text(state(), Text :: binary()) -> any().
 send_text(StateData, Text) ->
     ?LOG_DEBUG(#{what => c2s_send_text, text => <<"Send XML to the socket">>,
-                 text => Text, c2s_state => StateData}),
+                 send_text => Text, c2s_state => StateData}),
     Size = size(Text),
     mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
