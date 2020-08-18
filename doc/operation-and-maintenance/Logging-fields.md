@@ -23,3 +23,5 @@
 | reason        | term    |             | `catch Class:Reason:Stacktrace`                     | `http_timeout`                      |                                    |
 | class         | enum    |             | `catch Class:Reason:Stacktrace`                     | `error`                             |                                    |
 | stacktrace    | term    |             | `catch Class:Reason:Stacktrace`                     | `[...]`                             | Formatted by formatter             |
+| duration      | integer |             | Duration of some operation in milliseconds          | 5000                                | Don't use it for microseconds      |
+
