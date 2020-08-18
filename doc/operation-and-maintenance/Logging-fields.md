@@ -32,4 +32,5 @@ If `iq` is not available, `sub_el` could be logged as last option.
 | duration      | integer |             | Duration of some operation in milliseconds          | 5000                                | Don't use it for microseconds      |
 | state_name    | atom    |             | State name in `gen_fsm`                             | `wait_for_stream`                   |                                    |
 | state         | term    |             | `gen_server` state                                  | `#state{}`                          | Consider adding a formatter        |
+| call_from     | tuple   |             | From argument in gen_server's handle_call           | `{Pid, Tag}`                        |                                    |
 

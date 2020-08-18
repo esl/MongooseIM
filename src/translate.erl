@@ -73,7 +73,9 @@ load_translations_from_dir(Dir) ->
             MsgFiles = lists:filter(fun has_msg_extension/1, Files),
             load_translation_files(Dir, MsgFiles);
         {error, Reason} ->
-            ?ERROR_MSG("~p", [Reason])
+            ?LOG_ERROR(#{what => load_translations_from_dir_failed,
+                         directory => Dir, reason => Reason}),
+            ok
     end.
 
 -spec load_translation_files(file:filename(), [file:filename()]) -> ok.
@@ -101,15 +103,11 @@ load_file(Lang, File) ->
                                                      unicode:characters_to_binary(Orig),
                                                      unicode:characters_to_binary(Trans))
                           end, Terms);
-        %% Code copied from ejabberd_config.erl
-        {error, {_LineNumber, erl_parse, _ParseMessage} = Reason} ->
-            ExitText = lists:flatten(File ++ " approximately in the line "
-                                     ++ file:format_error(Reason)),
-            ?ERROR_MSG("Problem loading translation file ~n~s", [ExitText]),
-            exit(ExitText);
         {error, Reason} ->
-            ExitText = lists:flatten(File ++ ": " ++ file:format_error(Reason)),
-            ?ERROR_MSG("Problem loading translation file ~n~s", [ExitText]),
+            ExitText = iolist_to_binary(File ++ ": " ++ file:format_error(Reason)),
+            ?LOG_ERROR(#{what => load_translation_file_failed,
+                         text => <<"Problem loading translation file">>,
+                         filename => File, reason => ExitText}),
             exit(ExitText)
     end.
 
