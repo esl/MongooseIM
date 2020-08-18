@@ -3,6 +3,9 @@
 
 -include_lib("kernel/include/logger.hrl").
 
+-define(LOG_IF(Level, Condition, Msg),
+    (Condition) == true andalso ?LOG(Level, Msg)).
+
 -define(LOG_IF(Level, Condition, Format, Args),
     (Condition) == true andalso ?LOG(Level, Format, Args)).
 
