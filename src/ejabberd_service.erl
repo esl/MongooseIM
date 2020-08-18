@@ -134,7 +134,7 @@ socket_type() ->
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
     El :: exml:element(), Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, Pid) ->
+process_packet(Acc, From, To, _El, Pid) ->
     Pid ! {route, From, To, Acc}.
 
 %%%----------------------------------------------------------------------
@@ -150,7 +150,9 @@ process_packet(Acc, From, To, El, Pid) ->
 %%----------------------------------------------------------------------
 -spec init([list() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
-    ?INFO_MSG("(~w) External service connected", [Socket]),
+    ?LOG_INFO(#{what => comp_started,
+                text => <<"External service connected">>,
+                socket => Socket}),
     Access = case lists:keysearch(access, 1, Opts) of
                  {value, {_, A}} -> A;
                  _ -> all
@@ -282,7 +284,9 @@ stream_established({xmlstreamelement, El}, StateData) ->
        (ToJID /= error) and (FromJID /= error) ->
             ejabberd_router:route(FromJID, ToJID, NewEl);
        true ->
-            ?INFO_MSG("Not valid Name (~p) or error in FromJID (~p) or ToJID (~p)~n", [Name, FromJID, ToJID]),
+           ?LOG_INFO(#{what => comp_bad_request,
+                       text => <<"Not valid Name or error in FromJID or ToJID">>,
+                       stanza_name => Name, from_jid => From, to_jid => To}),
             Err = jlib:make_error_reply(NewEl, mongoose_xmpp_errors:bad_request()),
             send_element(StateData, Err),
             error
@@ -348,18 +352,21 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%----------------------------------------------------------------------
 handle_info({send_text, Text}, StateName, StateData) ->
     % is it ever called?
-    ?ERROR_MSG("{service:send_text, Text}: ~p", [{send_text, Text}]),
+    ?LOG_ERROR(#{what => comp_deprecated_send_text,
+                 component => component_host(StateData), send_text => Text}),
     send_text(StateData, Text),
     {next_state, StateName, StateData};
 handle_info({send_element, El}, StateName, StateData) ->
     % is it ever called?
-    ?ERROR_MSG("{service:send_element, El}: ~p~n", [{send_text, El}]),
+    ?LOG_ERROR(#{what => comp_deprecated_send_element,
+                 component => component_host(StateData), exml_packet => El}),
     send_element(StateData, El),
     {next_state, StateName, StateData};
 handle_info({route, From, To, Acc}, StateName, StateData) ->
     Packet = mongoose_acc:element(Acc),
-    ?DEBUG("event=packet_to_component,component=\"~s\",from=\"~s\",to=\"~s\"",
-           [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
+    ?LOG_DEBUG(#{what => comp_route,
+                 text => <<"Route packet to an external component">>,
+                 component => component_host(StateData), acc => Acc}),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
             mongoose_hooks:packet_to_component(Acc, From, To),
@@ -376,7 +383,9 @@ handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     {stop, normal, StateData};
 handle_info(Info, StateName, StateData) ->
-    ?ERROR_MSG("Unexpected info: ~p", [Info]),
+    ?LOG_ERROR(#{what => unexpected_message,
+                 text => <<"Unexpected erlang message received by an external component process">>,
+                 msg => Info, component => component_host(StateData)}),
     {next_state, StateName, StateData}.
 
 
@@ -386,7 +395,8 @@ handle_info(Info, StateName, StateData) ->
 %% Returns: any
 %%----------------------------------------------------------------------
 terminate(Reason, StateName, StateData) ->
-    ?INFO_MSG("terminated: ~p", [Reason]),
+    ?LOG_INFO(#{what => comp_stopped,
+                component => component_host(StateData), reason => Reason}),
     case StateName of
         stream_established ->
             unregister_routes(StateData);
@@ -410,7 +420,9 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> binary().
 send_text(StateData, Text) ->
-    ?DEBUG("event=send_text,component=\"~s\",text=\"~s\"", [component_host(StateData), Text]),
+    ?LOG_DEBUG(#{what => comp_send_text,
+                 component => component_host(StateData),
+                 send_text => Text}),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
@@ -452,9 +464,11 @@ try_register_routes(StateData, Retries) ->
         {error, Reason} ->
             RoutesInfo = lookup_routes(StateData),
             ConflictBehaviour = StateData#state.conflict_behaviour,
-            ?ERROR_MSG("event=component_registration_conflict "
-                       "reason=~p conflict_behaviour=~p retries=~p routes_info=~p",
-                       [Reason, ConflictBehaviour, Retries, RoutesInfo]),
+            ?LOG_ERROR(#{what => comp_registration_conflict,
+                         text => <<"Another connection from a component with the same name">>,
+                         component => component_host(StateData),
+                         reason => Reason, retries => Retries, routes_info => RoutesInfo,
+                         conflict_behaviour => ConflictBehaviour}),
             handle_registration_conflict(ConflictBehaviour, RoutesInfo, StateData, Retries)
     end.
 
@@ -476,9 +490,10 @@ handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retr
             %% Do recursive call
             try_register_routes(StateData, Retries - 1);
         false ->
-            ?ERROR_MSG("event=component_registration_kick_failed "
-                       "pids=~p results=~p disconnecting_next",
-                       [Pids, Results]),
+            ?LOG_ERROR(#{what => comp_registration_kick_failed,
+                         text => <<"Failed to stop old component connection. Disconnecting next.">>,
+                         component => component_host(StateData),
+                         component_pids => Pids, results => Results}),
             do_disconnect_on_conflict(StateData)
     end;
 handle_registration_conflict(_Behaviour, _RoutesInfo, StateData, _Retries) ->
@@ -517,7 +532,7 @@ stop_process(Pid) ->
     p1_fsm:send_event(Pid, replaced),
     MonRef = erlang:monitor(process, Pid),
     receive
-        {'DOWN', MonRef, process, Pid, Reason} ->
+        {'DOWN', MonRef, process, Pid, _Reason} ->
             ok
     after 5000 ->
             erlang:demonitor(MonRef, [flush]),
