@@ -500,12 +500,6 @@ maybe_add(_, undefined) -> undefined;
 maybe_add(Rid1, Rid2) when is_integer(Rid1),
                            is_integer(Rid2) -> Rid1 + Rid2.
 
--spec maybe_diff(rid(), rid() | undefined)
-  -> non_neg_integer() | undefined.
-maybe_diff(_, undefined) -> undefined;
-maybe_diff(Rid, Expected) -> abs(Rid-Expected).
-
-
 -spec resend_cached(cached_response(), state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
