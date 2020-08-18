@@ -88,8 +88,8 @@ mech_step(#state{step = 5,
     {ok, mongoose_credentials:extend(Creds, [{username, UserName},
                                              {authzid, AuthzId},
                                              {auth_module, AuthModule}])};
-mech_step(A, B) ->
-    ?DEBUG("SASL DIGEST: A ~p B ~p", [A, B]),
+mech_step(State, Msg) ->
+    ?LOG_DEBUG(#{what => sasl_digest_error_bad_protocol, sasl_state => State, message => Msg}),
     {error, <<"bad-protocol">>}.
 
 
@@ -98,8 +98,8 @@ authorize_if_uri_valid(State, KeyVals, Nonce) ->
     DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
     case is_digesturi_valid(DigestURI, State#state.host) of
         false ->
-            ?DEBUG("User login not authorized because digest-uri "
-                   "seems invalid: ~p", [DigestURI]),
+            ?LOG_DEBUG(#{what => unauthorized_login, reason => invalid_digest_uri,
+                         message => DigestURI, user => UserName}),
             {error, <<"not-authorized">>, UserName};
         true ->
             maybe_authorize(UserName, KeyVals, Nonce, State)
@@ -139,7 +139,7 @@ do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, Sta
       {error, not_authorized} ->
             {error, <<"not-authorized">>, UserName};
       {error, R} ->
-            ?DEBUG("authorize error: ~p", [R]),
+            ?LOG_DEBUG(#{what => unauthorized_login, reason => R, user => UserName}),
             {error, <<"not-authorized">>}
     end.
 
