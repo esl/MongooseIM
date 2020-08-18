@@ -65,7 +65,7 @@ authorize(Request, User) ->
         {error, {no_auth_modules, _}} ->
             {error, <<"not-authorized">>, User};
         {error, R} ->
-            ?DEBUG("authorize error: ~p", [R]),
+            ?LOG_DEBUG(#{what => unauthorized_login, reason => R, user => User}),
             {error, <<"internal-error">>}
     end.
 
