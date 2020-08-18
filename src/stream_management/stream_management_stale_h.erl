@@ -74,7 +74,7 @@ maybe_start(Opts) ->
         false ->
             ok;
         true ->
-            ?INFO_MSG("event=stream_mgmt_stale_h_start", []),
+            ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
             mnesia:create_table(stream_mgmt_stale_h,
                                 [{ram_copies, [node()]},
                                  {attributes, record_info(fields, stream_mgmt_stale_h)}]),
@@ -101,12 +101,12 @@ init([GCOpts]) ->
                         gc_geriatric = GeriatricAge},
     {ok, State, RepeatAfter}.
 
-handle_call(Msg, _From, State) ->
-    ?WARNING_MSG("event=unexpected_handle_call message=~p", [Msg]),
+handle_call(Msg, From, State) ->
+    ?LOG_WARNING(#{what => unexpected_call, msg => Msg, call_from => From}),
     {reply, ok, State}.
 
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("event=unexpected_handle_cast message=~p", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_cast, msg => Msg}),
     {noreply, State}.
 
 handle_info(timeout, #smgc_state{gc_repeat_after = RepeatAfter,
@@ -115,7 +115,7 @@ handle_info(timeout, #smgc_state{gc_repeat_after = RepeatAfter,
     {noreply, State, RepeatAfter};
 handle_info(Info, #smgc_state{gc_repeat_after = RepeatAfter,
                               gc_geriatric = _GeriatricAge} = State) ->
-    ?WARNING_MSG("event=unexpected_handle_info info=~p", [Info]),
+    ?LOG_WARNING(#{what => unexpected_message, msg => Info}),
     {noreply, State, RepeatAfter}.
 
 clear_table(GeriatricAge) ->

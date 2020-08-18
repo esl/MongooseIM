@@ -134,9 +134,9 @@ report_transparency(Args) ->
         {____, true} -> continue;
         {____, ____} ->
             File = mongoose_system_metrics_file:location(),
-            Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File]),
+            Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
             ?LOG_NOTICE(#{what => report_transparency,
-                          text => Text, report_filename => mongoose_system_metrics_file:location()}),
+                          text => Text, report_filename => File}),
             continue
     end.
 

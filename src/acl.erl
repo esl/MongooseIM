@@ -225,10 +225,9 @@ match({resource_glob, ResourceGlob}, {_User, _Server, Resource}, _Host) ->
 match({node_glob, UserGlob, ServerGlob}, {User, Server, _Resource}, _Host) ->
     is_glob_match(Server, ServerGlob) andalso is_glob_match(User, UserGlob);
 match(WrongSpec, _LJID, _Host) ->
-    ?ERROR_MSG(
-       "Wrong ACL expression: ~p~n"
-       "Check your config file and reload it with the override_acls option enabled",
-       [WrongSpec]),
+    ?LOG_ERROR(#{what => wrong_acl_expression,
+                 text => <<"Wrong ACL expression. Check your config file and reload it with the override_acls option enabled">>,
+                 wrong_spec => WrongSpec}),
     false.
 
 -spec is_regexp_match(binary(), Regex :: regexp()) -> boolean().
@@ -239,7 +238,8 @@ is_regexp_match(String, RegExp) ->
         match ->
             true
     catch _:ErrDesc ->
-            ?ERROR_MSG("Wrong regexp ~p in ACL: ~p", [RegExp, ErrDesc]),
+              ?LOG_ERROR(#{what => acl_regexp_match_failed,
+                           string => String, regex => RegExp, reason => ErrDesc}),
             false
     end.
 
