@@ -375,7 +375,7 @@ get_parentnodes_tree(Key, Node) ->
 find_nodes_with_parents(_, [], _, Acc) ->
     Acc;
 find_nodes_with_parents(_, _, 100, Acc) ->
-    ?WARNING_MSG("event=max_depth_reached, nodes=~p", [Acc]),
+    ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
     SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_parents(
@@ -421,7 +421,7 @@ get_subnodes_tree(Key, Node) ->
 find_subnodes(_Key, [], _, Acc) ->
     Acc;
 find_subnodes(_, _, 100, Acc) ->
-    ?WARNING_MSG("event=max_depth_reached, nodes=~p", [Acc]),
+    ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_subnodes(Key, Nodes, Depth, Acc) ->
     SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_children(
