@@ -57,7 +57,9 @@ get_vcard(LUser, LServer) ->
         {selected, [{SVCARD}]} ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
-                    ?WARNING_MSG("not sending bad vcard xml ~p~n~p", [Reason, SVCARD]),
+                    ?LOG_WARNING(#{what => not_sending_back_bad_vcard_xml,
+                        reason => Reason, svcard => SVCARD,
+                        user => LUser, host => LServer}),
                     {error, mongoose_xmpp_errors:service_unavailable()};
                 {ok, VCARD} ->
                     {ok, [VCARD]}
@@ -121,7 +123,8 @@ do_search(LServer, RestrictionSQL) ->
         {selected, Rs} when is_list(Rs) ->
             Rs;
         Error ->
-            ?ERROR_MSG("~p", [Error]),
+            ?LOG_ERROR(#{what => db_search_error, reason => Error,
+                         host => LServer}),
             []
     end.
 

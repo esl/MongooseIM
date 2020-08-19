@@ -55,9 +55,8 @@ init(Req, Opts) ->
         Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              ?ERROR_MSG("issue=init_failed "
-                          "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, StackTrace]),
+              ?LOG_ERROR(#{what => init_failed, class => Class,
+                           reason => Reason, stacktrace => StackTrace}),
               erlang:raise(Class, Reason, StackTrace)
     end.
 
@@ -95,9 +94,8 @@ websocket_handle(InFrame, State) ->
         Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              ?ERROR_MSG("issue=websocket_handle_failed "
-                          "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, StackTrace]),
+              ?LOG_ERROR(#{what => websocket_handle_failed, class => Class,
+                           reason => Reason, stacktrace => StackTrace}),
               erlang:raise(Class, Reason, StackTrace)
     end.
 
@@ -124,9 +122,8 @@ websocket_info(Info, State) ->
         Class:Reason:StackTrace ->
               %% Because cowboy ignores stacktraces
               %% and we can get a cryptic error like {crash,error,undef}
-              ?ERROR_MSG("issue=websocket_info_failed "
-                          "reason=~p:~p stacktrace=~1000p",
-                         [Class, Reason, StackTrace]),
+              ?LOG_ERROR(#{what => websocket_info_failed, class => Class,
+                           reason => Reason, stacktrace => StackTrace}),
               erlang:raise(Class, Reason, StackTrace)
     end.
 

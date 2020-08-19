@@ -87,7 +87,8 @@ probe_setopts(_Entry, _Opts, _S) ->
 probe_handle_msg({'DOWN', Ref, _, _, {sample, Data}}, #state{ref = Ref} = S) ->
     {ok, S#state{ref = undefined, data = Data}};
 probe_handle_msg({'DOWN', Ref, _, _, Reason}, #state{callback_module = Mod, ref = Ref} = S) ->
-    ?WARNING_MSG("Probe callback_module ~p died with reason ~p: ", [Mod, Reason]),
+    ?LOG_WARNING(#{what => probe_callback_module_died, module => Mod,
+                   reason => Reason}),
     {ok, S#state{ref = undefined}};
 probe_handle_msg(_, S) ->
     {ok, S}.

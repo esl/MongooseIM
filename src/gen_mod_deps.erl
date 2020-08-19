@@ -148,9 +148,9 @@ merge_args(Module, PreviousArgs, Args) ->
                       OldProplist;
 
                   {_, OldValue} ->
-                      ?WARNING_MSG("Overriding argument ~p for module ~p "
-                                   "with ~p.~n", [{Key, OldValue}, Module,
-                                                  {Key, Value}]),
+                      ?LOG_WARNING(#{what => overriding_argument, module => Module,
+                                     old_value => {Key, OldValue},
+                                     new_value => {Key, Value}}),
 
                       [Property | proplists:delete(Key, OldProplist)]
               end
@@ -204,13 +204,15 @@ process_dep(Module, DepModule, DepHardness, Graph) ->
         {{error, {bad_edge, CyclePath}}, hard} ->
             case find_soft_edge(Graph, CyclePath) of
                 false ->
-                    ?CRITICAL_MSG("Aborting resolving dependencies because of "
-                                  "module dependency cycle: ~p.~n", [CyclePath]),
+                    ?LOG_CRITICAL(#{what => resolving_dependencies_aborted,
+                                    text => <<"Module dependency cycle found">>,
+                                    cycle_path => CyclePath}),
                     error({dependency_cycle, CyclePath});
 
                 {EdgeId, B, A, _} ->
-                    ?INFO_MSG("Soft module dependency cycle detected: ~p. "
-                              "Dropping edge ~p -> ~p~n", [CyclePath, A, B]),
+                    ?LOG_INFO(#{what => soft_module_dependency_cycle_detected,
+                                text => <<"Dropping edge">>, edge => {A, B},
+                                cyclepath => CyclePath}),
 
                     digraph:del_edge(Graph, EdgeId),
                     ['$e' | _] = digraph:add_edge(Graph, DepModule, Module, hard),
@@ -218,8 +220,9 @@ process_dep(Module, DepModule, DepHardness, Graph) ->
             end;
 
         {{error, {bad_edge, CyclePath}}, _Soft} ->
-            ?INFO_MSG("Soft module dependency cycle detected: ~p. Dropping "
-                      "edge ~p -> ~p~n", [CyclePath, Module, DepModule]),
+            ?LOG_INFO(#{what => soft_module_dependency_cycle_detected,
+                        text => <<"Dropping edge">>, edge => {Module, DepModule},
+                        cyclepath => CyclePath}),
             ok
     end.
 

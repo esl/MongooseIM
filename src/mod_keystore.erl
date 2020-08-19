@@ -98,8 +98,9 @@ get_key(HandlerAcc, KeyID) ->
          mod_keystore_backend:get_key(KeyID) ++
          HandlerAcc)
     catch
-        E:R ->
-            ?ERROR_MSG("handler error: {~p, ~p}", [E, R]),
+        E:R:S ->
+            ?LOG_ERROR(#{what => mod_keystore_handler_error,
+                         error => E, reason => R, stacktrace => S}),
             HandlerAcc
     end.
 

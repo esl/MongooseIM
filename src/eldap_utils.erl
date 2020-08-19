@@ -251,13 +251,8 @@ prepare_opt_val(Opt, Val, F, Default) ->
           end,
     case Res of
         {'EXIT', _} ->
-            ?ERROR_MSG("Configuration problem:~n"
-                      "** Option: ~p~n"
-                      "** Invalid value: ~p~n"
-                      "** Using as fallback: ~p",
-                      [ Opt,
-                        Val,
-                        Default]),
+            ?LOG_ERROR(#{what => configuration_error, option => Opt,
+                         value => Val, default => Default}),
             Default;
         _ ->
             Res

@@ -58,7 +58,8 @@ get_vcard(LUser, LServer) ->
                 {ok, XMLEl} ->
                     {ok, [XMLEl]};
                 {error, Reason} ->
-                    ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p", [Reason, XMLBin]),
+                    ?LOG_WARNING(#{what => vcard_lookup_error, reason => Reason,
+                                   exml_packet => XMLBin}),
                     {error, mongoose_xmpp_errors:service_unavailable()}
             end;
         {error, notfound} ->
@@ -83,8 +84,8 @@ do_search(YZQueryIn, VHost) ->
         {ok, #search_results{docs=R, num_found = _N}} ->
             lists:map(fun({_Index, Props}) -> doc2item(VHost, Props) end, R);
         Err ->
-            ?ERROR_MSG("Error while search vCard, index=~s, query=~s, error=~p",
-                [yz_vcard_index(VHost), YZQueryBin, Err]),
+            ?LOG_ERROR(#{what => vcard_search_error, index => yz_vcard_index(VHost),
+                         'query' => YZQueryBin, reason => Err}),
             []
     end.
 

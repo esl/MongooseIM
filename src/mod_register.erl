@@ -362,8 +362,8 @@ check_timeout(Source) ->
                 {atomic, Res} ->
                     Res;
                 {aborted, Reason} ->
-                    ?ERROR_MSG("mod_register: timeout check error: ~p~n",
-                               [Reason]),
+                    ?LOG_ERROR(#{what => mod_register_timeout_check_error,
+                                 reason => Reason}),
                     true
             end;
         false ->
@@ -418,8 +418,8 @@ is_strong_password(Server, Password) ->
         Entropy when is_number(Entropy), Entropy > 0 ->
             ejabberd_auth:entropy(Password) >= Entropy;
         Wrong ->
-            ?WARNING_MSG("Wrong value for password_strength option: ~p",
-                         [Wrong]),
+            ?LOG_WARNING(#{what => mod_register_wrong_password_strength,
+                           value => Wrong}),
             true
     end.
 
@@ -435,7 +435,8 @@ get_ip_access(Host) ->
                   {ok, IP, Mask} ->
                       [{Access, IP, Mask}];
                   error ->
-                      ?ERROR_MSG("mod_register: invalid network specification: ~p", [S]),
+                      ?LOG_ERROR(#{what => mod_register_invalid_network_specification,
+                                   specification => S}),
                       []
               end
       end, IPAccess).

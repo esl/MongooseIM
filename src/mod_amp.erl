@@ -194,8 +194,9 @@ send_error_and_drop(Packet, From, AmpError, MatchedRule) ->
 
 -spec send_errors_and_drop(exml:element(), jid:jid(), [{amp_error(), amp_rule()}]) -> drop.
 send_errors_and_drop(Packet, From, []) ->
-    ?ERROR_MSG("~p from ~p generated an empty list of errors. This shouldn't happen!",
-               [Packet, From]),
+    ?LOG_ERROR(#{what => empty_list_of_errors_generated,
+                 text => <<"This shouldn't happen!">>,
+                 exml_packet => Packet, from => From}),
     update_metric_and_drop(Packet, From);
 send_errors_and_drop(Packet, From, ErrorRules) ->
     Host = host(From),

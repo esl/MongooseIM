@@ -180,10 +180,8 @@ parse_request_body(Req) ->
         {Params, Req2}
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("issue=parse_request_body_failed "
-                       "reason=~p:~p "
-                       "stacktrace=~1000p",
-                       [Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => parse_request_body_failed, class => Class,
+                         reason => Reason, stacktrace => StackTrace}),
             {error, Reason}
     end.
 
@@ -199,10 +197,8 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
         maps:from_list(ConvArgs)
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("issue=check_and_extract_args_failed "
-                       "reason=~p:~p "
-                       "stacktrace=~1000p",
-                       [Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => check_and_extract_args_failed, class => Class,
+                         reason => Reason, stacktrace => StackTrace}),
             {error, bad_request, Reason}
     end.
 
@@ -217,10 +213,8 @@ execute_command(ArgMap, Command, Entity) ->
         do_execute_command(ArgMap, Command, Entity)
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("issue=execute_command_failed "
-                       "reason=~p:~p "
-                       "stacktrace=~1000p",
-                       [Class, Reason, StackTrace]),
+            ?LOG_ERROR(#{what => execute_command_failed, class => Class,
+                         reason => Reason, stacktrace => StackTrace}),
             {error, bad_request, Reason}
     end.
 

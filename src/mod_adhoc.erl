@@ -224,7 +224,7 @@ process_sm_iq(From, To, Acc, IQ) ->
 -spec process_adhoc_request(jid:jid(), jid:jid(), jlib:iq(),
         Hook :: atom()) -> ignore | jlib:iq().
 process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
-    ?DEBUG("About to parse ~p...", [IQ]),
+    ?LOG_DEBUG(#{what => about_to_parse, exml_packet => IQ}),
     case adhoc:parse_request(IQ) of
         {error, Error} ->
             IQ#iq{type = error, sub_el = [SubEl, Error]};

@@ -136,11 +136,10 @@ start_module_for_host(Host, Module, Opts0) ->
                 %% Note for programmers:
                 %% Never call start_link directly from your_module:start/2 function!
                 %% The process will be killed if we start modules remotely or in shell
-                ?ERROR_MSG("msg=unexpected_links ~s"
-                            " links_before=~p links_after=~p",
-                           [TravisInfo, LinksBefore, LinksAfter])
+                ?LOG_ERROR(#{what => unexpected_links, travis_info => TravisInfo,
+                             links_before => LinksBefore, links_after => LinksAfter})
         end,
-        ?DEBUG("Module ~p started for ~p.", [Module, Host]),
+        ?LOG_DEBUG(#{what => module_started, module => Module, server => Host}),
         % normalise result
         case Res of
             {ok, R} -> {ok, R};
@@ -154,14 +153,18 @@ start_module_for_host(Host, Module, Opts0) ->
                                       "host ~p~n options: ~p~n ~p: ~p~n~p",
                                       [Module, Host, Opts, Class, Reason,
                                        StackTrace]),
-            ?CRITICAL_MSG(ErrorText, []),
+            ?LOG_CRITICAL(#{what => starting_module_failed, module => Module,
+                            server => Host, opts => Opts, class => Class,
+                            reason => Reason, stacktrace => StackTrace}),
             case is_mim_or_ct_running() of
                 true ->
                     erlang:raise(Class, Reason, StackTrace);
                 false ->
-                    ?CRITICAL_MSG("mongooseim initialization was aborted "
-                                  "because a module start failed.~n"
-                                  "The trace is ~p.", [StackTrace]),
+                    Msg1 = <<"mongooseim initialization was aborted ">>,
+                    Msg2 = <<"because a module start failed.">>,
+                    ?LOG_CRITICAL(#{what => mim_initialization_aborted,
+                                    text => <<Msg1/binary, Msg2/binary>>,
+                                    stacktrace => StackTrace}),
                     timer:sleep(3000),
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                                               1, 199))
@@ -224,7 +227,7 @@ stop_module_keep_config(Host, Module) ->
     Opts = opts_for_module(Host, Module),
     case catch Module:stop(Host) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]),
+            ?LOG_ERROR(#{what => module_stopping_failed, reason => Reason}),
             {error, Reason};
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList),
