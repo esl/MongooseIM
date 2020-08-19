@@ -7,7 +7,7 @@
 
 -define(TEST_COOLDOWN, 50).    % ms
 -define(COOLDOWN_EPS, 3).      % ms, must be much smaller than TEST_COOLDOWN
--define(LOG_MSG, "hey, deprecated!").
+-define(LOG_MSG, #{what => cool_deprecated}).
 
 all() ->
     [

@@ -1092,114 +1092,72 @@ sm_backend() ->
 %%====================================================================
 %% Deprecated API
 %%====================================================================
-open_session(SID, U, S, R, Info) ->
+
+-define(FUNCTION_STRING,
+           ?MODULE_STRING ++ ":" ++
+              atom_to_list(?FUNCTION_NAME) ++ "/" ++
+                 integer_to_list(?FUNCTION_ARITY)).
+
+-define(DEPRICATE_FUNCTION,
     mongoose_deprecations:log(
       {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:open_session/5"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+      #{what => sm_function_deprecated,
+        text => <<"The function ", (list_to_binary(?FUNCTION_STRING))/binary,
+        " is deprecated, please use the #jid{} equivalent instead">>},
+      [{log_level, warning}])).
+
+open_session(SID, U, S, R, Info) ->
+    ?DEPRICATE_FUNCTION,
     open_session(SID, jid:make(U, S, R), undefined, Info).
 
 open_session(SID, U, S, R, Priority, Info) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:open_session/6"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     open_session(SID, jid:make(U, S, R), Priority, Info).
 
 close_session(Acc, SID, U, S, R, Reason) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:close_session/6"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     close_session(Acc, SID, jid:make(U, S, R), Reason).
 
 close_session_unset_presence(Acc, SID, U, S, R, Status, Reason) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:close_session_unset_presence/7"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     close_session_unset_presence(Acc, SID, jid:make(U, S, R), Status, Reason).
 
 unset_presence(Acc, SID, U, S, R, Status, Info) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:unset_presence/7"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     unset_presence(Acc, SID, jid:make(U, S, R), Status, Info).
 
 get_raw_sessions(U, S) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_raw_sessions/2"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_raw_sessions(jid:make(U, S, <<>>)).
 
 store_info(U, S, R, {Key, _Value} = KV) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:store_info/4"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     store_info(jid:make(U, S, R), {Key, _Value} = KV).
 
 set_presence(Acc, SID, U, S, R, Priority, Presence, Info) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:set_presence/8"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     set_presence(Acc, SID, jid:make(U, S, R), Priority, Presence, Info).
 
 remove_info(U, S, R, Key) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:remove_info/4"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     remove_info(jid:make(U, S, R), Key).
 
 get_user_resources(U, S) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_user_resources/2"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_user_resources(jid:make(U, S, <<>>)).
 
 get_session_pid(U, S, R) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_session_pid/3"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_session_pid(jid:make(U, S, R)).
 
 get_session(U, S, R) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_session/3"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_session(jid:make(U, S, R)).
 
 get_session_ip(U, S, R) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_session_ip/3"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_session_ip(jid:make(U, S, R)).
 
 get_user_present_resources(U, S) ->
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      "The function ejabberd_sm:get_user_present_resources/2"
-      " is deprecated, please use the #jid{} equivalent instead",
-      [{log_level, warning}]),
+    ?DEPRICATE_FUNCTION,
     get_user_present_resources(jid:make(U, S, <<>>)).
