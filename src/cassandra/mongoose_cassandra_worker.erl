@@ -224,8 +224,10 @@ handle_call({continue, Req}, From, State = #state{}) ->
     NewReq = Req#request{from = From},
     NewState = update_req(NewReq, State),
     {noreply, process_request(RequestId, NewState)};
-handle_call(Msg, _From, State) ->
-    ?WARNING_MSG("Unexpected call ~p", [Msg]),
+handle_call(Msg, From, State) ->
+    ?LOG_WARNING(#{what => cassandra_unexpected_call,
+                   pool => State#state.pool_name,
+                   call_from => From, msg => Msg, state => State}),
     {noreply, State}.
 
 
@@ -244,7 +246,7 @@ handle_cast({write, QueryStr, Rows, Opts}, #state{} = State) ->
     NewState = State#state{inflight = maps:put(RequestId, Request, State#state.inflight)},
     {noreply, process_request(RequestId, NewState)};
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Unexpected cast ~p", [Msg]),
+    ?LOG_WARNING(#{what => cassandra_unexpected_cast, msg => Msg, state => State}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -269,7 +271,9 @@ handle_info({'DOWN', _MRef,  _,  _,  _} = Down, #state{} = St) ->
 handle_info({retry, ReqId}, #state{} = St) ->
     case maps:get(ReqId, St#state.inflight, undefined) of
         undefined ->
-            ?WARNING_MSG("Unexpected retry request for ~p", [ReqId]),
+            ?LOG_WARNING(#{what => cassandra_unexpected_retry_request,
+                           pool => St#state.pool_name,
+                           state => St, request_id => ReqId}),
             {noreply, St};
         #request{retry_left = TryCount} = Req ->
             NextRequest = Req#request{retry_left = max(TryCount - 1, 0)},
@@ -278,7 +282,9 @@ handle_info({retry, ReqId}, #state{} = St) ->
     end;
 
 handle_info(Msg, State) ->
-    ?WARNING_MSG("Unexpected info ~p", [Msg]),
+    ?LOG_WARNING(#{what => cassandra_unexpected_message,
+                   pool => State#state.pool_name,
+                   msg => Msg, state => State}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -370,8 +376,10 @@ handle_cancel(ReqId, Reason, State) ->
         undefined ->
             State;
         #request{tag = Tag} = Req ->
-            ?WARNING_MSG("query_type=~s, tag=~p, ~s, action=aborting, abort_reason=~s",
-                         [query_type(Req), Tag, error_text(cancel, Reason, Req), Reason]),
+            ?LOG_WARNING(#{what => cassandra_abording_request,  reason => Reason,
+                           pool => State#state.pool_name,
+                           tag => Tag, error_text => error_text(cancel, Reason, Req),
+                           query_type => query_type(Req)}),
             cleanup_request(ReqId, State)
     end.
 
@@ -379,7 +387,9 @@ handle_cancel(ReqId, Reason, State) ->
 handle_result({result, Tag, Result} = R, #state{} = State) ->
     case maps:get(Tag, State#state.cql_tags, undefined) of
         undefined ->
-            ?WARNING_MSG("unexpected result ~p", [R]),
+            ?LOG_WARNING(#{what => cassandra_unexpected_result,
+                           pool => State#state.pool_name,
+                           result => R}),
             State;
         ReqId ->
             Req = #request{cql_mref = MRef} = maps:get(ReqId, State#state.inflight),
@@ -424,7 +434,9 @@ do_handle_result(Result, Req, State) ->
 handle_error({error, Tag, Reason} = Error, #state{} = State) ->
     case maps:get(Tag, State#state.cql_tags, undefined) of
         undefined ->
-            ?WARNING_MSG("unexpected error ~p", [Error]),
+            ?LOG_WARNING(#{what => cassandra_unexpected_error, error => Error,
+                           pool => State#state.pool_name,
+                           tag => Tag, reason => Reason}),
             State;
         ReqId ->
             Req = #request{cql_mref = MRef} = maps:get(ReqId, State#state.inflight),
@@ -449,14 +461,17 @@ do_handle_error(Type, Reason, Req, State) ->
 
     case retry_info(Type, Reason, Req, State) of
         {abort, AbortReason, NextState} ->
-            ?WARNING_MSG("query_type=~s, tag=~p, ~s, action=aborting, abort_reason=~s",
-                         [query_type(Req), Tag, error_text(Type, Reason, Req), AbortReason]),
+            ?LOG_WARNING(#{what => cassandra_abording_query, tag => Tag,
+                           pool => State#state.pool_name,
+                           query_type => query_type(Req), reason => AbortReason,
+                           error_text => error_text(Type, Reason, Req)}),
             maybe_reply(Req, {error, Reason}),
             cleanup_request(Req, NextState);
         {retry, WaitFor, NextState} ->
-            ?WARNING_MSG("query_type=~s, tag=~p, ~s, action=retrying, retry_left=~p "
-                         "request_opts=~p",
-                         [query_type(Req), Tag, error_text(Type, Reason, Req), RetryLeft, Opts]),
+            ?LOG_WARNING(#{what => cassandra_retrying_query, tag => Tag,
+                           pool => State#state.pool_name,
+                           query_type => query_type(Req), request_opts => Opts,
+                           error_text => error_text(Type, Reason, Req), retry_left => RetryLeft}),
             schedule_retry(ReqId, WaitFor, NextState)
     end.
 
@@ -564,6 +579,8 @@ get_client(PoolName) ->
 -spec get_client_loop(mongoose_cassandra:pool_name(), non_neg_integer()) ->
                              cqerl:client() | no_return().
 get_client_loop(PoolName, RetryNo) when RetryNo >= 500 ->
+    ?LOG_WARNING(#{what => cassandra_get_client_failed,
+                   pool => PoolName}),
     error(cannot_get_cqerl_client, [PoolName, RetryNo]);
 get_client_loop(PoolName, RetryNo) ->
     try cqerl:get_client(PoolName) of
@@ -573,10 +590,14 @@ get_client_loop(PoolName, RetryNo) ->
                 _ -> throw({dead, Pid})
             end
     catch
-        E:R -> ?INFO_MSG("error getting client: ~p retry: ~p", [{E, R}, RetryNo]),
-               Wait = rand:uniform(10),
-               timer:sleep(Wait),
-               get_client_loop(PoolName, RetryNo + 1)
+        Class:Reason:Stacktrace ->
+            ?LOG_INFO(#{what => cassandra_get_client_retry,
+                        class => Class, reason => Reason, stacktrace => Stacktrace,
+                        pool => PoolName, retry_number => RetryNo}),
+
+             Wait = rand:uniform(10),
+             timer:sleep(Wait),
+             get_client_loop(PoolName, RetryNo + 1)
     end.
 
 -spec schedule_retry(request_id(), non_neg_integer(), worker_state()) -> worker_state().
