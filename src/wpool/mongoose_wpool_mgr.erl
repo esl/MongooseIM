@@ -90,8 +90,8 @@ init([Type]) ->
     {reply, reply(), state()}.
 handle_call({start_pool, Host, Tag, WpoolOpts, ConnOpts}, _From,
             #state{type = Type, pools = Pools, monitors = Monitors} = State) ->
-    ?LOG_INFO(#{what => mongoose_wpool_mgr_starting_pool, pool => Type, tag => Tag,
-        host => Host, pool_opts => WpoolOpts}),
+    ?LOG_INFO(#{what => pool_starting, pool => Type, tag => Tag, host => Host,
+        pool_opts => WpoolOpts}),
     case mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts]) of
         {_, Pid} = OkReply when is_pid(Pid) ->
             Ref = erlang:monitor(process, Pid),
@@ -102,7 +102,7 @@ handle_call({start_pool, Host, Tag, WpoolOpts, ConnOpts}, _From,
                                        conn_opts => ConnOpts}},
             {reply, OkReply, State#state{pools = NewPools, monitors = NewMonitors}};
         Other ->
-            ?LOG_ERROR(#{what => mongoose_wpool_mgr_pool_not_started, other => Other}),
+            ?LOG_ERROR(#{what => pool_not_started, other => Other}),
             {reply, Other, State}
     end;
 handle_call({stop_pool, Host, Tag}, _From,
@@ -162,8 +162,7 @@ do_start_type_sup(Type) ->
         {error, {already_started, _}} ->
             ok;
         Other ->
-            ?LOG_ERROR(#{what => mongoose_wpool_mgr_error_starting_type_sup,
-                reason => Other}),
+            ?LOG_ERROR(#{what => pool_sup_start_failed, reason => Other}),
             Other
     end.
 
@@ -186,8 +185,8 @@ try_starting({Type, Host, Tag} = PoolKey,
 
             {ok, State#state{pools = NewPools, monitors = NewMonitors}};
         Other ->
-            ?LOG_WARNING(#{what => mongoose_wpool_mgr_unable_to_restart_pool,
-                pool => PoolKey, reason => Other}),
+            ?LOG_WARNING(#{what => pool_restart_failed, pool => PoolKey,
+                reason => Other}),
             Other
     end.
 
@@ -220,8 +219,7 @@ maybe_stop_pool({Type, Host, Tag} = Key, #{monitor := Monitor}, Monitors) ->
         ok ->
             {ok, NewMonitors};
         Other ->
-            ?LOG_WARNING(#{what => mongoose_wpool_mgr_error_stopping_pool,
-                pool => Key, reason => Other}),
+            ?LOG_WARNING(#{what => pool_stop_failed, pool => Key, reason => Other}),
             {Other, NewMonitors}
     end.
 

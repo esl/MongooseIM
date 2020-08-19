@@ -225,7 +225,7 @@ handle_call({continue, Req}, From, State = #state{}) ->
     NewState = update_req(NewReq, State),
     {noreply, process_request(RequestId, NewState)};
 handle_call(Msg, _From, State) ->
-    ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_call,
+    ?LOG_WARNING(#{what => cassandra_unexpected_call,
         state => State, msg => Msg}),
     {noreply, State}.
 
@@ -245,8 +245,7 @@ handle_cast({write, QueryStr, Rows, Opts}, #state{} = State) ->
     NewState = State#state{inflight = maps:put(RequestId, Request, State#state.inflight)},
     {noreply, process_request(RequestId, NewState)};
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_cast,
-        msg => Msg, state => State}),
+    ?LOG_WARNING(#{what => cassandra_unexpected_cast, msg => Msg, state => State}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -271,8 +270,8 @@ handle_info({'DOWN', _MRef,  _,  _,  _} = Down, #state{} = St) ->
 handle_info({retry, ReqId}, #state{} = St) ->
     case maps:get(ReqId, St#state.inflight, undefined) of
         undefined ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_retry_request,
-                request_id => ReqId, state => St}),
+            ?LOG_WARNING(#{what => cassandra_unexpected_retry_request, state => St,
+                request_id => ReqId}),
             {noreply, St};
         #request{retry_left = TryCount} = Req ->
             NextRequest = Req#request{retry_left = max(TryCount - 1, 0)},
@@ -281,8 +280,7 @@ handle_info({retry, ReqId}, #state{} = St) ->
     end;
 
 handle_info(Msg, State) ->
-    ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_info,
-        msg => Msg, state => State}),
+    ?LOG_WARNING(#{what => cassandra_unexpected_info, msg => Msg, state => State}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -374,9 +372,9 @@ handle_cancel(ReqId, Reason, State) ->
         undefined ->
             State;
         #request{tag = Tag} = Req ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_abording_request, tag => Tag,
-                query_type => query_type(Req), reason => Reason,
-                error_text => error_text(cancel, Reason, Req)}),
+            ?LOG_WARNING(#{what => cassandra_abording_request,  reason => Reason,
+                tag => Tag, error_text => error_text(cancel, Reason, Req),
+                query_type => query_type(Req)}),
             cleanup_request(ReqId, State)
     end.
 
@@ -384,7 +382,7 @@ handle_cancel(ReqId, Reason, State) ->
 handle_result({result, Tag, Result} = R, #state{} = State) ->
     case maps:get(Tag, State#state.cql_tags, undefined) of
         undefined ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_result, result => R}),
+            ?LOG_WARNING(#{what => cassandra_unexpected_result, result => R}),
             State;
         ReqId ->
             Req = #request{cql_mref = MRef} = maps:get(ReqId, State#state.inflight),
@@ -429,8 +427,8 @@ do_handle_result(Result, Req, State) ->
 handle_error({error, Tag, Reason} = Error, #state{} = State) ->
     case maps:get(Tag, State#state.cql_tags, undefined) of
         undefined ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_error,
-                error => Error, tag => Tag, reason => Reason}),
+            ?LOG_WARNING(#{what => cassandra_unexpected_error, error => Error,
+                tag => Tag, reason => Reason}),
             State;
         ReqId ->
             Req = #request{cql_mref = MRef} = maps:get(ReqId, State#state.inflight),
@@ -455,13 +453,13 @@ do_handle_error(Type, Reason, Req, State) ->
 
     case retry_info(Type, Reason, Req, State) of
         {abort, AbortReason, NextState} ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_abording_query, tag => Tag,
+            ?LOG_WARNING(#{what => cassandra_abording_query, tag => Tag,
                 query_type => query_type(Req), reason => AbortReason,
                 error_text => error_text(Type, Reason, Req)}),
             maybe_reply(Req, {error, Reason}),
             cleanup_request(Req, NextState);
         {retry, WaitFor, NextState} ->
-            ?LOG_WARNING(#{what => mongoose_cassandra_worker_retrying_query, tag => Tag,
+            ?LOG_WARNING(#{what => cassandra_retrying_query, tag => Tag,
                 query_type => query_type(Req), request_opts => Opts,
                 error_text => error_text(Type, Reason, Req), retry_left => RetryLeft}),
             schedule_retry(ReqId, WaitFor, NextState)
@@ -580,8 +578,8 @@ get_client_loop(PoolName, RetryNo) ->
                 _ -> throw({dead, Pid})
             end
     catch
-        E:R -> ?LOG_INFO(#{what => mongoose_cassandra_worker_error_getting_client,
-            error => E, reason => R, retry_number => RetryNo}),
+        E:R -> ?LOG_INFO(#{what => cassandra_error_getting_client, error => E,
+            reason => R, retry_number => RetryNo}),
                Wait = rand:uniform(10),
                timer:sleep(Wait),
                get_client_loop(PoolName, RetryNo + 1)
