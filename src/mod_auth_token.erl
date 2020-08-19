@@ -172,8 +172,11 @@ revoke(Owner) ->
     try
         mod_auth_token_backend:revoke(Owner)
     catch
-        E:R -> ?ERROR_MSG("backend error! ~p", [{E, R}]),
-               error
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => auth_token_revoke_failed,
+                         user => Owner#jid.luser, server => Owner#jid.lserver,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+            error
     end.
 
 -spec authenticate(serialized()) -> validation_result().
@@ -187,7 +190,9 @@ authenticate(SerializedToken) ->
 do_authenticate(SerializedToken) ->
     #token{user_jid = Owner} = Token = deserialize(SerializedToken),
     {Criteria, Result} = validate_token(Token),
-    ?INFO_MSG("result: ~p, criteria: ~p", [Result, Criteria]),
+    ?LOG_INFO(#{what => auth_token_validate,
+                user => Owner#jid.luser, server => Owner#jid.lserver,
+                criteria => Criteria, result => Result}),
     case {Result, Token#token.type} of
         {ok, access} ->
             {ok, mod_auth_token, Owner#jid.luser};
@@ -201,7 +206,10 @@ do_authenticate(SerializedToken) ->
         {ok, provision} ->
             case set_vcard(Owner#jid.lserver, Owner, Token#token.vcard) of
                 {error, Reason} ->
-                    ?WARNING_MSG("can't set embedded provision token vCard: ~p", [Reason]),
+                    ?LOG_WARNING(#{what => auth_token_set_vcard_failed,
+                                   reason => Reason, token_vcard => Token#token.vcard,
+                                   user => Owner#jid.luser, server => Owner#jid.lserver,
+                                   criteria => Criteria, result => Result}),
                     {ok, mod_auth_token, Owner#jid.luser};
                 ok ->
                     {ok, mod_auth_token, Owner#jid.luser}
@@ -241,8 +249,12 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
         ValidSeqNo = mod_auth_token_backend:get_valid_sequence_number(T#token.user_jid),
         TokenSeqNo < ValidSeqNo
     catch
-        E:R -> ?ERROR_MSG("error checking revocation status: ~p", [{E, R}]),
-               true
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => auth_token_revocation_check_failed,
+                         text => <<"Error checking revocation status">>,
+                         token_seq_no => TokenSeqNo,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+            true
     end.
 
 -spec process_iq(jid:jid(), mongoose_acc:t(), jid:jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
@@ -290,9 +302,8 @@ utc_now_as_seconds() ->
 
 -spec token(token_type(), jid:jid()) -> token() | error().
 token(Type, User) ->
-    T = #token{type = Type,
-               expiry_datetime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
-               user_jid = User},
+    ExpiryTime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
+    T = #token{type = Type, expiry_datetime = ExpiryTime, user_jid = User},
     try
         token_with_mac(case Type of
                            access -> T;
@@ -301,9 +312,13 @@ token(Type, User) ->
                                T#token{sequence_no = ValidSeqNo}
                        end)
     catch
-        E:R:S -> ?ERROR_MSG("error creating token sequence number ~p~nstacktrace: ~p",
-                            [{E, R}, S]),
-               {error, {E, R}}
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => auth_token_revocation_check_failed,
+                         text => <<"Error creating token sequence number">>,
+                         token_type => Type, expiry_datetime => ExpiryTime,
+                         user => User#jid.luser, server => User#jid.lserver,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+               {error, {Class, Reason}}
     end.
 
 %% {modules, [
@@ -408,8 +423,12 @@ clean_tokens(Acc, User, Server) ->
         Owner = jid:make(User, Server, <<>>),
         mod_auth_token_backend:clean_tokens(Owner)
     catch
-        E:R -> ?ERROR_MSG("clean_tokens backend error: ~p", [{E, R}]),
-               ok
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => auth_token_clean_tokens_failed,
+                         text => <<"Error in clean_tokens backend">>,
+                         user => User, server => Server, acc => Acc,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+               {error, {Class, Reason}}
     end,
     Acc.
 
