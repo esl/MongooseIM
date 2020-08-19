@@ -508,7 +508,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
                 _ -> ok
             end;
         E ->
-            ?ERROR_MSG("event=set_roster_item_failed reason=~1000p", [E]), ok
+            ?LOG_ERROR(#{what => roster_set_item_failed, reason => E}), ok
     end.
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
@@ -881,8 +881,8 @@ try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
         send_unsubscription_to_rosteritems(Acc, LUser, LServer)
     catch
         E:R:S ->
-            ?WARNING_MSG("event=cannot_send_unsubscription_to_rosteritems,"
-                         "class=~p,reason=~p,stacktrace=~p", [E, R, S]),
+            ?LOG_WARNING(#{what => roster_unsubcribe_failed,
+                           class => E, reason => R, stacktrace => S}),
             Acc
     end.
 

@@ -38,7 +38,8 @@ revoke(#jid{lserver = LServer} = JID) ->
     EBareJID = mongoose_rdbms:escape_string(BBareJID),
     RevokeQuery = revoke_query(EBareJID),
     QueryResult = mongoose_rdbms:sql_query(LServer, RevokeQuery),
-    ?DEBUG("result ~p", [QueryResult]),
+    ?LOG_DEBUG(#{what => auth_token_revoke, sql_query => RevokeQuery,
+                 sql_result => QueryResult}),
     case QueryResult of
         {updated, 1} -> ok;
         {updated, 0} -> not_found

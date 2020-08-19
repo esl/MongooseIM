@@ -138,17 +138,21 @@ handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
 -spec process_iq(Host :: jid:server(), Module :: atom(), Function :: atom(),
                  From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) -> mongoose_acc:t().
-process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
-    case catch Module:Function(From, To, Acc, IQ) of
-        {'EXIT', {Reason, StackTrace}} ->
-            ?WARNING_MSG("event=process_iq_error,reason=~p,stack_trace=~p",
-                         [Reason, StackTrace]),
-            Acc;
+process_iq(Host, Module, Function, From, To, Acc, IQ) ->
+    try Module:Function(From, To, Acc, IQ) of
         {Acc1, ignore} ->
             Acc1;
         {Acc1, ResIQ} ->
             ejabberd_router:route(To, From, Acc1,
                                   jlib:iq_to_xml(ResIQ))
+    catch
+        Class:Reason:StackTrace ->
+            ?LOG_WARNING(#{what => process_iq_error,
+                           server => Host,
+                           handler_module => Module, handler_function => Function,
+                           acc => Acc,
+                           class => Class, reason => Reason, stacktrace => StackTrace}),
+            Acc
     end.
 
 -spec check_type(type()) -> type().

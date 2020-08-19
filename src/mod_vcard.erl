@@ -163,9 +163,8 @@ get_results_limit(LServer) ->
         Val when is_integer(Val) and (Val > 0) ->
             Val;
         Val ->
-            ?ERROR_MSG("Illegal option value ~p. "
-            "Default value ~p substituted.",
-                [{matches, Val}, ?JUD_MATCHES]),
+            ?LOG_ERROR(#{what => illegal_option_error, value => {matches, Val},
+                         default_value => ?JUD_MATCHES}),
             ?JUD_MATCHES
     end.
 
@@ -265,11 +264,11 @@ handle_call(_Request, _From, State) ->
 
 handle_info({route, From, To, Acc, _El}, State) ->
     {IQ, Acc1} = mongoose_iq:info(Acc),
-    case catch do_route(State#state.host, From, To, Acc1, IQ) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]);
-        _ ->
-            ok
+    try do_route(State#state.host, From, To, Acc1, IQ)
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => vcard_route_failed, acc => Acc,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
     end,
     {noreply, State};
 handle_info(_, State) ->
@@ -319,23 +318,16 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                           sub_el = [VCARD, ReasonEl]
                          };
                 {error, Reason} ->
-                    ?WARNING_MSG("issue=process_sm_iq_set_failed, "
-                                 "reason=~p", [Reason]),
+                    ?LOG_WARNING(#{what => vcard_sm_iq_set_failed,
+                                   reason => Reason, acc => Acc}),
                     ReasonEl = mongoose_xmpp_errors:unexpected_request_cancel(),
                     IQ#iq{type = error,
                           sub_el = [VCARD, ReasonEl]}
             catch
                 E:R:Stack ->
-                    ?ERROR_MSG("issue=process_sm_iq_set_failed "
-                                "reason=~p:~p "
-                                "stacktrace=~1000p "
-                                "from=~ts "
-                                "to=~ts "
-                                "sub_el=~ts",
-                                [E, R, Stack,
-                                 jid:to_binary(From),
-                                 jid:to_binary(To),
-                                 exml:to_binary(VCARD)]),
+                    ?LOG_ERROR(#{what => vcard_sm_iq_set_failed,
+                                 class => E, reason => R, stacktrace => Stack,
+                                 acc => Acc}),
                     IQ#iq{type = error,
                           sub_el = [VCARD, mongoose_xmpp_errors:internal_server_error()]}
             end;
@@ -352,16 +344,9 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
         {error, Reason} ->
             IQ#iq{type = error, sub_el = [SubEl, Reason]}
         catch E:R:Stack ->
-            ?ERROR_MSG("issue=process_sm_iq_get_failed "
-                        "reason=~p:~p "
-                        "stacktrace=~1000p "
-                        "from=~ts "
-                        "to=~ts "
-                        "sub_el=~ts",
-                        [E, R, Stack,
-                         jid:to_binary(From),
-                         jid:to_binary(To),
-                         exml:to_binary(SubEl)]),
+            ?LOG_ERROR(#{what => vcard_sm_iq_get_failed,
+                         class => E, reason => R, stacktrace => Stack,
+                         acc => Acc}),
             IQ#iq{type = error,
                   sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
     end,
@@ -383,16 +368,17 @@ unsafe_set_vcard(From, VCARD) ->
       VCARD :: exml:element(),
       Result :: ok | error().
 set_vcard(ok, _From, _VCARD) ->
-    ?DEBUG("hook call already handled - skipping", []),
+    ?LOG_DEBUG(#{what => hook_call_already_handled}),
     ok;
 set_vcard({error, no_handler_defined}, From, VCARD) ->
     try unsafe_set_vcard(From, VCARD) of
         ok -> ok;
         {error, Reason} ->
-            ?ERROR_MSG("unsafe set_vcard failed: ~p", [Reason]),
+            ?LOG_ERROR(#{what => unsafe_set_vcard_failed, reason => Reason}),
             {error, Reason}
     catch
-        E:R -> ?ERROR_MSG("unsafe set_vcard failed: ~p", [{E, R}]),
+        E:R:S -> ?LOG_ERROR(#{what => unsafe_set_vcard_failed, class => E,
+                              reason => R, stacktrace => S}),
                {error, {E, R}}
     end;
 set_vcard({error, _} = E, _From, _VCARD) -> E.

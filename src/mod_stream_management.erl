@@ -51,7 +51,7 @@
 %%
 
 start(Host, Opts) ->
-    ?INFO_MSG("mod_stream_management starting", []),
+    ?LOG_INFO(#{what => mod_stream_management_starting}),
     ejabberd_hooks:add(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
     ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
     ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
@@ -63,7 +63,7 @@ start(Host, Opts) ->
     ok.
 
 stop(Host) ->
-    ?INFO_MSG("mod_stream_management stopping", []),
+    ?LOG_INFO(#{what => mod_stream_management_stopping}),
     ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
     ejabberd_hooks:delete(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
