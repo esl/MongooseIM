@@ -29,15 +29,17 @@ log_if_backend_error(V, Module, Line, Args) ->
         {updated, _} -> ok; % rdbms
         L when is_list(L) -> ok; % riak
         {error, E} ->
-            make_msg("Error calling backend", E, Module, Line, Args);
+            ?LOG_ERROR(#{what => backend_error,
+                         text => <<"Error calling backend module">>,
+                         caller_module => Module, caller_line => Line,
+                         reason => E, args => Args});
         E ->
-            make_msg("Unexpected return from backend", E, Module, Line, Args)
+            ?LOG_ERROR(#{what => backend_error,
+                         text => <<"Unexpected return from backend">>,
+                         caller_module => Module, caller_line => Line,
+                         reason => E, args => Args})
     end,
     ok.
-
-make_msg(Msg, Error, Module, Line, Args) ->
-    ?ERROR_MSG("~p:~p module=~p line=~p arguments=~p",
-                  [Msg, Error, Module, Line, Args]).
 
 %% ------------------------------------------------------------------
 %% Maps
