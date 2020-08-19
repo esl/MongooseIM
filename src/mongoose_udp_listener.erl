@@ -72,18 +72,20 @@ init(PortIP, Module, Opts, SockOpts, Port, IPS) ->
 recv_loop(Socket, Module, Opts) ->
     case gen_udp:recv(Socket, 0) of
         {ok, {Addr, Port, Packet}} ->
-            case catch Module:udp_recv(Socket, Addr, Port, Packet, Opts) of
-                {'EXIT', Reason} ->
-                    ?ERROR_MSG("failed to process UDP packet:~n"
-                               "** Source: {~p, ~p}~n"
-                               "** Reason: ~p~n** Packet: ~p",
-                               [Addr, Port, Reason, Packet]);
-                _ ->
-                    ok
+            try Module:udp_recv(Socket, Addr, Port, Packet, Opts)
+            catch Class:Reason:Stacktrace ->
+                      ?LOG_ERROR(#{what => udp_listener_recv_failed,
+                                   text => <<"Failed to process UDP packet">>,
+                                   socket => Socket, handler_module => Module,
+                                   ip => Addr, port => Port,
+                                   class => Class, reason => Reason,
+                                   stacktrace => Stacktrace, udp_packet => Packet})
             end,
             ?MODULE:recv_loop(Socket, Module, Opts);
         {error, Reason} ->
-            ?ERROR_MSG("unexpected UDP error: ~s",
-                       [ejabberd_listener:format_error(Reason)]),
+            ?LOG_ERROR(#{what => udp_listener_recv_failed,
+                         text => <<"Unexpected UDP error">>,
+                         socket => Socket, handler_module => Module,
+                         reason => jabberd_listener:format_error(Reason)}),
             exit({error, Reason})
     end.
