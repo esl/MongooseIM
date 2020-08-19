@@ -78,7 +78,7 @@ branches:
                 - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
 otp_release:
-        - 22.0
+        - 23.0.3
 
 env:
   global:
@@ -101,7 +101,7 @@ env:
 
 matrix:
   include:
-    - otp_release: 21.3
+    - otp_release: 22.3
       env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql" RUN_SMALL_TESTS=true
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=centos_7
