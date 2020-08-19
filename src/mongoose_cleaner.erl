@@ -36,7 +36,9 @@ init([]) ->
         ok ->
             {ok, #state{}};
         Error ->
-            ?ERROR_MSG("can't monitor nodes: ~p~n", [Error]),
+            ?LOG_ERROR(#{what => cleaner_monitor_failed,
+                         text => <<"mongoose_cleaner failed to monitor nodes">>,
+                         reason => Error}),
             {stop, Error}
     end.
 
@@ -48,7 +50,9 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({nodedown, Node}, State) ->
-    ?WARNING_MSG("node=~p down", [Node]),
+    ?LOG_WARNING(#{what => cleaner_nodedown,
+                   text => <<"mongoose_cleaner received nodenown event">>,
+                   down_node => Node}),
     cleanup_modules(Node),
     {noreply, State};
 handle_info(_Info, State) ->
@@ -65,13 +69,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 cleanup_modules(Node) ->
-    LockRequest = {?NODE_CLEANUP_LOCK(Node), self()},
+    LockKey = ?NODE_CLEANUP_LOCK(Node),
+    LockRequest = {LockKey, self()},
     C = fun () -> run_node_cleanup(Node) end,
     Nodes = [node() | nodes()],
     Retries = 1,
     case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
-            ?DEBUG("could not get ~p~n", [?NODE_CLEANUP_LOCK(Node)]),
+            ?LOG_INFO(#{what => cleaner_trans_aborted,
+                        text => <<"mongoose_cleaner failed to get global lock">>,
+                        lock_key => LockKey}),
             {ok, aborted};
         Result ->
             {ok, Result}
@@ -79,6 +86,8 @@ cleanup_modules(Node) ->
 
 run_node_cleanup(Node) ->
     {Elapsed, RetVal} = timer:tc(ejabberd_hooks, run_fold, [node_cleanup, #{}, [Node]]),
-    ?WARNING_MSG("cleanup took=~pms, result: ~p~n",
-                 [erlang:round(Elapsed / 1000), RetVal]),
+    ?LOG_NOTICE(#{what => cleaner_done,
+                  text => <<"Finished cleaning after dead node">>,
+                  duration => erlang:round(Elapsed / 1000),
+                  down_node => Node, result => RetVal}),
     RetVal.
