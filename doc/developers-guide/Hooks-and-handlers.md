@@ -305,40 +305,33 @@ run_custom_hook(Host) ->
     Acc1 = mongoose_acc:set(example, value, 5, Acc),
     ResultAcc = ejabberd_hooks:run_fold(custom_new_hook, Host, Acc1, [2]),
     ResultValue = mongoose_acc:get(example, value, ResultAcc),
-    ?INFO_MSG("Final hook result: ~p", [ResultValue]),
-    ?INFO_MSG("Returned accumulator: ~p", [ResultAcc]).
+    ?LOG_INFO(#{what => hook_finished, result => ResultValue, result_acc => ResultAcc}).
 
 first_handler(Acc, Number) ->
     V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
-    ?INFO_MSG("First handler~n"
-    "  value: ~p~n"
-    "  argument: ~p~n"
-    "  will return: ~p",
-        [V0, Number, Result]),
+    ?LOG_INFO(#{what => first_handler, value => V0, argument => Number, result => Result}),
     mongoose_acc:set(example, value, Result, Acc).
 
 stopping_handler(Acc, Number) ->
     V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
-    ?INFO_MSG("Stopping handler~n"
-    "  value: ~p~n"
-    "  argument: ~p~n"
-    "  will return: ~p",
-        [V0, Number, Result]),
+    ?LOG_INFO(#{what => stopping_handler, value => V0, argument => Number, result => Result}),
     {stop, mongoose_acc:set(example, value, Result, Acc)}.
 
 never_run_handler(Acc, Number) ->
-    ?INFO_MSG("This hook won't run as it's registered with a priority bigger "
-    "than that of stopping_handler/2 is. "
-    "It doesn't matter what it returns. "
-    "This text should never get printed.", []),
+    ?LOG_INFO(#{what => never_run_handler,
+                text => <<"This hook won't run as it's registered with a priority bigger "
+                          "than that of stopping_handler/2 is. "
+                          "This text should never get printed.">>}),
     Acc * Number.
 ```
 
 The module is intended to be used from the shell for educational purposes:
 
 ```erlang
+TODO Update this once new log formatters are available
+
 (mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
 (mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
