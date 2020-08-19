@@ -189,8 +189,10 @@ write_messages(LUser, LServer, Msgs) ->
             [mod_amp:check_packet(Acc, archived) || {Acc, _Msg} <- Msgs],
             ok;
         {error, Reason} ->
-            ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
-                [LUser, LServer, Reason]),
+            ?LOG_ERROR(#{what => offline_write_failed,
+                         text => <<"Failed to write offline messages">>,
+                         reason => Reason,
+                         user => LUser, server => LServer, msgs => Msgs}),
             discard_warn_sender(Msgs)
     end.
 
@@ -298,7 +300,7 @@ handle_call(_, _, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_cast, msg => Msg}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -320,7 +322,7 @@ handle_info({Acc, Msg = #offline_msg{us = US}},
     end,
     {noreply, State};
 handle_info(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?LOG_WARNING(#{what => unexpected_message, msg => Msg}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -494,7 +496,9 @@ offline_messages(Acc, User, Server) ->
                 compose_offline_message(R, Packet, Acc)
               end, Rs);
         {error, Reason} ->
-            ?ERROR_MSG("~ts@~ts: pop_messages failed with ~p.", [LUser, LServer, Reason]),
+            ?LOG_WARNING(#{what => offline_pop_failed,
+                           user => User, server => Server, reason => Reason,
+                           acc => Acc}),
             []
     end.
 
@@ -554,11 +558,15 @@ timestamp_xml(Server, Time) ->
     jlib:timestamp_to_xml(TS, FromJID, <<"Offline Storage">>).
 
 remove_expired_messages(Host) ->
-    mod_offline_backend:remove_expired_messages(Host).
+    Result = mod_offline_backend:remove_expired_messages(Host),
+    mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [Host]),
+    Result.
 
 remove_old_messages(Host, Days) ->
     Timestamp = fallback_timestamp(Days, os:timestamp()),
-    mod_offline_backend:remove_old_messages(Host, Timestamp).
+    Result = mod_offline_backend:remove_old_messages(Host, Timestamp),
+    mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [Host, Timestamp]),
+    Result.
 
 %% #rh
 
