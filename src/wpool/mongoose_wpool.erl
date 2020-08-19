@@ -165,9 +165,8 @@ stop(Type, Host, Tag) ->
         mongoose_wpool_mgr:stop(Type, Host, Tag)
     catch
         C:R:S ->
-            ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
-                       "class=~p,reason=~p,stack_trace=~p",
-                       [Type, Host, Tag, C, R, S])
+            ?LOG_ERROR(#{what =>mongoose_wpool_cannot_stop_pool, type => Type,
+                host => Host, tag => Tag, class => C, reason => R, stack_trace => S})
     end.
 
 -spec is_configured(type()) -> boolean().
@@ -264,8 +263,8 @@ call_callback(Name, Type, Args) ->
         CallbackModule = make_callback_module_name(Type),
         erlang:apply(CallbackModule, Name, Args)
     catch E:R:ST ->
-          ?ERROR_MSG("event=wpool_callback_error, name=~p, error=~p, reason=~p, stacktrace=~p",
-                     [Name, E, R, ST]),
+          ?LOG_ERROR(#{what =>mongoose_wpool_wpool_callback_error, name => Name,
+              error => E, reason => R, stacktrace => ST}),
           {error, {callback_crashed, Name, E, R, ST}}
     end.
 
