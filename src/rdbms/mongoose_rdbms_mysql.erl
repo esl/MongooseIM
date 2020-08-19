@@ -29,7 +29,7 @@
 
 -spec escape_binary(binary()) -> iodata().
 escape_binary(Bin) when is_binary(Bin) ->
-    [<<"X'">>, bin_to_hex:bin_to_hex(Bin), <<"'">>].
+    [<<"X'">>, base16:encode(Bin), <<"'">>].
 
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(Bin) when is_binary(Bin) ->
