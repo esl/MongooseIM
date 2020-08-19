@@ -9,7 +9,7 @@
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
-    [equivalence, s2s].
+    [equivalence, miscellaneous, s2s].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -32,6 +32,22 @@ equivalence(Config) ->
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
 
+miscellaneous(Config) ->
+    CfgPath = ejabberd_helper:data(Config, "miscellaneous.cfg"),
+    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
+    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
+    Opts1 = mongoose_config_parser:state_to_opts(State1),
+
+    TOMLPath = ejabberd_helper:data(Config, "miscellaneous.toml"),
+    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
+    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
+    Opts2 = mongoose_config_parser:state_to_opts(State2),
+
+    ?eq(Hosts1, Hosts2),
+    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
+                        fun handle_config_option/2).
+
+
 s2s(Config) ->
     Cfg_Path = ejabberd_helper:data(Config, "s2s_only.cfg"),
     State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
@@ -40,6 +56,7 @@ s2s(Config) ->
     TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
     State2 = mongoose_config_parser_toml:parse_file(TOML_path),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
+        
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
 
@@ -72,6 +89,10 @@ compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
+compare_values(services, V1, V2) ->
+    MetricsOpts1 = proplists:get_value(service_mongoose_system_metrics, V1),
+    MetricsOpts2 = proplists:get_value(service_mongoose_system_metrics, V2),
+    compare_unordered_lists(MetricsOpts1, MetricsOpts2);
 compare_values(K, V1, V2) ->
     ?eq({K, V1}, {K, V2}).
 

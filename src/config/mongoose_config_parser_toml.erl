@@ -18,7 +18,7 @@
 
 %% Output: list of config records, containing key-value pairs
 -type option() :: term(). % any part of a config value, which can be a complex term
--type config() :: #config{} | #local_config{} | acl:acl().
+-type config() :: #config{} | #local_config{} | acl:acl() | {override, atom()}.
 -type config_list() :: [config() | fun((ejabberd:server()) -> [config()])]. % see HOST_F
 
 %% Path from the currently processed config node to the root
@@ -35,14 +35,18 @@ parse_file(FileName) ->
                                       {true, Hosts};
                                  (_) -> false
                               end, Config),
-    {FOpts, Opts} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
+    {FOpts, Config1} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
+    {Overrides, Opts} = lists:partition(fun({override, _}) -> true;
+                                           (_) -> false
+                                        end, Config1),
     HOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
     lists:foldl(fun(F, StateIn) -> F(StateIn) end,
                 mongoose_config_parser:new_state(),
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts ++ HOpts, S) end,
                  fun mongoose_config_parser:dedup_state_opts/1,
-                 fun mongoose_config_parser:add_dep_modules/1]).
+                 fun mongoose_config_parser:add_dep_modules/1,
+                 fun(S) -> set_overrides(Overrides, S) end]).
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
@@ -117,7 +121,28 @@ process_general([<<"max_fsm_queue">>|_], V) ->
 process_general([<<"http_server_name">>|_], V) ->
     [#local_config{key = cowboy_server_name, value = b2l(V)}];
 process_general([<<"rdbms_server_type">>|_], V) ->
-    [#local_config{key = rdbms_server_type, value = b2a(V)}].
+    [#local_config{key = rdbms_server_type, value = b2a(V)}];
+process_general([<<"override">>|_], Overrides) ->
+    [{override, b2a(Scope)} || Scope <- Overrides];
+process_general([<<"pgsql_users_number_estimate">>|_], V) ->
+    ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
+process_general([<<"route_subdomain">>|_], V) ->
+    ?HOST_F([#local_config{key = {route_subdomain, Host}, value = b2a(V)}]);
+process_general([<<"mongooseimctl_access_commands">>|_], Rules) ->
+    [#local_config{key = mongooseimctl_access_commands,
+                   value = lists:map(fun process_rule/1, Rules)}];
+process_general([<<"routing_modules">>|_], Mods) ->
+    [#local_config{key = routing_modules, value = lists:map(fun b2a/1, Mods)}];
+process_general([<<"replaced_wait_timeout">>|_], V) ->
+    ?HOST_F([#local_config{key = {replaced_wait_timeout, Host}, value = V}]);
+process_general([<<"hide_service_name">>|_], V) ->
+    ?HOST_F([#local_config{key = {hide_service_name, Host}, value = V}]).
+
+process_rule(#{<<"access_rule">> := Rule,
+    <<"argument_restrictions">> := Arg, <<"commands">> := Comms}) ->
+        {b2a(Rule),
+         lists:map(fun b2l/1, Comms),
+         [list_to_tuple(lists:map(fun b2l/1, Arg))]}.
 
 %% path: listen.*[]
 -spec process_listener(path(), toml_section()) -> [option()].
@@ -188,6 +213,7 @@ service_listener_opt([<<"check_from">>|_], V) -> [{service_check_from, V}];
 service_listener_opt([<<"hidden_components">>|_], V) -> [{hidden_components, V}];
 service_listener_opt([<<"conflict_behaviour">>|_], V) -> [{conflict_behaviour, b2a(V)}];
 service_listener_opt([<<"password">>|_], V) -> [{password, b2l(V)}];
+service_listener_opt([<<"max_fsm_queue">>|_], V) -> [{max_fsm_queue, V}];
 service_listener_opt(P, V) -> listener_opt(P, V).
 
 %% path: listen.*[].*
@@ -289,7 +315,9 @@ auth_option([<<"sasl_mechanisms">>|_], V) ->
 auth_option([<<"ldap_base">>|_], V) ->
     [{ldap_base, b2l(V)}];
 auth_option([<<"ldap_filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}].
+    [{ldap_filter, b2l(V)}];
+auth_option([<<"extauth_instances">>|_], V) ->
+    [{extauth_instances, V}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
 -spec cyrsasl_external(toml_key()) -> option().
@@ -309,6 +337,7 @@ is_inner_auth_opt(auth_method) -> false;
 is_inner_auth_opt(allow_multiple_connections) -> false;
 is_inner_auth_opt(anonymous_protocol) -> false;
 is_inner_auth_opt(sasl_mechanisms) -> false;
+is_inner_auth_opt(extauth_instances) -> false;
 is_inner_auth_opt(_) -> true.
 
 %% path: outgoing_pools.*.*
@@ -427,7 +456,13 @@ service_opt([<<"submods">>, <<"service_admin_extra">>|_], V) ->
 service_opt([<<"initial_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
     [{initial_report, V}];
 service_opt([<<"periodic_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
-    [{periodic_report, V}].
+    [{periodic_report, V}];
+service_opt([<<"report">>, <<"service_mongoose_system_metrics">>|_], true) ->
+    [report];
+service_opt([<<"report">>, <<"service_mongoose_system_metrics">>|_], false) ->
+    [no_report];
+service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
+    [{tracking_id, b2l(V)}].
 
 %% path: modules.*
 -spec process_module(path(), toml_section()) -> [option()].
@@ -598,6 +633,11 @@ tls_cipher(#{<<"key_exchange">> := KEx,
              <<"prf">> := PRF}) ->
     #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)};
 tls_cipher(Cipher) -> b2l(Cipher).
+
+set_overrides(Overrides, State) ->
+    lists:foldl(fun({override, Scope}, CurrentState) ->
+                        mongoose_config_parser:override(Scope, CurrentState)
+                end, State, Overrides).
 
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
 b2a(B) -> binary_to_atom(B, utf8).
