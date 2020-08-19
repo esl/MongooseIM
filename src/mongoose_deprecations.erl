@@ -63,7 +63,7 @@ log(Tag, Msg, Opts) ->
     LogLvl = proplists:get_value(log_level, Opts, default_log_lvl()),
     maybe_log(Tag, Msg, LogLvl, Cooldown).
 
--spec log(deprecation_tag(), string()) -> ok.
+-spec log(deprecation_tag(), log_map()) -> ok.
 log(Tag, Msg) ->
     log(Tag, Msg, []).
 
