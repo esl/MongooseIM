@@ -131,7 +131,9 @@ serve_failure(not_found, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
     {stop, Req2, State};
 serve_failure({error, ErrorType, Msg}, Req, State) ->
-    ?ERROR_MSG("Error while serving http request: ~p: ~s", [ErrorType, Msg]),
+    ?LOG_ERROR(#{what => api_contacts_error,
+                 text => <<"Error while serving http request. Return code 500">>,
+                 error_type => ErrorType, msg => Msg, req => Req}),
     Req2 = cowboy_req:reply(500, Req),
     {stop, Req2, State}.
 
