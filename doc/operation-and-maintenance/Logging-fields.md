@@ -33,4 +33,6 @@ If `iq` is not available, `sub_el` could be logged as last option.
 | state_name    | atom    |             | State name in `gen_fsm`                             | `wait_for_stream`                   |                                    |
 | state         | term    |             | `gen_server` state                                  | `#state{}`                          | Consider adding a formatter        |
 | call_from     | tuple   |             | From argument in gen_server's handle_call           | `{Pid, Tag}`                        |                                    |
-
+| ip            | tuple   |             | IP address                                          | inet:ip_address()                   |                                    |
+| port          | integer |             | TCP/UDP port number                                 | 5222                                |                                    |
+| peer          | tuple   |             | `peer() :: {inet:ip_address(), inet:port_number()}` | `{{127,0,0,1},5222}`                |                                    |
