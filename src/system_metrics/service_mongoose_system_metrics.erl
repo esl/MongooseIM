@@ -36,8 +36,10 @@ verify_if_configured() ->
     Services = ejabberd_config:get_local_option_or_default(services, []),
     case proplists:is_defined(?MODULE, Services) of
         false ->
-            ?LOG_NOTICE(#{what => system_metrics_disabled,
-                          text => msg_removed_from_config()}),
+            %% Technically, notice level.
+            %% Though make it louder, in case people set minimum level as warning.
+            ?LOG_WARNING(#{what => system_metrics_disabled,
+                           text => msg_removed_from_config()}),
             ignore;
         true ->
             ok
@@ -135,8 +137,8 @@ report_transparency(Args) ->
         {____, ____} ->
             File = mongoose_system_metrics_file:location(),
             Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
-            ?LOG_NOTICE(#{what => report_transparency,
-                          text => Text, report_filename => File}),
+            ?LOG_WARNING(#{what => report_transparency,
+                           text => Text, report_filename => File}),
             continue
     end.
 
