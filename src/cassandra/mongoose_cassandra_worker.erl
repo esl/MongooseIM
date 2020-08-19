@@ -245,7 +245,7 @@ handle_cast({write, QueryStr, Rows, Opts}, #state{} = State) ->
     NewState = State#state{inflight = maps:put(RequestId, Request, State#state.inflight)},
     {noreply, process_request(RequestId, NewState)};
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_cast}
+    ?LOG_WARNING(#{what => mongoose_cassandra_worker_unexpected_cast,
         msg => Msg, state => State}),
     {noreply, State}.
 
