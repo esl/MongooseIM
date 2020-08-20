@@ -224,8 +224,8 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     Result = mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
     {_, SrvId, DialogId, _CallId} = nksip_sipmsg:parse_handle(Handle),
     ?LOG_INFO(#{what => sip_session_start,
-                event => set_outgoing_request,
-                jingle_action => 'session-initiate',
+                text => <<"Start SIP session with set_outgoing_request call">>,
+                jingle_action => 'session-initiate', result => Result,
                 from_jid => From, to_jid => To,
                 call_id => SID, server_id => SrvId, dialog_id => DialogId}),
     {ok, Handle};

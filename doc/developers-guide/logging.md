@@ -60,13 +60,13 @@ Check [the list of fields](../operation-and-maintenance/Logging-fields.md) for f
 
 
 ```erlang
-    ?LOG_ERROR(#{event => check_password_failed,
+    ?LOG_ERROR(#{what => check_password_failed,
                  reason => Error, user => LUser})
 
     try ...
     catch
         Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{event => check_password_failed,
+            ?LOG_ERROR(#{what => check_password_failed,
                          class => Class, reason => Reason, stacktrace => StackTrace}),
             erlang:raise(Class, Reason, StackTrace)
     end

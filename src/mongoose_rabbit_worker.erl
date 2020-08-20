@@ -214,12 +214,12 @@ establish_rabbit_connection(AMQPOpts, Host, PoolTag) ->
         {ok, Connection} ->
             update_success_connections_metrics(Host, PoolTag),
             {ok, Channel} = amqp_connection:open_channel(Connection),
-            ?LOG_DEBUG(#{event => rabbit_connection_established,
+            ?LOG_DEBUG(#{what => rabbit_connection_established,
                          server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
             {Connection, Channel};
         {error, Error} ->
             update_failed_connections_metrics(Host, PoolTag),
-            ?LOG_ERROR(#{event => rabbit_connection_failed, reason => Error,
+            ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
                          server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
             exit("connection to a Rabbit server failed")
     end.

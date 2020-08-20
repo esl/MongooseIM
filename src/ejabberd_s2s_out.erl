@@ -364,12 +364,12 @@ wait_for_stream(closed, StateData) ->
 wait_for_validation({xmlstreamelement, El}, StateData) ->
     case is_verify_res(El) of
         {result, To, From, Id, Type} ->
-            ?LOG_DEBUG(#{event => s2s_receive_result,
+            ?LOG_DEBUG(#{what => s2s_receive_result,
                          from => From, to => To, messag_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
                 {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
                     send_queue(StateData, StateData#state.queue),
-                    ?LOG_INFO(#{event => s2s_out_connected,
+                    ?LOG_INFO(#{what => s2s_out_connected,
                                 text => <<"New outgoing s2s connection established">>,
                                 tls_enabled => StateData#state.tls_enabled,
                                 myname => StateData#state.myname, server => StateData#state.server}),
@@ -386,7 +386,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     close_generic(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
         {verify, To, From, Id, Type} ->
-            ?LOG_DEBUG(#{event => s2s_receive_verify,
+            ?LOG_DEBUG(#{what => s2s_receive_verify,
                          from => From, to => To, messag_id => Id, type => Type}),
             case StateData#state.verify of
                 false ->
@@ -1004,7 +1004,7 @@ srv_lookup(Server, Timeout, Retries) ->
         {error, _Reason} ->
             case inet_res:getbyname("_jabber._tcp." ++ binary_to_list(Server), srv, Timeout) of
                 {error, timeout} ->
-                    ?LOG_ERROR(#{event => s2s_dns_error,
+                    ?LOG_ERROR(#{what => s2s_dns_error,
                                  text => <<"The DNS servers timed out on request for IN SRV."
                                            " You should check your DNS configuration.">>,
                                  nameserver => inet_db:res_option(nameserver),
@@ -1102,7 +1102,7 @@ outgoing_s2s_timeout() ->
 log_s2s_out(false, _, _, _) -> ok;
 %% Log new outgoing connections:
 log_s2s_out(_, Myname, Server, Tls) ->
-    ?LOG_INFO(#{event => s2s_out,
+    ?LOG_INFO(#{what => s2s_out,
                 text => <<"Trying to open s2s connection">>,
                 myname => Myname, server => Server, tls => Tls}).
 
