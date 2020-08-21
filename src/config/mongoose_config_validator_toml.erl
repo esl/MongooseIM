@@ -10,18 +10,24 @@
 -spec validate(mongoose_config_parser_toml:path(),
                mongoose_config_parser_toml:option() | mongoose_config_parser_toml:config_list()) ->
           any().
-validate(Path, F) when is_function(F, 1) ->
+validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
 %% general
 validate([<<"loglevel">>, <<"general">>],
          [#local_config{value = Val}]) -> validate_loglevel(Val);
+validate([item, <<"hosts">>, <<"general">>],
+         [Value]) ->
+    validate_non_empty_binary(Value);
 validate([<<"hosts">>, <<"general">>],
          [#config{value = Val}]) ->
     validate_hosts(Val);
 validate([<<"registration_timeout">>, <<"general">>],
          [#local_config{value = Val}]) ->
     validate_timeout(Val);
+validate([<<"language">>, <<"general">>],
+         [#config{value = Value}]) ->
+    validate_non_empty_binary(Value);
 validate([<<"all_metrics_are_global">>, <<"general">>],
          [#local_config{value = Val}]) ->
     validate_boolean(Val);
@@ -34,6 +40,12 @@ validate([<<"max_fsm_queue">>, <<"general">>],
 validate([<<"rdbms_server_type">>, <<"general">>],
          [#local_config{value = Value}]) ->
     validate_enum(Value, [mssql, pgsql]);
+validate([item, <<"override">>, <<"general">>],
+         [{override, Value}]) ->
+    validate_enum(Value, [local, global, acls]);
+validate([<<"override">>, <<"general">>],
+         Items) ->
+    validate_unique_items(Items);
 validate([<<"pgsql_users_number_estimate">>, <<"general">>],
          [#local_config{value = Value}]) ->
     validate_boolean(Value);
@@ -55,13 +67,14 @@ validate(_, _) ->
 validate_loglevel(Level) ->
     mongoose_logs:loglevel_number_keyword(Level).
 
-validate_hosts(Hosts) ->
-    case sets:size(sets:from_list(Hosts)) of
-        L when L =:= length(Hosts) ->
-            ok;
-        _ ->
-            {error, duplicate_hosts}
-    end.
+validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
+
+validate_hosts(Hosts = [_|_]) ->
+    validate_unique_items(Hosts).
+
+validate_unique_items(Items) ->
+    L = sets:size(sets:from_list(Items)),
+    L = length(Items).
 
 validate_timeout(infinity) -> ok;
 validate_timeout(Timeout) when is_integer(Timeout), Timeout > 0 -> ok.

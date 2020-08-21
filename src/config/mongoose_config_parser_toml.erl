@@ -5,6 +5,10 @@
 
 -export([parse_file/1]).
 
+-ifdef(TEST).
+-export([parse/1]).
+-endif.
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
