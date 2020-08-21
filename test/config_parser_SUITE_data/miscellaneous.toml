@@ -16,7 +16,7 @@
   [[general.mongooseimctl_access_commands]]
     access_rule = "local"
     commands = ["join_cluster"]
-    argument_restrictions = ["mongooseim@host", "mongooseim@prime"]
+    argument_restrictions.node = "mongooseim@prime"
 
 [auth]
   extauth_instances = 1

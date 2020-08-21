@@ -104,8 +104,8 @@ process_section(Path, Content) ->
 -spec process_general(path(), toml_value()) -> [config()].
 process_general([<<"loglevel">>|_], V) ->
     [#local_config{key = loglevel, value = b2a(V)}];
-process_general([<<"hosts">>|_], Hosts) ->
-    [#config{key = hosts, value = [jid:nodeprep(H) || H <- Hosts]}];
+process_general([<<"hosts">>|_] = Path, Hosts) ->
+    [#config{key = hosts, value = parse_list(Path, Hosts)}];
 process_general([<<"registration_timeout">>|_], <<"infinity">>) ->
     [#local_config{key = registration_timeout, value = infinity}];
 process_general([<<"registration_timeout">>|_], V) ->
@@ -122,27 +122,43 @@ process_general([<<"http_server_name">>|_], V) ->
     [#local_config{key = cowboy_server_name, value = b2l(V)}];
 process_general([<<"rdbms_server_type">>|_], V) ->
     [#local_config{key = rdbms_server_type, value = b2a(V)}];
-process_general([<<"override">>|_], Overrides) ->
-    [{override, b2a(Scope)} || Scope <- Overrides];
+process_general([<<"override">>|_] = Path, Value) ->
+    parse_list(Path, Value);
 process_general([<<"pgsql_users_number_estimate">>|_], V) ->
     ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
 process_general([<<"route_subdomain">>|_], V) ->
     ?HOST_F([#local_config{key = {route_subdomain, Host}, value = b2a(V)}]);
-process_general([<<"mongooseimctl_access_commands">>|_], Rules) ->
-    [#local_config{key = mongooseimctl_access_commands,
-                   value = lists:map(fun process_rule/1, Rules)}];
-process_general([<<"routing_modules">>|_], Mods) ->
-    [#local_config{key = routing_modules, value = lists:map(fun b2a/1, Mods)}];
+process_general([<<"mongooseimctl_access_commands">>|_] = Path, Rules) ->
+    [#local_config{key = mongooseimctl_access_commands, value = parse_list(Path, Rules)}];
+process_general([<<"routing_modules">>|_] = Path, Mods) ->
+    [#local_config{key = routing_modules, value = parse_list(Path, Mods)}];
 process_general([<<"replaced_wait_timeout">>|_], V) ->
     ?HOST_F([#local_config{key = {replaced_wait_timeout, Host}, value = V}]);
 process_general([<<"hide_service_name">>|_], V) ->
     ?HOST_F([#local_config{key = {hide_service_name, Host}, value = V}]).
 
-process_rule(#{<<"access_rule">> := Rule,
-    <<"argument_restrictions">> := Arg, <<"commands">> := Comms}) ->
-        {b2a(Rule),
-         lists:map(fun b2l/1, Comms),
-         [list_to_tuple(lists:map(fun b2l/1, Arg))]}.
+-spec process_host(path(), toml_value()) -> [option()].
+process_host(_Path, Val) ->
+    [jid:nodeprep(Val)].
+
+-spec process_override(path(), toml_value()) -> [option()].
+process_override(_Path, Override) ->
+    [{override, b2a(Override)}].
+
+-spec ctl_access_rule(path(), toml_section()) -> [option()].
+ctl_access_rule(Path, Section = #{<<"access_rule">> := Rule}) ->
+    limit_keys([<<"access_rule">>, <<"commands">>, <<"argument_restrictions">>], Section),
+    [{b2a(Rule),
+      parse_kv(Path, <<"commands">>, Section),
+      parse_kv(Path, <<"argument_restrictions">>, Section)}].
+
+-spec ctl_access_commands(path(), toml_value()) -> option().
+ctl_access_commands(_Path, <<"all">>) -> all;
+ctl_access_commands(Path, Commands) -> parse_list(Path, Commands).
+
+-spec ctl_access_arg_restriction(path(), toml_value()) -> [option()].
+ctl_access_arg_restriction([Key|_], Value) ->
+    [{b2a(Key), b2l(Value)}].
 
 %% path: listen.*[]
 -spec process_listener(path(), toml_section()) -> [option()].
@@ -644,26 +660,53 @@ b2a(B) -> binary_to_atom(B, utf8).
 
 b2l(B) -> binary_to_list(B).
 
+-spec limit_keys([toml_key()], toml_section()) -> any().
+limit_keys(Keys, Section) ->
+    Section = maps:with(Keys, Section).
+
+-spec parse_kv(path(), toml_key(), toml_section()) -> [option()].
+parse_kv(Path, Key, Section) ->
+    #{Key := Value} = Section,
+    handle([Key|Path], Value).
+
 -spec parse_section(path(), toml_section()) -> [option()].
 parse_section(Path, M) ->
     lists:flatmap(fun({K, V}) ->
-                          Handler = handler([K|Path]),
-                          Handler([K|Path], V)
+                          handle([K|Path], V)
                   end, maps:to_list(M)).
 
 -spec parse_list(path(), [toml_value()]) -> [option()].
 parse_list(Path, L) ->
     lists:flatmap(fun(Elem) ->
                           Key = item_key(Path, Elem),
-                          Handler = handler([Key|Path]),
-                          Handler([Key|Path], Elem)
+                          handle([Key|Path], Elem)
                   end, L).
+
+-spec handle(path(), toml_value()) -> [option()].
+handle(Path, Value) ->
+    Handler = handler(Path),
+    Option = Handler(Path, Value),
+    mongoose_config_validator_toml:validate(Path, Option),
+    Option.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> [option()]).
 handler([_]) -> fun process_section/2;
 
 %% general
 handler([_, <<"general">>]) -> fun process_general/2;
+handler([_, <<"hosts">>, <<"general">>]) -> fun process_host/2;
+handler([_, <<"override">>, <<"general">>]) -> fun process_override/2;
+handler([_, <<"mongooseimctl_access_commands">>, <<"general">>]) -> fun ctl_access_rule/2;
+handler([<<"commands">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
+    fun ctl_access_commands/2;
+handler([_, <<"commands">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
+    fun(_, Val) -> [b2l(Val)] end;
+handler([<<"argument_restrictions">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
+    fun parse_section/2;
+handler([_, <<"argument_restrictions">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
+    fun ctl_access_arg_restriction/2;
+handler([_, <<"routing_modules">>, <<"general">>]) ->
+    fun(_, Val) -> [b2a(Val)] end;
 
 %% listen
 handler([_, <<"listen">>]) -> fun parse_list/2;
