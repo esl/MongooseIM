@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2014 Erlang Solutions Ltd.
+%% Copyright 2020 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,12 +16,15 @@
 -module(users_api_SUITE).
 -compile(export_all).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+
+-define(HOST, (ct:get_config({hosts, mim, domain}))).
+-define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
+-define(USERNAME, "http_guy").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -33,31 +36,26 @@ all() ->
 
 groups() ->
     G = [{transaction, [{repeat_until_any_fail, 10}], [user_transaction]},
-         {negative, [], [negative_calls]}
+         {negative, [], negative_calls_test_cases()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
-init_per_suite(Config) ->
+negative_calls_test_cases() ->
+    [
+        add_malformed_user,
+        add_user_without_proper_fields,
+        delete_non_existent_user
+    ].
+
+init_per_suite(_Config) ->
     case is_external_auth() of
         true ->
             {skip, "users api not compatible with external authentication"};
         false ->
-            [{riak_auth, is_riak_auth()} | katt_helper:init_per_suite(Config)]
+            [{riak_auth, is_riak_auth()}]
     end.
 
-end_per_suite(Config) ->
-    katt_helper:end_per_suite(Config).
-
-init_per_group(_GroupName, Config) ->
-    Config.
-
-end_per_group(_GroupName, _Config) ->
-    ok.
-
-init_per_testcase(_CaseName, Config) ->
-    Config.
-
-end_per_testcase(_CaseName, _Config) ->
+end_per_suite(_Config) ->
     ok.
 
 suite() ->
@@ -68,23 +66,71 @@ suite() ->
 %%--------------------------------------------------------------------
 
 user_transaction(Config) ->
-    Params = [{host, ct:get_config({hosts, mim, domain})},
-              {username, "http_guy"}],
-    Result = katt_helper:run(user_transaction, Config, Params),
-    Vars = element(4, Result),
+    Count1 = fetch_list_of_users(Config),
+    add_user(?USERNAME, <<"my_http_password">>),
+    Count2 = fetch_list_of_users(Config),
+    % add user again = change their password
+    % check idempotence
+    add_user(?USERNAME, <<"some_other_password">>),
+    Count2 = fetch_list_of_users(Config),
+    add_user("http_guy2", <<"my_http_password">>),
+    Count3 = fetch_list_of_users(Config),
+    delete_user(?USERNAME),
+    delete_user("http_guy2"),
+    Count1 = fetch_list_of_users(Config),
 
-    UserCount1 = proplists:get_value("user_count_1", Vars),
-    UserCount2 = proplists:get_value("user_count_2", Vars),
-    ?assertEqual(UserCount1+1, UserCount2),
+    ?assertEqual(Count2, Count1+1),
+    ?assertEqual(Count3, Count2+1),
+
     wait_for_user_removal(proplists:get_value(riak_auth, Config)).
 
-negative_calls(Config) ->
-    Params = [{host, ct:get_config({hosts, mim, domain})}],
-    katt_helper:run(user_negative, Config, Params).
+add_malformed_user(_Config) ->
+    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
+    % cannot use jiffy here, because the JSON is malformed
+    Res = request(<<"PUT">>, Path,
+                  <<"{
+                        \"user\": {
+                            \"password\": \"my_http_password\"
+                  }">>),
+    assert_status(400, Res).
+
+add_user_without_proper_fields(_Config) ->
+    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
+    Body = jiffy:encode(#{<<"user">> => #{<<"pazzwourd">> => <<"my_http_password">>}}),
+    Res = request(<<"PUT">>, Path, Body),
+    assert_status(422, Res).
+
+delete_non_existent_user(_Config) ->
+    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/i_don_exist"]),
+    Res = request(<<"DELETE">>, Path),
+    assert_status(404, Res).
 
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
+
+fetch_list_of_users(_Config) ->
+    Result = request(<<"GET">>, unicode:characters_to_list(["/users/host/", ?HOST])),
+    assert_status(200, Result),
+    {_S, H, {B}} = Result,
+    ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
+    Count = proplists:get_value(<<"count">>, B),
+    ?assertMatch({<<"users">>,_}, proplists:lookup(<<"users">>, B)),
+    ?assertEqual(2, length(B)),
+    Count.
+
+add_user(UserName, Password) ->
+    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
+    Body = jiffy:encode(#{<<"user">> => #{<<"password">> => Password}}),
+    Res = request(<<"PUT">>, Path, Body),
+    assert_status(204, Res),
+    Res.
+
+delete_user(UserName) ->
+    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
+    Res = request(<<"DELETE">>, Path),
+    assert_status(204, Res),
+    Res.
 
 is_external_auth() ->
     lists:member(ejabberd_auth_external, auth_modules()).
@@ -103,8 +149,13 @@ wait_for_user_removal(false) ->
     ok;
 wait_for_user_removal(_) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    try mongoose_helper:wait_until(fun() -> rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) end, 0,
-                               #{ time_sleep => 500, time_left => 5000, name => rpc}) of
+    try mongoose_helper:wait_until(
+            fun() ->
+                rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain])
+            end,
+            0,
+            #{ time_sleep => 500, time_left => 5000, name => rpc})
+    of
 	    {ok, 0} ->
 		    ok
     catch	
@@ -112,3 +163,19 @@ wait_for_user_removal(_) ->
 		ct:pal("~p", [Reason]),
 		ok
     end.
+
+request(Method, Path) when is_binary(Method)->
+    request(Method, Path, <<>>).
+request(Method, Path, Body) when is_binary(Method) ->
+    ReqParams = #{
+        role => client,
+        method => Method,
+        path => Path,
+        body => Body,
+        return_headers => true,
+        port => ?PORT
+    },
+    rest_helper:make_request(ReqParams).
+
+assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
+    ?assertEqual(integer_to_binary(Status), S).
