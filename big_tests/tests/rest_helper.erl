@@ -41,7 +41,8 @@
         path := binary(),
         body := binary(),
         return_headers := boolean(),
-        server := atom() }.
+        server := distributed_helper:rpc_spec(),
+        port => inet:port_number() }.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -172,7 +173,7 @@ normalize_headers(Headers) ->
     lists:map(fun({K, V}) when is_binary(V) -> {K, V};
                  ({K, V}) when is_list(V) -> {K, iolist_to_binary(V)} end, Headers).
 
-%% a request specyfying credentials is directed to client http listener
+%% a request specifying credentials is directed to client http listener
 fusco_request(#{ role := Role, method := Method, creds := {User, Password},
                  path := Path, body := Body, server := Server }) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
@@ -180,7 +181,10 @@ fusco_request(#{ role := Role, method := Method, creds := {User, Password},
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers,
                   get_port(Role, Server), get_ssl_status(Role, Server));
-%% without them it is for admin (secure) interface
+%% an API to just send a request to a given port, without authentication
+fusco_request(#{ method := Method, path := Path, body := Body, port := Port}) ->
+    fusco_request(Method, Path, Body, [], Port, false);
+%% without credentials it is for admin (secure) interface
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server }) ->
     fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server)).
 
