@@ -75,7 +75,7 @@
 %%--------------------------------------------------------------------
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?LOG_INFO(#{what => mod_event_pusher_push_starting, server => Host}),
+    ?LOG_INFO(#{what => event_pusher_starting, server => Host}),
 
     expand_and_store_virtual_pubsub_hosts(Host, Opts),
 

@@ -197,9 +197,9 @@ archive_id(Server, User)
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?LOG_DEBUG(#{what => mod_mam_starting}),
+    ?LOG_DEBUG(#{what => mam_starting}),
     ?LOG_IF(warning, gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
-                    #{what => mod_mam_configuration, text =>
+                    #{what => mam_configuration, text =>
      <<"mod_mam is enabled without explicit archive_groupchats option value."
        " It will default to `false` in one of future releases."
        " Please check the mod_mam documentation for more details.">>,
@@ -228,7 +228,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ?LOG_DEBUG(#{what => mod_mam_stopping}),
+    ?LOG_DEBUG(#{what => mam_stopping}),
     ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
@@ -680,7 +680,7 @@ report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
 report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) ->
-    ?LOG_ERROR(#{what => mod_mam_error,
+    ?LOG_ERROR(#{what => mam_error,
                  issue => Issue, server => LServer, user => LUser,
                  reason => Reason, iq => IQ, stacktrace => Stacktrace}).
 

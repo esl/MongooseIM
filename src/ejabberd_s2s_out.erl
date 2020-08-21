@@ -1004,7 +1004,7 @@ srv_lookup(Server, Timeout, Retries) ->
         {error, _Reason} ->
             case inet_res:getbyname("_jabber._tcp." ++ binary_to_list(Server), srv, Timeout) of
                 {error, timeout} ->
-                    ?LOG_ERROR(#{what => s2s_dns_error,
+                    ?LOG_ERROR(#{what => s2s_dns_lookup_failed,
                                  text => <<"The DNS servers timed out on request for IN SRV."
                                            " You should check your DNS configuration.">>,
                                  nameserver => inet_db:res_option(nameserver),

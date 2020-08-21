@@ -152,7 +152,7 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?LOG_DEBUG(#{what => mod_mam_muc_starting}),
+    ?LOG_DEBUG(#{what => mam_muc_starting}),
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
@@ -171,7 +171,7 @@ start(Host, Opts) ->
 
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
-    ?LOG_DEBUG(#{what => mod_mam_muc_stopping}),
+    ?LOG_DEBUG(#{what => mam_muc_stopping}),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
     ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
@@ -598,7 +598,7 @@ report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
 report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, IQ) ->
-    ?LOG_ERROR(#{what => mod_mam_muc_error, issue => Issue, reason => Reason,
+    ?LOG_ERROR(#{what => mam_muc_error, issue => Issue, reason => Reason,
                  user => LUser, server => LServer, iq => IQ, stacktrace => Stacktrace}).
 
 -spec is_archivable_message(MUCHost :: ejabberd:lserver(), Dir :: incoming | outgoing,
