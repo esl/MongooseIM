@@ -685,7 +685,9 @@ parse_list(Path, L) ->
 -spec handle(path(), toml_value()) -> [option()].
 handle(Path, Value) ->
     Handler = handler(Path),
-    Handler(Path, Value).
+    Option = Handler(Path, Value),
+    mongoose_config_validator_toml:validate(Path, Option),
+    Option.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> [option()]).
 handler([_]) -> fun process_section/2;
