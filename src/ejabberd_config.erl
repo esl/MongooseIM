@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%                 %% File    : ejabberd_config.erl
+%%% File    : ejabberd_config.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Load config file
 %%% Created : 14 Dec 2002 by Alexey Shchepin <alexey@process-one.net>
