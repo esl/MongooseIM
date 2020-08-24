@@ -137,8 +137,7 @@ do_handle_cast({amqp_publish, Method, Payload}, State) ->
     handle_amqp_publish(Method, Payload, State).
 
 do_handle_info(Req, State) ->
-    ?LOG_WARNING(#{what => unexpected_message,
-                   msg => Req, state => State}),
+    ?UNEXPECTED_INFO(Req),
     {noreply, State}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),

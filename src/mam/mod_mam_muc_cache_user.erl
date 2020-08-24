@@ -210,7 +210,7 @@ handle_cast({remove_user, ArcJID}, State) ->
     ets:delete(tbl_name_archive_id(), su_key(ArcJID)),
     {noreply, State};
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_cast, cast_message => Msg, state => State}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -232,7 +232,8 @@ handle_info({'DOWN', MonRef, process, Pid, Reason}, State) ->
             ets:delete(tbl_name_monitor(), Key)
     end,
     {noreply, State};
-handle_info(_Msg, State) ->
+handle_info(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

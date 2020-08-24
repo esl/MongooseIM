@@ -97,14 +97,11 @@ handle_call(unpause, _From, State = #state{tref = TRef}) ->
                  timer_ref => TRef}),
     {reply, ok, State};
 handle_call(Request, From, State) ->
-    ?LOG_ERROR(#{what => unexpected_call,
-                 text => <<"GD Refresher received unknown call.">>,
-                 msg => Request, call_from => From}),
+    ?UNEXPECTED_CALL(Request, From),
     {reply, {error, unknown_request}, State}.
 
 handle_cast(Request, State) ->
-    ?LOG_ERROR(#{what => unexpected_cast, msg => Request,
-                 text => <<"GD Refresher received unknown cast.">>}),
+    ?UNEXPECTED_CAST(Request),
     {noreply, State}.
 
 handle_info({timeout, TRef, refresh}, #state{ tref = TRef } = State) ->
@@ -115,8 +112,7 @@ handle_info({timeout, _, refresh}, State) ->
     %% We got refresh signal from outdated timer
     {noreply, State, hibernate};
 handle_info(Msg, State) ->
-    ?LOG_ERROR(#{what => unexpected_message, msg => Msg,
-                 text => <<"GD Refresher received unknown info message.">>}),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State, hibernate}.
 
 terminate(Reason, _State) ->

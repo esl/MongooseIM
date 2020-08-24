@@ -399,8 +399,7 @@ handle_info({wait_timeout, {Rid, Pid}}, SName,
             {next_state, SName, NS}
     end;
 handle_info(Info, SName, State) ->
-    ?LOG_DEBUG(ls(#{what => unexpected_message, state_name => SName,
-                    msg => Info}, State)),
+    ?UNEXPECTED_INFO(Info),
     {next_state, SName, State}.
 
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->

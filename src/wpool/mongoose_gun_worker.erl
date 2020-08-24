@@ -82,7 +82,8 @@ handle_call(Request, From, #gun_worker_state{pid = GunPid, requests = Requests} 
     {noreply, State#gun_worker_state{requests = NewRequests}}.
 
 -spec handle_cast(any(), gun_worker_state()) -> {noreply, gun_worker_state()}.
-handle_cast(_R, State) ->
+handle_cast(M, State) ->
+    ?UNEXPECTED_CAST(M),
     {noreply, State}.
 
 %% @doc Handles gun messages.
@@ -198,7 +199,7 @@ handle_info({'DOWN', MRef, process, ConnPid, Reason},
     {noreply, NewState};
 
 handle_info(M, S) ->
-    ?LOG_ERROR(#{what => unexpected_message, msg => M}),
+    ?UNEXPECTED_INFO(M),
     {noreply, S}.
 
 terminate(_Reason, #gun_worker_state{pid = undefined}) ->

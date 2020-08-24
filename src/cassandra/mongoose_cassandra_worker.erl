@@ -225,9 +225,7 @@ handle_call({continue, Req}, From, State = #state{}) ->
     NewState = update_req(NewReq, State),
     {noreply, process_request(RequestId, NewState)};
 handle_call(Msg, From, State) ->
-    ?LOG_WARNING(#{what => cassandra_unexpected_call,
-                   pool => State#state.pool_name,
-                   call_from => From, msg => Msg, state => State}),
+    ?UNEXPECTED_CALL(Msg, From),
     {noreply, State}.
 
 
@@ -246,7 +244,7 @@ handle_cast({write, QueryStr, Rows, Opts}, #state{} = State) ->
     NewState = State#state{inflight = maps:put(RequestId, Request, State#state.inflight)},
     {noreply, process_request(RequestId, NewState)};
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => cassandra_unexpected_cast, msg => Msg, state => State}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -282,9 +280,7 @@ handle_info({retry, ReqId}, #state{} = St) ->
     end;
 
 handle_info(Msg, State) ->
-    ?LOG_WARNING(#{what => cassandra_unexpected_message,
-                   pool => State#state.pool_name,
-                   msg => Msg, state => State}),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

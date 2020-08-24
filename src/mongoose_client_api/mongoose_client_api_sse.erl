@@ -31,14 +31,14 @@ maybe_init({false, Value}, Req, State) ->
     {shutdown, 401, Headers, <<>>, Req, State}.
 
 handle_notify(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_message, msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
     #xmlel{ name = TagName } = El = mongoose_acc:element(Acc),
     handle_msg(TagName, Acc, El, State);
 handle_info(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_message, msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {nosend, State}.
 
 handle_msg(<<"message">>, Acc, El, State) ->

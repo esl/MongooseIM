@@ -102,11 +102,11 @@ init([GCOpts]) ->
     {ok, State, RepeatAfter}.
 
 handle_call(Msg, From, State) ->
-    ?LOG_WARNING(#{what => unexpected_call, msg => Msg, call_from => From}),
+    ?UNEXPECTED_CALL(Msg, From),
     {reply, ok, State}.
 
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_cast, msg => Msg}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 handle_info(timeout, #smgc_state{gc_repeat_after = RepeatAfter,
@@ -115,7 +115,7 @@ handle_info(timeout, #smgc_state{gc_repeat_after = RepeatAfter,
     {noreply, State, RepeatAfter};
 handle_info(Info, #smgc_state{gc_repeat_after = RepeatAfter,
                               gc_geriatric = _GeriatricAge} = State) ->
-    ?LOG_WARNING(#{what => unexpected_message, msg => Info}),
+    ?UNEXPECTED_INFO(Info),
     {noreply, State, RepeatAfter}.
 
 clear_table(GeriatricAge) ->

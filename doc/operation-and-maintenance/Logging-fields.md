@@ -80,3 +80,39 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | class         | enum    | `catch Class:Reason:Stacktrace`                     | `error`                             |                                    |
 | reason        | term    | `catch Class:Reason:Stacktrace`                     | `http_timeout`                      |                                    |
 | stacktrace    | term    | `catch Class:Reason:Stacktrace`                     | `[...]`                             | Formatted by formatter             |
+
+
+## Macros for logging unexpected requests
+
+`gen_server` processes sometimes receive messages they couldn't process.
+We use macroses to log such events (just because you would need them in each
+`gen_server` module).
+
+We don't need to log state or state names for such events.
+
+```erlang
+%% We don't always handle unexpected calls.
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
+    {reply, {error, unexpected_call}, State}.
+
+%% We don't always handle unexpected casts.
+handle_cast(Msg, State) ->
+    ?UNEXPECTED_CAST(Msg),
+    {noreply, State}.
+
+%% We SHOULD ignore all unexpected messages, because they could arrive in case
+%% of gen_server call timeouts.
+handle_info(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
+    {noreply, State}.
+
+```
+
+These macros translate into the maps with loglevel `warning`:
+
+```erlang
+#{what => unexpected_cast, msg => Msg}.
+#{what => unexpected_info, msg => Msg}.
+#{what => unexpected_call, msg => Msg, call_from => From}.
+```

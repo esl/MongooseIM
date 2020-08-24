@@ -960,10 +960,7 @@ resume_session(closed, StateData) ->
 resume_session(timeout, StateData) ->
     {next_state, resume_session, StateData, hibernate()};
 resume_session(Msg, StateData) ->
-    ?LOG_WARNING(#{what => <<"unexpected_message">>,
-                   text => <<"Unexpected message in resume_session state">>,
-                   state_name => resume_session, c2s_state => StateData,
-                   unexpected_msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {next_state, resume_session, StateData, hibernate()}.
 
 
@@ -1204,10 +1201,7 @@ handle_incoming_message({run_remote_hook, HandlerName, Args}, StateName, StateDa
             fsm_next_state(StateName, StateData#state{handlers = NewStates})
     end;
 handle_incoming_message(Info, StateName, StateData) ->
-    ?LOG_ERROR(#{what => unexpected_info,
-                 text => <<"C2S process received an unexpected erlang message">>,
-                 info_msg => Info,
-                 state_name => StateName, c2s_state => StateData}),
+    ?UNEXPECTED_INFO(Info),
     fsm_next_state(StateName, StateData).
 
 process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData) ->

@@ -39,4 +39,11 @@
 -define(CRITICAL_MSG_IF(Condition, Format, Args),
     ?LOG_IF(critical, Condition, Format, Args)).
 
+-define(UNEXPECTED_INFO(Msg),
+        ?LOG_WARNING(#{what => unexpected_info, msg => Msg})).
+-define(UNEXPECTED_CAST(Msg),
+        ?LOG_WARNING(#{what => unexpected_cast, msg => Msg})).
+-define(UNEXPECTED_CALL(Msg, From),
+        ?LOG_WARNING(#{what => unexpected_call, msg => Msg, call_from => From})).
+
 -endif.

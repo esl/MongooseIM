@@ -383,9 +383,7 @@ handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     {stop, normal, StateData};
 handle_info(Info, StateName, StateData) ->
-    ?LOG_ERROR(#{what => unexpected_message,
-                 text => <<"Unexpected erlang message received by an external component process">>,
-                 msg => Info, component => component_host(StateData)}),
+    ?UNEXPECTED_INFO(Info),
     {next_state, StateName, StateData}.
 
 

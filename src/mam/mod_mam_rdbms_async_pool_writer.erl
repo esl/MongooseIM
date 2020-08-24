@@ -332,7 +332,7 @@ handle_cast({archive_message, Params},
         false -> {noreply, State2}
     end;
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_cast, cast_message => Msg, state => State}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 
@@ -344,7 +344,10 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info(flush, State) ->
-    {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
+    {noreply, run_flush(State#state{flush_interval_tref=undefined})};
+handle_info(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
+    {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()

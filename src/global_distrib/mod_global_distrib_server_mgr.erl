@@ -173,9 +173,7 @@ handle_cast({call_timeout, FromPid, Msg}, State) ->
                       caller_pid => FromPid, caller_msg => Msg}, State)),
     {noreply, State};
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(ls(#{what => unexpected_cast,
-                      text => <<"mod_global_distrib_server_mgr received unknown erlang message">>,
-                      msg => Msg}, State)),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 handle_info(refresh, State) ->
@@ -296,8 +294,7 @@ handle_info({'DOWN', MonitorRef, _Type, Pid, Reason}, #state{ enabled = Enabled,
                    type => Type, endpoint => Endpoint, reason => Reason2}, State)),
     {noreply, NState};
 handle_info(Msg, State) ->
-    ?LOG_WARNING(ls(#{what => unexpected_message, msg => Msg,
-                      text => <<"GD server manager receives unknown erlang message">>}, State)),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->

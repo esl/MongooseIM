@@ -208,9 +208,7 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(Request, From, State) ->
-    ?LOG_ERROR(#{what => unexpected_cast,
-                 text => <<"ejabberd_s2s received unexpected gen_server call">>,
-                 msg => Request, call_from => From}),
+    ?UNEXPECTED_CALL(Request, From),
     Reply = ok,
     {reply, Reply, State}.
 
@@ -221,9 +219,7 @@ handle_call(Request, From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-    ?LOG_ERROR(#{what => unexpected_cast,
-                 text => <<"ejabberd_s2s received unexpected gen_server cast">>,
-                 msg => Msg}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -234,9 +230,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info(Msg, State) ->
-    ?LOG_ERROR(#{what => unexpected_message,
-                 text => <<"ejabberd_s2s received unexpected erlang message">>,
-                 msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

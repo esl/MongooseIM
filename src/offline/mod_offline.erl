@@ -290,7 +290,8 @@ handle_call({pop_offline_messages, LUser, LServer}, {Pid, _}, State) ->
     Result = mod_offline_backend:pop_messages(LUser, LServer),
     NewPoppers = monitored_map:put({LUser, LServer}, Pid, Pid, State#state.message_poppers),
     {reply, Result, State#state{message_poppers = NewPoppers}};
-handle_call(_, _, State) ->
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -300,7 +301,7 @@ handle_call(_, _, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_cast, msg => Msg}),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -322,7 +323,7 @@ handle_info({Acc, Msg = #offline_msg{us = US}},
     end,
     {noreply, State};
 handle_info(Msg, State) ->
-    ?LOG_WARNING(#{what => unexpected_message, msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

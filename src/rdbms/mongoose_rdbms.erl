@@ -440,11 +440,12 @@ handle_call({sql_cmd, Command, Timestamp}, From, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
 handle_call(get_db_info, _, #state{db_ref = DbRef} = State) ->
     {reply, {ok, db_engine(?MYNAME), DbRef}, State};
-handle_call(_Event, _From, State) ->
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, {error, badarg}, State}.
 
 handle_cast(Request, State) ->
-    ?LOG_WARNING(#{what => rdbms_unexpected_cast, request => Request}),
+    ?UNEXPECTED_CAST(Request),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -461,7 +462,7 @@ handle_info(keepalive, #state{keepalive_interval = KeepaliveInterval} = State) -
 handle_info({'EXIT', _Pid, _Reason} = Reason, State) ->
     {stop, Reason, State};
 handle_info(Info, State) ->
-    ?LOG_WARNING(#{what => rdbms_unexpected_info, info => Info}),
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 -spec terminate(Reason :: term(), state()) -> any().

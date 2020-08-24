@@ -38,14 +38,14 @@ handle_call(Request, _From, State) ->
 
 -spec handle_cast(any(), state()) -> {noreply, state()}.
 handle_cast(Cast, State) ->
-    ?LOG_WARNING(#{what => unexpected_cast, msg => Cast}),
+    ?UNEXPECTED_CAST(Cast),
     {noreply, State}.
 
 -spec handle_info(any(), state()) -> {noreply, state()}.
 handle_info(connect, State) ->
     {noreply, connect(State)};
 handle_info(Info, State) ->
-    ?LOG_WARNING(#{what => unexpected_message, msg => Info}),
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 -spec terminate(any(), state()) -> ok.
