@@ -130,6 +130,22 @@
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
+
+-define(CLOSE_GENERIC(StateName, Reason, StateData),
+    ?LOG_INFO(#{what => s2s_out_closing,
+                text => <<"Closing s2s connection">>,
+                state_name => StateName, reason => Reason,
+                myname => StateData#state.myname, server => StateData#state.server}),
+    {stop, normal, StateData}).
+
+-define(CLOSE_GENERIC(StateName, Reason, El, StateData),
+    ?LOG_INFO(#{what => s2s_out_closing,
+                text => <<"Closing s2s connection">>,
+                exml_packet => El,
+                state_name => StateName, reason => Reason,
+                myname => StateData#state.myname, server => StateData#state.server}),
+    {stop, normal, StateData}).
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -243,9 +259,9 @@ open_socket(init, StateData) ->
                       ?STREAM_HEADER(StateData#state.myname, StateData#state.server, Version)),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
         {error, Reason} ->
-            ?LOG_INFO(#{what => s2s_out_failed, reason => Reason,
-                        text => <<"Outgoing s2s connection failed (remote server not found)">>,
-                        myname => StateData#state.myname, server => StateData#state.server}),
+            ?LOG_WARNING(#{what => s2s_out_failed, reason => Reason,
+                           text => <<"Outgoing s2s connection failed (remote server not found)">>,
+                           myname => StateData#state.myname, server => StateData#state.server}),
             case mongoose_hooks:find_s2s_bridge(undefined,
                                                 StateData#state.myname,
                                                 StateData#state.server) of
@@ -261,9 +277,9 @@ open_socket(init, StateData) ->
             end
     end;
 open_socket(closed, StateData) ->
-    close_generic(open_socket, closed, StateData);
+    ?CLOSE_GENERIC(open_socket, closed, StateData);
 open_socket(timeout, StateData) ->
-    close_generic(open_socket, timeout, StateData);
+    ?CLOSE_GENERIC(open_socket, timeout, StateData);
 open_socket(_, StateData) ->
     {next_state, open_socket, StateData}.
 
@@ -351,13 +367,13 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(wait_for_stream, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(wait_for_stream, xmlstreamerror, StateData);
 wait_for_stream({xmlstreamend, _Name}, StateData) ->
-    close_generic(wait_for_stream, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(wait_for_stream, xmlstreamend, StateData);
 wait_for_stream(timeout, StateData) ->
-    close_generic(wait_for_stream, timeout, StateData);
+    ?CLOSE_GENERIC(wait_for_stream, timeout, StateData);
 wait_for_stream(closed, StateData) ->
-    close_generic(wait_for_stream, closed, StateData).
+    ?CLOSE_GENERIC(wait_for_stream, closed, StateData).
 
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -380,10 +396,10 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                      StateData#state{queue = queue:new()}};
                 {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
                     %% TODO: bounce packets
-                    close_generic(wait_for_validation, tls_required_but_unavailable, El, StateData);
+                    ?CLOSE_GENERIC(wait_for_validation, tls_required_but_unavailable, El, StateData);
                 _ ->
                     %% TODO: bounce packets
-                    close_generic(wait_for_validation, invalid_dialback_key, El, StateData)
+                    ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
         {verify, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
@@ -405,11 +421,11 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
-    close_generic(wait_for_validation, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(wait_for_validation, xmlstreamend, StateData);
 wait_for_validation({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(wait_for_validation, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(wait_for_validation, xmlstreamerror, StateData);
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
     %% This is an auxiliary s2s connection for dialback.
@@ -451,18 +467,18 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             send_text(StateData,
                       <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                       (?STREAM_TRAILER)/binary>>),
-            close_generic(wait_for_features, bad_format, El, StateData)
+            ?CLOSE_GENERIC(wait_for_features, bad_format, El, StateData)
     end;
 wait_for_features({xmlstreamend, _Name}, StateData) ->
-    close_generic(wait_for_features, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(wait_for_features, xmlstreamend, StateData);
 wait_for_features({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(wait_for_features, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(wait_for_features, xmlstreamerror, StateData);
 wait_for_features(timeout, StateData) ->
-    close_generic(wait_for_features, timeout, StateData);
+    ?CLOSE_GENERIC(wait_for_features, timeout, StateData);
 wait_for_features(closed, StateData) ->
-    close_generic(wait_for_features, closed, StateData).
+    ?CLOSE_GENERIC(wait_for_features, closed, StateData).
 
 
 -spec wait_for_auth_result(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -485,7 +501,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    close_generic(wait_for_auth_result, bad_format, El, StateData)
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
@@ -501,24 +517,24 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    close_generic(wait_for_auth_result, bad_format, El, StateData)
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
             send_text(StateData,
                       <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-            close_generic(wait_for_auth_result, bad_format, El, StateData)
+            ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
-    close_generic(wait_for_auth_result, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamend, StateData);
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(wait_for_auth_result, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamerror, StateData);
 wait_for_auth_result(timeout, StateData) ->
-    close_generic(wait_for_auth_result, timeout, StateData);
+    ?CLOSE_GENERIC(wait_for_auth_result, timeout, StateData);
 wait_for_auth_result(closed, StateData) ->
-    close_generic(wait_for_auth_result, closed, StateData).
+    ?CLOSE_GENERIC(wait_for_auth_result, closed, StateData).
 
 
 -spec wait_for_starttls_proceed(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -547,21 +563,21 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    close_generic(wait_for_auth_result, bad_format, El, StateData)
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
-            close_generic(wait_for_auth_result, bad_format, El, StateData)
+            ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
-    close_generic(wait_for_starttls_proceed, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamend, StateData);
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(wait_for_starttls_proceed, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamerror, StateData);
 wait_for_starttls_proceed(timeout, StateData) ->
-    close_generic(wait_for_starttls_proceed, timeout, StateData);
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, timeout, StateData);
 wait_for_starttls_proceed(closed, StateData) ->
-    close_generic(wait_for_starttls_proceed, closed, StateData).
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, closed, StateData).
 
 
 -spec reopen_socket(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -572,7 +588,7 @@ reopen_socket({xmlstreamend, _Name}, StateData) ->
 reopen_socket({xmlstreamerror, _}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
 reopen_socket(timeout, StateData) ->
-    close_generic(reopen_socket, timeout, StateData);
+    ?CLOSE_GENERIC(reopen_socket, timeout, StateData);
 reopen_socket(closed, StateData) ->
     p1_fsm:send_event(self(), init),
     {next_state, open_socket, StateData, ?FSMTIMEOUT}.
@@ -588,7 +604,7 @@ wait_before_retry(_Event, StateData) ->
 relay_to_bridge(stop, StateData) ->
     wait_before_reconnect(StateData);
 relay_to_bridge(closed, StateData) ->
-    close_generic(relay_to_bridge, closed, StateData);
+    ?CLOSE_GENERIC(relay_to_bridge, closed, StateData);
 relay_to_bridge(_Event, StateData) ->
     {next_state, relay_to_bridge, StateData}.
 
@@ -613,15 +629,15 @@ stream_established({xmlstreamelement, El}, StateData) ->
     end,
     {next_state, stream_established, StateData};
 stream_established({xmlstreamend, _Name}, StateData) ->
-    close_generic(stream_established, xmlstreamend, StateData);
+    ?CLOSE_GENERIC(stream_established, xmlstreamend, StateData);
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    close_generic(stream_established, xmlstreamerror, StateData);
+    ?CLOSE_GENERIC(stream_established, xmlstreamerror, StateData);
 stream_established(timeout, StateData) ->
-    close_generic(stream_established, timeout, StateData);
+    ?CLOSE_GENERIC(stream_established, timeout, StateData);
 stream_established(closed, StateData) ->
-    close_generic(stream_established, closed, StateData).
+    ?CLOSE_GENERIC(stream_established, closed, StateData).
 
 
 %%----------------------------------------------------------------------
@@ -759,9 +775,9 @@ handle_info({timeout, Timer, _}, wait_before_retry,
     {stop, normal, StateData};
 handle_info({timeout, Timer, _}, StateName,
             #state{timer = Timer} = StateData) ->
-    close_generic(StateName, s2s_out_timeout, StateData);
+    ?CLOSE_GENERIC(StateName, s2s_out_timeout, StateData);
 handle_info(terminate_if_waiting_before_retry, wait_before_retry, StateData) ->
-    close_generic(wait_before_retry, terminate_if_waiting_before_retry, StateData);
+    ?CLOSE_GENERIC(wait_before_retry, terminate_if_waiting_before_retry, StateData);
 handle_info(terminate_if_waiting_before_retry, StateName, StateData) ->
     {next_state, StateName, StateData, get_timeout_interval(StateName)};
 handle_info(_, StateName, StateData) ->
@@ -1331,19 +1347,3 @@ handle_parsed_features({_, _, _, StateData}) ->
     ejabberd_socket:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.
-
-
-close_generic(StateName, Reason, StateData) ->
-    ?LOG_INFO(#{what => s2s_out_closing,
-                text => <<"Closing s2s connection">>,
-                state_name => StateName, reason => Reason,
-                myname => StateData#state.myname, server => StateData#state.server}),
-    {stop, normal, StateData}.
-
-close_generic(StateName, Reason, El, StateData) ->
-    ?LOG_INFO(#{what => s2s_out_closing,
-                text => <<"Closing s2s connection">>,
-                exml_packet => El,
-                state_name => StateName, reason => Reason,
-                myname => StateData#state.myname, server => StateData#state.server}),
-    {stop, normal, StateData}.
