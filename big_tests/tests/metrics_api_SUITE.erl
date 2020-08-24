@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2014 Erlang Solutions Ltd.
+%% Copyright 2020 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -20,17 +20,7 @@
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
--define(assert_equal(E, V), (
-    [ct:fail("assert_equal(~s, ~s)~n\tExpected ~p~n\tValue ~p~n",
-             [(??E), (??V), (E), (V)])
-     || (E) =/= (V)]
-    )).
-
--define(assert_equal_extra(E, V, Extra), (
-    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
-             [(??E), (??V), (E), (V), (Extra)])
-     || (E) =/= (V)]
-    )).
+-include_lib("eunit/include/eunit.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -219,31 +209,31 @@ session_counters(Config) ->
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-               ?assert_equal(3, fetch_global_gauge_value(totalSessionCount, Config)),
-               ?assert_equal(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
-               ?assert_equal(3, fetch_global_gauge_value(nodeSessionCount, Config))
+               ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
+               ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
+               ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
        end).
 
 node_uptime(Config) ->
       X = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
       timer:sleep(timer:seconds(1)),
       Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      ?assert_equal_extra(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
+      ?assertEqual(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
 
 cluster_size(Config) ->
       SingleNodeClusterState =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(1, SingleNodeClusterState),
+      ?assertEqual(1, SingleNodeClusterState),
 
       distributed_helper:add_node_to_cluster(Config),
       TwoNodesClusterState =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(2, TwoNodesClusterState),
+      ?assertEqual(2, TwoNodesClusterState),
 
       distributed_helper:remove_node_from_cluster(Config),
       SingleNodeClusterState2 =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(1, SingleNodeClusterState2).
+      ?assertEqual(1, SingleNodeClusterState2).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -292,7 +282,7 @@ fetch_counter_value(Counter, Config) ->
 %% @doc Fetch counter that is static
 fetch_global_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
-    ?assert_equal_extra(Value, ValueList, [{counter, Counter}]),
+    ?assertEqual(Value, ValueList, [{counter, Counter}]),
     Value.
 
 %% @doc Fetch counter that can be incremented by server between two API requests
@@ -300,7 +290,7 @@ fetch_global_gauge_value(Counter, Config) ->
 %% Returns last actual value
 fetch_global_incrementing_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
-    ?assert_equal_extra(true, Value =< ValueList, [{counter, Counter},
+    ?assertEqual(true, Value =< ValueList, [{counter, Counter},
                                                    {value, Value},
                                                    {value_list, ValueList}]),
     ValueList.
