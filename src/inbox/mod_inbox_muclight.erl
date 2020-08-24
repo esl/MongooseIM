@@ -142,9 +142,8 @@ is_system_message(Sender, Receiver, Packet) ->
         {MUCLightDomain, _RoomUser} ->
             false;
         Other ->
-            ?LOG_WARNING(#{what => unknown_message_for_mod_inbox_muclight,
-                           sender => jid:to_binary(Sender), receiver => jid:to_binary(Receiver),
-                           packet => Packet})
+            ?LOG_WARNING(#{what => inbox_muclight_unknown_message, packet => Packet,
+                           sender => jid:to_binary(Sender), receiver => jid:to_binary(Receiver)})
     end.
 
 

@@ -120,14 +120,15 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
                 {ok, 0} ->
                     %% Just continue routing
                     ?LOG_INFO(#{what => gd_route_ttl_zero,
+                                text => <<"Skip global distribution">>,
                                 gd_id => ID, acc => Acc, target_host => TargetHost}),
                     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
                     FPacket;
                 {ok, TTL} ->
-                    %% Forward stanza to remote cluster using global distribution
-                    ?LOG_DEBUG(#{what => gd_reroute,
-                                 gd_id => ID, acc => Acc, target_host => TargetHost,
-                                 ttl => TTL}),
+                    ?LOG_DEBUG(#{what => gd_reroute, ttl => TTL,
+                                 text => <<"Forward stanza to remote cluster "
+                                           "using global distribution">>,
+                                 gd_id => ID, acc => Acc, target_host => TargetHost}),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Acc2 = remove_metadata(Acc1, target_host_override),
                     %% KNOWN ISSUE: will crash loudly if there are no connections available
@@ -138,9 +139,8 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             end;
 
         error ->
-            ?LOG_DEBUG(#{what => gd_route_failed,
-                         text => <<"Unable to route global: user not found in the routing table">>,
-                         gd_id => ID, acc => Acc}),
+            ?LOG_DEBUG(#{what => gd_route_failed, gd_id => ID, acc => Acc,
+                         text => <<"Unable to route global: user not found in the routing table">>}),
             mongoose_hooks:mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet})
     end.
 

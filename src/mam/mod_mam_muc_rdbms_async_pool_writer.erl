@@ -235,8 +235,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
 do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
                                           flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
-    ?LOG_DEBUG(#{what => mam_flush,
-                 message_count => MessageCount}),
+    ?LOG_DEBUG(#{what => mam_flush, message_count => MessageCount}),
 
     Rows = [mod_mam_muc_rdbms_arch:prepare_message(Host, Params) || Params <- Acc],
 

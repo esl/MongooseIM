@@ -90,16 +90,13 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = 
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
-    ?LOG_ERROR(#{what => gd_incoming_socket_error,
+    ?LOG_ERROR(#{what => gd_incoming_socket_error, reason => Reason,
                  text => <<"mod_global_distrib_receiver received tcp_error">>,
-                 reason => Reason,
                  peer => State#state.peer, conn_id => State#state.conn_id}),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ERRORED(State#state.host), 1),
     {stop, {error, Reason}, State};
 handle_info(Msg, State) ->
-    ?LOG_WARNING(#{what => unknown_message,
-                   text => <<"mod_global_distrib_receiver received unknown erlang message">>,
-                   msg => Msg}),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 handle_cast(_Message, _State) ->
@@ -229,9 +226,8 @@ start_listener({Addr, Port} = Ref, RetriesLeft) ->
     case ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}], ?MODULE, []) of
         {ok, _} -> ok;
         {error, eaddrinuse} when RetriesLeft > 0 ->
-            ?LOG_ERROR(#{what => gd_start_listener_failed,
-                         text => <<"Failed to start listener: address in use. Will retry in 1 second.">>,
-                         address => Addr, port => Port}),
+            ?LOG_ERROR(#{what => gd_start_listener_failed, address => Addr, port => Port,
+                         text => <<"Failed to start listener: address in use. Will retry in 1 second.">>}),
             timer:sleep(?LISTEN_RETRY_DELAY),
             start_listener(Ref, RetriesLeft - 1)
     end.

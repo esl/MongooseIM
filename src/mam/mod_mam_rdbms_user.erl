@@ -209,9 +209,8 @@ create_user_archive(Host, Server, UserName) ->
             %% - {error, duplicate_key}
             %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
             %% Let's ignore the errors and just retry in query_archive_id
-            ?LOG_WARNING(#{what => create_user_archive_failed,
-                           user => UserName, host => Host, server => Server,
-                           reason => Res}),
+            ?LOG_WARNING(#{what => create_user_archive_failed, reason => Res,
+                           user => UserName, host => Host, server => Server}),
             ok
     end.
 

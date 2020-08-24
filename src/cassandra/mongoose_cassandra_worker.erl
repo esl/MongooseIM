@@ -372,7 +372,7 @@ handle_cancel(ReqId, Reason, State) ->
         undefined ->
             State;
         #request{tag = Tag} = Req ->
-            ?LOG_WARNING(#{what => cassandra_abording_request,  reason => Reason,
+            ?LOG_WARNING(#{what => cassandra_aborting_request,  reason => Reason,
                            pool => State#state.pool_name,
                            tag => Tag, error_text => error_text(cancel, Reason, Req),
                            query_type => query_type(Req)}),
@@ -457,7 +457,7 @@ do_handle_error(Type, Reason, Req, State) ->
 
     case retry_info(Type, Reason, Req, State) of
         {abort, AbortReason, NextState} ->
-            ?LOG_WARNING(#{what => cassandra_abording_query, tag => Tag,
+            ?LOG_WARNING(#{what => cassandra_aborting_query, tag => Tag,
                            pool => State#state.pool_name,
                            query_type => query_type(Req), reason => AbortReason,
                            error_text => error_text(Type, Reason, Req)}),

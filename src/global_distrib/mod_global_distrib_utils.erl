@@ -273,14 +273,12 @@ to_ip_tuples(Addr) ->
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
         {Addrs, {error, Msg}} ->
-            ?LOG_DEBUG(#{what => resolv_error,
-                         text => <<"IPv4 address resolution error">>,
-                         address => Addr, reason => Msg}),
+            ?LOG_DEBUG(#{what => resolv_error, address => Addr, reason => Msg,
+                         text => <<"IPv4 address resolution error">>}),
             Addrs;
         {{error, Msg}, Addrs} ->
-            ?LOG_DEBUG(#{what => resolv_error,
-                         text => <<"IPv6 address resolution error">>,
-                         address => Addr, reason => Msg}),
+            ?LOG_DEBUG(#{what => resolv_error, address => Addr, reason => Msg,
+                         text => <<"IPv6 address resolution error">>}),
             Addrs;
         {{ok, Addrs6}, {ok, Addrs4}} ->
             {ok, Addrs6 ++ Addrs4}

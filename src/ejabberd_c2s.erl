@@ -222,9 +222,8 @@ init([{SockMod, Socket}, Opts]) ->
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
         true ->
-            ?LOG_INFO(#{what => c2s_blacklisted_ip,
-                        text => <<"Connection attempt from blacklisted IP">>,
-                        ip => IP}),
+            ?LOG_INFO(#{what => c2s_blacklisted_ip, ip => IP,
+                        text => <<"Connection attempt from blacklisted IP">>}),
             {stop, normal};
         false ->
             Socket1 =
@@ -308,8 +307,7 @@ stream_start_error(Error, StateData) ->
       State :: state(),
       Result :: {stop, normal, state()}.
 c2s_stream_error(Error, StateData) ->
-    ?LOG_DEBUG(#{what => c2s_stream_error,
-                 xml_error => Error, c2s_state => StateData}),
+    ?LOG_DEBUG(#{what => c2s_stream_error, xml_error => Error, c2s_state => StateData}),
     send_element_from_server_jid(StateData, Error),
     send_trailer(StateData),
     {stop, normal, StateData}.
@@ -757,8 +755,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
 -spec do_open_session(mongoose_acc:t(), jid:jid(), state()) ->
     {stop | established, mongoose_acc:t(), state()}.
 do_open_session(Acc, JID, StateData) ->
-    ?LOG_INFO(#{what => c2s_opened_session,
-                text => <<"Opened session">>,
+    ?LOG_INFO(#{what => c2s_opened_session, text => <<"Opened session">>,
                 acc => Acc, c2s_state => StateData}),
     Resp = jlib:make_result_iq_reply(mongoose_acc:element(Acc)),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
@@ -877,9 +874,8 @@ session_established({xmlstreamerror, <<"child element too big">> = E}, StateData
 session_established({xmlstreamerror, _}, StateData) ->
     c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 session_established(closed, StateData) ->
-    ?LOG_DEBUG(#{what => c2s_closed,
-                 text => <<"Session established closed - trying to enter resume_session">>,
-                 c2s_state => StateData}),
+    ?LOG_DEBUG(#{what => c2s_closed, c2s_state => StateData,
+                 text => <<"Session established closed - trying to enter resume_session">>}),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -1075,8 +1071,7 @@ handle_info({'DOWN', Monitor, _Type, Object, Info}, StateName,
         _ ->
             ?LOG_WARNING(#{what => unexpected_c2s_down_info,
                            text => <<"C2S process got DOWN message from unknown process">>,
-                           monitor => Monitor, monitored_pid => Object,
-                           down_info => Info,
+                           monitor_ref => Monitor, monitor_pid => Object, down_info => Info,
                            state_name => StateName, c2s_state => StateData}),
             fsm_next_state(StateName, StateData)
     end;
@@ -1087,8 +1082,7 @@ handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = ReplacedPi
       fun({Monitor, Pid}) ->
               ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
                              text => <<"Some processes are not responding when handling replace messages">>,
-                             monitor => Monitor,
-                             replaced_pid => Pid,
+                             monitor_ref => Monitor, replaced_pid => Pid,
                              state_name => StateName, c2s_state => StateData})
       end, ReplacedPids),
     fsm_next_state(StateName, StateData#state{ replaced_pids = [] });
@@ -1165,9 +1159,8 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
-            ?LOG_DEBUG(#{what => c2s_dropped_packet,
-                         text => <<"c2s_filter_packet hook dropped a packet">>,
-                         acc => Acc}),
+            ?LOG_DEBUG(#{what => c2s_dropped_packet, acc => Acc,
+                         text => <<"c2s_filter_packet hook dropped a packet">>}),
             fsm_next_state(StateName, StateData);
         {_, To} ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
@@ -2893,9 +2886,8 @@ calc_to_drop(Handled, OldAcked) ->
 
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, StreamMgmt, _NIncoming, NextState, StateData)
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
-    ?LOG_WARNING(#{what => unexpected_r,
-                   text => <<"received <r/> but stream management is off!">>,
-                   c2s_state => StateData}),
+    ?LOG_WARNING(#{what => unexpected_r, c2s_state => StateData,
+                   text => <<"received <r/> but stream management is off!">>}),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
                   NextState, StateData) ->
@@ -3084,8 +3076,7 @@ maybe_resume_session(NextState, El, StateData) ->
         {InvalidNS, _} ->
             ?LOG_INFO(#{what => c2s_ignores_resume,
                         text => <<"ignoring <resume/> element with invalid namespace">>,
-                        invalid_ns => InvalidNS,
-                        c2s_state => StateData}),
+                        invalid_ns => InvalidNS, c2s_state => StateData}),
             fsm_next_state(NextState, StateData)
     end.
 

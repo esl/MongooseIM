@@ -86,6 +86,6 @@ recv_loop(Socket, Module, Opts) ->
             ?LOG_ERROR(#{what => udp_listener_recv_failed,
                          text => <<"Unexpected UDP error">>,
                          socket => Socket, handler_module => Module,
-                         reason => jabberd_listener:format_error(Reason)}),
+                         reason => ejabberd_listener:format_error(Reason)}),
             exit({error, Reason})
     end.

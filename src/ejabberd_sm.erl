@@ -1098,7 +1098,7 @@ sm_backend() ->
               atom_to_list(?FUNCTION_NAME) ++ "/" ++
                  integer_to_list(?FUNCTION_ARITY)).
 
--define(DEPRICATE_FUNCTION,
+-define(DEPRECATE_FUNCTION,
     mongoose_deprecations:log(
       {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
       #{what => sm_function_deprecated,
@@ -1107,57 +1107,57 @@ sm_backend() ->
       [{log_level, warning}])).
 
 open_session(SID, U, S, R, Info) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     open_session(SID, jid:make(U, S, R), undefined, Info).
 
 open_session(SID, U, S, R, Priority, Info) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     open_session(SID, jid:make(U, S, R), Priority, Info).
 
 close_session(Acc, SID, U, S, R, Reason) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     close_session(Acc, SID, jid:make(U, S, R), Reason).
 
 close_session_unset_presence(Acc, SID, U, S, R, Status, Reason) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     close_session_unset_presence(Acc, SID, jid:make(U, S, R), Status, Reason).
 
 unset_presence(Acc, SID, U, S, R, Status, Info) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     unset_presence(Acc, SID, jid:make(U, S, R), Status, Info).
 
 get_raw_sessions(U, S) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_raw_sessions(jid:make(U, S, <<>>)).
 
 store_info(U, S, R, {Key, _Value} = KV) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     store_info(jid:make(U, S, R), {Key, _Value} = KV).
 
 set_presence(Acc, SID, U, S, R, Priority, Presence, Info) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     set_presence(Acc, SID, jid:make(U, S, R), Priority, Presence, Info).
 
 remove_info(U, S, R, Key) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     remove_info(jid:make(U, S, R), Key).
 
 get_user_resources(U, S) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_user_resources(jid:make(U, S, <<>>)).
 
 get_session_pid(U, S, R) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_session_pid(jid:make(U, S, R)).
 
 get_session(U, S, R) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_session(jid:make(U, S, R)).
 
 get_session_ip(U, S, R) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_session_ip(jid:make(U, S, R)).
 
 get_user_present_resources(U, S) ->
-    ?DEPRICATE_FUNCTION,
+    ?DEPRECATE_FUNCTION,
     get_user_present_resources(jid:make(U, S, <<>>)).

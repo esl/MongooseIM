@@ -498,8 +498,7 @@ offline_messages(Acc, User, Server) ->
               end, Rs);
         {error, Reason} ->
             ?LOG_WARNING(#{what => offline_pop_failed,
-                           user => User, server => Server, reason => Reason,
-                           acc => Acc}),
+                           user => User, server => Server, reason => Reason, acc => Acc}),
             []
     end.
 

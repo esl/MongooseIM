@@ -333,7 +333,6 @@ archive_size(Query) ->
         {ok, Count} ->
             Count;
         {error, Reason} ->
-            ?LOG_ERROR(#{what => archive_size_failed,
-                         es_query => Query, reason => Reason}),
+            ?LOG_ERROR(#{what => archive_size_failed, es_query => Query, reason => Reason}),
             0
     end.

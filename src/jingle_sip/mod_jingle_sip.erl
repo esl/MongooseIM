@@ -150,8 +150,7 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
       route_result(Result, From, To, IQ)
     catch Class:Error:StackTrace ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
-            ?LOG_ERROR(#{what => sip_translate_failed,
-                         acc => Acc,
+            ?LOG_ERROR(#{what => sip_translate_failed, acc => Acc,
                          class => Class, reason => Error, stacktrace => StackTrace})
     end,
     mongoose_acc:set(hook, result, drop, Acc);

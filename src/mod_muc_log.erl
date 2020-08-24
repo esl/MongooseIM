@@ -248,9 +248,7 @@ handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
         error ->
             ?LOG_WARNING(#{what => muc_unknown_monitor,
                            text => <<"Unknown monitored process is now down">>,
-                           monitor_ref => MonitorRef,
-                           monitor_pid => Pid,
-                           reason => Info}),
+                           monitor_ref => MonitorRef, monitor_pid => Pid, reason => Info}),
             {noreply, State};
         {ok, RoomJID} ->
             Monitors = maps:remove(MonitorRef, OldMonitors),

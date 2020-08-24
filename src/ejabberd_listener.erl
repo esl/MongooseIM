@@ -185,29 +185,28 @@ get_ip_tuple(IPOpt, _IPVOpt) ->
                      Module :: atom(),
                      Opts :: [any()]) -> {'error', pid()} | {'ok', _}.
 start_listener(Port, Module, Opts) ->
-    case start_listener2(Port, Module, Opts) of
+    try
+        %% It is only required to start the supervisor in some cases.
+        %% But it doesn't hurt to attempt to start it for any listener.
+        %% So, it's normal (and harmless) that in most cases this call returns:
+        %% {error, {already_started, pid()}}
+        start_module_sup(Port, Module),
+        start_listener_sup(Port, Module, Opts)
+    of
         {ok, _Pid} = R -> R;
-        {error, {{'EXIT', {undef, [{M, _F, _A}|_]}}, _} = Error} ->
-            ?LOG_ERROR(#{what => ejabberd_listener_failed_to_start,
-                         text => <<"It could not be loaded or is not an ejabberd listener.">>,
-                         module => Module, error => Error}),
-            {error, {module_not_available, M}};
         {error, {already_started, Pid}} ->
             {ok, Pid};
-        {error, Error} ->
-            {error, Error}
-    end.
-
-start_listener2(Port, Module, Opts) ->
-    %% It is only required to start the supervisor in some cases.
-    %% But it doesn't hurt to attempt to start it for any listener.
-    %% So, it's normal (and harmless) that in most cases this call returns: {error, {already_started, pid()}}
-    start_module_sup(Port, Module),
-    try start_listener_sup(Port, Module, Opts)
-    catch
-        {error, Error} ->
-            ?LOG_ERROR(#{what => start_listener_exception, error => Error}),
-            {error, Error}
+        {error, Reason} = R ->
+            ?LOG_CRITICAL(#{what => listener_failed_to_start, reason => Reason,
+                            text => <<"Failed to start a listener">>,
+                            port => Port, module => Module, opts => Opts}),
+            R
+    catch Class:Reason:Stacktrace ->
+            ?LOG_CRITICAL(#{what => listener_failed_to_start,
+                            text => <<"Failed to start a listener">>,
+                            port => Port, module => Module, opts => Opts,
+                            class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, Reason}
     end.
 
 -spec start_module_sup(_, Module :: module())
@@ -380,7 +379,9 @@ normalize_proto(udp) -> udp;
 normalize_proto(ws)  -> ws;
 normalize_proto(wss) -> wss;
 normalize_proto(UnknownProto) ->
-    ?LOG_WARNING(#{what => unknown_protocol, protocol => UnknownProto}),
+    ?LOG_WARNING(#{what => unknown_protocol, protocol => UnknownProto,
+                   text => <<"Unknown IP protocol in configuration. "
+                             "Using tcp as fallback.">>}),
     tcp.
 
 socket_error(Reason, PortIP, Module, SockOpts, Port, IPS) ->

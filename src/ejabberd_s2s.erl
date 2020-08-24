@@ -209,8 +209,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, {error, unexpected_call}, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

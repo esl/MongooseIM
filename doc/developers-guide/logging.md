@@ -46,9 +46,10 @@ Levels `warning` and `error` are the most commonly used for production systems.
 
 # Logging format
 
-We use structured logging described in [Ferd's post](https://ferd.ca/erlang-otp-21-s-new-logger.html).
+We use structured logging as inspired by [Ferd's post](https://ferd.ca/erlang-otp-21-s-new-logger.html).
 
-We use a modified [logfmt](https://brandur.org/logfmt) format as one of logger formatters.
+We use a modified [logfmt](https://brandur.org/logfmt) format as one of
+the possible default logger formatters.
 
 This format is [Splunk](https://www.splunk.com/en_us/solutions/solution-areas/log-management.html)
 and [ELK](https://www.elastic.co/elk-stack) friendly.

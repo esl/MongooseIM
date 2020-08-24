@@ -92,9 +92,8 @@ handle_call(pause, _From, State) ->
 handle_call(unpause, _From, State = #state{tref = undefined}) ->
     {reply, ok, schedule_refresh(State)};
 handle_call(unpause, _From, State = #state{tref = TRef}) ->
-    ?LOG_ERROR(#{what => gd_refresher_already_running,
-                 text => <<"GD Refresher received unpause, when already unpaused. Ignore.">>,
-                 timer_ref => TRef}),
+    ?LOG_ERROR(#{what => gd_refresher_already_running, timer_ref => TRef,
+                 text => <<"GD Refresher received unpause, when already unpaused. Ignore.">>}),
     {reply, ok, State};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),

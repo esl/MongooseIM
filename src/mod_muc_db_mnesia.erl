@@ -132,8 +132,7 @@ can_use_nick_internal(MucHost, Nick, LUS) ->
         [#muc_registered{us_host = {U, _Host}}] ->
             U == LUS
     catch Class:Reason:Stacktrace ->
-        ?LOG_ERROR(#{what => muc_can_use_nick_failed,
-                     sub_host => MucHost,
+        ?LOG_ERROR(#{what => muc_can_use_nick_failed, sub_host => MucHost,
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         false
     end.
@@ -169,10 +168,9 @@ set_nick(ServerHost, MucHost, From, Nick)
         {atomic, Result} ->
             Result;
         ErrorResult ->
-            ?LOG_ERROR(#{what => muc_set_nick_failed,
+            ?LOG_ERROR(#{what => muc_set_nick_failed, reason => ErrorResult,
                          server => ServerHost, sub_host => MucHost,
-                         from_jid => jid:to_binary(From), nick => Nick,
-                         reason => ErrorResult}),
+                         from_jid => jid:to_binary(From), nick => Nick}),
             {error, ErrorResult}
     end.
 
@@ -185,8 +183,8 @@ unset_nick(ServerHost, MucHost, From) ->
         {atomic, _} ->
             ok;
         ErrorResult ->
-            ?LOG_ERROR(#{what => muc_unset_nick_failed,
+            ?LOG_ERROR(#{what => muc_unset_nick_failed, reason => ErrorResult,
                          server => ServerHost, sub_host => MucHost,
-                         from_jid => jid:to_binary(From), reason => ErrorResult}),
+                         from_jid => jid:to_binary(From)}),
             {error, ErrorResult}
     end.

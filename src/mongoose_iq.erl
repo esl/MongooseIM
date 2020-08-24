@@ -39,7 +39,7 @@ try_to_handle_iq(From, To, IQ = #iq{sub_el = SubEl}, HandlerF) ->
     try
         HandlerF(From, To, IQ)
     catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => iq_handler_hailed,
+        ?LOG_ERROR(#{what => iq_handler_failed,
                      from_jid => jid:to_binary(From), to_jid => jid:to_binary(To), iq => IQ,
                      class => Class, reason => Reason, stacktrace => StackTrace}),
         IQ#iq{type = error,

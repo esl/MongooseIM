@@ -168,7 +168,8 @@ validate_room_id(RoomIDOrJID, Server) ->
             {ok, RoomID};
         Other ->
             ?LOG_WARNING(#{what => muc_invalid_room_id,
-                           text => <<"REST received room_id field is unknown format">>,
+                           text => <<"REST received room_id field is invalid "
+                                     "or of unknown format">>,
                            server => Server, room => RoomIDOrJID, reason => Other}),
             error
     end.

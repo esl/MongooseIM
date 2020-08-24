@@ -203,28 +203,31 @@ make_req(Method, Path, LUser, LServer, Password) ->
                       [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
               end,
 
-    ?LOG_DEBUG(#{what => http_auth_request, text => <<"Making HTTP request">>,
-                 path => Path, user => LUser, server => LServer}),
-
-    {ok, {Code, RespBody}} = case Method of
+    Result = case Method of
         get -> mongoose_http_client:get(LServer, auth, <<Path/binary, "?", Query/binary>>, Header);
         post -> mongoose_http_client:post(LServer, auth, Path, Header, Query)
     end,
+    handle_result(Result, Method, Path, LUser, LServer).
 
-    ?LOG_DEBUG(#{what => http_auth_result, text => <<"Received HTTP request result">>,
-                 path => Path, user => LUser, server => LServer,
+handle_result({ok, {Code, RespBody}}, Method, Path, LUser, LServer) ->
+    ?LOG_DEBUG(#{what => http_auth_request, text => <<"Received HTTP request result">>,
+                 path => Path, method => Method, user => LUser, server => LServer,
                  code => Code, result => RespBody}),
-
     case Code of
         <<"409">> -> {error, conflict};
         <<"404">> -> {error, not_found};
         <<"401">> -> {error, not_authorized};
         <<"403">> -> {error, not_allowed};
         <<"400">> -> {error, RespBody};
-        <<"204">> -> {ok, <<"">>};
+        <<"204">> -> {ok, <<>>};
         <<"201">> -> {ok, created};
         <<"200">> -> {ok, RespBody}
-    end.
+    end;
+handle_result({error, Reason}, Method, Path, LUser, LServer) ->
+    ?LOG_DEBUG(#{what => http_auth_request_failed, text => <<"HTTP request failed">>,
+                 path => Path, method => Method, user => LUser, server => LServer,
+                 reason => Reason}),
+    {error, bad_request}.
 
 %%%----------------------------------------------------------------------
 %%% Other internal functions

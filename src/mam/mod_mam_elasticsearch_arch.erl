@@ -332,8 +332,7 @@ archive_size(Query) ->
         {ok, Count} ->
             Count;
         {error, Reason} ->
-            ?LOG_ERROR(#{what => archive_size_failed,
-                         text => <<"Failed to retrieve count of messages from ElasticSearch">>,
-                         reason => Reason, es_query => Query}),
+            ?LOG_ERROR(#{what => archive_size_failed, reason => Reason, es_query => Query,
+                         text => <<"Failed to retrieve count of messages from ElasticSearch">>}),
             0
     end.

@@ -130,8 +130,7 @@ reroute_messages(Acc, From, To, TargetHost) ->
     ?LOG_IF(debug, StoredMessages =/= [],
             #{what => gd_route_stored,
               text => <<"Routing multiple previously stored messages">>,
-              stored_messages_length => length(StoredMessages),
-              from_jid => jid:to_binary(From), to_jid => jid:to_binary(To)}),
+              stored_messages_length => length(StoredMessages), acc => Acc}),
     lists:foreach(pa:bind(fun reroute_message/2, TargetHost), StoredMessages),
     Acc.
 

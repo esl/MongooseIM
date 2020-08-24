@@ -303,16 +303,14 @@ get_vh_by_auth_method(AuthMethod) ->
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),
-    Msg1 = <<"Error reading Mnesia database spool files:~n">>,
-    Msg2 = <<"The Mnesia database couldn't read the spool file for the table.~n">>,
-    Msg3 = <<"ejabberd needs read and write access in the directory.~n">>,
-    Msg4 = <<"Maybe the problem is a change in the computer hostname,~n">>,
-    Msg5 = <<"or a change in the Erlang node name.~n">>,
-    Msg6 = <<"Check the ejabberd guide for details about changing the~n">>,
-    Msg7 = <<"computer hostname or Erlang node name.~n">>,
-    ?LOG_ERROR(#{what => error_reading_mnesia_db, 
-                 text => <<Msg1/binary, Msg2/binary, Msg3/binary, Msg4/binary,
-                           Msg5/binary, Msg6/binary, Msg7/binary>>,
+    Msg = <<"Error reading Mnesia database spool files:~n"
+            "The Mnesia database couldn't read the spool file for the table.~n"
+            "ejabberd needs read and write access in the directory.~n"
+            "Maybe the problem is a change in the computer hostname,~n"
+            "or a change in the Erlang node name.~n"
+            "Check the ejabberd guide for details about changing the~n"
+            "computer hostname or Erlang node name.~n">>,
+    ?LOG_ERROR(#{what => error_reading_mnesia_db, text => Msg,
                  table => Table, directory => MnesiaDirectory, node => node()}),
     exit("Error reading Mnesia database").
 

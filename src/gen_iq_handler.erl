@@ -145,12 +145,9 @@ process_iq(Host, Module, Function, From, To, Acc, IQ) ->
         {Acc1, ResIQ} ->
             ejabberd_router:route(To, From, Acc1,
                                   jlib:iq_to_xml(ResIQ))
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_WARNING(#{what => process_iq_error,
-                           server => Host,
+    catch Class:Reason:StackTrace ->
+            ?LOG_WARNING(#{what => process_iq_error, server => Host, acc => Acc,
                            handler_module => Module, handler_function => Function,
-                           acc => Acc,
                            class => Class, reason => Reason, stacktrace => StackTrace}),
             Acc
     end.

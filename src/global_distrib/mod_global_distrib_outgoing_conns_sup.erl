@@ -26,23 +26,18 @@ add_server(Server) ->
       type => supervisor,
       modules => dynamic
      },
-    ?LOG_INFO(#{what => gd_outgoing_conn_start_progress,
-                server => Server, state => starting}),
     case supervisor:start_child(?MODULE, ServerSupSpec) of
         {ok, Pid} ->
-            ?LOG_INFO(#{what => gd_outgoing_conn_start_progress,
-                        server => Server, gd_pid => Pid,
-                        state => started}),
+            ?LOG_INFO(#{what => gd_outgoing_conn_started,
+                        server => Server, gd_pid => Pid}),
             ok;
         {error, {already_started, Pid}} ->
-            ?LOG_INFO(#{what => gd_outgoing_conn_start_progress,
-                        server => Server, gd_pid => Pid,
-                        state => started_by_other}),
+            ?LOG_INFO(#{what => gd_outgoing_conn_already_started,
+                        server => Server, gd_pid => Pid}),
             ok;
         Error ->
-            ?LOG_ERROR(#{what => gd_outgoing_conn_start_progress,
-                         server => Server, reason => Error,
-                         state => start_failed}),
+            ?LOG_ERROR(#{what => gd_outgoing_conn_start_failed,
+                         server => Server, reason => Error}),
             Error
     end.
 

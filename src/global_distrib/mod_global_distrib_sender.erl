@@ -36,9 +36,8 @@ send(Server, {_,_, Acc, _} = Packet) when is_binary(Server) ->
         Worker ->
            send(Worker, Packet)
     catch Class:Reason:Stacktrace ->
-              ?LOG_ERROR(#{what => gd_get_process_for_failed, server => Server,
-                           class => Class, reason => Reason, stacktrace => Stacktrace,
-                           acc => Acc}),
+              ?LOG_ERROR(#{what => gd_get_process_for_failed, server => Server, acc => Acc,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
               erlang:raise(Class, Reason, Stacktrace)
     end;
 send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->

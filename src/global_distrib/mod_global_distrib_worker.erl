@@ -80,7 +80,6 @@ terminate(_Reason, _State) ->
 do_work(Data) ->
     {From, To, Acc, Packet} = erlang:binary_to_term(Data),
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
-    ?LOG_DEBUG(#{what => gd_route_incoming,
-                 gd_id => mod_global_distrib:get_metadata(Acc, id, "unknown"),
-                 acc => Acc}),
+    ?LOG_DEBUG(#{what => gd_route_incoming, acc => Acc,
+                 gd_id => mod_global_distrib:get_metadata(Acc, id, "unknown")}),
     ejabberd_router:route(From, To, Acc, Packet).

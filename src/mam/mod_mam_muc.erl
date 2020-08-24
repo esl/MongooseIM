@@ -340,10 +340,9 @@ handle_mam_iq(Action, From, To, IQ) ->
 handle_set_prefs(ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
-    ?LOG_DEBUG(#{what => mam_muc_set_prefs,
+    ?LOG_DEBUG(#{what => mam_muc_set_prefs, archive_jid => ArcJID,
                  default_mode => DefaultMode,
-                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
-                 archive_jid => ArcJID, iq => IQ}),
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
@@ -366,10 +365,9 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     handle_get_prefs_result(ArcJID, Res, IQ).
 
 handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
-    ?LOG_DEBUG(#{what => mam_muc_get_prefs_result,
+    ?LOG_DEBUG(#{what => mam_muc_get_prefs_result, archive_jid => ArcJID, 
                  default_mode => DefaultMode,
-                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
-                 archive_jid => ArcJID, iq => IQ}),
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result(_ArcJID, {error, Reason}, IQ) ->

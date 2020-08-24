@@ -119,13 +119,9 @@ run_start_service(Service, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
-        ?LOG_INFO(#{what => service_startup, status => starting,
-                    text => <<"Starting MongooseIM service">>,
-                    server => Service, opts => Opts}),
         Res = Service:start(Opts),
-        ?LOG_INFO(#{what => service_startup, status => started,
-                    text => <<"Started MongooseIM service">>,
-                    server => Service}),
+        ?LOG_INFO(#{what => service_startup_started, service => Service,
+                    text => <<"Started MongooseIM service">>}),
         case Res of
             {ok, _} -> Res;
             _ -> {ok, Res}
@@ -133,7 +129,7 @@ run_start_service(Service, Opts0) ->
     catch
         Class:Reason:Stacktrace ->
             ets:delete(?ETAB, Service),
-            ?LOG_CRITICAL(#{what => service_startup, status => error,
+            ?LOG_CRITICAL(#{what => service_startup_failed,
                             text => <<"Failed to start MongooseIM service">>,
                             service => Service, opts => Opts,
                             class => Class, reason => Reason, stacktrace => Stacktrace}),
@@ -155,22 +151,16 @@ run_start_service(Service, Opts0) ->
     end.
 
 run_stop_service(Service) ->
-    ?LOG_INFO(#{what => service_stop, status => stopping,
-                text => <<"Stopping MongooseIM service">>,
-                service => Service}),
-    try Service:stop()
-    of _ ->
-            ?LOG_INFO(#{what => service_stop, status => stopped,
-                        text => <<"Stopped MongooseIM service">>,
-                        service => Service}),
+    try Service:stop() of
+        _ ->
+            ?LOG_INFO(#{what => service_stopped, service => Service,
+                        text => <<"Stopped MongooseIM service">>}),
             ets:delete(?ETAB, Service),
             ok
-    catch
-        Class:Reason:Stacktrace ->
+    catch Class:Reason:Stacktrace ->
             ets:delete(?ETAB, Service),
-            ?LOG_ERROR(#{what => service_stop, status => failed,
+            ?LOG_ERROR(#{what => service_stop_failed, service => Service,
                          text => <<"Failed to stop MongooseIM service">>,
-                         service => Service,
                          class => Class, reason => Reason, stacktrace => Stacktrace})
     end.
 

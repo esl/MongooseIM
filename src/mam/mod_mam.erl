@@ -167,8 +167,7 @@ get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(Server, User)
   when is_binary(Server), is_binary(User) ->
-    ?LOG_DEBUG(#{what => mam_delete_archive,
-                 user => User, server => Server}),
+    ?LOG_DEBUG(#{what => mam_delete_archive, user => User, server => Server}),
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -197,7 +196,7 @@ archive_id(Server, User)
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?LOG_DEBUG(#{what => mam_starting}),
+    ?LOG_INFO(#{what => mam_starting}),
     ?LOG_IF(warning, gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
                     #{what => mam_configuration, text =>
      <<"mod_mam is enabled without explicit archive_groupchats option value."
@@ -228,7 +227,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ?LOG_DEBUG(#{what => mam_stopping}),
+    ?LOG_INFO(#{what => mam_stopping}),
     ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
@@ -383,10 +382,8 @@ handle_mam_iq(Action, From, To, IQ) ->
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
-    ?LOG_DEBUG(#{what => mam_set_prefs,
-                 default_mode => DefaultMode,
-                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
-                 iq => IQ}),
+    ?LOG_DEBUG(#{what => mam_set_prefs, default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
@@ -410,10 +407,8 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     handle_get_prefs_result(Res, IQ).
 
 handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
-    ?LOG_DEBUG(#{what => mam_get_prefs_result,
-                 default_mode => DefaultMode,
-                 always_jids => AlwaysJIDs, never_jids => NeverJIDs,
-                 iq => IQ}),
+    ?LOG_DEBUG(#{what => mam_get_prefs_result, default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     Namespace = IQ#iq.xmlns,
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
