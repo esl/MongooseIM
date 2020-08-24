@@ -83,9 +83,8 @@ report_duplicated_portips(L) ->
     LNoDupsKeys = proplists:get_keys(L),
     Dups = LKeys -- LNoDupsKeys,
     ?LOG_IF(critical, Dups /= [],
-            #{what => duplicated_port_ips,
-              text => <<"In the configuration there are duplicated pair of Port number and IP address">>,
-              duplicates => Dups}).
+            #{what => duplicated_port_ips, duplicates => Dups,
+              text => <<"In the configuration there are duplicated pair of Port number and IP address">>}).
 
 %% @doc Parse any kind of ejabberd listener specification.
 %% The parsed options are returned in several formats.

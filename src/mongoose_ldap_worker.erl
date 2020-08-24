@@ -98,9 +98,8 @@ call_eldap(Request, State) ->
     case do_call_eldap(Request, State) of
         {error, Reason} when Reason =:= ldap_closed;
                              Reason =:= {gen_tcp_error, closed} ->
-            ?LOG_INFO(#{what => ldap_request_failed,
-                        text => <<"LDAP request failed: connection closed, reconnecting...">>,
-                        reason => Reason}),
+            ?LOG_INFO(#{what => ldap_request_failed, reason => Reason,
+                        text => <<"LDAP request failed: connection closed, reconnecting...">>}),
             eldap:close(maps:get(handle, State)),
             NewState = connect(State#{handle := none}),
             retry_call_eldap(Request, NewState);
@@ -129,10 +128,9 @@ connect(State = #{handle := none,
                                 text => <<"Connected to LDAP server">>}),
                     State#{handle := Handle};
                 Error ->
-                    ?LOG_ERROR(#{what => ldap_auth_failed,
+                    ?LOG_ERROR(#{what => ldap_auth_failed, reason => Error,
                                  text => <<"LDAP bind returns an error">>,
-                                 ldap_servers => Servers, port => Port,
-                                 reason => Error}),
+                                 ldap_servers => Servers, port => Port}),
                     eldap:close(Handle),
                     erlang:send_after(ConnectInterval, self(), connect),
                     State
@@ -140,8 +138,7 @@ connect(State = #{handle := none,
         Error ->
             ?LOG_ERROR(#{what => ldap_connect_failed,
                          text => <<"LDAP open returns an error">>,
-                         ldap_servers => Servers, port => Port,
-                         reason => Error}),
+                         ldap_servers => Servers, port => Port, reason => Error}),
             erlang:send_after(ConnectInterval, self(), connect),
             State
     end.

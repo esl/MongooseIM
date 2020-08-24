@@ -535,7 +535,7 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
             {_, _, Nick} = jid:to_lower(To),
             Result = start_new_room(Host, ServerHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
-                                       From, Nick, DefRoomOpts),
+                                       From, Nick, DefRoomOpts, Acc),
             case Result of
                 {ok, Pid} ->
                     register_room_or_stop_if_duplicate(Host, Room, Pid);
@@ -740,17 +740,17 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
         Srv :: jid:server(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
-        DefRoomOpts :: 'undefined' | [any()])
+        DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
             -> {'error', _}
              | {'ok', 'undefined' | pid()}
              | {'ok', 'undefined' | pid(), _}.
 start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
-               Nick, DefRoomOpts) ->
+               Nick, DefRoomOpts, Acc) ->
     case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
         {error, room_not_found} ->
-            ?LOG_DEBUG(#{what => muc_start_new_room,
-                         server => ServerHost, sub_host => Host, room => Room}),
+            ?LOG_DEBUG(#{what => muc_start_new_room, acc => Acc,
+                         room => Room, server => ServerHost, sub_host => Host}),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
@@ -758,9 +758,8 @@ start_new_room(Host, ServerHost, Access, Room,
         {error, Reason} ->
             {error, {failed_to_restore, Reason}};
         {ok, Opts} ->
-            ?LOG_DEBUG(#{what => muc_restore_room,
-                         server => ServerHost, sub_host => Host,
-                         room => Room, room_opts => Opts}),
+            ?LOG_DEBUG(#{what => muc_restore_room, acc => Acc, room => Room,
+                         server => ServerHost, sub_host => Host, room_opts => Opts}),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, Opts)

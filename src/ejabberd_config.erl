@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_config.erl
+%                 %% File    : ejabberd_config.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Load config file
 %%% Created : 14 Dec 2002 by Alexey Shchepin <alexey@process-one.net>
@@ -167,9 +167,8 @@ describe_config_problem(Filename, Reason, LineNumber) ->
                           ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
     Lines = mongoose_config_utils:get_config_lines(Filename, LineNumber, 10, 3),
-    ?LOG_ERROR(#{what => mim_config_file_loading_failed,
-                 text => <<"The following lines from your configuration file might be relevant to the error">>,
-                 lines => Lines}),
+    ?LOG_ERROR(#{what => mim_config_file_loading_failed, lines => Lines,
+                 text => <<"The following lines from your configuration file might be relevant to the error">>}),
     ExitText.
 
 

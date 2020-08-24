@@ -132,17 +132,14 @@
 
 
 -define(CLOSE_GENERIC(StateName, Reason, StateData),
-    ?LOG_INFO(#{what => s2s_out_closing,
-                text => <<"Closing s2s connection">>,
+    ?LOG_INFO(#{what => s2s_out_closing, text => <<"Closing s2s connection">>,
                 state_name => StateName, reason => Reason,
                 myname => StateData#state.myname, server => StateData#state.server}),
     {stop, normal, StateData}).
 
 -define(CLOSE_GENERIC(StateName, Reason, El, StateData),
-    ?LOG_INFO(#{what => s2s_out_closing,
-                text => <<"Closing s2s connection">>,
-                exml_packet => El,
-                state_name => StateName, reason => Reason,
+    ?LOG_INFO(#{what => s2s_out_closing, text => <<"Closing s2s connection on stanza">>,
+                state_name => StateName, reason => Reason, exml_packet => El,
                 myname => StateData#state.myname, server => StateData#state.server}),
     {stop, normal, StateData}).
 

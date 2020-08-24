@@ -85,7 +85,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 ## Macros for logging unexpected requests
 
 `gen_server` processes sometimes receive messages they couldn't process.
-We use macroses to log such events (just because you would need them in each
+We use macros to log such events (just because you would need them in each
 `gen_server` module).
 
 We don't need to log state or state names for such events.
@@ -109,7 +109,7 @@ handle_info(Msg, State) ->
 
 ```
 
-These macros translate into the maps with loglevel `warning`:
+These macros translate into warning logs with the following keys, respectively:
 
 ```erlang
 #{what => unexpected_cast, msg => Msg}.

@@ -497,8 +497,7 @@ offline_messages(Acc, User, Server) ->
                 compose_offline_message(R, Packet, Acc)
               end, Rs);
         {error, Reason} ->
-            ?LOG_WARNING(#{what => offline_pop_failed,
-                           user => User, server => Server, reason => Reason, acc => Acc}),
+            ?LOG_WARNING(#{what => offline_pop_failed, reason => Reason, acc => Acc}),
             []
     end.
 
