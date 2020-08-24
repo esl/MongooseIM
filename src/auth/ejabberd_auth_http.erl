@@ -241,7 +241,9 @@ verify_scram_password(LUser, LServer, Password) ->
             case mongoose_scram:deserialize(RawPassword) of
                 {ok, DeserializedScramMap} ->
                     {ok, mongoose_scram:check_password(Password, DeserializedScramMap)};
-                _ ->
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => LUser, server => LServer}),
                     {error, bad_request}
             end;
         _ ->

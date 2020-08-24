@@ -115,7 +115,9 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
-                _ ->
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => Username, server => LServer}),
                     false
             end;
         {selected, []} ->
@@ -147,7 +149,9 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     mongoose_scram:check_password(Password, Scram);
-                _ ->
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => Username, server => LServer}),
                     false %% Password is not correct
             end;
         {selected, []} ->
@@ -286,7 +290,9 @@ get_password(LUser, LServer) ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     Scram;
-                _ ->
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => Username, server => LServer}),
                     false
             end;
         {selected, []} ->

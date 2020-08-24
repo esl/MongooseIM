@@ -216,7 +216,12 @@ try_register_with_password(LUser, LServer, Password) ->
 do_get_password(LUser, LServer) ->
     case mongoose_riak:fetch_type(bucket_type(LServer), LUser) of
         {ok, Map} ->
-            extract_password(Map);
+            case extract_password(Map) of
+                false ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect,
+                                   user => LUser, server => LServer});
+                Pwd -> Pwd
+            end;
         _ ->
             false
     end.
