@@ -588,8 +588,7 @@ handle_event({destroy, Reason}, _StateName, StateData) ->
                                     [#xmlel{name = <<"reason">>,
                                             children = [#xmlcdata{content = Reason}]}]
                             end}, StateData),
-    ?LOG_INFO(ls(#{what => muc_room_destroyed,
-                   text => <<"Destroyed MUC room">>,
+    ?LOG_INFO(ls(#{what => muc_room_destroyed, text => <<"Destroyed MUC room">>,
                    reason => Reason}, StateData)),
     add_to_log(room_existence, destroyed, StateData),
     {stop, shutdown, StateData};
@@ -738,8 +737,7 @@ do_stop_persistent_room(RoomName, State) ->
 %% @doc Purpose: Shutdown the fsm
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
-    ?LOG_INFO(ls(#{what => muc_room_stopping,
-                   text => <<"Stopping room's process">>,
+    ?LOG_INFO(ls(#{what => muc_room_stopping, text => <<"Stopping room's process">>,
                    reason => Reason}, StateData)),
     ReasonT = case Reason of
           shutdown -> <<"You are being removed from the room because of a system shutdown">>;
@@ -2786,10 +2784,8 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
     case find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData, []) of
         {result, Res} ->
             %% TODO Pass Acc here
-            ?LOG_INFO(ls(#{what => muc_admin_query,
-                           text => <<"Processing MUC admin query">>,
-                           from_jid => jid:to_binary(UJID),
-                           result => Res}, StateData)),
+            ?LOG_INFO(ls(#{what => muc_admin_query, text => <<"Processing MUC admin query">>,
+                           from_jid => jid:to_binary(UJID), result => Res}, StateData)),
             NSD = lists:foldl(
                     fun(ChangedItem, SD) ->
                             process_admin_item_set(ChangedItem, UJID, SD)

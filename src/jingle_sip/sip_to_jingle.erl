@@ -227,7 +227,7 @@ parse_candidate_extra_args([<<"tcptype">>, Value | Rest], Candidate) ->
 parse_candidate_extra_args(Rest, Candidate) ->
     ?LOG_WARNING(#{what => sip_unrecognised_candidate_extra_args,
                    text => <<"Unrecognised candidate extra arg">>,
-                   extra_args => Rest}),
+                   candidate => Candidate, extra_args => Rest}),
     Candidate.
 
 

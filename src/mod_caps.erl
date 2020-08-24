@@ -272,8 +272,7 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
 c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            ?LOG_DEBUG(#{what => caps_lookup,
-                         text => <<"Look for CAPS for To jid">>,
+            ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
                          acc => InAcc, c2s_state => C2SState, caps_resources => Rs}),
             LTo = jid:to_lower(To),
             case gb_trees:lookup(LTo, Rs) of

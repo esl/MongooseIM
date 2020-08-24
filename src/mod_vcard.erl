@@ -302,38 +302,29 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     #jid{user = ToUser, lserver = ToVHost, resource = ToResource} = To,
     Res = case lists:member(FromVHost, ?MYHOSTS) of
-        true when FromUser == ToUser,
-                  FromVHost == ToVHost,
-                  ToResource == <<>>;
-                  ToUser == <<>>,
-                  ToVHost == <<>> ->
+        true when FromUser == ToUser, FromVHost == ToVHost, ToResource == <<>>;
+                  ToUser == <<>>, ToVHost == <<>> ->
             try unsafe_set_vcard(From, VCARD) of
                 ok ->
-                    IQ#iq{type = result,
-                          sub_el = []};
+                    IQ#iq{type = result, sub_el = []};
                 {error, {invalid_input, Field}} ->
+                    ?LOG_WARNING(#{what => vcard_sm_iq_set_failed,
+                                   reason => invalid_input, field => Field, acc => Acc}),
                     Text = io_lib:format("Invalid input for vcard field ~s", [Field]),
                     ReasonEl = mongoose_xmpp_errors:bad_request(<<"en">>, erlang:iolist_to_binary(Text)),
-                    IQ#iq{type = error,
-                          sub_el = [VCARD, ReasonEl]
-                         };
+                    vcard_error(IQ, ReasonEl);
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => vcard_sm_iq_set_failed,
                                    reason => Reason, acc => Acc}),
-                    ReasonEl = mongoose_xmpp_errors:unexpected_request_cancel(),
-                    IQ#iq{type = error,
-                          sub_el = [VCARD, ReasonEl]}
+                    vcard_error(IQ, mongoose_xmpp_errors:unexpected_request_cancel())
             catch
                 E:R:Stack ->
                     ?LOG_ERROR(#{what => vcard_sm_iq_set_failed,
-                                 class => E, reason => R, stacktrace => Stack,
-                                 acc => Acc}),
-                    IQ#iq{type = error,
-                          sub_el = [VCARD, mongoose_xmpp_errors:internal_server_error()]}
+                                 class => E, reason => R, stacktrace => Stack, acc => Acc}),
+                    vcard_error(IQ, mongoose_xmpp_errors:internal_server_error())
             end;
         _ ->
-            IQ#iq{type = error,
-                  sub_el = [VCARD, mongoose_xmpp_errors:not_allowed()]}
+            vcard_error(IQ, mongoose_xmpp_errors:not_allowed())
     end,
     {Acc, Res};
 process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
@@ -345,10 +336,8 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             IQ#iq{type = error, sub_el = [SubEl, Reason]}
         catch E:R:Stack ->
             ?LOG_ERROR(#{what => vcard_sm_iq_get_failed,
-                         class => E, reason => R, stacktrace => Stack,
-                         acc => Acc}),
-            IQ#iq{type = error,
-                  sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
+                         class => E, reason => R, stacktrace => Stack, acc => Acc}),
+            vcard_error(IQ, mongoose_xmpp_errors:internal_server_error())
     end,
     {Acc, Res}.
 
@@ -766,3 +755,6 @@ get_default_reported_fields(Lang) ->
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
+vcard_error(IQ = #iq{sub_el = VCARD}, ReasonEl) ->
+    IQ#iq{type = error, sub_el = [VCARD, ReasonEl]}.

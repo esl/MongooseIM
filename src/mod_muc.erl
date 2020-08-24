@@ -351,8 +351,7 @@ handle_call({create_instant, Room, From, Nick, Opts},
                    history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State) ->
-    ?LOG_DEBUG(#{what => muc_create_instant,
-                 room => Room, sub_host => Host}),
+    ?LOG_DEBUG(#{what => muc_create_instant, room => Room, sub_host => Host}),
     NewOpts = case Opts of
                   default -> DefOpts;
                   _ -> Opts
@@ -387,9 +386,8 @@ handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
 handle_info(stop_hibernated_persistent_rooms,
             #state{server_host = ServerHost,
                    hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
-    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms,
-                text => <<"Closing hibernated persistent rooms">>,
-                server => ServerHost}),
+    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, server => ServerHost,
+                text => <<"Closing hibernated persistent rooms">>}),
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     Now = os:timestamp(),
     [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
@@ -507,8 +505,7 @@ route_to_room(Room, Routed, #state{host=Host} = State) ->
     end.
 
 route_to_online_room(Pid, {From, To, Acc, Packet}) ->
-    ?LOG_DEBUG(#{what => muc_route_to_online_room,
-                 room_pid => Pid, acc => Acc}),
+    ?LOG_DEBUG(#{what => muc_route_to_online_room, room_pid => Pid, acc => Acc}),
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
@@ -592,8 +589,7 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
             ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText};
         {ok, Opts} ->
-            ?LOG_DEBUG(#{what => muc_restore_room,
-                         room => Room, room_opts => Opts}),
+            ?LOG_DEBUG(#{what => muc_restore_room, room => Room, room_opts => Opts}),
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State,
@@ -754,8 +750,7 @@ start_new_room(Host, ServerHost, Access, Room,
     case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
         {error, room_not_found} ->
             ?LOG_DEBUG(#{what => muc_start_new_room,
-                         server => ServerHost, sub_host => Host,
-                         room => Room}),
+                         server => ServerHost, sub_host => Host, room => Room}),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
@@ -1015,8 +1010,7 @@ iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_unregister_info_failed,
                          server => ServerHost, sub_host => Host,
-                         from_jid => jid:to_binary(From),
-                         reason => ErrorReason}),
+                         from_jid => jid:to_binary(From), reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 

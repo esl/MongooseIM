@@ -406,8 +406,7 @@ terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
     mod_bosh_backend:delete_session(Sid),
     catch ejabberd_c2s:stop(S#state.c2s_pid),
-    ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session,
-                    reason => Reason,
+    ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
                     pending => S#state.pending}, S)).
 
@@ -570,8 +569,7 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
     catch
         error:{badmatch, {resp, false}} ->
             ?LOG_ERROR(ls(#{what => bosh_socket_no_cached_response,
-                            responses => Sent,
-                            rid_offender => ReportRid}, S)),
+                            responses => Sent, rid_offender => ReportRid}, S)),
             S
     end.
 

@@ -170,8 +170,7 @@ route_result({error, item_not_found}, From, To, IQ) ->
     Error = mongoose_xmpp_errors:item_not_found(),
     route_error_reply(From, To, IQ, Error);
 route_result(Other, From, To, IQ) ->
-    ?LOG_WARNING(#{what => sip_unknown_result,
-                   reason => Other, iq => IQ}),
+    ?LOG_WARNING(#{what => sip_unknown_result, reason => Other, iq => IQ}),
     Error = mongoose_xmpp_errors:internal_server_error(),
     route_error_reply(From, To, IQ, Error).
 

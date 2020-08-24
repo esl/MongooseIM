@@ -426,12 +426,10 @@ resolve_pending([MaybeToEnable | RNewEndpoints], OldEnabled) ->
 -spec log_endpoints_changes(Server :: jid:lserver(),
                             EndpointsChanges :: endpoints_changes(), term()) -> any().
 log_endpoints_changes(Server, [], State) ->
-    ?LOG_DEBUG(ls(#{what => gd_same_endpoints,
-                    server => Server,
+    ?LOG_DEBUG(ls(#{what => gd_same_endpoints, server => Server,
                     text => <<"No endpoint changes">>}, State));
 log_endpoints_changes(Server, EndpointsChanges, State) ->
-    ?LOG_INFO(ls(#{what => gd_endpoints_changes,
-                   server => Server,
+    ?LOG_INFO(ls(#{what => gd_endpoints_changes, server => Server,
                    to_enable => [ E || {enable, E} <- EndpointsChanges ],
                    to_disable => [ E || {disable, E} <- EndpointsChanges ]}, State)).
 
