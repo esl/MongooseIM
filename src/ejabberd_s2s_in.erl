@@ -698,7 +698,7 @@ handle_auth_res(true, AuthDomain, StateData) ->
                         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
     ?LOG_DEBUG(#{what => s2s_auth_success,
                  text => <<"Accepted s2s authentication">>,
-                 socket => StateData#state.socket, domain => AuthDomain}),
+                 socket => StateData#state.socket, auth_domain => AuthDomain}),
     {next_state, wait_for_stream,
      StateData#state{streamid = new_id(),
                      authenticated = true,

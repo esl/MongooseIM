@@ -9,6 +9,10 @@
 %% Busy Wait
 -export([wait_until/2, wait_until/3]).
 
+%% Private, just for warning
+-export([deprecated_logging/1]).
+-deprecated({deprecated_logging, 1, eventually}).
+
 -include("mongoose.hrl").
 
 %% ------------------------------------------------------------------
@@ -96,3 +100,9 @@ do_wait_until(Fun, ExpectedValue, Opts) ->
 wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).
+
+
+deprecated_logging(Location) ->
+    Map = #{what => deprecated_logging_macro,
+            text => <<"Deprecated logging macro is used in your code">>},
+    mongoose_deprecations:log(Location, Map, [{log_level, warning}]).
