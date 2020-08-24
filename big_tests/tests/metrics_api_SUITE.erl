@@ -279,13 +279,13 @@ fetch_counter_value(Counter, Config) ->
     TotalValueList = proplists:get_value("value_total_list", Vars),
     [HostValue, HostValueList, TotalValue, TotalValueList].
 
-%% @doc Fetch counter that is static
+%% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
     ?assertEqual(Value, ValueList, [{counter, Counter}]),
     Value.
 
-%% @doc Fetch counter that can be incremented by server between two API requests
+%% @doc Fetch counter that can be incremented by server between two API requests.
 %%
 %% Returns last actual value
 fetch_global_incrementing_gauge_value(Counter, Config) ->
@@ -296,22 +296,43 @@ fetch_global_incrementing_gauge_value(Counter, Config) ->
     ValueList.
 
 fetch_global_gauge_values(Counter, Config) ->
-    fetch_global_counter_values(global_gauge, Counter, Config).
+    fetch_global_counter_values(<<"value">>, Counter, Config).
 
 fetch_global_spiral_values(Counter, Config) ->
-    fetch_global_counter_values(global_spiral, Counter, Config).
+    % Spirals have two values associated with the metric: "one" and "count".
+    % We are interested in the latter.
+    fetch_global_counter_values(<<"count">>, Counter, Config).
 
-fetch_global_counter_values(Blueprint, Counter, Config) ->
-    ParamsBase = case metrics_helper:all_metrics_are_global(Config) of
-                     true -> [{port, ct:get_config({hosts, mim2, metrics_rest_port})}];
-                     _ -> []
-                 end,
-    Params = [{metric, atom_to_list(Counter)} | ParamsBase],
+fetch_global_counter_values(MetricKey, Counter, Config) ->
+    Metric = atom_to_list(Counter),
 
-    {_, _, _, Vars, _} = katt_helper:run(Blueprint, Config, Params),
+    Port = case metrics_helper:all_metrics_are_global(Config) of
+               true ->
+                   ct:get_config({hosts, mim2, metrics_rest_port});
+               _ -> ct:get_config({hosts, mim, metrics_rest_port})
+           end,
 
-    Value = proplists:get_value("value", Vars),
-    ValueList = proplists:get_value("value_list", Vars),
+    Result = metrics_helper:request(<<"GET">>,
+                                    unicode:characters_to_list(["/metrics/global/", Metric]),
+                                    Port),
+    metrics_helper:assert_status(200, Result),
+    {_S, H, {B}} = Result,
+    ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
+    {ValueElem} = proplists:get_value(<<"metric">>, B),
+    Value = proplists:get_value(MetricKey, ValueElem),
+    ?assertEqual(1, length(B)),
+
+    Result2 = metrics_helper:request(<<"GET">>,
+                                     unicode:characters_to_list(["/metrics/global/"]),
+                                     Port),
+    metrics_helper:assert_status(200, Result2),
+    {_S2, H2, {B2}} = Result2,
+    ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H2)),
+    {Metrics} = proplists:get_value(<<"metrics">>, B2),
+    {ValueElem2} = proplists:get_value(list_to_binary(Metric), Metrics),
+    ValueList = proplists:get_value(MetricKey, ValueElem2),
+    ?assertEqual(1, length(B)),
+
     [Value, ValueList].
 
 assert_counter_inc(Name, Inc, Counters1, Counters2) when is_list(Counters1) ->

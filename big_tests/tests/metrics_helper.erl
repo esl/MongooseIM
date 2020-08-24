@@ -1,6 +1,6 @@
 -module(metrics_helper).
 
--include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -compile(export_all).
 
@@ -12,6 +12,7 @@
 -define(WAIT_TIME, 500).
 -define(METRICS_GROUP_USERS, [alice, bob]).
 -define(ONLY_GLOBAL_METRICS_GROUP_USERS, [clusterguy, clusterbuddy]).
+-define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
 
 get_counter_value(CounterName) ->
     get_counter_value(ct:get_config({hosts, mim, domain}), CounterName).
@@ -95,3 +96,23 @@ wait_for_counter(ExpectedValue, Counter) ->
 wait_for_counter(Host, ExpectedValue, Counter) ->
         mongoose_helper:wait_until(fun() -> assert_counter(Host, ExpectedValue, Counter) end, {value, ExpectedValue},
                                                                    #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}).
+
+request(Method, Path) when is_binary(Method)->
+    request(Method, Path, <<>>).
+request(Method, Path, Body) when is_binary(Method) and is_binary(Body) ->
+    request(Method, Path, ?PORT, Body);
+request(Method, Path, Port) when is_binary(Method) and is_integer(Port) ->
+    request(Method, Path, Port, <<>>).
+request(Method, Path, Port, Body) ->
+    ReqParams = #{
+        role => client,
+        method => Method,
+        path => Path,
+        body => Body,
+        return_headers => true,
+        port => Port
+    },
+    rest_helper:make_request(ReqParams).
+
+assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
+    ?assertEqual(integer_to_binary(Status), S).
