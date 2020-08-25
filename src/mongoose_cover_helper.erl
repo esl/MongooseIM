@@ -41,7 +41,7 @@ do_cover_compile_app(App, AppPath) ->
     EbinDir = filename:join(AppPath, "ebin"),
     BeamFilter = fun
         %% modules not compatible with cover
-        (File) when File =:= "bin_to_hex.beam"; File =:= "cover.beam" ->
+        (File) when File =:= "cover.beam" ->
             false;
         (File) ->
             case filename:extension(File) of

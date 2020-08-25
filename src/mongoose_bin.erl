@@ -33,7 +33,7 @@ join(L, Sep) ->
 
 -spec gen_from_crypto() -> binary().
 gen_from_crypto() ->
-    bin_to_hex:bin_to_hex(crypto:strong_rand_bytes(8)).
+    base16:encode(crypto:strong_rand_bytes(8)).
 
 -spec gen_from_timestamp() -> binary().
 gen_from_timestamp() ->
