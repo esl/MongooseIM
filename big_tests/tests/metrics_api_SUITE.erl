@@ -19,6 +19,8 @@
 -include_lib("common_test/include/ct.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
+-import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
+-define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -240,32 +242,32 @@ metrics_only_global(_Config) ->
     Port = ct:get_config({hosts, mim2, metrics_rest_port}),
     % 0. GET is the only implemented allowed method
     % (both OPTIONS and HEAD are for free then)
-    Res = metrics_helper:request(<<"OPTIONS">>, "/metrics/", Port),
+    Res = simple_request(<<"OPTIONS">>, "/metrics/", Port),
     {_S, H, _B} = Res,
-    metrics_helper:assert_status(200, Res),
+    assert_status(200, Res),
     V = proplists:get_value(<<"allow">>, H),
     Opts = string:split(V, ", ", all),
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
     % List of hosts and metrics
-    Res2 = metrics_helper:request(<<"GET">>, "/metrics/", Port),
+    Res2 = simple_request(<<"GET">>, "/metrics/", Port),
     {_S2, _H2, B2} = Res2,
-    metrics_helper:assert_status(200, Res2),
+    assert_status(200, Res2),
     #{<<"hosts">> := [_ExampleHost | _],
       <<"metrics">> := [],
       <<"global">> := [ExampleGlobal | _]} = B2,
 
     % All global metrics
-    Res3 = metrics_helper:request(<<"GET">>, "/metrics/global", Port),
+    Res3 = simple_request(<<"GET">>, "/metrics/global", Port),
     {_S3, _H3, B3} = Res3,
-    metrics_helper:assert_status(200, Res3),
+    assert_status(200, Res3),
     #{<<"metrics">> := _ML} = B3,
     ?assertEqual(1, maps:size(B3)),
 
     % An example global metric
-    Res4 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
-                                  Port),
+    Res4 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
+                          Port),
     {_S4, _H4, B4} = Res4,
     #{<<"metric">> := _} = B4,
     ?assertEqual(1, maps:size(B4)).
@@ -273,74 +275,79 @@ metrics_only_global(_Config) ->
 metrics_msg_flow(_Config) ->
     % 0. GET is the only implemented allowed method
     % (both OPTIONS and HEAD are for free then)
-    Res = metrics_helper:request(<<"OPTIONS">>, "/metrics/"),
+    Res = simple_request(<<"OPTIONS">>, "/metrics/", ?PORT),
     {_S, H, _B} = Res,
-    metrics_helper:assert_status(200, Res),
+    assert_status(200, Res),
     V = proplists:get_value(<<"allow">>, H),
     Opts = string:split(V, ", ", all),
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
     % List of hosts and metrics
-    Res2 = metrics_helper:request(<<"GET">>, "/metrics/"),
+    Res2 = simple_request(<<"GET">>, "/metrics/", ?PORT),
     {_S2, _H2, B2} = Res2,
-    metrics_helper:assert_status(200, Res2),
+    assert_status(200, Res2),
     #{<<"hosts">> := [ExampleHost | _],
       <<"metrics">> := [ExampleMetric | _],
       <<"global">> := [ExampleGlobal | _]} = B2,
 
     % Sum of all metrics
-    Res3 = metrics_helper:request(<<"GET">>, "/metrics/all"),
+    Res3 = simple_request(<<"GET">>, "/metrics/all", ?PORT),
     {_S3, _H3, B3} = Res3,
-    metrics_helper:assert_status(200, Res3),
+    assert_status(200, Res3),
     #{<<"metrics">> := _ML} = B3,
     ?assertEqual(1, maps:size(B3)),
 
     % Sum for a given metric
-    Res4 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/all/", ExampleMetric])),
+    Res4 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/all/", ExampleMetric]),
+                          ?PORT),
     {_S4, _H4, B4} = Res4,
     #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM} = B4,
     ?assertEqual(2, maps:size(IM)),
     ?assertEqual(1, maps:size(B4)),
 
     % Negative case for a non-existent given metric
-    Res5 = metrics_helper:request(<<"GET">>, "/metrics/all/nonExistentMetric"),
-    metrics_helper:assert_status(404, Res5),
+    Res5 = simple_request(<<"GET">>, "/metrics/all/nonExistentMetric", ?PORT),
+    assert_status(404, Res5),
 
     % All metrics for an example host
-    Res6 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/host/", ExampleHost])),
+    Res6 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost]),
+                          ?PORT),
     {_S6, _H6, B6} = Res6,
     #{<<"metrics">> := _} = B6,
     ?assertEqual(1, maps:size(B6)),
 
     % Negative case for a non-existent host
-    Res7 = metrics_helper:request(<<"GET">>, "/metrics/host/nonExistentHost"),
-    metrics_helper:assert_status(404, Res7),
+    Res7 = simple_request(<<"GET">>, "/metrics/host/nonExistentHost", ?PORT),
+    assert_status(404, Res7),
 
     % An example metric for an example host
-    Res8 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/host/", ExampleHost,
-                                                              "/", ExampleMetric])),
+    Res8 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                               "/", ExampleMetric]),
+                          ?PORT),
     {_S8, _H8, B8} = Res8,
     #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM2} = B8,
     ?assertEqual(2, maps:size(IM2)),
     ?assertEqual(1, maps:size(B8)),
 
     % Negative case for a non-existent (host, metric) pair
-    Res9 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/host/", ExampleHost,
-                                                              "/nonExistentMetric"])),
-    metrics_helper:assert_status(404, Res9),
+    Res9 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                               "/nonExistentMetric"]),
+                          ?PORT),
+    assert_status(404, Res9),
 
     % All global metrics
-    Res10 = metrics_helper:request(<<"GET">>, "/metrics/global"),
+    Res10 = simple_request(<<"GET">>, "/metrics/global", ?PORT),
     {_, _, B10} = Res10,
     #{<<"metrics">> := _} = B10,
     ?assertEqual(1, maps:size(B10)),
 
-    Res11 = metrics_helper:request(<<"GET">>,
-                                  unicode:characters_to_list(["/metrics/global/", ExampleGlobal])),
+    Res11 = simple_request(<<"GET">>,
+                           unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
+                           ?PORT),
     {_, _, B11} = Res11,
     #{<<"metric">> := _} = B11,
     ?assertEqual(1, maps:size(B11)).
@@ -379,27 +386,30 @@ fetch_counter_value(Counter, _Config) ->
     Metric = atom_to_binary(Counter, utf8),
     Host = ct:get_config({hosts, mim, domain}),
 
-    Result = metrics_helper:request(<<"GET">>,
-                                    unicode:characters_to_list(["/metrics/host/", Host, "/", Metric])),
+    Result = simple_request(<<"GET">>,
+                            unicode:characters_to_list(["/metrics/host/", Host, "/", Metric]),
+                            ?PORT),
     {_S, _H, B} = Result,
-    metrics_helper:assert_status(200, Result),
+    assert_status(200, Result),
     #{<<"metric">> := #{<<"count">> := HostValue}} = B,
 
-    Result2 = metrics_helper:request(<<"GET">>,
-                                    unicode:characters_to_list(["/metrics/host/", Host])),
+    Result2 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/host/", Host]),
+                             ?PORT),
     {_S2, _H2, B2} = Result2,
-    metrics_helper:assert_status(200, Result2),
+    assert_status(200, Result2),
     #{<<"metrics">> := #{Metric := #{<<"count">> := HostValueList}}} = B2,
 
-    Result3 = metrics_helper:request(<<"GET">>,
-                                     unicode:characters_to_list(["/metrics/all/", Metric])),
+    Result3 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/all/", Metric]),
+                             ?PORT),
     {_S3, _H3, B3} = Result3,
-    metrics_helper:assert_status(200, Result3),
+    assert_status(200, Result3),
     #{<<"metric">> := #{<<"count">> := TotalValue}} = B3,
 
-    Result4 = metrics_helper:request(<<"GET">>, "/metrics/all/"),
+    Result4 = simple_request(<<"GET">>, "/metrics/all/", ?PORT),
     {_S4, _H4, B4} = Result4,
-    metrics_helper:assert_status(200, Result4),
+    assert_status(200, Result4),
     #{<<"metrics">> := #{Metric := #{<<"count">> := TotalValueList}}} = B4,
 
     [HostValue, HostValueList, TotalValue, TotalValueList].
@@ -437,19 +447,19 @@ fetch_global_counter_values(MetricKey, Counter, Config) ->
                _ -> ct:get_config({hosts, mim, metrics_rest_port})
            end,
 
-    Result = metrics_helper:request(<<"GET">>,
-                                    unicode:characters_to_list(["/metrics/global/", Metric]),
-                                    Port),
-    metrics_helper:assert_status(200, Result),
+    Result = simple_request(<<"GET">>,
+                            unicode:characters_to_list(["/metrics/global/", Metric]),
+                            Port),
+    assert_status(200, Result),
     {_S, H, B} = Result,
     #{<<"metric">> := #{MetricKey := Value}} = B,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
     ?assertEqual(1, maps:size(B)),
 
-    Result2 = metrics_helper:request(<<"GET">>,
-                                     unicode:characters_to_list(["/metrics/global/"]),
-                                     Port),
-    metrics_helper:assert_status(200, Result2),
+    Result2 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/global/"]),
+                             Port),
+    assert_status(200, Result2),
     {_S2, H2, B2} = Result2,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H2)),
     #{<<"metrics">> := #{Metric := #{MetricKey := ValueList}}} = B2,

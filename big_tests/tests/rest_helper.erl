@@ -5,6 +5,7 @@
 -export([
     assert_inlist/2,
     assert_notinlist/2,
+    assert_status/2,
     decode_maplist/1,
     gett/2,
     gett/3,
@@ -16,6 +17,9 @@
     delete/3,
     delete/4,
     make_request/1,
+    simple_request/2,
+    simple_request/3,
+    simple_request/4,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -29,6 +33,7 @@
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
+-include_lib("eunit/include/eunit.hrl").
 
 -define(PATHPREFIX, <<"/api">>).
 
@@ -473,3 +478,22 @@ make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
                 </property2>
             </properties>
         </message>">>).
+
+simple_request(Method, Path) when is_binary(Method)->
+    simple_request(Method, Path, <<>>).
+simple_request(Method, Path, Port) when is_binary(Method) and is_integer(Port) ->
+    simple_request(Method, Path, Port, <<>>).
+simple_request(Method, Path, Port, Body) ->
+    ReqParams = #{
+        role => client,
+        method => Method,
+        path => Path,
+        body => Body,
+        return_headers => true,
+        port => Port,
+        return_maps => true
+    },
+    rest_helper:make_request(ReqParams).
+
+assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
+    ?assertEqual(integer_to_binary(Status), S).

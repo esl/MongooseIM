@@ -21,6 +21,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
 
 -define(HOST, (ct:get_config({hosts, mim, domain}))).
 -define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
@@ -87,8 +88,8 @@ user_transaction(Config) ->
 add_malformed_user(_Config) ->
     Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
     % cannot use jiffy here, because the JSON is malformed
-    Res = request(<<"PUT">>, Path,
-                  <<"{
+    Res = simple_request(<<"PUT">>, Path, ?PORT,
+                         <<"{
                         \"user\": {
                             \"password\": \"my_http_password\"
                   }">>),
@@ -97,12 +98,12 @@ add_malformed_user(_Config) ->
 add_user_without_proper_fields(_Config) ->
     Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
     Body = jiffy:encode(#{<<"user">> => #{<<"pazzwourd">> => <<"my_http_password">>}}),
-    Res = request(<<"PUT">>, Path, Body),
+    Res = simple_request(<<"PUT">>, Path, ?PORT, Body),
     assert_status(422, Res).
 
 delete_non_existent_user(_Config) ->
     Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/i_don_exist"]),
-    Res = request(<<"DELETE">>, Path),
+    Res = simple_request(<<"DELETE">>, Path, ?PORT),
     assert_status(404, Res).
 
 %%--------------------------------------------------------------------
@@ -110,25 +111,24 @@ delete_non_existent_user(_Config) ->
 %%--------------------------------------------------------------------
 
 fetch_list_of_users(_Config) ->
-    Result = request(<<"GET">>, unicode:characters_to_list(["/users/host/", ?HOST])),
+    Result = simple_request(<<"GET">>, unicode:characters_to_list(["/users/host/", ?HOST]), ?PORT),
     assert_status(200, Result),
-    {_S, H, {B}} = Result,
+    {_S, H, B} = Result,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
-    Count = proplists:get_value(<<"count">>, B),
-    ?assertMatch({<<"users">>,_}, proplists:lookup(<<"users">>, B)),
-    ?assertEqual(2, length(B)),
+    #{<<"count">> := Count, <<"users">> := _} = B,
+    ?assertEqual(2, maps:size(B)),
     Count.
 
 add_user(UserName, Password) ->
     Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
     Body = jiffy:encode(#{<<"user">> => #{<<"password">> => Password}}),
-    Res = request(<<"PUT">>, Path, Body),
+    Res = simple_request(<<"PUT">>, Path, ?PORT, Body),
     assert_status(204, Res),
     Res.
 
 delete_user(UserName) ->
     Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
-    Res = request(<<"DELETE">>, Path),
+    Res = simple_request(<<"DELETE">>, Path, ?PORT),
     assert_status(204, Res),
     Res.
 
@@ -163,19 +163,3 @@ wait_for_user_removal(_) ->
 		ct:pal("~p", [Reason]),
 		ok
     end.
-
-request(Method, Path) when is_binary(Method)->
-    request(Method, Path, <<>>).
-request(Method, Path, Body) when is_binary(Method) ->
-    ReqParams = #{
-        role => client,
-        method => Method,
-        path => Path,
-        body => Body,
-        return_headers => true,
-        port => ?PORT
-    },
-    rest_helper:make_request(ReqParams).
-
-assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
-    ?assertEqual(integer_to_binary(Status), S).
