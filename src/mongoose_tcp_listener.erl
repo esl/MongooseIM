@@ -88,14 +88,16 @@ start_accept_loop(ListenSock, Module, Opts) ->
 accept_loop(ListenSocket, Module, Opts, ProxyProtocol) ->
     case do_accept(ListenSocket, ProxyProtocol) of
         {ok, Socket, ConnectionDetails} ->
-            ?INFO_MSG("event=accepted_tcp_connection, socket=~w, details=~p",
-                      [Socket, ConnectionDetails]),
+            ?LOG_INFO(#{what => tcp_accepted,
+                        socket => Socket, handler_module => Module,
+                        conn_details => ConnectionDetails}),
             ejabberd_socket:start(
               Module, gen_tcp, Socket, [{connection_details, ConnectionDetails} | Opts]),
             ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol);
         {error, Reason} ->
-            ?INFO_MSG("event=tcp_accept_failed, socket=~w, reason=~w",
-                      [ListenSocket, Reason]),
+            ?LOG_INFO(#{what => tcp_accept_failed,
+                        listen_socket => ListenSocket,
+                        reason => Reason, handler_module => Module}),
             ?MODULE:accept_loop(ListenSocket, Module, Opts, ProxyProtocol)
     end.
 

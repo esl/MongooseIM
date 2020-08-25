@@ -140,12 +140,12 @@ process_sm_iq(
                 ok ->
                     IQ#iq{type = result, sub_el = [SubElem]};
                 {error, Reason} ->
-                    ?ERROR_MSG("~p:multi_set_data failed ~p for ~ts@~ts.",
-                               [mod_private_backend, Reason, LUser, LServer]),
+                    ?LOG_ERROR(#{what => multi_set_data_failed, reason => Reason,
+                                 user => LUser, server => LServer}),
                     error_iq(IQ, mongoose_xmpp_errors:internal_server_error());
                 {aborted, Reason} ->
-                    ?ERROR_MSG("~p:multi_set_data aborted ~p for ~ts@~ts.",
-                               [mod_private_backend, Reason, LUser, LServer]),
+                    ?LOG_ERROR(#{what => multi_set_data_aborted, reason => Reason,
+                                 user => LUser, server => LServer}),
                     error_iq(IQ, mongoose_xmpp_errors:internal_server_error())
             end;
         not_allowed ->

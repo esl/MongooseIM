@@ -105,7 +105,7 @@ write_messages(LUser, LServer, Msgs) ->
 count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     SUser = mongoose_rdbms:escape_string(LUser),
     SServer = mongoose_rdbms:escape_string(LServer),
-    count_offline_messages(LServer, SUser, SServer, MaxArchivedMsgs + 1).
+    count_offline_messages(LUser, LServer, SUser, SServer, MaxArchivedMsgs + 1).
 
 write_all_messages_t(LServer, SUser, SServer, Msgs) ->
     Rows = [record_to_row(SUser, SServer, Msg) || Msg <- Msgs],
@@ -164,12 +164,14 @@ remove_old_messages(LServer, TimeStamp) ->
             {ok, Count}
     end.
 
-count_offline_messages(LServer, SUser, SServer, Limit) ->
+count_offline_messages(LUser, LServer, SUser, SServer, Limit) ->
     case rdbms_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
         {selected, [{Count}]} ->
             mongoose_rdbms:result_to_integer(Count);
         Error ->
-            ?ERROR_MSG("count_offline_messages failed ~p", [Error]),
+            ?LOG_ERROR(#{what => count_offline_messages_failed,
+                         server => LServer, user => LUser,
+                         reason => Error}),
             0
     end.
 

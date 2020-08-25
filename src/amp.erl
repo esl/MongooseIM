@@ -83,8 +83,11 @@ make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
                     {<<"type">>, <<"error">>}],
            children = [Error, Amp]};
 make_error_response(Errors, Rules, User, Packet) ->
-    ?ERROR_MSG("amp:make_error_response/4 got invalid data: ~p",
-               [Errors, Rules, User, Packet]),
+    ?LOG_ERROR(#{what => make_error_response_failed,
+                 text => <<"amp:make_error_response/4 got invalid data">>,
+                 reason => invalid_data, errors => Errors, rules => Rules,
+                 user => User#jid.luser, server => User#jid.lserver,
+                 exml_packet => Packet}),
     error(invalid_data).
 
 error_amp_attrs('undefined-condition', User, Packet) ->

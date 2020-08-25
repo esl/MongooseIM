@@ -125,7 +125,8 @@ init([Host]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(_, _From, State=#state{}) ->
+handle_call(Request, From, State=#state{}) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -135,7 +136,7 @@ handle_call(_, _From, State=#state{}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 
@@ -146,7 +147,7 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(Msg, State) ->
-    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

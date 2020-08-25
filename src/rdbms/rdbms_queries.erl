@@ -241,7 +241,7 @@ execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
 prepare_upsert(Host, Name, Table, InsertFields, UpdateFields, UniqueKeyFields) ->
     SQL = upsert_query(Host, Table, InsertFields, UpdateFields, UniqueKeyFields),
     Query = iolist_to_binary(SQL),
-    ?DEBUG("event=upsert_query, query=~s", [Query]),
+    ?LOG_DEBUG(#{what => rdbms_upsert_query, query => Query}),
     Fields = prepared_upsert_fields(InsertFields, UpdateFields, UniqueKeyFields),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 

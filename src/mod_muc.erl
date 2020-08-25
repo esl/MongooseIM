@@ -307,11 +307,12 @@ init([Host, Opts]) ->
 
     case gen_mod:get_module_opt(Host, mod_muc, load_permanent_rooms_at_startup, false) of
         false ->
-            ?INFO_MSG("event=load_permanent_rooms_at_startup, skip=true, "
-                      "details=\"each room is loaded when someone access the room\"", []);
+            ?LOG_INFO(#{what => load_permanent_rooms_at_startup, skip => true,
+                        text => <<"Skip loading permanent rooms at startup. "
+                                  "Each room is loaded when someone access the room">>});
         true ->
-            ?INFO_MSG("event=load_permanent_rooms_at_startup, skip=false, "
-                      "details=\"it can take some time\"", []),
+            ?LOG_INFO(#{what => load_permanent_rooms_at_startup, skip => false,
+                        text => <<"Loading permanent rooms at startup">>}),
             load_permanent_rooms(MyHost, Host,
                                  {Access, AccessCreate, AccessAdmin, AccessPersistent},
                                  HistorySize, RoomShaper, HttpAuthPool)
@@ -350,7 +351,7 @@ handle_call({create_instant, Room, From, Nick, Opts},
                    history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State) ->
-    ?DEBUG("MUC: create new room '~s'~n", [Room]),
+    ?LOG_DEBUG(#{what => muc_create_instant, room => Room, sub_host => Host}),
     NewOpts = case Opts of
                   default -> DefOpts;
                   _ -> Opts
@@ -385,7 +386,8 @@ handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
 handle_info(stop_hibernated_persistent_rooms,
             #state{server_host = ServerHost,
                    hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
-    ?INFO_MSG("Closing hibernated persistent rooms", []),
+    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, server => ServerHost,
+                text => <<"Closing hibernated persistent rooms">>}),
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     Now = os:timestamp(),
     [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
@@ -503,7 +505,7 @@ route_to_room(Room, Routed, #state{host=Host} = State) ->
     end.
 
 route_to_online_room(Pid, {From, To, Acc, Packet}) ->
-    ?DEBUG("MUC: send to process ~p~n", [Pid]),
+    ?LOG_DEBUG(#{what => muc_route_to_online_room, room_pid => Pid, acc => Acc}),
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
@@ -533,14 +535,16 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
             {_, _, Nick} = jid:to_lower(To),
             Result = start_new_room(Host, ServerHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
-                                       From, Nick, DefRoomOpts),
+                                       From, Nick, DefRoomOpts, Acc),
             case Result of
                 {ok, Pid} ->
                     register_room_or_stop_if_duplicate(Host, Room, Pid);
                 {error, {failed_to_restore, Reason}} ->
                     %% Notify user about our backend module error
-                    ?WARNING_MSG("event=send_service_unavailable room=~ts reason=~p",
-                                 [Room, Reason]),
+                    ?LOG_WARNING(#{what => muc_send_service_unavailable,
+                                   text => <<"Failed to restore room">>,
+                                   room => Room, server => ServerHost, sub_host => Host,
+                                   reason => Reason, acc => Acc}),
                     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
                     ErrText = <<"Service is temporary unavailable">>,
                     {Acc1, Err} = jlib:make_error_reply(
@@ -575,8 +579,9 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
             ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText};
         {error, Reason} ->
-            ?WARNING_MSG("event=send_service_unavailable room=~ts reason=~p",
-                         [Room, Reason]),
+            ?LOG_WARNING(#{what => muc_send_service_unavailable,
+                           room => Room, server => ServerHost, sub_host => Host,
+                           reason => Reason, acc => Acc}),
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Service is temporary unavailable">>,
             {Acc1, Err} = jlib:make_error_reply(
@@ -584,7 +589,7 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
             ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText};
         {ok, Opts} ->
-            ?DEBUG("MUC: restore room '~s'~n", [Room]),
+            ?LOG_DEBUG(#{what => muc_restore_room, room => Room, room_opts => Opts}),
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State,
@@ -659,13 +664,11 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
                                         children = [iq_get_unique(From)]}]},
            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{} ->
-            ?INFO_MSG("event=ignore_unknown_iq from=~ts to=~ts packet=~1000p",
-                      [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
+            ?LOG_INFO(#{what => muc_ignore_unknown_iq, acc => Acc}),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Acc1, Err);
-        _ ->
-            ?INFO_MSG("event=failed_to_parse_iq from=~ts to=~ts packet=~1000p",
-                      [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
+        Other ->
+            ?LOG_INFO(#{what => muc_failed_to_parse_iq, acc => Acc, reason => Other}),
             ok
     end;
 route_by_type(<<"message">>, {From, To, Acc, Packet},
@@ -712,8 +715,9 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
         {ok, Rs} ->
             Rs;
         {error, Reason} ->
-            ?ERROR_MSG("event=get_rooms_failed event=skip_load_permanent_rooms reason=~p",
-                       [Reason]),
+            ?LOG_ERROR(#{what => muc_get_rooms_failed,
+                         text => <<"Skip load_permanent_rooms">>,
+                         reason => Reason, server => ServerHost, sub_host => Host}),
             []
     end,
     lists:foreach(
@@ -736,16 +740,17 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
         Srv :: jid:server(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
-        DefRoomOpts :: 'undefined' | [any()])
+        DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
             -> {'error', _}
              | {'ok', 'undefined' | pid()}
              | {'ok', 'undefined' | pid(), _}.
 start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
-               Nick, DefRoomOpts) ->
+               Nick, DefRoomOpts, Acc) ->
     case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
         {error, room_not_found} ->
-            ?DEBUG("MUC: open new room '~s'~n", [Room]),
+            ?LOG_DEBUG(#{what => muc_start_new_room, acc => Acc,
+                         room => Room, server => ServerHost, sub_host => Host}),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
@@ -753,7 +758,8 @@ start_new_room(Host, ServerHost, Access, Room,
         {error, Reason} ->
             {error, {failed_to_restore, Reason}};
         {ok, Opts} ->
-            ?DEBUG("MUC: restore room '~s'~n", [Room]),
+            ?LOG_DEBUG(#{what => muc_restore_room, acc => Acc, room => Room,
+                         server => ServerHost, sub_host => Host, room_opts => Opts}),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, Opts)
@@ -879,7 +885,9 @@ get_vh_rooms(Host, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
         {Index, _} ->
             lists:sublist(BareSortedRooms, Index + 1, NonUndefMax);
          Input ->
-             ?ERROR_MSG("event=get_rooms_with_pagination unexpected_input=~p", [Input]),
+             ?LOG_ERROR(#{what => muc_get_rooms_with_pagination_failed,
+                          text => <<"Unexpected result in get_rooms_with_pagination">>,
+                          reason => Input}),
              []
          end,
     case L2 of
@@ -984,9 +992,10 @@ iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
             ErrText = <<"You must fill in field \"Nickname\" in the form">>,
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
         {error, ErrorReason} ->
-            ?ERROR_MSG("event=iq_set_register_info_failed, "
-                        "jid=~ts, nick=~p, reason=~p",
-                       [jid:to_binary(From), Nick, ErrorReason]),
+            ?LOG_ERROR(#{what => muc_iq_set_register_info_failed,
+                         server => ServerHost, sub_host => Host,
+                         from_jid => jid:to_binary(From), nick => Nick,
+                         reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
@@ -998,9 +1007,9 @@ iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
         ok ->
             {result, []};
         {error, ErrorReason} ->
-            ?ERROR_MSG("event=iq_set_unregister_info_failed, "
-                        "jid=~ts, reason=~p",
-                       [jid:to_binary(From), ErrorReason]),
+            ?LOG_ERROR(#{what => muc_iq_set_unregister_info_failed,
+                         server => ServerHost, sub_host => Host,
+                         from_jid => jid:to_binary(From), reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 

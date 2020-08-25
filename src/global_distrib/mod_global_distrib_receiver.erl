@@ -90,12 +90,13 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = 
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
-    ?ERROR_MSG("event=incoming_global_distrib_socket_error,reason='~p',peer='~p', conn_id=~ts",
-               [Reason, State#state.peer, State#state.conn_id]),
+    ?LOG_ERROR(#{what => gd_incoming_socket_error, reason => Reason,
+                 text => <<"mod_global_distrib_receiver received tcp_error">>,
+                 peer => State#state.peer, conn_id => State#state.conn_id}),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ERRORED(State#state.host), 1),
     {stop, {error, Reason}, State};
 handle_info(Msg, State) ->
-    ?WARNING_MSG("Received unknown message ~p", [Msg]),
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 handle_cast(_Message, _State) ->
@@ -108,8 +109,9 @@ code_change(_Version, State, _Extra) ->
     {ok, State}.
 
 terminate(Reason, State) ->
-    ?WARNING_MSG("event=incoming_global_distrib_socket_closed,peer='~p', host=~p, reason=~p conn_id=~ts",
-                 [State#state.peer, State#state.host, Reason, State#state.conn_id]),
+    ?LOG_WARNING(#{what => gd_incoming_socket_closed,
+                   peer => State#state.peer, server => State#state.host,
+                   reason => Reason, conn_id => State#state.conn_id}),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_CLOSED(State#state.host), 1),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
@@ -185,8 +187,7 @@ handle_data(GdStart, State = #state{host = undefined}) ->
     mod_global_distrib_utils:ensure_metric(
       ?GLOBAL_DISTRIB_INCOMING_CLOSED(Host), spiral),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), 1),
-    ?INFO_MSG("event=gd_incoming_connection server=~ts conn_id=~ts",
-              [BinHost, ConnId]),
+    ?LOG_INFO(#{what => gd_incoming_connection, server => BinHost, conn_id => ConnId}),
     State#state{host = Host, conn_id = ConnId};
 handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
@@ -221,12 +222,12 @@ start_listeners() ->
 -spec start_listener(mod_global_distrib_utils:endpoint(),
                      RetriesLeft :: non_neg_integer()) -> any().
 start_listener({Addr, Port} = Ref, RetriesLeft) ->
-    ?INFO_MSG("Starting listener on ~s:~b", [inet:ntoa(Addr), Port]),
+    ?LOG_INFO(#{what => gd_start_listener, address => Addr, port => Port}),
     case ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}], ?MODULE, []) of
         {ok, _} -> ok;
         {error, eaddrinuse} when RetriesLeft > 0 ->
-            ?ERROR_MSG("Failed to start listener on ~s:~b: address in use. Will retry in 1 second.",
-                       [inet:ntoa(Addr), Port]),
+            ?LOG_ERROR(#{what => gd_start_listener_failed, address => Addr, port => Port,
+                         text => <<"Failed to start listener: address in use. Will retry in 1 second.">>}),
             timer:sleep(?LISTEN_RETRY_DELAY),
             start_listener(Ref, RetriesLeft - 1)
     end.

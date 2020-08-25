@@ -280,7 +280,7 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
         -> {'ok', state()}.
 
 init([ServerHost, Opts]) ->
-    ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
+    ?LOG_DEBUG(#{what => pubsub_init, server => ServerHost, opts => Opts}),
     Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
 
     init_backend(ServerHost, Opts),
@@ -421,13 +421,13 @@ init_plugins(Host, ServerHost, Opts) ->
     TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts,
                                             fun(A) when is_binary(A) -> A end,
                                             ?STDTREE)),
-    ?DEBUG("** tree plugin is ~p", [TreePlugin]),
+    ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, Host, ServerHost, Opts),
     Plugins = gen_mod:get_opt(plugins, Opts,
                               fun(A) when is_list(A) -> A end, [?STDNODE]),
     PepMapping = gen_mod:get_opt(pep_mapping, Opts,
                                  fun(A) when is_list(A) -> A end, []),
-    ?DEBUG("** PEP Mapping : ~p~n", [PepMapping]),
+    ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
     {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
 
@@ -435,18 +435,18 @@ init_plugin(Host, ServerHost, Opts, Name, Acc) ->
     Plugin = plugin(Host, Name),
     case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
         {'EXIT', _Error} ->
-            ?ERROR_MSG("event=pubsub_plugin_init_failed,plugin=~p,host=~s,pubsub_host=~s,opts=~p",
-                       [Plugin, ServerHost, Host, Opts]),
+            ?LOG_ERROR(#{what => pubsub_plugin_init_failed, plugin => Plugin,
+                server => ServerHost, sub_host => Host, opts => Opts}),
             Acc;
         _ ->
-            ?DEBUG("** init ~s plugin", [Name]),
+            ?LOG_DEBUG(#{what => pubsub_init_plugin, plugin_name => Name}),
             [Name | Acc]
     end.
 
 terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
     lists:foreach(
       fun (Name) ->
-              ?DEBUG("** terminate ~s plugin", [Name]),
+              ?LOG_DEBUG(#{what => pubsub_terminate_plugin, plugin_name => Name}),
               Plugin = plugin(Host, Name),
               gen_pubsub_node:terminate(Plugin, Host, ServerHost)
       end,
@@ -881,9 +881,9 @@ remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
         plugin_call(Plugin, remove_user, [LUser, LServer])
     catch
         Class:Reason:StackTrace ->
-            ?WARNING_MSG("event=cannot_delete_pubsub_user,"
-                         "luser=~s,lserver=~s,class=~p,reason=~p,stacktrace=~p",
-                         [LUser, LServer, Class, Reason, StackTrace])
+            ?LOG_WARNING(#{what => pubsub_delete_user_failed, user => LUser,
+                server => LServer, class => Class, reason => Reason,
+                stacktrace => StackTrace})
     end.
 
 handle_call(server_host, _From, State) ->
@@ -937,7 +937,9 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
     mod_disco:unregister_feature(ServerHost, ?NS_PUBSUB),
     case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
         undefined ->
-            ?ERROR_MSG("~s process is dead, pubsub was broken", [?LOOPNAME]);
+            ?LOG_ERROR(#{what => pubsub_process_is_dead,
+                text => <<"process is dead, pubsub was broken">>,
+                process => ?LOOPNAME});
         Pid ->
             Pid ! stop
     end,
@@ -1283,7 +1285,7 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
             report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
             Result;
         Other ->
-            ?INFO_MSG("Bad request: ~p", [Other]),
+            ?LOG_INFO(#{what => pubsub_bad_request, exml_packet => Other}),
             {error, mongoose_xmpp_errors:bad_request()}
     end.
 
@@ -1490,7 +1492,7 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
             report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
             Result;
         _ ->
-            ?INFO_MSG("Too many actions: ~p", [Action]),
+            ?LOG_INFO(#{what => pubsub_too_many_actions, exml_packet => Action}),
             {error, mongoose_xmpp_errors:bad_request()}
     end.
 
@@ -1560,7 +1562,8 @@ adhoc_request(Host, ServerHost, Owner,
                   R#adhoc_request{action = <<"execute">>}, Access,
                   Plugins);
 adhoc_request(_Host, _ServerHost, _Owner, Other, _Access, _Plugins) ->
-    ?DEBUG("Couldn't process ad hoc command:~n~p", [Other]),
+    ?LOG_DEBUG(#{what => pubsub_adhoc_request_error,
+        text => <<"Couldn't process ad hoc command">>, command => Other}),
     {error, mongoose_xmpp_errors:item_not_found()}.
 
 %% @doc <p>Sends the process pending subscriptions XForm for Host to Owner.</p>
@@ -1617,14 +1620,14 @@ adhoc_get_pending_parse_options(Host, #xmlel{name = <<"x">>} = XEl) ->
             end
     end;
 adhoc_get_pending_parse_options(_Host, XData) ->
-    ?INFO_MSG("Bad XForm: ~p", [XData]),
+    ?LOG_INFO(#{what => pubsub_bad_xform, exml_packet => XData}),
     {error, mongoose_xmpp_errors:bad_request()}.
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
 send_pending_auth_events(Request, Host, Node, Owner) ->
-    ?DEBUG("Sending pending auth events for ~s on ~s:~s",
-           [jid:to_binary(Owner), Host, Node]),
+    ?LOG_DEBUG(#{what => pubsub_sending_pending_auth_events,
+        owner => jid:to_binary(Owner), sub_host => Host, pubsub_node => Node}),
     Action = fun(PubSubNode) ->
                      get_node_subscriptions_transaction(Host, Owner, PubSubNode)
              end,
@@ -1731,7 +1734,7 @@ find_authorization_response(#xmlel{ children = Els }) ->
         [] ->
             none;
         [XFields] when is_list(XFields) ->
-            ?DEBUG("XFields: ~p", [XFields]),
+            ?LOG_DEBUG(#{what => pubsub_xfields, xfields => XFields}),
             case lists:keysearch(<<"FORM_TYPE">>, 1, XFields) of
                 {value, {_, [?NS_PUBSUB_SUB_AUTH]}} -> XFields;
                 _ -> invalid
@@ -1936,7 +1939,8 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                     [#xmlel{name = <<"x">>} = XEl] ->
                         XEl;
                     _ ->
-                        ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
+                        ?LOG_INFO(#{what => pubsub_bad_node_configuration,
+                            pubsub_node => Node, configuration => Configuration}),
                         {error, mongoose_xmpp_errors:bad_request()}
                 end,
     case parse_create_node_options_if_possible(Host, Type, ConfigXEl) of
@@ -2987,8 +2991,8 @@ validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type) ->
 
 set_options_helper(_Host, {error, Reason}, JID, Nidx, RequestedSubId, _Type) ->
     % TODO: Make smarter logging (better details formatting)
-    ?DEBUG("event=invalid_pubsub_subscription_options,jid=~s,nidx=~p,subid=~s,reason=~p",
-           [JID, Nidx, RequestedSubId, Reason]),
+    ?LOG_DEBUG(#{what => pubsub_invalid_subscription_options, jid => JID,
+        nidx => Nidx, sub_id => RequestedSubId, reason => Reason}),
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
 set_options_helper(_Host, {ok, []}, _JID, _Nidx, _RequestedSubId, _Type) ->
     {result, []};
@@ -3646,8 +3650,10 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
                                            jid:make(LUser, LServer, <<"">>),
                                            add_extended_headers(Stanza, ReplyTo)});
         _ ->
-            ?DEBUG("~p@~p has no session; can't deliver ~p to contacts",
-                   [LUser, LServer, BaseStanza])
+
+            ?LOG_DEBUG(#{what => pubsub_no_session,
+                text => <<"User has no session; cannot deliver stanza to contacts">>,
+                user => LUser, server => LServer, exml_packet => BaseStanza})
     end;
 broadcast_stanza(Host, _Publisher, Node, Nidx, Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
@@ -4267,11 +4273,13 @@ features(Host, Node) when is_binary(Node) ->
 tree_call({_User, Server, _Resource}, Function, Args) ->
     tree_call(Server, Function, Args);
 tree_call(Host, Function, Args) ->
-    ?DEBUG("tree_call ~p ~p ~p", [Host, Function, Args]),
+    ?LOG_DEBUG(#{what => pubsub_tree_call, sub_host => Host,
+        action_function => Function, args => Args}),
     apply(tree(Host), Function, Args).
 
 tree_action(Host, Function, Args) ->
-    ?DEBUG("tree_action ~p ~p ~p", [Host, Function, Args]),
+    ?LOG_DEBUG(#{what => pubsub_tree_action, sub_host => Host,
+        action_function => Function, args => Args}),
     Fun = fun () -> tree_call(Host, Function, Args) end,
     ErrorDebug = #{
       action => tree_action,
@@ -4283,7 +4291,8 @@ tree_action(Host, Function, Args) ->
 
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
-    ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
+    ?LOG_DEBUG(#{what => pubsub_node_call, node_type => Type,
+        action_function => Function, args => Args}),
     PluginModule = plugin(Host, Type),
     plugin_call(PluginModule, Function, Args).
 
@@ -4307,8 +4316,8 @@ maybe_default_node(PluginModule, Function, Args) ->
         _ ->
            case gen_pubsub_node:based_on(PluginModule) of
                none ->
-                   ?ERROR_MSG("event=undefined_function, node_plugin=~p, function=~p",
-                              [PluginModule, Function]),
+                   ?LOG_ERROR(#{what => pubsub_undefined_function,
+                       node_plugin => PluginModule, action_function => Function}),
                    exit(udefined_node_plugin_function);
                BaseModule ->
                    maybe_default_node(BaseModule, Function, Args)
@@ -4316,8 +4325,8 @@ maybe_default_node(PluginModule, Function, Args) ->
     end.
 
 node_action(Host, Type, Function, Args) ->
-    ?DEBUG("event=node_action,pubsub_host=~p,node_type=~p,function=~p,args=~p",
-           [Host, Type, Function, Args]),
+    ?LOG_DEBUG(#{what => pubsub_node_action, sub_host => Host,
+        node_type => Type, action_function => Function, args => Args}),
     ErrorDebug = #{
         action => {node_action, Function},
         pubsub_host => Host,
@@ -4495,8 +4504,9 @@ check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
             {result, Affs} = node_action(Host, PluginType, get_entity_affiliations, [Host, LJID]),
             [Affs | AffsAcc];
         false ->
-            ?DEBUG("error=\"cant_purge_items_on_offline\" plugin=\"~p\" user=\"~s\"",
-                   [PluginType, jid:to_binary(LJID)]),
+            ?LOG_DEBUG(#{what => pubsub_plugin_features_check_error,
+                text => <<"Cannot purge items on offline">>,
+                plugin => PluginType, user => jid:to_binary(LJID)}),
             AffsAcc
     end.
 
@@ -4538,12 +4548,12 @@ timestamp() ->
 make_error_reply(#iq{ sub_el = SubEl } = IQ, #xmlel{} = ErrorEl) ->
     IQ#iq{type = error, sub_el = [ErrorEl, SubEl]};
 make_error_reply(#iq{ sub_el = SubEl } = IQ, Error) ->
-    ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
+    ?LOG_ERROR(#{what => pubsub_crash, reason => Error}),
     IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error(), SubEl]};
 make_error_reply(Packet, #xmlel{} = ErrorEl) ->
     jlib:make_error_reply(Packet, ErrorEl);
 make_error_reply(Packet, Error) ->
-    ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
+    ?LOG_ERROR(#{what => pubsub_crash, reason => Error}),
     jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).
 
 config_metrics(Host) ->

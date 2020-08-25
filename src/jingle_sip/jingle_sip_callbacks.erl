@@ -31,7 +31,7 @@
                              sip_reinvite_unsafe/2,
                              sip_bye/2,
                              sip_cancel/3,
-                             send_ringing_session_info/1,
+                             send_ringing_session_info/2,
                              invite_resp_callback/1
                              ]}).
 
@@ -48,8 +48,9 @@ sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
     catch Class:Reason:StackTrace ->
-            ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
-                         [Class, Reason, StackTrace]),
+              ?LOG_WARNING(#{what => sip_invite_failed,
+                             text => <<"Error parsing sip invite">>, sip_req => Req,
+                             class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, request_not_parsable}
     end.
 
@@ -57,8 +58,9 @@ sip_reinvite(Req, Call) ->
     try
         sip_reinvite_unsafe(Req, Call)
     catch Class:Reason:StackTrace ->
-            ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
-                         [Class, Reason, StackTrace]),
+              ?LOG_WARNING(#{what => sip_reinvite_failed,
+                             text => <<"Error parsing sip reinvite">>, sip_req => Req,
+                             class => Class, reason => Reason, stacktrace => StackTrace}),
             {error, request_not_parsable}
     end.
 
@@ -71,6 +73,11 @@ sip_invite_unsafe(Req, _Call) ->
         false ->
             translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary);
         _ ->
+            CallID = nksip_sipmsg:header(<<"call-id">>, Req),
+            ?LOG_INFO(#{what => sip_invite, reply => temporarily_unavailable,
+                        text => <<"Got SIP INVITE from NkSIP, but destination user is offline">>,
+                        from_jid => FromBinary, to_jid => ToBinary,
+                        call_id => CallID, sip_req => Req}),
             {reply, temporarily_unavailable}
     end.
 
@@ -90,6 +97,10 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
 
     ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
 
+    ?LOG_INFO(#{what => sip_invite, text => <<"Got SIP INVITE from NkSIP">>,
+                from_jid => FromBinary, to_jid => ToBinary,
+                call_id => CallID, sip_req => Req}),
+
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => FromJID#jid.lserver,
@@ -100,8 +111,8 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
 
     {reply, ringing}.
 
-sip_reinvite_unsafe(Req, _Call) ->
-    ?INFO_MSG("re-INVITE: ~p", [Req]),
+sip_reinvite_unsafe(Req, Call) ->
+    ?LOG_INFO(#{what => sip_reinvite, sip_req => Req}),
     {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
@@ -115,6 +126,11 @@ sip_reinvite_unsafe(Req, _Call) ->
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
     Name = get_action_name_from_sdp(RemainingAttrs, <<"transport-info">>),
     JingleEl = jingle_sip_helper:jingle_element(CallID, Name, ContentEls ++ OtherEls),
+
+    ?LOG_INFO(#{what => sip_reinvite, text => <<"Got SIP re-INVITE from NkSIP">>,
+                from_jid => FromBinary, to_jid => ToBinary,
+                call_id => CallID, sip_req => Req}),
+
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => FromJID#jid.lserver,
@@ -140,8 +156,7 @@ sip_info(Req, _Call) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
     Body = nksip_sipmsg:meta(body, Req),
 
-    ?INFO_MSG("event=sip_info to=~p call_id=~p body:~n~s", [ToBinary, CallID, Body]),
-
+    ?LOG_INFO(#{what => sip_info, sip_req => Req}),
     noreply.
 
 sip_bye(Req, _Call) ->
@@ -211,9 +226,9 @@ sip_dialog_update(_, _, _) ->
 %% * 603 - used to decline the INVITE by the reciving side
 %% * all error responses between 400 and 700 result in genering session-terminate reason
 invite_resp_callback({resp, 180, SIPMsg, _Call}) ->
-    send_ringing_session_info(SIPMsg);
+    send_ringing_session_info(SIPMsg, 180);
 invite_resp_callback({resp, 183, SIPMsg, _Call}) ->
-    send_ringing_session_info(SIPMsg);
+    send_ringing_session_info(SIPMsg, 183);
 invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
     {ToJID, ToBinary} = get_user_from_sip_msg(from, SIPMsg),
     {FromJID, FromBinary} = get_user_from_sip_msg(to, SIPMsg),
@@ -273,19 +288,21 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
-
-
 invite_resp_callback(Data) ->
-    ?ERROR_MSG("Unknown SIP resp: ~p", [Data]).
+    ?LOG_ERROR(#{what => sip_unknown_response, sip_data => Data}).
 
-send_ringing_session_info(SIPMsg) ->
+send_ringing_session_info(SIPMsg, ErrorCode) ->
     %% SIP response contains the same headers as request
     %% That's why we need to switch `from` and `to` when preparing Jingle packet
     {ToJID, ToBinary} = get_user_from_sip_msg(from, SIPMsg),
     {FromJID, FromBinary} = get_user_from_sip_msg(to, SIPMsg),
 
     DialogHandle = nksip_sipmsg:meta(dialog_handle, SIPMsg),
-    CallID = nksip_sipmsg:header(<<"call-id">>, SIPMsg),
+    {SrvId, DialogId, CallID} = nksip_dialog_lib:parse_handle(DialogHandle),
+    ?LOG_INFO(#{what => sip_invite_resp_callback, error_code => ErrorCode,
+                call_id => CallID, sip_req => SIPMsg,
+                dialog_id => DialogId, server_id => SrvId,
+                from_jid => FromBinary, to_binary => ToBinary}),
 
     mod_jingle_sip_backend:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
 

@@ -178,8 +178,8 @@ start_child(ChildSpec) ->
             {ok, Pid};
         Other ->
             Stacktrace = element(2, erlang:process_info(self(), current_stacktrace)),
-            ?ERROR_MSG("event=start_child_failed, reason=~1000p spec=~1000p stacktrace=~1000p",
-                       [Other, ChildSpec, Stacktrace]),
+            ?LOG_ERROR(#{what => start_child_failed, spec => ChildSpec,
+                         reason => Other, stacktrace => Stacktrace}),
             erlang:error({start_child_failed, Other, ChildSpec})
     end.
 

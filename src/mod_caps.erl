@@ -206,8 +206,7 @@ disco_features(Acc, From, To, Node, Lang) ->
 disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_local_identity(To#jid.lserver,
-                                                [],
+            mongoose_hooks:disco_local_identity(To#jid.lserver, [],
                                                 From, To, <<"">>, Lang);
         false ->
             Acc
@@ -216,23 +215,21 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_info(Host, [],
-                                      Module, <<"">>, Lang);
+            mongoose_hooks:disco_info(Host, [], Module, <<"">>, Lang);
         false ->
             Acc
     end.
 
 c2s_presence_in(C2SState,
-                {From, To, {_, _, Attrs, Els}}) ->
-    ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
+                {From, To, Packet = #xmlel{attrs = Attrs, children = Els}}) ->
+    ?LOG_DEBUG(#{what => caps_c2s_presence_in,
+                 to => jid:to_binary(To), from => jid:to_binary(From),
+                 exml_packet => Packet, c2s_state => C2SState}),
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    Subscription = ejabberd_c2s:get_subscription(From,
-                                                 C2SState),
-    ?DEBUG("Subscription ~p, type ~p", [Subscription, Type]),
+    Subscription = ejabberd_c2s:get_subscription(From, C2SState),
     Insert = ((Type == <<"">>) or (Type == <<"available">>))
         and ((Subscription == both) or (Subscription == to)),
-    Delete = (Type == <<"unavailable">>) or
-                                           (Type == <<"error">>),
+    Delete = (Type == <<"unavailable">>) or (Type == <<"error">>),
     case Insert or Delete of
         true ->
             LFrom = jid:to_lower(From),
@@ -246,7 +243,9 @@ c2s_presence_in(C2SState,
             NewRs = case Caps of
                         nothing when Insert == true -> Rs;
                         _ when Insert == true ->
-                            ?DEBUG("Set CAPS to ~p for ~p in ~p", [Caps, LFrom, To]),
+                            ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
+                                         to => jid:to_binary(To), from => jid:to_binary(From),
+                                         exml_packet => Packet, c2s_state => C2SState}),
                             upsert_caps(LFrom, From, To, Caps, Rs);
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
@@ -273,7 +272,8 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
 c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            ?DEBUG("Look for CAPS for ~p in ~p (res: ~p)", [To, C2SState, Rs]),
+            ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
+                         acc => InAcc, c2s_state => C2SState, caps_resources => Rs}),
             LTo = jid:to_lower(To),
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->

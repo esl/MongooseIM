@@ -148,19 +148,19 @@ refresh_and_schedule_next(Reason, RefreshAfter) ->
 
 -spec refresh(Reason :: string()) -> ok.
 refresh(Reason) ->
-    ?DEBUG("event=refreshing_own_hosts", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_hosts}),
     refresh_hosts(),
-    ?DEBUG("event=refreshing_own_nodes", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_nodes}),
     refresh_nodes(),
-    ?DEBUG("event=refreshing_own_jids", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_jids}),
     refresh_jids(),
-    ?DEBUG("event=refreshing_own_endpoints", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_endpoints}),
     refresh_endpoints(),
-    ?DEBUG("event=refreshing_own_domains", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_domains}),
     refresh_domains(),
-    ?DEBUG("event=refreshing_own_public_domains", []),
+    ?LOG_DEBUG(#{what => gd_refreshing_own_public_domains}),
     refresh_public_domains(),
-    ?INFO_MSG("event=refreshing_own_data_done,reason=~ts", [Reason]),
+    ?LOG_INFO(#{what => gd_refreshing_own_data_done, reason => Reason}),
     ok.
 
 %%--------------------------------------------------------------------
@@ -174,8 +174,8 @@ q(Args) ->
         {ok, _} = OKRes ->
             OKRes;
         Error ->
-            ?ERROR_MSG("event=redis_query_error,query='~p',error='~p'",
-                       [Args, Error]),
+            ?LOG_ERROR(#{what => gd_redis_query_error, worker => Worker,
+                         redis_query => Args, reason => Error}),
             error(Error)
     end.
 

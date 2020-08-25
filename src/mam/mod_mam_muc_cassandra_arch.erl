@@ -64,10 +64,7 @@
 
 -type filter() :: #mam_muc_ca_filter{}.
 -type message_id() :: non_neg_integer().
--type user_id() :: non_neg_integer().
 -type server_hostname() :: binary().
--type server_host() :: binary().
--type unix_timestamp() :: non_neg_integer().
 
 
 %% ----------------------------------------------------------------------

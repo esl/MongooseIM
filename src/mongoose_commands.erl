@@ -357,10 +357,12 @@ execute_command(Caller, Command, Args) ->
             {error, denied, <<"Command not available for this user">>};
         caller_jid_mismatch ->
             {error, denied, <<"Caller ids do not match">>};
-        X:E:S ->
-            ?ERROR_MSG("Caught ~p:~p while executing ~p stacktrace=~p",
-                       [X, E, Command#mongoose_command.name, S]),
-            {error, internal, term_to_binary(E)}
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => command_failed,
+                         command_name => Command#mongoose_command.name,
+                         caller => Caller, args => Args,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, internal, term_to_binary(Reason)}
     end.
 
 add_defaults(Args, Opts) when is_map(Args) ->
@@ -596,8 +598,11 @@ check_registration(Command) ->
                     baddef("There is a command ~p in category ~p and subcategory ~p, action ~p",
                            [name(C), Cat, SubCat, Act])
             end;
-        _ ->
-            ?DEBUG("This command is already defined:~n~p", [Name])
+        Other ->
+            ?LOG_DEBUG(#{what => command_conflict,
+                         text => <<"This command is already defined">>,
+                         command_name => Name, registered => Other}),
+            ok
     end.
 
 mapget(K, Map) ->

@@ -232,7 +232,7 @@ unicode_characters_to_binary(Input, FromEncoding, ToEncoding) ->
         Result when is_binary(Result) ->
             Result;
         Other ->
-            erlang:error(#{event => parse_value_failed,
+            erlang:error(#{what => parse_value_failed,
                            from_encoding => FromEncoding,
                            to_encoding => ToEncoding,
                            input_binary => Input,

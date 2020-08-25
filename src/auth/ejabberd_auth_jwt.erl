@@ -94,17 +94,29 @@ check_password(LUser, LServer, Password) ->
             case maps:find(UserKey, TokenData) of
                 {ok, LUser} ->
                     %% Login username matches $token_user_key in TokenData
-                    ?INFO_MSG("Successfully authenticated with JWT.~nTokenData: ~p~n", [TokenData]),
+                    ?LOG_INFO(#{what => jwt_success_auth,
+                                text => <<"Successfully authenticated with JWT">>,
+                                user => LUser, server => LServer,
+                                token => TokenData}),
                     true;
                 {ok, ExpectedUser} ->
-                    ?WARNING_MSG("Wrong JWT for user ~p /= expected ~p~n", [LUser, ExpectedUser]),
+                    ?LOG_WARNING(#{what => wrong_jwt_user,
+                                   text => <<"JWT contains wrond user">>,
+                                   expected_user => ExpectedUser,
+                                   user => LUser, server => LServer}),
                     false;
                 error ->
-                    ?WARNING_MSG("Missing key ~p in JWT ~p~n", [UserKey, TokenData]),
+                    ?LOG_WARNING(#{what => missing_jwt_key,
+                                   text => <<"Missing key {user_key} in JWT data">>,
+                                   user_key => UserKey, token => TokenData,
+                                   user => LUser, server => LServer}),
                     false
             end;
         {error, Reason} ->
-            ?WARNING_MSG("Cannot verify JWT for user ~s: ~p~n", [LUser, Reason]),
+            ?LOG_WARNING(#{what => jwt_verification_failed,
+                           text => <<"Cannot verify JWT for user">>,
+                           reason => Reason,
+                           user => LUser, server => LServer}),
             false
     end.
 

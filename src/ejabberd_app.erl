@@ -74,7 +74,7 @@ start(normal, _Args) ->
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
     update_status_file(started),
-    ?INFO_MSG("ejabberd ~s is started in the node ~p", [?MONGOOSE_VERSION, node()]),
+    ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
     Sup;
 start(_, _) ->
     {error, badarg}.
@@ -96,7 +96,7 @@ prep_stop(State) ->
 
 %% All the processes were killed when this function is called
 stop(_State) ->
-    ?INFO_MSG("ejabberd ~s is stopped in the node ~p", [?MONGOOSE_VERSION, node()]),
+    ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),
     %%ejabberd_debug:stop(),
@@ -207,7 +207,8 @@ write_pid_file(Pid, PidFilename) ->
             io:format(Fd, "~s~n", [Pid]),
             file:close(Fd);
         {error, Reason} ->
-            ?ERROR_MSG("Cannot write PID file ~s~nReason: ~p", [PidFilename, Reason]),
+            ?LOG_ERROR(#{what => cannot_write_to_pid_file,
+                         pid_file => PidFilename, reason => Reason}),
             throw({cannot_write_pid_file, PidFilename, Reason})
     end.
 

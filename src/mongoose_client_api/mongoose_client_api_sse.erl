@@ -11,7 +11,7 @@
 -export([terminate/3]).
 
 init(_InitArgs, _LastEvtId, Req) ->
-    ?DEBUG("issue=mongoose_client_api_sse:init", []),
+    ?LOG_DEBUG(#{what => client_api_sse_init, req => Req}),
     {cowboy_rest, Req1, State0} = mongoose_client_api:init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State#{id => 1}).
@@ -30,13 +30,15 @@ maybe_init({false, Value}, Req, State) ->
     Headers = #{<<"www-authenticate">> => Value},
     {shutdown, 401, Headers, <<>>, Req, State}.
 
-handle_notify(_Msg, State) ->
+handle_notify(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
     #xmlel{ name = TagName } = El = mongoose_acc:element(Acc),
     handle_msg(TagName, Acc, El, State);
-handle_info(_Msg, State) ->
+handle_info(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
     {nosend, State}.
 
 handle_msg(<<"message">>, Acc, El, State) ->
@@ -44,7 +46,8 @@ handle_msg(<<"message">>, Acc, El, State) ->
     Type = mongoose_acc:stanza_type(Acc),
     maybe_send_message_event(Type, El, Timestamp, State).
 
-handle_error(_Msg, _Reson, State) ->
+handle_error(Msg, Reason, State) ->
+    ?LOG_WARNING(#{what => sse_handle_error, msg => Msg, reason => Reason}),
     {nosend, State}.
 
 terminate(_Reson, _Req, State) ->

@@ -530,6 +530,7 @@ handler_init(Req0) ->
     lists:map(
         fun(StrEvent) ->
             Event = str_to_event(StrEvent),
+            %% TODO there is a race condition when table is not available
             ets:insert(?ETS_TABLE, Event)
         end, StrEvents),
     Req1 = cowboy_req:reply(200, #{}, <<"">>, Req),

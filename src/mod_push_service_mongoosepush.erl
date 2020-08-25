@@ -50,7 +50,7 @@
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
+    ?LOG_INFO(#{what => push_service_starting, server => Host}),
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
     {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service,
@@ -78,8 +78,9 @@ stop(Host) ->
                          Notifications :: [#{binary() => binary()}],
                          Options :: #{binary() => binary()}) ->
     ok | {error, Reason :: term()}.
-push_notifications(_AccIn, Host, Notifications, Options) ->
-    ?DEBUG("push_notifications ~p", [{Notifications, Options}]),
+push_notifications(AccIn, Host, Notifications, Options) ->
+    ?LOG_DEBUG(#{what => push_notifications, notifications => Notifications,
+                 opts => Options, acc => AccIn}),
 
     DeviceId = maps:get(<<"device_id">>, Options),
     ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
@@ -127,20 +128,26 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
                     ok;
                 410 ->
-                    ?WARNING_MSG("issue=unable_to_submit_push_notification, https_status=410, reason=device_not_registered", []),
+                    ?LOG_WARNING(#{what => push_send_failed,
+                                   text => <<"Unable to send push notification. "
+                                             "Device not registered.">>,
+                                   code => 410, reason => device_not_registered}),
                     {error, device_not_registered};
                 StatusCode when StatusCode >= 400 andalso StatusCode < 500  ->
-                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, url=~p, response=~p, "
-                               "details=\"Possible API mismatch\", payload=~p",
-                               [StatusCode, URL, Body, Payload]),
+                    ?LOG_ERROR(#{what => push_send_failed,
+                                 text => <<"Unable to send push notification. "
+                                           "Possible API mismatch">>,
+                                 code => StatusCode, url => URL,
+                                 response => Body, payload => Payload}),
                     {error, {invalid_status_code, StatusCode}};
                 StatusCode ->
-                    ?ERROR_MSG("issue=unable_to_submit_push_notification, http_status=~p, response=~p",
-                               [StatusCode, Body]),
+                    ?LOG_ERROR(#{what => push_send_failed,
+                                 text => <<"Unable to send push notification">>,
+                                 code => StatusCode, response => Body}),
                     {error, {invalid_status_code, StatusCode}}
             end;
         {error, Reason} ->
-            ?ERROR_MSG("Unable to communicate to MongoosePush service due to ~p", [Reason]),
+            ?LOG_ERROR(#{what => connection_error, reason => Reason}),
             {error, Reason}
     end.
 

@@ -15,11 +15,12 @@ or
 There are several macros for the most common logging levels:
 
 ```erlang
-DEBUG("event=debug_event info=~1000p", [Arg]),
-INFO_MSG("event=info_event info=~1000p", [Arg]),
-WARNING_MSG("event=warning_event reason=~1000p", [Arg]),
-ERROR_MSG("event=error_event reason=~1000p", [Arg]),
-CRITICAL_MSG("event=critical_event reason=~1000p", [Arg]),
+?LOG_DEBUG(#{what => debug_event, info => Arg}),
+?LOG_INFO(#{what => info_event, info => Arg}),
+?LOG_NOTICE(#{what => notice_event, info => Arg}),
+?LOG_WARNING(#{what => warning_event, info => Arg}),
+?LOG_ERROR(#{what => error_event, info => Arg}),
+?LOG_CRITICAL(#{what => critical_event, info => Arg}),
 ```
 
 Use them in correspondence with the appropriate log level.
@@ -45,54 +46,45 @@ Levels `warning` and `error` are the most commonly used for production systems.
 
 # Logging format
 
-We use a modified [logfmt](https://brandur.org/logfmt) format.
+We use structured logging as inspired by [Ferd's post](https://ferd.ca/erlang-otp-21-s-new-logger.html).
+
+We use a modified [logfmt](https://brandur.org/logfmt) format as one of
+the possible default logger formatters.
 
 This format is [Splunk](https://www.splunk.com/en_us/solutions/solution-areas/log-management.html)
 and [ELK](https://www.elastic.co/elk-stack) friendly.
 
-`event=something_interesting` field is required.
+Check [the list of fields](../operation-and-maintenance/Logging-fields.md) for fields documentation.
 
-`reason=~1000p` field is commonly used.
+
+`what => something_interesting` field is required.
+
 
 ```erlang
-    ?ERROR_MSG("event=check_password_failed "
-               "reason=~p user=~ts", [Error, LUser]),
+    ?LOG_ERROR(#{what => check_password_failed,
+                 reason => Error, user => LUser})
 
     try ...
     catch
         Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=check_password_failed "
-                       "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, StackTrace]),
+            ?LOG_ERROR(#{what => check_password_failed,
+                         class => Class, reason => Reason, stacktrace => StackTrace}),
             erlang:raise(Class, Reason, StackTrace)
     end
 ```
 
-`user=~ts` is often used too.
+Field `user => <<"alice">>` is often used too.
 
-A common way to name an error event is `event=function_name_failed`.
-For example, `event=remove_user_failed`. Use the advice critically, it would
+A common way to name an error event is `what => function_name_failed`.
+For example, `what => remove_user_failed`. Use the advice critically, it would
 not work well for any function. Counter example:
 
 ```erlang
 handle_info(Info, State) ->
-    ?ERROR_MSG("issue=unexpected_info_received info=~1000p", [Info]),
+    ?LOG_WARNING(#{what => unexpected_message, msg => Info}),
     {noreply, State}.
 ```
 
-Log messages should not contain new lines.
-
-We usually use `~1000p` to log long data structures.
-
-Use whitespace as a field separator:
-
-```erlang
-%% Use
-?ERROR_MSG("event=check_password_failed reason=~p", [Reason])
-
-%% Don't use
-?ERROR_MSG("event=check_password_failed, reason=~p", [Reason])
-```
 
 # Filtering logs by module
 

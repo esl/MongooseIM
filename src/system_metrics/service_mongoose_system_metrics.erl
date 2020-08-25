@@ -36,7 +36,10 @@ verify_if_configured() ->
     Services = ejabberd_config:get_local_option_or_default(services, []),
     case proplists:is_defined(?MODULE, Services) of
         false ->
-            ?WARNING_MSG(msg_removed_from_config(), []),
+            %% Technically, notice level.
+            %% Though make it louder, in case people set minimum level as warning.
+            ?LOG_WARNING(#{what => system_metrics_disabled,
+                           text => msg_removed_from_config()}),
             ignore;
         true ->
             ok
@@ -132,7 +135,10 @@ report_transparency(Args) ->
         {true, ____} -> skip;
         {____, true} -> continue;
         {____, ____} ->
-            ?WARNING_MSG(msg_accept_terms_and_conditions(), [mongoose_system_metrics_file:location()]),
+            File = mongoose_system_metrics_file:location(),
+            Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
+            ?LOG_WARNING(#{what => report_transparency,
+                           text => Text, report_filename => File}),
             continue
     end.
 
@@ -156,20 +162,20 @@ terminate(_Reason, _State) ->
 %% Internal
 %%-----------------------------------------
 msg_removed_from_config() ->
-    "We're sorry to hear you don't want to share the system's metrics with us. "
+    <<"We're sorry to hear you don't want to share the system's metrics with us. "
     "These metrics would enable us to improve MongooseIM and know where to focus our efforts. "
     "To stop being notified, you can add this to the services section of your config file: \n"
     "    '{service_mongoose_system_metrics, [no_report]}' \n"
     "For more info on how to customise, read, enable, and disable the metrics visit: \n"
     "- MongooseIM docs - \n"
     "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
-    "- MongooseIM GitHub page - https://github.com/esl/MongooseIM".
+    "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
 
 msg_accept_terms_and_conditions() ->
-    "We are gathering the MongooseIM system's metrics to analyse the trends and needs of our users, "
+    <<"We are gathering the MongooseIM system's metrics to analyse the trends and needs of our users, "
     "improve MongooseIM, and know where to focus our efforts. "
     "For more info on how to customise, read, enable, and disable these metrics visit: \n"
     "- MongooseIM docs - \n"
     "      https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
     "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
-    "The last sent report is also written to a file ~s".
+    "The last sent report is also written to a file ~s">>.

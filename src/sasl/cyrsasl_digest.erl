@@ -55,11 +55,12 @@ mechanism() ->
                Creds  :: mongoose_credentials:t(),
                Socket :: term()) -> {ok, state()}.
 mech_new(Host, Creds, _Socket) ->
+    Text = <<"The DIGEST-MD5 authentication mechanism is deprecated and "
+        " will be removed in the next release, please consider using"
+        " any of the SCRAM-SHA methods or equivalent instead.">>,
     mongoose_deprecations:log(
         {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-        "The DIGEST-MD5 authentication mechanism is deprecated and "
-        " will be removed in the next release, please consider using"
-        " any of the SCRAM-SHA methods or equivalent instead.",
+        #{what => sasl_digest_md5_deprecated, text => Text},
         [{log_level, warning}]),
     {ok, #state{step = 1,
                 nonce = mongoose_bin:gen_from_crypto(),
@@ -88,8 +89,8 @@ mech_step(#state{step = 5,
     {ok, mongoose_credentials:extend(Creds, [{username, UserName},
                                              {authzid, AuthzId},
                                              {auth_module, AuthModule}])};
-mech_step(A, B) ->
-    ?DEBUG("SASL DIGEST: A ~p B ~p", [A, B]),
+mech_step(State, Msg) ->
+    ?LOG_DEBUG(#{what => sasl_digest_error_bad_protocol, sasl_state => State, message => Msg}),
     {error, <<"bad-protocol">>}.
 
 
@@ -98,8 +99,8 @@ authorize_if_uri_valid(State, KeyVals, Nonce) ->
     DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
     case is_digesturi_valid(DigestURI, State#state.host) of
         false ->
-            ?DEBUG("User login not authorized because digest-uri "
-                   "seems invalid: ~p", [DigestURI]),
+            ?LOG_DEBUG(#{what => unauthorized_login, reason => invalid_digest_uri,
+                         message => DigestURI, user => UserName}),
             {error, <<"not-authorized">>, UserName};
         true ->
             maybe_authorize(UserName, KeyVals, Nonce, State)
@@ -139,7 +140,7 @@ do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, Sta
       {error, not_authorized} ->
             {error, <<"not-authorized">>, UserName};
       {error, R} ->
-            ?DEBUG("authorize error: ~p", [R]),
+            ?LOG_DEBUG(#{what => unauthorized_login, reason => R, user => UserName}),
             {error, <<"not-authorized">>}
     end.
 

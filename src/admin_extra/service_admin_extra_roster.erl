@@ -539,7 +539,8 @@ is_regexp_match(String, RegExp) ->
                     false
             end;
         Error ->
-            ?ERROR_MSG("Wrong regexp ~p: ~p", [RegExp, Error]),
+            ?LOG_ERROR(#{what => regexp_match_failed,
+                         regex => RegExp, string => String, reason => Error}),
             false
     end.
 

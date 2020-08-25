@@ -32,7 +32,7 @@ get_common_name(Cert) ->
         CN
     catch
         Class:Exception:StackTrace ->
-            log_exception(Class,Exception,StackTrace),
+            log_exception(Cert, Class, Exception, StackTrace),
             error
     end.
 
@@ -49,14 +49,16 @@ get_xmpp_addresses(Cert) ->
                  case 'XmppAddr':decode('XmppAddr', V) of
                      {ok, XmppAddr} -> XmppAddr;
                      Error ->
-                         ?DEBUG("'XmppAddr':decode/2 failed with ~p",[Error]),
+                         ?LOG_DEBUG(#{what => get_xmpp_addresses_failed,
+                                      text => <<"'XmppAddr':decode/2 failed">>,
+                                      cert => Cert, reason => Error}),
                          ok
                  end
              end || {otherName, #'AnotherName'{'type-id' = ?'id-on-xmppAddr', value = V}} <- SANs],
         [Addr || Addr <- XmppAddresses, is_binary(Addr)]
     catch
         Class:Exception:StackTrace ->
-            log_exception(Class, Exception,StackTrace),
+            log_exception(Cert, Class, Exception,StackTrace),
             []
     end.
 
@@ -71,7 +73,7 @@ get_dns_addresses(Cert) ->
         [DNS || {dNSName, DNS} <- SANs]
     catch
         Class:Exception:StackTrace ->
-            log_exception(Class,Exception,StackTrace),
+            log_exception(Cert, Class, Exception, StackTrace),
             []
     end.
 
@@ -106,6 +108,8 @@ get_lserver_from_addr(V, UTF8) when is_binary(V); is_list(V) ->
 get_lserver_from_addr(_, _) -> [].
 
 
-log_exception(Class,Exception,StackTrace) ->
-    ?DEBUG("failed to parse certificate with ~p:~p~n\t~p~n",
-           [Class,Exception,StackTrace]).
+log_exception(Cert, Class, Exception, StackTrace) ->
+    ?LOG_DEBUG(#{what => <<"cert_parsing_failed">>,
+                 text => <<"failed to parse certificate">>,
+                 cert => Cert,
+                 class => Class, reason => Exception, stacktrace => StackTrace}).

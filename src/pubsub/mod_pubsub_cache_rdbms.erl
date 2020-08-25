@@ -83,7 +83,7 @@ convert_rdbms_response({selected, [SelectedItem]}) ->
 convert_rdbms_response({updated, _}) ->
     ok;
 convert_rdbms_response(Response) ->
-    ?ERROR_MSG("RDBMS cache failed with: ~p", [Response]),
+    ?LOG_ERROR(#{what => pubsub_rdbms_cache_failed, reason => Response}),
     {error, pubsub_rdbms_cache_failed}.
 
 esc_int(Int) ->

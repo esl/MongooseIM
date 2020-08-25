@@ -168,11 +168,13 @@ handle_call({starttls, TLSOpts}, From, #state{socket = TCPSocket} = State) ->
                     NewState2 = process_data(TLSData, NewState),
                     {noreply, NewState2, maybe_hibernate(NewState2)};
                 {error, Reason} ->
-                    ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
+                    ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
+                                   c2s_pid => State#state.c2s_pid}),
                     {stop, normal, NewState}
             end;
         {error, Reason} ->
-            ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
+            ?LOG_WARNING(#{what => tcp_to_tls_failed, reason => Reason,
+                           c2s_pid => State#state.c2s_pid}),
             {stop, normal, State}
     end;
 handle_call({compress, ZlibSocket}, _From,
@@ -347,7 +349,7 @@ process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
                           stanza_chunk_size = ChunkSize,
                           c2s_pid = C2SPid} = State) ->
-    ?DEBUG("Received XML on stream = \"~s\"", [Data]),
+    ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Data, c2s_pid => C2SPid}),
     Size = byte_size(Data),
     maybe_run_keep_alive_hook(Size, State),
     {C2SEvents, NewParser} =

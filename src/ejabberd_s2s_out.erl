@@ -130,6 +130,19 @@
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
+
+-define(CLOSE_GENERIC(StateName, Reason, StateData),
+    ?LOG_INFO(#{what => s2s_out_closing, text => <<"Closing s2s connection">>,
+                state_name => StateName, reason => Reason,
+                myname => StateData#state.myname, server => StateData#state.server}),
+    {stop, normal, StateData}).
+
+-define(CLOSE_GENERIC(StateName, Reason, El, StateData),
+    ?LOG_INFO(#{what => s2s_out_closing, text => <<"Closing s2s connection on stanza">>,
+                state_name => StateName, reason => Reason, exml_packet => El,
+                myname => StateData#state.myname, server => StateData#state.server}),
+    {stop, normal, StateData}).
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -165,7 +178,9 @@ stop_connection(Pid) ->
 -spec init([any(), ...]) -> {'ok', 'open_socket', state()}.
 init([From, Server, Type]) ->
     process_flag(trap_exit, true),
-    ?DEBUG("started: ~p", [{From, Server, Type}]),
+    ?LOG_DEBUG(#{what => s2s_out_started,
+                 text => <<"New outgoing s2s connection">>,
+                 from => From, server => Server, type => Type}),
     {TLS, TLSRequired} = case ejabberd_config:get_local_option(s2s_use_starttls) of
               UseTls when (UseTls==undefined) or (UseTls==false) ->
                   {false, false};
@@ -218,10 +233,11 @@ open_socket(init, StateData) ->
                 StateData#state.myname,
                 StateData#state.server,
                 StateData#state.tls),
-    ?DEBUG("open_socket: ~p", [{StateData#state.myname,
-                                StateData#state.server,
-                                StateData#state.new,
-                                StateData#state.verify}]),
+    ?LOG_DEBUG(#{what => s2s_open_socket,
+                 myname => StateData#state.myname,
+                 server => StateData#state.server,
+                 new => StateData#state.new,
+                 verify => StateData#state.verify}),
     AddrList = get_addr_list(StateData#state.server),
     case lists:foldl(fun({_Addr, _Port}, {ok, Socket}) ->
                              {ok, Socket};
@@ -239,16 +255,18 @@ open_socket(init, StateData) ->
             send_text(NewStateData,
                       ?STREAM_HEADER(StateData#state.myname, StateData#state.server, Version)),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
-        {error, _Reason} ->
-            ?INFO_MSG("s2s connection: ~s -> ~s (remote server not found)",
-                      [StateData#state.myname, StateData#state.server]),
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => s2s_out_failed, reason => Reason,
+                           text => <<"Outgoing s2s connection failed (remote server not found)">>,
+                           myname => StateData#state.myname, server => StateData#state.server}),
             case mongoose_hooks:find_s2s_bridge(undefined,
                                                 StateData#state.myname,
                                                 StateData#state.server) of
                 {Mod, Fun, Type} ->
-                    ?INFO_MSG("found a bridge to ~s for: ~s -> ~s",
-                              [Type, StateData#state.myname,
-                               StateData#state.server]),
+                    ?LOG_INFO(#{what => s2s_out_bridge_found,
+                                text => <<"Found a bridge, relay_to_bridge next.">>,
+                                type => Type,
+                                myname => StateData#state.myname, server => StateData#state.server}),
                     NewStateData = StateData#state{bridge={Mod, Fun}},
                     {next_state, relay_to_bridge, NewStateData};
                 _ ->
@@ -256,13 +274,9 @@ open_socket(init, StateData) ->
             end
     end;
 open_socket(closed, StateData) ->
-    ?INFO_MSG("s2s connection: ~s -> ~s (stopped in open socket)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(open_socket, closed, StateData);
 open_socket(timeout, StateData) ->
-    ?INFO_MSG("s2s connection: ~s -> ~s (timeout in open socket)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(open_socket, timeout, StateData);
 open_socket(_, StateData) ->
     {next_state, open_socket, StateData}.
 
@@ -293,7 +307,8 @@ open_socket1(Host, Port) ->
                    Addr :: inet:ip_address(),
                    Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
 open_socket2(Type, Addr, Port) ->
-    ?DEBUG("s2s_out: connecting to ~p:~p~n", [Addr, Port]),
+    ?LOG_DEBUG(#{what => s2s_out_connecting,
+                 address => Addr, port => Port}),
     Timeout = outgoing_s2s_timeout(),
     SockOpts = [binary,
                 {packet, 0},
@@ -305,10 +320,13 @@ open_socket2(Type, Addr, Port) ->
     case (catch ejabberd_socket:connect(Addr, Port, SockOpts, Timeout)) of
         {ok, _Socket} = R -> R;
         {error, Reason} = R ->
-            ?DEBUG("s2s_out: connect return ~p~n", [Reason]),
+            ?LOG_DEBUG(#{what => s2s_out_failed,
+                         address => Addr, port => Port, reason => Reason}),
             R;
         {'EXIT', Reason} ->
-            ?DEBUG("s2s_out: connect crashed ~p~n", [Reason]),
+            ?LOG_DEBUG(#{what => s2s_out_failed,
+                         text => <<"Failed to open s2s socket because of crashing">>,
+                         address => Addr, port => Port, reason => Reason}),
             {error, Reason}
     end.
 
@@ -334,43 +352,40 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
             {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
             send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
-            ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid namespace).~n"
-                      "Namespace provided: ~p~nNamespace expected: \"jabber:server\"~n"
-                      "xmlns:db provided: ~p~nAll attributes: ~p",
-                      [StateData#state.myname, StateData#state.server, NSProvided, DB, Attrs]),
+            ?LOG_INFO(#{what => s2s_out_closing,
+                        text => <<"Closing s2s connection: (invalid namespace)">>,
+                        namespace_provided => NSProvided,
+                        namespace_expected => <<"jabber:server">>,
+                        xmlnsdb_provided => DB,
+                        all_attributes => Attrs,
+                        myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid xml)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_stream, xmlstreamerror, StateData);
 wait_for_stream({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("Closing s2s connection: ~s -> ~s (xmlstreamend)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_stream, xmlstreamend, StateData);
 wait_for_stream(timeout, StateData) ->
-    ?INFO_MSG("Closing s2s connection: ~s -> ~s (timeout in wait_for_stream)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_stream, timeout, StateData);
 wait_for_stream(closed, StateData) ->
-    ?INFO_MSG("Closing s2s connection: ~s -> ~s (close in wait_for_stream)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData}.
+    ?CLOSE_GENERIC(wait_for_stream, closed, StateData).
 
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_validation({xmlstreamelement, El}, StateData) ->
     case is_verify_res(El) of
         {result, To, From, Id, Type} ->
-            ?DEBUG("recv result: ~p", [{From, To, Id, Type}]),
+            ?LOG_DEBUG(#{what => s2s_receive_result,
+                         from => From, to => To, messag_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
                 {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
                     send_queue(StateData, StateData#state.queue),
-                    ?INFO_MSG("Connection established: ~s -> ~s with TLS=~p",
-                              [StateData#state.myname, StateData#state.server,
-                               StateData#state.tls_enabled]),
+                    ?LOG_INFO(#{what => s2s_out_connected,
+                                text => <<"New outgoing s2s connection established">>,
+                                tls_enabled => StateData#state.tls_enabled,
+                                myname => StateData#state.myname, server => StateData#state.server}),
                     mongoose_hooks:s2s_connect_hook(StateData#state.myname,
                                                     ok,
                                                     StateData#state.server),
@@ -378,17 +393,14 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                      StateData#state{queue = queue:new()}};
                 {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
                     %% TODO: bounce packets
-                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (TLS is required but unavailable)",
-                              [StateData#state.myname, StateData#state.server]),
-                    {stop, normal, StateData};
+                    ?CLOSE_GENERIC(wait_for_validation, tls_required_but_unavailable, El, StateData);
                 _ ->
                     %% TODO: bounce packets
-                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid dialback key)",
-                              [StateData#state.myname, StateData#state.server]),
-                    {stop, normal, StateData}
+                    ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
         {verify, To, From, Id, Type} ->
-            ?DEBUG("recv verify: ~p", [{From, To, Id, Type}]),
+            ?LOG_DEBUG(#{what => s2s_receive_verify,
+                         from => From, to => To, messag_id => Id, type => Type}),
             case StateData#state.verify of
                 false ->
                     NextState = wait_for_validation,
@@ -406,29 +418,28 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamend)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_validation, xmlstreamend, StateData);
 wait_for_validation({xmlstreamerror, _}, StateData) ->
-    ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamerror)",
-              [StateData#state.myname, StateData#state.server]),
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_validation, xmlstreamerror, StateData);
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
     %% This is an auxiliary s2s connection for dialback.
     %% This timeout is normal and doesn't represent a problem.
-    ?DEBUG("wait_for_validation: ~s -> ~s (timeout in verify connection)",
-           [StateData#state.myname, StateData#state.server]),
+    ?LOG_INFO(#{what => s2s_out_validation_timeout,
+                text => <<"Timeout in verify outgoing s2s connection. Stopping">>,
+                myname => StateData#state.myname, server => StateData#state.server}),
     {stop, normal, StateData};
 wait_for_validation(timeout, StateData) ->
-    ?INFO_MSG("wait_for_validation: ~s -> ~s (connect timeout)",
-              [StateData#state.myname, StateData#state.server]),
+    ?LOG_INFO(#{what => s2s_out_connect_timeout,
+                text => <<"Connection timeout in outgoing s2s connection. Stopping">>,
+                myname => StateData#state.myname, server => StateData#state.server}),
     {stop, normal, StateData};
 wait_for_validation(closed, StateData) ->
-    ?INFO_MSG("wait for validation: ~s -> ~s (closed)",
-              [StateData#state.myname, StateData#state.server]),
+    ?LOG_INFO(#{what => s2s_out_validation_closed,
+                text => <<"Connection closed when waiting for validation in outgoing s2s connection. Stopping">>,
+                myname => StateData#state.myname, server => StateData#state.server}),
     {stop, normal, StateData}.
 
 
@@ -453,24 +464,18 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             send_text(StateData,
                       <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                       (?STREAM_TRAILER)/binary>>),
-            ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                      [StateData#state.myname, StateData#state.server]),
-            {stop, normal, StateData}
+            ?CLOSE_GENERIC(wait_for_features, bad_format, El, StateData)
     end;
 wait_for_features({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("wait_for_features: xmlstreamend", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_features, xmlstreamend, StateData);
 wait_for_features({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    ?INFO_MSG("wait for features: xmlstreamerror", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_features, xmlstreamerror, StateData);
 wait_for_features(timeout, StateData) ->
-    ?INFO_MSG("wait for features: timeout", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_features, timeout, StateData);
 wait_for_features(closed, StateData) ->
-    ?INFO_MSG("wait for features: closed", []),
-    {stop, normal, StateData}.
+    ?CLOSE_GENERIC(wait_for_features, closed, StateData).
 
 
 -spec wait_for_auth_result(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -479,8 +484,9 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
         #xmlel{name = <<"success">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
                 ?NS_SASL ->
-                    ?DEBUG("auth: ~p", [{StateData#state.myname,
-                                         StateData#state.server}]),
+                    ?LOG_DEBUG(#{what => s2s_auth_success,
+                                 myname => StateData#state.myname,
+                                 server => StateData#state.server}),
                     send_text(StateData,
                               ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
                                               <<" version='1.0'">>)),
@@ -492,15 +498,15 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                              [StateData#state.myname, StateData#state.server]),
-                    {stop, normal, StateData}
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
                 ?NS_SASL ->
-                    ?DEBUG("restarted: ~p", [{StateData#state.myname,
-                                              StateData#state.server}]),
+                    ?LOG_INFO(#{what => s2s_auth_failure,
+                                text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
+                                myname => StateData#state.myname,
+                                server => StateData#state.server}),
                     ejabberd_socket:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
@@ -508,32 +514,24 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                              [StateData#state.myname, StateData#state.server]),
-                    {stop, normal, StateData}
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
             send_text(StateData,
                       <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-            ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                      [StateData#state.myname, StateData#state.server]),
-            {stop, normal, StateData}
+            ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("wait for auth result: xmlstreamend", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamend, StateData);
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    ?INFO_MSG("wait for auth result: xmlstreamerror", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamerror, StateData);
 wait_for_auth_result(timeout, StateData) ->
-    ?INFO_MSG("wait for auth result: timeout", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_auth_result, timeout, StateData);
 wait_for_auth_result(closed, StateData) ->
-    ?INFO_MSG("wait for auth result: closed", []),
-    {stop, normal, StateData}.
+    ?CLOSE_GENERIC(wait_for_auth_result, closed, StateData).
 
 
 -spec wait_for_starttls_proceed(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -542,8 +540,9 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
         #xmlel{name = <<"proceed">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
                 ?NS_TLS ->
-                    ?DEBUG("starttls: ~p", [{StateData#state.myname,
-                                             StateData#state.server}]),
+                    ?LOG_DEBUG(#{what => s2s_starttls,
+                                 myname => StateData#state.myname,
+                                 server => StateData#state.server}),
                     Socket = StateData#state.socket,
                     TLSOpts = get_tls_opts_with_certfile(StateData),
                     TLSOpts2 = get_tls_opts_with_ciphers(TLSOpts),
@@ -561,29 +560,21 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     send_text(StateData,
                               <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
-                    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                              [StateData#state.myname, StateData#state.server]),
-                    {stop, normal, StateData}
+                    ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
-            ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
-                      [StateData#state.myname, StateData#state.server]),
-            {stop, normal, StateData}
+            ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("wait for starttls proceed: xmlstreamend", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamend, StateData);
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    ?INFO_MSG("wait for starttls proceed: xmlstreamerror", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamerror, StateData);
 wait_for_starttls_proceed(timeout, StateData) ->
-    ?INFO_MSG("wait for starttls proceed: timeout", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, timeout, StateData);
 wait_for_starttls_proceed(closed, StateData) ->
-    ?INFO_MSG("wait for starttls proceed: closed", []),
-    {stop, normal, StateData}.
+    ?CLOSE_GENERIC(wait_for_starttls_proceed, closed, StateData).
 
 
 -spec reopen_socket(ejabberd:xml_stream_item(), state()) -> fsm_return().
@@ -594,8 +585,7 @@ reopen_socket({xmlstreamend, _Name}, StateData) ->
 reopen_socket({xmlstreamerror, _}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
 reopen_socket(timeout, StateData) ->
-    ?INFO_MSG("reopen socket: timeout", []),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(reopen_socket, timeout, StateData);
 reopen_socket(closed, StateData) ->
     p1_fsm:send_event(self(), init),
     {next_state, open_socket, StateData, ?FSMTIMEOUT}.
@@ -611,19 +601,20 @@ wait_before_retry(_Event, StateData) ->
 relay_to_bridge(stop, StateData) ->
     wait_before_reconnect(StateData);
 relay_to_bridge(closed, StateData) ->
-    ?INFO_MSG("relay to bridge: ~s -> ~s (closed)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(relay_to_bridge, closed, StateData);
 relay_to_bridge(_Event, StateData) ->
     {next_state, relay_to_bridge, StateData}.
 
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
-    ?DEBUG("s2S stream established", []),
+    ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
+                 myname => StateData#state.myname, server => StateData#state.server}),
     case is_verify_res(El) of
         {verify, VTo, VFrom, VId, VType} ->
-            ?DEBUG("recv verify: ~p", [{VFrom, VTo, VId, VType}]),
+            ?LOG_DEBUG(#{what => s2s_recv_verify,
+                         to => VTo, from => VFrom, messag_id => VId, type => VType,
+                         myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
                     send_event(VType, VPid, StateData);
@@ -635,23 +626,15 @@ stream_established({xmlstreamelement, El}, StateData) ->
     end,
     {next_state, stream_established, StateData};
 stream_established({xmlstreamend, _Name}, StateData) ->
-    ?INFO_MSG("Connection closed in stream established: ~s -> ~s (xmlstreamend)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(stream_established, xmlstreamend, StateData);
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
-    ?INFO_MSG("stream established: ~s -> ~s (xmlstreamerror)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(stream_established, xmlstreamerror, StateData);
 stream_established(timeout, StateData) ->
-    ?INFO_MSG("stream established: ~s -> ~s (timeout)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(stream_established, timeout, StateData);
 stream_established(closed, StateData) ->
-    ?INFO_MSG("stream established: ~s -> ~s (closed)",
-              [StateData#state.myname, StateData#state.server]),
-    {stop, normal, StateData}.
+    ?CLOSE_GENERIC(stream_established, closed, StateData).
 
 
 %%----------------------------------------------------------------------
@@ -735,7 +718,9 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_info({send_text, Text}, StateName, StateData) ->
-    ?ERROR_MSG("{s2s_out:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
+    ?LOG_ERROR(#{what => s2s_send_text, text => <<"Deprecated ejabberd_s2s_out send_text">>,
+                 myname => StateData#state.myname, server => StateData#state.server,
+                 send_text => Text}),
     send_text(StateData, Text),
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
@@ -757,10 +742,17 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
             %% In this state we relay all outbound messages
             %% to a foreign protocol bridge such as SMTP, SIP, etc.
             {Mod, Fun} = StateData#state.bridge,
-            ?DEBUG("relaying stanza via ~p:~p/1", [Mod, Fun]),
+            ?LOG_DEBUG(#{what => s2s_relay_stanza,
+                         text => <<"Relaying stanza to bridge">>,
+                         bridge_module => Mod, bridge_fun => Fun, acc => Acc,
+                         myname => StateData#state.myname, server => StateData#state.server}),
             case catch Mod:Fun(El) of
                 {'EXIT', Reason} ->
-                    ?ERROR_MSG("Error while relaying to bridge: ~p", [Reason]),
+                    ?LOG_ERROR(#{what => s2s_relay_to_bridge_failed,
+                                 bridge_module => Mod, bridge_fun => Fun,
+                                 reason => Reason, acc => Acc,
+                                 myname => StateData#state.myname,
+                                 server => StateData#state.server}),
                     bounce_element(Acc, El, mongoose_xmpp_errors:internal_server_error()),
                     wait_before_reconnect(StateData);
                 _ ->
@@ -773,15 +765,16 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
     end;
 handle_info({timeout, Timer, _}, wait_before_retry,
             #state{timer = Timer} = StateData) ->
-    ?INFO_MSG("Reconnect delay expired: Will now retry to connect to ~s when needed.",
-              [StateData#state.server]),
+    ?LOG_INFO(#{what => s2s_reconnect_delay_expired,
+                text => <<"Reconnect delay expired: Will now retry to connect when needed.">>,
+                myname => StateData#state.myname,
+                server => StateData#state.server}),
     {stop, normal, StateData};
-handle_info({timeout, Timer, _}, _StateName,
+handle_info({timeout, Timer, _}, StateName,
             #state{timer = Timer} = StateData) ->
-    ?INFO_MSG("Closing connection with ~s: timeout", [StateData#state.server]),
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(StateName, s2s_out_timeout, StateData);
 handle_info(terminate_if_waiting_before_retry, wait_before_retry, StateData) ->
-    {stop, normal, StateData};
+    ?CLOSE_GENERIC(wait_before_retry, terminate_if_waiting_before_retry, StateData);
 handle_info(terminate_if_waiting_before_retry, StateName, StateData) ->
     {next_state, StateName, StateData, get_timeout_interval(StateName)};
 handle_info(_, StateName, StateData) ->
@@ -793,7 +786,9 @@ handle_info(_, StateName, StateData) ->
 %% Returns: any
 %%----------------------------------------------------------------------
 terminate(Reason, StateName, StateData) ->
-    ?DEBUG("terminated: ~p", [{Reason, StateName}]),
+    ?LOG_DEBUG(#{what => s2s_out_closed, text => <<"ejabberd_s2s_out terminated">>,
+                 reason => Reason, state_name => StateName,
+                 myname => StateData#state.myname, server => StateData#state.server}),
     case StateData#state.new of
         false ->
             ok;
@@ -940,7 +935,10 @@ send_db_request(StateData) ->
         end,
         {next_state, wait_for_validation, NewStateData, ?FSMTIMEOUT*6}
     catch
-        _:_ ->
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => s2s_out_send_db_request_failed,
+                         class => Class, reason => Reason, stacktrace => Stacktrace,
+                         myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, NewStateData}
     end.
 
@@ -974,7 +972,8 @@ get_addr_port(Server) ->
     Res = srv_lookup(Server),
     case Res of
         {error, Reason} ->
-            ?DEBUG("srv lookup of '~s' failed: ~p~n", [Server, Reason]),
+            ?LOG_DEBUG(#{what => s2s_srv_lookup_failed,
+                         reason => Reason, server => Server}),
             [{Server, outgoing_s2s_port()}];
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
@@ -985,7 +984,8 @@ get_addr_port(Server) ->
                 SortedList ->
                     List = lists:keysort(1, SortedList),
                     List2 = remove_addr_index(List),
-                    ?DEBUG("srv lookup of '~s': ~p~n", [Server, List2]),
+                    ?LOG_DEBUG(#{what => s2s_srv_lookup_success,
+                                 addresses => List2, server => Server}),
                     List2
             end
     end.
@@ -1017,10 +1017,11 @@ srv_lookup(Server, Timeout, Retries) ->
         {error, _Reason} ->
             case inet_res:getbyname("_jabber._tcp." ++ binary_to_list(Server), srv, Timeout) of
                 {error, timeout} ->
-                    ?ERROR_MSG("The DNS servers~n  ~p~ntimed out on request"
-                               " for ~p IN SRV."
-                               " You should check your DNS configuration.",
-                               [inet_db:res_option(nameserver), Server]),
+                    ?LOG_ERROR(#{what => s2s_dns_lookup_failed,
+                                 text => <<"The DNS servers timed out on request for IN SRV."
+                                           " You should check your DNS configuration.">>,
+                                 nameserver => inet_db:res_option(nameserver),
+                                 server => Server}),
                     srv_lookup(Server, Timeout, Retries - 1);
                 R -> R
             end;
@@ -1055,10 +1056,12 @@ get_addrs(Host, Family) ->
            end,
     case inet:gethostbyname(Host, Type) of
         {ok, #hostent{h_addr_list = Addrs}} ->
-            ?DEBUG("~s of ~s resolved to: ~p~n", [Type, Host, Addrs]),
+            ?LOG_DEBUG(#{what => s2s_srv_resolve_success,
+                         type => Type, server => Host, addresses => Addrs}),
             Addrs;
         {error, Reason} ->
-            ?DEBUG("~s lookup of '~s' failed: ~p~n", [Type, Host, Reason]),
+            ?LOG_DEBUG(#{what => s2s_srv_resolve_failed,
+                         type => Type, server => Host, reason => Reason}),
             []
     end.
 
@@ -1112,8 +1115,9 @@ outgoing_s2s_timeout() ->
 log_s2s_out(false, _, _, _) -> ok;
 %% Log new outgoing connections:
 log_s2s_out(_, Myname, Server, Tls) ->
-    ?INFO_MSG("Trying to open s2s connection: ~s -> ~s with TLS=~p", [Myname, Server, Tls]).
-
+    ?LOG_INFO(#{what => s2s_out,
+                text => <<"Trying to open s2s connection">>,
+                myname => Myname, server => Server, tls => Tls}).
 
 %% @doc Calculate timeout depending on which state we are in:
 %% Can return integer > 0 | infinity
@@ -1299,8 +1303,9 @@ remove_addr_index(List) ->
 
 handle_parsed_features({false, false, _, StateData = #state{authenticated = true}}) ->
     send_queue(StateData, StateData#state.queue),
-    ?INFO_MSG("Connection established: ~s -> ~s",
-              [StateData#state.myname, StateData#state.server]),
+    ?LOG_INFO(#{what => s2s_out_connected,
+                text => <<"New outgoing s2s connection established">>,
+                myname => StateData#state.myname, server => StateData#state.server}),
     mongoose_hooks:s2s_connect_hook(StateData#state.myname,
                                     ok,
                                     StateData#state.server),
@@ -1324,8 +1329,8 @@ handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled =
     {next_state, wait_for_starttls_proceed, StateData,
      ?FSMTIMEOUT};
 handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
-    ?DEBUG("restarted: ~p", [{StateData#state.myname,
-                              StateData#state.server}]),
+    ?LOG_DEBUG(#{what => s2s_out_restarted,
+                 myname => StateData#state.myname, server => StateData#state.server}),
     ejabberd_socket:close(StateData#state.socket),
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
@@ -1333,8 +1338,8 @@ handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
 handle_parsed_features({_, _, _, StateData = #state{db_enabled = true}}) ->
     send_db_request(StateData);
 handle_parsed_features({_, _, _, StateData}) ->
-    ?DEBUG("restarted: ~p", [{StateData#state.myname,
-                              StateData#state.server}]),
+    ?LOG_DEBUG(#{what => s2s_out_restarted,
+                 myname => StateData#state.myname, server => StateData#state.server}),
     % TODO: clear message queue
     ejabberd_socket:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,

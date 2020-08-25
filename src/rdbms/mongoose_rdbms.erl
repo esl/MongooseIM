@@ -297,48 +297,48 @@ use_escaped_string({escaped_string, S}) ->
 use_escaped_string(X) ->
     %% We need to print an error, because in some places
     %% the error can be just ignored, because of too wide catches.
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_string, X}).
 
 -spec use_escaped_binary(escaped_binary()) -> sql_query_part().
 use_escaped_binary({escaped_binary, S}) ->
     S;
 use_escaped_binary(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_binary, X}).
 
 -spec use_escaped_like(escaped_like()) -> sql_query_part().
 use_escaped_like({escaped_like, S}) ->
     S;
 use_escaped_like(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_like, X}).
 
 -spec use_escaped_integer(escaped_integer()) -> sql_query_part().
 use_escaped_integer({escaped_integer, S}) ->
     S;
 use_escaped_integer(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_integer, X}).
 
 -spec use_escaped_boolean(escaped_boolean()) -> sql_query_part().
 use_escaped_boolean({escaped_boolean, S}) ->
     S;
 use_escaped_boolean(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_boolean, X}).
 
 -spec use_escaped_null(escaped_null()) -> sql_query_part().
 use_escaped_null({escaped_null, S}) ->
     S;
 use_escaped_null(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped_null, X}).
 
 %% Use this function, if type is unknown.
@@ -356,8 +356,8 @@ use_escaped({escaped_boolean, _}=X) ->
 use_escaped({escaped_null, _}=X) ->
     use_escaped_null(X);
 use_escaped(X) ->
-    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
-               [X, erlang:process_info(self(), current_stacktrace)]),
+    ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
+        stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped, X}).
 
 -spec escape_like_internal(binary() | string()) -> binary() | string().
@@ -440,11 +440,12 @@ handle_call({sql_cmd, Command, Timestamp}, From, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
 handle_call(get_db_info, _, #state{db_ref = DbRef} = State) ->
     {reply, {ok, db_engine(?MYNAME), DbRef}, State};
-handle_call(_Event, _From, State) ->
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, {error, badarg}, State}.
 
 handle_cast(Request, State) ->
-    ?WARNING_MSG("unexpected cast: ~p", [Request]),
+    ?UNEXPECTED_CAST(Request),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -461,7 +462,7 @@ handle_info(keepalive, #state{keepalive_interval = KeepaliveInterval} = State) -
 handle_info({'EXIT', _Pid, _Reason} = Reason, State) ->
     {stop, Reason, State};
 handle_info(Info, State) ->
-    ?WARNING_MSG("unexpected info: ~p", [Info]),
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 -spec terminate(Reason :: term(), state()) -> any().
@@ -488,9 +489,8 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
         Age when Age  < ?TRANSACTION_TIMEOUT ->
             abort_on_driver_error(outer_op(Command, State));
         Age ->
-            ?ERROR_MSG("Database was not available or too slow,"
-                       " discarding ~p milliseconds old request~n~p~n",
-                       [Age, Command]),
+            ?LOG_ERROR(#{what => rdbms_db_not_available_or_too_slow,
+                text => <<"Discarding request">>, age => Age, command => Command}),
             {reply, {error, timeout}, State}
     end.
 
@@ -551,26 +551,18 @@ outer_transaction(F, NRestarts, _Reason, State) ->
         {aborted, #{reason := Reason, sql_query := SqlQuery}}
             when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
-            ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
-                       "restarts=~p "
-                       "last_abort_reason=~1000p "
-                       "last_sql_query=~1000p "
-                       "stacktrace=~1000p "
-                       "state=~1000p",
-                       [?MAX_TRANSACTION_RESTARTS, Reason,
-                        iolist_to_binary(SqlQuery),
-                        StackTrace, NewState]),
+            ?LOG_ERROR(#{what => rdbms_sql_transaction_restarts_exceeded,
+                restarts => ?MAX_TRANSACTION_RESTARTS, last_abort_reason => Reason,
+                last_sql_query => iolist_to_binary(SqlQuery),
+                stacktrace => StackTrace, state => NewState}),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
             %% Too many retries of outer transaction.
-            ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
-                       "restarts=~p "
-                       "last_abort_reason=~1000p "
-                       "stacktrace=~1000p "
-                       "state=~1000p",
-                       [?MAX_TRANSACTION_RESTARTS, Reason,
-                        StackTrace, NewState]),
+            ?LOG_ERROR(#{what => rdbms_sql_transaction_restarts_exceeded,
+                restarts => ?MAX_TRANSACTION_RESTARTS,
+                last_abort_reason => Reason, stacktrace => StackTrace,
+                state => NewState}),
             sql_query_internal([<<"rollback;">>], NewState),
             {{aborted, Reason}, NewState};
         {'EXIT', Reason} ->
@@ -590,11 +582,10 @@ apply_transaction_function(F) ->
     catch
         throw:ThrowResult:StackTrace ->
             {ThrowResult, StackTrace};
-        Class:Other:StackTrace ->
-            ?ERROR_MSG("issue=outer_transaction_failed "
-                       "reason=~p:~p stacktrace=~1000p",
-                       [Class, Other, StackTrace]),
-            {{'EXIT', Other}, StackTrace}
+        Class:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => rdbms_outer_transaction_failed, class => Class,
+                reason => Reason, stacktrace => StackTrace}),
+            {{'EXIT', Reason}, StackTrace}
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef}) ->
@@ -622,10 +613,9 @@ sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
           catch Class:Reason:StackTrace ->
-            ?ERROR_MSG("event=sql_execute_failed "
-                        "statement_name=~p reason=~p:~p "
-                        "params=~1000p stacktrace=~1000p",
-                       [Name, Class, Reason, Params, StackTrace]),
+            ?LOG_ERROR(#{what => rdbms_sql_execute_failed, statement_name => Name,
+                class => Class, reason => Reason, params => Params,
+                stacktrace => StackTrace}),
             erlang:raise(Class, Reason, StackTrace)
           end,
     {Res, NewState}.
@@ -672,8 +662,8 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
         Error ->
             SleepFor = rand:uniform(RetryAfter),
             Backend = mongoose_rdbms_backend:backend_name(),
-            ?ERROR_MSG("Connection attempt to ~s resulted in ~p."
-                       " Retrying in ~p seconds.", [Backend, Error, SleepFor]),
+            ?LOG_ERROR(#{what => rdbms_connection_attempt_error, backend => Backend,
+                error => Error, sleep_for => SleepFor}),
             timer:sleep(timer:seconds(SleepFor)),
             NextRetryDelay = RetryAfter * RetryAfter,
             connect(Settings, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
@@ -688,7 +678,7 @@ schedule_keepalive(KeepaliveInterval) ->
         undefined ->
             ok;
         Other ->
-            ?ERROR_MSG("Wrong keepalive_interval definition '~p'~n", [Other]),
+            ?LOG_ERROR(#{what => rdbms_wrong_keepalive_interval, reason => Other}),
             ok
     end.
 

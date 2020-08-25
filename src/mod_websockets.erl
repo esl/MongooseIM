@@ -64,7 +64,8 @@ init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
     Req1 = add_sec_websocket_protocol_header(Req),
-    ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
+    ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets request">>,
+                 req => Req, opts => Opts}),
     Timeout = gen_mod:get_opt(timeout, Opts, 60000),
 
     AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
@@ -80,13 +81,13 @@ terminate(_Reason, _Req, _State) ->
 
 % Called for every new websocket connection.
 websocket_init(Opts) ->
-    ?DEBUG("websocket_init: ~p~n", [Opts]),
     PingRate = gen_mod:get_opt(ping_rate, Opts, none),
     MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
     Peer = gen_mod:get_opt(peer, Opts),
     PeerCert = gen_mod:get_opt(peercert, Opts),
-    ?DEBUG("ping rate is ~p", [PingRate]),
     maybe_send_ping_request(PingRate),
+    ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets connection">>,
+                 peer => Peer, opts => Opts}),
     State = #ws_state{opts = Opts,
                       ping_rate = PingRate,
                       max_stanza_size = MaxStanzaSize,
@@ -96,31 +97,35 @@ websocket_init(Opts) ->
 
 % Called when a text message arrives.
 websocket_handle({text, Msg}, State) ->
-    ?DEBUG("Received: ~p", [Msg]),
+    ?LOG_DEBUG(#{what => ws_received, msg => Msg, peer => State#ws_state.peer}),
     handle_text(Msg, State);
 
 websocket_handle({binary, Msg}, State) ->
-    ?DEBUG("Received binary: ~p", [Msg]),
+    ?LOG_DEBUG(#{what => ws_received, msg => Msg, peer => State#ws_state.peer}),
     handle_text(Msg, State);
 
 websocket_handle({pong, Payload}, State) ->
-    ?DEBUG("Received pong frame: ~p", [Payload]),
+    ?LOG_DEBUG(#{what => ws_pong, text => <<"Received pong frame over WebSockets">>,
+                 msg => Payload, peer => State#ws_state.peer}),
     {ok, State};
 
 % With this callback we can handle other kind of
 % messages, like binary.
 websocket_handle(Any, State) ->
-    ?DEBUG("Received non-text: ~p", [Any]),
+    ?LOG_DEBUG(#{what => ws_received, text => <<"Received non-text over WebSockets">>,
+                 msg => Any, peer => State#ws_state.peer}),
     {ok, State}.
 
 % Other messages from the system are handled here.
 websocket_info({send, Text}, State) ->
-    ?DEBUG("Sent text: ~s", [Text]),
+    ?LOG_DEBUG(#{what => ws_send, text => <<"Sending text over WebSockets">>,
+                 msg => Text, peer => State#ws_state.peer}),
     {reply, {text, Text}, State};
 websocket_info({send_xml, XML}, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
-    ?DEBUG("Sent XML: ~s", [Text]),
+    ?LOG_DEBUG(#{what => ws_send, text => <<"Sending xml over WebSockets">>,
+                 packet => Text, peer => State#ws_state.peer}),
     {reply, {text, Text}, State};
 websocket_info({set_ping, Value}, State = #ws_state{ping_rate = none})
   when is_integer(Value) and (Value > 0)->
@@ -143,7 +148,7 @@ websocket_info(stop, #ws_state{parser = Parser} = State) ->
     exml_stream:free_parser(Parser),
     {stop, State};
 websocket_info(Info, State) ->
-    ?DEBUG("unknown info: ~p", [Info]),
+    ?LOG_DEBUG(#{what => unexpected_message, msg => Info}),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -208,11 +213,17 @@ do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert
     Opts1 = [{xml_socket, true} | Opts],
     case call_fsm_start(FSMModule, SocketData, Opts1) of
         {ok, Pid} ->
-            ?DEBUG("started ~p via websockets: ~p", [FSMModule, Pid]),
+            ?LOG_DEBUG(#{what => ws_c2s_started,
+                         text => <<"WebSockets starts c2s process">>,
+                         c2s_pid => Pid, c2s_module => FSMModule,
+                         peer => State#ws_state.peer}),
             NewState = State#ws_state{fsm_pid = Pid, peercert = passed},
             {ok, NewState};
         {error, Reason} ->
-            ?WARNING_MSG("~p start failed: ~p", [FSMModule, Reason]),
+            ?LOG_WARNING(#{what => ws_c2s_start_failed,
+                           text => <<"WebSockets fails to start c2s process">>,
+                           reason => Reason, c2s_module => FSMModule,
+                           peer => State#ws_state.peer}),
             {stop, State#ws_state{peercert = passed}}
     end.
 
@@ -352,7 +363,9 @@ should_have_jabber_client(_) -> false.
 
 send_ping_request(PingRate) ->
     Dest = self(),
-    ?DEBUG("Sending websocket ping request to ~p", [Dest]),
+    ?LOG_DEBUG(#{what => ws_schedule_ping,
+                 text => <<"Sending websocket ping request">>,
+                 ping_rate => PingRate}),
     erlang:send_after(PingRate, Dest, do_ping).
 
 maybe_send_ping_request(none) ->
@@ -377,7 +390,9 @@ add_sec_websocket_protocol_header(Req) ->
                      cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, MatchedProtocol, Req);
                  nomatch ->
                      %% Do not agree with client, do not add a response header
-                     ?DEBUG("issue=not_supported_procol, protocol=~p", [Protocols]),
+                     ?LOG_DEBUG(#{what => ws_unknown_protocol,
+                                  text => <<"Header sec-websocket-protocol does not contain xmpp option">>,
+                                  protocols => Protocols}),
                      Req
              end
      end.

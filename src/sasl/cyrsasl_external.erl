@@ -179,12 +179,14 @@ custom_verification(Module, Creds) ->
             {error, Error} when is_binary(Error) ->
                 {error, Error};
             InvalidReturnValue ->
-                ?ERROR_MSG("~p:verify_cert/1 invalid return value: ~p", [Module, InvalidReturnValue]),
+                ?LOG_ERROR(#{what => sasl_external_failed, sasl_module => Module,
+                             reason => invalid_return_value, return_value => InvalidReturnValue}),
                 {error, <<"not-authorized">>}
         end
     catch
         Class:Exception ->
-            ?ERROR_MSG("~p:verify_cert/1 crashed: ~p", [Module, {Class, Exception}]),
+            ?LOG_ERROR(#{what => sasl_external_failed, sasl_module => Module,
+                         class => Class, reason => Exception}),
             {error, <<"not-authorized">>}
     end.
 

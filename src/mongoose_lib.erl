@@ -9,6 +9,10 @@
 %% Busy Wait
 -export([wait_until/2, wait_until/3]).
 
+%% Private, just for warning
+-export([deprecated_logging/1]).
+-deprecated({deprecated_logging, 1, eventually}).
+
 -include("mongoose.hrl").
 
 %% ------------------------------------------------------------------
@@ -29,15 +33,17 @@ log_if_backend_error(V, Module, Line, Args) ->
         {updated, _} -> ok; % rdbms
         L when is_list(L) -> ok; % riak
         {error, E} ->
-            make_msg("Error calling backend", E, Module, Line, Args);
+            ?LOG_ERROR(#{what => backend_error,
+                         text => <<"Error calling backend module">>,
+                         caller_module => Module, caller_line => Line,
+                         reason => E, args => Args});
         E ->
-            make_msg("Unexpected return from backend", E, Module, Line, Args)
+            ?LOG_ERROR(#{what => backend_error,
+                         text => <<"Unexpected return from backend">>,
+                         caller_module => Module, caller_line => Line,
+                         reason => E, args => Args})
     end,
     ok.
-
-make_msg(Msg, Error, Module, Line, Args) ->
-    ?ERROR_MSG("~p:~p module=~p line=~p arguments=~p",
-                  [Msg, Error, Module, Line, Args]).
 
 %% ------------------------------------------------------------------
 %% Maps
@@ -94,3 +100,9 @@ do_wait_until(Fun, ExpectedValue, Opts) ->
 wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).
+
+
+deprecated_logging(Location) ->
+    Map = #{what => deprecated_logging_macro,
+            text => <<"Deprecated logging macro is used in your code">>},
+    mongoose_deprecations:log(Location, Map, [{log_level, warning}]).

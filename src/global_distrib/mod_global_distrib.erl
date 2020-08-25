@@ -106,8 +106,9 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             %% Continue routing with initialized metadata
             mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost, ok,
                                                               From, To, LocalHost),
-            ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter local_host=~ts",
-                   [ID, jid:to_binary(From), jid:to_binary(To), LocalHost]),
+            ?LOG_DEBUG(#{what => gd_route_local,
+                         text => <<"Routing global message to local datacenter">>,
+                         gd_id => ID, local_host => LocalHost, acc => Acc}),
             {ok, TTL} = find_metadata(Acc, ttl),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, TTL),
             {From, To, Acc, Packet};
@@ -118,27 +119,28 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             case find_metadata(Acc, ttl) of
                 {ok, 0} ->
                     %% Just continue routing
-                    ?INFO_MSG("event=ttl_zero gd_id=~s from=~s to=~s found_at=~s",
-                           [ID, jid:to_binary(From), jid:to_binary(To), TargetHost]),
+                    ?LOG_INFO(#{what => gd_route_ttl_zero,
+                                text => <<"Skip global distribution">>,
+                                gd_id => ID, acc => Acc, target_host => TargetHost}),
                     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
                     FPacket;
                 {ok, TTL} ->
-                    %% Forward stanza to remote cluster using global distribution
-                    ?DEBUG("event=rerouting_global_message gd_id=~s from=~s to=~s to target_host=~s ttl=~B",
-                           [ID, jid:to_binary(From), jid:to_binary(To), TargetHost, TTL]),
+                    ?LOG_DEBUG(#{what => gd_reroute, ttl => TTL,
+                                 text => <<"Forward stanza to remote cluster "
+                                           "using global distribution">>,
+                                 gd_id => ID, acc => Acc, target_host => TargetHost}),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Acc2 = remove_metadata(Acc1, target_host_override),
                     %% KNOWN ISSUE: will crash loudly if there are no connections available
                     %% TODO: Discuss behaviour in such scenario
-                    Worker = get_bound_connection_noisy(TargetHost, ID, FPacket),
+                    Worker = get_bound_connection_noisy(TargetHost, ID, Acc2),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc2, Packet}),
                     drop
             end;
 
         error ->
-            ?DEBUG("Unable to route global message gd_id=~s from=~s to=~s: "
-                   "user not found in the routing table",
-                   [ID, jid:to_binary(From), jid:to_binary(To)]),
+            ?LOG_DEBUG(#{what => gd_route_failed, gd_id => ID, acc => Acc,
+                         text => <<"Unable to route global: user not found in the routing table">>}),
             mongoose_hooks:mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet})
     end.
 
@@ -147,24 +149,24 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_initialize_metadata({jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) -> mongoose_acc:t().
-maybe_initialize_metadata({From, To, Acc, Packet}) ->
+maybe_initialize_metadata({_From, _To, Acc, _Packet}) ->
     case find_metadata(Acc, origin) of
         {error, undefined} ->
             Acc1 = put_metadata(Acc, ttl, opt(message_ttl)),
             ID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
             Acc2 = put_metadata(Acc1, id, ID),
-            ?DEBUG("event=gd_init_metadata gd_id=~s from=~p to=~p stanza=~p", [ID, From, To, Packet]),
+            ?LOG_DEBUG(#{what => gd_init_metadata, gd_id => ID, acc => Acc}),
             put_metadata(Acc2, origin, opt(local_host));
         _ ->
             Acc
     end.
 
-get_bound_connection_noisy(TargetHost, GDID, FPacket) ->
+get_bound_connection_noisy(TargetHost, GDID, Acc) ->
     try get_bound_connection(TargetHost, GDID)
     catch Class:Reason:Stacktrace ->
-              ?ERROR_MSG("event=gd_get_process_for_failed "
-                         "server=~ts gd_id=~s reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
-                           [TargetHost, GDID, Class, Reason, FPacket, Stacktrace]),
+              ?LOG_ERROR(#{what => gd_get_process_for_failed,
+                           gd_id => GDID, acc => Acc, target_host => TargetHost,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
               erlang:raise(Class, Reason, Stacktrace)
     end.
 
@@ -176,15 +178,18 @@ get_bound_connection(Server, GDID) when is_binary(GDID) ->
 get_bound_connection(Server, GDID, undefined) ->
     Pid = mod_global_distrib_sender:get_process_for(Server),
     put({connection, Server}, Pid),
-    ?DEBUG("event=new_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
+    ?LOG_DEBUG(#{what => gd_new_bound_connection,
+                 server => Server, gd_id => GDID, gd_pid => Pid}),
     Pid;
 get_bound_connection(Server, GDID, Pid) when is_pid(Pid) ->
     case is_process_alive(Pid) of
         false ->
-            ?DEBUG("event=dead_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
+            ?LOG_DEBUG(#{what => gd_dead_bound_connection,
+                         server => Server, gd_id => GDID, gd_pid => Pid}),
             get_bound_connection(Server, GDID, undefined);
         true ->
-            ?DEBUG("event=reuse_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
+            ?LOG_DEBUG(#{what => gd_reuse_bound_connection,
+                         server => Server, gd_id => GDID, gd_pid => Pid}),
             Pid
     end.
 

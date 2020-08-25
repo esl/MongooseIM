@@ -82,10 +82,9 @@ report_duplicated_portips(L) ->
     LKeys = [Port || {Port, _, _} <- L],
     LNoDupsKeys = proplists:get_keys(L),
     Dups = LKeys -- LNoDupsKeys,
-    ?CRITICAL_MSG_IF(Dups /= [],
-                     "In the ejabberd configuration there are duplicated "
-                     "Port number + IP address:~n  ~p",
-                     [Dups]).
+    ?LOG_IF(critical, Dups /= [],
+            #{what => duplicated_port_ips, duplicates => Dups,
+              text => <<"In the configuration there are duplicated pair of Port number and IP address">>}).
 
 %% @doc Parse any kind of ejabberd listener specification.
 %% The parsed options are returned in several formats.
@@ -185,29 +184,28 @@ get_ip_tuple(IPOpt, _IPVOpt) ->
                      Module :: atom(),
                      Opts :: [any()]) -> {'error', pid()} | {'ok', _}.
 start_listener(Port, Module, Opts) ->
-    case start_listener2(Port, Module, Opts) of
+    try
+        %% It is only required to start the supervisor in some cases.
+        %% But it doesn't hurt to attempt to start it for any listener.
+        %% So, it's normal (and harmless) that in most cases this call returns:
+        %% {error, {already_started, pid()}}
+        start_module_sup(Port, Module),
+        start_listener_sup(Port, Module, Opts)
+    of
         {ok, _Pid} = R -> R;
-        {error, {{'EXIT', {undef, [{M, _F, _A}|_]}}, _} = Error} ->
-            ?ERROR_MSG("Error starting the ejabberd listener: ~p.~n"
-                       "It could not be loaded or is not an ejabberd listener.~n"
-                       "Error: ~p~n", [Module, Error]),
-            {error, {module_not_available, M}};
         {error, {already_started, Pid}} ->
             {ok, Pid};
-        {error, Error} ->
-            {error, Error}
-    end.
-
-start_listener2(Port, Module, Opts) ->
-    %% It is only required to start the supervisor in some cases.
-    %% But it doesn't hurt to attempt to start it for any listener.
-    %% So, it's normal (and harmless) that in most cases this call returns: {error, {already_started, pid()}}
-    start_module_sup(Port, Module),
-    try start_listener_sup(Port, Module, Opts)
-    catch
-        {error, Error} ->
-            ?ERROR_MSG(Error, []),
-            {error, Error}
+        {error, Reason} = R ->
+            ?LOG_CRITICAL(#{what => listener_failed_to_start, reason => Reason,
+                            text => <<"Failed to start a listener">>,
+                            port => Port, module => Module, opts => Opts}),
+            R
+    catch Class:Reason:Stacktrace ->
+            ?LOG_CRITICAL(#{what => listener_failed_to_start,
+                            text => <<"Failed to start a listener">>,
+                            port => Port, module => Module, opts => Opts,
+                            class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, Reason}
     end.
 
 -spec start_module_sup(_, Module :: module())
@@ -380,9 +378,9 @@ normalize_proto(udp) -> udp;
 normalize_proto(ws)  -> ws;
 normalize_proto(wss) -> wss;
 normalize_proto(UnknownProto) ->
-    ?WARNING_MSG("There is a problem in the configuration: "
-                 "~p is an unknown IP protocol. Using tcp as fallback",
-                 [UnknownProto]),
+    ?LOG_WARNING(#{what => unknown_protocol, protocol => UnknownProto,
+                   text => <<"Unknown IP protocol in configuration. "
+                             "Using tcp as fallback.">>}),
     tcp.
 
 socket_error(Reason, PortIP, Module, SockOpts, Port, IPS) ->
@@ -395,8 +393,8 @@ socket_error(Reason, PortIP, Module, SockOpts, Port, IPS) ->
                   _ ->
                       format_error(Reason)
               end,
-    ?ERROR_MSG("Failed to open socket:~n  ~p~nReason: ~s",
-               [{Port, Module, SockOpts}, ReasonT]),
+    ?LOG_ERROR(#{what => failed_to_open_socket, reason => ReasonT,
+                 port => Port, module => Module, socket_option => SockOpts}),
     throw({Reason, PortIP}).
 
 -spec format_error(atom()) -> string().

@@ -38,14 +38,14 @@ handle_call(Request, _From, State) ->
 
 -spec handle_cast(any(), state()) -> {noreply, state()}.
 handle_cast(Cast, State) ->
-    ?ERROR_MSG("Invalid cast: ~p", [Cast]),
+    ?UNEXPECTED_CAST(Cast),
     {noreply, State}.
 
 -spec handle_info(any(), state()) -> {noreply, state()}.
 handle_info(connect, State) ->
     {noreply, connect(State)};
 handle_info(Info, State) ->
-    ?ERROR_MSG("Unexpected info: ~p", [Info]),
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 -spec terminate(any(), state()) -> ok.
@@ -98,7 +98,8 @@ call_eldap(Request, State) ->
     case do_call_eldap(Request, State) of
         {error, Reason} when Reason =:= ldap_closed;
                              Reason =:= {gen_tcp_error, closed} ->
-            ?INFO_MSG("LDAP request failed: connection closed, reconnecting...", []),
+            ?LOG_INFO(#{what => ldap_request_failed, reason => Reason,
+                        text => <<"LDAP request failed: connection closed, reconnecting...">>}),
             eldap:close(maps:get(handle, State)),
             NewState = connect(State#{handle := none}),
             retry_call_eldap(Request, NewState);
@@ -123,16 +124,21 @@ connect(State = #{handle := none,
         {ok, Handle} ->
             case eldap:simple_bind(Handle, RootDN, Password) of
                 ok ->
-                    ?INFO_MSG("Connected to LDAP server", []),
+                    ?LOG_INFO(#{what => ldap_connected,
+                                text => <<"Connected to LDAP server">>}),
                     State#{handle := Handle};
                 Error ->
-                    ?ERROR_MSG("LDAP authentication failed: ~p", [Error]),
+                    ?LOG_ERROR(#{what => ldap_auth_failed, reason => Error,
+                                 text => <<"LDAP bind returns an error">>,
+                                 ldap_servers => Servers, port => Port}),
                     eldap:close(Handle),
                     erlang:send_after(ConnectInterval, self(), connect),
                     State
             end;
         Error ->
-            ?ERROR_MSG("LDAP connection failed: ~p", [Error]),
+            ?LOG_ERROR(#{what => ldap_connect_failed,
+                         text => <<"LDAP open returns an error">>,
+                         ldap_servers => Servers, port => Port, reason => Error}),
             erlang:send_after(ConnectInterval, self(), connect),
             State
     end.

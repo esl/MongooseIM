@@ -31,12 +31,15 @@ do_notify() ->
         true ->
             case crypto:info_fips() of
                 enabled ->
-                    ?WARNING_MSG("FIPS mode enabled", []);
+                    ?LOG_NOTICE(#{what => fips_mode_enabled,
+                                   text => <<"FIPS mode enabled">>});
                 _ ->
-                    ?ERROR_MSG("FIPS mode disabled although it should be enabled", [])
+                    ?LOG_ERROR(#{what => fips_mode_disabled,
+                                 text => <<"FIPS mode disabled although it should be enabled">>})
             end;
         _ ->
-            ?INFO_MSG("Used Erlang/OTP does not support FIPS mode", [])
+            ?LOG_INFO(#{what => fips_mode_not_supported,
+                        text => <<"Used Erlang/OTP does not support FIPS mode">>})
     end.
 
 status() ->

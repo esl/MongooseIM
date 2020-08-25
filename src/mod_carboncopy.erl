@@ -94,21 +94,19 @@ iq_handler1(From, To, Acc, IQ) ->
 
 iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
                                                        children = []}} = IQ, CC) ->
-    ?DEBUG("carbons IQ received: ~p", [IQ]),
+    ?LOG_DEBUG(#{what => cc_iq_received, acc => Acc}),
     Result = case Operation of
                  <<"enable">> ->
-                     ?INFO_MSG("carbons enabled for user ~s", [jid:to_binary(From)]),
                      enable(From, CC);
                  <<"disable">> ->
-                     ?INFO_MSG("carbons disabled for user ~s", [jid:to_binary(From)]),
                      disable(From)
              end,
     case Result of
         ok ->
-            ?DEBUG("carbons IQ result: ok", []),
+            ?LOG_DEBUG(#{what => cc_iq_result, acc => Acc}),
             {Acc, IQ#iq{type=result, sub_el=[]}};
-        {error, _Error} ->
-            ?WARNING_MSG("Error enabling / disabling carbons: ~p", [Result]),
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => cc_iq_failed, acc => Acc, reason => Reason}),
             {Acc, IQ#iq{type=error, sub_el = [mongoose_xmpp_errors:bad_request()]}}
     end;
 
@@ -229,11 +227,13 @@ send_copies(JID, To, Packet, Direction) ->
                             (JID, CCResList, PrioRes);
                   _    -> jids_minus_specific_resource(JID, R, CCResList, PrioRes)
               end,
-    ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
-           [Targets, PrioRes, CCResList]),
+    ?LOG_DEBUG(#{what => cc_send_copies,
+                 targets => Targets, resources => PrioRes, ccenabled => CCResList}),
     lists:foreach(fun({Dest, Version}) ->
                       #jid{lresource = Resource} = JID,
-                      ?DEBUG("forwarding to ~ts", [Resource]),
+                      ?LOG_DEBUG(#{what => cc_forwarding,
+                                   user => JID#jid.luser, server => JID#jid.lserver,
+                                   resource => Resource, exml_packet => Packet}),
                       Sender = jid:replace_resource(JID, <<>>),
                       New = build_forward_packet
                               (JID, Packet, Sender, Dest, Direction, Version),
@@ -263,7 +263,8 @@ carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
                                  children = [complete_packet(JID, Packet, Direction)]} ]} ].
 
 enable(JID, CC) ->
-    ?DEBUG("enabling for ~p", [jid:to_binary(JID)]),
+    ?LOG_INFO(#{what => cc_enable,
+                user => JID#jid.luser, server => JID#jid.lserver}),
     KV = {?CC_KEY, cc_ver_to_int(CC)},
     case ejabberd_sm:store_info(JID, KV) of
         {ok, KV} -> ok;
@@ -271,7 +272,8 @@ enable(JID, CC) ->
     end.
 
 disable(JID) ->
-    ?DEBUG("disabling for ~p", [jid:to_binary(JID)]),
+    ?LOG_INFO(#{what => cc_disable,
+                user => JID#jid.luser, server => JID#jid.lserver}),
     KV = {?CC_KEY, ?CC_DISABLED},
     case ejabberd_sm:store_info(JID, KV) of
         {error, offline} -> ok;

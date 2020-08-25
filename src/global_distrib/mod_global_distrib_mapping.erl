@@ -273,12 +273,12 @@ get_session(Key) ->
 
 -spec put_session(Key :: binary()) -> ok.
 put_session(Key) ->
-    ?DEBUG("event=put_session key=~ts", [Key]),
+    ?LOG_DEBUG(#{what => gd_mapper_put_session, key => Key}),
     mod_global_distrib_mapping_backend:put_session(Key).
 
 -spec delete_session(Key :: binary()) -> ok.
 delete_session(Key) ->
-    ?DEBUG("event=delete_session key=~ts", [Key]),
+    ?LOG_DEBUG(#{what => gd_mapper_delete_session, key => Key}),
     mod_global_distrib_mapping_backend:delete_session(Key).
 
 -spec get_domain(Key :: binary()) -> {ok, term()} | error.

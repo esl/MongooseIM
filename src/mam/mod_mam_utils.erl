@@ -1101,8 +1101,9 @@ success_sql_execute(HostOrConn, Name, Params) ->
     error_on_sql_error(HostOrConn, Name, Result).
 
 error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
-    ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p", [HostOrConn, Query, Reason]),
-            error({sql_error, Reason});
+    ?LOG_ERROR(#{what => mam_sql_error,
+                 host => HostOrConn, query => Query, reason => Reason}),
+    error({sql_error, Reason});
 error_on_sql_error(_HostOrConn, _Query, Result) ->
     Result.
 

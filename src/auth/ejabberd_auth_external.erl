@@ -79,8 +79,10 @@ check_cache_last_options(Server) ->
         {true, _CacheTime} ->
             case get_mod_last_configured(Server) of
                 no_mod_last ->
-                    ?ERROR_MSG("In host ~p extauth is used, extauth_cache is enabled but "
-                               "mod_last is not enabled.", [Server]),
+                    ?LOG_ERROR(#{what => mod_last_required_by_extauth,
+                                 text => <<"extauth configured with extauth_cache,"
+                                          " but mod_last is not enabled">>,
+                                 server => Server}),
                     no_cache;
                 _ -> cache
             end
@@ -251,8 +253,10 @@ check_password_cache(LUser, LServer, Password, CacheTime) ->
         never ->
             check_password_external_cache(LUser, LServer, Password);
         mod_last_required ->
-            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last"
-                       " is not enabled in that host", []),
+            ?LOG_ERROR(#{what => mod_last_required_by_extauth,
+                         text => <<"extauth configured with extauth_cache but "
+                                  "mod_last is not enabled">>,
+                         user => LUser, server => LServer}),
             check_password_external_cache(LUser, LServer, Password);
         TimeStamp ->
             %% If last access exists, compare last access with cache refresh time
@@ -286,8 +290,10 @@ get_password_cache(LUser, LServer, CacheTime) ->
         never ->
             false;
         mod_last_required ->
-            ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last"
-                       " is not enabled in that host", []),
+            ?LOG_ERROR(#{what => mod_last_required_by_extauth,
+                         text => <<"extauth configured with extauth_cache but "
+                                  "mod_last is not enabled">>,
+                         user => LUser, server => LServer}),
             false;
         TimeStamp ->
             case is_fresh_enough(TimeStamp, CacheTime) of
