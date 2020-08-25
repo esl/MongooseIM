@@ -4,15 +4,7 @@
 -include("scram.hrl").
 
 % Core SCRAM functions
-%% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
--export([
-         salted_password/4,
-         stored_key/2,
-         server_key/2,
-         server_signature/3,
-         client_signature/3,
-         client_key/2,
-         client_proof_key/2]).
+-export([salted_password/4]).
 
 -export([
          enabled/1,
@@ -28,8 +20,6 @@
 -export([serialize/1, deserialize/1]).
 
 -export([scram_to_tuple/1, scram_record_to_map/1]).
-
--type sha_type() :: crypto:sha1() | crypto:sha2().
 
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
@@ -58,33 +48,9 @@
 -define(SCRAM_SHA384_PREFIX, "==SHA384==").
 -define(SCRAM_SHA512_PREFIX, "==SHA512==").
 
--spec salted_password(sha_type(), binary(), binary(), non_neg_integer()) -> binary().
+%% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
 salted_password(Sha, Password, Salt, IterationCount) ->
-    fast_scram:hi(Sha, jid:resourceprep(Password), Salt, IterationCount).
-
--spec client_key(sha_type(), binary()) -> binary().
-client_key(Sha, SaltedPassword) ->
-    crypto:hmac(Sha, SaltedPassword, <<"Client Key">>).
-
--spec stored_key(sha_type(), binary()) -> binary().
-stored_key(Sha, ClientKey) -> crypto:hash(Sha, ClientKey).
-
--spec server_key(sha_type(), binary()) -> binary().
-server_key(Sha, SaltedPassword) ->
-    crypto:hmac(Sha, SaltedPassword, <<"Server Key">>).
-
--spec client_signature(sha_type(), binary(), binary()) -> binary().
-client_signature(Sha, StoredKey, AuthMessage) ->
-    crypto:hmac(Sha, StoredKey, AuthMessage).
-
--spec client_proof_key(binary(), binary()) -> binary().
-client_proof_key(ClientProof, ClientSignature) ->
-    crypto:exor(ClientProof, ClientSignature).
-
--spec server_signature(sha_type(), binary(), binary()) -> binary().
-server_signature(Sha, ServerKey, AuthMessage) ->
-    crypto:hmac(Sha, ServerKey, AuthMessage).
-
+    fast_scram:salted_password(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 enabled(Host) ->
     case ejabberd_auth:get_opt(Host, password_format, scram) of
@@ -132,8 +98,8 @@ password_to_scram(Host, Password, IterationCount) ->
 do_password_to_scram(Password, IterationCount, HashType) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     SaltedPassword = salted_password(HashType, Password, Salt, IterationCount),
-    StoredKey = stored_key(HashType, client_key(HashType, SaltedPassword)),
-    ServerKey = server_key(HashType, SaltedPassword),
+    StoredKey = fast_scram:stored_key(HashType, fast_scram:client_key(HashType, SaltedPassword)),
+    ServerKey = fast_scram:server_key(HashType, SaltedPassword),
     {HashType, #{salt       => base64:encode(Salt),
                  server_key => base64:encode(ServerKey),
                  stored_key => base64:encode(StoredKey)}}.
@@ -147,7 +113,7 @@ check_password(Password, ScramMap) when is_map(ScramMap) ->
                                                 maps:is_key(ShaKey, ScramMap)],
     #{Sha := #{salt := Salt, stored_key := StoredKey}} = ScramMap,
     SaltedPassword = salted_password(Sha, Password, base64:decode(Salt), IterationCount),
-    ClientStoredKey = stored_key(Sha, client_key(Sha, SaltedPassword)),
+    ClientStoredKey = fast_scram:stored_key(Sha, fast_scram:client_key(Sha, SaltedPassword)),
     ClientStoredKey == base64:decode(StoredKey).
 
 serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
