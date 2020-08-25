@@ -42,7 +42,8 @@
         body := binary(),
         return_headers := boolean(),
         server := distributed_helper:rpc_spec(),
-        port => inet:port_number() }.
+        port => inet:port_number(),
+        return_maps => boolean()}.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -132,9 +133,9 @@ make_request(#{ return_headers := true } = Params) ->
     NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
     case fusco_request(NormalizedParams) of
         {RCode, RHeaders, Body, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body)};
+            {RCode, normalize_headers(RHeaders), decode(Body, Params)};
         {RCode, RHeaders, Body, _, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body)}
+            {RCode, normalize_headers(RHeaders), decode(Body, Params)}
     end;
 make_request(#{ return_headers := false } = Params) ->
     {Code, _, Body} = make_request(Params#{ return_headers := true }),
@@ -159,9 +160,16 @@ fill_default_server(#{ server := _Server } = Params) ->
 fill_default_server(Params) ->
     Params#{ server => mim() }.
 
-decode(<<>>) ->
+decode(<<>>, _P) ->
     <<"">>;
-decode(RespBody) ->
+decode(RespBody, #{return_maps := true}) ->
+    try
+        jiffy:decode(RespBody, [return_maps])
+    catch
+        error:_ ->
+            RespBody
+    end;
+decode(RespBody, _P) ->
     try
         jiffy:decode(RespBody)
     catch

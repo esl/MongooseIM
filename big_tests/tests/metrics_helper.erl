@@ -110,7 +110,8 @@ request(Method, Path, Port, Body) ->
         path => Path,
         body => Body,
         return_headers => true,
-        port => Port
+        port => Port,
+        return_maps => true
     },
     rest_helper:make_request(ReqParams).
 
