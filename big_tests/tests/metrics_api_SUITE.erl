@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2014 Erlang Solutions Ltd.
+%% Copyright 2020 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -19,18 +19,10 @@
 -include_lib("common_test/include/ct.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
+-import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
+-define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
 
--define(assert_equal(E, V), (
-    [ct:fail("assert_equal(~s, ~s)~n\tExpected ~p~n\tValue ~p~n",
-             [(??E), (??V), (E), (V)])
-     || (E) =/= (V)]
-    )).
-
--define(assert_equal_extra(E, V, Extra), (
-    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
-             [(??E), (??V), (E), (V), (Extra)])
-     || (E) =/= (V)]
-    )).
+-include_lib("eunit/include/eunit.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -67,11 +59,9 @@ groups() ->
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
-    Config2 = escalus:init_per_suite(Config1),
-    katt_helper:init_per_suite(Config2).
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    katt_helper:end_per_suite(Config),
     escalus:end_per_suite(Config),
     dynamic_modules:start_running(Config).
 
@@ -99,9 +89,8 @@ end_per_testcase(CaseName, Config) ->
 
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
-        true -> katt_helper:run(metrics_only_global, Config,
-                                [{port, ct:get_config({hosts, mim2, metrics_rest_port})}]);
-        _ -> katt_helper:run(metrics, Config)
+        true -> metrics_only_global(Config);
+        _ -> metrics_msg_flow(Config)
     end.
 
 one_client_just_logs_in(Config) ->
@@ -219,42 +208,156 @@ session_counters(Config) ->
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-               ?assert_equal(3, fetch_global_gauge_value(totalSessionCount, Config)),
-               ?assert_equal(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
-               ?assert_equal(3, fetch_global_gauge_value(nodeSessionCount, Config))
+               ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
+               ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
+               ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
        end).
 
 node_uptime(Config) ->
       X = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
       timer:sleep(timer:seconds(1)),
       Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
-      ?assert_equal_extra(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
+      ?assertEqual(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
 
 cluster_size(Config) ->
       SingleNodeClusterState =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(1, SingleNodeClusterState),
+      ?assertEqual(1, SingleNodeClusterState),
 
       distributed_helper:add_node_to_cluster(Config),
       TwoNodesClusterState =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(2, TwoNodesClusterState),
+      ?assertEqual(2, TwoNodesClusterState),
 
       distributed_helper:remove_node_from_cluster(Config),
       SingleNodeClusterState2 =
             fetch_global_incrementing_gauge_value(clusterSize, Config),
-      ?assert_equal(1, SingleNodeClusterState2).
+      ?assertEqual(1, SingleNodeClusterState2).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+metrics_only_global(_Config) ->
+    Port = ct:get_config({hosts, mim2, metrics_rest_port}),
+    % 0. GET is the only implemented allowed method
+    % (both OPTIONS and HEAD are for free then)
+    Res = simple_request(<<"OPTIONS">>, "/metrics/", Port),
+    {_S, H, _B} = Res,
+    assert_status(200, Res),
+    V = proplists:get_value(<<"allow">>, H),
+    Opts = string:split(V, ", ", all),
+    ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
+
+    % List of hosts and metrics
+    Res2 = simple_request(<<"GET">>, "/metrics/", Port),
+    {_S2, _H2, B2} = Res2,
+    assert_status(200, Res2),
+    #{<<"hosts">> := [_ExampleHost | _],
+      <<"metrics">> := [],
+      <<"global">> := [ExampleGlobal | _]} = B2,
+
+    % All global metrics
+    Res3 = simple_request(<<"GET">>, "/metrics/global", Port),
+    {_S3, _H3, B3} = Res3,
+    assert_status(200, Res3),
+    #{<<"metrics">> := _ML} = B3,
+    ?assertEqual(1, maps:size(B3)),
+
+    % An example global metric
+    Res4 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
+                          Port),
+    {_S4, _H4, B4} = Res4,
+    #{<<"metric">> := _} = B4,
+    ?assertEqual(1, maps:size(B4)).
+
+metrics_msg_flow(_Config) ->
+    % 0. GET is the only implemented allowed method
+    % (both OPTIONS and HEAD are for free then)
+    Res = simple_request(<<"OPTIONS">>, "/metrics/", ?PORT),
+    {_S, H, _B} = Res,
+    assert_status(200, Res),
+    V = proplists:get_value(<<"allow">>, H),
+    Opts = string:split(V, ", ", all),
+    ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
+
+    % List of hosts and metrics
+    Res2 = simple_request(<<"GET">>, "/metrics/", ?PORT),
+    {_S2, _H2, B2} = Res2,
+    assert_status(200, Res2),
+    #{<<"hosts">> := [ExampleHost | _],
+      <<"metrics">> := [ExampleMetric | _],
+      <<"global">> := [ExampleGlobal | _]} = B2,
+
+    % Sum of all metrics
+    Res3 = simple_request(<<"GET">>, "/metrics/all", ?PORT),
+    {_S3, _H3, B3} = Res3,
+    assert_status(200, Res3),
+    #{<<"metrics">> := _ML} = B3,
+    ?assertEqual(1, maps:size(B3)),
+
+    % Sum for a given metric
+    Res4 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/all/", ExampleMetric]),
+                          ?PORT),
+    {_S4, _H4, B4} = Res4,
+    #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM} = B4,
+    ?assertEqual(2, maps:size(IM)),
+    ?assertEqual(1, maps:size(B4)),
+
+    % Negative case for a non-existent given metric
+    Res5 = simple_request(<<"GET">>, "/metrics/all/nonExistentMetric", ?PORT),
+    assert_status(404, Res5),
+
+    % All metrics for an example host
+    Res6 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost]),
+                          ?PORT),
+    {_S6, _H6, B6} = Res6,
+    #{<<"metrics">> := _} = B6,
+    ?assertEqual(1, maps:size(B6)),
+
+    % Negative case for a non-existent host
+    Res7 = simple_request(<<"GET">>, "/metrics/host/nonExistentHost", ?PORT),
+    assert_status(404, Res7),
+
+    % An example metric for an example host
+    Res8 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                               "/", ExampleMetric]),
+                          ?PORT),
+    {_S8, _H8, B8} = Res8,
+    #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM2} = B8,
+    ?assertEqual(2, maps:size(IM2)),
+    ?assertEqual(1, maps:size(B8)),
+
+    % Negative case for a non-existent (host, metric) pair
+    Res9 = simple_request(<<"GET">>,
+                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                               "/nonExistentMetric"]),
+                          ?PORT),
+    assert_status(404, Res9),
+
+    % All global metrics
+    Res10 = simple_request(<<"GET">>, "/metrics/global", ?PORT),
+    {_, _, B10} = Res10,
+    #{<<"metrics">> := _} = B10,
+    ?assertEqual(1, maps:size(B10)),
+
+    Res11 = simple_request(<<"GET">>,
+                           unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
+                           ?PORT),
+    {_, _, B11} = Res11,
+    #{<<"metric">> := _} = B11,
+    ?assertEqual(1, maps:size(B11)).
 
 user_alpha(NumberOfUsers) ->
     %% This represents the overhead of logging in N users via escalus:story/3
     %% For each user,
     %%     xmppStanza(sent|received)
     %%     and
-    %%     xmppPresence(sent|recieved)
+    %%     xmppPresence(sent|received)
     %% will be bumped by +1 at login.
     NumberOfUsers.
 
@@ -279,49 +382,89 @@ find(CounterName, CounterList) ->
         false -> error(counter_defined_incorrectly);
         {CounterName, Val} -> Val end.
 
-fetch_counter_value(Counter, Config) ->
-    Params = [{metric, atom_to_list(Counter)},
-              {host, ct:get_config({hosts, mim, domain})}],
-    {_, _, _, Vars, _} = katt_helper:run(metric, Config, Params),
-    HostValue = proplists:get_value("value_host", Vars),
-    HostValueList = proplists:get_value("value_host_list", Vars),
-    TotalValue = proplists:get_value("value_total", Vars),
-    TotalValueList = proplists:get_value("value_total_list", Vars),
+fetch_counter_value(Counter, _Config) ->
+    Metric = atom_to_binary(Counter, utf8),
+    Host = ct:get_config({hosts, mim, domain}),
+
+    Result = simple_request(<<"GET">>,
+                            unicode:characters_to_list(["/metrics/host/", Host, "/", Metric]),
+                            ?PORT),
+    {_S, _H, B} = Result,
+    assert_status(200, Result),
+    #{<<"metric">> := #{<<"count">> := HostValue}} = B,
+
+    Result2 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/host/", Host]),
+                             ?PORT),
+    {_S2, _H2, B2} = Result2,
+    assert_status(200, Result2),
+    #{<<"metrics">> := #{Metric := #{<<"count">> := HostValueList}}} = B2,
+
+    Result3 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/all/", Metric]),
+                             ?PORT),
+    {_S3, _H3, B3} = Result3,
+    assert_status(200, Result3),
+    #{<<"metric">> := #{<<"count">> := TotalValue}} = B3,
+
+    Result4 = simple_request(<<"GET">>, "/metrics/all/", ?PORT),
+    {_S4, _H4, B4} = Result4,
+    assert_status(200, Result4),
+    #{<<"metrics">> := #{Metric := #{<<"count">> := TotalValueList}}} = B4,
+
     [HostValue, HostValueList, TotalValue, TotalValueList].
 
-%% @doc Fetch counter that is static
+%% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
-    ?assert_equal_extra(Value, ValueList, [{counter, Counter}]),
+    ?assertEqual(Value, ValueList, [{counter, Counter}]),
     Value.
 
-%% @doc Fetch counter that can be incremented by server between two API requests
+%% @doc Fetch counter that can be incremented by server between two API requests.
 %%
 %% Returns last actual value
 fetch_global_incrementing_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
-    ?assert_equal_extra(true, Value =< ValueList, [{counter, Counter},
+    ?assertEqual(true, Value =< ValueList, [{counter, Counter},
                                                    {value, Value},
                                                    {value_list, ValueList}]),
     ValueList.
 
 fetch_global_gauge_values(Counter, Config) ->
-    fetch_global_counter_values(global_gauge, Counter, Config).
+    fetch_global_counter_values(<<"value">>, Counter, Config).
 
 fetch_global_spiral_values(Counter, Config) ->
-    fetch_global_counter_values(global_spiral, Counter, Config).
+    % Spirals have two values associated with the metric: "one" and "count".
+    % We are interested in the latter.
+    fetch_global_counter_values(<<"count">>, Counter, Config).
 
-fetch_global_counter_values(Blueprint, Counter, Config) ->
-    ParamsBase = case metrics_helper:all_metrics_are_global(Config) of
-                     true -> [{port, ct:get_config({hosts, mim2, metrics_rest_port})}];
-                     _ -> []
-                 end,
-    Params = [{metric, atom_to_list(Counter)} | ParamsBase],
+fetch_global_counter_values(MetricKey, Counter, Config) ->
+    Metric = atom_to_binary(Counter, utf8),
 
-    {_, _, _, Vars, _} = katt_helper:run(Blueprint, Config, Params),
+    Port = case metrics_helper:all_metrics_are_global(Config) of
+               true ->
+                   ct:get_config({hosts, mim2, metrics_rest_port});
+               _ -> ct:get_config({hosts, mim, metrics_rest_port})
+           end,
 
-    Value = proplists:get_value("value", Vars),
-    ValueList = proplists:get_value("value_list", Vars),
+    Result = simple_request(<<"GET">>,
+                            unicode:characters_to_list(["/metrics/global/", Metric]),
+                            Port),
+    assert_status(200, Result),
+    {_S, H, B} = Result,
+    #{<<"metric">> := #{MetricKey := Value}} = B,
+    ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
+    ?assertEqual(1, maps:size(B)),
+
+    Result2 = simple_request(<<"GET">>,
+                             unicode:characters_to_list(["/metrics/global/"]),
+                             Port),
+    assert_status(200, Result2),
+    {_S2, H2, B2} = Result2,
+    ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H2)),
+    #{<<"metrics">> := #{Metric := #{MetricKey := ValueList}}} = B2,
+    ?assertEqual(1, maps:size(B2)),
+
     [Value, ValueList].
 
 assert_counter_inc(Name, Inc, Counters1, Counters2) when is_list(Counters1) ->

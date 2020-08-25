@@ -1,7 +1,5 @@
 -module(metrics_helper).
 
--include_lib("common_test/include/ct.hrl").
-
 -compile(export_all).
 
 -import(distributed_helper, [mim/0, mim2/0,
@@ -73,7 +71,7 @@ make_global_groups(Groups) ->
 %% Converts legacy userspec format to the new one. In order for this function to work 100%
 %% correctly, the suite has to use (prepare|finalise)_by_all_metrics_are_global.
 %% This function is an abstraction over `all_metrics_are_global` true/false distinction.
-%% It automaticaly picks proper users and the suite provides only a number of resources
+%% It automatically picks proper users and the suite provides only a number of resources
 %% for user 1 and user 2.
 userspec(User1Count, Config) ->
     [User1ID, _] = user_ids(Config),
@@ -93,5 +91,8 @@ wait_for_counter(ExpectedValue, Counter) ->
         wait_for_counter(ct:get_config({hosts, mim, domain}), ExpectedValue, Counter).
 
 wait_for_counter(Host, ExpectedValue, Counter) ->
-        mongoose_helper:wait_until(fun() -> assert_counter(Host, ExpectedValue, Counter) end, {value, ExpectedValue},
-                                                                   #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}).
+        mongoose_helper:wait_until(fun() ->
+                                       assert_counter(Host, ExpectedValue, Counter)
+                                   end,
+                                   {value, ExpectedValue},
+                                   #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}).
