@@ -89,8 +89,7 @@ end_per_testcase(CaseName, Config) ->
 
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
-        true -> katt_helper:run(metrics_only_global, Config,
-                                [{port, ct:get_config({hosts, mim2, metrics_rest_port})}]);
+        true -> metrics_only_global(Config);
         _ -> katt_helper:run(metrics, Config)
     end.
 
@@ -238,6 +237,40 @@ cluster_size(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+metrics_only_global(_Config) ->
+    Port = ct:get_config({hosts, mim2, metrics_rest_port}),
+    % 0. GET is the only implemented allowed method
+    % (both OPTIONS and HEAD are for free then)
+    Res = metrics_helper:request(<<"OPTIONS">>, "/metrics/", Port),
+    {_S, H, _B} = Res,
+    metrics_helper:assert_status(200, Res),
+    V = proplists:get_value(<<"allow">>, H),
+    Opts = string:split(V, ", ", all),
+    ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
+
+    % List of hosts and metrics
+    Res2 = metrics_helper:request(<<"GET">>, "/metrics/", Port),
+    {_S2, _H2, B2} = Res2,
+    metrics_helper:assert_status(200, Res2),
+    #{<<"hosts">> := [_ExampleHost | _],
+      <<"metrics">> := [],
+      <<"global">> := [ExampleGlobal | _]} = B2,
+
+    % All global metrics
+    Res3 = metrics_helper:request(<<"GET">>, "/metrics/global", Port),
+    {_S3, _H3, B3} = Res3,
+    metrics_helper:assert_status(200, Res3),
+    #{<<"metrics">> := _ML} = B3,
+    ?assertEqual(1, maps:size(B3)),
+
+    % An example global metric
+    Res4 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
+                                  Port),
+    {_S4, _H4, B4} = Res4,
+    #{<<"metric">> := _} = B4,
+    ?assertEqual(1, maps:size(B4)).
 
 user_alpha(NumberOfUsers) ->
     %% This represents the overhead of logging in N users via escalus:story/3
