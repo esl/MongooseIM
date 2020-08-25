@@ -57,11 +57,9 @@ groups() ->
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
-    Config2 = escalus:init_per_suite(Config1),
-    katt_helper:init_per_suite(Config2).
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    katt_helper:end_per_suite(Config),
     escalus:end_per_suite(Config),
     dynamic_modules:start_running(Config).
 
@@ -90,7 +88,7 @@ end_per_testcase(CaseName, Config) ->
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
         true -> metrics_only_global(Config);
-        _ -> katt_helper:run(metrics, Config)
+        _ -> metrics_msg_flow(Config)
     end.
 
 one_client_just_logs_in(Config) ->
@@ -272,12 +270,87 @@ metrics_only_global(_Config) ->
     #{<<"metric">> := _} = B4,
     ?assertEqual(1, maps:size(B4)).
 
+metrics_msg_flow(_Config) ->
+    % 0. GET is the only implemented allowed method
+    % (both OPTIONS and HEAD are for free then)
+    Res = metrics_helper:request(<<"OPTIONS">>, "/metrics/"),
+    {_S, H, _B} = Res,
+    metrics_helper:assert_status(200, Res),
+    V = proplists:get_value(<<"allow">>, H),
+    Opts = string:split(V, ", ", all),
+    ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
+
+    % List of hosts and metrics
+    Res2 = metrics_helper:request(<<"GET">>, "/metrics/"),
+    {_S2, _H2, B2} = Res2,
+    metrics_helper:assert_status(200, Res2),
+    #{<<"hosts">> := [ExampleHost | _],
+      <<"metrics">> := [ExampleMetric | _],
+      <<"global">> := [ExampleGlobal | _]} = B2,
+
+    % Sum of all metrics
+    Res3 = metrics_helper:request(<<"GET">>, "/metrics/all"),
+    {_S3, _H3, B3} = Res3,
+    metrics_helper:assert_status(200, Res3),
+    #{<<"metrics">> := _ML} = B3,
+    ?assertEqual(1, maps:size(B3)),
+
+    % Sum for a given metric
+    Res4 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/all/", ExampleMetric])),
+    {_S4, _H4, B4} = Res4,
+    #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM} = B4,
+    ?assertEqual(2, maps:size(IM)),
+    ?assertEqual(1, maps:size(B4)),
+
+    % Negative case for a non-existent given metric
+    Res5 = metrics_helper:request(<<"GET">>, "/metrics/all/nonExistentMetric"),
+    metrics_helper:assert_status(404, Res5),
+
+    % All metrics for an example host
+    Res6 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/host/", ExampleHost])),
+    {_S6, _H6, B6} = Res6,
+    #{<<"metrics">> := _} = B6,
+    ?assertEqual(1, maps:size(B6)),
+
+    % Negative case for a non-existent host
+    Res7 = metrics_helper:request(<<"GET">>, "/metrics/host/nonExistentHost"),
+    metrics_helper:assert_status(404, Res7),
+
+    % An example metric for an example host
+    Res8 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                                              "/", ExampleMetric])),
+    {_S8, _H8, B8} = Res8,
+    #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM2} = B8,
+    ?assertEqual(2, maps:size(IM2)),
+    ?assertEqual(1, maps:size(B8)),
+
+    % Negative case for a non-existent (host, metric) pair
+    Res9 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                                                              "/nonExistentMetric"])),
+    metrics_helper:assert_status(404, Res9),
+
+    % All global metrics
+    Res10 = metrics_helper:request(<<"GET">>, "/metrics/global"),
+    {_, _, B10} = Res10,
+    #{<<"metrics">> := _} = B10,
+    ?assertEqual(1, maps:size(B10)),
+
+    Res11 = metrics_helper:request(<<"GET">>,
+                                  unicode:characters_to_list(["/metrics/global/", ExampleGlobal])),
+    {_, _, B11} = Res11,
+    #{<<"metric">> := _} = B11,
+    ?assertEqual(1, maps:size(B11)).
+
 user_alpha(NumberOfUsers) ->
     %% This represents the overhead of logging in N users via escalus:story/3
     %% For each user,
     %%     xmppStanza(sent|received)
     %%     and
-    %%     xmppPresence(sent|recieved)
+    %%     xmppPresence(sent|received)
     %% will be bumped by +1 at login.
     NumberOfUsers.
 
