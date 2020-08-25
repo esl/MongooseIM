@@ -923,6 +923,7 @@ mod_event_pusher_backend_push_opts([<<"virtual_pubsub_hosts">> |_] = Path, V) ->
     VPH = parse_list(Path, V),
     [{virtual_pubsub_hosts, VPH}].
 
+-spec mod_event_pusher_backend_http_opts(path(), toml_value()) -> [option()].
 mod_event_pusher_backend_http_opts([<<"pool_name">>|_], V) ->
     [{pool_name, b2a(V)}];
 mod_event_pusher_backend_http_opts([<<"path">>|_], V) ->
@@ -1110,6 +1111,7 @@ mod_muc_default_room_affiliations(_, #{<<"user">> := User, <<"server">> := Serve
     <<"resource">> := Resource, <<"affiliation">> := Aff}) ->
     [{{User, Server, Resource}, b2a(Aff)}].
 
+-spec mod_muc_log_top_link(path(), toml_value()) -> [option()].
 mod_muc_log_top_link([<<"target">>|_], V) ->
     [b2l(V)];
 mod_muc_log_top_link([<<"text">>|_], V) ->
