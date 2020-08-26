@@ -175,25 +175,17 @@ compare_unordered_lists(L1, L2, F) ->
 compare_ordered_lists([H1|T1], [H1|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([{backends, Backends}], [{backends, Backends2}], _) ->
-    Sns = proplists:get_value(sns, Backends, []),
-    Sns2 = proplists:get_value(sns, Backends2, []),
-    Push = proplists:get_value(push, Backends, []),
-    Push2 = proplists:get_value(push, Backends2, []),
-    Http = proplists:get_value(http, Backends, []),
-    Http2 = proplists:get_value(http, Backends2, []),
-    compare_unordered_lists(Sns, Sns2),
-    compare_unordered_lists(Push, Push2),
-    compare_unordered_lists(Http, Http2);
+    Keys = [push, http, sns],
+    [compare_unordered_lists(
+        proplists:get_value(Key, Backends, []),
+        proplists:get_value(Key, Backends2, []))
+    || Key <- Keys];
 compare_ordered_lists([{mod_event_pusher_rabbit, Opts}|T1], [{mod_event_pusher_rabbit, Opts2}|T2], F) ->
-    Presence = proplists:get_value(presence_exchange, Opts, []),
-    Presence2 = proplists:get_value(presence_exchange, Opts2, []),
-    Chat = proplists:get_value(chat_msg_exchange, Opts, []),
-    Chat2 = proplists:get_value(chat_msg_exchange, Opts2, []),
-    Group = proplists:get_value(groupchat_msg_exchange, Opts, []),
-    Group2 = proplists:get_value(groupchat_msg_exchange, Opts2, []),
-    compare_unordered_lists(Presence, Presence2),
-    compare_unordered_lists(Chat, Chat2),
-    compare_unordered_lists(Group, Group2),
+    Keys = [presence_exchange, chat_msg_exchange, groupcxhat_msg_exchange],
+    [compare_unordered_lists(
+        proplists:get_value(Key, Opts, []),
+        proplists:get_value(Key, Opts2, []))
+    || Key <- Keys],
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([{mod_keystore, Opts}|T1], [{mod_keystore, Opts2}|T2], F) ->
     Keys1 = proplists:get_value(keys, Opts, []),
@@ -202,7 +194,32 @@ compare_ordered_lists([{mod_keystore, Opts}|T1], [{mod_keystore, Opts2}|T2], F) 
     compare_unordered_lists(lists:keydelete(keys, 1, Opts), lists:keydelete(keys, 1, Opts2)),
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([{Name, Opts} = H1|T1], [{Name, Opts2} = H2|T2], F) ->
-    Names = [
+    Names = special_names(),
+    case lists:member(Name, Names) of
+        true ->
+                compare_unordered_lists(Opts, Opts2),
+                compare_ordered_lists(T1, T2, F);
+        _ ->
+            try F(H1, H2)
+            catch C:R:S ->
+                    ct:fail({C, R, S})
+            end,
+             compare_ordered_lists(T1, T2, F)
+        end;
+compare_ordered_lists([H1|T1], [H2|T2], F) when is_list(H1), is_list(H2)->
+    compare_unordered_lists(H1, H2),
+    compare_ordered_lists(T1, T2, F);
+compare_ordered_lists([H1|T1], [H2|T2], F) ->
+    try F(H1, H2)
+    catch C:R:S ->
+            ct:fail({C, R, S})
+    end,
+    compare_ordered_lists(T1, T2, F);
+compare_ordered_lists([], [], _) ->
+    ok.
+
+special_names() ->
+    [
         configs,
         s3,
         bounce,
@@ -232,26 +249,4 @@ compare_ordered_lists([{Name, Opts} = H1|T1], [{Name, Opts2} = H2|T2], F) ->
         stale_h,
         muc, 
         pm
-    ],
-    case lists:member(Name, Names) of
-        true ->
-                compare_unordered_lists(Opts, Opts2),
-                compare_ordered_lists(T1, T2, F);
-        _ ->
-            try F(H1, H2)
-            catch C:R:S ->
-                    ct:fail({C, R, S})
-            end,
-             compare_ordered_lists(T1, T2, F)
-        end;
-compare_ordered_lists([H1|T1], [H2|T2], F) when is_list(H1), is_list(H2)->
-    compare_unordered_lists(H1, H2),
-    compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([H1|T1], [H2|T2], F) ->
-    try F(H1, H2)
-    catch C:R:S ->
-            ct:fail({C, R, S})
-    end,
-    compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([], [], _) ->
-    ok.
+    ].
