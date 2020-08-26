@@ -240,9 +240,13 @@ handle_listener_module({H1, P1, M1, O1}, {H2, P2, M2, O2}) ->
     ?eq(M1, M2),
     compare_listener_module_options(M1, O1, O2).
 
-compare_listener_module_options(mod_websockets,
-                                [{ejabberd_service, S1}], [{ejabberd_service, S2}]) ->
-    compare_unordered_lists(S1, S2);
+compare_listener_module_options(mod_websockets, L1, L2) ->
+    E1 = proplists:get_value(ejabberd_service, L1, []),
+    E2 = proplists:get_value(ejabberd_service, L2, []),
+    T1 = proplists:delete(ejabberd_service, L1),
+    T2 = proplists:delete(ejabberd_service, L2),
+    compare_unordered_lists(E1, E2),
+    compare_unordered_lists(T1, T2);
 compare_listener_module_options(_, O1, O2) ->
     ?eq(O1, O2).
 
