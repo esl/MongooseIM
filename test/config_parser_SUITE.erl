@@ -8,8 +8,35 @@
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
+-define(err(Expr), ?assertError(_, Expr)).
+
+-define(HOST, <<"myhost">>).
+
+-import(mongoose_config_parser_toml, [parse/1]).
+
 all() ->
-    [equivalence, miscellaneous, s2s].
+    [{group, equivalence},
+     {group, general}].
+
+groups() ->
+    [{equivalence, [parallel], [sample_pgsql,
+                                miscellaneous,
+                                s2s]},
+     {general, [parallel], [loglevel,
+                            hosts,
+                            registration_timeout,
+                            language,
+                            all_metrics_are_global,
+                            sm_backend,
+                            max_fsm_queue,
+                            rdbms_server_type,
+                            override,
+                            pgsql_users_number_estimate,
+                            route_subdomain,
+                            mongooseimctl_access_commands,
+                            routing_modules,
+                            replaced_wait_timeout,
+                            hide_service_name]}].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -18,7 +45,7 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
-equivalence(Config) ->
+sample_pgsql(Config) ->
     CfgPath = ejabberd_helper:data(Config, "mongooseim-pgsql.cfg"),
     State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
     Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
@@ -47,7 +74,6 @@ miscellaneous(Config) ->
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                         fun handle_config_option/2).
 
-
 s2s(Config) ->
     Cfg_Path = ejabberd_helper:data(Config, "s2s_only.cfg"),
     State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
@@ -56,9 +82,108 @@ s2s(Config) ->
     TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
     State2 = mongoose_config_parser_toml:parse_file(TOML_path),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
-        
+
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
+
+loglevel(_Config) ->
+    ?eq([#local_config{key = loglevel, value = debug}],
+        parse(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})),
+    ?err(parse(#{<<"general">> => #{<<"loglevel">> => <<"bebug">>}})).
+
+hosts(_Config) ->
+    ?eq([#config{key = hosts, value = [<<"host1">>, <<"host2">>]}],
+        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>]}})),
+    ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
+    ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
+    ?err(parse(#{<<"general">> => #{<<"hosts">> => []}})),
+    ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})).
+
+registration_timeout(_Config) ->
+    ?eq([#local_config{key = registration_timeout, value = infinity}],
+        parse(#{<<"general">> => #{<<"registration_timeout">> => <<"infinity">>}})),
+    ?eq([#local_config{key = registration_timeout, value = 300}],
+        parse(#{<<"general">> => #{<<"registration_timeout">> => 300}})),
+    ?err(parse(#{<<"general">> => #{<<"registration_timeout">> => 0}})).
+
+language(_Config) ->
+    ?eq([#config{key = language, value = <<"en">>}],
+        parse(#{<<"general">> => #{<<"language">> => <<"en">>}})),
+    ?err(parse(#{<<"general">> => #{<<"language">> => <<>>}})).
+
+all_metrics_are_global(_Config) ->
+    ?eq([#local_config{key = all_metrics_are_global, value = true}],
+        parse(#{<<"general">> => #{<<"all_metrics_are_global">> => true}})),
+    ?err(parse(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}})).
+
+sm_backend(_Config) ->
+    ?eq([#config{key = sm_backend, value = {mnesia, []}}],
+        parse(#{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}})),
+    ?eq([#config{key = sm_backend, value = {redis, []}}],
+        parse(#{<<"general">> => #{<<"sm_backend">> => <<"redis">>}})),
+    ?err(parse(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}})).
+
+max_fsm_queue(_Config) ->
+    ?eq([#local_config{key = max_fsm_queue, value = 100}],
+        parse(#{<<"general">> => #{<<"max_fsm_queue">> => 100}})),
+    ?err(parse(#{<<"general">> => #{<<"max_fsm_queue">> => -10}})).
+
+http_server_name(_Config) ->
+    ?eq([#local_config{key = cowqboy_server_name, value = "myserver"}],
+        parse(#{<<"general">> => #{<<"http_server_name">> => <<"my server">>}})),
+    ?err(parse(#{<<"general">> => #{<<"http_server_name">> => #{}}})).
+
+rdbms_server_type(_Config) ->
+    ?eq([#local_config{key = rdbms_server_type, value = mssql}],
+        parse(#{<<"general">> => #{<<"rdbms_server_type">> => <<"mssql">>}})),
+    ?eq([#local_config{key = rdbms_server_type, value = pgsql}],
+        parse(#{<<"general">> => #{<<"rdbms_server_type">> => <<"pgsql">>}})),
+    ?err(parse(#{<<"general">> => #{<<"rdbms_server_type">> => <<"nosql">>}})).
+
+override(_Config) ->
+    ?eq([{override, local}, {override, global}, {override, acls}],
+        parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"acls">>]}})),
+    ?err(parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"local">>]}})),
+    ?err(parse(#{<<"general">> => #{<<"override">> => [<<"pingpong">>]}})).
+
+pgsql_users_number_estimate(_Config) ->
+    [F] = parse(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => true}}),
+    ?eq([#local_config{key = {pgsql_users_number_estimate, ?HOST}, value = true}], F(?HOST)),
+    ?err(parse(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => 1200}})).
+
+route_subdomain(_Config) ->
+    [F] = parse(#{<<"general">> => #{<<"route_subdomain">> => <<"s2s">>}}),
+    ?eq([#local_config{key = {route_subdomain, ?HOST}, value = s2s}], F(?HOST)),
+    ?err(parse(#{<<"general">> => #{<<"route_subdomain">> => <<"c2s">>}})).
+
+mongooseimctl_access_commands(_Config) ->
+    AccessRule = #{<<"access_rule">> => <<"local">>,
+                   <<"commands">> => [<<"join_cluster">>],
+                   <<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}},
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, ["join_cluster"], [{node, "mim1@host1"}]}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> => [AccessRule]}})),
+    ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                        [AccessRule#{<<"cat">> => <<"meow">>}]
+                                   }})).
+
+routing_modules(_Config) ->
+    ?eq([#local_config{key = routing_modules, value = [mongoose_router_global,
+                                                       mongoose_router_localdomain]}],
+        parse(#{<<"general">> => #{<<"routing_modules">> => [<<"mongoose_router_global">>,
+                                                             <<"mongoose_router_localdomain">>]}})),
+    ?err(parse(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}})).
+
+replaced_wait_timeout(_Config) ->
+    [F] = parse(#{<<"general">> => #{<<"replaced_wait_timeout">> => 1000}}),
+    ?eq([#local_config{key = {replaced_wait_timeout, ?HOST}, value = 1000}], F(?HOST)),
+    ?err(parse(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}})).
+
+hide_service_name(_Config) ->
+    [F] = parse(#{<<"general">> => #{<<"hide_service_name">> => false}}),
+    ?eq([#local_config{key = {hide_service_name, ?HOST}, value = false}], F(?HOST)),
+    ?err(parse(#{<<"general">> => #{<<"hide_service_name">> => []}})).
 
 filter_config(#config{key = required_files}) ->
     false; % not supported yet in TOML
