@@ -412,9 +412,18 @@ workflows:
           requires:
             - otp_23
           filters: *all_tags
+      - mim/big_tests:
+          name: ldap_mnesia_23
+          otp_package: 23.0.3-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
       # ============= 1 VERSION OLDER TESTS =============
       - mim/big_tests:
-          name: ldap_mnesia
+          name: ldap_mnesia_22
           otp_package: 22.1.8-1
           preset: ldap_mnesia
           db: mnesia
@@ -422,13 +431,23 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
+      # ============= 2 VERSIONS OLDER TESTS =============
+      - mim/big_tests:
+          name: ldap_mnesia_21
+          otp_package: 21.3.8.6-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+          filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - mim/docker_image:
           name: docker_build_and_ship
           context: mongooseim-org
           otp_package: 23.0.3-1
           requires:
-            - ldap_mnesia
+            - ldap_mnesia_23
             - pgsql_mnesia
             - riak_mnesia
             - elasticsearch_and_cassandra
