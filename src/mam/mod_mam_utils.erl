@@ -871,9 +871,9 @@ check_stringprep() ->
     is_loaded_application(jid) orelse start_stringprep().
 
 start_stringprep() ->
-    EJ = code:lib_dir(ejabberd),
+    EJ = code:lib_dir(mongooseim),
     code:add_path(filename:join([EJ, "..", "..", "deps", "jid", "ebin"])),
-    ok = application:start(jid).
+    {ok, _} = application:ensure_all_started(jid).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).
