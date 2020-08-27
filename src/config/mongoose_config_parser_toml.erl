@@ -299,6 +299,18 @@ cowboy_module_options(_, Opts) ->
 
 %% path: listen.http[].handlers.mod_websockets[].*
 -spec websockets_option(path(), toml_value()) -> [option()].
+websockets_option([<<"timeout">>|_], <<"infinity">>) ->
+    [{timeout, infinity}];
+websockets_option([<<"timeout">>|_], V) ->
+    [{timeout, V}];
+websockets_option([<<"ping_rate">>|_], <<"none">>) ->
+    [{ping_rate, none}];
+websockets_option([<<"ping_rate">>|_], V) ->
+    [{ping_rate, V}];
+websockets_option([<<"max_stanza_size">>|_], <<"infinity">>) ->
+    [{max_stanza_size, infinity}];
+websockets_option([<<"max_stanza_size">>|_], V) ->
+    [{max_stanza_size, V}];
 websockets_option([<<"service">>|_] = Path, Value) ->
     [{ejabberd_service, parse_section(Path, Value)}].
 

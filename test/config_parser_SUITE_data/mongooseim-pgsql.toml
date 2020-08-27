@@ -44,6 +44,9 @@
   [[listen.http.handlers.mod_websockets]]
     host = "_"
     path = "/ws-xmpp"
+    timeout = "infinity"
+    ping_rate = "none"
+    max_stanza_size = 100
 
 [[listen.http]]
   port = 8088
