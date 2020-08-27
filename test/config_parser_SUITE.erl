@@ -96,7 +96,7 @@ compare_values({auth_opts, _}, V1, V2) ->
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
 compare_values({modules, _}, V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
+    compare_unordered_lists(V1, V2, fun handle_modules/2);
 compare_values({services, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
 compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
@@ -164,6 +164,10 @@ handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
 
+handle_modules({Name, Opts}, {Name2, Opts2}) ->
+    ?eq(Name, Name2),
+    compare_unordered_lists(Opts, Opts2, fun handle_modules/2).
+
 compare_unordered_lists(L1, L2) ->
     compare_unordered_lists(L1, L2, fun(V1, V2) -> ?eq(V1, V2) end).
 
@@ -174,38 +178,6 @@ compare_unordered_lists(L1, L2, F) ->
 
 compare_ordered_lists([H1|T1], [H1|T2], F) ->
     compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([{backends, Backends}], [{backends, Backends2}], _) ->
-    Keys = [push, http, sns],
-    [compare_unordered_lists(
-        proplists:get_value(Key, Backends, []),
-        proplists:get_value(Key, Backends2, []))
-    || Key <- Keys];
-compare_ordered_lists([{mod_event_pusher_rabbit, Opts}|T1], [{mod_event_pusher_rabbit, Opts2}|T2], F) ->
-    Keys = [presence_exchange, chat_msg_exchange, groupcxhat_msg_exchange],
-    [compare_unordered_lists(
-        proplists:get_value(Key, Opts, []),
-        proplists:get_value(Key, Opts2, []))
-    || Key <- Keys],
-    compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([{mod_keystore, Opts}|T1], [{mod_keystore, Opts2}|T2], F) ->
-    Keys1 = proplists:get_value(keys, Opts, []),
-    Keys2 = proplists:get_value(keys, Opts2, []),
-    compare_unordered_lists(Keys1, Keys2),
-    compare_unordered_lists(lists:keydelete(keys, 1, Opts), lists:keydelete(keys, 1, Opts2)),
-    compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([{Name, Opts} = H1|T1], [{Name, Opts2} = H2|T2], F) ->
-    Names = special_names(),
-    case lists:member(Name, Names) of
-        true ->
-                compare_unordered_lists(Opts, Opts2),
-                compare_ordered_lists(T1, T2, F);
-        _ ->
-            try F(H1, H2)
-            catch C:R:S ->
-                    ct:fail({C, R, S})
-            end,
-             compare_ordered_lists(T1, T2, F)
-        end;
 compare_ordered_lists([H1|T1], [H2|T2], F) when is_list(H1), is_list(H2)->
     compare_unordered_lists(H1, H2),
     compare_ordered_lists(T1, T2, F);
@@ -217,36 +189,3 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
-
-special_names() ->
-    [
-        configs,
-        s3,
-        bounce,
-        connections,
-        tls_opts,
-        mod_event_pusher,
-        mod_event_pusher_sns, 
-        mod_event_pusher_http,
-        mod_event_pusher_push,
-        mod_http_upload, 
-        mod_inbox, 
-        mod_global_distrib, 
-        mod_jingle_sip,
-        mod_mam_meta,
-        mod_muc,
-        default_room_options,
-        mod_muc_log,
-        mod_muc_light,
-        config_schema,
-        mod_ping,
-        mod_pubsub,
-        mod_push_service_mongoosepush,
-        mod_register,
-        mod_revproxy,
-        routes,
-        mod_stream_management,
-        stale_h,
-        muc, 
-        pm
-    ].
