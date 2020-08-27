@@ -187,7 +187,7 @@ listener_module(<<"service">>) -> ejabberd_service.
 %% path: listen.http[].*
 -spec http_listener_opt(path(), toml_value()) -> [option()].
 http_listener_opt([<<"tls">>|_] = Path, Opts) ->
-    [{ssl, https_options(Path, Opts)}];
+    [{ssl, parse_section(Path, Opts)}];
 http_listener_opt([<<"transport">>|_] = Path, Opts) ->
     [{transport_options, parse_section(Path, Opts)}];
 http_listener_opt([<<"protocol">>|_] = Path, Opts) ->
@@ -202,30 +202,21 @@ c2s_listener_opt([<<"access">>|_], V) -> [{access, b2a(V)}];
 c2s_listener_opt([<<"shaper">>|_], V) -> [{shaper, b2a(V)}];
 c2s_listener_opt([<<"xml_socket">>|_], V) -> [{xml_socket, V}];
 c2s_listener_opt([<<"zlib">>|_], V) -> [{zlib, V}];
-c2s_listener_opt([<<"verify_peer">>|_], true) -> [verify_peer];
 c2s_listener_opt([<<"hibernate_after">>|_], V) -> [{hibernate_after, V}];
-c2s_listener_opt([<<"tls">>|_] = P, V) -> listener_tls_opts(P, V);
-c2s_listener_opt([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
-c2s_listener_opt([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
-c2s_listener_opt([<<"cafile">>|_], V) -> [{cafile, b2l(V)}];
-c2s_listener_opt([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}];
+c2s_listener_opt([{tls, _}|_] = P, V) -> listener_tls_opts(P, V);
 c2s_listener_opt([<<"max_stanza_size">>|_], V) -> [{max_stanza_size, V}];
-c2s_listener_opt([<<"password">>|_], V) -> [{password, b2l(V)}];
 c2s_listener_opt(P, V) -> listener_opt(P, V).
 
 %% path: listen.s2s[].*
 -spec s2s_listener_opt(path(), toml_value()) -> [option()].
 s2s_listener_opt([<<"access">>|_], V) -> [{access, b2a(V)}];
 s2s_listener_opt([<<"shaper">>|_], V) -> [{shaper, b2a(V)}];
-s2s_listener_opt([<<"zlib">>|_], V) -> [{zlib, V}];
-s2s_listener_opt([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
-s2s_listener_opt([<<"cafile">>|_], V) -> [{cafile, b2l(V)}];
-s2s_listener_opt([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}];
+s2s_listener_opt([<<"tls">>|_] = P, V) -> parse_section(P, V);
 s2s_listener_opt([<<"max_stanza_size">>|_], V) -> [{max_stanza_size, V}];
 s2s_listener_opt(P, V) -> listener_opt(P, V).
 
 %% path: listen.service[].*,
-%%       listen.http[].handlers.mod_websockets[].ejabberd_service.*
+%%       listen.http[].handlers.mod_websockets[].service.*
 -spec service_listener_opt(path(), toml_value()) -> [option()].
 service_listener_opt([<<"access">>|_], V) -> [{access, b2a(V)}];
 service_listener_opt([<<"shaper_rule">>|_], V) -> [{shaper_rule, b2a(V)}];
@@ -244,19 +235,31 @@ listener_opt([<<"ip_version">>|_], 4) -> [inet];
 listener_opt([<<"backlog">>|_], N) -> [{backlog, N}];
 listener_opt([<<"proxy_protocol">>|_], V) -> [{proxy_protocol, V}].
 
-%% path: listen.http[].tls
--spec https_options(path(), toml_section()) -> [option()].
-https_options(Path, M) ->
-    VM = case M of
-             #{<<"verify_mode">> := Mode} -> [{verify_mode, b2a(Mode)}];
-             _ -> []
-         end,
-    Opts = maps:without([<<"verify_mode">>], M),
-    VM ++ parse_section(Path, Opts).
+%% path: listen.http[].tls.*
+-spec https_option(path(), toml_value()) -> [option()].
+https_option([<<"verify_mode">>|_], Value) -> [{verify_mode, b2a(Value)}];
+https_option(Path, Value) -> tls_option(Path, Value).
+
+%% path: listen.c2s[].tls.*
+-spec c2s_tls_option(path(), toml_value()) -> option().
+c2s_tls_option([<<"mode">>|_], V) -> [b2a(V)];
+c2s_tls_option([<<"verify_peer">>|_], V) -> [verify_peer(V)];
+c2s_tls_option([_, {tls, fast_tls}|_] = Path, V) -> fast_tls_option(Path, V);
+c2s_tls_option([<<"verify_mode">>, {tls, just_tls}|_], V) -> b2a(V);
+c2s_tls_option([<<"disconnect_on_failure">>, {tls, just_tls}|_], V) -> V;
+c2s_tls_option([_, {tls, just_tls}|_] = Path, V) -> tls_option(Path, V).
+
+%% path: listen.s2s[].tls.*
+-spec s2s_tls_option(path(), toml_value()) -> [option()].
+s2s_tls_option([Opt|_] = Path, Val) when Opt =:= <<"cacertfile">>;
+                                         Opt =:= <<"dhfile">>;
+                                         Opt =:= <<"ciphers">> ->
+    fast_tls_option(Path, Val).
 
 %% path: listen.http[].transport.*
 -spec cowboy_transport_opt(path(), toml_value()) -> [option()].
 cowboy_transport_opt([<<"num_acceptors">>|_], N) -> [{num_acceptors, N}];
+cowboy_transport_opt([<<"max_connections">>|_], <<"infinity">>) -> [{max_connections, infinity}];
 cowboy_transport_opt([<<"max_connections">>|_], N) -> [{max_connections, N}].
 
 %% path: listen.http[].protocol.*
@@ -271,65 +274,72 @@ cowboy_module([_, Type|_] = Path, #{<<"host">> := Host, <<"path">> := ModPath} =
     [{b2l(Host), b2l(ModPath), b2a(Type), ModuleOpts}].
 
 -spec cowboy_module_options(path(), toml_section()) -> [option()].
-cowboy_module_options([_, <<"mod_websockets">>|_] = Path, V) ->
-    parse_section(Path, V);
-    %% TODO get rid of ejabberd
-cowboy_module_options([_, <<"lasse_handler">>|_], #{<<"modules">> := Modules}) ->
-    [b2a(Mod) || Mod <- Modules];
-cowboy_module_options([_, <<"cowboy_static">>|_], #{<<"type">> := Type,
-                                                    <<"app">> := App,
-                                                    <<"content_path">> := Path}) ->
+cowboy_module_options([_, <<"mod_websockets">>|_] = Path, Opts) ->
+    parse_section(Path, Opts);
+cowboy_module_options([_, <<"lasse_handler">>|_], Opts) ->
+    limit_keys([<<"module">>], Opts),
+    #{<<"module">> := Module} = Opts,
+    [b2a(Module)];
+cowboy_module_options([_, <<"cowboy_static">>|_], Opts) ->
+    limit_keys([<<"type">>, <<"app">>, <<"content_path">>], Opts),
+    #{<<"type">> := Type,
+      <<"app">> := App,
+      <<"content_path">> := Path} = Opts,
     {b2a(Type), b2a(App), b2l(Path), [{mimetypes, cow_mimetypes, all}]};
-cowboy_module_options([_, <<"cowboy_swagger_redirect_handler">>|_], _) -> #{};
-cowboy_module_options([_, <<"cowboy_swagger_json_handler">>|_], _) -> #{};
-cowboy_module_options([_, <<"mongoose_api">>|_], #{<<"handlers">> := Handlers}) ->
-    [{handlers, [b2a(H) || H <- Handlers]}];
-cowboy_module_options(_, _) -> [].
+cowboy_module_options([_, <<"cowboy_swagger_redirect_handler">>|_], Opts) ->
+    Opts = #{};
+cowboy_module_options([_, <<"cowboy_swagger_json_handler">>|_], Opts) ->
+    Opts = #{};
+cowboy_module_options([_, <<"mongoose_api">>|_] = Path, Opts) ->
+    #{<<"handlers">> := _} = Opts,
+    parse_section(Path, Opts);
+cowboy_module_options(_, Opts) ->
+    limit_keys([], Opts),
+    [].
 
--spec cowboy_module_mod_websockets(path(), toml_section()) -> [option()].
-cowboy_module_mod_websockets([<<"timeout">>|_], <<"infinity">>) ->
+%% path: listen.http[].handlers.mod_websockets[].*
+-spec websockets_option(path(), toml_value()) -> [option()].
+websockets_option([<<"timeout">>|_], <<"infinity">>) ->
     [{timeout, infinity}];
-cowboy_module_mod_websockets([<<"timeout">>|_], V) ->
+websockets_option([<<"timeout">>|_], V) ->
     [{timeout, V}];
-cowboy_module_mod_websockets([<<"ping_rate">>|_], <<"none">>) ->
+websockets_option([<<"ping_rate">>|_], <<"none">>) ->
     [{ping_rate, none}];
-cowboy_module_mod_websockets([<<"ping_rate">>|_], V) ->
+websockets_option([<<"ping_rate">>|_], V) ->
     [{ping_rate, V}];
-cowboy_module_mod_websockets([<<"max_stanza_size">>|_], <<"infinity">>) ->
+websockets_option([<<"max_stanza_size">>|_], <<"infinity">>) ->
     [{max_stanza_size, infinity}];
-cowboy_module_mod_websockets([<<"max_stanza_size">>|_], V) ->
+websockets_option([<<"max_stanza_size">>|_], V) ->
     [{max_stanza_size, V}];
-cowboy_module_mod_websockets([<<"ejabberd_service">>|_] = Path, V) ->
-    Ej = parse_section(Path, V),
-    [{ejabberd_service, Ej}].
+websockets_option([<<"service">>|_] = Path, Value) ->
+    [{ejabberd_service, parse_section(Path, Value)}].
+
+%% path: listen.http[].handlers.mongoose_api[].*
+-spec mongoose_api_option(path(), toml_value()) -> [option()].
+mongoose_api_option([<<"handlers">>|_] = Path, Value) ->
+    [{handlers, parse_list(Path, Value)}].
 
 %% path: listen.c2s[].tls
 -spec listener_tls_opts(path(), toml_section()) -> [option()].
-listener_tls_opts(Path, M = #{<<"module">> := <<"just_tls">>}) ->
-    VM = case M of
-             #{<<"verify_mode">> := VMode, <<"disconnect_on_failure">> := D} ->
-                 [{verify_fun, {b2a(VMode), D}}];
-             #{<<"verify_mode">> := VMode} ->
-                 [{verify_fun, {b2a(VMode), true}}];
-             _ -> []
-         end,
-    Mode = listener_tls_mode(M),
-    Opts = maps:without([<<"mode">>, <<"module">>, <<"verify_mode">>, <<"disconnect_on_failure">>],
-                        M),
-    Mode ++ [{tls_module, just_tls},
-             {ssl_options, VM ++ parse_section(Path, Opts)}];
-listener_tls_opts(Path, M) ->
-    Mode = listener_tls_mode(M),
-    VM = case M of
-             #{<<"verify_mode">> := VMode} -> [{verify_mode, b2a(VMode)}];
-             _ -> []
-         end,
-    Opts = maps:without([<<"mode">>, <<"module">>, <<"verify_mode">>], M),
-    Mode ++ VM ++ parse_section(Path, Opts).
+listener_tls_opts([{tls, just_tls}|_] = Path, M) ->
+    VM = just_tls_verify_fun(Path, M),
+    Common = maps:with([<<"mode">>, <<"verify_peer">>], M),
+    OptsM = maps:without([<<"module">>, <<"mode">>, <<"verify_peer">>,
+                          <<"verify_mode">>, <<"disconnect_on_failure">>], M),
+    SSLOpts = case VM ++ parse_section(Path, OptsM) of
+                  [] -> [];
+                  Opts -> [{ssl_options, Opts}]
+              end,
+    [{tls_module, just_tls}] ++ SSLOpts ++ parse_section(Path, Common);
+listener_tls_opts([{tls, fast_tls}|_] = Path, M) ->
+    parse_section(Path, maps:without([<<"module">>], M)).
 
--spec listener_tls_mode(toml_section()) -> [option()].
-listener_tls_mode(#{<<"mode">> := Mode}) -> [b2a(Mode)];
-listener_tls_mode(_) -> [].
+-spec just_tls_verify_fun(path(), toml_section()) -> [option()].
+just_tls_verify_fun(Path, #{<<"verify_mode">> := _} = M) ->
+    VMode = parse_kv(Path, <<"verify_mode">>, M),
+    Disconnect = parse_kv(Path, <<"disconnect_on_failure">>, M, true),
+    [{verify_fun, {VMode, Disconnect}}];
+just_tls_verify_fun(_, _) -> [].
 
 %% path: (host_config[].)auth.*
 -spec auth_option(path(), toml_value()) -> [option()].
@@ -649,27 +659,36 @@ process_host_section(Path, Content) ->
 %%       outgoing_pools.ldap.connection.tls.*,
 %%       outgoing_pools.riak.connection.tls.*,
 %%       outgoing_pools.cassandra.connection.tls.*
--spec client_tls_option(path(), toml_value()) -> [option()].
-client_tls_option([<<"verify_peer">>|_], V) -> [{verify, verify_peer(V)}];
-client_tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
-client_tls_option([<<"cacertfile">>|_], V) -> [{cacertfile, b2l(V)}];
-client_tls_option([<<"keyfile">>|_], V) -> [{keyfile, b2l(V)}];
-client_tls_option([<<"password">>|_], V) -> [{password, b2l(V)}];
-client_tls_option([<<"server_name_indication">>|_], false) -> [{server_name_indication, disable}];
-client_tls_option([<<"ciphers">>|_], L) -> [{ciphers, [tls_cipher(C) || C <- L]}];
-client_tls_option([<<"versions">>|_], L) -> [{versions, [b2a(V) || V <- L]}].
+-spec tls_option(path(), toml_value()) -> [option()].
+tls_option([<<"verify_peer">>|_], V) -> [{verify, verify_peer(V)}];
+tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
+tls_option([<<"cacertfile">>|_], V) -> [{cacertfile, b2l(V)}];
+tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
+tls_option([<<"keyfile">>|_], V) -> [{keyfile, b2l(V)}];
+tls_option([<<"password">>|_], V) -> [{password, b2l(V)}];
+tls_option([<<"server_name_indication">>|_], false) -> [{server_name_indication, disable}];
+tls_option([<<"ciphers">>|_] = Path, L) -> [{ciphers, parse_list(Path, L)}];
+tls_option([<<"versions">>|_] = Path, L) -> [{versions, parse_list(Path, L)}].
+
+%% path: listen.http[].tls.*,
+%%       listen.c2s[].tls.*,
+-spec fast_tls_option(path(), toml_value()) -> [option()].
+fast_tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
+fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
+fast_tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
+fast_tls_option([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}].
 
 -spec verify_peer(boolean()) -> option().
 verify_peer(false) -> verify_none;
 verify_peer(true) -> verify_peer.
 
--spec tls_cipher(toml_value()) -> option().
-tls_cipher(#{<<"key_exchange">> := KEx,
-             <<"cipher">> := Cipher,
-             <<"mac">> := MAC,
-             <<"prf">> := PRF}) ->
-    #{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)};
-tls_cipher(Cipher) -> b2l(Cipher).
+-spec tls_cipher(path(), toml_value()) -> [option()].
+tls_cipher(_, #{<<"key_exchange">> := KEx,
+                <<"cipher">> := Cipher,
+                <<"mac">> := MAC,
+                <<"prf">> := PRF}) ->
+    [#{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)}];
+tls_cipher(_, Cipher) -> [b2l(Cipher)].
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -685,7 +704,12 @@ b2l(B) -> binary_to_list(B).
 limit_keys(Keys, Section) ->
     Section = maps:with(Keys, Section).
 
--spec parse_kv(path(), toml_key(), toml_section()) -> [option()].
+-spec parse_kv(path(), toml_key(), toml_section(), option()) -> option().
+parse_kv(Path, Key, Section, Default) ->
+    Value = maps:get(Key, Section, Default),
+    handle([Key|Path], Value).
+
+-spec parse_kv(path(), toml_key(), toml_section()) -> option().
 parse_kv(Path, Key, Section) ->
     #{Key := Value} = Section,
     handle([Key|Path], Value).
@@ -693,7 +717,8 @@ parse_kv(Path, Key, Section) ->
 -spec parse_section(path(), toml_section()) -> [option()].
 parse_section(Path, M) ->
     lists:flatmap(fun({K, V}) ->
-                          handle([K|Path], V)
+                          Key = key(K, Path, V),
+                          handle([Key|Path], V)
                   end, maps:to_list(M)).
 
 -spec parse_list(path(), [toml_value()]) -> [option()].
@@ -735,17 +760,26 @@ handler([_, _, <<"listen">>]) -> fun process_listener/2;
 handler([_, _, <<"http">>, <<"listen">>]) -> fun http_listener_opt/2;
 handler([_, _, <<"c2s">>, <<"listen">>]) -> fun c2s_listener_opt/2;
 handler([_, _, <<"s2s">>, <<"listen">>]) -> fun s2s_listener_opt/2;
+handler([_, <<"tls">>, _, <<"s2s">>, <<"listen">>]) -> fun s2s_tls_option/2;
 handler([_, _, <<"service">>, <<"listen">>]) -> fun service_listener_opt/2;
-handler([_, <<"tls">>, _, _, <<"listen">>]) -> fun client_tls_option/2;
+handler([_, {tls, _}, _, <<"c2s">>, <<"listen">>]) -> fun c2s_tls_option/2;
+handler([_, <<"versions">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
+    fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"ciphers">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) -> fun tls_cipher/2;
+handler([_, <<"tls">>, _, <<"http">>, <<"listen">>]) -> fun https_option/2;
 handler([_, <<"transport">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_transport_opt/2;
 handler([_, <<"protocol">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_protocol_opt/2;
 handler([_, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun parse_list/2;
 handler([_, _, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_module/2;
-handler([_, <<"ejabberd_service">>, _, <<"mod_websockets">>, <<"handlers">>, _,
-         <<"http">>, <<"listen">>]) -> fun service_listener_opt/2;
-handler([_, _, <<"mod_websockets">>, <<"handlers">>, _,
-         <<"http">>, <<"listen">>]) -> fun cowboy_module_mod_websockets/2;
- 
+handler([_, _, <<"mongoose_api">>, <<"handlers">>, _, <<"http">>, <<"listen">>]) ->
+    fun mongoose_api_option/2;
+handler([_, <<"handlers">>, _, <<"mongoose_api">>, <<"handlers">>, _, <<"http">>, <<"listen">>]) ->
+    fun(_, Val) -> [b2a(Val)] end;
+handler([_, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">>, <<"listen">>]) ->
+    fun websockets_option/2;
+handler([_, <<"service">>, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">>, <<"listen">>]) ->
+    fun service_listener_opt/2;
+
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
 
@@ -758,7 +792,11 @@ handler([_, <<"connection">>, _, <<"ldap">>, <<"outgoing_pools">>]) -> fun ldap_
 handler([_, <<"connection">>, _, <<"riak">>, <<"outgoing_pools">>]) -> fun riak_option/2;
 handler([_, <<"connection">>, _, <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
 handler([_, <<"connection">>, _, <<"elastic">>, <<"outgoing_pools">>]) -> fun elastic_option/2;
-handler([_, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) -> fun client_tls_option/2;
+handler([_, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) -> fun tls_option/2;
+handler([_, <<"versions">>, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) ->
+    fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"ciphers">>, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) ->
+    fun tls_cipher/2;
 
 %% services
 handler([_, <<"services">>]) -> fun process_service/2;
@@ -793,6 +831,15 @@ strip_host(Path) ->
     [<<"host_config">>, {host, _}|Rest] = lists:reverse(Path),
     lists:reverse(Rest).
 
--spec item_key(path(), toml_section()) -> tuple() | item.
+-spec key(toml_key(), path(), toml_value()) -> tuple() | toml_key().
+key(<<"tls">>, [item, <<"c2s">>, <<"listen">>], M) ->
+    %% store the tls module in path as both of them need different options
+    case maps:get(<<"module">>, M, <<"fast_tls">>) of
+        <<"just_tls">> -> {tls, just_tls};
+        <<"fast_tls">> -> {tls, fast_tls}
+    end;
+key(Key, _Path, _) -> Key.
+
+-spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.

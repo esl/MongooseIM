@@ -24,7 +24,7 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.ejabberd_service]
+    [listen.http.handlers.mod_websockets.service]
       access = "all"
       shaper_rule = "fast"
       password = "secret"
@@ -70,7 +70,7 @@
   [[listen.http.handlers.lasse_handler]]
     host = "_"
     path = "/api/sse"
-    modules = ["mongoose_client_api_sse"]
+    module = "mongoose_client_api_sse"
 
   [[listen.http.handlers.mongoose_client_api_messages]]
     host = "_"
@@ -124,13 +124,13 @@
 
 [[listen.c2s]]
   port = 5222
-  certfile = "tools/ssl/mongooseim/server.pem"
-  tls.mode = "starttls"
   zlib = 10000
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
-  dhfile = "tools/ssl/mongooseim/dh_server.pem"
+  tls.mode = "starttls"
+  tls.certfile = "tools/ssl/mongooseim/server.pem"
+  tls.dhfile = "tools/ssl/mongooseim/dh_server.pem"
 
 [[listen.c2s]]
   port = 5223
@@ -143,7 +143,7 @@
   port = 5269
   shaper = "s2s_shaper"
   max_stanza_size = 131072
-  dhfile = "tools/ssl/mongooseim/dh_server.pem"
+  tls.dhfile = "tools/ssl/mongooseim/dh_server.pem"
 
 [[listen.service]]
   port = 8888

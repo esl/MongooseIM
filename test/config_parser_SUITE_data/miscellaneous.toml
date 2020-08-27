@@ -30,7 +30,7 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.ejabberd_service]
+    [listen.http.handlers.mod_websockets.service]
       access = "all"
       shaper_rule = "fast"
       password = "secret"
