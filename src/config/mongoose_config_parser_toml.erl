@@ -271,8 +271,8 @@ cowboy_module([_, Type|_] = Path, #{<<"host">> := Host, <<"path">> := ModPath} =
     [{b2l(Host), b2l(ModPath), b2a(Type), ModuleOpts}].
 
 -spec cowboy_module_options(path(), toml_section()) -> [option()].
-cowboy_module_options([_, <<"mod_websockets">>|_] = Path, #{<<"ejabberd_service">> := Opts}) ->
-    [{ejabberd_service, parse_section([<<"ejabberd_service">>|Path], Opts)}];
+cowboy_module_options([_, <<"mod_websockets">>|_] = Path, V) ->
+    parse_section(Path, V);
     %% TODO get rid of ejabberd
 cowboy_module_options([_, <<"lasse_handler">>|_], #{<<"modules">> := Modules}) ->
     [b2a(Mod) || Mod <- Modules];
@@ -285,6 +285,23 @@ cowboy_module_options([_, <<"cowboy_swagger_json_handler">>|_], _) -> #{};
 cowboy_module_options([_, <<"mongoose_api">>|_], #{<<"handlers">> := Handlers}) ->
     [{handlers, [b2a(H) || H <- Handlers]}];
 cowboy_module_options(_, _) -> [].
+
+-spec cowboy_module_mod_websockets(path(), toml_section()) -> [option()].
+cowboy_module_mod_websockets([<<"timeout">>|_], <<"infinity">>) ->
+    [{timeout, infinity}];
+cowboy_module_mod_websockets([<<"timeout">>|_], V) ->
+    [{timeout, V}];
+cowboy_module_mod_websockets([<<"ping_rate">>|_], <<"none">>) ->
+    [{ping_rate, none}];
+cowboy_module_mod_websockets([<<"ping_rate">>|_], V) ->
+    [{ping_rate, V}];
+cowboy_module_mod_websockets([<<"max_stanza_size">>|_], <<"infinity">>) ->
+    [{max_stanza_size, infinity}];
+cowboy_module_mod_websockets([<<"max_stanza_size">>|_], V) ->
+    [{max_stanza_size, V}];
+cowboy_module_mod_websockets([<<"ejabberd_service">>|_] = Path, V) ->
+    Ej = parse_section(Path, V),
+    [{ejabberd_service, Ej}].
 
 %% path: listen.c2s[].tls
 -spec listener_tls_opts(path(), toml_section()) -> [option()].
@@ -726,7 +743,9 @@ handler([_, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun parse_list/2;
 handler([_, _, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_module/2;
 handler([_, <<"ejabberd_service">>, _, <<"mod_websockets">>, <<"handlers">>, _,
          <<"http">>, <<"listen">>]) -> fun service_listener_opt/2;
-
+handler([_, _, <<"mod_websockets">>, <<"handlers">>, _,
+         <<"http">>, <<"listen">>]) -> fun cowboy_module_mod_websockets/2;
+ 
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
 
