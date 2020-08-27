@@ -47,7 +47,6 @@ miscellaneous(Config) ->
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                         fun handle_config_option/2).
 
-
 s2s(Config) ->
     Cfg_Path = ejabberd_helper:data(Config, "s2s_only.cfg"),
     State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
@@ -56,7 +55,7 @@ s2s(Config) ->
     TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
     State2 = mongoose_config_parser_toml:parse_file(TOML_path),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
-        
+
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
 
@@ -166,8 +165,17 @@ handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
 
 handle_modules({Name, Opts}, {Name2, Opts2}) ->
     ?eq(Name, Name2),
-    compare_unordered_lists(Opts, Opts2, fun handle_modules/2).
+    compare_unordered_lists(Opts, Opts2, fun handle_module_options/2).
 
+handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
+    compare_unordered_lists(Configs1, Configs2, fun handle_module_options/2);
+handle_module_options({Name, Opts}, {Name2, Opts2}) ->
+    ?eq(Name, Name2),
+    compare_unordered_lists(Opts, Opts2, fun handle_module_options/2);
+handle_module_options(V1, V2) ->
+    ?eq(V1, V2).
+
+%% Generic assertions, use the 'F' handler for any custom cases
 compare_unordered_lists(L1, L2) ->
     compare_unordered_lists(L1, L2, fun(V1, V2) -> ?eq(V1, V2) end).
 
@@ -177,9 +185,6 @@ compare_unordered_lists(L1, L2, F) ->
     compare_ordered_lists(SL1, SL2, F).
 
 compare_ordered_lists([H1|T1], [H1|T2], F) ->
-    compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([H1|T1], [H2|T2], F) when is_list(H1), is_list(H2)->
-    compare_unordered_lists(H1, H2),
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([H1|T1], [H2|T2], F) ->
     try F(H1, H2)
