@@ -386,16 +386,25 @@ prepare_password(Server, Password) ->
             mongoose_rdbms:escape_string(Password)
     end.
 
+-spec scram_passwords(Server, ScramIterationCount) -> ok | {error, atom()} when
+    Server :: jid:lserver(),
+    ScramIterationCount :: pos_integer().
 scram_passwords(Server, ScramIterationCount) ->
     scram_passwords(Server, ?DEFAULT_SCRAMMIFY_COUNT,
                     ?DEFAULT_SCRAMMIFY_INTERVAL, ScramIterationCount).
 
+-spec scram_passwords(Server, Count, Interval, ScramIterationCount) ->
+    ok | {error, atom()} when
+        Server :: jid:lserver(),
+        Count :: pos_integer(),
+        Interval :: pos_integer(),
+        ScramIterationCount :: pos_integer().
 scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 text => <<"Converting the stored passwords into SCRAM bits">>}),
     ToConvertCount = case catch rdbms_queries:get_users_without_scram_count(LServer) of
-        {selected, [{Res}]} -> binary_to_integer(Res);
+        {selected, [{Res}]} -> Res;
         _ -> 0
     end,
 
@@ -404,11 +413,18 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
                 text => <<"Users to scrammify">>}),
     scram_passwords1(LServer, Count, Interval, ScramIterationCount).
 
+-spec scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
+    ok | {error, interrupted} when
+        LServer :: jid:lserver(),
+        Count :: pos_integer(),
+        Interval :: pos_integer(),
+        ScramIterationCount :: pos_integer().
 scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
     case rdbms_queries:get_users_without_scram(LServer, Count) of
         {selected, []} ->
             ?LOG_INFO(#{what => scram_passwords_completed,
-                        text => <<"All users scrammed">>});
+                        text => <<"All users scrammed">>}),
+            ok;
         {selected, Results} ->
             ?LOG_INFO(#{what => scram_passwords_progress,
                         user_count => length(Results),
@@ -428,10 +444,17 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
         Other ->
             ?LOG_ERROR(#{what => scram_passwords_failed,
                          text => <<"Interrupted scramming">>,
-                         server => LServer, reason => Other})
+                         server => LServer, reason => Other}),
+            {error, interrupted}
     end.
 
-write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword) ->
+-spec write_scrammed_password_to_rdbms(LServer, LUser, ScrammedPassword) ->
+    ok | {error, not_allowed} when
+        LServer :: jid:lserver(),
+        LUser :: LUser :: jid:luser(),
+        ScrammedPassword :: prepared_scrammed_password().
+write_scrammed_password_to_rdbms(LServer, LUser, ScrammedPassword) ->
+    Username = mongoose_rdbms:escape_string(LUser),
     case catch rdbms_queries:set_password_t(LServer, Username,
                                             ScrammedPassword) of
         {atomic, ok} -> ok;
@@ -439,5 +462,5 @@ write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword) ->
             ?LOG_ERROR(#{what => scrammify_user_failed,
                          text => <<"Could not scrammify user">>,
                          user => Username, server => LServer, reason => Other}),
-            Other
+            {error, not_allowed}
     end.
