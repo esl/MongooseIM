@@ -23,7 +23,8 @@ groups() ->
     [{equivalence, [parallel], [sample_pgsql,
                                 miscellaneous,
                                 s2s,
-                                modules]},
+                                modules,
+                                outgoing_pools]},
      {general, [parallel], [loglevel,
                             hosts,
                             registration_timeout,
@@ -91,6 +92,9 @@ s2s(Config) ->
 
 modules(Config) ->
     test_equivalence_between_files(Config,  "modules.cfg",  "modules.toml").
+
+outgoing_pools(Config) ->
+    test_equivalence_between_files(Config,  "outgoing_pools.cfg",  "outgoing_pools.toml").
 
 %% tests: general
 loglevel(_Config) ->
