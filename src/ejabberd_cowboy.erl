@@ -148,7 +148,7 @@ do_start_cowboy(Ref, Opts) ->
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     TransportOpts0 = gen_mod:get_opt(transport_options, Opts, #{}),
-    TransportOpts = TransportOpts0#{num_acceptros => NumAcceptors},
+    TransportOpts = TransportOpts0#{num_acceptors => NumAcceptors},
     Modules = gen_mod:get_opt(modules, Opts),
     Dispatch = cowboy_router:compile(get_routes(Modules)),
     ProtocolOpts = [{env, [{dispatch, Dispatch}]} |

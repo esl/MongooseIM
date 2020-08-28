@@ -16,7 +16,7 @@
   [[general.mongooseimctl_access_commands]]
     access_rule = "local"
     commands = ["join_cluster"]
-    argument_restrictions = ["mongooseim@host", "mongooseim@prime"]
+    argument_restrictions.node = "mongooseim@prime"
 
 [auth]
   extauth_instances = 1
@@ -30,7 +30,7 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.ejabberd_service]
+    [listen.http.handlers.mod_websockets.service]
       access = "all"
       shaper_rule = "fast"
       password = "secret"

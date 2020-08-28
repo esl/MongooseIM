@@ -104,16 +104,11 @@ init_per_group(just_tls, Config) ->
 init_per_group(fast_tls, Config) ->
     [{tls_module, "fast_tls"} | Config];
 init_per_group(ca_signed, Config) ->
-    SSLOpts = case escalus_config:get_config(tls_module, Config) of
-                  "just_tls" ->
-                      "\n  tls.disconnect_on_failure = false";
-                  "fast_tls" ->
-                      ""
-              end,
-    [{signed, ca}, {ssl_options, SSLOpts},
+    [{signed, ca},
+     {ssl_options, "\n  tls.disconnect_on_failure = false"},
      {verify_mode, "\n  tls.verify_mode = \"peer\""} | Config];
 init_per_group(self_signed, Config) ->
-    [{signed, self}, {ssl_options, ""},
+    [{signed, self},
      {verify_mode, "\n  tls.verify_mode = \"selfsigned_peer\""} | Config];
 init_per_group(standard, Config) ->
     modify_config_and_restart("\"standard\"", Config),
@@ -146,18 +141,20 @@ init_per_group(_, Config) ->
     Config.
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
     TLSModule = escalus_config:get_config(tls_module, Config, "just_tls"),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
+    SSLOpts = case TLSModule of
+                  "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
+                  "fast_tls" -> ""
+              end,
     AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "\"pki\""}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
-    NewConfigValues = [{tls_config, "certfile = \"priv/ssl/fake_server.pem\"\n"
+    NewConfigValues = [{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"\n"
                                     "  tls.mode = \"starttls\"\n"
-                                    "  password = \"\"\n"
-                                    "  verify_peer = true\n"
-                                    "  cafile = \"" ++ CACertFile ++ "\""
-                                    ++ VerifyMode ++ SSLOpts},
+                                    "  tls.verify_peer = true\n"
+                                    "  tls.cacertfile = \"" ++ CACertFile ++ "\""
+                                    ++ SSLOpts},
 		       {tls_module, "tls.module = \"" ++ TLSModule ++ "\""},
 		       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
                                       "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"

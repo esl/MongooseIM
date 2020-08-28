@@ -34,7 +34,7 @@
 {sm_backend, "\"mnesia\""}.
 {auth_method, "\"internal\""}.
 {cyrsasl_external, "\"standard\""}.
-{tls_config, "certfile = \"priv/ssl/fake_server.pem\"
+{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"
   tls.mode = \"starttls\""}.
 {tls_module, ""}.
 {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"

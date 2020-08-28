@@ -96,7 +96,7 @@
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.num_of_connections = 22
   connections.tls.certfile = "/home/user/dc1.pem"
-  connections.tls.cafile = "/home/user/ca.pem"
+  connections.tls.cacertfile = "/home/user/ca.pem"
   cache.domain_lifetime_seconds = 60
   bounce.resend_after_ms = 300
   bounce.max_retries = 3

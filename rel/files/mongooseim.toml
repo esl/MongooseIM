@@ -22,7 +22,7 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.ejabberd_service]
+    [listen.http.handlers.mod_websockets.service]
       access = "all"
       shaper_rule = "fast"
       password = "secret"
@@ -60,7 +60,7 @@
   [[listen.http.handlers.lasse_handler]]
     host = "_"
     path = "/api/sse"
-    modules = ["mongoose_client_api_sse"]
+    module = "mongoose_client_api_sse"
 
   [[listen.http.handlers.mongoose_client_api_messages]]
     host = "_"

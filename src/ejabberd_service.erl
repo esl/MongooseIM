@@ -62,7 +62,7 @@
                 sockmod      :: ejabberd:sockmod(),
                 socket_monitor,
                 streamid,
-                password     :: binary(),
+                password     :: string(),
                 host         :: binary() | undefined,
                 is_subdomain :: boolean(),
                 hidden_components = false :: boolean(),
