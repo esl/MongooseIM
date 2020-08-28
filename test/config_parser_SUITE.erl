@@ -81,62 +81,18 @@ end_per_suite(_Config) ->
     ok.
 
 sample_pgsql(Config) ->
-    CfgPath = ejabberd_helper:data(Config, "mongooseim-pgsql.cfg"),
-    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
-    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
-
-    TOMLPath = ejabberd_helper:data(Config, "mongooseim-pgsql.toml"),
-    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
-    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-    ?eq(Hosts1, Hosts2),
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                            fun handle_config_option/2).
+    test_equivalence_between_files(Config,  "mongooseim-pgsql.cfg",  "mongooseim-pgsql.toml").
 
 miscellaneous(Config) ->
-    CfgPath = ejabberd_helper:data(Config, "miscellaneous.cfg"),
-    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
-    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
-
-    TOMLPath = ejabberd_helper:data(Config, "miscellaneous.toml"),
-    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
-    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-
-    ?eq(Hosts1, Hosts2),
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                        fun handle_config_option/2).
+    test_equivalence_between_files(Config,  "miscellaneous.cfg",  "miscellaneous.toml").
 
 s2s(Config) ->
-    Cfg_Path = ejabberd_helper:data(Config, "s2s_only.cfg"),
-    State1 = mongoose_config_parser_cfg:parse_file(Cfg_Path),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
-
-    TOML_path = ejabberd_helper:data(Config, "s2s_only.toml"),
-    State2 = mongoose_config_parser_toml:parse_file(TOML_path),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                            fun handle_config_option/2).
+    test_equivalence_between_files(Config,  "s2s_only.cfg",  "s2s_only.toml").
 
 modules(Config) ->
-    CfgPath = ejabberd_helper:data(Config, "modules.cfg"),
-    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
-    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
+    test_equivalence_between_files(Config,  "modules.cfg",  "modules.toml").
 
-    TOMLPath = ejabberd_helper:data(Config, "modules.toml"),
-    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
-    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-
-    ?eq(Hosts1, Hosts2),
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                        fun handle_config_option/2).
 %% tests: general
-
 loglevel(_Config) ->
     ?eq([#local_config{key = loglevel, value = debug}],
         parse(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})),
@@ -682,3 +638,17 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
+
+test_equivalence_between_files(Config, File1, File2) ->
+    CfgPath = ejabberd_helper:data(Config, File1),
+    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
+    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
+    Opts1 = mongoose_config_parser:state_to_opts(State1),
+
+    TOMLPath = ejabberd_helper:data(Config, File2),
+    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
+    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
+    Opts2 = mongoose_config_parser:state_to_opts(State2),
+    ?eq(Hosts1, Hosts2),
+    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
+                            fun handle_config_option/2).
