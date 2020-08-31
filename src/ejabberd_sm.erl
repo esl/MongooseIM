@@ -32,6 +32,7 @@
          start_link/0,
          route/3,
          route/4,
+         make_new_sid/0,
          open_session/3, open_session/4,
          close_session/4,
          store_info/2,
@@ -217,6 +218,10 @@ route(From, To, Acc, El) ->
                            acc => Acc}),
               Acc
     end.
+
+-spec make_new_sid() -> ejabberd_sm:sid().
+make_new_sid() ->
+    {erlang:system_time(microsecond), self()}.
 
 -spec open_session(SID, JID, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),

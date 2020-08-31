@@ -17,7 +17,7 @@ init(_InitArgs, _LastEvtId, Req) ->
     maybe_init(Authorization, Req2, State#{id => 1}).
 
 maybe_init(true, Req, #{jid := JID} = State) ->
-    SID = make_new_sid(),
+    SID = ejabberd_sm:make_new_sid(),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
     NewJid = jid:replace_resource(JID, Resource),
@@ -74,7 +74,3 @@ maybe_send_message_event(<<"groupchat">>, Packet, Timestamp, #{id := ID} = State
     {send, Event, State#{id := ID + 1}};
 maybe_send_message_event(_, _, _, State) ->
     {nosend, State}.
-
--spec make_new_sid() -> ejabberd_sm:sid().
-make_new_sid() ->
-    {erlang:system_time(microsecond), self()}.

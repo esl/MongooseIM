@@ -780,7 +780,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) -
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
     PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U),
-    SID = make_new_sid(),
+    SID = ejabberd_sm:make_new_sid(),
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
@@ -2815,7 +2815,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 enable_stream_resumption(SD) ->
     SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
-              undefined -> make_new_sid();
+              undefined -> ejabberd_sm:make_new_sid();
               RSID -> RSID
           end,
     ok = mod_stream_management:register_smid(SMID, SID),
@@ -3089,7 +3089,7 @@ maybe_resume_session(NextState, El, StateData) ->
 do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
-        SID = make_new_sid(),
+        SID = ejabberd_sm:make_new_sid(),
         Conn = get_conn_type(StateData),
         MergedState = merge_state(OldState,
                                   StateData#state{sid = SID, conn = Conn}),
@@ -3380,7 +3380,3 @@ update_stanza(From, To, #xmlel{} = Element, Acc) ->
 strip_c2s_fields(Acc) ->
     %% TODO: verify if we really need to strip down these 2 fields
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
-
--spec make_new_sid() -> ejabberd_sm:sid().
-make_new_sid() ->
-    {erlang:system_time(microsecond), self()}.
