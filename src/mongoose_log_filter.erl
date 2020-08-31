@@ -116,9 +116,7 @@ do_format_stacktrace([Other|T]) ->
 do_format_stacktrace([]) ->
     [].
 
-more_format_stacktrace(H, []) -> [H];
+more_format_stacktrace(H, []) ->
+    [H];
 more_format_stacktrace(H, T) ->
-    case T of
-        [] -> [H];
-        _ -> [H, " "|do_format_stacktrace(T)]
-    end.
+    [H, " "|do_format_stacktrace(T)].
