@@ -59,8 +59,8 @@
                                 Prio :: integer(),
                                 NodeS :: string(),
                                 Uptime :: integer()}.
--type usr_nowpid_p_i() :: {jid:simple_jid(),
-                           {Now :: erlang:timestamp(), Pid :: identifier()},
+-type usr_sid_prio_info() :: {jid:simple_jid(),
+                           {SessionStart :: mongoose_types:microseconds(), Pid :: identifier()},
                            Prio :: integer(),
                            Info :: string()}.
 
@@ -292,17 +292,11 @@ user_sessions_info(User, Host) ->
         end, [], Resources).
 
 
--spec format_user_info(usr_nowpid_p_i()) -> formatted_user_info().
-format_user_info(Usr) ->
-    format_user_info(Usr, calendar:datetime_to_gregorian_seconds({date(), time()})).
-
-
--spec format_user_info(usr_nowpid_p_i(), CurrentSec :: non_neg_integer()) -> formatted_user_info().
-format_user_info({{U, S, R}, {Now, Pid}, Priority, Info}, CurrentSec) ->
+-spec format_user_info(usr_sid_prio_info()) -> formatted_user_info().
+format_user_info({{U, S, R}, {Microseconds, Pid}, Priority, Info}) ->
     Conn = proplists:get_value(conn, Info),
     {Ip, Port} = proplists:get_value(ip, Info),
     IPS = inet_parse:ntoa(Ip),
     NodeS = atom_to_list(node(Pid)),
-    Uptime = CurrentSec - calendar:datetime_to_gregorian_seconds(
-            calendar:now_to_local_time(Now)),
+    Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,
     {[U, $@, S, $/, R], atom_to_list(Conn), IPS, Port, Priority, NodeS, Uptime}.
