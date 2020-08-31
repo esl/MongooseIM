@@ -1,0 +1,77 @@
+[general]
+  hosts = [
+    "localhost",
+    "anonymous.localhost",
+    "localhost.bis"
+  ]
+
+[outgoing_pools.redis.global_distrib]
+  scope = "single_host"
+  host = "localhost"
+  workers = 10
+
+[outgoing_pools.rdbms.default]
+  scope = "global"
+  workers = 5
+
+  [outgoing_pools.rdbms.default.connection]
+    driver = "pgsql"
+    host = "localhost"
+    database = "ejabberd"
+    username = "ejabberd"
+    password = "mongooseim_secret"
+    keepalive_interval = 30
+    tls.required = true
+    tls.verify_peer = true
+    tls.cacertfile = "priv/ssl/cacert.pem"
+    tls.server_name_indication = false
+
+[outgoing_pools.http.mongoose_push_http]
+  scope = "global"
+  workers = 50
+
+  [outgoing_pools.http.mongoose_push_http.connection]
+    host = "https://localhost:8443"
+    path_prefix = "/"
+    request_timeout = 2000
+    http_opts.retry = 1
+    http_opts.retry_timeout = 1000
+
+[outgoing_pools.riak.default]
+    scope = "global"
+    workers = 20 
+    strategy = "next_worker"
+    connection.address = "127.0.0.1"
+    connection.port = 8087
+    connection.credentials = {user = "username", password = "pass"}
+    connection.cacertfile = "path/to/cacert.pem"
+
+[outgoing_pools.cassandra.default]
+    scope = "global"
+    connection.servers = [
+        {ip_address = "cassandra_server1.example.com", port = 9042}, 
+        {ip_address = "cassandra_server2.example.com", port =  9042}
+        ]
+    connection.keyspace = "big_mongooseim"
+
+
+[outgoing_pools.elastic.default]
+    scope = "global"
+    connection.host = "localhost"
+
+[outgoing_pools.rabbit.event_pusher]
+    scope = "host"
+    workers = 20
+    connection.amqp_host = "localhost"
+    connection.amqp_port = 5672
+    connection.amqp_username = "guest"
+    connection.amqp_password = "guest"
+    connection.confirms_enabled = true
+    connection.max_worker_queue_len = 100
+
+[outgoing_pools.ldap.default]
+    scope = "host"
+    workers = 5
+    connection.servers = ["ldap-server.example.com"]
+    connection.rootdn = "cn=admin,dc=example,dc=com"
+    connection.password = "ldap-admin-password"
