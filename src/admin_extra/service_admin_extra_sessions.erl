@@ -60,9 +60,9 @@
                                 NodeS :: string(),
                                 Uptime :: integer()}.
 -type usr_sid_prio_info() :: {jid:simple_jid(),
-                           ejabberd_sm:sid(),
-                           Prio :: ejabberd_sm:priority(),
-                           Info :: string()}.
+                              ejabberd_sm:sid(),
+                              Prio :: ejabberd_sm:priority(),
+                              Info :: string()}.
 
 %%%
 %%% Register commands
