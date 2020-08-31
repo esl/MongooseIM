@@ -44,7 +44,8 @@
          close/1,
          sockname/1,
          peername/1,
-         get_socket/1]).
+         get_socket/1,
+         format_socket/1]).
 
 -include("mongoose.hrl").
 
@@ -305,3 +306,19 @@ peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
 -spec get_socket(socket_state()) -> term().
 get_socket(#socket_state{socket = Socket}) ->
     Socket.
+
+
+format_socket(#socket_state{sockmod = Mod, socket = Socket,
+                            receiver = Receiver, connection_details = Info}) ->
+    Info2 = format_details(Info),
+    Info2#{socket_module => Mod,
+           socket => format_term(Socket),
+           receiver => format_term(Receiver)};
+format_socket(_) ->
+    #{}.
+
+format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
+
+format_details(Info = #{dest_address := DestAddr, src_address := SrcAddr}) ->
+    Info#{dest_address => inet:ntoa(DestAddr),
+          src_address => inet:ntoa(SrcAddr)}.
