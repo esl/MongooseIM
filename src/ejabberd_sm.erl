@@ -32,6 +32,7 @@
          start_link/0,
          route/3,
          route/4,
+         make_new_sid/0,
          open_session/3, open_session/4,
          close_session/4,
          store_info/2,
@@ -117,7 +118,7 @@
 -record(state, {}).
 -type state() :: #state{}.
 
--type sid() :: tuple().
+-type sid() :: {mongoose_lib:microseconds(), pid()}.
 -type priority() :: integer() | undefined.
 
 -type session() :: #session{
@@ -141,6 +142,7 @@
 
 -export_type([session/0,
               sid/0,
+              priority/0,
               ses_tuple/0,
               backend/0,
               close_reason/0,
@@ -217,6 +219,10 @@ route(From, To, Acc, El) ->
                            acc => Acc}),
               Acc
     end.
+
+-spec make_new_sid() -> ejabberd_sm:sid().
+make_new_sid() ->
+    {erlang:system_time(microsecond), self()}.
 
 -spec open_session(SID, JID, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
@@ -871,12 +877,12 @@ route_message_by_type(_, From, To, Acc, Packet) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec clean_session_list([sid()]) -> [sid()].
+-spec clean_session_list([session()]) -> [session()].
 clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
 
--spec clean_session_list([sid()], [sid()]) -> [sid()].
+-spec clean_session_list([session()], [session()]) -> [session()].
 clean_session_list([], Res) ->
     Res;
 clean_session_list([S], Res) ->

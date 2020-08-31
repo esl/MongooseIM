@@ -17,7 +17,7 @@ init(_InitArgs, _LastEvtId, Req) ->
     maybe_init(Authorization, Req2, State#{id => 1}).
 
 maybe_init(true, Req, #{jid := JID} = State) ->
-    SID = {os:timestamp(), self()},
+    SID = ejabberd_sm:make_new_sid(),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
     NewJid = jid:replace_resource(JID, Resource),

@@ -1339,8 +1339,13 @@ match_user_status2([User | UserR], Statuses) ->
 
 match_user_info(Users, UsersTxt) ->
     UsersInfo = string:tokens(UsersTxt, "\n"),
-
-    true = (length(Users) == length(UsersInfo)),
+    case length(Users) == length(UsersInfo) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{what => match_user_info_failed,
+                      users => Users, user_info => UsersInfo})
+    end,
     match_user_info2(Users, UsersInfo).
 
 match_user_info2([], _) ->

@@ -13,7 +13,11 @@
 -export([deprecated_logging/1]).
 -deprecated({deprecated_logging, 1, eventually}).
 
+-export_type([microseconds/0]).
+
 -include("mongoose.hrl").
+
+-type microseconds() :: integer().
 
 %% ------------------------------------------------------------------
 %% Logging
