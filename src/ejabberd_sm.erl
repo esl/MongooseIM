@@ -118,7 +118,7 @@
 -record(state, {}).
 -type state() :: #state{}.
 
--type sid() :: {mongoose_types:microseconds(), pid()}.
+-type sid() :: {mongoose_lib:microseconds(), pid()}.
 -type priority() :: integer() | undefined.
 
 -type session() :: #session{
