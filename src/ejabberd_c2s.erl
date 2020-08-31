@@ -3381,5 +3381,6 @@ strip_c2s_fields(Acc) ->
     %% TODO: verify if we really need to strip down these 2 fields
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
 
+-spec make_new_sid() -> ejabberd_sm:sid().
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.

@@ -871,12 +871,12 @@ route_message_by_type(_, From, To, Acc, Packet) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec clean_session_list([sid()]) -> [sid()].
+-spec clean_session_list([session()]) -> [session()].
 clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
 
--spec clean_session_list([sid()], [sid()]) -> [sid()].
+-spec clean_session_list([session()], [session()]) -> [session()].
 clean_session_list([], Res) ->
     Res;
 clean_session_list([S], Res) ->
