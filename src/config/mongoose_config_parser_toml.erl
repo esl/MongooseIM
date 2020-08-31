@@ -359,12 +359,57 @@ auth_option([<<"anonymous_protocol">>|_], V) ->
     [{anonymous_protocol, b2a(V)}];
 auth_option([<<"sasl_mechanisms">>|_], V) ->
     [{sasl_mechanisms, [b2a(M) || M <- V]}];
-auth_option([<<"ldap_base">>|_], V) ->
-    [{ldap_base, b2l(V)}];
-auth_option([<<"ldap_filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}];
+auth_option([<<"ldap">>|_] = Path, V) ->
+    parse_section(Path, V);
 auth_option([<<"extauth_instances">>|_], V) ->
     [{extauth_instances, V}].
+
+-spec auth_ldap_option(path(), toml_section()) -> [option()].
+auth_ldap_option([<<"pool_tag">>|_], V) ->
+    [{ldap_pool_tag, b2a(V)}];
+auth_ldap_option([<<"bind_pool_tag">>|_], V) ->
+    [{ldap_bind_pool_tag, b2a(V)}];
+auth_ldap_option([<<"base">>|_], V) ->
+    [{ldap_base, b2l(V)}];
+auth_ldap_option([<<"uids">>|_] = Path, V) ->
+    [{ldap_uids, parse_list(Path, V)}];
+auth_ldap_option([<<"filter">>|_], V) ->
+    [{ldap_filter, b2l(V)}];
+auth_ldap_option([<<"dn_filter">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    Filter = proplists:get_value(filter, Opts),
+    Attrs = proplists:get_value(attributes, Opts),
+    [{ldap_dn_filter, {Filter, Attrs}}];
+auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    Op = proplists:get_value(operation, Opts),
+    Filter = proplists:get_value(filter, Opts),
+    Attrs = proplists:get_value(attributes, Opts),
+    [{ldap_local_filter, {Op, {Filter, Attrs}}}];
+auth_ldap_option([<<"deref">>|_], V) ->
+    [{ldap_deref, b2a(V)}].
+
+-spec auth_ldap_uids(path(), toml_section()) -> [option()].
+auth_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
+    [{b2l(Attr), b2l(Format)}];
+auth_ldap_uids(_, #{<<"attr">> := Attr}) ->
+    [b2l(Attr)].
+
+-spec auth_ldap_dn_filter(path(), toml_section()) -> [option()].
+auth_ldap_dn_filter([<<"filter">>|_], V) ->
+    [{filter, b2l(V)}];
+auth_ldap_dn_filter([<<"attributes">>|_] = Path, V) ->
+    Attrs = parse_list(Path, V),
+    [{attributes, Attrs}].
+
+-spec auth_ldap_local_filter(path(), toml_section()) -> [option()].
+auth_ldap_local_filter([<<"operation">>|_], V) ->
+    [{operation, b2a(V)}];
+auth_ldap_local_filter([<<"filter">>|_], V) ->
+    [{filter, b2l(V)}];
+auth_ldap_local_filter([<<"attributes">>|_] = Path, V) ->
+    Attrs = parse_list(Path, V),
+    [{attributes, Attrs}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
 -spec cyrsasl_external(toml_key()) -> option().
@@ -1461,6 +1506,11 @@ handler([_, <<"service">>, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">
 
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
+handler([_, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_option/2;
+handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
+handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
+handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
+handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
 
 %% outgoing_pools
 handler([_, <<"outgoing_pools">>]) -> fun parse_section/2;
