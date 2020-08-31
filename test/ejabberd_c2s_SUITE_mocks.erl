@@ -3,6 +3,8 @@
 
 setup() ->
     meck:new(ejabberd_sm),
+    meck:expect(ejabberd_sm, make_new_sid,
+                fun() -> {erlang:system_time(microsecond), self()} end),
     meck:expect(ejabberd_sm, close_session,
                 fun(Acc, _SID, _JID, _Reason) -> Acc end),
     meck:expect(ejabberd_sm, open_session, fun(_, _, _) -> [] end),
