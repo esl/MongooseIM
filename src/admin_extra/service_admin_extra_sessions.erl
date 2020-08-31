@@ -50,18 +50,18 @@
 -type u_s_r_p_st() :: { User    :: jid:user(),
                         Server  :: jid:server(),
                         Res     :: jid:resource(),
-                        Prio    :: integer(),
+                        Prio    :: ejabberd_sm:priority(),
                         Status  :: status()}.
 -type formatted_user_info() :: {USR :: string(),
                                 Conn :: string(),
                                 IPS :: string(),
                                 Port :: inet:port_number(),
-                                Prio :: integer(),
+                                Prio :: ejabberd_sm:priority(),
                                 NodeS :: string(),
                                 Uptime :: integer()}.
 -type usr_sid_prio_info() :: {jid:simple_jid(),
-                           {SessionStart :: mongoose_types:microseconds(), Pid :: identifier()},
-                           Prio :: integer(),
+                           ejabberd_sm:sid(),
+                           Prio :: ejabberd_sm:priority(),
                            Info :: string()}.
 
 %%%

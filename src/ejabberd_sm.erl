@@ -142,6 +142,7 @@
 
 -export_type([session/0,
               sid/0,
+              priority/0,
               ses_tuple/0,
               backend/0,
               close_reason/0,
