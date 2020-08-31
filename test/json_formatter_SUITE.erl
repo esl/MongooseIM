@@ -1,0 +1,193 @@
+-module(json_formatter_SUITE).
+
+-export([all/0, init_per_suite/1, end_per_suite/1]).
+
+-export([
+    something_is_logged/1,
+    something_is_formatted/1,
+    acc_is_formatted/1
+]).
+
+-include_lib("kernel/include/logger.hrl").
+-include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(LOGFILE, "log/mongooseim.log").
+-define(HID, json_log).
+
+all() ->
+    [
+        something_is_logged,
+        something_is_formatted,
+        acc_is_formatted
+    ].
+
+init_per_suite(Config) ->
+    LoggerConfig = logger:get_primary_config(),
+    logger:set_primary_config(level, info),
+    {ok, Backend} = mongoose_logger_running(),
+    [{logger_primary_config, LoggerConfig},
+     {logger_backend, Backend}
+        | Config].
+
+end_per_suite(Config) ->
+    logger:remove_handler(?config(logger_handler, Config)),
+    logger:set_primary_config(?config(logger_primary_config, Config)),
+    ok.
+
+%%
+%% Tests
+%%
+something_is_logged(Config) ->
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+    ?LOG_INFO(#{what => something_is_logged,
+                   text => "JSON formatter test. This is an example message.",
+                   code => 404, reason => test_execution}),
+    ?assertNotEqual(timeout, get_at_least_n_log_lines(File, length(Before) + 1, timer:seconds(5))).
+
+something_is_formatted(Config) ->
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+
+    ?LOG_INFO(
+        #{in => config, user => #{name => <<"bbby">>, id => 12345}, details => {entropy, too_low},
+          txt => <<"JSON formatter test. JSON-match-this-something">>}
+    ),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-something">>),
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := <<"{json_formatter_SUITE,something_is_formatted,1}">>,
+                      <<"pid">> := Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := DateTimeStrBin},
+      <<"msg">> := #{<<"report">> := #{<<"details">> := #{<<"entropy">> := <<"too_low">>},
+                                       <<"in">> := <<"config">>,
+                                       <<"txt">> := <<"JSON formatter test. JSON-match-this-something">>,
+                                       <<"user">> := #{<<"id">> := <<"12345">>,
+                                                       <<"name">> := <<"bbby">>}}}}
+    = Decoded,
+
+    ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
+    Pid = unicode:characters_to_binary(pid_to_list(self())).
+
+acc_is_formatted(Config) ->
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+
+    Acc = #{lserver => <<"localhost">>,
+            mongoose_acc => true,
+            non_strippable => [],
+            origin_location => #{file => "/Users/user/MongooseIM/src/ejabberd_router.erl",
+                                 line => 116,
+                                 mfa => {ejabberd_router,route,3}},
+            origin_pid => self(),
+            origin_stanza => <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
+            ref => make_ref(),
+            stanza => #{element => {xmlel,<<"message">>,
+                                    [{<<"type">>,<<"chat">>},{<<"id">>,<<"1111">>}],
+                                    [{xmlel,<<"body">>,[],
+                                      [{xmlcdata,<<"JSON-match-this-acc">>}]}]},
+                        from_jid => {jid,<<"userA">>,<<"localhost">>,<<>>,<<"usera">>,<<"localhost">>,<<>>},
+                        name => <<"message">>,
+                        ref => make_ref(),
+                        to_jid => {jid,<<"userB">>,<<"localhost">>,<<>>,<<"userb">>,<<"localhost">>,<<>>},
+                        type => <<"chat">>},
+            timestamp => 1598878576962100},
+
+    ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
+                 routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-acc">>),
+
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := <<"{json_formatter_SUITE,acc_is_formatted,1}">>,
+                      <<"pid">> := Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := DateTimeStrBin},
+      % Because of the format_acc_filter/2 we don't get the full accumulator
+      <<"msg">> := #{<<"report">> := #{<<"acc_timestamp">> := DateTimeStrBin2,
+                                       <<"from_jid">> := <<"userA@localhost">>,
+                                       <<"origin_pid">> := Pid,
+                                       % format_packet_filter/2 changes the packet
+                                       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
+                                       <<"routing_modules">> := [<<"mongoose_router_1">>,<<"mongoose_router_2">>],
+                                       % Jiffy understands one element proplist as a K-V structure,
+                                       % but two tuples have to be represented as a string
+                                       <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+                                       <<"to_jid">> := <<"userB@localhost">>,
+                                       <<"what">> := <<"routing_result">>}}} = Decoded,
+
+    ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
+    ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
+    Pid = unicode:characters_to_binary(pid_to_list(self())).
+
+%%
+%% Helpers
+%%
+
+mongoose_logger_running() ->
+    HandlerID = ?HID,
+    HandlerModule = logger_std_h,
+    HandlerConfig = #{level => info,
+                      config => #{file => ?LOGFILE},
+                      formatter => {mongoose_logger_json, #{}},
+                      filters => [
+                          {format_packet_filter, {fun mongoose_log_filter:format_packet_filter/2, no_state}},
+                          {format_acc_filter, {fun mongoose_log_filter:format_acc_filter/2, no_state}},
+                          {format_c2s_state_filter, {fun mongoose_log_filter:format_c2s_state_filter/2, no_state}},
+                          {format_stacktrace_filter, {fun mongoose_log_filter:format_stacktrace_filter/2, no_state}}
+                      ]
+    },
+    ok = logger:add_handler(HandlerID, HandlerModule, HandlerConfig),
+    FileBackend = {HandlerID, ?LOGFILE},
+    {ok, FileBackend}.
+
+'contains?'(String, Pattern) ->
+    binary:match(String, [Pattern]) /= nomatch.
+
+filter_out_non_matching(Lines, Pattern) ->
+    lists:filter(fun (L) -> 'contains?'(L, Pattern) end, Lines).
+
+get_log(LogFile) ->
+    case file:read_file(LogFile) of
+        {error, enoent} -> [];
+        {ok, Contents} -> binary:split(Contents, <<"\n">>, [global, trim])
+    end.
+
+get_at_least_n_log_lines(LogFile, NLines, Timeout) ->
+    TRef = erlang:start_timer(Timeout, self(), get_at_least_n_log_lines),
+    get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile)).
+
+get_at_least_n_log_lines(_LogFile, NLines, TRef, Lines)
+    when length(Lines) >= NLines ->
+    erlang:cancel_timer(TRef),
+    Lines;
+get_at_least_n_log_lines(LogFile, NLines, TRef, _Lines) ->
+    receive
+        {timeout, TRef, get_at_least_n_log_lines} -> timeout
+    after 100 ->
+        get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile))
+    end.
