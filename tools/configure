@@ -18,7 +18,7 @@
                log_dir          = "log",
                mdb_dir          = "$RUNNER_BASE_DIR/Mnesia.$NODE",
                mdb_dir_toggle   = "%",
-               lock_dir         = "$EJABBERD_DIR/var/lock",
+               lock_dir         = "$RUNNER_BASE_DIR/var/lock",
                pid_dir          = "$RUNNER_BASE_DIR/var",
                status_dir       = "$RUNNER_BASE_DIR/var",
                nodetool_etc_dir = "etc",
