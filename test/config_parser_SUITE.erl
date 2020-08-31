@@ -17,7 +17,8 @@
 all() ->
     [{group, equivalence},
      {group, general},
-     {group, listen}].
+     {group, listen},
+     {group, auth}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -70,7 +71,17 @@ groups() ->
                            listen_http_handlers_websockets,
                            listen_http_handlers_lasse,
                            listen_http_handlers_static,
-                           listen_http_handlers_api]}
+                           listen_http_handlers_api]},
+     {auth, [parallel], [auth_methods,
+                         auth_password_format,
+                         auth_scram_iterations,
+                         auth_cyrsasl_external,
+                         auth_allow_multiple_connections,
+                         auth_anonymous_protocol,
+                         auth_sasl_mechanisms,
+                         auth_ldap_base,
+                         auth_ldap_filter,
+                         auth_extauth_instances]}
     ].
 
 init_per_suite(Config) ->
@@ -494,6 +505,85 @@ listen_http_handlers_api(_Config) ->
                                                                     <<"mongoose_api_users">>]})),
     ?err(parse_http_handler(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
     ?err(parse_http_handler(<<"mongoose_api">>, #{})).
+
+%% test: auth
+
+auth_methods(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
+         #local_config{key = {auth_method, ?HOST}, value = [internal, rdbms]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"methods">> => [<<"supernatural">>]}})).
+
+auth_password_format(_Config) ->
+    [F1] = parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                                       <<"hash">> => [<<"sha">>,
+                                                                      <<"sha256">>]}}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{password_format, {scram, [sha, sha256]}}]}],
+        F1(?HOST)),
+    [F2] = parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{password_format, plain}]}], F2(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}})),
+    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                                     <<"hash">> => []}}})),
+    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                                     <<"hash">> => [<<"sha1234">>]}}})).
+
+auth_scram_iterations(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{scram_iterations, 1000}]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"scram_iterations">> => false}})).
+
+auth_cyrsasl_external(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"cyrsasl_external">> =>
+                                      [<<"standard">>,
+                                       <<"common_name">>,
+                                       <<"cyrsasl_external_verification">>]}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{cyrsasl_external, [standard,
+                                                    common_name,
+                                                    {mod, cyrsasl_external_verification}]
+                                }]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"cyrsasl_external">> => [<<"unknown">>]}})).
+
+auth_allow_multiple_connections(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"allow_multiple_connections">> => true}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
+         #local_config{key = {allow_multiple_connections, ?HOST}, value = true}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"allow_multiple_connections">> => <<"yes">>}})).
+
+auth_anonymous_protocol(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"login_anon">>}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
+         #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"none">>}})).
+
+auth_sasl_mechanisms(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
+         #local_config{key = {sasl_mechanisms, ?HOST},
+                       value = [cyrsasl_external, cyrsasl_scram]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}})).
+
+auth_ldap_base(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"ldap_base">> => <<"ou=Users,dc=example,dc=com">>}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_base, "ou=Users,dc=example,dc=com"}]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"ldap_base">> => 10}})).
+
+auth_ldap_filter(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"ldap_filter">> => <<"(objectClass=inetOrgPerson)">>}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_filter, "(objectClass=inetOrgPerson)"}]}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"ldap_filter">> => 10}})).
+
+auth_extauth_instances(_Config) ->
+    [F] = parse(#{<<"auth">> => #{<<"extauth_instances">> => 2}}),
+    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
+         #local_config{key = {extauth_instances, ?HOST}, value = 2}], F(?HOST)),
+    ?err(parse(#{<<"auth">> => #{<<"extauth_instances">> => 0}})).
 
 %% helpers for 'listen' tests
 
