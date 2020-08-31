@@ -20,6 +20,25 @@
 
 [auth]
   extauth_instances = 1
+  
+  [auth.ldap]
+    pool_tag = "default"
+    bind_pool_tag = "bind"
+    base = "ou=Users,dc=esl,dc=com"
+    filter = "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"
+    dn_filter.filter = "(&(name=%s)(owner=%D)(user=%u@%d))"
+    dn_filter.attributes = ["sn"]
+    local_filter.operation = "equal"
+    local_filter.filter = "accountStatus"
+    local_filter.attributes = ["enabled"]
+    deref = "never"
+    
+    [[auth.ldap.uids]]
+      attr = "uid"
+
+    [[auth.ldap.uids]]
+      attr = "uid2"
+      format = "%u"
 
 [[listen.http]]
   port = 5280
