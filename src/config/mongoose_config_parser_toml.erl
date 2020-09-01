@@ -343,22 +343,22 @@ just_tls_verify_fun(_, _) -> [].
 
 %% path: (host_config[].)auth.*
 -spec auth_option(path(), toml_value()) -> [option()].
-auth_option([<<"methods">>|_], Methods) ->
-    [{auth_method, [b2a(Method) || Method <- Methods]}];
-auth_option([<<"password">>|_], #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
-    [{password_format, {scram, [b2a(H) || H <- Hashes]}}];
+auth_option([<<"methods">>|_] = Path, Methods) ->
+    [{auth_method, parse_list(Path, Methods)}];
+auth_option([<<"password">>|_] = Path, #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
+    [{password_format, {scram, parse_list([<<"hash">> | Path], Hashes)}}];
 auth_option([<<"password">>|_], #{<<"format">> := Format}) ->
     [{password_format, b2a(Format)}];
 auth_option([<<"scram_iterations">>|_], V) ->
     [{scram_iterations, V}];
-auth_option([<<"cyrsasl_external">>|_], V) ->
-    [{cyrsasl_external, [cyrsasl_external(M) || M <- V]}];
+auth_option([<<"cyrsasl_external">>|_] = Path, V) ->
+    [{cyrsasl_external, parse_list(Path, V)}];
 auth_option([<<"allow_multiple_connections">>|_], V) ->
     [{allow_multiple_connections, V}];
 auth_option([<<"anonymous_protocol">>|_], V) ->
     [{anonymous_protocol, b2a(V)}];
-auth_option([<<"sasl_mechanisms">>|_], V) ->
-    [{sasl_mechanisms, [b2a(M) || M <- V]}];
+auth_option([<<"sasl_mechanisms">>|_] = Path, V) ->
+    [{sasl_mechanisms, parse_list(Path, V)}];
 auth_option([<<"ldap_base">>|_], V) ->
     [{ldap_base, b2l(V)}];
 auth_option([<<"ldap_filter">>|_], V) ->
@@ -367,11 +367,16 @@ auth_option([<<"extauth_instances">>|_], V) ->
     [{extauth_instances, V}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
--spec cyrsasl_external(toml_key()) -> option().
-cyrsasl_external(<<"standard">>) -> standard;
-cyrsasl_external(<<"common_name">>) -> common_name;
-cyrsasl_external(<<"auth_id">>) -> auth_id;
-cyrsasl_external(M) -> {mod, b2a(M)}.
+-spec cyrsasl_external(path(), toml_value()) -> [option()].
+cyrsasl_external(_, <<"standard">>) -> [standard];
+cyrsasl_external(_, <<"common_name">>) -> [common_name];
+cyrsasl_external(_, <<"auth_id">>) -> [auth_id];
+cyrsasl_external(_, M) -> [{mod, b2a(M)}].
+
+%% path: (host_config[].)auth.sasl_mechanism[]
+-spec sasl_mechanism(path(), toml_value()) -> [option()].
+sasl_mechanism(_, V) ->
+    [b2a(<<"cyrsasl_", V/binary>>)].
 
 -spec partition_auth_opts([{atom(), any()}], ejabberd:server()) -> [config()].
 partition_auth_opts(AuthOpts, Host) ->
@@ -1505,6 +1510,10 @@ handler([_, <<"service">>, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">
 
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
+handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"cyrsasl_external">>, <<"auth">>]) -> fun cyrsasl_external/2;
+handler([_, <<"sasl_mechanisms">>, <<"auth">>]) -> fun sasl_mechanism/2;
 
 %% outgoing_pools
 handler([_, <<"outgoing_pools">>]) -> fun parse_section/2;
@@ -1641,6 +1650,9 @@ handler([_, <<"s2s">>]) -> fun process_s2s_option/2;
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
 handler([_, _, <<"host_config">>]) -> fun process_host_section/2;
 handler([_, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
+handler([_, _, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
+handler([_, _, _, <<"auth">>, _, <<"host_config">>] = P) ->
+    handler(strip_host(P));
 handler([_, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
 handler([_, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
 handler([_, _, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
