@@ -163,7 +163,7 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
                                       "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                       ++ VerifyMode},
                        {cyrsasl_external, CyrsaslExternalConfig},
-		       {sasl_mechanisms, "sasl_mechanisms = [\"cyrsasl_external\"]"} | AuthMethods],
+		       {sasl_mechanisms, "sasl_mechanisms = [\"external\"]"} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim).
 

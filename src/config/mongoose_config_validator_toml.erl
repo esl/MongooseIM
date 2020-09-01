@@ -145,6 +145,35 @@ validate([item, _TypeBin, <<"handlers">>, item, <<"http">>, <<"listen">>],
     validate_non_empty_string(Host),
     validate_module(Type);
 
+%% auth
+validate([item, <<"methods">>, <<"auth">>],
+         [Value]) ->
+    validate_module(list_to_atom("ejabberd_auth_" ++ atom_to_list(Value)));
+validate([<<"password">>, <<"auth">>],
+         [{password_format, Value}]) ->
+    validate_password_format(Value);
+validate([item, <<"hash">>, <<"password">>, <<"auth">>],
+         [Value]) ->
+    validate_enum(Value, [sha, sha224, sha256, sha384, sha512]);
+validate([<<"scram_iterations">>, <<"auth">>],
+         [{scram_iterations, Value}]) ->
+    validate_positive_integer(Value);
+validate([item, <<"cyrsasl_external">>, <<"auth">>],
+         [{mod, Module}]) ->
+    validate_module(Module);
+validate([<<"allow_multiple_connections">>, <<"auth">>],
+         [{allow_multiple_connections, Value}]) ->
+    validate_boolean(Value);
+validate([<<"anonymous_protocol">>, <<"auth">>],
+         [{anonymous_protocol, Value}]) ->
+    validate_enum(Value, [sasl_anon, login_anon, both]);
+validate([item, <<"sasl_mechanisms">>, <<"auth">>],
+         [Value]) ->
+    validate_module(Value);
+validate([<<"extauth_instances">>, <<"auth">>],
+         [{extauth_instances, Value}]) ->
+    validate_positive_integer(Value);
+
 validate(_, _) ->
     ok.
 
@@ -185,3 +214,6 @@ validate_port(Value) when is_integer(Value), Value >= 0, Value =< 65535 -> ok.
 validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
+
+validate_password_format({scram, [_|_]}) -> ok;
+validate_password_format(Value) -> validate_enum(Value, [scram, plain]).

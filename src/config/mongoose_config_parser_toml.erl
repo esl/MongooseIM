@@ -220,7 +220,7 @@ mongoose_api_admin([<<"password">>|_], V) ->
     [{password, V}].
 
 %% path: listen.http[].mongoose_api_admin.*
--spec mongoose_api_client(path(), toml_section()) -> option().
+-spec mongoose_api_client(path(), toml_value()) -> [option()].
 mongoose_api_client([<<"host">>|_], V) ->
     [{host, b2l(V)}];
 mongoose_api_client([<<"path">>|_], V) ->
@@ -373,24 +373,24 @@ just_tls_verify_fun(_, _) -> [].
 
 %% path: (host_config[].)auth.*
 -spec auth_option(path(), toml_value()) -> [option()].
-auth_option([<<"methods">>|_], Methods) ->
-    [{auth_method, [b2a(Method) || Method <- Methods]}];
-auth_option([<<"password">>|_], #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
-    [{password_format, {scram, [b2a(H) || H <- Hashes]}}];
+auth_option([<<"methods">>|_] = Path, Methods) ->
+    [{auth_method, parse_list(Path, Methods)}];
+auth_option([<<"password">>|_] = Path, #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
+    [{password_format, {scram, parse_list([<<"hash">> | Path], Hashes)}}];
 auth_option([<<"password">>|_], #{<<"format">> := Format}) ->
     [{password_format, b2a(Format)}];
 auth_option([<<"scram_iterations">>|_], V) ->
     [{scram_iterations, V}];
-auth_option([<<"cyrsasl_external">>|_], V) ->
-    [{cyrsasl_external, [cyrsasl_external(M) || M <- V]}];
+auth_option([<<"cyrsasl_external">>|_] = Path, V) ->
+    [{cyrsasl_external, parse_list(Path, V)}];
 auth_option([<<"allow_multiple_connections">>|_], V) ->
     [{allow_multiple_connections, V}];
 auth_option([<<"anonymous_protocol">>|_], V) ->
     [{anonymous_protocol, b2a(V)}];
-auth_option([<<"sasl_mechanisms">>|_], V) ->
-    [{sasl_mechanisms, [b2a(M) || M <- V]}];
 auth_option([<<"ldap">>|_] = Path, V) ->
     parse_section(Path, V);
+auth_option([<<"sasl_mechanisms">>|_] = Path, V) ->
+    [{sasl_mechanisms, parse_list(Path, V)}];
 auth_option([<<"extauth_instances">>|_], V) ->
     [{extauth_instances, V}].
 
@@ -425,14 +425,14 @@ auth_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
 auth_ldap_uids(_, #{<<"attr">> := Attr}) ->
     [b2l(Attr)].
 
--spec auth_ldap_dn_filter(path(), toml_section()) -> [option()].
+-spec auth_ldap_dn_filter(path(), toml_value()) -> [option()].
 auth_ldap_dn_filter([<<"filter">>|_], V) ->
     [{filter, b2l(V)}];
 auth_ldap_dn_filter([<<"attributes">>|_] = Path, V) ->
     Attrs = parse_list(Path, V),
     [{attributes, Attrs}].
 
--spec auth_ldap_local_filter(path(), toml_section()) -> [option()].
+-spec auth_ldap_local_filter(path(), toml_value()) -> [option()].
 auth_ldap_local_filter([<<"operation">>|_], V) ->
     [{operation, b2a(V)}];
 auth_ldap_local_filter([<<"filter">>|_], V) ->
@@ -442,11 +442,17 @@ auth_ldap_local_filter([<<"attributes">>|_] = Path, V) ->
     [{attributes, Attrs}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
--spec cyrsasl_external(toml_key()) -> option().
-cyrsasl_external(<<"standard">>) -> standard;
-cyrsasl_external(<<"common_name">>) -> common_name;
-cyrsasl_external(<<"auth_id">>) -> auth_id;
-cyrsasl_external(M) -> {mod, b2a(M)}.
+-spec cyrsasl_external(path(), toml_value()) -> [option()].
+cyrsasl_external(_, <<"standard">>) -> [standard];
+cyrsasl_external(_, <<"common_name">>) -> [common_name];
+cyrsasl_external(_, <<"auth_id">>) -> [auth_id];
+cyrsasl_external(_, M) -> [{mod, b2a(M)}].
+
+%% path: (host_config[].)auth.sasl_mechanism[]
+%%       auth.sasl_mechanisms.*
+-spec sasl_mechanism(path(), toml_value()) -> [option()].
+sasl_mechanism(_, V) ->
+    [b2a(<<"cyrsasl_", V/binary>>)].
 
 -spec partition_auth_opts([{atom(), any()}], ejabberd:server()) -> [config()].
 partition_auth_opts(AuthOpts, Host) ->
@@ -485,7 +491,14 @@ pool_option([<<"call_timeout">>|_], V) -> [{call_timeout, V}].
 %% path: outgoing_pools.*.connection
 -spec connection_options(path(), toml_section()) -> [option()].
 connection_options([_, _, <<"rdbms">>|_] = Path, Options) ->
-    [{server, rdbms_server(Path, Options)}];
+    Interval = parse_kv(Path, <<"keepalive_interval">>, Options, undefined),
+    Server = rdbms_server(Path, Options),
+    case Interval of
+        undefined ->
+            [{server, Server}];
+        V ->
+            [{server, Server}, {keepalive_interval, V}]
+        end;
 connection_options([_, _, <<"riak">>|_] = Path, Options = #{<<"username">> := UserName,
                                                             <<"password">> := Password}) ->
     M = maps:without([<<"username">>, <<"password">>], Options),
@@ -527,14 +540,28 @@ db_tls(Path, #{<<"driver">> := <<"pgsql">>, <<"tls">> := Opts}) ->
     [{ssl, SSLMode}, {ssl_opts, parse_section([<<"tls">> | Path], Opts1)}];
 db_tls(_, _) -> no_tls.
 
-%% path: outgoing_pools.redis.connection.*
+%% path: outgoing_pools.http.*.connection.*
+-spec http_option(path(), toml_value()) -> [option()].
+http_option([<<"host">>|_], V) -> [{server, b2l(V)}];
+http_option([<<"path_prefix">>|_], V) -> [{path_prefix, b2l(V)}];
+http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}];
+http_option([<<"http_opts">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    [{http_opts, maps:from_list(Opts)}].
+
+%% path: outgoing_pools.http.*.connection.http_opts.*
+-spec http_opts(path(), toml_value()) -> [option()].
+http_opts([<<"retry">>|_], V) -> [{retry, V}];
+http_opts([<<"retry_timeout">>|_], V) -> [{retry_timeout, V}].
+
+%% path: outgoing_pools.redis.*.connection.*
 -spec redis_option(path(), toml_value()) -> [option()].
 redis_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
 redis_option([<<"port">>|_], Port) -> [{port, Port}];
 redis_option([<<"database">>|_], Database) -> [{database, b2l(Database)}];
 redis_option([<<"password">>|_], Password) -> [{password, b2l(Password)}].
 
-%% path: outgoing_pools.ldap.connection.*
+%% path: outgoing_pools.ldap.*.connection.*
 -spec ldap_option(path(), toml_value()) -> [option()].
 ldap_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
 ldap_option([<<"port">>|_], Port) -> [{port, Port}];
@@ -542,30 +569,53 @@ ldap_option([<<"rootdn">>|_], RootDN) -> [{rootdn, b2l(RootDN)}];
 ldap_option([<<"password">>|_], Password) -> [{password, b2l(Password)}];
 ldap_option([<<"encrypt">>|_], <<"tls">>) -> [{encrypt, tls}];
 ldap_option([<<"encrypt">>|_], <<"none">>) -> [{encrypt, none}];
+ldap_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
+ldap_option([<<"connect_interval">>|_], V) -> [{connect_interval, V}];
 ldap_option([<<"tls">>|_] = Path, Options) -> [{tls_options, parse_section(Path, Options)}].
 
-%% path: outgoing_pools.riak.connection.*
+%% path: outgoing_pools.riak.*.connection.*
 -spec riak_option(path(), toml_value()) -> [option()].
 riak_option([<<"address">>|_], Addr) -> [{address, b2l(Addr)}];
 riak_option([<<"port">>|_], Port) -> [{port, Port}];
+riak_option([<<"credentials">>|_] = Path, V) ->
+    Creds = parse_section(Path, V),
+    User = proplists:get_value(user, Creds),
+    Pass = proplists:get_value(password, Creds),
+    [{credentials, User, Pass}];
 riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
 riak_option([<<"tls">>|_] = Path, Options) -> [{ssl_opts, parse_section(Path, Options)}].
 
-%% path: outgoing_pools.cassandra.connnection.*
+%% path: outgoing_pools.riak.*.connection.credentials.*
+-spec riak_credentials(path(), toml_value()) -> [option()].
+riak_credentials([<<"user">>|_], V) -> [{user, b2l(V)}];
+riak_credentials([<<"password">>|_], V) -> [{password, b2l(V)}].
+
+%% path: outgoing_pools.cassandra.*.connnection.*
 -spec cassandra_option(path(), toml_value()) -> [option()].
-cassandra_option([<<"servers">>|_], Servers) -> [{servers, [cassandra_server(S) || S <- Servers]}];
-cassandra_option([<<"keyspace">>|_], KeySpace) -> [{keyspace, b2a(KeySpace)}];
+cassandra_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
+cassandra_option([<<"keyspace">>|_], KeySpace) -> [{keyspace, b2l(KeySpace)}];
 cassandra_option([<<"tls">>|_] = Path, Options) -> [{ssl, parse_section(Path, Options)}].
 
-%% path: outgoing_pools.cassandra.connection.servers[]
--spec cassandra_server(toml_section()) -> option().
-cassandra_server(#{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> {b2l(IPAddr), Port};
-cassandra_server(#{<<"ip_address">> := IPAddr}) -> b2l(IPAddr).
+%% path: outgoing_pools.cassandra.*.connection.servers[]
+-spec cassandra_server(path(), toml_section()) -> [option()].
+cassandra_server(_, #{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> [{b2l(IPAddr), Port}];
+cassandra_server(_, #{<<"ip_address">> := IPAddr}) -> [b2l(IPAddr)].
 
-%% path: outgoing_pools.elastic.connection.*
+%% path: outgoing_pools.elastic.*.connection.*
 -spec elastic_option(path(), toml_value()) -> [option()].
 elastic_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
 elastic_option([<<"port">>|_], Port) -> [{port, Port}].
+
+%% path: outgoing_pools.rabbit.*.connection.*
+-spec rabbit_option(path(), toml_value()) -> [option()].
+rabbit_option([<<"amqp_host">>|_], V) -> [{amqp_host, b2l(V)}];
+rabbit_option([<<"amqp_port">>|_], V) -> [{amqp_port, V}];
+rabbit_option([<<"amqp_username">>|_], V) -> [{amqp_username, b2l(V)}];
+rabbit_option([<<"amqp_password">>|_], V) -> [{amqp_password, b2l(V)}];
+rabbit_option([<<"confirms_enabled">>|_], V) -> [{confirms_enabled, V}];
+rabbit_option([<<"max_worker_queue_len">>|_], <<"infinity">>) ->
+     [{max_worker_queue_len, infinity}];
+rabbit_option([<<"max_worker_queue_len">>|_], V) -> [{max_worker_queue_len, V}].
 
 %% path: services.*
 -spec process_service(path(), toml_section()) -> [option()].
@@ -1482,14 +1532,14 @@ parse_list(Path, L) ->
                           handle([Key|Path], Elem)
                   end, L).
 
--spec handle(path(), toml_value()) -> [option()].
+-spec handle(path(), toml_value()) -> option().
 handle(Path, Value) ->
     Handler = handler(Path),
     Option = Handler(Path, Value),
     mongoose_config_validator_toml:validate(Path, Option),
     Option.
 
--spec handler(path()) -> fun((path(), toml_value()) -> [option()]).
+-spec handler(path()) -> fun((path(), toml_value()) -> option()).
 handler([_]) -> fun process_section/2;
 
 %% general
@@ -1543,16 +1593,28 @@ handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
 handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
 handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
 handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
+handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
+handler([_, <<"cyrsasl_external">>, <<"auth">>]) -> fun cyrsasl_external/2;
+handler([_, <<"sasl_mechanisms">>, <<"auth">>]) -> fun sasl_mechanism/2;
 
 %% outgoing_pools
 handler([_, <<"outgoing_pools">>]) -> fun parse_section/2;
 handler([_, _, <<"outgoing_pools">>]) -> fun process_pool/2;
 handler([_, _, _, <<"outgoing_pools">>]) -> fun pool_option/2;
+handler([_, <<"connection">>, _, <<"http">>, <<"outgoing_pools">>]) -> fun http_option/2;
+handler([_, <<"http_opts">>, <<"connection">>, _, <<"http">>, <<"outgoing_pools">>]) -> fun http_opts/2;
 handler([_, <<"connection">>, _, <<"redis">>, <<"outgoing_pools">>]) -> fun redis_option/2;
 handler([_, <<"connection">>, _, <<"ldap">>, <<"outgoing_pools">>]) -> fun ldap_option/2;
+handler([_, <<"servers">>, <<"connection">>, _, <<"ldap">>, <<"outgoing_pools">>]) -> fun(_, V) -> [b2l(V)] end;
 handler([_, <<"connection">>, _, <<"riak">>, <<"outgoing_pools">>]) -> fun riak_option/2;
+handler([_, <<"credentials">>, <<"connection">>, _, <<"riak">>, <<"outgoing_pools">>]) -> fun riak_credentials/2;
 handler([_, <<"connection">>, _, <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
+handler([_, <<"servers">>, <<"connection">>, _, <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_server/2;
 handler([_, <<"connection">>, _, <<"elastic">>, <<"outgoing_pools">>]) -> fun elastic_option/2;
+handler([_, <<"connection">>, _, <<"rabbit">>, <<"outgoing_pools">>]) -> fun rabbit_option/2;
+handler([<<"keepalive_interval">>, <<"connection">>, _, <<"rdbms">>, <<"outgoing_pools">>]) -> 
+    fun(_, V) -> V end;
 handler([_, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) -> fun tls_option/2;
 handler([_, <<"versions">>, <<"tls">>, <<"connection">>, _, _, <<"outgoing_pools">>]) ->
     fun(_, Val) -> [b2a(Val)] end;
@@ -1671,6 +1733,9 @@ handler([_, <<"s2s">>]) -> fun process_s2s_option/2;
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
 handler([_, _, <<"host_config">>]) -> fun process_host_section/2;
 handler([_, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
+handler([_, _, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
+handler([_, _, _, <<"auth">>, _, <<"host_config">>] = P) ->
+    handler(strip_host(P));
 handler([_, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
 handler([_, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
 handler([_, _, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
