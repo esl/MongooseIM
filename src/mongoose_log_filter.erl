@@ -22,7 +22,7 @@ fill_metadata_filter(Event=#{msg := {report, Msg}, meta := Meta}, Fields) ->
 
 
 format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_state := State}}}, _) ->
-    StateMap = c2s_state_to_map(State),
+    StateMap = filter_undefined(c2s_state_to_map(State)),
     %% C2S fields have lower priority, if the field is already present in msg.
     Msg2 = maps:merge(StateMap, maps:remove(c2s_state, Msg)),
     Event#{msg => {report, Msg2}};
@@ -94,7 +94,7 @@ maybe_jid_to_lserver(_) -> undefined.
 maybe_jid_to_lresource(#jid{lresource = LResource}) -> LResource;
 maybe_jid_to_lresource(_) -> undefined.
 
-maybe_sid_to_timestamp({Timestamp, _Pid}) -> format_term(Timestamp); % TODO format as timestamp
+maybe_sid_to_timestamp({Timestamp, _Pid}) -> format_microseconds(Timestamp);
 maybe_sid_to_timestamp(_) -> undefined.
 
 format_microseconds(N) ->
@@ -120,3 +120,6 @@ more_format_stacktrace(H, []) ->
     [H];
 more_format_stacktrace(H, T) ->
     [H, " "|do_format_stacktrace(T)].
+
+filter_undefined(Map) ->
+    maps:filter(fun(_, V) -> V =/= undefined end, Map).
