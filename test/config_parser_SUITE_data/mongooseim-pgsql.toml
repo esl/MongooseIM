@@ -36,6 +36,12 @@
   tls.certfile = "tools/ssl/mongooseim/cert.pem"
   tls.keyfile = "tools/ssl/mongooseim/key.pem"
   tls.password = ""
+  mongoose_api_admin.host = "localhost"
+  mongoose_api_admin.path = "/api"
+  mongoose_api_admin.username = "ala"
+  mongoose_api_admin.password = "makotaipsa"
+  mongoose_api_client.host = "localhost"
+  mongoose_api_client.path = "/api/contacts/{:jid}"
 
   [[listen.http.handlers.mod_bosh]]
     host = "_"
