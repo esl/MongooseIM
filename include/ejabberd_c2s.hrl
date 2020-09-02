@@ -18,7 +18,7 @@
                 sockmod :: ejabberd:sockmod(),
                 socket_monitor,
                 xml_socket,
-                streamid,
+                streamid :: undefined | binary(),
                 sasl_state,
                 access,
                 shaper,
