@@ -14,7 +14,7 @@
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
 -define(S3_OPTS, ?MOD_HTTP_UPLOAD_OPTS(?S3_HOSTNAME, true)).
 
--define(MINIO_HOSTNAME, "http://localhost:9000/mybucket/").
+-define(MINIO_HOSTNAME, "http://127.0.0.1:9000/mybucket/").
 -define(MINIO_OPTS(AddAcl), ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, AddAcl)).
 
 -define(MINIO_TEST_DATA, "qwerty").
