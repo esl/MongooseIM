@@ -5,7 +5,8 @@
 -export([
     something_is_logged/1,
     something_is_formatted/1,
-    acc_is_formatted/1
+    acc_is_formatted/1,
+    preserve_acc/1
 ]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -19,7 +20,8 @@ all() ->
     [
         something_is_logged,
         something_is_formatted,
-        acc_is_formatted
+        acc_is_formatted,
+        preserve_acc
     ].
 
 init_per_suite(Config) ->
@@ -86,25 +88,8 @@ acc_is_formatted(Config) ->
     {_, File} = ?config(logger_backend, Config),
     Before = get_log(File),
 
-    Acc = #{lserver => <<"localhost">>,
-            mongoose_acc => true,
-            non_strippable => [],
-            origin_location => #{file => "/Users/user/MongooseIM/src/ejabberd_router.erl",
-                                 line => 116,
-                                 mfa => {ejabberd_router,route,3}},
-            origin_pid => self(),
-            origin_stanza => <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
-            ref => make_ref(),
-            stanza => #{element => {xmlel,<<"message">>,
-                                    [{<<"type">>,<<"chat">>},{<<"id">>,<<"1111">>}],
-                                    [{xmlel,<<"body">>,[],
-                                      [{xmlcdata,<<"JSON-match-this-acc">>}]}]},
-                        from_jid => {jid,<<"userA">>,<<"localhost">>,<<>>,<<"usera">>,<<"localhost">>,<<>>},
-                        name => <<"message">>,
-                        ref => make_ref(),
-                        to_jid => {jid,<<"userB">>,<<"localhost">>,<<>>,<<"userb">>,<<"localhost">>,<<>>},
-                        type => <<"chat">>},
-            timestamp => 1598878576962100},
+    Body = <<"JSON-match-this-acc">>,
+    Acc = example_acc(Body),
 
     ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
                  routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
@@ -116,7 +101,7 @@ acc_is_formatted(Config) ->
                 Res -> Res
             end,
 
-    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-acc">>),
+    [Line] = filter_out_non_matching(After -- Before, Body),
 
     Decoded = jiffy:decode(Line, [return_maps]),
 
@@ -144,16 +129,92 @@ acc_is_formatted(Config) ->
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
     Pid = unicode:characters_to_binary(pid_to_list(self())).
 
+preserve_acc(Config) ->
+    ok = logger:add_primary_filter(preserve_acc_filter, {fun mongoose_log_filter:preserve_acc_filter/2, no_state}),
+
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+
+    Body = <<"JSON-match-this-preserve-acc">>,
+    Acc = example_acc(Body),
+
+    ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
+                routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, Body),
+
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := <<"{json_formatter_SUITE,preserve_acc,1}">>,
+                      <<"pid">> := Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := DateTimeStrBin},
+      % Because of the preserve_acc_filter/2 we get the full accumulator as acc_original
+      <<"msg">> := #{<<"report">> := #{<<"acc_original">> := A,
+                                       <<"acc_timestamp">> := DateTimeStrBin2,
+                                       <<"from_jid">> := <<"userA@localhost">>,
+                                       <<"origin_pid">> := Pid,
+                                       % format_packet_filter/2 changes the packet
+                                       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
+                                       <<"routing_modules">> := [<<"mongoose_router_1">>,<<"mongoose_router_2">>],
+                                       % Jiffy understands one element proplist as a K-V structure,
+                                       % but two tuples have to be represented as a string
+                                       <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+                                       <<"to_jid">> := <<"userB@localhost">>,
+                                       <<"what">> := <<"routing_result">>}}} = Decoded,
+
+    % This is not ideal but that's how the filter behaves
+    A = iolist_to_binary(io_lib:format("~0p", [Acc])),
+
+    ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
+    ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
+    Pid = unicode:characters_to_binary(pid_to_list(self())),
+
+    ok = logger:remove_primary_filter(preserve_acc_filter).
+
 %%
 %% Helpers
 %%
+
+example_acc(Body) ->
+    #{lserver => <<"localhost">>,
+      mongoose_acc => true,
+      non_strippable => [],
+      origin_location => #{file => "/Users/user/MongooseIM/src/ejabberd_router.erl",
+                           line => 116,
+                           mfa => {ejabberd_router,route,3}},
+      origin_pid => self(),
+      origin_stanza => <<<<"<message type='chat' id='1111'><body>">>/binary,
+                         Body/binary,
+                         <<"</body></message>">>/binary>>,
+      ref => make_ref(),
+      stanza => #{element => {xmlel,<<"message">>,
+                              [{<<"type">>,<<"chat">>},{<<"id">>,<<"1111">>}],
+                              [{xmlel,<<"body">>,[],
+                                [{xmlcdata,Body}]}]},
+                  from_jid => {jid,<<"userA">>,<<"localhost">>,<<>>,<<"usera">>,<<"localhost">>,<<>>},
+                  name => <<"message">>,
+                  ref => make_ref(),
+                  to_jid => {jid,<<"userB">>,<<"localhost">>,<<>>,<<"userb">>,<<"localhost">>,<<>>},
+                  type => <<"chat">>},
+      timestamp => 1598878576962100}.
 
 mongoose_logger_running() ->
     HandlerID = ?HID,
     HandlerModule = logger_std_h,
     HandlerConfig = #{level => info,
                       config => #{file => ?LOGFILE},
-                      formatter => {mongoose_logger_json, #{}},
+                      formatter => {mongoose_json_formatter, #{}},
                       filters => [
                           {format_packet_filter, {fun mongoose_log_filter:format_packet_filter/2, no_state}},
                           {format_acc_filter, {fun mongoose_log_filter:format_acc_filter/2, no_state}},
