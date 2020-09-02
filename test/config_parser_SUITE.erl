@@ -81,8 +81,14 @@ groups() ->
                          auth_allow_multiple_connections,
                          auth_anonymous_protocol,
                          auth_sasl_mechanisms,
+                         auth_ldap_pool,
+                         auth_ldap_bind_pool,
                          auth_ldap_base,
+                         auth_ldap_uids,
                          auth_ldap_filter,
+                         auth_ldap_dn_filter,
+                         auth_ldap_local_filter,
+                         auth_ldap_deref,
                          auth_extauth_instances]},
      {pool, [parallel], [pool_type,
                          pool_tag,
@@ -583,17 +589,70 @@ auth_sasl_mechanisms(_Config) ->
                        value = [cyrsasl_external, cyrsasl_scram]}], F(?HOST)),
     ?err(parse(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}})).
 
+auth_ldap_pool(_Config) ->
+    [F] = parse_auth_ldap(#{<<"pool_tag">> => <<"ldap_pool">>}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_pool_tag, ldap_pool}]}], F(?HOST)),
+    ?err(parse_auth_ldap(#{<<"pool_tag">> => <<>>})).
+
+auth_ldap_bind_pool(_Config) ->
+    [F] = parse_auth_ldap(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_bind_pool_tag, ldap_bind_pool}]}], F(?HOST)),
+    ?err(parse_auth_ldap(#{<<"bind_pool_tag">> => true})).
 auth_ldap_base(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"ldap_base">> => <<"ou=Users,dc=example,dc=com">>}}),
+    [F] = parse_auth_ldap(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>}),
     ?eq([#local_config{key = {auth_opts, ?HOST},
                        value = [{ldap_base, "ou=Users,dc=example,dc=com"}]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"ldap_base">> => 10}})).
+    ?err(parse_auth_ldap(#{<<"base">> => 10})).
+
+auth_ldap_uids(_Config) ->
+    [F1] = parse_auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
+                                              <<"format">> => <<"user=%u">>}]}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_uids, [{"uid1", "user=%u"}]}]}], F1(?HOST)),
+    [F2] = parse_auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_uids, ["uid1"]}]}], F2(?HOST)),
+    ?err(parse_auth_ldap(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
 
 auth_ldap_filter(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"ldap_filter">> => <<"(objectClass=inetOrgPerson)">>}}),
+    [F] = parse_auth_ldap(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>}),
     ?eq([#local_config{key = {auth_opts, ?HOST},
                        value = [{ldap_filter, "(objectClass=inetOrgPerson)"}]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"ldap_filter">> => 10}})).
+    ?err(parse_auth_ldap(#{<<"filter">> => 10})).
+
+auth_ldap_dn_filter(_Config) ->
+    Filter = #{<<"filter">> => <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
+               <<"attributes">> => [<<"sn">>]},
+    [F] = parse_auth_ldap(#{<<"dn_filter">> => Filter}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_dn_filter, {"(&(name=%s)(owner=%D)(user=%u@%d))", ["sn"]}}]}],
+                       F(?HOST)),
+    [?err(parse_auth_ldap(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
+        K <- maps:keys(Filter)],
+    ?err(parse_auth_ldap(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
+    ?err(parse_auth_ldap(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
+
+auth_ldap_local_filter(_Config) ->
+    Filter = #{<<"operation">> => <<"equal">>,
+               <<"attribute">> => <<"accountStatus">>,
+               <<"values">> => [<<"enabled">>]},
+    [F] = parse_auth_ldap(#{<<"local_filter">> => Filter}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_local_filter, {equal, {"accountStatus", ["enabled"]}}}]}],
+                       F(?HOST)),
+    [?err(parse_auth_ldap(#{<<"local_filter">> => maps:without([K], Filter)})) ||
+        K <- maps:keys(Filter)],
+    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"operation">> := <<"less_than">>}})),
+    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
+    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
+
+auth_ldap_deref(_Config) ->
+    [F] = parse_auth_ldap(#{<<"deref">> => <<"always">>}),
+    ?eq([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_deref, always}]}], F(?HOST)),
+    ?err(parse_auth_ldap(#{<<"deref">> => <<"sometimes">>})).
 
 auth_extauth_instances(_Config) ->
     [F] = parse(#{<<"auth">> => #{<<"extauth_instances">> => 2}}),
@@ -723,6 +782,11 @@ parse_http_handler(Type, Opts) ->
 
 parse_listener(Type, Opts) ->
     parse(#{<<"listen">> => #{Type => [Opts#{<<"port">> => 5222}]}}).
+
+%% helpers for 'auth' tests
+
+parse_auth_ldap(Opts) ->
+    parse(#{<<"auth">> => #{<<"ldap">> => Opts}}).
 
 %% helpers for 'pool' tests
 

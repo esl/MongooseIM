@@ -194,7 +194,37 @@ http_listener_opt([<<"protocol">>|_] = Path, Opts) ->
     [{protocol_options, parse_section(Path, Opts)}];
 http_listener_opt([<<"handlers">>|_] = Path, Handlers) ->
     [{modules, parse_section(Path, Handlers)}];
+http_listener_opt([<<"mongoose_api_admin">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    {_, Host} = proplists:lookup(host, Opts),
+    {_, P} = proplists:lookup(path, Opts),
+    {_, User} = proplists:lookup(username, Opts),
+    {_, Password} = proplists:lookup(password, Opts),
+    [{Host, P, mongoose_api_admin, [{auth, {User, Password}}]}];
+http_listener_opt([<<"mongoose_api_client">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    {_, Host} = proplists:lookup(host, Opts),
+    {_, P} = proplists:lookup(path, Opts),
+    [{Host, P, mongoose_api_client_contacts, []}];
 http_listener_opt(P, V) -> listener_opt(P, V).
+
+%% path: listen.http[].mongoose_api_admin.*
+-spec mongoose_api_admin(path(), toml_section()) -> option().
+mongoose_api_admin([<<"host">>|_], V) ->
+    [{host, b2l(V)}];
+mongoose_api_admin([<<"path">>|_], V) ->
+    [{path, b2l(V)}];
+mongoose_api_admin([<<"username">>|_], V) ->
+    [{username, V}];
+mongoose_api_admin([<<"password">>|_], V) ->
+    [{password, V}].
+
+%% path: listen.http[].mongoose_api_admin.*
+-spec mongoose_api_client(path(), toml_value()) -> [option()].
+mongoose_api_client([<<"host">>|_], V) ->
+    [{host, b2l(V)}];
+mongoose_api_client([<<"path">>|_], V) ->
+    [{path, b2l(V)}].
 
 %% path: listen.c2s[].*
 -spec c2s_listener_opt(path(), toml_value()) -> [option()].
@@ -357,14 +387,59 @@ auth_option([<<"allow_multiple_connections">>|_], V) ->
     [{allow_multiple_connections, V}];
 auth_option([<<"anonymous_protocol">>|_], V) ->
     [{anonymous_protocol, b2a(V)}];
+auth_option([<<"ldap">>|_] = Path, V) ->
+    parse_section(Path, V);
 auth_option([<<"sasl_mechanisms">>|_] = Path, V) ->
     [{sasl_mechanisms, parse_list(Path, V)}];
-auth_option([<<"ldap_base">>|_], V) ->
-    [{ldap_base, b2l(V)}];
-auth_option([<<"ldap_filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}];
 auth_option([<<"extauth_instances">>|_], V) ->
     [{extauth_instances, V}].
+
+-spec auth_ldap_option(path(), toml_section()) -> [option()].
+auth_ldap_option([<<"pool_tag">>|_], V) ->
+    [{ldap_pool_tag, b2a(V)}];
+auth_ldap_option([<<"bind_pool_tag">>|_], V) ->
+    [{ldap_bind_pool_tag, b2a(V)}];
+auth_ldap_option([<<"base">>|_], V) ->
+    [{ldap_base, b2l(V)}];
+auth_ldap_option([<<"uids">>|_] = Path, V) ->
+    [{ldap_uids, parse_list(Path, V)}];
+auth_ldap_option([<<"filter">>|_], V) ->
+    [{ldap_filter, b2l(V)}];
+auth_ldap_option([<<"dn_filter">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    {_, Filter} = proplists:lookup(filter, Opts),
+    {_, Attrs} = proplists:lookup(attributes, Opts),
+    [{ldap_dn_filter, {Filter, Attrs}}];
+auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
+    Opts = parse_section(Path, V),
+    {_, Op} = proplists:lookup(operation, Opts),
+    {_, Attribute} = proplists:lookup(attribute, Opts),
+    {_, Values} = proplists:lookup(values, Opts),
+    [{ldap_local_filter, {Op, {Attribute, Values}}}];
+auth_ldap_option([<<"deref">>|_], V) ->
+    [{ldap_deref, b2a(V)}].
+
+-spec auth_ldap_uids(path(), toml_section()) -> [option()].
+auth_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
+    [{b2l(Attr), b2l(Format)}];
+auth_ldap_uids(_, #{<<"attr">> := Attr}) ->
+    [b2l(Attr)].
+
+-spec auth_ldap_dn_filter(path(), toml_value()) -> [option()].
+auth_ldap_dn_filter([<<"filter">>|_], V) ->
+    [{filter, b2l(V)}];
+auth_ldap_dn_filter([<<"attributes">>|_] = Path, V) ->
+    Attrs = parse_list(Path, V),
+    [{attributes, Attrs}].
+
+-spec auth_ldap_local_filter(path(), toml_value()) -> [option()].
+auth_ldap_local_filter([<<"operation">>|_], V) ->
+    [{operation, b2a(V)}];
+auth_ldap_local_filter([<<"attribute">>|_], V) ->
+    [{attribute, b2l(V)}];
+auth_ldap_local_filter([<<"values">>|_] = Path, V) ->
+    Attrs = parse_list(Path, V),
+    [{values, Attrs}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
 -spec cyrsasl_external(path(), toml_value()) -> [option()].
@@ -374,6 +449,7 @@ cyrsasl_external(_, <<"auth_id">>) -> [auth_id];
 cyrsasl_external(_, M) -> [{mod, b2a(M)}].
 
 %% path: (host_config[].)auth.sasl_mechanism[]
+%%       auth.sasl_mechanisms.*
 -spec sasl_mechanism(path(), toml_value()) -> [option()].
 sasl_mechanism(_, V) ->
     [b2a(<<"cyrsasl_", V/binary>>)].
@@ -512,8 +588,8 @@ riak_option([<<"address">>|_], Addr) -> [{address, b2l(Addr)}];
 riak_option([<<"port">>|_], Port) -> [{port, Port}];
 riak_option([<<"credentials">>|_] = Path, V) ->
     Creds = parse_section(Path, V),
-    User = proplists:get_value(user, Creds),
-    Pass = proplists:get_value(password, Creds),
+    {_, User} = proplists:lookup(user, Creds),
+    {_, Pass} = proplists:lookup(password, Creds),
     [{credentials, User, Pass}];
 riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
 riak_option([<<"tls">>|_] = Path, Options) -> [{ssl_opts, parse_section(Path, Options)}].
@@ -1507,6 +1583,8 @@ handler([_, <<"versions">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
 handler([_, <<"ciphers">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) -> fun tls_cipher/2;
 handler([_, <<"tls">>, _, <<"http">>, <<"listen">>]) -> fun https_option/2;
 handler([_, <<"transport">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_transport_opt/2;
+handler([_, <<"mongoose_api_admin">>, _, <<"http">>, <<"listen">>]) -> fun mongoose_api_admin/2;
+handler([_, <<"mongoose_api_client">>, _, <<"http">>, <<"listen">>]) -> fun mongoose_api_client/2;
 handler([_, <<"protocol">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_protocol_opt/2;
 handler([_, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun parse_list/2;
 handler([_, _, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_module/2;
@@ -1521,6 +1599,12 @@ handler([_, <<"service">>, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">
 
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
+handler([_, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_option/2;
+handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
+handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
+handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
+handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
+handler([_, <<"values">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
 handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
 handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
 handler([_, <<"cyrsasl_external">>, <<"auth">>]) -> fun cyrsasl_external/2;
