@@ -167,6 +167,22 @@ validate([<<"allow_multiple_connections">>, <<"auth">>],
 validate([<<"anonymous_protocol">>, <<"auth">>],
          [{anonymous_protocol, Value}]) ->
     validate_enum(Value, [sasl_anon, login_anon, both]);
+validate([Pool, <<"ldap">>, <<"auth">>],
+         [{_, Value}]) when Pool =:= <<"pool_tag">>;
+                            Pool =:= <<"bind_pool_tag">> ->
+    validate_non_empty_atom(Value);
+validate([<<"operation">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+         [{operation, Value}]) ->
+    validate_enum(Value, [equal, not_equal]);
+validate([<<"attribute">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+         [{attribute, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"values">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+         [{values, Value}]) ->
+    validate_non_empty_list(Value);
+validate([<<"deref">>, <<"ldap">>, <<"auth">>],
+         [{ldap_deref, Value}]) ->
+    validate_enum(Value, [never, always, finding, searching]);
 validate([item, <<"sasl_mechanisms">>, <<"auth">>],
          [Value]) ->
     validate_module(Value);
@@ -214,6 +230,8 @@ validate_port(Value) when is_integer(Value), Value >= 0, Value =< 65535 -> ok.
 validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
+
+validate_non_empty_list(Value) when is_list(Value), Value =/= [] -> ok.
 
 validate_password_format({scram, [_|_]}) -> ok;
 validate_password_format(Value) -> validate_enum(Value, [scram, plain]).

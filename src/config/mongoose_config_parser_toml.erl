@@ -407,15 +407,15 @@ auth_ldap_option([<<"filter">>|_], V) ->
     [{ldap_filter, b2l(V)}];
 auth_ldap_option([<<"dn_filter">>|_] = Path, V) ->
     Opts = parse_section(Path, V),
-    Filter = proplists:get_value(filter, Opts),
-    Attrs = proplists:get_value(attributes, Opts),
+    {_, Filter} = proplists:lookup(filter, Opts),
+    {_, Attrs} = proplists:lookup(attributes, Opts),
     [{ldap_dn_filter, {Filter, Attrs}}];
 auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
     Opts = parse_section(Path, V),
-    Op = proplists:get_value(operation, Opts),
-    Filter = proplists:get_value(filter, Opts),
-    Attrs = proplists:get_value(attributes, Opts),
-    [{ldap_local_filter, {Op, {Filter, Attrs}}}];
+    {_, Op} = proplists:lookup(operation, Opts),
+    {_, Attribute} = proplists:lookup(attribute, Opts),
+    {_, Values} = proplists:lookup(values, Opts),
+    [{ldap_local_filter, {Op, {Attribute, Values}}}];
 auth_ldap_option([<<"deref">>|_], V) ->
     [{ldap_deref, b2a(V)}].
 
@@ -435,11 +435,11 @@ auth_ldap_dn_filter([<<"attributes">>|_] = Path, V) ->
 -spec auth_ldap_local_filter(path(), toml_value()) -> [option()].
 auth_ldap_local_filter([<<"operation">>|_], V) ->
     [{operation, b2a(V)}];
-auth_ldap_local_filter([<<"filter">>|_], V) ->
-    [{filter, b2l(V)}];
-auth_ldap_local_filter([<<"attributes">>|_] = Path, V) ->
+auth_ldap_local_filter([<<"attribute">>|_], V) ->
+    [{attribute, b2l(V)}];
+auth_ldap_local_filter([<<"values">>|_] = Path, V) ->
     Attrs = parse_list(Path, V),
-    [{attributes, Attrs}].
+    [{values, Attrs}].
 
 %% path: (host_config[].)auth.cyrsasl_external[]
 -spec cyrsasl_external(path(), toml_value()) -> [option()].
@@ -579,8 +579,8 @@ riak_option([<<"address">>|_], Addr) -> [{address, b2l(Addr)}];
 riak_option([<<"port">>|_], Port) -> [{port, Port}];
 riak_option([<<"credentials">>|_] = Path, V) ->
     Creds = parse_section(Path, V),
-    User = proplists:get_value(user, Creds),
-    Pass = proplists:get_value(password, Creds),
+    {_, User} = proplists:lookup(user, Creds),
+    {_, Pass} = proplists:lookup(password, Creds),
     [{credentials, User, Pass}];
 riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
 riak_option([<<"tls">>|_] = Path, Options) -> [{ssl_opts, parse_section(Path, Options)}].
@@ -1593,6 +1593,7 @@ handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
 handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
 handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
 handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
+handler([_, <<"values">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
 handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
 handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
 handler([_, <<"cyrsasl_external">>, <<"auth">>]) -> fun cyrsasl_external/2;

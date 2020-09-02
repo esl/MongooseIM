@@ -29,8 +29,8 @@
     dn_filter.filter = "(&(name=%s)(owner=%D)(user=%u@%d))"
     dn_filter.attributes = ["sn"]
     local_filter.operation = "equal"
-    local_filter.filter = "accountStatus"
-    local_filter.attributes = ["enabled"]
+    local_filter.attribute = "accountStatus"
+    local_filter.values = ["enabled"]
     deref = "never"
     
     [[auth.ldap.uids]]
