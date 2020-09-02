@@ -56,8 +56,7 @@ flatten_global_config_opts(LC) ->
                      ({acl, K, V}) ->
                           flatten_acl_config_opt(K, V);
                      (Other) ->
-                     ?ERROR_MSG("issue=strange_global_config value=~1000p",
-                                [Other]),
+                          ?LOG_ERROR(#{what => strange_global_config, value => Other}),
                      []
                   end, LC).
 
@@ -69,8 +68,7 @@ flatten_local_config_opts(LC) ->
                      ({acl, K, V}) ->
                           flatten_acl_config_opt(K, V);
                      (Other) ->
-                     ?ERROR_MSG("issue=strange_local_config value=~1000p",
-                                [Other]),
+                          ?LOG_ERROR(#{what => strange_local_config, value => Other}),
                      []
                   end, LC).
 
@@ -78,10 +76,9 @@ flatten_local_config_host_opts(LCH) ->
     lists:flatmap(fun(#local_config{key = {K, Host}, value = V}) ->
                           flatten_local_config_host_opt(K, Host, V);
                      (Host) when is_binary(Host) ->
-                     [{hostname, Host}];
+                          [{hostname, Host}];
                      (Other) ->
-                     ?ERROR_MSG("issue=strange_local_host_config value=~1000p",
-                                [Other]),
+                          ?LOG_ERROR(#{what => strange_local_host_config, value => Other}),
                      []
                   end, LCH).
 

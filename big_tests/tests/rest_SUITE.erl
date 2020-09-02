@@ -117,7 +117,7 @@ init_per_group(blank_auth, Config) ->
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
-end_per_group(auth, Config) ->
+end_per_group(auth, _Config) ->
     rest_helper:change_admin_creds(any);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
@@ -135,15 +135,15 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 % Authorization
-auth_passes_correct_creds(Config) ->
+auth_passes_correct_creds(_Config) ->
     % try to login with the same creds
     {?OK, _Lcmds} = gett(admin, <<"/commands">>, {<<"ala">>, <<"makota">>}).
 
-auth_fails_incorrect_creds(Config) ->
+auth_fails_incorrect_creds(_Config) ->
     % try to login with different creds
     {?NOT_AUTHORIZED, _} = gett(admin, <<"/commands">>, {<<"ola">>, <<"mapsa">>}).
 
-auth_always_passes_blank_creds(Config) ->
+auth_always_passes_blank_creds(_Config) ->
     % we set control creds for blank
     rest_helper:change_admin_creds(any),
     % try with any auth

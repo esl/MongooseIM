@@ -83,8 +83,8 @@ search_hosts_and_pools({hosts, Hosts}, State) ->
         [] ->
             add_hosts_to_option(Hosts, State);
         OldHosts ->
-            ?ERROR_MSG("event=\"too many host definitions\" "
-                       "new_hosts=~1000p old_hosts=~1000p", []),
+            ?LOG_ERROR(#{what => too_many_hosts_definitions,
+                 new_hosts => Hosts, old_hosts => OldHosts}),
             exit(#{issue => "too many hosts definitions",
                    new_hosts => Hosts,
                    old_hosts => OldHosts})
@@ -109,8 +109,7 @@ normalize_hosts([], PrepHosts) ->
 normalize_hosts([Host | Hosts], PrepHosts) ->
     case jid:nodeprep(host_to_binary(Host)) of
         error ->
-            ?ERROR_MSG("event=invalid_hostname_in_config "
-                       "hostname=~p", [Host]),
+            ?LOG_ERROR(#{what => invalid_hostname_in_config, hostname => Host}),
             erlang:error(#{issue => invalid_hostname,
                            hostname => Host});
         PrepHost ->
@@ -356,10 +355,9 @@ compact({OptName, Host} = Opt, Val, [], Os) ->
     %% The option is defined for host using host_config before the global option.
     %% The host_option can be overwritten.
     %% TODO or maybe not. We need a test.
-    ?WARNING_MSG("event=host_config_option_can_be_overwritten "
-                 "option_name=~1000p host=~p "
-                 "solution=\"define global options before host options\"",
-                 [OptName, Host]),
+    ?LOG_WARNING(#{what => host_config_option_can_be_overwritten,
+                   text => <<"define global options before host options">>,
+                   option_name => OptName, host => Host}),
     [#local_config{key = Opt, value = Val}] ++ Os;
 %% Traverse the list of the options already parsed
 compact(Opt, Val, [#local_config{key = Opt, value = OldVal} | Os1], Os2) ->

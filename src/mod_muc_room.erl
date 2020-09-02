@@ -287,8 +287,8 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
                                    hibernate_timeout = read_hibernate_timeout(ServerHost)
                                   }),
     State1 = set_opts(DefRoomOpts, State),
-    ?INFO_MSG("Created MUC room ~s@~s by ~s",
-              [Room, Host, jid:to_binary(Creator)]),
+    ?LOG_INFO(ls(#{what => muc_room_started,
+                   creator_jid => jid:to_binary(Creator)}, State)),
     add_to_log(room_existence, created, State1),
     case proplists:get_value(instant, DefRoomOpts, false) of
         true ->
@@ -335,7 +335,7 @@ read_hibernate_timeout(Host) ->
                    statename(), state()) -> fsm_return().
 locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
              NextState, StateData) ->
-    ?INFO_MSG("Wrong stanza: ~p", [Packet]),
+    ?LOG_INFO(ls(#{what => muc_route_to_locked_room, acc => Acc}, StateData)),
     ErrText = <<"This room is locked">>,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
@@ -588,13 +588,11 @@ handle_event({destroy, Reason}, _StateName, StateData) ->
                                     [#xmlel{name = <<"reason">>,
                                             children = [#xmlcdata{content = Reason}]}]
                             end}, StateData),
-    ?INFO_MSG("Destroyed MUC room ~s with reason: ~p",
-          [jid:to_binary(StateData#state.jid), Reason]),
+    ?LOG_INFO(ls(#{what => muc_room_destroyed, text => <<"Destroyed MUC room">>,
+                   reason => Reason}, StateData)),
     add_to_log(room_existence, destroyed, StateData),
     {stop, shutdown, StateData};
 handle_event(destroy, StateName, StateData) ->
-    ?INFO_MSG("Destroyed MUC room ~s",
-          [jid:to_binary(StateData#state.jid)]),
     handle_event({destroy, none}, StateName, StateData);
 
 handle_event({set_affiliations, Affiliations},
@@ -731,15 +729,16 @@ stop_if_only_owner_is_online(_, _, State) ->
     next_normal_state(State).
 
 do_stop_persistent_room(RoomName, State) ->
-    ?INFO_MSG("Stopping persistent room's process, ~p ~p", [self(), RoomName]),
+    ?LOG_INFO(ls(#{what => muc_room_stopping_persistent,
+                   text => <<"Stopping persistent room's process">>}, State)),
     mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
     {stop, normal, State}.
 
 %% @doc Purpose: Shutdown the fsm
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
-    ?INFO_MSG("Stopping MUC room ~s@~s",
-          [StateData#state.room, StateData#state.host]),
+    ?LOG_INFO(ls(#{what => muc_room_stopping, text => <<"Stopping room's process">>,
+                   reason => Reason}, StateData)),
     ReasonT = case Reason of
           shutdown -> <<"You are being removed from the room because of a system shutdown">>;
           _ -> <<"Room terminates">>
@@ -1002,8 +1001,9 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}, NextState)
     case (not C#config.persistent) andalso is_empty_room(StateData)
         andalso StateData#state.http_auth_pids =:= [] of
         true ->
-            ?INFO_MSG("Destroyed MUC room ~s because it's temporary and empty",
-                  [jid:to_binary(StateData#state.jid)]),
+            ?LOG_INFO(ls(#{what => muc_empty_room_destroyed,
+                           text => <<"Destroyed MUC room because it's temporary and empty">>},
+                         StateData)),
             add_to_log(room_existence, destroyed, StateData),
             {stop, normal, StateData};
         _ ->
@@ -2783,8 +2783,9 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
     URole = get_role(UJID, StateData),
     case find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData, []) of
         {result, Res} ->
-            ?INFO_MSG("Processing MUC admin query from ~s in room ~s:~n ~p",
-                      [jid:to_binary(UJID), jid:to_binary(StateData#state.jid), Res]),
+            %% TODO Pass Acc here
+            ?LOG_INFO(ls(#{what => muc_admin_query, text => <<"Processing MUC admin query">>,
+                           from_jid => jid:to_binary(UJID), result => Res}, StateData)),
             NSD = lists:foldl(
                     fun(ChangedItem, SD) ->
                             process_admin_item_set(ChangedItem, UJID, SD)
@@ -2804,8 +2805,11 @@ process_admin_item_set(ChangedItem, UJID, SD) ->
     try
         process_admin_item_set_unsafe(ChangedItem, UJID, SD)
     catch
-        _:Error ->
-            ?ERROR_MSG("MUC ITEMS SET ERR: ~p~n", [Error]),
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(ls(#{what => muc_admin_item_set_failed,
+                            from_jid => jid:to_binary(UJID),
+                            changed_item => ChangedItem,
+                            class => Class, reason => Reason, stacktrace => Stacktrace}, SD)),
             SD
     end.
 
@@ -3155,9 +3159,11 @@ can_change_ra(_FAffiliation, _FRole,
 safe_send_kickban_presence(JID, Reason, Code, StateData) ->
     try
         send_kickban_presence(JID, Reason, Code, StateData)
-    catch Error:Reason ->
-        ?ERROR_MSG("issue=send_kickban_presence_failed reason=~p:~p",
-                   [Error, Reason])
+    catch
+        Class:ErrorReason:Stacktrace ->
+            ?LOG_ERROR(ls(#{what => muc_send_kickban_presence_failed,
+                            kick_jid => jid:to_binary(JID), kick_reason => Reason,
+                            class => Class, reason => ErrorReason, stacktrace => Stacktrace}, StateData))
     end.
 
 -spec send_kickban_presence(jid:jid(), binary(), Code :: binary(),
@@ -3170,9 +3176,12 @@ send_kickban_presence(JID, Reason, Code, StateData) ->
 safe_send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
     try
         send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData)
-    catch Error:Reason ->
-        ?ERROR_MSG("issue=send_kickban_presence_failed reason=~p:~p",
-                   [Error, Reason])
+    catch
+        Class:ErrorReason:Stacktrace ->
+            ?LOG_ERROR(ls(#{what => muc_send_kickban_presence_failed,
+                            new_affiliation => NewAffiliation,
+                            kick_jid => jid:to_binary(JID), kick_reason => Reason,
+                            class => Class, reason => ErrorReason, stacktrace => Stacktrace}, StateData))
     end.
 
 -spec send_kickban_presence(jid:simple_jid() | jid:jid(),
@@ -3253,9 +3262,9 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
                   xml:get_tag_attr_s(<<"type">>, XEl),
                   StateName} of
                 {?NS_XDATA, <<"cancel">>, locked_state} ->
-                    %% received cancel before the room was configured - destroy room
-                    ?INFO_MSG("Destroyed MUC room ~s by the owner ~s : cancelled",
-                              [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
+                    ?LOG_INFO(ls(#{what => muc_cancel_locked,
+                                   text => <<"Received cancel before the room was configured - destroy room">>,
+                                   from_jid => jid:to_binary(From)}, StateData)),
                     add_to_log(room_existence, destroyed, StateData),
                     destroy_room(XEl, StateData);
                 {?NS_XDATA, <<"cancel">>, normal_state} ->
@@ -3267,8 +3276,9 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
                     {error, mongoose_xmpp_errors:bad_request()}
             end;
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
-            ?INFO_MSG("Destroyed MUC room ~s by the owner ~s",
-                      [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
+            ?LOG_INFO(ls(#{what => muc_room_destroy,
+                           text => <<"Destroyed MUC room by the owner">>,
+                           from_jid => jid:to_binary(From)}, StateData)),
             add_to_log(room_existence, destroyed, StateData),
             destroy_room(SubEl1, StateData);
         Items ->
@@ -4649,9 +4659,10 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
 -spec route_nick_message(routed_nick_message(), state()) -> state().
 route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
     packet = Packet, lang = Lang, from = From}, StateData) ->
-    ?DEBUG(Reason, []),
     ErrorText = <<"This participant is kicked from the room because he",
                   "sent an error message to another participant">>,
+    ?LOG_DEBUG(ls(#{what => muc_expulse_sender, text => ErrorText,
+                    user => From#jid.luser, exml_packet => Packet}, StateData)),
     expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
 route_nick_message(#routed_nick_message{decide = forget_message}, StateData) ->
     StateData;
@@ -4661,11 +4672,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     ErrText = <<"It is not allowed to send private messages of type groupchat">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:bad_request(Lang, ErrText)),
-    ejabberd_router:route(
-        jid:replace_resource(
-       StateData#state.jid,
-       ToNick),
-        From, Err),
+    route_error(ToNick, From, Err, StateData),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From,
@@ -4673,11 +4680,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
-    ejabberd_router:route(
-        jid:replace_resource(
-       StateData#state.jid,
-       ToNick),
-        From, Err),
+    route_error(ToNick, From, Err, StateData),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From, jid = ToJID}, StateData) ->
@@ -4700,8 +4703,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = f
     ErrText = <<"It is not allowed to send private messages">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
-    ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, ToNick), From, Err),
+    route_error(ToNick, From, Err, StateData),
     StateData.
 
 
@@ -4714,10 +4716,7 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, _, _}, jid = f
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
-    ejabberd_router:route(
-        jid:replace_resource(
-       StateData#state.jid, ToNick),
-        From, Err);
+    route_error(ToNick, From, Err, StateData);
 route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFull},
     jid = ToJID, packet = Packet, stanza = StanzaId}, StateData) ->
     {ok, #user{nick = FromNick}} = maps:find(jid:to_lower(FromFull),
@@ -4739,8 +4738,7 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
     ErrText = <<"Queries to the conference members are "
                 "not allowed in this room">>,
     Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
-    RouteFrom = jid:replace_resource(StateData#state.jid, ToNick),
-    ejabberd_router:route(RouteFrom, From, Err).
+    route_error(ToNick, From, Err, StateData).
 
 
 -spec decode_reason(exml:element()) -> binary().
@@ -4776,3 +4774,7 @@ notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = Sta
     mod_muc_log:set_room_occupants(Host, self(), JID, maps:values(Users)),
     State.
 
+
+ls(LogMap, State) ->
+    maps:merge(LogMap, #{room => State#state.room,
+                         sub_host => State#state.host}).

@@ -47,11 +47,13 @@ stop(Host) ->
                      -> {result, [exml:element()]} | {error, any()} | empty.
 get_disco_items({result, Nodes}, From, To, <<"">>, _Lang) ->
     Domains = domains_for_disco(To#jid.lserver, From),
-    ?DEBUG("event=domains_fetched_for_disco,domains=\"~p\",input_nodes=\"~p\"",
-           [Domains, Nodes]),
+    ?LOG_DEBUG(#{what => gd_domains_fetched_for_disco,
+                 domains => Domains, input_nodes => Nodes}),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),
     FilteredDomains = [Domain || Domain <- Domains, not gb_sets:is_member(Domain, NameSet)],
-    ?DEBUG("Adding global domains ~p to disco results", [FilteredDomains]),
+    ?LOG_DEBUG(#{what => gd_get_disco_items_result,
+                 text => <<"Adding global domains to disco results">>,
+                 domains => FilteredDomains}),
     NewNodes =
         lists:foldl(
           fun(Domain, Acc) ->

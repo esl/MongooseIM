@@ -23,7 +23,9 @@ join(ClusterMember) ->
     node_trans(fun() -> do_join(ClusterMember) end).
 
 do_join(ClusterMember) ->
-    ?INFO_MSG("join ~p", [ClusterMember]),
+    ?LOG_NOTICE(#{what => cluster_join,
+                  text => <<"Stop mongooseim to join the cluster">>,
+                  member => ClusterMember}),
     with_app_stopped(mongooseim,
                      fun () ->
                              check_networking(ClusterMember),
@@ -40,7 +42,8 @@ leave() ->
     node_trans(fun() -> do_leave() end).
 
 do_leave() ->
-    ?INFO_MSG("leave", []),
+    ?LOG_NOTICE(#{what => cluster_leave,
+                  text => <<"Stop mongooseim to leave the cluster">>}),
     with_app_stopped(mongooseim,
                      fun () ->
                              catch mnesia:stop(),
@@ -65,7 +68,9 @@ do_remove_from_cluster(Node) ->
 %%
 
 remove_dead_from_cluster(DeadNode) ->
-    ?INFO_MSG("removing dead node ~p from the cluster", [DeadNode]),
+    ?LOG_INFO(#{what => cluster_remove_dead_node_from_cluster,
+                text => <<"Removing dead member node from the cluster">>,
+                member => DeadNode}),
     case mnesia:del_table_copy(schema, DeadNode) of
         {atomic, ok} ->
             ok;
@@ -152,12 +157,16 @@ delete_mnesia() ->
             %% Both settings match, OK!
             ok;
         AppEnvDir ->
-            ?WARNING_MSG("mnesia:system_info(directory) returned ~p, but application:get_env(mnesia, dir) "
-                         "returned ~p: the values are different", [Dir, AppEnvDir]),
+            ?LOG_NOTICE(#{what => mnesia_configuration,
+                          text => <<"mnesia:system_info(directory) and application:get_env(mnesia, dir) "
+                                    "returned different paths. mnesia_dir and env_mnesia_dir are different.">>,
+                          mnesia_dir => Dir, env_mnesia_dir => AppEnvDir}),
             ok
     end,
     ok = rmrf(Dir),
-    ?WARNING_MSG("Mnesia schema and files deleted", []),
+    ?LOG_NOTICE(#{what => mnesia_deleted,
+                  text => <<"Mnesia schema and files deleted.">>,
+                  mnesia_dir => Dir}),
     ok.
 
 wait_for_pong(Node) ->

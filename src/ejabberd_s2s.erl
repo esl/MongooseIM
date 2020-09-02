@@ -90,10 +90,6 @@ start_link() ->
 filter(From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
-route(_From, _To, Sthg) ->
-    ?ERROR_MSG("Sthg: ~p~n", [Sthg]),
-    ok.
-
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
@@ -211,9 +207,9 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
+    {reply, {error, unexpected_call}, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -221,7 +217,8 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -230,10 +227,9 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
-    {noreply, State};
-handle_info(_Info, State) ->
+
+handle_info(Msg, State) ->
+    ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -265,11 +261,12 @@ code_change(_OldVsn, State, _Extra) ->
                Packet :: exml:element()) ->
         done. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc, Packet) ->
-    ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
-        [From, To, Packet, 8]),
+    ?LOG_DEBUG(#{what => s2s_route, acc => Acc}),
     case find_connection(From, To) of
         {atomic, Pid} when is_pid(Pid) ->
-            ?DEBUG("sending to process ~p~n", [Pid]),
+            ?LOG_DEBUG(#{what => s2s_found_connection,
+                         text => <<"Send packet to s2s connection">>,
+                         s2s_pid => Pid, acc => Acc}),
             #xmlel{attrs = Attrs} = Packet,
             NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                   jid:to_binary(To),
@@ -286,8 +283,7 @@ do_route(From, To, Acc, Packet) ->
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->
-                    ?DEBUG("event=s2s_connection_not_found from=~1000p to=~1000p packet=~1000p",
-                           [From, To, Packet]),
+                    ?LOG_DEBUG(#{what => s2s_connection_not_found, acc => Acc}),
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
                     ejabberd_router:route(To, From, Acc1, Err)
@@ -304,7 +300,7 @@ find_connection(From, To) ->
     MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
     MaxS2SConnectionsNumberPerNode =
         max_s2s_connections_number_per_node(FromTo),
-    ?DEBUG("Finding connection for ~p~n", [FromTo]),
+    ?LOG_DEBUG(#{what => s2s_find_connection, from_server => MyServer, to_server => Server}),
     case catch mnesia:dirty_read(s2s, FromTo) of
         {'EXIT', Reason} ->
             {aborted, Reason};
@@ -372,7 +368,7 @@ choose_pid(From, Pids) ->
     % Use sticky connections based on the JID of the sender
     % (without the resource to ensure that a muc room always uses the same connection)
     Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)), Pids1),
-    ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
+    ?LOG_DEBUG(#{what => s2s_choose_pid, from => From, s2s_pid => Pid}),
     Pid.
 
 -spec open_several_connections(N :: pos_integer(), MyServer :: jid:server(),
@@ -396,7 +392,7 @@ open_several_connections(N, MyServer, Server, From, FromTo,
 -spec new_connection(MyServer :: jid:server(), Server :: jid:server(),
     From :: jid:jid(), FromTo :: fromto(), MaxS2S :: pos_integer(),
     MaxS2SPerNode :: pos_integer()) -> {'aborted', _} | {'atomic', _}.
-new_connection(MyServer, Server, From, FromTo,
+new_connection(MyServer, Server, From, FromTo = {FromServer, ToServer},
                MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode) ->
     {ok, Pid} = ejabberd_s2s_out:start(
                   MyServer, Server, new),
@@ -409,7 +405,11 @@ new_connection(MyServer, Server, From, FromTo,
                     true ->
                         mnesia:write(#s2s{fromto = FromTo,
                                           pid = Pid}),
-                        ?INFO_MSG("New s2s connection started ~p", [Pid]),
+                        ?LOG_INFO(#{what => s2s_new_connection,
+                                    text => <<"New s2s connection started">>,
+                                    from_server => FromServer,
+                                    to_server => ToServer,
+                                    s2s_pid => Pid}),
                         Pid;
                     false ->
                         choose_connection(From, L)

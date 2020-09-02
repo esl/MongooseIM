@@ -236,14 +236,15 @@ get_vh_by_auth_method(AuthMethod) ->
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),
-    ?ERROR_MSG("Error reading Mnesia database spool files:~n"
-               "The Mnesia database couldn't read the spool file for the table '~p'.~n"
-               "ejabberd needs read and write access in the directory:~n   ~s~n"
-               "Maybe the problem is a change in the computer hostname, ~n"
-               "or a change in the Erlang node name, which is currently:~n   ~p~n"
-               "Check the ejabberd guide for details about changing the~n"
-               "computer hostname or Erlang node name.~n",
-               [Table, MnesiaDirectory, node()]),
+    Msg = <<"Error reading Mnesia database spool files:~n"
+            "The Mnesia database couldn't read the spool file for the table.~n"
+            "ejabberd needs read and write access in the directory.~n"
+            "Maybe the problem is a change in the computer hostname,~n"
+            "or a change in the Erlang node name.~n"
+            "Check the ejabberd guide for details about changing the~n"
+            "computer hostname or Erlang node name.~n">>,
+    ?LOG_ERROR(#{what => error_reading_mnesia_db, text => Msg,
+                 table => Table, directory => MnesiaDirectory, node => node()}),
     exit("Error reading Mnesia database").
 
 %%--------------------------------------------------------------------
@@ -316,8 +317,7 @@ dump_reload_state(From, ReloadContext) ->
     Io = io_lib:format("~p.", [Map]),
     Filename = dump_reload_state_filename(),
     %% Wow, so important!
-    ?CRITICAL_MSG("issue=dump_reload_state from=~p filename=~p",
-                  [From, Filename]),
+    ?LOG_CRITICAL(#{what => dump_reload_state, from => From, filename => Filename}),
     io:format("issue=dump_reload_state from=~p filename=~p",
                   [From, Filename]),
     file:write_file(Filename, Io),
@@ -335,9 +335,8 @@ try_reload_cluster(ReloadContext, Changes) ->
         do_reload_cluster(Changes)
     catch
         Class:Reason:StackTrace ->
-            ?CRITICAL_MSG("issue=try_reload_cluster_failed "
-                           "reason=~p:~p stacktrace=~1000p",
-                          [Class, Reason, StackTrace]),
+            ?LOG_CRITICAL(#{what => try_reload_cluster_failed, class => Class,
+                            reason => Reason, stacktrace => StackTrace}),
             Filename = dump_reload_state(try_reload_cluster, ReloadContext),
             Reason2 = #{issue => try_reload_cluster_failed,
                         reason => Reason,
@@ -488,19 +487,19 @@ methods_to_auth_modules(A) when is_atom(A) ->
 
 -spec add_virtual_host(Host :: jid:server()) -> any().
 add_virtual_host(Host) ->
-    ?DEBUG("Register host:~p", [Host]),
+    ?LOG_DEBUG(#{what => register_host, host => Host}),
     ejabberd_local:register_host(Host).
 
 -spec remove_virtual_host(jid:server()) -> any().
 remove_virtual_host(Host) ->
-    ?DEBUG("Unregister host :~p", [Host]),
+    ?LOG_DEBUG(#{what => unregister_host, host => Host}),
     ejabberd_local:unregister_host(Host).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
 reload_listeners(#{to_start := Add,
                    to_stop := Del,
                    to_reload := Change} = ChangedListeners) ->
-    ?DEBUG("reload listeners: ~p", [ChangedListeners]),
+    ?LOG_DEBUG(#{what => reload_listeners, listeners => ChangedListeners}),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
                       ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),

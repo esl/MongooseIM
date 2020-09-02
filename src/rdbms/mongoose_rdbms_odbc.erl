@@ -34,7 +34,7 @@ escape_string(Iolist) ->
 
 -spec unescape_binary(binary()) -> binary().
 unescape_binary(Bin) when is_binary(Bin) ->
-    bin_to_hex:hex_to_bin(Bin).
+    base16:decode(Bin).
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
@@ -206,9 +206,9 @@ escape_binary(pgsql, Bin) ->
 escape_binary(mysql, Bin) ->
     mongoose_rdbms_mysql:escape_binary(Bin);
 escape_binary(mssql, Bin) ->
-    [<<"0x">>, bin_to_hex:bin_to_hex(Bin)];
+    [<<"0x">>, base16:encode(Bin)];
 escape_binary(_ServerType, Bin) ->
-    [$', bin_to_hex:bin_to_hex(Bin), $'].
+    [$', base16:encode(Bin), $'].
 
 %% boolean are of type {sql_varchar,5} in pgsql.
 %% So, we need to handle integers.
@@ -223,7 +223,7 @@ escape_text(pgsql, Bin) ->
     escape_pgsql_string(Bin);
 escape_text(mssql, Bin) ->
     Utf16 = unicode_characters_to_binary(Bin, utf8, {utf16, little}),
-    [<<"CAST(0x">>, bin_to_hex:bin_to_hex(Utf16), <<" AS NVARCHAR(max))">>];
+    [<<"CAST(0x">>, base16:encode(Utf16), <<" AS NVARCHAR(max))">>];
 escape_text(ServerType, Bin) ->
     escape_binary(ServerType, Bin).
 
@@ -232,7 +232,7 @@ unicode_characters_to_binary(Input, FromEncoding, ToEncoding) ->
         Result when is_binary(Result) ->
             Result;
         Other ->
-            erlang:error(#{event => parse_value_failed,
+            erlang:error(#{what => parse_value_failed,
                            from_encoding => FromEncoding,
                            to_encoding => ToEncoding,
                            input_binary => Input,

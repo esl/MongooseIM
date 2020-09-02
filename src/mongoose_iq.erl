@@ -39,11 +39,9 @@ try_to_handle_iq(From, To, IQ = #iq{sub_el = SubEl}, HandlerF) ->
     try
         HandlerF(From, To, IQ)
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=handing_iq_failed "
-                   "from=~ts to=~ts iq=~1000p "
-                   "reason=~p:~p stacktrace=~1000p",
-                   [jid:to_binary(From), jid:to_binary(To), IQ,
-                    Class, Reason, StackTrace]),
+        ?LOG_ERROR(#{what => iq_handler_failed,
+                     from_jid => jid:to_binary(From), to_jid => jid:to_binary(To), iq => IQ,
+                     class => Class, reason => Reason, stacktrace => StackTrace}),
         IQ#iq{type = error,
               sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
     end.

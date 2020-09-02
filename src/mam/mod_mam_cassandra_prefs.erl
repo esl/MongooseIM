@@ -156,8 +156,10 @@ set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) -
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
     catch Type:Error:StackTrace ->
-            ?ERROR_MSG("issue=\"set_prefs failed\", reason=~p:~p, stacktrace=~p",
-                       [Type, Error, StackTrace]),
+              ?LOG_ERROR(#{what => mam_set_prefs_failed,
+                           user_jid => UserJID, default_mode => DefaultMode,
+                           always_jids => AlwaysJIDs, never_jids => NeverJIDs,
+                           class => Type, reason => Error, stacktrace => StackTrace}),
             {error, Error}
     end.
 
@@ -176,7 +178,8 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Queries = [DelQuery, SetQuery],
     Res = [mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, Query, Params)
            || {Query, Params} <- Queries],
-    ?DEBUG("issue=set_prefs1, result=~p", [Res]),
+    ?LOG_DEBUG(#{what => mam_set_prefs, user_jid => UserJID, default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, result => Res}),
     ok.
 
 encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
@@ -234,14 +237,11 @@ decode_behaviour(<<"R">>) -> roster;
 decode_behaviour(<<"A">>) -> always;
 decode_behaviour(<<"N">>) -> never.
 
--spec decode_prefs_rows([[term()]],
-                        DefaultMode :: mod_mam:archive_behaviour(),
-                        AlwaysJIDs :: [jid:literal_jid()],
-                        NeverJIDs :: [jid:literal_jid()]) -> {
-                             mod_mam:archive_behaviour(),
-                         [jid:literal_jid()],
-                         [jid:literal_jid()]
-                        }.
+-spec decode_prefs_rows([[term()]], DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    {DefaultMode, AlwaysJIDs, NeverJIDs} when
+        DefaultMode :: mod_mam:archive_behaviour(),
+        AlwaysJIDs :: [jid:literal_jid()],
+        NeverJIDs :: [jid:literal_jid()].
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs};
 

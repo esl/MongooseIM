@@ -17,6 +17,18 @@
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
+-define(HANDLE_PARSE_ERROR(Function, From, IQ),
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => muc_parse_failed, parser => Function,
+                           iq => IQ, from_jid => jid:to_binary(From),
+                           reason => Reason}),
+            {error, bad_request}
+        catch Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => muc_parse_failed, parser => Function,
+                           iq => IQ, from_jid => jid:to_binary(From),
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, bad_request}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -120,40 +132,24 @@ ensure_id({_, Id}) -> Id.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = get,
                       sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
-    {ok, {get, #config{
-            id = ID,
-            prev_version = Version
-           }}};
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = set,
+    {ok, {get, #config{ id = ID, prev_version = Version }}};
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = set,
                sub_el = #xmlel{ children = QueryEls }, id = ID }) ->
-    case catch parse_config(QueryEls) of
+    try parse_config(QueryEls) of
         {ok, RawConfig} ->
-            {ok, {set, #config{
-                    id = ID,
-                    raw_config = RawConfig
-                   }}};
-        Error ->
-            ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
-            {error, bad_request}
+            {ok, {set, #config{ id = ID, raw_config = RawConfig }}};
+        ?HANDLE_PARSE_ERROR(parse_config, From, IQ)
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_AFFILIATIONS, type = get,
                       sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
-    {ok, {get, #affiliations{
-            id = ID,
-            prev_version = Version
-           }}};
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_AFFILIATIONS, type = set,
+    {ok, {get, #affiliations{ id = ID, prev_version = Version }}};
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_LIGHT_AFFILIATIONS, type = set,
                sub_el = #xmlel{ children = QueryEls }, id = ID }) ->
-    case catch parse_aff_users(QueryEls) of
+    try parse_aff_users(QueryEls) of
         {ok, AffUsers} ->
-            {ok, {set, #affiliations{
-                    id = ID,
-                    aff_users = AffUsers
-                   }}};
-        Error ->
-            ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
-            {error, bad_request}
+            {ok, {set, #affiliations{ id = ID, aff_users = AffUsers }}};
+        ?HANDLE_PARSE_ERROR(parse_aff_users, From, IQ)
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_INFO, type = get, sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
@@ -163,32 +159,24 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_INFO, type = get, sub_el = QueryEl, 
                  }}};
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_BLOCKING, type = get, id = ID }) ->
     {ok, {get, #blocking{ id = ID }}};
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_BLOCKING, type = set,
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_LIGHT_BLOCKING, type = set,
                sub_el = #xmlel{ children = QueryEls }, id = ID }) ->
-    case catch parse_blocking_list(QueryEls) of
+    try parse_blocking_list(QueryEls) of
         {ok, BlockingList} ->
-            {ok, {set, #blocking{
-                    id = ID,
-                    items = BlockingList
-                   }}};
-        Error ->
-            ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
-            {error, bad_request}
+            {ok, {set, #blocking{ id = ID, items = BlockingList }}};
+        ?HANDLE_PARSE_ERROR(parse_blocking_list, From, IQ)
     end;
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl, id = ID }) ->
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl, id = ID }) ->
     ConfigEl = exml_query:path(QueryEl, [{element, <<"configuration">>}]),
     OccupantsEl = exml_query:path(QueryEl, [{element, <<"occupants">>}]),
-    case {catch parse_config(safe_get_children(ConfigEl)),
-          catch parse_aff_users(safe_get_children(OccupantsEl))} of
-        {{ok, RawConfig}, {ok, AffUsers}} ->
-            {ok, {set, #create{
-                          id = ID,
-                          raw_config = RawConfig,
-                          aff_users = AffUsers
-                         }}};
-        Error ->
-            ?WARNING_MSG("query_els=~p, error=~p", [QueryEl#xmlel.children, Error]),
-            {error, bad_request}
+    try parse_config(safe_get_children(ConfigEl)) of
+        {ok, RawConfig} ->
+            try parse_aff_users(safe_get_children(OccupantsEl)) of
+                {ok, AffUsers} ->
+                   {ok, {set, #create{ id = ID, raw_config = RawConfig, aff_users = AffUsers }}};
+                ?HANDLE_PARSE_ERROR(parse_aff_users, From, IQ)
+            end;
+        ?HANDLE_PARSE_ERROR(parse_config, From, IQ)
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_DESTROY, type = set, id = ID }) ->
     {ok, {set, #destroy{ id = ID }}};

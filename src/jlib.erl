@@ -130,7 +130,8 @@ make_error_reply(Acc, Error) ->
 make_error_reply(Acc, Packet, Error) ->
     case mongoose_acc:get(flag, error, false, Acc) of
         true ->
-            ?ERROR_MSG("event=error_reply_to_error,stanza=~p,error=~p", [Packet, Error]),
+            ?LOG_ERROR(#{what => error_reply_to_error, exml_packet => Packet,
+                         reason => Error}),
             {Acc, {error, {already_an_error, Packet, Error}}};
         _ ->
             {mongoose_acc:set(flag, error, true, Acc),

@@ -84,12 +84,12 @@ compute_config_version(LC, LCH) ->
     LC1 = skip_special_config_opts(LC),
     L1 = lists:sort(mongoose_config_flat:flatten_opts(LC1, LCH)),
     ShaBin = crypto:hash(sha, term_to_binary(L1)),
-    bin_to_hex:bin_to_hex(ShaBin).
+    base16:encode(ShaBin).
 
 flat_global_opts_version(FlatOpts) ->
     Sorted = lists:sort(FlatOpts),
     ShaBin = crypto:hash(sha, term_to_binary(Sorted)),
-    bin_to_hex:bin_to_hex(ShaBin).
+    base16:encode(ShaBin).
 
 -spec compute_config_file_version(state()) -> config_version().
 compute_config_file_version(State) ->
@@ -161,7 +161,7 @@ categorize_option({acl, _, _}, Acc) ->
     %% no need to do extra work here
     Acc;
 categorize_option(Opt, Acc) ->
-    ?ERROR_MSG("event=uncategorized_option option=~p", [Opt]),
+    ?LOG_ERROR(#{what => uncategorized_option, option => Opt}),
     Acc.
 
 as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.

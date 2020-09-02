@@ -41,7 +41,8 @@ get_vcard(LUser, LServer) ->
                             end, Rs),
             {ok, Els};
         {aborted, Reason} ->
-            ?ERROR_MSG("vCard lookup failed in process_sm_iq: ~p", [Reason]),
+            ?LOG_ERROR(#{what => process_sm_iq_vcard_lookup_failed,
+                         reason => Reason, user => LUser, server => LServer}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
@@ -67,7 +68,8 @@ do_search(VHost, MatchHeadIn) ->
     case catch mnesia:dirty_select(vcard_search,
         [{MatchHead, [], ['$_']}]) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]),
+            ?LOG_ERROR(#{what => vcard_search_failed, server => VHost,
+                         reason => Reason}),
             [];
         Rs ->
             case mod_vcard:get_results_limit(VHost) of

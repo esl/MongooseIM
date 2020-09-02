@@ -272,4 +272,6 @@ hook_apply_function(Module, Function, Val, Args) ->
     safely:apply(Module, Function, [Val | Args]).
 
 error_running_hook(Reason, Hook, Args) ->
-    ?ERROR_MSG("~p~nrunning hook: ~p", [Reason, {Hook, Args}]).
+    ?LOG_ERROR(#{what => hook_failed,
+                 text => <<"Error running hook">>,
+                 hook => Hook, args => Args, reason => Reason}).

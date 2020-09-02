@@ -29,9 +29,10 @@ deps(_Host, Opts) ->
 
 -spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(_Host, _Opts) ->
-    ?WARNING_MSG("mod_aws_sns is deprecated and will be removed in the future.~n"
-                 "Please use mod_event_pusher with sns backend.~n"
-                 "Refer to mod_event_pusher documentation for more information.", []).
+    Text = <<"mod_aws_sns is deprecated and will be removed in the future.~n"
+             "Please use mod_event_pusher with sns backend.~n"
+             "Refer to mod_event_pusher documentation for more information.">>,
+    ?LOG_WARNING(#{what => module_deprecated, text => Text}).
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(_Host) ->

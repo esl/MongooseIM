@@ -182,7 +182,8 @@ try_register(LUser, LServer, Password) ->
         {atomic, exists} ->
             {error, exists};
         Result ->
-            ?ERROR_MSG("transaction_result=~p", [Result]),
+            ?LOG_ERROR(#{what => registration_error,
+                         user => LUser, server => LServer, reason => Result}),
             {error, not_allowed}
     end.
 
@@ -318,7 +319,8 @@ remove_user(LUser, LServer) ->
 
 -spec scram_passwords() -> {atomic, ok}.
 scram_passwords() ->
-    ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
+    ?LOG_INFO(#{what => <<"scram_passwords">>,
+                text => <<"Converting the stored passwords into SCRAM bits">>}),
     Fields = record_info(fields, passwd),
     {atomic, ok} = mnesia:transform_table(passwd, fun scramming_function/1, Fields).
 

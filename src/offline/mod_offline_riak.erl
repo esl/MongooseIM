@@ -165,9 +165,11 @@ pop_msg(Key, LUser, LServer, To) ->
                      permanent_fields = PermanentFields}
 
     catch
-        Error:Reason:StackTrace ->
-            ?WARNING_MSG("issue=~p, action=reading_key, host=~s, reason=~p, stack_trace=~p",
-                         [Error, LServer, Reason, StackTrace]),
+        Class:Reason:StackTrace ->
+            ?LOG_WARNING(#{what => offline_riak_reading_key_failed,
+                           text => <<"mod_offline_riak failed to read key">>,
+                           server => LServer, user => LUser, riak_key => Key,
+                           class => Class, reason => Reason, stacktrace => StackTrace}),
             []
     end.
 
@@ -224,9 +226,11 @@ fetch_msg(Key, LUser, LServer, To) ->
             packet = Packet}
 
     catch
-        Error:Reason:StackTrace ->
-            ?WARNING_MSG("issue=~p, action=reading_key, host=~s, reason=~p, stack_trace=~p",
-                [Error, LServer, Reason, StackTrace]),
+        Class:Reason:StackTrace ->
+            ?LOG_WARNING(#{what => offline_riak_reading_key_failed,
+                           text => <<"mod_offline_riak failed to read key">>,
+                           server => LServer, user => LUser, riak_key => Key,
+                           class => Class, reason => Reason, stacktrace => StackTrace}),
             []
     end.
 

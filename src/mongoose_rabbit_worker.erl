@@ -137,8 +137,7 @@ do_handle_cast({amqp_publish, Method, Payload}, State) ->
     handle_amqp_publish(Method, Payload, State).
 
 do_handle_info(Req, State) ->
-    ?WARNING_MSG("event=unexpected_request_received req=~1000p"
-                 "worker_state=~1000p", [Req, State]),
+    ?UNEXPECTED_INFO(Req),
     {noreply, State}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
@@ -153,26 +152,25 @@ handle_amqp_publish(Method, Payload, Opts = #{host := Host,
         true ->
             update_messages_published_metrics(Host, PoolTag, PublishTime,
                                               Payload),
-            ?DEBUG("event=rabbit_message_sent method=~p message=~1000p"
-                   "worker_opts=~p", [Method, Payload, Opts]),
+            ?LOG_DEBUG(#{what => rabbit_message_sent,
+                         method => Method, payload => Payload, opts => Opts}),
             {noreply, Opts};
         false ->
             update_messages_failed_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack"
-                         "method=~p message=~1000p worker_opts=~p",
-                         [Method, Payload, Opts]),
+            ?LOG_WARNING(#{what => rabbit_message_sent_failed, reason => negative_ack,
+                           method => Method, payload => Payload, opts => Opts}),
             {noreply, Opts};
         {channel_exception, Error, Reason} ->
             update_messages_failed_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p"
-                         "method=~p message=~1000p worker_opts=~p",
-                         [Error, Reason, Method, Payload, Opts]),
+            ?LOG_ERROR(#{what => rabbit_message_sent_failed,
+                         class => Error, reason => Reason,
+                         method => Method, payload => Payload, opts => Opts}),
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(Opts),
             {noreply, Opts#{connection := FreshConn, channel := FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout"
-            "method=~p message=~1000p worker_opts=~p", [Method, Payload, Opts]),
+            ?LOG_ERROR(#{what => rabbit_message_sent_failed, reason => timeout,
+                         method => Method, payload => Payload, opts => Opts}),
             {noreply, Opts}
     end.
 
@@ -215,14 +213,13 @@ establish_rabbit_connection(AMQPOpts, Host, PoolTag) ->
         {ok, Connection} ->
             update_success_connections_metrics(Host, PoolTag),
             {ok, Channel} = amqp_connection:open_channel(Connection),
-            ?DEBUG("event=rabbit_connection_established host=~p pool_tag=~p"
-                   "AMQP_opts=~p", [Host, PoolTag, AMQPOpts]),
+            ?LOG_DEBUG(#{what => rabbit_connection_established,
+                         server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
             {Connection, Channel};
         {error, Error} ->
             update_failed_connections_metrics(Host, PoolTag),
-            ?ERROR_MSG("event=rabbit_connection_failed reason=~1000p"
-                       "host=~p pool_tag=~p AMQP_opts=~p",
-                       [Error, Host, PoolTag, AMQPOpts]),
+            ?LOG_ERROR(#{what => rabbit_connection_failed, reason => Error,
+                         server => Host, pool_tag => PoolTag, opts => AMQPOpts}),
             exit("connection to a Rabbit server failed")
     end.
 
@@ -298,9 +295,9 @@ maybe_handle_request(Callback, Args, Reply) ->
         false ->
             apply(Callback, Args);
         true ->
-            ?WARNING_MSG("event=rabbit_worker_request_dropped "
-                         "reason=queue_message_length_limit_reached limit=~p",
-                         [Limit]),
+            ?LOG_WARNING(#{what => rabbit_worker_request_dropped,
+                           reason => queue_message_length_limit_reached,
+                           limit => Limit}),
             Reply
     end.
 

@@ -5,6 +5,7 @@
 -export([
     assert_inlist/2,
     assert_notinlist/2,
+    assert_status/2,
     decode_maplist/1,
     gett/2,
     gett/3,
@@ -16,6 +17,9 @@
     delete/3,
     delete/4,
     make_request/1,
+    simple_request/2,
+    simple_request/3,
+    simple_request/4,
     maybe_enable_mam/3,
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
@@ -29,6 +33,7 @@
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
+-include_lib("eunit/include/eunit.hrl").
 
 -define(PATHPREFIX, <<"/api">>).
 
@@ -41,7 +46,9 @@
         path := binary(),
         body := binary(),
         return_headers := boolean(),
-        server := atom() }.
+        server := distributed_helper:rpc_spec(),
+        port => inet:port_number(),
+        return_maps => boolean()}.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -131,9 +138,9 @@ make_request(#{ return_headers := true } = Params) ->
     NormalizedParams = normalize_path(normalize_body(fill_default_server(Params))),
     case fusco_request(NormalizedParams) of
         {RCode, RHeaders, Body, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body)};
+            {RCode, normalize_headers(RHeaders), decode(Body, Params)};
         {RCode, RHeaders, Body, _, _, _} ->
-            {RCode, normalize_headers(RHeaders), decode(Body)}
+            {RCode, normalize_headers(RHeaders), decode(Body, Params)}
     end;
 make_request(#{ return_headers := false } = Params) ->
     {Code, _, Body} = make_request(Params#{ return_headers := true }),
@@ -158,9 +165,16 @@ fill_default_server(#{ server := _Server } = Params) ->
 fill_default_server(Params) ->
     Params#{ server => mim() }.
 
-decode(<<>>) ->
+decode(<<>>, _P) ->
     <<"">>;
-decode(RespBody) ->
+decode(RespBody, #{return_maps := true}) ->
+    try
+        jiffy:decode(RespBody, [return_maps])
+    catch
+        error:_ ->
+            RespBody
+    end;
+decode(RespBody, _P) ->
     try
         jiffy:decode(RespBody)
     catch
@@ -172,7 +186,7 @@ normalize_headers(Headers) ->
     lists:map(fun({K, V}) when is_binary(V) -> {K, V};
                  ({K, V}) when is_list(V) -> {K, iolist_to_binary(V)} end, Headers).
 
-%% a request specyfying credentials is directed to client http listener
+%% a request specifying credentials is directed to client http listener
 fusco_request(#{ role := Role, method := Method, creds := {User, Password},
                  path := Path, body := Body, server := Server }) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
@@ -180,7 +194,10 @@ fusco_request(#{ role := Role, method := Method, creds := {User, Password},
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers,
                   get_port(Role, Server), get_ssl_status(Role, Server));
-%% without them it is for admin (secure) interface
+%% an API to just send a request to a given port, without authentication
+fusco_request(#{ method := Method, path := Path, body := Body, port := Port}) ->
+    fusco_request(Method, Path, Body, [], Port, false);
+%% without credentials it is for admin (secure) interface
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server }) ->
     fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server)).
 
@@ -461,3 +478,22 @@ make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
                 </property2>
             </properties>
         </message>">>).
+
+simple_request(Method, Path) when is_binary(Method)->
+    simple_request(Method, Path, <<>>).
+simple_request(Method, Path, Port) when is_binary(Method) and is_integer(Port) ->
+    simple_request(Method, Path, Port, <<>>).
+simple_request(Method, Path, Port, Body) ->
+    ReqParams = #{
+        role => client,
+        method => Method,
+        path => Path,
+        body => Body,
+        return_headers => true,
+        port => Port,
+        return_maps => true
+    },
+    rest_helper:make_request(ReqParams).
+
+assert_status(Status, {{S, _R}, _H, _B}) when is_integer(Status) ->
+    ?assertEqual(integer_to_binary(Status), S).

@@ -28,8 +28,9 @@
 start(_Opts) ->
     %% Clean current node's sessions from previous life
     {Elapsed, RetVal} = timer:tc(?MODULE, cleanup, [node()]),
-    ?WARNING_MSG("cleanup on start took=~pms~n",
-                 [erlang:round(Elapsed / 1000)]),
+    ?LOG_NOTICE(#{what => sm_cleanup_initial,
+                  text => <<"SM cleanup on start took">>,
+                  duration => erlang:round(Elapsed / 1000)}),
     RetVal.
 
 

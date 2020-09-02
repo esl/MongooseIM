@@ -79,7 +79,7 @@ archive_message(_Result, Host, #{message_id := MessageId,
                                  local_jid := RoomJid,
                                  remote_jid := FromJID,
                                  source_jid := SourceJid,
-                                 packet := Packet}) ->
+                                 packet := Packet} = Params) ->
     Room = mod_mam_utils:bare_jid(RoomJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
     From = mod_mam_utils:bare_jid(FromJID),
@@ -88,9 +88,11 @@ archive_message(_Result, Host, #{message_id := MessageId,
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
             ok;
-        {error, _} = Err ->
-            ?ERROR_MSG("event=archive_muc_message_failed server=~s room=~s source=~s mess_id=~p reason=~1000p",
-                       [Host, Room, SourceBinJid, MessageId, Err]),
+        {error, Reason} = Err ->
+            ?LOG_ERROR(maps:merge(Params,
+                       #{what => archive_muc_message_failed, reason => Reason,
+                         server => Host, room => Room, source => SourceBinJid,
+                         message_id => MessageId})),
             mongoose_metrics:update(Host, modMamDropped, 1),
             Err
     end.
@@ -122,9 +124,10 @@ do_lookup_messages(_Result, Host, Params) ->
     case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
         {ok, Result} ->
             {ok, search_result_to_mam_lookup_result(Result, Params)};
-        {error, _} = Err ->
-            ?ERROR_MSG("event=lookup_muc_messages_failed server=~s reason=~1000p",
-                       [Host, Err]),
+        {error, Reason} = Err ->
+            ?LOG_ERROR(maps:merge(Params,
+                                  #{what => lookup_muc_messages_failed,
+                                    server => Host, reason => Reason})),
             Err
     end.
 
@@ -145,9 +148,9 @@ remove_archive(Acc, Host, _ArchiveId, RoomJid) ->
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->
             ok;
-        {error, _} = Err ->
-            ?ERROR_MSG("event=remove_muc_archive_failed server=~s room=~s reason=~1000p",
-                       [Host, jid:to_binary(RoomJid), Err]),
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => remove_muc_archive_failed,
+                         server => Host, room_jid => RoomJid, reason => Reason}),
             ok
     end,
     Acc.
@@ -329,7 +332,7 @@ archive_size(Query) ->
     case mongoose_elasticsearch:count(?INDEX_NAME, ?TYPE_NAME, Query) of
         {ok, Count} ->
             Count;
-        {error, _} = Err ->
-            ?ERROR_MSG("Failed to retrieve count of messages from ElasticSearch: ~p", [Err]),
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => archive_size_failed, es_query => Query, reason => Reason}),
             0
     end.

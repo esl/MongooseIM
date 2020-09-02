@@ -103,10 +103,12 @@ set_new_cluster_id(ID, rdbms) ->
         {updated, 1} -> {ok, ID};
         {error, _} = Err -> Err
     catch
-        E:R:Stack ->
-            ?WARNING_MSG("issue=error_setting_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
-                         [E, R, Stack]),
-            {error, {E,R}}
+        Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => cluster_id_set_failed,
+                           text => <<"Error inserting cluster ID into RDBMS">>,
+                           sql_query => SQLQuery, cluster_id => ID,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, {Class, Reason}}
     end;
 set_new_cluster_id(ID, mnesia) ->
     T = fun() -> mnesia:write(#mongoose_cluster_id{key = cluster_id, value = ID}) end,
@@ -126,10 +128,12 @@ get_backend_cluster_id(rdbms) ->
         {selected, []} -> {error, no_value_in_backend};
         {error, _} = Err -> Err
     catch
-        E:R:Stack ->
-            ?WARNING_MSG("issue=error_getting_cluster_id_from_rdbms, class=~p, reason=~p, stack=~p",
-                         [E, R, Stack]),
-            {error, {E,R}}
+        Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => cluster_id_get_failed,
+                           text => <<"Error getting cluster ID from RDBMS">>,
+                           sql_query => SQLQuery,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, {Class, Reason}}
     end;
 get_backend_cluster_id(mnesia) ->
     get_cached_cluster_id().
@@ -145,9 +149,11 @@ clean_table(rdbms) ->
         {updated, _} -> ok;
         {error, _} = Err -> Err
     catch
-        E:R:Stack ->
-            ?WARNING_MSG("issue=error_truncating_cluster_id_from_rdbms,
-                         class=~p, reason=~p, stack=~p", [E, R, Stack]),
-            {error, {E,R}}
+        Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => cluster_id_clean_failed,
+                           text => <<"Error truncating mongoose_cluster_id table">>,
+                           sql_query => SQLQuery,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, {Class, Reason}}
     end;
 clean_table(_) -> ok.

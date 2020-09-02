@@ -129,15 +129,17 @@ ensure_id({_, Id}) -> Id.
     {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = get, sub_el = _QueryEl, id = ID }) ->
     {ok, {get, #config{ id = ID }}};
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = ID }) ->
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = ID }) ->
     case exml_query:subelement(QueryEl, <<"destroy">>) of
         undefined ->
-            case catch parse_config(exml_query:paths(QueryEl, [{element, <<"x">>},
-                                                               {element, <<"field">>}])) of
+            try parse_config(exml_query:paths(QueryEl, [{element, <<"x">>},
+                                                        {element, <<"field">>}])) of
                 {ok, RawConfig} ->
-                    {ok, {set, #config{ id = ID, raw_config = RawConfig }}};
-                Error ->
-                    ?WARNING_MSG("query_el=~p, error=~p", [QueryEl, Error]),
+                    {ok, {set, #config{ id = ID, raw_config = RawConfig }}}
+            catch Class:Reason:Stacktrace ->
+                    ?LOG_WARNING(#{what => muc_parse_config_failed,
+                                   from_jid => jid:to_binary(From), iq => IQ,
+                                   class => Class, reason => Reason, stacktrace => Stacktrace}),
                     {error, bad_request}
             end;
         _ ->
@@ -145,28 +147,31 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = 
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_ADMIN, type = get, sub_el = _QueryEl, id = ID }) ->
     {ok, {get, #affiliations{ id = ID }}};
-decode_iq(_From, #iq{ xmlns = ?NS_MUC_ADMIN, type = set, sub_el = QueryEl, id = ID }) ->
-    case catch parse_aff_users(exml_query:subelements(QueryEl, <<"item">>)) of
+decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_ADMIN, type = set, sub_el = QueryEl, id = ID }) ->
+    try parse_aff_users(exml_query:subelements(QueryEl, <<"item">>)) of
         {ok, AffUsers} ->
-            {ok, {set, #affiliations{ id = ID, aff_users = AffUsers }}};
-        Error ->
-            ?WARNING_MSG("query_el=~p, error=~p", [QueryEl, Error]),
+            {ok, {set, #affiliations{ id = ID, aff_users = AffUsers }}}
+    catch Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => muc_parse_aff_users_failed,
+                           from_jid => jid:to_binary(From), iq => IQ,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, bad_request}
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_PRIVACY, type = get, id = ID }) ->
     {ok, {get, #blocking{ id = ID }}};
-decode_iq(_From, #iq{ xmlns = ?NS_PRIVACY, type = set,
+decode_iq(From, IQ = #iq{ xmlns = ?NS_PRIVACY, type = set,
                sub_el = #xmlel{ children = Lists }, id = ID }) ->
     case lists:keyfind([{<<"name">>, ?NS_MUC_LIGHT}], #xmlel.attrs, Lists) of
         false ->
             ignore;
         List ->
-            case catch parse_blocking_list(exml_query:subelements(List, <<"item">>)) of
+            try parse_blocking_list(exml_query:subelements(List, <<"item">>)) of
                 {ok, BlockingList} ->
-                    {ok, {set, #blocking{ id = ID, items = BlockingList }}};
-                Error ->
-                    ?WARNING_MSG("lists=~p, error=~p", [Lists, Error]),
-                    {error, bad_request}
+                    {ok, {set, #blocking{ id = ID, items = BlockingList }}}
+            catch Class:Reason:Stacktrace ->
+                    ?LOG_WARNING(#{what => muc_parse_blocking_list_failed,
+                                   from_jid => jid:to_binary(From), iq => IQ,
+                                   class => Class, reason => Reason, stacktrace => Stacktrace})
             end
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_DISCO_ITEMS, type = get, id = ID} = IQ) ->

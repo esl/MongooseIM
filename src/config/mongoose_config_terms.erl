@@ -19,11 +19,13 @@ get_plain_terms_file(File1) ->
             include_config_files(Terms);
         {error, {LineNumber, erl_parse, _ParseMessage} = Reason} ->
             ExitText = describe_config_problem(File, Reason, LineNumber),
-            ?ERROR_MSG(ExitText, []),
+            ?LOG_ERROR(#{what => ejabberd_config_file_loading_failed, 
+                         file => File, line => LineNumber, reason => Reason}),
             mongoose_config_utils:exit_or_halt(ExitText);
         {error, Reason} ->
             ExitText = describe_config_problem(File, Reason),
-            ?ERROR_MSG(ExitText, []),
+            ?LOG_ERROR(#{what => mim_config_file_loading_failed,
+                         file => File, reason => Reason}),
             mongoose_config_utils:exit_or_halt(ExitText)
     end.
 
@@ -92,7 +94,7 @@ delete_disallowed(Disallowed, Terms) ->
 delete_disallowed2(Disallowed, [H | T]) ->
     case element(1, H) of
         Disallowed ->
-            ?WARNING_MSG("event=ignore_disallowed_option option=~p", [Disallowed]),
+            ?LOG_WARNING(#{what => ignore_disallowed_option, option => Disallowed}),
             delete_disallowed2(Disallowed, T);
         _ ->
             [H | delete_disallowed2(Disallowed, T)]
@@ -113,7 +115,7 @@ keep_only_allowed(Allowed, Terms) ->
                       lists:member(element(1, Term), Allowed)
                   end,
                   Terms),
-    [?WARNING_MSG("event=ignore_disallowed_option option=~p", [NA])
+    [?LOG_WARNING(#{what => ignore_disallowed_option, option => NA})
      || NA <- NAs],
     As.
 
@@ -140,6 +142,6 @@ describe_config_problem(Filename, Reason, LineNumber) ->
                           ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
     Lines = mongoose_config_utils:get_config_lines(Filename, LineNumber, 10, 3),
-    ?ERROR_MSG("The following lines from your configuration file might be"
-               " relevant to the error: ~n~s", [Lines]),
+    ?LOG_ERROR(#{what => mim_config_file_loading_failed, lines => Lines,
+                 text => <<"The following lines from your configuration file might be relevant to the error">>}),
     ExitText.

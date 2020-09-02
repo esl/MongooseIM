@@ -486,10 +486,10 @@ does_user_exist_timed(LUser, LServer) ->
         fun(M) ->
             case M:does_user_exist(LUser, LServer) of
                 {error, Error} ->
-                    ?ERROR_MSG("The authentication module ~p returned an "
-                    "error~nwhen checking user ~p in server ~p~n"
-                    "Error message: ~p",
-                        [M, LUser, LServer, Error]),
+                    ?LOG_ERROR(#{what => does_user_exist_failed,
+                                 text => <<"The authentication module returned an error">>,
+                                 auth_module => M, reason => Error,
+                                 user => LUser, server => LServer}),
                     false;
                 Else ->
                     Else
@@ -525,9 +525,10 @@ does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
         false ->
             does_user_exist_in_other_modules_loop(AuthModules, User, Server);
         {error, Error} ->
-            ?DEBUG("The authentication module ~p returned an error~nwhen "
-                   "checking user ~p in server ~p~nError message: ~p",
-                   [AuthModule, User, Server, Error]),
+            ?LOG_DEBUG(#{what => does_user_exist_failed,
+                         text => <<"The authentication module returned an error">>,
+                         auth_module => AuthModule, reason => Error,
+                         user => User, server => Server}),
             maybe
     end.
 
@@ -554,8 +555,9 @@ do_remove_user(LUser, LServer) ->
             mongoose_hooks:remove_user(LServer, Acc, LUser),
             ok;
         false ->
-            ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
-                       [LUser, LServer, AuthModules]),
+            ?LOG_ERROR(#{what => backends_disallow_user_removal,
+                         user => LUser, server => LServer,
+                         auth_modules => AuthModules}),
             {error, not_allowed}
     end.
 

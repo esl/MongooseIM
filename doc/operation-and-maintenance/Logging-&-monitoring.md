@@ -4,6 +4,43 @@ We strongly recommend storing logs in one centralized place when working in a cl
 MongooseIM uses the standard OTP logging framework: [Logger](Logger).
 Its handlers can be replaced and customised, according to Logger's documentation.
 
+### Syslog integration
+
+MongooseIM uses `syslogger` as a Logger handler for syslog.
+To activate it you have to add `syslogger` to the applications section in `src/mongooseim/app.src`:
+
+    %% syslogger, % uncomment to enable a logger handler for syslog
+
+You also need to edit `rel/files/app.config` and uncomment the line:
+
+     % Uncomment these lines to enable logging to syslog.
+     % Remember to add syslogger as a dependency in mongooseim.app.src.
+    %% {syslogger, [
+    %%     {ident, "mongooseim"},
+    %%     {logger, [
+    %%         {handler, sys_log, syslogger,
+    %%          #{formatter => {logger_formatter, #{single_line => true}}}}]}]
+    %% },
+
+You can provide different parameters to change the handler's behaviour as described
+in the `syslogger's` [GitHub page](https://github.com/NelsonVides/syslogger/):
+
+* `ident` - a string to tag all the syslog messages with.
+ The default is `mongooseim`.
+* `facility` -  the facility to log to (see the syslog documentation).
+* `log_opts` - see the syslog documentation for the description.
+
+Depending on the system platform you use, remember also to add the appropriate line in the syslog config file.
+For example, if the facility `local0` is set:
+
+    local0.info                     /var/log/mongooseim.log
+
+All the logs of level `info` should be passed to the `/var/log/mongooseim.log` file.
+
+Example log (e.g `tail -f /var/log/mongooseim.log`):
+
+    Apr  1 12:36:49 User.local mongooseim[6068]: [info] <0.7.0> Application mnesia started on node mongooseim@localhost
+
 ### Further / multiserver integration
 
 For more advanced processing and analysis of logs, including gathering logs from multiple machines,

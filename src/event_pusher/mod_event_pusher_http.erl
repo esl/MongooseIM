@@ -87,7 +87,12 @@ make_req(Acc, Dir, Host, Sender, Receiver, Message, Opts) ->
     Mod = get_callback_module(Opts),
     Body = Mod:prepare_body(Acc, Dir, Host, Message, Sender, Receiver, Opts),
     Headers = Mod:prepare_headers(Acc, Dir, Host, Message, Sender, Receiver, Opts),
-    ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
+    LogMeta = #{what => event_pusher_http_req,
+                text => <<"mod_event_pusher_http makes an external HTTP call">>,
+                path => Path, body => Body, headers => Headers,
+                sender => Sender, receiver => Receiver, direction => Dir,
+                server => Host, pool_name => PoolName, acc => Acc},
+    ?LOG_INFO(LogMeta),
     T0 = os:timestamp(),
     {Res, Elapsed} = case mongoose_http_client:post(Host, PoolName, Path, Headers, Body) of
                          {ok, _} ->
@@ -95,7 +100,7 @@ make_req(Acc, Dir, Host, Sender, Receiver, Message, Opts) ->
                          {error, Reason} ->
                              {{error, Reason}, 0}
                      end,
-    record_result(Host, Res, Elapsed),
+    record_result(Host, Res, Elapsed, LogMeta),
     ok.
 
 ensure_metrics(Host) ->
@@ -103,13 +108,17 @@ ensure_metrics(Host) ->
     mongoose_metrics:ensure_metric(Host, ?FAILED_METRIC, spiral),
     mongoose_metrics:ensure_metric(Host, ?RESPONSE_METRIC, histogram),
     ok.
-record_result(Host, ok, Elapsed) ->
+
+record_result(Host, ok, Elapsed, _LogMeta) ->
     mongoose_metrics:update(Host, ?SENT_METRIC, 1),
     mongoose_metrics:update(Host, ?RESPONSE_METRIC, Elapsed),
     ok;
-record_result(Host, {error, Reason}, _) ->
+record_result(Host, {error, Reason}, _, LogMeta) ->
     mongoose_metrics:update(Host, ?FAILED_METRIC, 1),
-    ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
+    ?LOG_WARNING(LogMeta#{what => event_pusher_http_req_failed,
+                          text => <<"mod_event_pusher_http HTTP call failed">>,
+                          reason => Reason
+                  }),
     ok.
 
 %% @doc Strip initial slash (it is added by mongoose_http_client)

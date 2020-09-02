@@ -84,9 +84,8 @@ get_roster(LUser, LServer) ->
             RItems;
         _ -> []
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=get_roster_failed "
-                   "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, StackTrace]),
+        ?LOG_ERROR(#{what => get_roster_failed, class => Class, reason => Reason,
+                     stacktrace => StackTrace, user => LUser, host => LServer}),
         []
     end.
 
@@ -163,13 +162,13 @@ get_subscription_lists(_, LUser, LServer) ->
         {selected, Items} when is_list(Items) ->
             Items;
         Other ->
-            ?ERROR_MSG("event=get_subscription_lists_failed "
-                       "reason=~p user=~ts", [Other, LUser]),
+            ?LOG_ERROR(#{what => get_subscription_lists_failed, reason => Other,
+                        user => LUser, host => LServer}),
             []
     catch Class:Reason:StackTrace ->
-        ?ERROR_MSG("event=get_subscription_lists_failed "
-                   "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, StackTrace]),
+        ?LOG_ERROR(#{what => get_subscription_lists_failed, class => Class,
+                     reason => Reason, stacktrace => StackTrace,
+                     user => LUser, host => LServer}),
         []
     end.
 
@@ -260,14 +259,15 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                          {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
                          _ ->
-                             ?ERROR_MSG("event=read_subscription_and_groups_failed "
-                                        "user=~ts result=~p", [LUser, GRResult]),
+                             ?LOG_ERROR(#{what => read_subscription_and_groups_failed,
+                                          reason => GRResult, user => LUser,
+                                          host => LServer}),
                              []
                      end,
             {Subscription, Groups};
         E ->
-           ?ERROR_MSG("event=read_subscription_and_groups_failed "
-                      "user=~ts reason=~p", [LUser, E]),
+           ?LOG_ERROR(#{what => read_subscription_and_groups_failed,
+                        reason => E, user => LUser, host => LServer}),
             error
     end.
 

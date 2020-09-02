@@ -167,7 +167,7 @@ get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(Server, User)
   when is_binary(Server), is_binary(User) ->
-    ?DEBUG("Remove user ~p from ~p.", [User, Server]),
+    ?LOG_DEBUG(#{what => mam_delete_archive, user => User, server => Server}),
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -196,12 +196,13 @@ archive_id(Server, User)
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
-    ?DEBUG("mod_mam starting", []),
-    ?WARNING_MSG_IF(
-       gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
-       "mod_mam is enabled without explicit archive_groupchats option value."
+    ?LOG_INFO(#{what => mam_starting}),
+    ?LOG_IF(warning, gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
+                    #{what => mam_configuration, text =>
+     <<"mod_mam is enabled without explicit archive_groupchats option value."
        " It will default to `false` in one of future releases."
-       " Please check the mod_mam documentation for more details.", []),
+       " Please check the mod_mam documentation for more details.">>,
+     host => Host, mam_opts => Opts}),
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
@@ -226,7 +227,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
-    ?DEBUG("mod_mam stopping", []),
+    ?LOG_INFO(#{what => mam_stopping}),
     ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
@@ -260,8 +261,9 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
                     handle_error_iq(Host, Acc, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    ?WARNING_MSG("issue=max_delay_reached, action=~p, host=~p, from=~p",
-                                 [Action, Host, From]),
+                    ?LOG_WARNING(#{what => mam_max_delay_reached,
+                                   text => <<"Return max_delay_reached error IQ from MAM">>,
+                                   action => Action, acc => Acc}),
                     mongoose_metrics:update(Host, modMamDroppedIQ, 1),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
@@ -279,8 +281,7 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
                        To :: jid:jid(),
                        Packet :: exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
-    ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
-           [From, To, Packet]),
+    ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
     handle_package(outgoing, false, From, To, From, Packet),
     Acc.
 
@@ -300,8 +301,7 @@ user_send_packet(Acc, From, To, Packet) ->
 filter_packet(drop) ->
     drop;
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
-    ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
-           [From, To, Packet]),
+    ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc}),
     {AmpEvent, PacketAfterArchive} =
         case ejabberd_users:does_user_exist(LUser, LServer) of
             false ->
@@ -382,8 +382,8 @@ handle_mam_iq(Action, From, To, IQ) ->
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
-    ?DEBUG("Parsed data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-           [DefaultMode, AlwaysJIDs, NeverJIDs]),
+    ?LOG_DEBUG(#{what => mam_set_prefs, default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
@@ -407,8 +407,8 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     handle_get_prefs_result(Res, IQ).
 
 handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
-    ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
-           [DefaultMode, AlwaysJIDs, NeverJIDs]),
+    ?LOG_DEBUG(#{what => mam_get_prefs_result, default_mode => DefaultMode,
+                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     Namespace = IQ#iq.xmlns,
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
@@ -675,8 +675,9 @@ report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
 report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) ->
-    ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
-               [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
+    ?LOG_ERROR(#{what => mam_error,
+                 issue => Issue, server => LServer, user => LUser,
+                 reason => Reason, iq => IQ, stacktrace => Stacktrace}).
 
 -spec is_archivable_message(Host :: ejabberd:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().

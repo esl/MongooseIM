@@ -57,8 +57,7 @@ stop(Host) ->
 
 process_iq(_From, _To, Acc, IQ) ->
     IQRes = IQ#iq{type = result},
-    ?INFO_MSG("event=example_handler request=~w response=~w", 
-                [IQ, IQRes]),
+    ?LOG_INFO(#{what => example_handler, acc => Acc, iq_result => IQRes}),
     {Acc, IQRes}.
 ```
 

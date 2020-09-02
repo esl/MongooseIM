@@ -871,9 +871,9 @@ check_stringprep() ->
     is_loaded_application(jid) orelse start_stringprep().
 
 start_stringprep() ->
-    EJ = code:lib_dir(ejabberd),
+    EJ = code:lib_dir(mongooseim),
     code:add_path(filename:join([EJ, "..", "..", "deps", "jid", "ebin"])),
-    ok = application:start(jid).
+    {ok, _} = application:ensure_all_started(jid).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).
@@ -1101,8 +1101,9 @@ success_sql_execute(HostOrConn, Name, Params) ->
     error_on_sql_error(HostOrConn, Name, Result).
 
 error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
-    ?ERROR_MSG("SQL-error on ~p.~nQuery ~p~nReason ~p", [HostOrConn, Query, Reason]),
-            error({sql_error, Reason});
+    ?LOG_ERROR(#{what => mam_sql_error,
+                 host => HostOrConn, query => Query, reason => Reason}),
+    error({sql_error, Reason});
 error_on_sql_error(_HostOrConn, _Query, Result) ->
     Result.
 

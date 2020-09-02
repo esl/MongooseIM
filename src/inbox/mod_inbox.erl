@@ -299,8 +299,12 @@ process_message(Host, From, To, Message, outgoing, groupchat) ->
     mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, groupchat) ->
     mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
-process_message(_, _, _, Message, _, _) ->
-    ?WARNING_MSG("event=unknown_message_not_written_in_inbox,packet='~p'", [Message]),
+process_message(Host, From, To, Message, Dir, Type) ->
+    ?LOG_WARNING(#{what => inbox_unknown_message,
+                   text => <<"Unknown message was not written into inbox">>,
+                   exml_packet => Message,
+                   from_jid => jid:to_binary(From), to_jid => jid:to_binary(To),
+                   server => Host, dir => Dir, inbox_message_type => Type}),
     ok.
 
 
@@ -433,7 +437,7 @@ form_to_params(undefined) ->
     #{ order => desc };
 form_to_params(FormEl) ->
     ParsedFields = jlib:parse_xdata_fields(exml_query:subelements(FormEl, <<"field">>)),
-    ?DEBUG("event=parsed_form_fields,parsed=~p", [ParsedFields]),
+    ?LOG_DEBUG(#{what => inbox_parsed_form_fields, parsed_fields => ParsedFields}),
     fields_to_params(ParsedFields, #{ order => desc }).
 
 -spec fields_to_params([{Var :: binary(), Values :: [binary()]}], Acc :: get_inbox_params()) ->
@@ -444,22 +448,25 @@ fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
     try calendar:rfc3339_to_system_time(binary_to_list(StartISO), [{unit, microsecond}]) of
         StartStamp ->
             fields_to_params(RFields, Acc#{ start => usec:to_now(StartStamp) })
-    catch error:_Error ->
-            ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
+    catch error:Error ->
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           reason => Error, field => start, value => StartISO}),
             {error, bad_request, invalid_field_value(<<"start">>, StartISO)}
     end;
 fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
     try calendar:rfc3339_to_system_time(binary_to_list(EndISO), [{unit, microsecond}]) of
         EndStamp ->
             fields_to_params(RFields, Acc#{ 'end' => usec:to_now(EndStamp) })
-    catch error:_Error ->
-            ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
+    catch error:Error ->
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           reason => Error, field => 'end', value => EndISO}),
             {error, bad_request, invalid_field_value(<<"end">>, EndISO)}
     end;
 fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
     case binary_to_order(OrderBin) of
         error ->
-            ?DEBUG("event=invalid_inbox_form_field,field=order,value=~s", [OrderBin]),
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           field => order, value => OrderBin}),
             {error, bad_request, invalid_field_value(<<"order">>, OrderBin)};
         Order ->
             fields_to_params(RFields, Acc#{ order => Order })
@@ -468,7 +475,8 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
 fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
     case binary_to_bool(HiddenRead) of
         error ->
-            ?DEBUG("event=invalid_inbox_form_field,field=hidden_read,value=~s", [HiddenRead]),
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           field => hidden_read, value => HiddenRead}),
             {error, bad_request, invalid_field_value(<<"hidden_read">>, HiddenRead)};
         Hidden ->
             fields_to_params(RFields, Acc#{ hidden_read => Hidden })
@@ -477,7 +485,8 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
 fields_to_params([{Invalid, [InvalidFieldVal]} | _], _) ->
-    ?DEBUG("event=invalid_inbox_form_field,parsed=~p", [Invalid]),
+    ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
+                field => Invalid, value => InvalidFieldVal}),
     {error, bad_request, <<"Unknown inbox form field=", Invalid/binary, ", value=", InvalidFieldVal/binary>>}.
 
 -spec binary_to_order(binary()) -> asc | desc | error.
@@ -512,7 +521,8 @@ reset_stanza_extract_interlocutor_jid(ResetStanza) ->
         Value ->
             case jid:from_binary(Value) of
                 error ->
-                    ?ERROR_MSG("event=invalid_inbox_form_field,field=jid,value=~s", [Value]),
+                    ?LOG_ERROR(#{what => inbox_invalid_form_field,
+                                 field => jid, value => Value}),
                     {error, invalid_field_value(<<"jid">>, Value)};
                 JID -> JID
             end

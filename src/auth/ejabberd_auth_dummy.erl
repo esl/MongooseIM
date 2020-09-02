@@ -48,8 +48,10 @@ plain_password_required() ->
 check_password(_User, _Server, _Password) ->
     true.
 
-check_password(_User, _Server, _Password, _Digest, _DigestGen) ->
-    ?DEBUG("no support for digest authentication", []),
+check_password(User, Server, _Password, _Digest, _DigestGen) ->
+    ?LOG_DEBUG(#{what => digest_auth_unsupported,
+                 text => <<"no support for digest authentication">>,
+                 user => User, server => Server}),
     false.
 
 %% @spec (User::string(), Server::string(), Password::string()) ->
