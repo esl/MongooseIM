@@ -196,15 +196,15 @@ http_listener_opt([<<"handlers">>|_] = Path, Handlers) ->
     [{modules, parse_section(Path, Handlers)}];
 http_listener_opt([<<"mongoose_api_admin">>|_] = Path, V) ->
     Opts = parse_section(Path, V),
-    Host = proplists:get_value(host, Opts),
-    P = proplists:get_value(path, Opts),
-    User = proplists:get_value(username, Opts),
-    Password = proplists:get_value(password, Opts),
+    {_, Host} = proplists:lookup(host, Opts),
+    {_, P} = proplists:lookup(path, Opts),
+    {_, User} = proplists:lookup(username, Opts),
+    {_, Password} = proplists:lookup(password, Opts),
     [{Host, P, mongoose_api_admin, [{auth, {User, Password}}]}];
 http_listener_opt([<<"mongoose_api_client">>|_] = Path, V) ->
     Opts = parse_section(Path, V),
-    Host = proplists:get_value(host, Opts),
-    P = proplists:get_value(path, Opts),
+    {_, Host} = proplists:lookup(host, Opts),
+    {_, P} = proplists:lookup(path, Opts),
     [{Host, P, mongoose_api_client_contacts, []}];
 http_listener_opt(P, V) -> listener_opt(P, V).
 
