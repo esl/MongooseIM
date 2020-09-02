@@ -9,6 +9,8 @@
     preserve_acc/1
 ]).
 
+-import(logger_helper, [filter_out_non_matching/2, get_at_least_n_log_lines/3, get_log/1]).
+
 -include_lib("kernel/include/logger.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -225,30 +227,3 @@ mongoose_logger_running() ->
     ok = logger:add_handler(HandlerID, HandlerModule, HandlerConfig),
     FileBackend = {HandlerID, ?LOGFILE},
     {ok, FileBackend}.
-
-'contains?'(String, Pattern) ->
-    binary:match(String, [Pattern]) /= nomatch.
-
-filter_out_non_matching(Lines, Pattern) ->
-    lists:filter(fun (L) -> 'contains?'(L, Pattern) end, Lines).
-
-get_log(LogFile) ->
-    case file:read_file(LogFile) of
-        {error, enoent} -> [];
-        {ok, Contents} -> binary:split(Contents, <<"\n">>, [global, trim])
-    end.
-
-get_at_least_n_log_lines(LogFile, NLines, Timeout) ->
-    TRef = erlang:start_timer(Timeout, self(), get_at_least_n_log_lines),
-    get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile)).
-
-get_at_least_n_log_lines(_LogFile, NLines, TRef, Lines)
-    when length(Lines) >= NLines ->
-    erlang:cancel_timer(TRef),
-    Lines;
-get_at_least_n_log_lines(LogFile, NLines, TRef, _Lines) ->
-    receive
-        {timeout, TRef, get_at_least_n_log_lines} -> timeout
-    after 100 ->
-        get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile))
-    end.
