@@ -174,6 +174,38 @@ validate([<<"extauth_instances">>, <<"auth">>],
          [{extauth_instances, Value}]) ->
     validate_positive_integer(Value);
 
+%% outgoing_pools
+validate([_Tag, _Type, <<"outgoing_pools">>],
+         [{TypeAtom, Scope, TagAtom, _Options, _ConnectionOptions}]) ->
+    validate_enum(TypeAtom, [redis, riak, http, rdbms, cassandra, elastic, generic, rabbit, ldap]),
+    validate_pool_scope(Scope),
+    validate_non_empty_atom(TagAtom);
+validate([<<"workers">>, _Tag, _Type, <<"outgoing_pools">>],
+         [{workers, Value}]) ->
+    validate_positive_integer(Value);
+validate([<<"strategy">>, _Tag, _Type, <<"outgoing_pools">>],
+         [{strategy, Value}]) ->
+    validate_enum(Value, [best_worker, random_worker, next_worker,
+                          available_worker, next_available_worker]);
+validate([<<"call_timeout">>, _Tag, _Type, <<"outgoing_pools">>],
+         [{call_timeout, Value}]) ->
+    validate_positive_integer(Value);
+validate([<<"keepalive_interval">>, _Conn, _Tag, _Type, <<"outgoing_pools">>],
+         [{keepalive_interval, Value}]) ->
+    validate_positive_integer(Value);
+validate([{connection, Driver}, _Tag, _Type, <<"outgoing_pools">>],
+         [_Value]) ->
+    validate_enum(Driver, [odbc, pgsql, mysql]);
+validate([Key, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
+         [{_, Value}]) when Key =:= <<"host">>;
+                            Key =:= <<"database">>;
+                            Key =:= <<"username">>;
+                            Key =:= <<"password">> ->
+    validate_non_empty_string(Value);
+validate([<<"port">>, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
+         [{port, Value}]) ->
+    validate_port(Value);
+
 validate(_, _) ->
     ok.
 
@@ -217,3 +249,6 @@ validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
 
 validate_password_format({scram, [_|_]}) -> ok;
 validate_password_format(Value) -> validate_enum(Value, [scram, plain]).
+
+validate_pool_scope(Value) when is_binary(Value) -> validate_non_empty_binary(Value);
+validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
