@@ -18,7 +18,8 @@ all() ->
     [{group, equivalence},
      {group, general},
      {group, listen},
-     {group, auth}].
+     {group, auth},
+     {group, pool}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -88,7 +89,18 @@ groups() ->
                          auth_ldap_dn_filter,
                          auth_ldap_local_filter,
                          auth_ldap_deref,
-                         auth_extauth_instances]}
+                         auth_extauth_instances]},
+     {pool, [parallel], [pool_type,
+                         pool_tag,
+                         pool_scope,
+                         pool_workers,
+                         pool_strategy,
+                         pool_call_timeout,
+                         pool_rdbms_settings,
+                         pool_rdbms_keepalive_interval,
+                         pool_rdbms_server,
+                         pool_rdbms_port,
+                         pool_rdbms_tls]}
     ].
 
 init_per_suite(Config) ->
@@ -516,7 +528,7 @@ listen_http_handlers_api(_Config) ->
     ?err(parse_http_handler(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
     ?err(parse_http_handler(<<"mongoose_api">>, #{})).
 
-%% test: auth
+%% tests: auth
 
 auth_methods(_Config) ->
     [F] = parse(#{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
@@ -648,6 +660,113 @@ auth_extauth_instances(_Config) ->
          #local_config{key = {extauth_instances, ?HOST}, value = 2}], F(?HOST)),
     ?err(parse(#{<<"auth">> => #{<<"extauth_instances">> => 0}})).
 
+%% tests: outgoing_pools
+
+pool_type(_Config) ->
+    ?eq(pool_config({http, global, default, [], []}),
+        parse_pool(<<"http">>, <<"default">>, #{})),
+    ?err(parse_pool(<<"swimming_pool">>, <<"default">>, #{})).
+
+pool_tag(_Config) ->
+    ?eq(pool_config({http, global, my_pool, [], []}),
+        parse_pool(<<"http">>, <<"my_pool">>, #{})),
+    ?err(parse_pool(<<"http">>, 1000, #{})).
+
+pool_scope(_Config) ->
+    ?eq(pool_config({http, global, default, [], []}),
+        parse_pool(<<"http">>, <<"default">>, #{})),
+    ?eq(pool_config({http, global, default, [], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"global">>})),
+    ?eq(pool_config({http, host, default, [], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"host">>})),
+    ?eq(pool_config({http, <<"localhost">>, default, [], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
+                                                <<"host">> => <<"localhost">>})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
+
+pool_workers(_Config) ->
+    ?eq(pool_config({http, global, default, [{workers, 10}], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"workers">> => 10})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"workers">> => 0})).
+
+pool_strategy(_Config) ->
+    ?eq(pool_config({http, global, default, [{strategy, best_worker}], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"strategy">> => <<"best_worker">>})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"strategy">> => <<"worst_worker">>})).
+
+pool_call_timeout(_Config) ->
+    ?eq(pool_config({http, global, default, [{call_timeout, 5000}], []}),
+        parse_pool(<<"http">>, <<"default">>, #{<<"call_timeout">> => 5000})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"call_timeout">> => 0})).
+
+pool_rdbms_settings(_Config) ->
+    ?eq(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"}]}),
+        parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                       <<"settings">> => <<"DSN=mydb">>})),
+    ?err(parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"mysql">>,
+                                        <<"settings">> => <<"DSN=mydb">>})),
+    ?err(parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                        <<"settings">> => true})),
+    ?err(parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>})).
+
+pool_rdbms_keepalive_interval(_Config) ->
+    ?eq(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"},
+                                                  {keepalive_interval, 1000}]}),
+        parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                       <<"settings">> => <<"DSN=mydb">>,
+                                       <<"keepalive_interval">> => 1000})),
+    ?err(parse_pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                        <<"settings">> => <<"DSN=mydb">>,
+                                        <<"keepalive_interval">> => false})).
+
+pool_rdbms_server(_Config) ->
+    ServerOpts = rdbms_opts(),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", "db", "dbuser", "secret"}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts)),
+    ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"driver">> := <<"odbc">>})),
+    [?err(parse_pool_conn(<<"rdbms">>, maps:without([K], ServerOpts))) ||
+        K <- maps:keys(ServerOpts)],
+    [?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{K := 123})) ||
+        K <- maps:keys(ServerOpts)].
+
+pool_rdbms_port(_Config) ->
+    ServerOpts = rdbms_opts(),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"port">> => 1234})),
+    ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"port">> => <<"airport">>})).
+
+pool_rdbms_tls(_Config) ->
+    ServerOpts = rdbms_opts(),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", "db", "dbuser", "secret",
+                                [{ssl, required}]}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{<<"required">> => true}})),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", "db", "dbuser", "secret",
+                                [{ssl, true}]}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{}})),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {mysql, "localhost", "db", "dbuser", "secret", []}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"driver">> => <<"mysql">>,
+                                                 <<"tls">> => #{}})),
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret",
+                                [{ssl, true}]}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{},
+                                                 <<"port">> => 1234})),
+
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({rdbms, global, default, [],
+                     [{server, {pgsql, "localhost", "db", "dbuser", "secret",
+                                [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}]}),
+        parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> =>
+                                                     #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> =>
+                                                      #{<<"certfile">> => true}})),
+    ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
+
 %% helpers for 'listen' tests
 
 listener_config(Mod, Opts) ->
@@ -668,6 +787,24 @@ parse_listener(Type, Opts) ->
 
 parse_auth_ldap(Opts) ->
     parse(#{<<"auth">> => #{<<"ldap">> => Opts}}).
+
+%% helpers for 'pool' tests
+
+pool_config(Pool) ->
+    [#local_config{key = outgoing_pools, value = [Pool]}].
+
+parse_pool(Type, Tag, Opts) ->
+   parse(#{<<"outgoing_pools">> => #{Type => #{Tag => Opts}}}).
+
+parse_pool_conn(Type, Opts) ->
+   parse(#{<<"outgoing_pools">> => #{Type => #{<<"default">> => #{<<"connection">> => Opts}}}}).
+
+rdbms_opts() ->
+    #{<<"driver">> => <<"pgsql">>,
+      <<"host">> => <<"localhost">>,
+      <<"database">> => <<"db">>,
+      <<"username">> => <<"dbuser">>,
+      <<"password">> => <<"secret">>}.
 
 %% helpers for 'equivalence' tests
 
