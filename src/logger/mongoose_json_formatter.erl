@@ -5,7 +5,7 @@
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
--module(mongoose_logger_json).
+-module(mongoose_json_formatter).
 
 %% API
 -export([format/2]).
