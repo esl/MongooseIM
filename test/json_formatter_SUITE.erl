@@ -1,12 +1,13 @@
 -module(json_formatter_SUITE).
 
--export([all/0, init_per_suite/1, end_per_suite/1]).
+-export([all/0, init_per_testcase/2, end_per_testcase/2]).
 
 -export([
     something_is_logged/1,
     something_is_formatted/1,
     acc_is_formatted/1,
-    preserve_acc/1
+    acc_is_preserved/1,
+    chars_limited/1
 ]).
 
 -import(logger_helper, [filter_out_non_matching/2, get_at_least_n_log_lines/3, get_log/1]).
@@ -23,19 +24,37 @@ all() ->
         something_is_logged,
         something_is_formatted,
         acc_is_formatted,
-        preserve_acc
+        acc_is_preserved,
+        chars_limited
     ].
 
-init_per_suite(Config) ->
+init_per_testcase(acc_is_preserved, Config) ->
+    LoggerConfig = logger:get_primary_config(),
+    logger:set_primary_config(level, info),
+    ConfigFilters = #{filters =>
+                        [{preserve_acc_filter, {fun mongoose_log_filter:preserve_acc_filter/2, no_state}},
+                         {format_packet_filter, {fun mongoose_log_filter:format_packet_filter/2, no_state}},
+                         {format_acc_filter, {fun mongoose_log_filter:format_acc_filter/2, no_state}},
+                         {format_c2s_state_filter, {fun mongoose_log_filter:format_c2s_state_filter/2, no_state}},
+                         {format_stacktrace_filter, {fun mongoose_log_filter:format_stacktrace_filter/2, no_state}}
+                        ]},
+    {ok, Backend} = mongoose_logger_running(ConfigFilters),
+    [{logger_primary_config, LoggerConfig}, {logger_backend, Backend} | Config];
+init_per_testcase(chars_limited, Config) ->
+    LoggerConfig = logger:get_primary_config(),
+    logger:set_primary_config(level, info),
+    CharsLimit = 30,
+    ConfigFormatter = #{formatter => {mongoose_json_formatter, #{format_chars_limit => CharsLimit}}},
+    {ok, Backend} = mongoose_logger_running(ConfigFormatter),
+    [{logger_primary_config, LoggerConfig}, {logger_backend, Backend}, {chars_limit, CharsLimit}| Config];
+init_per_testcase(_TC, Config) ->
     LoggerConfig = logger:get_primary_config(),
     logger:set_primary_config(level, info),
     {ok, Backend} = mongoose_logger_running(),
-    [{logger_primary_config, LoggerConfig},
-     {logger_backend, Backend}
-        | Config].
+    [{logger_primary_config, LoggerConfig}, {logger_backend, Backend} | Config].
 
-end_per_suite(Config) ->
-    logger:remove_handler(?config(logger_handler, Config)),
+end_per_testcase(_TC, Config) ->
+    logger:remove_handler(?HID),
     logger:set_primary_config(?config(logger_primary_config, Config)),
     ok.
 
@@ -46,18 +65,16 @@ something_is_logged(Config) ->
     {_, File} = ?config(logger_backend, Config),
     Before = get_log(File),
     ?LOG_INFO(#{what => something_is_logged,
-                   text => "JSON formatter test. This is an example message.",
-                   code => 404, reason => test_execution}),
+                text => "JSON formatter test. This is an example message.",
+                code => 404, reason => test_execution}),
     ?assertNotEqual(timeout, get_at_least_n_log_lines(File, length(Before) + 1, timer:seconds(5))).
 
 something_is_formatted(Config) ->
     {_, File} = ?config(logger_backend, Config),
     Before = get_log(File),
 
-    ?LOG_INFO(
-        #{in => config, user => #{name => <<"bbby">>, id => 12345}, details => {entropy, too_low},
-          txt => <<"JSON formatter test. JSON-match-this-something">>}
-    ),
+    ?LOG_INFO(#{in => config, user => #{name => <<"bbby">>, id => 12345}, details => {entropy, too_low},
+                txt => <<"JSON formatter test. JSON-match-this-something">>}),
 
     After = case get_at_least_n_log_lines(?LOGFILE,
                                           length(Before) + 1,
@@ -94,7 +111,7 @@ acc_is_formatted(Config) ->
     Acc = example_acc(Body),
 
     ?LOG_INFO(#{what => routing_result, acc => Acc, routing_modules => [mongoose_router_1, mongoose_router_2],
-                 routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
+                routing_result => [{{inside, two_tuples}}, {inside, one_tuple}]}),
 
     After = case get_at_least_n_log_lines(?LOGFILE,
                                           length(Before) + 1,
@@ -131,7 +148,7 @@ acc_is_formatted(Config) ->
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
     Pid = unicode:characters_to_binary(pid_to_list(self())).
 
-preserve_acc(Config) ->
+acc_is_preserved(Config) ->
     ok = logger:add_primary_filter(preserve_acc_filter, {fun mongoose_log_filter:preserve_acc_filter/2, no_state}),
 
     {_, File} = ?config(logger_backend, Config),
@@ -157,7 +174,7 @@ preserve_acc(Config) ->
     #{<<"level">> := <<"info">>,
       <<"meta">> := #{<<"file">> := _File,
                       <<"gl">> := _GLPid, <<"line">> := _Line,
-                      <<"mfa">> := <<"{json_formatter_SUITE,preserve_acc,1}">>,
+                      <<"mfa">> := <<"{json_formatter_SUITE,acc_is_preserved,1}">>,
                       <<"pid">> := Pid,
                       <<"report_cb">> := _Fun,
                       <<"time">> := DateTimeStrBin},
@@ -180,9 +197,56 @@ preserve_acc(Config) ->
 
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
-    Pid = unicode:characters_to_binary(pid_to_list(self())),
+    Pid = unicode:characters_to_binary(pid_to_list(self())).
 
-    ok = logger:remove_primary_filter(preserve_acc_filter).
+chars_limited(Config) ->
+
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+    CharsLimit = ?config(chars_limit, Config),
+
+    LongBinary = unicode:characters_to_binary([<<"a">> || _ <- lists:seq(1, CharsLimit*2)]),
+    LongText = unicode:characters_to_list(["a" || _ <- lists:seq(1, CharsLimit*2)]),
+    LongStruct = {["a" || _ <- lists:seq(1, CharsLimit*2)]},
+
+    ?LOG_INFO(#{what => chars_are_limited,
+                text => "JSON-match-this-chars-limited",
+                long_binary => LongBinary,
+                long_text => LongText,
+                long_struct => LongStruct}),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-chars-limited">>),
+
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    ShortenedBinary = binary_part(LongBinary, 0, CharsLimit),
+    ShortenedText = binary_part(unicode:characters_to_binary(LongText, utf8), 0, CharsLimit),
+    ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0p", [LongStruct], [{chars_limit, CharsLimit}])),
+
+    ct:pal("Shortened: ~p", [ShortenedBinary]),
+    ct:pal("ShortenedText: ~p", [ShortenedText]),
+    ct:pal("Shortened: ~p", [ShortenedStruct]),
+
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := _MFA,
+                      <<"pid">> := _Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := _DateTimeStrBin},
+      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"chars_are_limited">>,
+                                       <<"text">> := <<"JSON-match-this-chars-limited">>,
+                                       <<"long_binary">> := ShortenedBinary,
+                                       <<"long_text">> := ShortenedText,
+                                       <<"long_struct">> := ShortenedStruct}}}
+    = Decoded.
 
 %%
 %% Helpers
@@ -212,9 +276,11 @@ example_acc(Body) ->
       timestamp => 1598878576962100}.
 
 mongoose_logger_running() ->
+    mongoose_logger_running(#{}).
+mongoose_logger_running(HandlerConfig) ->
     HandlerID = ?HID,
     HandlerModule = logger_std_h,
-    HandlerConfig = #{level => info,
+    DefaultConfig = #{level => info,
                       config => #{file => ?LOGFILE},
                       formatter => {mongoose_json_formatter, #{}},
                       filters => [
@@ -224,6 +290,7 @@ mongoose_logger_running() ->
                           {format_stacktrace_filter, {fun mongoose_log_filter:format_stacktrace_filter/2, no_state}}
                       ]
     },
-    ok = logger:add_handler(HandlerID, HandlerModule, HandlerConfig),
+    Config = maps:merge(DefaultConfig, HandlerConfig),
+    ok = logger:add_handler(HandlerID, HandlerModule, Config),
     FileBackend = {HandlerID, ?LOGFILE},
     {ok, FileBackend}.
