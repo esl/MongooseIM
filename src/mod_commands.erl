@@ -23,7 +23,8 @@
          kick_session/3,
          get_recent_messages/3,
          get_recent_messages/4,
-         send_message/3
+         send_message/3,
+         send_stanza/1
         ]).
 
 -include("mongoose.hrl").
@@ -187,6 +188,17 @@ commands() ->
       {result, ok}
      ],
      [
+      {name, send_stanza},
+      {category, <<"stanzas">>},
+      {desc, <<"Send an arbitrary stanza">>},
+      {module, ?MODULE},
+      {function, send_stanza},
+      {action, create},
+      {security_policy, [user]},
+      {args, [{stanza, binary}]},
+      {result, ok}
+     ],
+     [
       {name, get_last_messages_with_everybody},
       {category, <<"messages">>},
       {desc, <<"Get n last messages from archive, optionally before a certain date (unixtime)">>},
@@ -274,6 +286,25 @@ send_message(From, To, Body) ->
     %% privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     ok.
+
+send_stanza(BinStanza) ->
+    case exml:parse(BinStanza) of
+        {ok, Packet} ->
+            F = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
+            T = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
+            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                      lserver => F#jid.lserver,
+                                      element => Packet}),
+
+            mongoose_hooks:user_send_packet(F#jid.lserver,
+                                            Acc0,
+                                            F, T, Packet),
+
+            ejabberd_router:route(F, T, Packet),
+            ok;
+        {error, Reason} ->
+            throw({badarg, io_lib:format("Malformed stanza: ~p", [Reason])})
+    end.
 
 list_contacts(Caller) ->
     CallerJID = jid:from_binary(Caller),

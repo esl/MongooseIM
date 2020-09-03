@@ -260,6 +260,28 @@ paths:
           description: The messages archived for the given user and the other party.
           schema:
             $ref: '#/definitions/messageList'
+  /stanzas:
+    post:
+      tags:
+        - "One-to-one messages"
+      parameters:
+        - name: message
+          in: body
+          description: The chat stanza
+          required: true
+          schema:
+            title: message
+            type: object
+            properties:
+              stanza:
+                description: the complete stanza
+                type: string
+                required: true
+                example: "<message from=\"alice@wonderlant.lit\" to=\"bob@wonderlant.lit\"><body>whatever</body></message>"
+      description: Send an arbitrary stanza (attributes from and two are required).
+      responses:
+        204:
+          description: Stanza was sent
   /contacts/{user}:
     get:
       description: "Returns all contacts from the user's roster"
