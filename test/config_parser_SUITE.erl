@@ -197,15 +197,25 @@ route_subdomain(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"route_subdomain">> => <<"c2s">>}})).
 
 mongooseimctl_access_commands(_Config) ->
-    AccessRule = #{<<"access_rule">> => <<"local">>,
-                   <<"commands">> => [<<"join_cluster">>],
+    AccessRule = #{<<"commands">> => [<<"join_cluster">>],
                    <<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}},
     ?eq([#local_config{key = mongooseimctl_access_commands,
                        value = [{local, ["join_cluster"], [{node, "mim1@host1"}]}]
                       }],
-        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> => [AccessRule]}})),
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                       #{<<"local">> => AccessRule}}})),
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, all, []}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                       #{<<"local">> => #{<<"commands">> => <<"all">>}}}})),
+    ?err(parse(#{<<"general">> =>
+                     #{<<"mongooseimctl_access_commands">> =>
+                           #{<<"local">> => #{<<"argument_restrictions">> =>
+                                                  #{<<"node">> => <<"mim1@host1">>}}}
+                      }})),
     ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                        [AccessRule#{<<"cat">> => <<"meow">>}]
+                                        #{<<"local">> => #{<<"commands">> => <<"none">>}}
                                    }})).
 
 routing_modules(_Config) ->
