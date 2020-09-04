@@ -37,7 +37,7 @@ groups() ->
                             rdbms_server_type,
                             override,
                             pgsql_users_number_estimate,
-                            route_subdomain,
+                            route_subdomains,
                             mongooseimctl_access_commands,
                             routing_modules,
                             replaced_wait_timeout,
@@ -191,10 +191,10 @@ pgsql_users_number_estimate(_Config) ->
     ?eq([#local_config{key = {pgsql_users_number_estimate, ?HOST}, value = true}], F(?HOST)),
     ?err(parse(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => 1200}})).
 
-route_subdomain(_Config) ->
-    [F] = parse(#{<<"general">> => #{<<"route_subdomain">> => <<"s2s">>}}),
-    ?eq([#local_config{key = {route_subdomain, ?HOST}, value = s2s}], F(?HOST)),
-    ?err(parse(#{<<"general">> => #{<<"route_subdomain">> => <<"c2s">>}})).
+route_subdomains(_Config) ->
+    [F] = parse(#{<<"general">> => #{<<"route_subdomains">> => <<"s2s">>}}),
+    ?eq([#local_config{key = {route_subdomains, ?HOST}, value = s2s}], F(?HOST)),
+    ?err(parse(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}})).
 
 mongooseimctl_access_commands(_Config) ->
     AccessRule = #{<<"commands">> => [<<"join_cluster">>],

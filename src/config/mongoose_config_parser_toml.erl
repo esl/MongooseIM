@@ -130,8 +130,8 @@ process_general([<<"override">>|_] = Path, Value) ->
     parse_list(Path, Value);
 process_general([<<"pgsql_users_number_estimate">>|_], V) ->
     ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
-process_general([<<"route_subdomain">>|_], V) ->
-    ?HOST_F([#local_config{key = {route_subdomain, Host}, value = b2a(V)}]);
+process_general([<<"route_subdomains">>|_], V) ->
+    ?HOST_F([#local_config{key = {route_subdomains, Host}, value = b2a(V)}]);
 process_general([<<"mongooseimctl_access_commands">>|_] = Path, Rules) ->
     [#local_config{key = mongooseimctl_access_commands, value = parse_section(Path, Rules)}];
 process_general([<<"routing_modules">>|_] = Path, Mods) ->
