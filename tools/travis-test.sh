@@ -286,10 +286,10 @@ if [ "$PRESET" == "dialyzer_only" ]; then
 elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
-  time maybe_run_eunit_tests
-  EUNIT_RESULT=$?
   time maybe_run_small_tests
   SMALL_RESULT=$?
+  time maybe_run_eunit_tests
+  EUNIT_RESULT=$?
   if [ "$SMALL_RESULT" -ne 0 ] || [ "$EUNIT_RESULT" -ne 0 ]; then
     exit 1
   fi
