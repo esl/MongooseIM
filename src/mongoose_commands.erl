@@ -159,16 +159,20 @@
 
 -type security() :: [admin | user]. %% later acl option will be added
 
--type errortype() :: denied | not_implemented | type_error | internal.
-%% we should agree on a set of atoms so that the frontend can map it to http codes
+-type errortype() :: denied | not_implemented | bad_request | type_error | not_found | internal.
+-type errorreason() :: term().
 
--type failure() :: {error, errortype(), binary()}.
+-type args() :: [{atom(), term()}] | map().
+-type failure() :: {error, errortype(), errorreason()}.
+-type success() :: ok | {ok, term()}.
 
 -export_type([t/0]).
+-export_type([caller/0]).
 -export_type([action/0]).
 -export_type([argspec/0]).
 -export_type([optargspec/0]).
 -export_type([errortype/0]).
+-export_type([errorreason/0]).
 -export_type([failure/0]).
 
 -type command_properties() :: [{atom(), term()}].
@@ -309,12 +313,12 @@ func_arity(Cmd) ->
     length(Cmd#mongoose_command.args) + length(Cmd#mongoose_command.optargs).
 
 %% @doc Command execution.
--spec execute(caller(), atom() | t(), [term()] | map()) ->
-        {ok, term()} | ok | failure().
+-spec execute(caller(), atom() | t(), args()) ->
+        success() | failure().
 execute(Caller, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [Command] -> execute_command(Caller, Command, Args);
-        [] -> {error, not_implemented, <<"This command is not supported">>}
+        [] -> {error, not_implemented, {command_not_supported, Name, sizeof(Args)}}
     end;
 execute(Caller, #mongoose_command{name = Name}, Args) ->
     execute(Caller, Name, Args).
@@ -344,21 +348,23 @@ unregister_commands(Commands) ->
         end,
         Commands).
 
+-spec execute_command(caller(), atom() | t(), args()) ->
+    success() | failure().
 execute_command(Caller, Command, Args) ->
     try check_and_execute(Caller, Command, Args) of
         ignore_result ->
             ok;
+        {error, Type, Reason} ->
+            {error, Type, Reason};
         Res ->
             {ok, Res}
     catch
-        {badarg, E} ->
-            {error, type_error, E};
-        {type_error, E} ->
-            {error, type_error, E};
-        permission_denied ->
-            {error, denied, <<"Command not available for this user">>};
-        caller_jid_mismatch ->
-            {error, denied, <<"Caller ids do not match">>};
+        % admittedly, not the best style of coding, in Erlang at least. But we have to do plenty
+        % of various checks, and in absence of something like Elixir's "with" construct we are
+        % facing a choice between throwing stuff or applying using some more or less tortured syntax
+        % to chain these checks.
+        throw:{Type, Reason} ->
+            {error, Type, Reason};
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => command_failed,
                          command_name => Command#mongoose_command.name,
@@ -375,7 +381,7 @@ add_defaults(Args, Opts) when is_map(Args) ->
 
 % @doc This performs many checks - types, permissions etc, may throw one of many exceptions
 %% returns what the func returned or just ok if command spec tells so
--spec check_and_execute(caller(), t(), [term()]|map()) -> term().
+-spec check_and_execute(caller(), t(), args()) -> success() | failure().
 check_and_execute(Caller, Command, Args) when is_map(Args) ->
     Args1 = add_defaults(Args, Command#mongoose_command.optargs),
     ArgList = maps_to_list(Args1, Command#mongoose_command.args, Command#mongoose_command.optargs),
@@ -386,8 +392,8 @@ check_and_execute(Caller, Command, Args) ->
         true ->
             ok;
         false ->
-            throw(permission_denied)
-    end,
+            throw({denied, "Command not available for this user"})
+        end,
     % check caller (if it is given in args, and the engine is called by a 'real' user, then it
     % must match
     check_caller(Caller, Command, Args),
@@ -406,24 +412,17 @@ check_and_execute(Caller, Command, Args) ->
     % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
-        {error, not_allowed} ->
-            throw(permission_denied);
-        {error, E} ->
-            throw({func_returned_error, E});
+        {error, Type, Reason} ->
+            {error, Type, Reason};
         _ ->
-            % transitional
-            ResSpec = case Command#mongoose_command.result of
-                            {ok, R} -> R;
-                            R -> R
-                      end,
-            check_type(ResSpec, Res),
-            maybe_ignore_result(ResSpec, Res)
+            case Command#mongoose_command.result of
+                ok ->
+                    ignore_result;
+                ResSpec ->
+                    check_type(ResSpec, Res),
+                    Res
+            end
     end.
-
-maybe_ignore_result(ok, _) ->
-    ignore_result;
-maybe_ignore_result(_, Res) ->
-    Res.
 
 check_type(ok, _) ->
     ok;
@@ -676,6 +675,8 @@ check_caller(Caller, #mongoose_command{caller_pos = CallerPos}, Args) ->
         ACal ->
             ok;
         _ ->
-            throw(caller_jid_mismatch)
+            throw({denied, "Caller ids do not match"})
     end.
 
+sizeof(#{} = M) -> maps:size(M);
+sizeof([_|_] = L) -> length(L).

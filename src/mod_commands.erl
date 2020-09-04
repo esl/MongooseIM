@@ -238,7 +238,7 @@ commands() ->
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
     case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
-        no_session -> <<"no active session">>;
+        no_session -> {error, denied, <<"no active session">> };
         {exit, <<"kicked">>} -> <<"kicked">>
     end.
 
@@ -256,11 +256,11 @@ register(Host, User, Password) ->
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
-            throw({exists, String});
+            {error, denied, String};
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
-            throw({error, String});
+            {error, internal, String};
         _ ->
             list_to_binary(io_lib:format("User ~s@~s successfully registered",
                                          [User, Host]))
@@ -291,18 +291,21 @@ send_stanza(BinStanza) ->
         {ok, Packet} ->
             F = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
             T = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                                      lserver => F#jid.lserver,
-                                      element => Packet}),
-
-            mongoose_hooks:user_send_packet(F#jid.lserver,
-                                            Acc0,
-                                            F, T, Packet),
-
-            ejabberd_router:route(F, T, Packet),
-            ok;
+            case {F, T} of
+                {#jid{}, #jid{}} ->
+                    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                              lserver => F#jid.lserver,
+                                              element => Packet}),
+                    mongoose_hooks:user_send_packet(F#jid.lserver,
+                                                    Acc0,
+                                                    F, T, Packet),
+                    ejabberd_router:route(F, T, Packet),
+                    ok;
+                _ ->
+                    {error, bad_request, "both from and to are required"}
+            end;
         {error, Reason} ->
-            throw({badarg, io_lib:format("Malformed stanza: ~p", [Reason])})
+            {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
     end.
 
 list_contacts(Caller) ->
@@ -329,7 +332,12 @@ add_contact(Caller, JabberID, Name) ->
 
 add_contact(Caller, JabberID, Name, Groups) ->
     CJid = jid:from_binary(Caller),
-    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+    case check_jids(Caller, JabberID) of
+        ok ->
+            mod_roster:set_roster_entry(CJid, JabberID, Name, Groups);
+        E ->
+            E
+    end.
 
 delete_contacts(Caller, ToDelete) ->
     maybe_delete_contacts(Caller, ToDelete, []).
@@ -378,8 +386,15 @@ get_recent_messages(Caller, With, Before, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    ejabberd_auth:set_password(User, Host, Password),
-    ok.
+    case ejabberd_auth:set_password(User, Host, Password) of
+        ok -> ok;
+        {error, empty_password} ->
+            {error, bad_request, "empty password"};
+        {error, not_allowed} ->
+            {error, denied, "password change not allowed"};
+        {error, invalid_jid} ->
+            {error, bad_request, "invalid jid"}
+    end.
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),
@@ -429,11 +444,21 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     L.
 
 subscription(Caller, Other, Action) ->
-    Act = decode_action(Action),
-    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+    case decode_action(Action) of
+        error ->
+            {error, bad_request, <<"invalid action">>};
+        Act ->
+            case check_jids(Caller, Other) of
+                ok ->
+                    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other));
+                E ->
+                    E
+            end
+    end.
 
 decode_action(<<"subscribe">>) -> subscribe;
-decode_action(<<"subscribed">>) -> subscribed.
+decode_action(<<"subscribed">>) -> subscribed;
+decode_action(_) -> error.
 
 -spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->
@@ -453,7 +478,21 @@ run_subscription(Type, CallerJid, OtherJid) ->
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 
-set_subscription(Caller, Other, <<"connect">>) ->
+
+set_subscription(Caller, Other, Action) ->
+    case check_jids(Caller, Other) of
+        ok ->
+            case Action of
+                A when A == <<"connect">>; A == <<"disconnect">> ->
+                    do_set_subscription(Caller, Other, Action);
+                _ ->
+                    {error, bad_request, <<"invalid action">>}
+            end;
+        E ->
+            E
+    end.
+
+do_set_subscription(Caller, Other, <<"connect">>) ->
     add_contact(Caller, Other),
     add_contact(Other, Caller),
     subscription(Caller, Other, <<"subscribe">>),
@@ -461,7 +500,15 @@ set_subscription(Caller, Other, <<"connect">>) ->
     subscription(Other, Caller, <<"subscribed">>),
     subscription(Caller, Other, <<"subscribed">>),
     ok;
-set_subscription(Caller, Other, <<"disconnect">>) ->
+do_set_subscription(Caller, Other, <<"disconnect">>) ->
     delete_contact(Caller, Other),
     delete_contact(Other, Caller),
     ok.
+
+check_jids(CallerJid, OtherJid) ->
+    case {jid:from_binary(CallerJid), jid:from_binary(OtherJid)} of
+        {C, J} when C == error; J == error ->
+            {error, bad_request, <<"invalid jid">>};
+        _ ->
+            ok
+    end.
