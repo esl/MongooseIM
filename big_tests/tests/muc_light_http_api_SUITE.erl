@@ -200,7 +200,7 @@ delete_room_by_non_owner(Config) ->
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
                                 {{<<"403">>, <<"Forbidden">>},
-                                 <<"Command not available for this user">>} =
+                                 <<"you can not delete this room">>} =
                                     check_delete_room(Config, RoomName, RoomName,
                                                       Alice, [Bob, Kate], Bob)
                         end).
@@ -210,7 +210,7 @@ delete_non_existent_room(Config) ->
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
-                                {{<<"500">>, _}, _} =
+                                {{<<"404">>, _}, <<"room does not exist">>} =
                                     check_delete_room(Config, RoomName, <<"some_non_existent_room">>,
                                                       Alice, [Bob, Kate], Alice)
                         end).
@@ -220,7 +220,7 @@ delete_room_without_having_a_membership(Config) ->
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
-                                {{<<"500">>, _}, _} =
+                                {{<<"403">>, _}, <<"given user does not occupy any room">>} =
                                     check_delete_room(Config, RoomName, RoomName,
                                                       Alice, [Bob], Kate)
                         end).

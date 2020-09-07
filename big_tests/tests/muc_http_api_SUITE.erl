@@ -32,11 +32,14 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, positive}].
+    [{group, positive},
+     {group, negative}].
 
 groups() ->
-    G = [{positive, [parallel], success_response() ++ complex()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    G = [{positive, [parallel], success_response() ++ complex()},
+         {negative, [parallel], failure_response()}],
+    G.
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 success_response() ->
     [
@@ -52,6 +55,9 @@ complex() ->
      multiparty_multiprotocol
     ].
 
+failure_response() ->
+    [failed_invites,
+     failed_messages].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -93,7 +99,15 @@ create_room(Config) ->
         Body = #{name => Name,
                  owner => escalus_client:short_jid(Alice),
                  nick => <<"ali">>},
-        {{<<"201">>, _}, Name} = rest_helper:post(admin, Path, Body),
+        Res = rest_helper:make_request(#{role => admin,
+                                         method => <<"POST">>,
+                                         path => Path,
+                                         body => Body,
+                                         return_headers => true}),
+        {{<<"201">>, _}, Headers, Name} = Res,
+        Exp = <<"/api/mucs/", Host/binary, "/", Name/binary>>,
+        Uri = uri_string:parse(proplists:get_value(<<"location">>, Headers)),
+        ?assertEqual(Exp, maps:get(path, Uri)),
         %% Service acknowledges room creation (10.1.1 Ex. 154), then
         %% (presumably 7.2.16) sends room subject, finally the IQ
         %% result of the IQ request (10.1.2) for an instant room. The
@@ -136,8 +150,6 @@ send_message_to_room(Config) ->
         Message = <<"Greetings!">>,
         Body = #{from => escalus_client:short_jid(Bob),
                  body => Message},
-        %% The HTTP call in question. Notice: status 200 because no
-        %% resource is created.
         {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Got = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, Got),
@@ -265,10 +277,56 @@ multiparty_multiprotocol(Config) ->
                          user_sees_message_from(Alice, Room, 2))
         end).
 
+failed_invites(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Name = set_up_room(Config, Alice),
+        BAlice = escalus_client:short_jid(Alice),
+        BBob = escalus_client:short_jid(Bob),
+        % non-existing room
+        {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
+        % invite with bad jid
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, BAlice, <<"@badjid">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, <<"@badjid">>, BBob),
+        ok
+    end).
+
+failed_messages(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Name = set_up_room(Config, Alice),
+        % non-existing room
+        BAlice = escalus_client:short_jid(Alice),
+        BBob = escalus_client:short_jid(Bob),
+        {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
+        % invite with bad jid
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, BAlice, <<"@badjid">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, <<"@badjid">>, BBob),
+        ok
+                                                        end).
+
 
 %%--------------------------------------------------------------------
 %% Ancillary (adapted from the MUC suite)
 %%--------------------------------------------------------------------
+
+set_up_room(Config, Alice) ->
+    % create a room first
+    Name = ?config(room_name, Config),
+    Host = <<"localhost">>,
+    Path = <<"/mucs/", Host/binary>>,
+    Body = #{name => Name,
+             owner => escalus_client:short_jid(Alice),
+             nick => <<"ali">>},
+    Res = rest_helper:post(admin, Path, Body),
+    {{<<"201">>, _}, Name} = Res,
+    Name.
+
+send_invite(RoomName, BinFrom, BinTo) ->
+    Path = <<"/mucs/localhost/", RoomName/binary, "/participants">>,
+    Reason = <<"I think you'll like this room!">>,
+    Body = #{sender => BinFrom,
+             recipient => BinTo,
+             reason => Reason},
+    rest_helper:post(admin, Path, Body).
 
 make_distinct_name(Prefix) ->
     {_, S, US} = os:timestamp(),

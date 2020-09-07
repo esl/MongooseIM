@@ -257,6 +257,10 @@ register(Host, User, Password) ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
             {error, denied, String};
+        {error, invalid_jid} ->
+            String = io_lib:format("Invalid jid: ~p@~p",
+                                   [User, Host]),
+            {error, bad_request, String};
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
@@ -267,24 +271,30 @@ register(Host, User, Password) ->
     end.
 
 unregister(Host, User) ->
-    ejabberd_auth:remove_user(User, Host),
-    <<"">>.
+    case ejabberd_auth:remove_user(User, Host) of
+        ok -> <<"ok">>;
+        error -> {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
+        {error, not_allowed} -> {error, forbidden, "User does not exist or you are not authorised properly"}
+    end.
 
 send_message(From, To, Body) ->
-    F = jid:from_binary(From),
-    T = jid:from_binary(To),
-    Packet = build_message(From, To, Body),
-    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                              lserver => F#jid.lserver,
-                              element => Packet}),
+    case parse_jid(From, To) of
+        {ok, F, T} ->
+            Packet = build_message(From, To, Body),
+            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                      lserver => F#jid.lserver,
+                                      element => Packet}),
 
-    mongoose_hooks:user_send_packet(F#jid.lserver,
-                                    Acc0,
-                                    F, T, Packet),
+            mongoose_hooks:user_send_packet(F#jid.lserver,
+                                            Acc0,
+                                            F, T, Packet),
 
-    %% privacy check is missing, but is it needed?
-    ejabberd_router:route(F, T, Packet),
-    ok.
+            %% privacy check is missing, but is it needed?
+            ejabberd_router:route(F, T, Packet),
+            ok;
+        E ->
+            E
+    end.
 
 send_stanza(BinStanza) ->
     case exml:parse(BinStanza) of
@@ -512,3 +522,17 @@ check_jids(CallerJid, OtherJid) ->
         _ ->
             ok
     end.
+
+parse_jid(Sender, Recipient) ->
+    case {parse_jid(Sender), parse_jid(Recipient)} of
+        {{error, Msg}, _} -> {error, type_error, Msg};
+        {_, {error, Msg}} -> {error, type_error, Msg};
+        {S, R} -> {ok, S, R}
+    end.
+
+parse_jid(Jid) ->
+    case jid:from_binary(Jid) of
+        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
+        B -> B
+    end.
+

@@ -71,7 +71,8 @@ groups() ->
                                befriend_and_alienate_auto,
                                invalid_roster_operations]},
          {dynamic_module, [], [stop_start_command_module]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    G.
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 auth_test_cases() ->
     [auth_passes_correct_creds,
@@ -87,6 +88,7 @@ test_cases() ->
      sessions_are_listed,
      session_can_be_kicked,
      messages_are_sent_and_received,
+     messages_error_handling,
      stanzas_are_sent_and_received,
      messages_are_archived,
      messages_can_be_paginated,
@@ -180,6 +182,12 @@ user_can_be_registered_and_removed(_Config) ->
     {?NOCONTENT, _} = delete(admin, <<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(admin, <<"/users/localhost">>),
     assert_notinlist(<<"mike@", Domain/binary>>, Lusers2),
+    % invalid jid
+    CrBadUser = #{username => <<"m@ke">>, password => <<"nicniema">>},
+    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, <<"/users/localhost">>, CrBadUser),
+    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = delete(admin, <<"/users/localhost/@mike">>),
+%%    {?FORBIDDEN, _} = delete(admin, <<"/users/localhost/mike">>), % he's already gone, but we
+%%    can't test it because ejabberd_auth_internal:remove_user/2 always returns ok, grrrr
     ok.
 
 sessions_are_listed(_) ->
@@ -210,6 +218,15 @@ messages_are_sent_and_received(Config) ->
         escalus:assert(is_chat_message, [maps:get(body, M1)], Res),
         Res1 = escalus:wait_for_stanza(Bob),
         escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
+    end).
+
+messages_error_handling(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(AliceJID, <<"@noway">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(<<"@noway">>, BobJID),
+        ok
     end).
 
 stanzas_are_sent_and_received(Config) ->
@@ -506,6 +523,11 @@ send_messages(Alice, Bob) ->
     M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
     {?NOCONTENT, _} = post(admin, <<"/messages">>, M1),
     {M, M1}.
+
+send_message_bin(BFrom, BTo) ->
+    % this is to trigger invalid jid errors
+    M = #{caller => BFrom, to => BTo, body => <<"whatever">>},
+    post(admin, <<"/messages">>, M).
 
 send_extended_message(From, To) ->
     M = #xmlel{name = <<"message">>,

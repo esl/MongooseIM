@@ -122,35 +122,44 @@ create_instant_room(Host, Name, Owner, Nick) ->
     %% Send IQ set to unlock the room.
     ejabberd_router:route(OwnerJID, BareRoomJID,
                           declination(OwnerJID, BareRoomJID)),
-    case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
-        {ok, true} ->
+    case verify_room(BareRoomJID, OwnerJID) of
+        ok ->
             Name;
-        {ok, false} ->
-            {error, room_remains_locked};
-        {error, not_found} = E ->
+        E ->
             E
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
-    S = jid:binary_to_bare(Sender),
-    R = jid:binary_to_bare(Recipient),
-    %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
-    X = #xmlel{name = <<"x">>,
-               attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                        {<<"jid">>, room_address(Name, Host)},
-                        {<<"reason">>, Reason}]
-              },
-    Invite = message(S, R, <<>>, [ X ]),
-    ejabberd_router:route(S, R, Invite).
+    case prep_jid(Sender, Recipient) of
+        {ok, S, R} ->
+            case verify_room(Host, Name, Sender) of
+                ok ->
+                    %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
+                    X = #xmlel{name = <<"x">>,
+                               attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
+                                        {<<"jid">>, room_address(Name, Host)},
+                                        {<<"reason">>, Reason}]
+                    },
+                    Invite = message(S, R, <<>>, [ X ]),
+                    ejabberd_router:route(S, R, Invite);
+                E ->
+                    E
+            end;
+        E ->
+            E
+    end.
 
 send_message_to_room(Host, Name, Sender, Message) ->
-    S = jid:binary_to_bare(Sender),
-    Room = jid:from_binary(room_address(Name, Host)),
-    B = #xmlel{name = <<"body">>,
-               children = [ #xmlcdata{ content = Message } ]
-              },
-    Stanza = message(S, Room, <<"groupchat">>, [ B ]),
-    ejabberd_router:route(S, Room, Stanza).
+    case prep_jid(Sender, room_address(Name, Host)) of
+        {ok, S, Room} ->
+            B = #xmlel{name = <<"body">>,
+                       children = [ #xmlcdata{ content = Message } ]
+            },
+            Stanza = message(S, Room, <<"groupchat">>, [ B ]),
+            ejabberd_router:route(S, Room, Stanza);
+        E ->
+            E
+    end.
 
 kick_user_from_room(Host, Name, Nick) ->
     %% All the machinery which is already deeply embedden in the MUC
@@ -172,6 +181,41 @@ kick_user_from_room(Host, Name, Nick) ->
 %%--------------------------------------------------------------------
 %% Ancillary
 %%--------------------------------------------------------------------
+
+-spec verify_room(jid:server(), mod_muc:room(), jid:literal_jid()) ->
+    {ok, true | false} | {error, term()}.
+verify_room(Host, RoomName, User) ->
+    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
+    BareRoomJID = jid:make(RoomName, MUCHost, <<"">>),
+    UserJID = jid:binary_to_bare(User),
+    verify_room(BareRoomJID, UserJID).
+
+-spec verify_room(jid:literal_jid(), jid:literal_jid()) ->
+    {ok, true | false} | {error, term()}.
+verify_room(BareRoomJID, OwnerJID) ->
+    case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
+        {ok, true} ->
+            ok;
+        {ok, false} ->
+            {error, internal, "room is locked"};
+        {error, not_found} ->
+            {error, not_found, "room does not exist"};
+        {error, Reason} ->
+            {error, internal, Reason}
+    end.
+
+prep_jid(Sender, Recipient) ->
+    case {prep_jid(Sender), prep_jid(Recipient)} of
+        {{error, Msg}, _} -> {error, type_error, Msg};
+        {_, {error, Msg}} -> {error, type_error, Msg};
+        {S, R} -> {ok, S, R}
+    end.
+
+prep_jid(Jid) ->
+    case jid:binary_to_bare(Jid) of
+        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
+        B -> B
+    end.
 
 room_address(Name, Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
