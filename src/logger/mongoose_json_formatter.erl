@@ -36,7 +36,9 @@ format_item(Item, FConfig) when is_map(Item) ->
     ML = [format_item({Key, Val}, FConfig) || {Key, Val} <- maps:to_list(Item)],
     lists:foldl(fun(Map1, Acc) -> maps:merge(Map1, Acc) end, #{}, ML);
 format_item({K, V}, FConfig) ->
-    #{format_item(K, FConfig) => format_item(V, FConfig)};
+    % Keys need to be strings in JSON
+    % We can get a nested structure as a key K here, it needs to be stringified
+    #{all_to_binary(K, FConfig) => format_item(V, FConfig)};
 format_item(Item, FConfig) when is_list(Item) ->
     case io_lib:printable_unicode_list(Item) of
         true ->
@@ -53,7 +55,7 @@ format_item(Item, FConfig) ->
 all_to_binary(S, FConfig) when is_binary(S) ->
     shorten_binary(S, FConfig);
 all_to_binary(Something, FConfig) ->
-    Chars = io_lib:format("~0tp", [Something], format_chars_limit(FConfig)),
+    Chars = format_str(Something, FConfig),
     unicode:characters_to_binary(Chars, utf8).
 
 shorten_binary(S, FConfig) ->
@@ -63,11 +65,17 @@ shorten_binary(S, FConfig) ->
     end.
 
 format_chars_limit(Config) ->
-    ConfigDef = maps:merge(default_config(), Config),
-    format_chars_limit_to_opts(maps:get(format_chars_limit, ConfigDef)).
+    format_chars_limit_to_opts(maps:get(format_chars_limit, Config)).
 
 format_chars_limit_to_opts(unlimited) -> [];
 format_chars_limit_to_opts(CharsLimit) -> [{chars_limit, CharsLimit}].
 
+format_str(S, #{format_depth := unlimited, format_chars_limit := L}) ->
+    io_lib:format("~0tp", [S], format_chars_limit_to_opts(L));
+format_str(S, #{format_depth := D, format_chars_limit := L}) ->
+    io_lib:format("~0tP", [S, D], format_chars_limit_to_opts(L)).
+
 default_config() ->
-    #{format_chars_limit => unlimited}.
+    #{format_chars_limit => unlimited,
+      format_depth => unlimited
+    }.

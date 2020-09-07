@@ -7,7 +7,8 @@
     something_is_formatted/1,
     acc_is_formatted/1,
     acc_is_preserved/1,
-    chars_limited/1
+    chars_limited/1,
+    format_depth_limited/1
 ]).
 
 -import(logger_helper, [filter_out_non_matching/2, get_at_least_n_log_lines/3, get_log/1]).
@@ -25,7 +26,8 @@ all() ->
         something_is_formatted,
         acc_is_formatted,
         acc_is_preserved,
-        chars_limited
+        chars_limited,
+        format_depth_limited
     ].
 
 init_per_testcase(acc_is_preserved, Config) ->
@@ -40,6 +42,13 @@ init_per_testcase(acc_is_preserved, Config) ->
                         ]},
     {ok, Backend} = mongoose_logger_running(ConfigFilters),
     [{logger_primary_config, LoggerConfig}, {logger_backend, Backend} | Config];
+init_per_testcase(format_depth_limited, Config) ->
+    LoggerConfig = logger:get_primary_config(),
+    logger:set_primary_config(level, info),
+    DepthLimit = 2,
+    ConfigFormatter = #{formatter => {mongoose_json_formatter, #{format_depth => DepthLimit}}},
+    {ok, Backend} = mongoose_logger_running(ConfigFormatter),
+    [{logger_primary_config, LoggerConfig}, {logger_backend, Backend}, {format_depth, DepthLimit}| Config];
 init_per_testcase(chars_limited, Config) ->
     LoggerConfig = logger:get_primary_config(),
     logger:set_primary_config(level, info),
@@ -230,10 +239,6 @@ chars_limited(Config) ->
     ShortenedText = binary_part(unicode:characters_to_binary(LongText, utf8), 0, CharsLimit),
     ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0p", [LongStruct], [{chars_limit, CharsLimit}])),
 
-    ct:pal("Shortened: ~p", [ShortenedBinary]),
-    ct:pal("ShortenedText: ~p", [ShortenedText]),
-    ct:pal("Shortened: ~p", [ShortenedStruct]),
-
     #{<<"level">> := <<"info">>,
       <<"meta">> := #{<<"file">> := _File,
                       <<"gl">> := _GLPid, <<"line">> := _Line,
@@ -245,6 +250,43 @@ chars_limited(Config) ->
                                        <<"text">> := <<"JSON-match-this-chars-limited">>,
                                        <<"long_binary">> := ShortenedBinary,
                                        <<"long_text">> := ShortenedText,
+                                       <<"long_struct">> := ShortenedStruct}}}
+    = Decoded.
+
+format_depth_limited(Config) ->
+
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+
+    FormatDepth = ?config(format_depth, Config),
+    DeepStruct = deep_tuple(FormatDepth*2),
+
+    ?LOG_INFO(#{what => format_depth_limited,
+                text => "JSON-match-this-struct-depth-limited",
+                long_struct => DeepStruct}),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-struct-depth-limited">>),
+
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0P", [DeepStruct, FormatDepth])),
+    
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := _MFA,
+                      <<"pid">> := _Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := _DateTimeStrBin},
+      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"format_depth_limited">>,
+                                       <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
                                        <<"long_struct">> := ShortenedStruct}}}
     = Decoded.
 
@@ -294,3 +336,8 @@ mongoose_logger_running(HandlerConfig) ->
     ok = logger:add_handler(HandlerID, HandlerModule, Config),
     FileBackend = {HandlerID, ?LOGFILE},
     {ok, FileBackend}.
+
+deep_tuple(1) ->
+    {"a"};
+deep_tuple(N) ->
+    {deep_tuple(N-1)}.
