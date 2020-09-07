@@ -75,6 +75,7 @@
          reload_dispatches/1,
          get_auth_details/1,
          is_known_auth_method/1,
+         error_response/4,
          make_unauthorized_response/2]).
 
 
@@ -100,7 +101,10 @@ create_admin_url_path(Command) ->
 create_user_url_path(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_commands:t(), cowboy_req:req(), http_api_state()) ->
+-spec process_request(Method :: method(),
+                      Command :: mongoose_commands:t(),
+                      Req :: cowboy_req:req() | {list(), cowboy_req:req()},
+                      State :: http_api_state()) ->
                       {any(), cowboy_req:req(), http_api_state()}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
@@ -128,15 +132,16 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
         {error, Type, Reason} ->
             handle_result(Method, {error, Type, Reason}, Req, State);
         ConvertedArgs ->
-            Result = execute_command(ConvertedArgs, Command, Entity),
-            handle_result(Method, Result, Req, State)
+            handle_result(Method,
+                          execute_command(ConvertedArgs, Command, Entity),
+                          Req, State)
     end.
 
 -type correct_result() :: mongoose_commands:success().
 -type error_result() ::  mongoose_commands:failure().
 
 -spec handle_result(Method, Result, Req, State) -> Return when
-      Method :: method(),
+      Method :: method() | no_call,
       Result :: correct_result() | error_result(),
       Req :: cowboy_req:req(),
       State :: http_api_state(),
@@ -146,8 +151,7 @@ handle_result(Verb, ok, Req, State) ->
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, nocontent}, Req, State) ->
-    Path = iolist_to_binary(cowboy_req:uri(Req)),
-    Req2 = maybe_add_location_header(nocontent, binary_to_list(Path), Req),
+    Req2 = cowboy_req:reply(204, Req),
     {stop, Req2, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     Path = iolist_to_binary(cowboy_req:uri(Req)),
@@ -168,7 +172,7 @@ handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
 handle_result(_, {error, Error, Reason}, Req, State) ->
     error_response(Error, Reason, Req, State);
 handle_result(no_call, _, Req, State) ->
-    error_response(not_implemented, Req, <<>>, State).
+    error_response(not_implemented, <<>>, Req, State).
 
 
 -spec parse_request_body(any()) -> {args_applied(), cowboy_req:req()} | {error, any()}.
@@ -202,26 +206,12 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
             {error, bad_request, Reason}
     end.
 
-
-%%-spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
-%%                      mongoose_commands:t(), admin | binary()) ->
-%%                      correct_result() | error_result().
-%%execute_command({error, _Type, _Reason} = Err, _, _) ->
-%%    Err; do we need this?
 -spec execute_command(mongoose_commands:args(),
                       mongoose_commands:t(),
                       mongoose_commands:caller()) ->
     correct_result() | error_result().
 execute_command(ArgMap, Command, Entity) ->
-    try
-        mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap)
-    catch
-        % do we need it?
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => execute_command_failed, class => Class,
-                         reason => Reason, stacktrace => StackTrace}),
-            {error, internal, Reason}
-    end.
+    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
 -spec maybe_add_caller(admin | binary()) -> list() | list({caller, binary()}).
 maybe_add_caller(admin) ->
@@ -229,7 +219,7 @@ maybe_add_caller(admin) ->
 maybe_add_caller(JID) ->
     [{caller, JID}].
 
--spec maybe_add_location_header(binary() | list() | nocontent, list(), any())
+-spec maybe_add_location_header(binary() | list(), list(), any())
     -> cowboy_req:req().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
     add_location_header(binary_to_list(Result), ResourcePath, Req);

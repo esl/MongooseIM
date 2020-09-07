@@ -71,8 +71,7 @@ groups() ->
                                befriend_and_alienate_auto,
                                invalid_roster_operations]},
          {dynamic_module, [], [stop_start_command_module]}],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 auth_test_cases() ->
     [auth_passes_correct_creds,

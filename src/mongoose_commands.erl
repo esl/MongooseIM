@@ -356,12 +356,12 @@ execute_command(Caller, Command, Args) ->
             ok;
         {error, Type, Reason} ->
             {error, Type, Reason};
-        Res ->
+        {ok, Res} ->
             {ok, Res}
     catch
         % admittedly, not the best style of coding, in Erlang at least. But we have to do plenty
         % of various checks, and in absence of something like Elixir's "with" construct we are
-        % facing a choice between throwing stuff or applying using some more or less tortured syntax
+        % facing a choice between throwing stuff or using some more or less tortured syntax
         % to chain these checks.
         throw:{Type, Reason} ->
             {error, Type, Reason};
@@ -381,7 +381,7 @@ add_defaults(Args, Opts) when is_map(Args) ->
 
 % @doc This performs many checks - types, permissions etc, may throw one of many exceptions
 %% returns what the func returned or just ok if command spec tells so
--spec check_and_execute(caller(), t(), args()) -> success() | failure().
+-spec check_and_execute(caller(), t(), args()) -> success() | failure() | ignore_result.
 check_and_execute(Caller, Command, Args) when is_map(Args) ->
     Args1 = add_defaults(Args, Command#mongoose_command.optargs),
     ArgList = maps_to_list(Args1, Command#mongoose_command.args, Command#mongoose_command.optargs),
@@ -420,7 +420,7 @@ check_and_execute(Caller, Command, Args) ->
                     ignore_result;
                 ResSpec ->
                     check_type(ResSpec, Res),
-                    Res
+                    {ok, Res}
             end
     end.
 
