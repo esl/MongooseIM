@@ -194,7 +194,6 @@ commands() ->
       {module, ?MODULE},
       {function, send_stanza},
       {action, create},
-      {security_policy, [user]},
       {args, [{stanza, binary}]},
       {result, ok}
      ],
