@@ -19,7 +19,8 @@ all() ->
      {group, general},
      {group, listen},
      {group, auth},
-     {group, pool}].
+     {group, pool},
+     {group, shaper_acl_access}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -100,7 +101,10 @@ groups() ->
                          pool_rdbms_keepalive_interval,
                          pool_rdbms_server,
                          pool_rdbms_port,
-                         pool_rdbms_tls]}
+                         pool_rdbms_tls]},
+     {shaper_acl_access, [parallel], [shaper,
+                                      acl,
+                                      access]}
     ].
 
 init_per_suite(Config) ->
@@ -766,6 +770,44 @@ pool_rdbms_tls(_Config) ->
     ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> =>
                                                       #{<<"certfile">> => true}})),
     ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
+
+%% tests: shaper, acl, access
+
+shaper(_Config) ->
+    ?eq([#config{key = {shaper, normal, global}, value = {maxrate, 1000}}],
+        parse(#{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}})),
+    ?err(parse(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}})),
+    ?err(parse(#{<<"shaper">> => #{<<"fast">> => #{}}})).
+
+acl(_Config) ->
+    ?eq([{acl, {local, global}, all}],
+        parse(#{<<"acl">> => #{<<"local">> => <<"all">>}})),
+    ?eq([{acl, {local, global}, {user_regexp, <<>>}}],
+        parse(#{<<"acl">> => #{<<"local">> => #{<<"user_regexp">> => <<>>}}})),
+    ?eq([{acl, {alice, global}, {node_regexp, <<"ali.*">>, <<".*host">>}}],
+        parse(#{<<"acl">> => #{<<"alice">> => #{<<"user_regexp">> => <<"ali.*">>,
+                                                <<"server_regexp">> => <<".*host">>}}})),
+    ?eq([{acl, {alice, global}, {user, <<"alice">>, <<"localhost">>}}],
+        parse(#{<<"acl">> => #{<<"alice">> => #{<<"user">> => <<"alice">>,
+                                                <<"server">> => <<"localhost">>}}})),
+    ?err(parse(#{<<"acl">> => #{<<"local">> => <<"everybody">>}})),
+    ?err(parse(#{<<"acl">> => #{<<"alice">> => #{<<"user_glob">> => <<"a*">>,
+                                                 <<"server_blog">> => <<"blog.localhost">>}}})).
+
+access(_Config) ->
+    ?eq([#config{key = {access, c2s, global}, value = [{deny, blocked},
+                                                       {allow, all}]}],
+        parse(#{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
+                                                  <<"value">> => <<"deny">>},
+                                                #{<<"acl">> => <<"all">>,
+                                                  <<"value">> => <<"allow">>}]}})),
+    ?eq([#config{key = {access, max_user_sessions, global}, value = [{10, all}]}],
+        parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
+                                                                <<"value">> => 10}]}})),
+    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}})),
+    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}})),
+    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
+                                                                 <<"value">> => 10}]}})).
 
 %% helpers for 'listen' tests
 

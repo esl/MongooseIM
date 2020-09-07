@@ -1342,7 +1342,7 @@ mod_vcard_ldap_uids(_, #{<<"attr">> := Attr}) ->
     [b2a(Attr)].
 
 -spec mod_vcard_ldap_vcard_map(path(), toml_section()) -> [option()].
-mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP, 
+mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP,
     <<"ldap_field">> := LF}) ->
     [{VF, LP, [LF]}].
 
@@ -1365,21 +1365,45 @@ process_acl([ACLName, _|Path], Content) ->
     [acl:to_record(host(Path), b2a(ACLName), acl_data(Content))].
 
 -spec acl_data(toml_value()) -> option().
-acl_data(Content) when is_map(Content) ->
-    case maps:to_list(Content) of
-        [{Key, Values}] when is_list(Values) ->
-            list_to_tuple([b2a(Key) | Values]);
-        [{Key, Value}] when is_binary(Value) ->
-            {b2a(Key), Value}
-    end;
-acl_data(Value) when is_binary(Value) -> b2a(Value).
+acl_data(<<"all">>) -> all;
+acl_data(<<"none">>) -> none;
+acl_data(M) ->
+    {AclName, AclKeys} = find_acl(M, lists:sort(maps:keys(M)), acl_keys()),
+    list_to_tuple([AclName | lists:map(fun(K) -> maps:get(K, M) end, AclKeys)]).
+
+find_acl(M, SortedMapKeys, [{AclName, AclKeys}|Rest]) ->
+    case lists:sort(AclKeys) of
+        SortedMapKeys -> {AclName, AclKeys};
+        _ -> find_acl(M, SortedMapKeys, Rest)
+    end.
+
+acl_keys() ->
+    [{user, [<<"user">>, <<"server">>]},
+     {user, [<<"user">>]},
+     {server, [<<"server">>]},
+     {resource, [<<"resource">>]},
+     {user_regexp, [<<"user_regexp">>, <<"server">>]},
+     {node_regexp, [<<"user_regexp">>, <<"server_regexp">>]},
+     {user_regexp, [<<"user_regexp">>]},
+     {server_regexp, [<<"server_regexp">>]},
+     {resource_regexp, [<<"resource_regexp">>]},
+     {user_glob, [<<"user_glob">>, <<"server">>]},
+     {node_glob, [<<"user_glob">>, <<"server_glob">>]},
+     {user_glob, [<<"user_glob">>]},
+     {server_glob, [<<"server_glob">>]},
+     {resource_glob, [<<"resource_glob">>]}
+    ].
 
 %% path: (host_config[].)access.*
 -spec process_access_rule(path(), toml_value()) -> [config()].
-process_access_rule([Name, _|Path], Contents) ->
-    Rules = [{access_rule_value(Value), b2a(ACL)} ||
-                #{<<"acl">> := ACL, <<"value">> := Value} <- Contents],
-    [#config{key = {access, b2a(Name), host(Path)}, value = Rules}].
+process_access_rule([Name, _|HostPath] = Path, Contents) ->
+    Rules = parse_list(Path, Contents),
+    [#config{key = {access, b2a(Name), host(HostPath)}, value = Rules}].
+
+%% path: (host_config[].)access.*[]
+-spec process_access_rule_item(path(), toml_section()) -> [option()].
+process_access_rule_item(_, #{<<"acl">> := ACL, <<"value">> := Value}) ->
+    [{access_rule_value(Value), b2a(ACL)}].
 
 host([]) -> global;
 host([{host, Host}, _]) -> Host.
@@ -1388,7 +1412,7 @@ host([{host, Host}, _]) -> Host.
 access_rule_value(B) when is_binary(B) -> b2a(B);
 access_rule_value(V) -> V.
 
-%% path: s2s
+%% path: (host_config[].)s2s
 -spec s2s_dns_opts(toml_section()) -> config_list().
 s2s_dns_opts(#{<<"dns_timeout">> := Timeout, <<"dns_retries">> := Retries}) ->
     [#local_config{key = s2s_dns_options, value = [{timeout, Timeout}, {retries, Retries}]}];
@@ -1753,6 +1777,7 @@ handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
 handler([_, <<"shaper">>]) -> fun process_shaper/2;
 handler([_, <<"acl">>]) -> fun process_acl/2;
 handler([_, <<"access">>]) -> fun process_access_rule/2;
+handler([_, _, <<"access">>]) -> fun process_access_rule_item/2;
 
 %% s2s
 handler([_, <<"s2s">>]) -> fun process_s2s_option/2;

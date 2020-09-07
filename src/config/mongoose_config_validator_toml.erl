@@ -222,6 +222,11 @@ validate([<<"port">>, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
          [{port, Value}]) ->
     validate_port(Value);
 
+%% shaper
+validate([_, <<"shaper">>],
+         [#config{value = {maxrate, Value}}]) ->
+    validate_positive_integer(Value);
+
 validate(_, _) ->
     ok.
 
