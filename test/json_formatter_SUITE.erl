@@ -8,7 +8,8 @@
     acc_is_formatted/1,
     acc_is_preserved/1,
     chars_limited/1,
-    format_depth_limited/1
+    format_depth_limited/1,
+    json_depth_limited/1
 ]).
 
 -import(logger_helper, [filter_out_non_matching/2, get_at_least_n_log_lines/3, get_log/1]).
@@ -27,7 +28,8 @@ all() ->
         acc_is_formatted,
         acc_is_preserved,
         chars_limited,
-        format_depth_limited
+        format_depth_limited,
+        json_depth_limited
     ].
 
 init_per_testcase(acc_is_preserved, Config) ->
@@ -56,6 +58,13 @@ init_per_testcase(chars_limited, Config) ->
     ConfigFormatter = #{formatter => {mongoose_json_formatter, #{format_chars_limit => CharsLimit}}},
     {ok, Backend} = mongoose_logger_running(ConfigFormatter),
     [{logger_primary_config, LoggerConfig}, {logger_backend, Backend}, {chars_limit, CharsLimit}| Config];
+init_per_testcase(json_depth_limited, Config) ->
+    LoggerConfig = logger:get_primary_config(),
+    logger:set_primary_config(level, info),
+    Depth = 5,
+    ConfigFormatter = #{formatter => {mongoose_json_formatter, #{depth => Depth}}},
+    {ok, Backend} = mongoose_logger_running(ConfigFormatter),
+    [{logger_primary_config, LoggerConfig}, {logger_backend, Backend}, {depth, Depth}| Config];
 init_per_testcase(_TC, Config) ->
     LoggerConfig = logger:get_primary_config(),
     logger:set_primary_config(level, info),
@@ -263,7 +272,7 @@ format_depth_limited(Config) ->
 
     ?LOG_INFO(#{what => format_depth_limited,
                 text => "JSON-match-this-struct-depth-limited",
-                long_struct => DeepStruct}),
+                deep_struct => DeepStruct}),
 
     After = case get_at_least_n_log_lines(?LOGFILE,
                                           length(Before) + 1,
@@ -277,7 +286,7 @@ format_depth_limited(Config) ->
     Decoded = jiffy:decode(Line, [return_maps]),
 
     ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0P", [DeepStruct, FormatDepth])),
-    
+
     #{<<"level">> := <<"info">>,
       <<"meta">> := #{<<"file">> := _File,
                       <<"gl">> := _GLPid, <<"line">> := _Line,
@@ -287,7 +296,49 @@ format_depth_limited(Config) ->
                       <<"time">> := _DateTimeStrBin},
       <<"msg">> := #{<<"report">> := #{<<"what">> := <<"format_depth_limited">>,
                                        <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
-                                       <<"long_struct">> := ShortenedStruct}}}
+                                       <<"deep_struct">> := ShortenedStruct}}}
+    = Decoded.
+
+
+json_depth_limited(Config) ->
+
+    {_, File} = ?config(logger_backend, Config),
+    Before = get_log(File),
+
+    Depth = ?config(depth, Config),
+    DeepList = deep_list(Depth*2),
+
+    ?LOG_INFO(#{what => json_depth_limited,
+                text => "JSON-match-this-json-depth-limited",
+                deep_list => DeepList}),
+
+    After = case get_at_least_n_log_lines(?LOGFILE,
+                                          length(Before) + 1,
+                                          timer:seconds(1)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+
+    [Line] = filter_out_non_matching(After -- Before, <<"JSON-match-this-json-depth-limited">>),
+
+    Decoded = jiffy:decode(Line, [return_maps]),
+
+    % 3 because it is 3 levels deep: msg => report => deep_list
+    ShortenedList = deep_list(Depth - 3, <<"...">>),
+    ct:pal("~p", [ShortenedList]),
+
+    ct:pal("decoded: ~p", [Decoded]),
+
+    #{<<"level">> := <<"info">>,
+      <<"meta">> := #{<<"file">> := _File,
+                      <<"gl">> := _GLPid, <<"line">> := _Line,
+                      <<"mfa">> := _MFA,
+                      <<"pid">> := _Pid,
+                      <<"report_cb">> := _Fun,
+                      <<"time">> := _DateTimeStrBin},
+      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"json_depth_limited">>,
+                                       <<"text">> := <<"JSON-match-this-json-depth-limited">>,
+                                       <<"deep_list">> := ShortenedList}}}
     = Decoded.
 
 %%
@@ -341,3 +392,10 @@ deep_tuple(1) ->
     {"a"};
 deep_tuple(N) ->
     {deep_tuple(N-1)}.
+
+deep_list(N) ->
+    deep_list(N, "a").
+deep_list(1, Content) ->
+    [Content];
+deep_list(N, Content) ->
+    [deep_list(N-1, Content)].
