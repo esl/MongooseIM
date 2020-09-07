@@ -278,7 +278,7 @@ paths:
                 type: string
                 required: true
                 example: "<message from=\"alice@wonderlant.lit\" to=\"bob@wonderlant.lit\"><body>whatever</body></message>"
-      description: Send an arbitrary stanza (attributes from and two are required).
+      description: Send an arbitrary stanza (attributes `from` and `to` are required).
       responses:
         204:
           description: Stanza was sent
