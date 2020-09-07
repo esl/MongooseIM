@@ -2,6 +2,7 @@
 #
 # Env variables:
 # - SMALL_TESTS
+# - EUNIT_TESTS
 # - COVER_ENABLED
 # - STOP_NODES (default false)
 set -o pipefail
@@ -10,9 +11,10 @@ IFS=$'\n\t'
 DEFAULT_PRESET=internal_mnesia
 PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
+EUNIT_TESTS="${EUNIT_TESTS:-false}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
 
-while getopts ":p::s::e::c:" opt; do
+while getopts ":p:s:e:c:" opt; do
   case $opt in
     p)
       PRESET=$OPTARG
@@ -22,6 +24,9 @@ while getopts ":p::s::e::c:" opt; do
       ;;
     c)
       COVER_ENABLED=$OPTARG
+      ;;
+    e)
+      EUNIT_TESTS=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -82,19 +87,39 @@ run_small_tests() {
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
+run_eunit_tests() {
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  make eunit
+  RESULT="$?"
+  tools/print-dots.sh stop
+  ## print execution results w/o compilation log
+  sed -n '/===> Performing EUnit tests.../,$p' "${BASE}/eunit.log"
+  return "$RESULT"
+}
+
 maybe_run_small_tests() {
   if [ "$SMALL_TESTS" = "true" ]; then
     echo "############################"
     echo "Running small tests (test/)"
     echo "############################"
-    echo "Advice: "
-    echo "    Add option \"-s false\" to skip embeded common tests"
-    echo "Example: "
-    echo "    ./tools/travis-test.sh -s false"
     run_small_tests
   else
     echo "############################"
     echo "Small tests skipped"
+    echo "############################"
+  fi
+}
+
+maybe_run_eunit_tests() {
+  if [ "$EUNIT_TESTS" = "true" ]; then
+    echo "############################"
+    echo "Running eunit tests"
+    echo "############################"
+    run_eunit_tests
+  else
+    echo "############################"
+    echo "Eunit tests skipped"
     echo "############################"
   fi
 }
@@ -143,6 +168,10 @@ run_tests() {
   SMALL_STATUS=$?
   echo "SMALL_STATUS=$SMALL_STATUS"
   echo ""
+  maybe_run_eunit_tests
+  EUNIT_STATUS=$?
+  echo "EUNIT_STATUS=$EUNIT_STATUS"
+  echo ""
   echo "############################"
   echo "Running big tests (big_tests)"
   echo "############################"
@@ -170,14 +199,15 @@ run_tests() {
   test $? -eq 1
   LOG_STATUS=$?
 
-  if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 -a $BIG_STATUS_BY_SUMMARY -eq 0 -a $LOG_STATUS -eq 0 ]
-  then
+  if [ $SMALL_STATUS -eq 0 ] && [ $EUNIT_STATUS -eq 0 ] && [ $BIG_STATUS -eq 0 ] &&
+     [ $BIG_STATUS_BY_SUMMARY -eq 0 ] && [ $LOG_STATUS -eq 0 ]; then
     RESULT=0
     echo "Build succeeded"
   else
     RESULT=1
     echo "Build failed:"
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
+    [ $EUNIT_STATUS -ne 0 ] && echo "    eunit tests failed"
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
@@ -256,9 +286,13 @@ if [ "$PRESET" == "dialyzer_only" ]; then
 elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
-  time run_small_tests
-  RESULT=$?
-  exit ${RESULT}
+  time maybe_run_small_tests
+  SMALL_RESULT=$?
+  time maybe_run_eunit_tests
+  EUNIT_RESULT=$?
+  if [ "$SMALL_RESULT" -ne 0 ] || [ "$EUNIT_RESULT" -ne 0 ]; then
+    exit 1
+  fi
 else
   [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
