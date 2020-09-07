@@ -163,6 +163,8 @@ handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
     {stop, Req3, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
+handle_result(_, {error, Error, Reason}, Req, State) when is_list(Reason) ->
+    error_response(Error, list_to_binary(Reason), Req, State);
 handle_result(_, {error, Error, _R}, Req, State) ->
     error_response(Error, Req, State);
 % handle_result(_, {error, Error}, Req, State) ->
