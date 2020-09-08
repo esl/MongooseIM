@@ -8,6 +8,7 @@
 -export([maps_or_pairs_foreach/2]).
 %% Busy Wait
 -export([wait_until/2, wait_until/3]).
+-export([parse_ip_netmask/1]).
 
 %% Private, just for warning
 -export([deprecated_logging/1]).
@@ -110,3 +111,38 @@ deprecated_logging(Location) ->
     Map = #{what => deprecated_logging_macro,
             text => <<"Deprecated logging macro is used in your code">>},
     mongoose_deprecations:log(Location, Map, [{log_level, warning}]).
+%% ------------------------------------------------------------------
+%% Parse IP
+%% ------------------------------------------------------------------
+
+parse_ip_netmask(S) ->
+    case string:tokens(S, "/") of
+        [IPStr] -> parse_ip_netmask(IPStr, undefined);
+        [IPStr, MaskStr] -> parse_ip_netmask(IPStr, MaskStr);
+        _ -> error
+    end.
+
+parse_ip_netmask(IPStr, undefined) ->
+    case inet_parse:address(IPStr) of
+        {ok, {_, _, _, _} = IP} ->
+            {ok, {IP, 32}};
+        {ok, {_, _, _, _, _, _, _, _} = IP} ->
+            {ok, {IP, 128}};
+        _ ->
+            error
+    end;
+parse_ip_netmask(IPStr, MaskStr) ->
+    case catch list_to_integer(MaskStr) of
+        Mask when is_integer(Mask),
+                  Mask >= 0 ->
+            case inet_parse:address(IPStr) of
+                {ok, {_, _, _, _} = IP} when Mask =< 32 ->
+                    {ok, {IP, Mask}};
+                {ok, {_, _, _, _, _, _, _, _} = IP} when Mask =< 128 ->
+                    {ok, {IP, Mask}};
+                _ ->
+                    error
+            end;
+        _ ->
+            error
+    end.
