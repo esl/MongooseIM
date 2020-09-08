@@ -20,8 +20,10 @@ format(E = #{msg := {string, String}}, FConfig) ->
     format(E#{msg := {report,
                       #{unstructured_log =>
                         unicode:characters_to_binary(io_lib:format(String, []))}}}, FConfig);
-format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
-    Formatted = format_item(E, maps:merge(default_config(), config_correct_depth(FConfig))),
+format(#{msg := {report, Report}, level := L, meta := M}, FConfig) when is_map(Report) ->
+    NewReport = maps:merge(Report, #{level => L, meta => M}),
+    NewConfig = maps:merge(default_config(), config_correct_depth(FConfig)),
+    Formatted = format_item(NewReport, NewConfig),
     unicode:characters_to_binary([jiffy:encode(Formatted), "\n"], utf8);
 format(Map = #{msg := {Format, Terms}}, FConfig) ->
     format(Map#{msg := {report,

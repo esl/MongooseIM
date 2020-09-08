@@ -111,11 +111,11 @@ something_is_formatted(Config) ->
                       <<"pid">> := Pid,
                       <<"report_cb">> := _Fun,
                       <<"time">> := DateTimeStrBin},
-      <<"msg">> := #{<<"report">> := #{<<"details">> := #{<<"entropy">> := <<"too_low">>},
-                                       <<"in">> := <<"config">>,
-                                       <<"txt">> := <<"JSON formatter test. JSON-match-this-something">>,
-                                       <<"user">> := #{<<"id">> := <<"12345">>,
-                                                       <<"name">> := <<"bbby">>}}}}
+      <<"details">> := #{<<"entropy">> := <<"too_low">>},
+      <<"in">> := <<"config">>,
+      <<"txt">> := <<"JSON formatter test. JSON-match-this-something">>,
+      <<"user">> := #{<<"id">> := <<"12345">>,
+                      <<"name">> := <<"bbby">>}}
     = Decoded,
 
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
@@ -150,17 +150,17 @@ acc_is_formatted(Config) ->
                       <<"report_cb">> := _Fun,
                       <<"time">> := DateTimeStrBin},
       % Because of the format_acc_filter/2 we don't get the full accumulator
-      <<"msg">> := #{<<"report">> := #{<<"acc_timestamp">> := DateTimeStrBin2,
-                                       <<"from_jid">> := <<"userA@localhost">>,
-                                       <<"origin_pid">> := Pid,
-                                       % format_packet_filter/2 changes the packet
-                                       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
-                                       <<"routing_modules">> := [<<"mongoose_router_1">>,<<"mongoose_router_2">>],
-                                       % Jiffy understands one element proplist as a K-V structure,
-                                       % but two tuples have to be represented as a string
-                                       <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
-                                       <<"to_jid">> := <<"userB@localhost">>,
-                                       <<"what">> := <<"routing_result">>}}} = Decoded,
+      <<"acc_timestamp">> := DateTimeStrBin2,
+      <<"from_jid">> := <<"userA@localhost">>,
+      <<"origin_pid">> := Pid,
+      % format_packet_filter/2 changes the packet
+      <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
+      <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
+      % Jiffy understands one element proplist as a K-V structure,
+      % but two tuples have to be represented as a string
+      <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+      <<"to_jid">> := <<"userB@localhost">>,
+      <<"what">> := <<"routing_result">>} = Decoded,
 
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin2)))),
@@ -197,18 +197,18 @@ acc_is_preserved(Config) ->
                       <<"report_cb">> := _Fun,
                       <<"time">> := DateTimeStrBin},
       % Because of the preserve_acc_filter/2 we get the full accumulator as acc_original
-      <<"msg">> := #{<<"report">> := #{<<"acc_original">> := A,
-                                       <<"acc_timestamp">> := DateTimeStrBin2,
-                                       <<"from_jid">> := <<"userA@localhost">>,
-                                       <<"origin_pid">> := Pid,
-                                       % format_packet_filter/2 changes the packet
-                                       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
-                                       <<"routing_modules">> := [<<"mongoose_router_1">>,<<"mongoose_router_2">>],
-                                       % Jiffy understands one element proplist as a K-V structure,
-                                       % but two tuples have to be represented as a string
-                                       <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
-                                       <<"to_jid">> := <<"userB@localhost">>,
-                                       <<"what">> := <<"routing_result">>}}} = Decoded,
+      <<"acc_original">> := A,
+      <<"acc_timestamp">> := DateTimeStrBin2,
+      <<"from_jid">> := <<"userA@localhost">>,
+      <<"origin_pid">> := Pid,
+      % format_packet_filter/2 changes the packet
+      <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
+      <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
+      % Jiffy understands one element proplist as a K-V structure,
+      % but two tuples have to be represented as a string
+      <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+      <<"to_jid">> := <<"userB@localhost">>,
+      <<"what">> := <<"routing_result">>} = Decoded,
 
     % This is not ideal but that's how the filter behaves
     A = iolist_to_binary(io_lib:format("~0p", [Acc])),
@@ -255,11 +255,11 @@ chars_limited(Config) ->
                       <<"pid">> := _Pid,
                       <<"report_cb">> := _Fun,
                       <<"time">> := _DateTimeStrBin},
-      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"chars_are_limited">>,
-                                       <<"text">> := <<"JSON-match-this-chars-limited">>,
-                                       <<"long_binary">> := ShortenedBinary,
-                                       <<"long_text">> := ShortenedText,
-                                       <<"long_struct">> := ShortenedStruct}}}
+      <<"what">> := <<"chars_are_limited">>,
+      <<"text">> := <<"JSON-match-this-chars-limited">>,
+      <<"long_binary">> := ShortenedBinary,
+      <<"long_text">> := ShortenedText,
+      <<"long_struct">> := ShortenedStruct}
     = Decoded.
 
 format_depth_limited(Config) ->
@@ -294,9 +294,9 @@ format_depth_limited(Config) ->
                       <<"pid">> := _Pid,
                       <<"report_cb">> := _Fun,
                       <<"time">> := _DateTimeStrBin},
-      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"format_depth_limited">>,
-                                       <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
-                                       <<"deep_struct">> := ShortenedStruct}}}
+      <<"what">> := <<"format_depth_limited">>,
+      <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
+      <<"deep_struct">> := ShortenedStruct}
     = Decoded.
 
 
@@ -323,11 +323,8 @@ json_depth_limited(Config) ->
 
     Decoded = jiffy:decode(Line, [return_maps]),
 
-    % 3 because it is 3 levels deep: msg => report => deep_list
-    ShortenedList = deep_list(Depth - 3, <<"...">>),
-    ct:pal("~p", [ShortenedList]),
-
-    ct:pal("decoded: ~p", [Decoded]),
+    % 1 because it is at the first level
+    ShortenedList = deep_list(Depth - 1, <<"...">>),
 
     #{<<"level">> := <<"info">>,
       <<"meta">> := #{<<"file">> := _File,
@@ -336,9 +333,9 @@ json_depth_limited(Config) ->
                       <<"pid">> := _Pid,
                       <<"report_cb">> := _Fun,
                       <<"time">> := _DateTimeStrBin},
-      <<"msg">> := #{<<"report">> := #{<<"what">> := <<"json_depth_limited">>,
-                                       <<"text">> := <<"JSON-match-this-json-depth-limited">>,
-                                       <<"deep_list">> := ShortenedList}}}
+      <<"what">> := <<"json_depth_limited">>,
+      <<"text">> := <<"JSON-match-this-json-depth-limited">>,
+      <<"deep_list">> := ShortenedList}
     = Decoded.
 
 %%
