@@ -8,15 +8,23 @@ For advanced configuration use the following files:
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
-# mongooseim.cfg
+# mongooseim.toml
 
-This file consists of multiple erlang tuples terminated with a period.
-In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're building from source) or `[MongooseIM install root]/etc/` if you're using a pre-built version.
+This [TOML](https://github.com/toml-lang/toml) file contains the configuration options for the MongooseIM server. It is located at `[MongooseIM repo root]/rel/files/` if you are building from source or `[MongooseIM install root]/etc/` if you are using a pre-built version.
 
-The tuple order is important, unless no `host_config` option is set.
-Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
+The file is divided into the following sections:
 
-`mongooseim.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
+* [**general**](advanced-configuration/general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
+* **listen** - Configured listeners, receiving incoming XMPP and HTTP connections.
+* **auth** - Supported client authentication methods and their options.
+* **outgoing_pools** - Outgoing connections to external services, including databases, message queues and HTTP services.
+* **services** - Internal services like an administration API and system metrics.
+* **modules** - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
+* **shaper** - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
+* **acl** - Access control lists, defining access groups to which connecting users are classified.
+* **access** - Access rules, specifying the privileges of the defined access groups.
+* **s2s** - Server-to-server connection options, used for connecting federated XMPP servers.
+* **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**.
 
 ## Options
 
@@ -29,28 +37,6 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 * Options labeled as "multi" (in this page) can be declared multiple times in a row, e.g. one per domain.
 
 * Section names below correspond with the ones in the file.
-
-### Override stored options
-
-* **override_global, override_local, override_acls** - optional
-    * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
-
-### Debugging
-
-* **loglevel** (local)
-    * **Description:** Log level configured with an integer: 0 (disabled), 1 (critical), 2 (error), 3 (warning), 4 (info), 5 (debug). Recommended values for production systems are 2 or 3 (5 is for development).
-
-
-### Served hostnames
-
-* **hosts** (global)
-    * **Description:** List of domains supported by this cluster.
-    * **Warning:** Extension modules and database backends will be started separately for every domain. When increasing the number of domains please make sure you have enough resources available (e.g. connection limit set in DBMS).
-    * **Example:** `["localhost", "domain2"]`
-
-* **route_subdomain** (local)
-    * **Description:** If a stanza is addressed to a subdomain of the served domain and this option is set to `s2s`, such a stanza will be transmitted over s2s. Without it, MongooseIM will try to route the stanza to one of the internal services.
-    * **Note:** `s2s` is the only valid value. Any other will simply disable the feature.
 
 ### Listening ports
 
@@ -118,18 +104,6 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Syntax:** `{s2s_max_retry_delay, Delay}.`
     * **Default:** 300
     * **Example:** `{s2s_max_retry_delay, 30}.`
-
-### Session backend
-
-* **sm_backend** (global)
-    * **Description:** Backend for storing user session data.
-      Currently all nodes in a cluster must have access to a complete session database.
-      Valid backends are `mnesia` and `redis`.
-      Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend.
-    * **Mnesia:** `{sm_backend, {mnesia, []}}`
-    * **Redis:** `{sm_backend, {redis, []}}`
-      Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
-      See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
 ### Authentication
 
@@ -222,34 +196,11 @@ The table below shows the supported SASL mechanisms for each authentication back
          {http, host, auth, [], [{server, "127.0.0.1"}]}
 ```
 
-### RDBMS connection setup
-
-RDBMS connection pools are set using [outgoing connections configuration](./advanced-configuration/outgoing-connections.md).
-There are some additional options that influence all database connections in the server:
-
-* **pgsql_users_number_estimate** (local)
-    * **Description:** PostgreSQL's internal structure can make the row counting slow.
-    Enabling this option uses alternative query to `SELECT COUNT`, that might be not as accurate but is always fast.
-    * **Syntax:** `{pgsql_users_number_estimate, false | true}`
-    * **Default:** `false`
-
-* **rdbms_server_type** (local)
-    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_rdbms_user` uses different query for `mssql`).
-    * **Syntax:** `{rdbms_server_type, Type}`
-    * **Supported values:** `mssql`, `pgsql` or `undefined`
-    * **Default:** `undefined`
-
 ### Traffic shapers
 
 * **shaper** (multi, global)
     * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
-
-* **max_fsm_queue** (local)
-    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion.
-                       This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations.
-                       **Use with caution!**
-    * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
 
 ### Access control lists
 
@@ -279,58 +230,7 @@ There are some additional options that influence all database connections in the
     * **Description:** Define an access rule for internal checks. The configuration file contains all built-in ones with proper comments.
     * **Syntax:** `{access, AtomName, [{Value, AclName}]}`
 
-* **registration_timeout** (local)
-    * **Description:** Limits the registration frequency from a single IP. Valid values are `infinity` or a number of seconds.
-
-* **mongooseimctl_access_commands** (local)
-    * **Description:** Defines access rules to chosen `mongooseimctl` commands.
-    * **Syntax:** `{mongooseimctl_access_commands, [Rule1, Rule2, ...]}.`
-    * **Rule syntax:** `{AccessRule, Commands, ArgumentRestrictions}`
-        * `AccessRule` - A name of a rule defined with `acl` config key.
-        * `Commands` - A list of command names (e.g. `["restart", "stop"]`) or `all`.
-        * `ArgumentRestrictions` - A list of permitted argument values (e.g. `[{domain, "localhost"}]`).
-    * **Example:** `{mongooseimctl_access_commands, [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]}.`
-
-### Default language
-
-* **language** (global)
-    * **Description:** Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
-    * **Default:** `en`
-
 ### Miscellaneous
-
-* **all_metrics_are_global** (local)
-    * **Description:** When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
-    * **Default:** `false`
-
-* **routing_modules** (local)
-    * **Description:** Provides an ordered list of modules used for routing messages. If one of the modules accepts packet for processing, the remaining ones are not called.
-    * **Syntax:** `{routing_modules, ModulesList}.`
-    * **Valid modules:**
-        * `mongoose_router_global` - Calls `filter_packet` hook.
-        * `mongoose_router_localdomain` - Routes packets addressed to a domain supported by the local cluster.
-        * `mongoose_router_external_localnode` - Delivers packet to an XMPP component connected to the node, which processes the request.
-        * `mongoose_router_external` - Delivers packet to an XMPP component connected to the local cluster.
-        * `ejabberd_s2s` - Forwards a packet to another XMPP cluster over XMPP Federation.
-    * **Default:** `[mongoose_router_global, mongoose_router_localdomain, mongoose_router_external_localnode, mongoose_router_external, ejabberd_s2s]`
-    * **Example:** `{routing_modules, [mongoose_router_global, mongoose_router_localdomain]}.`
-
-* **replaced_wait_timeout** (local)
-    * **Description:** When a user session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
-    * **Syntax:** `{replaced_wait_timeout, TimeInMilliseconds}`
-    * **Default:** `2000`
-
-* **cowboy_server_name** (local)
-    * **Description:** If configured, replaces Cowboy's default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** listeners started by the `ejabberd_cowboy` module.
-    * **Syntax:** `{cowboy_server_name, NewName}`
-    * **Default:** no value, i.e. `Cowboy` is used as a header value
-    * **Example:** `{cowboy_server_name, "Apache"}`
-
-* **hide_service_name** (local)
-    * **Description:** According to RFC 6210, even when a client sends invalid data after opening a connection, the server must open an XML stream and return a stream error anyway. For extra security, this option may be enabled. It changes MIM behaviour to simply close the connection without any errors returned (effectively hiding the server's identity).
-    * **Syntax:** `{hide_service_name, Boolean}`
-    * **Default:** `false`
-    * **Example:** `{hide_service_name, true}`
 
 ### Modules
 

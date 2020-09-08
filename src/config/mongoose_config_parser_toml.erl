@@ -130,10 +130,10 @@ process_general([<<"override">>|_] = Path, Value) ->
     parse_list(Path, Value);
 process_general([<<"pgsql_users_number_estimate">>|_], V) ->
     ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
-process_general([<<"route_subdomain">>|_], V) ->
-    ?HOST_F([#local_config{key = {route_subdomain, Host}, value = b2a(V)}]);
+process_general([<<"route_subdomains">>|_], V) ->
+    ?HOST_F([#local_config{key = {route_subdomains, Host}, value = b2a(V)}]);
 process_general([<<"mongooseimctl_access_commands">>|_] = Path, Rules) ->
-    [#local_config{key = mongooseimctl_access_commands, value = parse_list(Path, Rules)}];
+    [#local_config{key = mongooseimctl_access_commands, value = parse_section(Path, Rules)}];
 process_general([<<"routing_modules">>|_] = Path, Mods) ->
     [#local_config{key = routing_modules, value = parse_list(Path, Mods)}];
 process_general([<<"replaced_wait_timeout">>|_], V) ->
@@ -150,11 +150,11 @@ process_override(_Path, Override) ->
     [{override, b2a(Override)}].
 
 -spec ctl_access_rule(path(), toml_section()) -> [option()].
-ctl_access_rule(Path, Section = #{<<"access_rule">> := Rule}) ->
-    limit_keys([<<"access_rule">>, <<"commands">>, <<"argument_restrictions">>], Section),
+ctl_access_rule([Rule|_] = Path, Section) ->
+    limit_keys([<<"commands">>, <<"argument_restrictions">>], Section),
     [{b2a(Rule),
       parse_kv(Path, <<"commands">>, Section),
-      parse_kv(Path, <<"argument_restrictions">>, Section)}].
+      parse_kv(Path, <<"argument_restrictions">>, Section, #{})}].
 
 -spec ctl_access_commands(path(), toml_value()) -> option().
 ctl_access_commands(_Path, <<"all">>) -> all;

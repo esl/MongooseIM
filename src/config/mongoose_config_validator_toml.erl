@@ -49,7 +49,7 @@ validate([<<"override">>, <<"general">>],
 validate([<<"pgsql_users_number_estimate">>, <<"general">>],
          [#local_config{value = Value}]) ->
     validate_boolean(Value);
-validate([<<"route_subdomain">>, <<"general">>],
+validate([<<"route_subdomains">>, <<"general">>],
          [#local_config{value = Value}]) ->
     validate_enum(Value, [s2s]);
 validate([item, <<"routing_modules">>, <<"general">>],

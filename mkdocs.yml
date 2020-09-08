@@ -38,6 +38,7 @@ pages:
       - 'Basic Configuration': 'Basic-configuration.md'
       - 'Erlang Cookie Security': 'Erlang-cookie-security.md'
       - 'Advanced Configuration': 'Advanced-configuration.md'
+      - 'Configuration Options: general': 'advanced-configuration/general.md'
       - 'TLS hardening': 'advanced-configuration/TLS-hardening.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
       - 'Outgoing connections': 'advanced-configuration/outgoing-connections.md'
