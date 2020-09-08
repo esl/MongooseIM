@@ -110,10 +110,8 @@ process_general([<<"loglevel">>|_], V) ->
     [#local_config{key = loglevel, value = b2a(V)}];
 process_general([<<"hosts">>|_] = Path, Hosts) ->
     [#config{key = hosts, value = parse_list(Path, Hosts)}];
-process_general([<<"registration_timeout">>|_], <<"infinity">>) ->
-    [#local_config{key = registration_timeout, value = infinity}];
 process_general([<<"registration_timeout">>|_], V) ->
-    [#local_config{key = registration_timeout, value = V}];
+    [#local_config{key = registration_timeout, value = int_or_infinity(V)}];
 process_general([<<"language">>|_], V) ->
     [#config{key = language, value = V}];
 process_general([<<"all_metrics_are_global">>|_], V) ->
@@ -289,8 +287,7 @@ s2s_tls_option([Opt|_] = Path, Val) when Opt =:= <<"cacertfile">>;
 %% path: listen.http[].transport.*
 -spec cowboy_transport_opt(path(), toml_value()) -> [option()].
 cowboy_transport_opt([<<"num_acceptors">>|_], N) -> [{num_acceptors, N}];
-cowboy_transport_opt([<<"max_connections">>|_], <<"infinity">>) -> [{max_connections, infinity}];
-cowboy_transport_opt([<<"max_connections">>|_], N) -> [{max_connections, N}].
+cowboy_transport_opt([<<"max_connections">>|_], N) -> [{max_connections, int_or_infinity(N)}].
 
 %% path: listen.http[].protocol.*
 -spec cowboy_protocol_opt(path(), toml_value()) -> [option()].
@@ -329,18 +326,14 @@ cowboy_module_options(_, Opts) ->
 
 %% path: listen.http[].handlers.mod_websockets[].*
 -spec websockets_option(path(), toml_value()) -> [option()].
-websockets_option([<<"timeout">>|_], <<"infinity">>) ->
-    [{timeout, infinity}];
 websockets_option([<<"timeout">>|_], V) ->
-    [{timeout, V}];
+    [{timeout, int_or_infinity(V)}];
 websockets_option([<<"ping_rate">>|_], <<"none">>) ->
     [{ping_rate, none}];
 websockets_option([<<"ping_rate">>|_], V) ->
     [{ping_rate, V}];
-websockets_option([<<"max_stanza_size">>|_], <<"infinity">>) ->
-    [{max_stanza_size, infinity}];
 websockets_option([<<"max_stanza_size">>|_], V) ->
-    [{max_stanza_size, V}];
+    [{max_stanza_size, int_or_infinity(V)}];
 websockets_option([<<"service">>|_] = Path, Value) ->
     [{ejabberd_service, parse_section(Path, Value)}].
 
@@ -622,9 +615,7 @@ rabbit_option([<<"amqp_port">>|_], V) -> [{amqp_port, V}];
 rabbit_option([<<"amqp_username">>|_], V) -> [{amqp_username, b2l(V)}];
 rabbit_option([<<"amqp_password">>|_], V) -> [{amqp_password, b2l(V)}];
 rabbit_option([<<"confirms_enabled">>|_], V) -> [{confirms_enabled, V}];
-rabbit_option([<<"max_worker_queue_len">>|_], <<"infinity">>) ->
-     [{max_worker_queue_len, infinity}];
-rabbit_option([<<"max_worker_queue_len">>|_], V) -> [{max_worker_queue_len, V}].
+rabbit_option([<<"max_worker_queue_len">>|_], V) -> [{max_worker_queue_len, int_or_infinity(V)}].
 
 %% path: services.*
 -spec process_service(path(), toml_section()) -> [option()].
@@ -657,14 +648,10 @@ module_opt([<<"report_commands_node">>, <<"mod_adhoc">>|_], V) ->
     [{report_commands_node, V}];
 module_opt([<<"validity_period">>, <<"mod_auth_token">>|_] = Path, V) ->
     parse_list(Path, V);
-module_opt([<<"inactivity">>, <<"mod_bosh">>|_], <<"infinity">>) ->
-    [{inactivity, infinity}];
 module_opt([<<"inactivity">>, <<"mod_bosh">>|_], V) ->
-    [{inactivity, V}];
-module_opt([<<"max_wait">>, <<"mod_bosh">>|_], <<"infinity">>) ->
-    [{max_wait, infinity}];
+    [{inactivity, int_or_infinity(V)}];
 module_opt([<<"max_wait">>, <<"mod_bosh">>|_], V) ->
-    [{max_wait, V}];
+    [{max_wait, int_or_infinity(V)}];
 module_opt([<<"server_acks">>, <<"mod_bosh">>|_], V) ->
     [{server_acks, V}];
 module_opt([<<"backend">>, <<"mod_bosh">>|_], V) ->
@@ -812,14 +799,10 @@ module_opt([<<"load_permanent_rooms_at_startup">>, <<"mod_muc">>|_], V) ->
     [{load_permanent_rooms_at_startup, V}];
 module_opt([<<"hibernate_timeout">>, <<"mod_muc">>|_], V) ->
     [{hibernate_timeout, V}];
-module_opt([<<"hibernated_room_check_interval">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{hibernated_room_check_interval, infinity}];
 module_opt([<<"hibernated_room_check_interval">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_check_interval, V}];
-module_opt([<<"hibernated_room_timeout">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{hibernated_room_timeout, infinity}];
+    [{hibernated_room_check_interval, int_or_infinity(V)}];
 module_opt([<<"hibernated_room_timeout">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_timeout, V}];
+    [{hibernated_room_timeout, int_or_infinity(V)}];
 module_opt([<<"default_room">>, <<"mod_muc">>|_] = Path, V) ->
     Defaults = parse_section(Path, V),
     [{default_room_options, Defaults}];
@@ -850,24 +833,18 @@ module_opt([<<"equal_occupants">>, <<"mod_muc_light">>|_], V) ->
     [{equal_occupants, V}];
 module_opt([<<"legacy_mode">>, <<"mod_muc_light">>|_], V) ->
     [{legacy_mode, V}];
-module_opt([<<"rooms_per_user">>, <<"mod_muc_light">>|_], <<"infinity">>) ->
-    [{rooms_per_user, infinity}];
 module_opt([<<"rooms_per_user">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_user, V}];
+    [{rooms_per_user, int_or_infinity(V)}];
 module_opt([<<"blocking">>, <<"mod_muc_light">>|_], V) ->
     [{blocking, V}];
 module_opt([<<"all_can_configure">>, <<"mod_muc_light">>|_], V) ->
     [{all_can_configure, V}];
 module_opt([<<"all_can_invite">>, <<"mod_muc_light">>|_], V) ->
     [{all_can_invite, V}];
-module_opt([<<"max_occupants">>, <<"mod_muc_light">>|_], <<"infinity">>) ->
-    [{max_occupants, infinity}];
 module_opt([<<"max_occupants">>, <<"mod_muc_light">>|_], V) ->
-    [{max_occupants, V}];
-module_opt([<<"rooms_per_page">>, <<"mod_muc_light">>|_], <<"infinity">>) ->
-    [{rooms_per_page, infinity}];
+    [{max_occupants, int_or_infinity(V)}];
 module_opt([<<"rooms_per_page">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_page, V}];
+    [{rooms_per_page, int_or_infinity(V)}];
 module_opt([<<"rooms_in_rosters">>, <<"mod_muc_light">>|_], V) ->
     [{rooms_in_rosters, V}];
 module_opt([<<"config_schema">>, <<"mod_muc_light">>|_] = Path, V) ->
@@ -983,10 +960,8 @@ module_opt([<<"host">>, <<"mod_vcard">>|_], V) ->
     [{host, b2l(V)}];
 module_opt([<<"search">>, <<"mod_vcard">>|_], V) ->
     [{search, V}];
-module_opt([<<"matches">>, <<"mod_vcard">>|_], <<"infinity">>) ->
-    [{matches, infinity}];
 module_opt([<<"matches">>, <<"mod_vcard">>|_], V) ->
-    [{matches, V}];
+    [{matches, int_or_infinity(V)}];
 module_opt([<<"ldap_vcard_map">>, <<"mod_vcard">>|_] = Path, V) ->
     Maps = parse_list(Path, V),
     [{ldap_vcard_map, Maps}];
@@ -1536,6 +1511,9 @@ set_overrides(Overrides, State) ->
 b2a(B) -> binary_to_atom(B, utf8).
 
 b2l(B) -> binary_to_list(B).
+
+int_or_infinity(I) when is_integer(I) -> I;
+int_or_infinity(<<"infinity">>) -> infinity.
 
 -spec limit_keys([toml_key()], toml_section()) -> any().
 limit_keys(Keys, Section) ->
