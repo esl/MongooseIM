@@ -79,6 +79,8 @@ format_str(S, FConfig) when is_list(S) ->
         false ->
             do_format_str(S, FConfig)
     end;
+format_str(S, FConfig) when is_atom(S) ->
+    format_str(atom_to_list(S), FConfig);
 format_str(S, FConfig) ->
     do_format_str(S, FConfig).
 
@@ -90,7 +92,7 @@ do_format_str(S, #{format_depth := D, format_chars_limit := L}) ->
 process_metadata(#{meta := #{time := T} = M, level := L}) ->
     DiscardKeys = [time, gl, report_cb],
     #{level => L,
-      "when" => format_time(T),
+      'when' => format_time(T),
       meta => maps:without(DiscardKeys, M)}.
 
 config_correct_depth(C = #{depth := unlimited}) ->

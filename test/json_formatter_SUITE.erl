@@ -245,18 +245,18 @@ chars_limited(Config) ->
     ShortenedText = binary_part(unicode:characters_to_binary(LongText, utf8), 0, CharsLimit),
     ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0p", [LongStruct], [{chars_limit, CharsLimit}])),
 
-    #{<<"level">> := <<"info">>,
-      <<"when">> := _Time,
-      <<"meta">> := #{<<"file">> := _File,
-                      <<"line">> := _Line,
-                      <<"mfa">> := _MFA,
-                      <<"pid">> := _Pid},
-      <<"what">> := <<"chars_are_limited">>,
-      <<"text">> := <<"JSON-match-this-chars-limited">>,
-      <<"long_binary">> := ShortenedBinary,
-      <<"long_text">> := ShortenedText,
-      <<"long_struct">> := ShortenedStruct}
-    = Decoded.
+    ?assertMatch(#{<<"level">> := <<"info">>,
+                   <<"when">> := _Time,
+                   <<"meta">> := #{<<"file">> := _File,
+                                   <<"line">> := _Line,
+                                   <<"mfa">> := _MFA,
+                                   <<"pid">> := _Pid},
+                   <<"what">> := <<"chars_are_limited">>,
+                   <<"text">> := <<"JSON-match-this-chars-limited">>,
+                   <<"long_binary">> := ShortenedBinary,
+                   <<"long_text">> := ShortenedText,
+                   <<"long_struct">> := ShortenedStruct},
+                 Decoded).
 
 format_depth_limited(Config) ->
 
@@ -283,16 +283,16 @@ format_depth_limited(Config) ->
 
     ShortenedStruct = unicode:characters_to_binary(io_lib:format("~0P", [DeepStruct, FormatDepth])),
 
-    #{<<"level">> := <<"info">>,
-      <<"when">> := _Time,
-      <<"meta">> := #{<<"file">> := _File,
-                      <<"line">> := _Line,
-                      <<"mfa">> := _MFA,
-                      <<"pid">> := _Pid},
-      <<"what">> := <<"format_depth_limited">>,
-      <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
-      <<"deep_struct">> := ShortenedStruct}
-    = Decoded.
+    ?assertMatch(#{<<"level">> := <<"info">>,
+                   <<"when">> := _Time,
+                   <<"meta">> := #{<<"file">> := _File,
+                                   <<"line">> := _Line,
+                                   <<"mfa">> := _MFA,
+                                   <<"pid">> := _Pid},
+                   <<"what">> := <<"format_depth_limited">>,
+                   <<"text">> := <<"JSON-match-this-struct-depth-limited">>,
+                   <<"deep_struct">> := ShortenedStruct},
+                 Decoded).
 
 
 json_depth_limited(Config) ->
@@ -321,16 +321,16 @@ json_depth_limited(Config) ->
     % 1 because it is at the first level
     ShortenedList = deep_list(Depth - 1, <<"...">>),
 
-    #{<<"level">> := <<"info">>,
-      <<"when">> := _Time,
-      <<"meta">> := #{<<"file">> := _File,
-                      <<"line">> := _Line,
-                      <<"mfa">> := _MFA,
-                      <<"pid">> := _Pid},
-      <<"what">> := <<"json_depth_limited">>,
-      <<"text">> := <<"JSON-match-this-json-depth-limited">>,
-      <<"deep_list">> := ShortenedList}
-    = Decoded.
+    ?assertMatch(#{<<"level">> := <<"info">>,
+                   <<"when">> := _Time,
+                   <<"meta">> := #{<<"file">> := _File,
+                                   <<"line">> := _Line,
+                                   <<"mfa">> := _MFA,
+                                   <<"pid">> := _Pid},
+                   <<"what">> := <<"json_depth_limited">>,
+                   <<"text">> := <<"JSON-match-this-json-depth-limited">>,
+                   <<"deep_list">> := ShortenedList},
+                 Decoded).
 
 %%
 %% Helpers
@@ -344,9 +344,9 @@ example_acc(Body) ->
                            line => 116,
                            mfa => {ejabberd_router,route,3}},
       origin_pid => self(),
-      origin_stanza => <<<<"<message type='chat' id='1111'><body>">>/binary,
+      origin_stanza => <<"<message type='chat' id='1111'><body>",
                          Body/binary,
-                         <<"</body></message>">>/binary>>,
+                         "</body></message>">>,
       ref => make_ref(),
       stanza => #{element => {xmlel,<<"message">>,
                               [{<<"type">>,<<"chat">>},{<<"id">>,<<"1111">>}],
