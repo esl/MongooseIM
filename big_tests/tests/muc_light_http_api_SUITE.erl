@@ -53,7 +53,8 @@ success_response() ->
 negative_response() ->
     [delete_room_by_non_owner,
      delete_non_existent_room,
-     delete_room_without_having_a_membership
+     delete_room_without_having_a_membership,
+     create_non_unique_room
     ].
 
 %%--------------------------------------------------------------------
@@ -225,6 +226,23 @@ delete_room_without_having_a_membership(Config) ->
                                                       Alice, [Bob], Kate)
                         end).
 
+
+create_non_unique_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Domain = <<"localhost">>,
+        Path = <<"/muc-lights", $/, Domain/binary>>,
+        RandBits = base16:encode(crypto:strong_rand_bytes(5)),
+        Name = <<"wonderland">>,
+        RoomID = <<"just_some_id_", RandBits/binary>>,
+        Body = #{ id => RoomID,
+                  name => Name,
+                  owner => escalus_client:short_jid(Alice),
+                  subject => <<"Lewis Carol">>
+        },
+        {{<<"201">>, _}, _RoomJID} = rest_helper:putt(admin, Path, Body),
+        {{<<"403">>, _}, <<"Room already exists">>} = rest_helper:putt(admin, Path, Body),
+        ok
+    end).
 
 %%--------------------------------------------------------------------
 %% Ancillary (borrowed and adapted from the MUC and MUC Light suites)

@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2012 Erlang Solutions Ltd.
+%% Copyright 2012-2020 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -71,8 +71,7 @@ groups() ->
                                befriend_and_alienate_auto,
                                invalid_roster_operations]},
          {dynamic_module, [], [stop_start_command_module]}],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 auth_test_cases() ->
     [auth_passes_correct_creds,
@@ -242,18 +241,21 @@ sessions_are_listed(_) ->
     true = is_list(Sessions).
 
 session_can_be_kicked(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         % Alice is connected
-        Domain = domain(),
+        AliceJid = jid:nameprep(escalus_client:full_jid(Alice)),
+        AliceSessionPath = <<"/sessions/", (escalus_client:server(Alice))/binary,
+                             "/", (escalus_client:username(Alice))/binary,
+                             "/", (escalus_client:resource(Alice))/binary>>,
         {?OK, Sessions1} = gett(admin, "/sessions/localhost"),
-        assert_inlist(<<"alice@", Domain/binary, "/res1">>, Sessions1),
+        assert_inlist(AliceJid, Sessions1),
         % kick alice
-        {?NOCONTENT, _} = delete(admin, "/sessions/localhost/alice/res1"),
+        {?NOCONTENT, _} = delete(admin, AliceSessionPath),
         escalus:wait_for_stanza(Alice),
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett(admin, "/sessions/localhost"),
-        assert_notinlist(<<"alice@", Domain/binary, "/res1">>, Sessions2),
-        {?FORBIDDEN, <<"no active session">>} = delete(admin, "/sessions/localhost/alice/res1"),
+        assert_notinlist(AliceJid, Sessions2),
+        {?FORBIDDEN, <<"no active session">>} = delete(admin, AliceSessionPath),
         ok
     end).
 
@@ -531,7 +533,7 @@ invalid_roster_operations(Config) ->
             PutPathB = lists:flatten(["/contacts/@invalid_jid/", BobS]),
             {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
             PutPathC = lists:flatten([AlicePath, "/", BobS]),
-            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, PutPathB, #{action => <<"something stupid">>}),
+            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, PutPathC, #{action => <<"something stupid">>}),
             ManagePath = lists:flatten(["/contacts/",
                                         AliceS,
                                         "/",

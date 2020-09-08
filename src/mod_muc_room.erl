@@ -238,8 +238,8 @@ can_access_room(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm_compat:sync_send_all_state_event(Pid, {can_access_room, UserJID});
-        {error, Reason} ->
-            {error, Reason}
+        Error ->
+            Error
     end.
 
 %% @doc Return true if UserJID can read real user JIDs

@@ -183,15 +183,15 @@ kick_user_from_room(Host, Name, Nick) ->
 %%--------------------------------------------------------------------
 
 -spec verify_room(jid:server(), mod_muc:room(), jid:literal_jid()) ->
-    {ok, true | false} | {error, term()}.
+    ok | {error, internal | not_found, term()}.
 verify_room(Host, RoomName, User) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
     BareRoomJID = jid:make(RoomName, MUCHost, <<"">>),
     UserJID = jid:binary_to_bare(User),
     verify_room(BareRoomJID, UserJID).
 
--spec verify_room(jid:literal_jid(), jid:literal_jid()) ->
-    {ok, true | false} | {error, term()}.
+-spec verify_room(jid:jid(), jid:jid()) ->
+    ok | {error, internal | not_found, term()}.
 verify_room(BareRoomJID, OwnerJID) ->
     case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
         {ok, true} ->
@@ -199,9 +199,7 @@ verify_room(BareRoomJID, OwnerJID) ->
         {ok, false} ->
             {error, internal, "room is locked"};
         {error, not_found} ->
-            {error, not_found, "room does not exist"};
-        {error, Reason} ->
-            {error, internal, Reason}
+            {error, not_found, "room does not exist"}
     end.
 
 prep_jid(Sender, Recipient) ->

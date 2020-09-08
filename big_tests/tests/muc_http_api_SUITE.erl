@@ -38,8 +38,7 @@ all() ->
 groups() ->
     G = [{positive, [parallel], success_response() ++ complex()},
          {negative, [parallel], failure_response()}],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 success_response() ->
     [
@@ -127,6 +126,8 @@ invite_online_user_to_room(Config) ->
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
+        {{<<"404">>, _}, <<"room does not exist">>} = rest_helper:post(admin, Path, Body),
+        set_up_room(Config, Alice),
         {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
         is_direct_invitation(Stanza),

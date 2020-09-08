@@ -175,6 +175,8 @@ invite_to_room(Domain, RoomName, Sender, Recipient0) ->
                             [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
             ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                            <<"set">>, [Changes]));
+        {error, given_user_does_not_occupy_any_room} ->
+            {error, forbidden, "given user does not occupy any room"};
         {error, not_found} ->
             {error, not_found, "room does not exist"}
     end.
@@ -232,8 +234,7 @@ delete_room(DomainName, RoomName, Owner) ->
         {ok, RoomJID, owner} -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
         {ok, _, _} -> {error, denied, "you can not delete this room"};
         {error, given_user_does_not_occupy_any_room} -> {error, denied, "given user does not occupy any room"};
-        {error, not_found} -> {error, not_found, "room does not exist"};
-        {error, Reason} -> {error, internal, Reason}
+        {error, not_found} -> {error, not_found, "room does not exist"}
     end.
 
 %%--------------------------------------------------------------------
@@ -249,6 +250,8 @@ create_room(Domain, Identifier, RoomName, Creator, Subject) ->
     case mod_muc_light:try_to_create_room(C, MUCService, Config) of
         {ok, RoomUS, _} ->
             jid:to_binary(RoomUS);
+        {error, exists} ->
+            {error, denied, "Room already exists"};
         {error, Reason} ->
             {error, internal, Reason}
     end.
@@ -261,7 +264,7 @@ make_room_config(Name, Subject) ->
 -spec muc_light_room_name_to_jid_and_aff(UserJID :: jid:jid(),
                                          RoomName :: binary(),
                                          Domain :: jid:lserver()) ->
-    {ok, jid:jid(), aff()} | {error, given_user_does_not_occupy_any_room}.
+    {ok, jid:jid(), aff()} | {error, given_user_does_not_occupy_any_room} | {error, not_found}.
 muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
     UserUS = jid:to_lus(UserJID),
     case get_user_rooms(UserUS, Domain) of
