@@ -227,6 +227,51 @@ validate([_, <<"shaper">>],
          [#config{value = {maxrate, Value}}]) ->
     validate_positive_integer(Value);
 
+%% s2s
+validate([<<"timeout">>, <<"dns">>, <<"s2s">>],
+         [{timeout, Value}]) ->
+    validate_positive_integer(Value);
+validate([<<"retries">>, <<"dns">>, <<"s2s">>],
+         [{retries, Value}]) ->
+    validate_positive_integer(Value);
+validate([<<"port">>, <<"outgoing">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_port(Value);
+validate([<<"ip_versions">>, <<"outgoing">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_non_empty_list(Value);
+validate([<<"connection_timeout">>, <<"outgoing">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_timeout(Value);
+validate([<<"use_starttls">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_enum(Value, [false, optional, required, required_trusted]);
+validate([<<"certfile">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"default_policy">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_enum(Value, [allow, deny]);
+validate([<<"host">>, item, <<"address">>, <<"s2s">>],
+         [{host, Value}]) ->
+    validate_non_empty_binary(Value);
+validate([<<"ip_address">>, item, <<"address">>, <<"s2s">>],
+         [{ip_address, Value}]) ->
+    validate_ip_address(Value);
+validate([<<"port">>, item, <<"address">>, <<"s2s">>],
+         [{port, Value}]) ->
+    validate_port(Value);
+validate([item, <<"domain_certfile">>, <<"s2s">>],
+         [#local_config{key = {domain_certfile, Domain}, value = Certfile}]) ->
+    validate_non_empty_string(Domain),
+    validate_non_empty_string(Certfile);
+validate([<<"shared">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_non_empty_binary(Value);
+validate([<<"max_retry_delay">>, <<"s2s">>],
+         [#local_config{value = Value}]) ->
+    validate_positive_integer(Value);
+
 validate(_, _) ->
     ok.
 
@@ -261,6 +306,9 @@ validate_non_negative_integer_or_infinity(infinity) -> ok.
 
 validate_enum(Value, Values) ->
     true = lists:member(Value, Values).
+
+validate_ip_address(Value) ->
+    {ok, _} = inet:parse_address(Value).
 
 validate_port(Value) when is_integer(Value), Value >= 0, Value =< 65535 -> ok.
 
