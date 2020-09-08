@@ -25,7 +25,8 @@ format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
     NewReport = maps:merge(Report, NewMap),
     NewConfig = maps:merge(default_config(), config_correct_depth(FConfig)),
     Formatted = format_item(NewReport, NewConfig),
-    unicode:characters_to_binary([jiffy:encode(Formatted), "\n"], utf8);
+    B = jiffy:encode(Formatted),
+    <<B/binary, "\n">>;
 format(Map = #{msg := {Format, Terms}}, FConfig) ->
     format(Map#{msg := {report,
                         #{unstructured_log =>
@@ -57,9 +58,19 @@ format_time(T) ->
     TimeString = calendar:system_time_to_rfc3339(T, [{unit, microsecond}]),
     unicode:characters_to_binary(TimeString).
 
-all_to_binary(S, FConfig) when is_binary(S) ->
-    shorten_binary(S, FConfig);
+all_to_binary(Full, FConfig) when is_binary(Full) ->
+    Short = shorten_binary(Full, FConfig),
+    ShortUnicode = unicode:characters_to_binary(Short, utf8, utf8),
+    FullUnicode = unicode:characters_to_binary(Short, utf8, utf8),
+    case {ShortUnicode, FullUnicode} of
+        {<<_/binary>>, <<_/binary>>} -> ShortUnicode;
+        {{incomplete,Incomplete,_}, <<_/binary>>} -> Incomplete;
+        _ -> format_non_unicode(Full, FConfig)
+    end;
 all_to_binary(Something, FConfig) ->
+    format_non_unicode(Something, FConfig).
+
+format_non_unicode(Something, FConfig) ->
     Chars = format_str(Something, FConfig),
     unicode:characters_to_binary(Chars, utf8).
 
