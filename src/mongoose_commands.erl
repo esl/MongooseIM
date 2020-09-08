@@ -430,10 +430,16 @@ check_type(A, A) ->
     true;
 check_type({_Name, boolean}, Value) when is_boolean(Value) ->
     true;
+check_type({Name, boolean}, Value) ->
+    type_error("For ~p expected boolean, got ~p", [Name, Value]);
 check_type({_Name, binary}, Value) when is_binary(Value) ->
     true;
+check_type({Name, binary}, Value) ->
+    type_error("For ~p expected binary, got ~p", [Name, Value]);
 check_type({_Name, integer}, Value) when is_integer(Value) ->
     true;
+check_type({Name, integer}, Value) ->
+    type_error("For ~p expected integer, got ~p", [Name, Value]);
 check_type({_Name, [_] = LSpec}, Value) when is_list(Value) ->
     check_type(LSpec, Value);
 check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
