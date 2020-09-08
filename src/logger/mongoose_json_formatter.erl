@@ -60,11 +60,10 @@ all_to_binary(Something, FConfig) ->
     Chars = format_str(Something, FConfig),
     unicode:characters_to_binary(Chars, utf8).
 
-shorten_binary(S, FConfig) ->
-    case maps:get(format_chars_limit, FConfig) of
-        unlimited -> S;
-        L -> binary_part(S, 0, min(size(S), L))
-    end.
+shorten_binary(S, #{format_chars_limit := unlimited}) ->
+    S;
+shorten_binary(S, #{format_chars_limit := L}) ->
+    binary_part(S, 0, min(size(S), L)).
 
 format_chars_limit_to_opts(unlimited) -> [];
 format_chars_limit_to_opts(CharsLimit) -> [{chars_limit, CharsLimit}].
