@@ -358,7 +358,7 @@
   use_starttls = "optional"
   certfile = "tools/ssl/mongooseim/server.pem"
   default_policy = "allow"
-  outgoing_port = 5299
+  outgoing.port = 5299
 
   [[s2s.address]]
     host = "fed1"

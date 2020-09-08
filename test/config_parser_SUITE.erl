@@ -889,6 +889,8 @@ compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
+compare_values(s2s_dns_options, V1, V2) ->
+    compare_unordered_lists(V1, V2);
 compare_values(services, V1, V2) ->
     MetricsOpts1 = proplists:get_value(service_mongoose_system_metrics, V1),
     MetricsOpts2 = proplists:get_value(service_mongoose_system_metrics, V2),
