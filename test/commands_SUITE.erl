@@ -177,7 +177,7 @@ new_type_checker(_C) ->
     ok.
 
 t_check_type(Spec, Value) ->
-    R = try mongoose_commands:check_type(Spec, Value) of
+    R = try mongoose_commands:check_type(argument, Spec, Value) of
             true -> true
         catch
             E ->

@@ -179,7 +179,7 @@
 
 %%%% API
 
--export([check_type/2]).
+-export([check_type/3]).
 -export([init/0]).
 
 -export([register/1,
@@ -405,10 +405,10 @@ check_and_execute(Caller, Command, Args) ->
     ALen = length(Args),
     case SpecLen =/= ALen of
         true ->
-            type_error("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
+            type_error(argument, "Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
         _ -> ok
     end,
-    [check_type(S, A) || {S, A} <- lists:zip(FullSpec, Args)],
+    [check_type(argument, S, A) || {S, A} <- lists:zip(FullSpec, Args)],
     % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
@@ -419,63 +419,65 @@ check_and_execute(Caller, Command, Args) ->
                 ok ->
                     ignore_result;
                 ResSpec ->
-                    check_type(ResSpec, Res),
+                    check_type(return, ResSpec, Res),
                     {ok, Res}
             end
     end.
 
-check_type(ok, _) ->
+check_type(_, ok, _) ->
     ok;
-check_type(A, A) ->
+check_type(_, A, A) ->
     true;
-check_type({_Name, boolean}, Value) when is_boolean(Value) ->
+check_type(_, {_Name, boolean}, Value) when is_boolean(Value) ->
     true;
-check_type({Name, boolean}, Value) ->
-    type_error("For ~p expected boolean, got ~p", [Name, Value]);
-check_type({_Name, binary}, Value) when is_binary(Value) ->
+check_type(Mode, {Name, boolean}, Value) ->
+    type_error(Mode, "For ~p expected boolean, got ~p", [Name, Value]);
+check_type(_, {_Name, binary}, Value) when is_binary(Value) ->
     true;
-check_type({Name, binary}, Value) ->
-    type_error("For ~p expected binary, got ~p", [Name, Value]);
-check_type({_Name, integer}, Value) when is_integer(Value) ->
+check_type(Mode, {Name, binary}, Value) ->
+    type_error(Mode, "For ~p expected binary, got ~p", [Name, Value]);
+check_type(_, {_Name, integer}, Value) when is_integer(Value) ->
     true;
-check_type({Name, integer}, Value) ->
-    type_error("For ~p expected integer, got ~p", [Name, Value]);
-check_type({_Name, [_] = LSpec}, Value) when is_list(Value) ->
-    check_type(LSpec, Value);
-check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
-    type_error("~p is not a tuple", [Value]);
-check_type(Spec, Value) when is_tuple(Spec) ->
-    compare_tuples(Spec, Value);
-check_type([_Spec], []) ->
+check_type(Mode, {Name, integer}, Value) ->
+    type_error(Mode, "For ~p expected integer, got ~p", [Name, Value]);
+check_type(Mode, {_Name, [_] = LSpec}, Value) when is_list(Value) ->
+    check_type(Mode, LSpec, Value);
+check_type(Mode, Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
+    type_error(Mode, "~p is not a tuple", [Value]);
+check_type(Mode, Spec, Value) when is_tuple(Spec) ->
+    compare_tuples(Mode, Spec, Value);
+check_type(_, [_Spec], []) ->
     true;
-check_type([Spec], [H|T]) ->
-    check_type({none, Spec}, H),
-    check_type([Spec], T);
-check_type([], [_|_]) ->
+check_type(Mode, [Spec], [H|T]) ->
+    check_type(Mode, {none, Spec}, H),
+    check_type(Mode, [Spec], T);
+check_type(_, [], [_|_]) ->
     true;
-check_type([], []) ->
+check_type(_, [], []) ->
     true;
-check_type(Spec, Value) ->
-    type_error("Catch-all: ~p vs ~p", [Spec, Value]).
+check_type(Mode, Spec, Value) ->
+    type_error(Mode, "Catch-all: ~p vs ~p", [Spec, Value]).
 
-compare_tuples(Spec, Val) ->
+compare_tuples(Mode, Spec, Val) ->
     Ssize = tuple_size(Spec),
     Vsize = tuple_size(Val),
     case Ssize of
         Vsize ->
-            compare_lists(tuple_to_list(Spec), tuple_to_list(Val));
+            compare_lists(Mode, tuple_to_list(Spec), tuple_to_list(Val));
         _ ->
-            type_error("Tuples of different size: ~p and ~p", [Spec, Val])
+            type_error(Mode, "Tuples of different size: ~p and ~p", [Spec, Val])
     end.
 
-compare_lists([], []) ->
+compare_lists(_, [], []) ->
     true;
-compare_lists([S|Sp], [V|Val]) ->
-    check_type(S, V),
-    compare_lists(Sp, Val).
+compare_lists(Mode, [S|Sp], [V|Val]) ->
+    check_type(Mode, S, V),
+    compare_lists(Mode, Sp, Val).
 
-type_error(Fmt, V) ->
-    throw({type_error, io_lib:format(Fmt, V)}).
+type_error(argument, Fmt, V) ->
+    throw({type_error, io_lib:format(Fmt, V)});
+type_error(return, Fmt, V) ->
+    throw({internal, io_lib:format(Fmt, V)}).
 
 check_identifiers(update, [], _) ->
     baddef(identifiers, empty);
@@ -617,9 +619,9 @@ mapget(K, Map) ->
         V -> V
     catch
         error:{badkey, K} ->
-            type_error("Missing argument: ~p", [K]);
+            type_error(argument, "Missing argument: ~p", [K]);
         error:bad_key ->
-            type_error("Missing argument: ~p", [K])
+            type_error(argument, "Missing argument: ~p", [K])
     end.
 
 maps_to_list(Map, Args, Optargs) ->
@@ -627,7 +629,7 @@ maps_to_list(Map, Args, Optargs) ->
     ALen = maps:size(Map),
     case SpecLen of
         ALen -> ok;
-        _ -> type_error("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen])
+        _ -> type_error(argument, "Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen])
     end,
     [mapget(K, Map) || {K, _} <- Args] ++ [mapget(K, Map) || {K, _, _} <- Optargs].
 

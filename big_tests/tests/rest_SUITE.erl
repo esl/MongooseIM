@@ -92,7 +92,8 @@ test_cases() ->
      stanzas_are_sent_and_received,
      messages_are_archived,
      messages_can_be_paginated,
-     password_can_be_changed
+     password_can_be_changed,
+     types_are_checked_separately_for_args_and_return
     ].
 
 suite() ->
@@ -129,13 +130,58 @@ end_per_group(auth, _Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
+init_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
+    {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
+    rpc(code, load_binary, [Mod, "mod_commands_test.erl", Code]),
+    rpc(gen_mod, start_module, [<<"localhost">>, mod_commands_test, []]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
+end_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
+    rpc(gen_mod, stop_module, [<<"localhost">>, mod_commands_test]),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+rpc(M, F, A) ->
+    distributed_helper:rpc(distributed_helper:mim(), M, F, A).
+
+custom_module_code() ->
+    "-module(mod_commands_test).
+     -export([start/0, stop/0, start/2, stop/1, test_arg/1, test_return/1]).
+     start() -> mongoose_commands:register(commands()).
+     stop() -> mongoose_commands:unregister(commands()).
+     start(_,_) -> start().
+     stop(_) -> stop().
+     commands() ->
+         [
+          [
+           {name, test_arg},
+           {category, <<\"test_arg\">>},
+           {desc, <<\"List test_arg\">>},
+           {module, mod_commands_test},
+           {function, test_arg},
+           {action, create},
+           {args, [{arg, boolean}]},
+           {result, [{msg, binary}]}
+          ],
+          [
+           {name, test_return},
+           {category, <<\"test_return\">>},
+           {desc, <<\"List test_return\">>},
+           {module, mod_commands_test},
+           {function, test_return},
+           {action, create},
+           {args, [{arg, boolean}]},
+           {result, {msg, binary}}
+          ]
+         ].
+     test_arg(_) -> <<\"bleble\">>.
+     test_return(_) -> ok.
+     "
+.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -506,7 +552,19 @@ invalid_roster_operations(Config) ->
                                         "@bzzz",
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, MangePathA, #{action => <<"connect">>}),
+            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, MangePathB, #{action => <<"connect">>}),
+            ok
+        end
+    ).
+
+types_are_checked_separately_for_args_and_return(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(_Alice) ->
+            % argument doesn't pass typecheck
+            {?BAD_REQUEST, _} = post(admin, "/test_arg", #{arg => 1}),
+            % return value doesn't pass typecheck
+            {?ERROR, _} = post(admin, "/test_return", #{arg => true}),
             ok
         end
     ).
