@@ -247,7 +247,8 @@ process_term(Term, State) ->
         {outgoing_s2s_port, Port} ->
             add_option(outgoing_s2s_port, Port, State);
         {outgoing_s2s_options, Methods, Timeout} ->
-            add_option(outgoing_s2s_options, {Methods, Timeout}, State);
+            State1 = add_option(outgoing_s2s_families, Methods, State),
+            add_option(outgoing_s2s_timeout, Timeout, State1);
         {{s2s_addr, Host}, Addr} ->
             add_option({s2s_addr, list_to_binary(Host)}, Addr, State);
         {{global_distrib_addr, Host}, Addr} ->
