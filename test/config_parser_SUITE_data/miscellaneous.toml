@@ -3,6 +3,8 @@
     "localhost",
     "anonymous.localhost"
   ]
+  http_server_name = "Apache"
+  rdbms_server_type = "mssql"
   override = ["local", "global", "acls"]
   pgsql_users_number_estimate = true
   route_subdomains = "s2s"
