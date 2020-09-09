@@ -20,7 +20,8 @@ all() ->
      {group, listen},
      {group, auth},
      {group, pool},
-     {group, shaper_acl_access}].
+     {group, shaper_acl_access},
+     {group, s2s}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -104,7 +105,20 @@ groups() ->
                          pool_rdbms_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
-                                      access]}
+                                      access]},
+     {s2s, [parallel], [s2s_dns_timeout,
+                        s2s_dns_retries,
+                        s2s_outgoing_port,
+                        s2s_outgoing_ip_versions,
+                        s2s_outgoing_timeout,
+                        s2s_use_starttls,
+                        s2s_certfile,
+                        s2s_default_policy,
+                        s2s_address,
+                        s2s_ciphers,
+                        s2s_domain_certfile,
+                        s2s_shared,
+                        s2s_max_retry_delay]}
     ].
 
 init_per_suite(Config) ->
@@ -819,7 +833,91 @@ access(_Config) ->
     ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
                                                                  <<"value">> => 10}]}})).
 
-%% helpers for 'listen' tests
+%% tests: s2s
+
+s2s_dns_timeout(_Config) ->
+    ?eq([#local_config{key = s2s_dns_options, value = [{timeout, 5}]}],
+        parse(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}})).
+
+s2s_dns_retries(_Config) ->
+    ?eq([#local_config{key = s2s_dns_options, value = [{retries, 1}]}],
+        parse(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}})).
+
+s2s_outgoing_port(_Config) ->
+    ?eq([#local_config{key = outgoing_s2s_port, value = 5270}],
+        parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}})).
+
+s2s_outgoing_ip_versions(_Config) ->
+    ?eq([#local_config{key = outgoing_s2s_families, value = [ipv6, ipv4]}],
+        parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [6, 4]}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}})).
+
+s2s_outgoing_timeout(_Config) ->
+    ?eq([#local_config{key = outgoing_s2s_timeout, value = 5}],
+        parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5}}})),
+    ?eq([#local_config{key = outgoing_s2s_timeout, value = infinity}],
+        parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}})),
+    ?err(parse(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}})).
+
+s2s_use_starttls(_Config) ->
+    ?eq([#local_config{key = s2s_use_starttls, value = required}],
+        parse(#{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}})),
+    ?err(parse(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}})).
+
+s2s_certfile(_Config) ->
+    ?eq([#local_config{key = s2s_certfile, value = "cert.pem"}],
+        parse(#{<<"s2s">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse(#{<<"s2s">> => #{<<"certfile">> => []}})).
+
+s2s_default_policy(_Config) ->
+    [F] = parse(#{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
+    ?eq([#local_config{key = {s2s_default_policy, ?HOST}, value = deny}], F(?HOST)),
+    ?err(parse(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}})).
+
+s2s_address(_Config) ->
+    Addr = #{<<"host">> => <<"host1">>,
+             <<"ip_address">> => <<"192.168.1.2">>,
+             <<"port">> => 5321},
+    ?eq([#local_config{key = {s2s_addr, <<"host1">>}, value = {"192.168.1.2", 5321}}],
+        parse(#{<<"s2s">> => #{<<"address">> => [Addr]}})),
+    ?eq([#local_config{key = {s2s_addr, <<"host1">>}, value = "192.168.1.2"}],
+        parse(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}})).
+
+s2s_ciphers(_Config) ->
+    ?eq([#local_config{key = s2s_ciphers, value = "TLSv1.2:TLSv1.3"}],
+        parse(#{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}})),
+    ?err(parse(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}})).
+
+s2s_domain_certfile(_Config) ->
+    DomCert = #{<<"domain">> => <<"myxmpp.com">>,
+                <<"certfile">> => <<"mycert.pem">>},
+    ?eq([#local_config{key = {domain_certfile, "myxmpp.com"}, value = "mycert.pem"}],
+        parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert]}})),
+    [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}}))
+     || K <- maps:keys(DomCert)],
+    [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}}))
+     || K <- maps:keys(DomCert)].
+
+s2s_shared(_Config) ->
+    [F] = parse(#{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
+    ?eq([#local_config{key = {s2s_shared, ?HOST}, value = <<"secret">>}], F(?HOST)),
+    ?err(parse(#{<<"s2s">> => #{<<"shared">> => 536837}})).
+
+s2s_max_retry_delay(_Config) ->
+    [F] = parse(#{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
+    ?eq([#local_config{key = {s2s_max_retry_delay, ?HOST}, value = 120}], F(?HOST)),
+    ?err(parse(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}})).
+
+%% Helpers for 'listen' tests
 
 listener_config(Mod, Opts) ->
     [#local_config{key = listen,
@@ -889,6 +987,8 @@ compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
+compare_values(s2s_dns_options, V1, V2) ->
+    compare_unordered_lists(V1, V2);
 compare_values(services, V1, V2) ->
     MetricsOpts1 = proplists:get_value(service_mongoose_system_metrics, V1),
     MetricsOpts2 = proplists:get_value(service_mongoose_system_metrics, V2),

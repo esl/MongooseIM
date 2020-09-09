@@ -313,7 +313,7 @@
   {{{s2s_use_starttls}}}
   {{{s2s_certfile}}}
   default_policy = {{{s2s_default_policy}}}
-  outgoing_port = {{{outgoing_s2s_port}}}
+  outgoing.port = {{{outgoing_s2s_port}}}
 
   {{{s2s_addr}}}
 
