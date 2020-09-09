@@ -35,13 +35,10 @@ format(Map = #{msg := {Format, Terms}}, FConfig) ->
 
 format_item(_Item, _FConfig = #{depth := 0}) ->
     <<"...">>;
-format_item(Item, FConfig) when is_map(Item) ->
-    ML = [format_item({Key, Val}, FConfig) || {Key, Val} <- maps:to_list(Item)],
-    lists:foldl(fun(Map1, Acc) -> maps:merge(Map1, Acc) end, #{}, ML);
-format_item({K, V}, FConfig = #{depth := Depth}) ->
-    % Keys need to be strings in JSON
-    % We can get a nested structure as a key K here, it needs to be stringified
-    #{all_to_binary(K, FConfig) => format_item(V, FConfig#{depth := Depth - 1})};
+format_item(Item, FConfig = #{depth := D}) when is_map(Item) ->
+    ML = [{all_to_binary(Key, FConfig),
+           format_item(Val, FConfig#{depth := D - 1})} || {Key, Val} <- maps:to_list(Item)],
+    maps:from_list(ML);
 format_item(Item, FConfig = #{depth := Depth}) when is_list(Item) ->
     case io_lib:printable_unicode_list(Item) of
         true ->

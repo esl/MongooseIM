@@ -110,7 +110,7 @@ something_is_formatted(Config) ->
                       <<"line">> := _Line,
                       <<"mfa">> := <<"{json_formatter_SUITE,something_is_formatted,1}">>,
                       <<"pid">> := Pid},
-      <<"details">> := #{<<"entropy">> := <<"too_low">>},
+      <<"details">> := <<"{entropy,too_low}">>,
       <<"in">> := <<"config">>,
       <<"txt">> := <<"JSON formatter test. JSON-match-this-something">>,
       <<"user">> := #{<<"id">> := <<"12345">>,
@@ -154,9 +154,7 @@ acc_is_formatted(Config) ->
       % format_packet_filter/2 changes the packet
       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
-      % Jiffy understands one element proplist as a K-V structure,
-      % but two tuples have to be represented as a string
-      <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+      <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
       <<"to_jid">> := <<"userB@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
 
@@ -201,9 +199,7 @@ acc_is_preserved(Config) ->
       % format_packet_filter/2 changes the packet
       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
-      % Jiffy understands one element proplist as a K-V structure,
-      % but two tuples have to be represented as a string
-      <<"routing_result">> := [<<"{{inside,two_tuples}}">>, #{<<"inside">> := <<"one_tuple">>}],
+      <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
       <<"to_jid">> := <<"userB@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
 
