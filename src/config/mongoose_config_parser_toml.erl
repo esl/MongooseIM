@@ -184,37 +184,7 @@ http_listener_opt([<<"protocol">>|_] = Path, Opts) ->
     [{protocol_options, parse_section(Path, Opts)}];
 http_listener_opt([<<"handlers">>|_] = Path, Handlers) ->
     [{modules, parse_section(Path, Handlers)}];
-http_listener_opt([<<"mongoose_api_admin">>|_] = Path, V) ->
-    Opts = parse_section(Path, V),
-    {_, Host} = proplists:lookup(host, Opts),
-    {_, P} = proplists:lookup(path, Opts),
-    {_, User} = proplists:lookup(username, Opts),
-    {_, Password} = proplists:lookup(password, Opts),
-    [{Host, P, mongoose_api_admin, [{auth, {User, Password}}]}];
-http_listener_opt([<<"mongoose_api_client">>|_] = Path, V) ->
-    Opts = parse_section(Path, V),
-    {_, Host} = proplists:lookup(host, Opts),
-    {_, P} = proplists:lookup(path, Opts),
-    [{Host, P, mongoose_api_client_contacts, []}];
 http_listener_opt(P, V) -> listener_opt(P, V).
-
-%% path: listen.http[].mongoose_api_admin.*
--spec mongoose_api_admin(path(), toml_section()) -> option().
-mongoose_api_admin([<<"host">>|_], V) ->
-    [{host, b2l(V)}];
-mongoose_api_admin([<<"path">>|_], V) ->
-    [{path, b2l(V)}];
-mongoose_api_admin([<<"username">>|_], V) ->
-    [{username, V}];
-mongoose_api_admin([<<"password">>|_], V) ->
-    [{password, V}].
-
-%% path: listen.http[].mongoose_api_admin.*
--spec mongoose_api_client(path(), toml_value()) -> [option()].
-mongoose_api_client([<<"host">>|_], V) ->
-    [{host, b2l(V)}];
-mongoose_api_client([<<"path">>|_], V) ->
-    [{path, b2l(V)}].
 
 %% path: listen.c2s[].*
 -spec c2s_listener_opt(path(), toml_value()) -> [option()].
@@ -312,6 +282,13 @@ cowboy_module_options([_, <<"cowboy_swagger_json_handler">>|_], Opts) ->
 cowboy_module_options([_, <<"mongoose_api">>|_] = Path, Opts) ->
     #{<<"handlers">> := _} = Opts,
     parse_section(Path, Opts);
+cowboy_module_options([_, <<"mongoose_api_admin">>|_], 
+    #{<<"username">> := User, <<"password">> := Pass}) ->
+    [{auth, {User, Pass}}];
+cowboy_module_options([_, <<"mongoose_api_admin">>|_], #{}) ->
+    [];
+cowboy_module_options([_, <<"mongoose_api_client">>|_], #{}) ->
+    [];
 cowboy_module_options(_, Opts) ->
     limit_keys([], Opts),
     [].
@@ -1571,8 +1548,6 @@ handler([_, <<"versions">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
 handler([_, <<"ciphers">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) -> fun tls_cipher/2;
 handler([_, <<"tls">>, _, <<"http">>, <<"listen">>]) -> fun https_option/2;
 handler([_, <<"transport">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_transport_opt/2;
-handler([_, <<"mongoose_api_admin">>, _, <<"http">>, <<"listen">>]) -> fun mongoose_api_admin/2;
-handler([_, <<"mongoose_api_client">>, _, <<"http">>, <<"listen">>]) -> fun mongoose_api_client/2;
 handler([_, <<"protocol">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_protocol_opt/2;
 handler([_, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun parse_list/2;
 handler([_, _, <<"handlers">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_module/2;
