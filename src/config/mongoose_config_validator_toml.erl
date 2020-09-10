@@ -224,13 +224,13 @@ validate([<<"strategy">>, _Tag, _Type, <<"outgoing_pools">>],
 validate([<<"call_timeout">>, _Tag, _Type, <<"outgoing_pools">>],
          [{call_timeout, Value}]) ->
     validate_positive_integer(Value);
-validate([<<"keepalive_interval">>, _Conn, _Tag, _Type, <<"outgoing_pools">>],
+validate([<<"keepalive_interval">>, _Conn, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
          [{keepalive_interval, Value}]) ->
     validate_positive_integer(Value);
-validate([{connection, Driver}, _Tag, _Type, <<"outgoing_pools">>],
+validate([{connection, Driver}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
          [_Value]) ->
     validate_enum(Driver, [odbc, pgsql, mysql]);
-validate([Key, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
+validate([Key, {connection, _}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
          [{_, Value}]) when Key =:= <<"host">>;
                             Key =:= <<"database">>;
                             Key =:= <<"username">>;
@@ -239,6 +239,21 @@ validate([Key, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
 validate([<<"port">>, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
          [{port, Value}]) ->
     validate_port(Value);
+validate([<<"host">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{server, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"path_prefix">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{path_prefix, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"request_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{request_timeout, Value}]) ->
+    validate_non_negative_integer(Value);
+validate([<<"http_opts">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{http_opts, Value}]) ->
+    validate_map(Value),
+    [validate_enum(Key, [retry, retry_timeout]) || Key <- maps:keys(Value)],
+    validate_non_negative_integer(maps:get(retry, Value, 1)),
+    validate_positive_integer(maps:get(retry_timeout, Value, 1));
 
 %% shaper
 validate([_, <<"shaper">>|Path],
@@ -348,3 +363,5 @@ validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
 
 validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
+
+validate_map(Value) when is_map(Value) -> ok.

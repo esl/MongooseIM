@@ -103,7 +103,11 @@ groups() ->
                          pool_rdbms_keepalive_interval,
                          pool_rdbms_server,
                          pool_rdbms_port,
-                         pool_rdbms_tls]},
+                         pool_rdbms_tls,
+                         pool_http_host,
+                         pool_http_path_prefix,
+                         pool_http_request_timeout,
+                         pool_http_opts]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -802,6 +806,32 @@ pool_rdbms_tls(_Config) ->
                                                       #{<<"certfile">> => true}})),
     ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
 
+pool_http_host(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{server, "https://localhost:8443"}]}),
+        parse_pool_conn(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"host">> => 8443})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"host">> => ""})).
+
+pool_http_path_prefix(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{path_prefix, "/"}]}),
+        parse_pool_conn(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"path_prefix">> => 8443})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"path_prefix">> => ""})).
+
+pool_http_request_timeout(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{request_timeout, 2000}]}),
+        parse_pool_conn(<<"http">>, #{<<"request_timeout">> => 2000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
+
+pool_http_opts(_Config) ->
+    HttpOpts = http_opts(),
+    ?eq(pool_config({http, global, default, [], 
+        [{http_opts, #{retry => 1, retry_timeout => 1000}}]}),
+        parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"retry">> => <<"infinity">>}})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"server">> => <<"localhost">>}})).
+
 %% tests: shaper, acl, access
 
 shaper(_Config) ->
@@ -970,6 +1000,10 @@ rdbms_opts() ->
       <<"database">> => <<"db">>,
       <<"username">> => <<"dbuser">>,
       <<"password">> => <<"secret">>}.
+
+http_opts() ->
+    #{<<"retry">> => 1, 
+      <<"retry_timeout">> => 1000}.
 
 %% helpers for 'host_config' tests
 
