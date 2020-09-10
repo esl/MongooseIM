@@ -46,20 +46,24 @@ validate([item, <<"override">>, <<"general">>],
 validate([<<"override">>, <<"general">>],
          Items) ->
     validate_unique_items(Items);
-validate([<<"pgsql_users_number_estimate">>, <<"general">>],
+validate([<<"pgsql_users_number_estimate">>, <<"general">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_boolean(Value);
-validate([<<"route_subdomains">>, <<"general">>],
+validate([<<"route_subdomains">>, <<"general">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [s2s]);
 validate([item, <<"routing_modules">>, <<"general">>],
          [Value]) ->
     validate_module(Value);
-validate([<<"replaced_wait_timeout">>, <<"general">>],
+validate([<<"replaced_wait_timeout">>, <<"general">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_positive_integer(Value);
-validate([<<"hide_service_name">>, <<"general">>],
+validate([<<"hide_service_name">>, <<"general">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_boolean(Value);
 
 %% listen
@@ -146,48 +150,62 @@ validate([item, _TypeBin, <<"handlers">>, item, <<"http">>, <<"listen">>],
     validate_module(Type);
 
 %% auth
-validate([item, <<"methods">>, <<"auth">>],
+validate([item, <<"methods">>, <<"auth">>|Path],
          [Value]) ->
+    validate_root_or_host_config(Path),
     validate_module(list_to_atom("ejabberd_auth_" ++ atom_to_list(Value)));
-validate([<<"password">>, <<"auth">>],
+validate([<<"password">>, <<"auth">>|Path],
          [{password_format, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_password_format(Value);
-validate([item, <<"hash">>, <<"password">>, <<"auth">>],
+validate([item, <<"hash">>, <<"password">>, <<"auth">>|Path],
          [Value]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [sha, sha224, sha256, sha384, sha512]);
-validate([<<"scram_iterations">>, <<"auth">>],
+validate([<<"scram_iterations">>, <<"auth">>|Path],
          [{scram_iterations, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_positive_integer(Value);
-validate([item, <<"cyrsasl_external">>, <<"auth">>],
+validate([item, <<"cyrsasl_external">>, <<"auth">>|Path],
          [{mod, Module}]) ->
+    validate_root_or_host_config(Path),
     validate_module(Module);
-validate([<<"allow_multiple_connections">>, <<"auth">>],
+validate([<<"allow_multiple_connections">>, <<"auth">>|Path],
          [{allow_multiple_connections, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_boolean(Value);
-validate([<<"anonymous_protocol">>, <<"auth">>],
+validate([<<"anonymous_protocol">>, <<"auth">>|Path],
          [{anonymous_protocol, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [sasl_anon, login_anon, both]);
-validate([Pool, <<"ldap">>, <<"auth">>],
+validate([Pool, <<"ldap">>, <<"auth">>|Path],
          [{_, Value}]) when Pool =:= <<"pool_tag">>;
                             Pool =:= <<"bind_pool_tag">> ->
+    validate_root_or_host_config(Path),
     validate_non_empty_atom(Value);
-validate([<<"operation">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+validate([<<"operation">>, <<"local_filter">>, <<"ldap">>, <<"auth">>|Path],
          [{operation, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [equal, not_equal]);
-validate([<<"attribute">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+validate([<<"attribute">>, <<"local_filter">>, <<"ldap">>, <<"auth">>|Path],
          [{attribute, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_non_empty_string(Value);
-validate([<<"values">>, <<"local_filter">>, <<"ldap">>, <<"auth">>],
+validate([<<"values">>, <<"local_filter">>, <<"ldap">>, <<"auth">>|Path],
          [{values, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_non_empty_list(Value);
-validate([<<"deref">>, <<"ldap">>, <<"auth">>],
+validate([<<"deref">>, <<"ldap">>, <<"auth">>|Path],
          [{ldap_deref, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [never, always, finding, searching]);
-validate([item, <<"sasl_mechanisms">>, <<"auth">>],
+validate([item, <<"sasl_mechanisms">>, <<"auth">>|Path],
          [Value]) ->
+    validate_root_or_host_config(Path),
     validate_module(Value);
-validate([<<"extauth_instances">>, <<"auth">>],
+validate([<<"extauth_instances">>, <<"auth">>|Path],
          [{extauth_instances, Value}]) ->
+    validate_root_or_host_config(Path),
     validate_positive_integer(Value);
 
 %% outgoing_pools
@@ -223,8 +241,9 @@ validate([<<"port">>, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
     validate_port(Value);
 
 %% shaper
-validate([_, <<"shaper">>],
+validate([_, <<"shaper">>|Path],
          [#config{value = {maxrate, Value}}]) ->
+    validate_root_or_host_config(Path),
     validate_positive_integer(Value);
 
 %% s2s
@@ -249,8 +268,9 @@ validate([<<"use_starttls">>, <<"s2s">>],
 validate([<<"certfile">>, <<"s2s">>],
          [#local_config{value = Value}]) ->
     validate_non_empty_string(Value);
-validate([<<"default_policy">>, <<"s2s">>],
+validate([<<"default_policy">>, <<"s2s">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_enum(Value, [allow, deny]);
 validate([<<"host">>, item, <<"address">>, <<"s2s">>],
          [{host, Value}]) ->
@@ -265,11 +285,13 @@ validate([item, <<"domain_certfile">>, <<"s2s">>],
          [#local_config{key = {domain_certfile, Domain}, value = Certfile}]) ->
     validate_non_empty_string(Domain),
     validate_non_empty_string(Certfile);
-validate([<<"shared">>, <<"s2s">>],
+validate([<<"shared">>, <<"s2s">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_non_empty_binary(Value);
-validate([<<"max_retry_delay">>, <<"s2s">>],
+validate([<<"max_retry_delay">>, <<"s2s">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
     validate_positive_integer(Value);
 
 validate(_, _) ->
@@ -323,3 +345,6 @@ validate_password_format(Value) -> validate_enum(Value, [scram, plain]).
 
 validate_pool_scope(Value) when is_binary(Value) -> validate_non_empty_binary(Value);
 validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
+
+validate_root_or_host_config([]) -> ok;
+validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.

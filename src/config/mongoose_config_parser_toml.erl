@@ -79,7 +79,7 @@ parse(Content) ->
 process_section([<<"listen">>] = Path, Content) ->
     Listeners = parse_section(Path, Content),
     [#local_config{key = listen, value = Listeners}];
-process_section([<<"auth">>] = Path, Content) ->
+process_section([<<"auth">>|_] = Path, Content) ->
     AuthOpts = parse_section(Path, Content),
     ?HOST_F(partition_auth_opts(AuthOpts, Host));
 process_section([<<"outgoing_pools">>] = Path, Content) ->
@@ -88,7 +88,7 @@ process_section([<<"outgoing_pools">>] = Path, Content) ->
 process_section([<<"services">>] = Path, Content) ->
     Services = parse_section(Path, Content),
     [#local_config{key = services, value = Services}];
-process_section([<<"modules">>] = Path, Content) ->
+process_section([<<"modules">>|_] = Path, Content) ->
     Mods = parse_section(Path, Content),
     ?HOST_F([#local_config{key = {modules, Host}, value = Mods}]);
 process_section([<<"host_config">>] = Path, Content) ->
@@ -96,7 +96,7 @@ process_section([<<"host_config">>] = Path, Content) ->
 process_section(Path, Content) ->
     parse_section(Path, Content).
 
-%% path: general.*
+%% path: (host_config[].)general.*
 -spec process_general(path(), toml_value()) -> [config()].
 process_general([<<"loglevel">>|_], V) ->
     [#local_config{key = loglevel, value = b2a(V)}];
@@ -467,7 +467,7 @@ pool_scope(#{<<"scope">> := Scope}) -> b2a(Scope);
 pool_scope(#{}) -> global.
 
 %% path: outgoing_pools.*.*.*,
-%%       modules.mod_event_pusher.backend.push.wpool.*
+%%       (host_config[].)modules.mod_event_pusher.backend.push.wpool.*
 -spec pool_option(path(), toml_value()) -> [option()].
 pool_option([<<"workers">>|_], V) -> [{workers, V}];
 pool_option([<<"strategy">>|_], V) -> [{strategy, b2a(V)}];
@@ -629,12 +629,12 @@ service_opt([<<"report">>, <<"service_mongoose_system_metrics">>|_], false) ->
 service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
     [{tracking_id, b2l(V)}].
 
-%% path: modules.*
+%% path: (host_config[].)modules.*
 -spec process_module(path(), toml_section()) -> [option()].
 process_module([Mod|_] = Path, Opts) ->
     [{b2a(Mod), parse_section(Path, Opts)}].
 
-%% path: modules.*.*
+%% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
 module_opt([<<"report_commands_node">>, <<"mod_adhoc">>|_], V) ->
     [{report_commands_node, V}];
@@ -987,7 +987,7 @@ module_opt([<<"ldap_deref">>|_], V) ->
 module_opt([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
-%% path: modules.*.riak.*
+%% path: (host_config[].)modules.*.riak.*
 -spec riak_opts(path(), toml_section()) -> [option()].
 riak_opts([<<"defaults_bucket_type">>|_], V) ->
     [{defaults_bucket_type, V}];
@@ -1379,7 +1379,7 @@ host([{host, Host}, _]) -> Host.
 access_rule_value(B) when is_binary(B) -> b2a(B);
 access_rule_value(V) -> V.
 
-%% path: s2s.*
+%% path: (host_config[].)s2s.*
 -spec process_s2s_option(path(), toml_value()) -> config_list().
 process_s2s_option([<<"dns">>|_] = Path, V) ->
     [#local_config{key = s2s_dns_options, value = parse_section(Path, V)}];
@@ -1450,17 +1450,6 @@ process_host_item(Path, M) ->
     {_Host, Sections} = maps:take(<<"host">>, M),
     parse_section(Path, Sections).
 
-%% path: host_config[].*
--spec process_host_section(path(), toml_section()) -> config_list().
-process_host_section([<<"auth">>, {host, Host}|_] = Path, Content) ->
-    AuthOpts = parse_section(Path, Content),
-    partition_auth_opts(AuthOpts, Host);
-process_host_section([<<"modules">>|Tail] = Path, Content) ->
-    Mods = parse_section(Path, Content),
-    [#local_config{key = {modules, host(Tail)}, value = Mods}];
-process_host_section(Path, Content) ->
-    parse_section(Path, Content).
-
 %% path: listen.http[].tls.*,
 %%       listen.c2s[].tls.*,
 %%       outgoing_pools.rdbms.connection.tls.*,
@@ -1480,7 +1469,7 @@ tls_option([<<"versions">>|_] = Path, L) -> [{versions, parse_list(Path, L)}].
 
 %% path: listen.http[].tls.*,
 %%       listen.c2s[].tls.*,,
-%%       modules.mod_global_distrib.connections.tls.*
+%%       (host_config[].)modules.mod_global_distrib.connections.tls.*
 -spec fast_tls_option(path(), toml_value()) -> [option()].
 fast_tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
 fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
@@ -1765,21 +1754,29 @@ handler([_, <<"domain_certfile">>, <<"s2s">>]) -> fun s2s_domain_cert/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
-handler([_, _, <<"host_config">>]) -> fun process_host_section/2;
-handler([_, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, _, <<"auth">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, _, _, <<"auth">>, _, <<"host_config">>] = P) ->
-    handler(strip_host(P));
-handler([_, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, _, _, <<"modules">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, <<"shaper">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, <<"acl">>, _, <<"host_config">>] = P) -> handler(strip_host(P));
-handler([_, <<"access">>, _, <<"host_config">>] = P) -> handler(strip_host(P)).
+handler([<<"auth">>, _, <<"host_config">>] = P) -> handler_for_host(P);
+handler([<<"modules">>, _, <<"host_config">>] = P) -> handler_for_host(P);
+handler([_, _, <<"host_config">>]) -> fun process_section/2;
+handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
+handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
+handler(Path) ->
+    case lists:reverse(Path) of
+        [<<"host_config">>, {host, _} | Rest] ->
+            handler(lists:reverse(Rest));
+        _ ->
+            throw({unhandled_config_path, Path})
+    end.
 
-strip_host(Path) ->
-    [<<"host_config">>, {host, _}|Rest] = lists:reverse(Path),
-    lists:reverse(Rest).
+%% 1. Strip host_config, choose the handler for the remaining path
+%% 2. Wrap the handler in a fun that calls the resulting function F for the current host
+-spec handler_for_host(path()) -> fun((path(), toml_value()) -> option()).
+handler_for_host(Path) ->
+    [<<"host_config">>, {host, Host} | Rest] = lists:reverse(Path),
+    Handler = handler(lists:reverse(Rest)),
+    fun(PathArg, ValueArg) ->
+            [F] = Handler(PathArg, ValueArg),
+            F(Host)
+    end.
 
 -spec key(toml_key(), path(), toml_value()) -> tuple() | toml_key().
 key(<<"tls">>, [item, <<"c2s">>, <<"listen">>], M) ->

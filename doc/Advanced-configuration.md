@@ -24,7 +24,7 @@ The file is divided into the following sections:
 * **acl** - Access control lists, defining access groups to which connecting users are classified.
 * **access** - Access rules, specifying the privileges of the defined access groups.
 * **s2s** - Server-to-server connection options, used for connecting federated XMPP servers.
-* **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**.
+* **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**, **s2s**.
 
 ## Options
 

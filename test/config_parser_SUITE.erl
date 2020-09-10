@@ -36,6 +36,7 @@ groups() ->
                             all_metrics_are_global,
                             sm_backend,
                             max_fsm_queue,
+                            http_server_name,
                             rdbms_server_type,
                             override,
                             pgsql_users_number_estimate,
@@ -147,7 +148,9 @@ outgoing_pools(Config) ->
 loglevel(_Config) ->
     ?eq([#local_config{key = loglevel, value = debug}],
         parse(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})),
-    ?err(parse(#{<<"general">> => #{<<"loglevel">> => <<"bebug">>}})).
+    ?err(parse(#{<<"general">> => #{<<"loglevel">> => <<"bebug">>}})),
+    %% make sure non-host options are not accepted in host_config
+    ?err(parse_host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
     ?eq([#config{key = hosts, value = [<<"host1">>, <<"host2">>]}],
@@ -187,7 +190,7 @@ max_fsm_queue(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"max_fsm_queue">> => -10}})).
 
 http_server_name(_Config) ->
-    ?eq([#local_config{key = cowqboy_server_name, value = "myserver"}],
+    ?eq([#local_config{key = cowboy_server_name, value = "my server"}],
         parse(#{<<"general">> => #{<<"http_server_name">> => <<"my server">>}})),
     ?err(parse(#{<<"general">> => #{<<"http_server_name">> => #{}}})).
 
@@ -205,14 +208,14 @@ override(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"override">> => [<<"pingpong">>]}})).
 
 pgsql_users_number_estimate(_Config) ->
-    [F] = parse(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => true}}),
-    ?eq([#local_config{key = {pgsql_users_number_estimate, ?HOST}, value = true}], F(?HOST)),
-    ?err(parse(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => 1200}})).
+    eq_host_config([#local_config{key = {pgsql_users_number_estimate, ?HOST}, value = true}],
+                  #{<<"general">> => #{<<"pgsql_users_number_estimate">> => true}}),
+    err_host_config(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => 1200}}).
 
 route_subdomains(_Config) ->
-    [F] = parse(#{<<"general">> => #{<<"route_subdomains">> => <<"s2s">>}}),
-    ?eq([#local_config{key = {route_subdomains, ?HOST}, value = s2s}], F(?HOST)),
-    ?err(parse(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}})).
+    eq_host_config([#local_config{key = {route_subdomains, ?HOST}, value = s2s}],
+                  #{<<"general">> => #{<<"route_subdomains">> => <<"s2s">>}}),
+    err_host_config(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}}).
 
 mongooseimctl_access_commands(_Config) ->
     AccessRule = #{<<"commands">> => [<<"join_cluster">>],
@@ -244,14 +247,14 @@ routing_modules(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}})).
 
 replaced_wait_timeout(_Config) ->
-    [F] = parse(#{<<"general">> => #{<<"replaced_wait_timeout">> => 1000}}),
-    ?eq([#local_config{key = {replaced_wait_timeout, ?HOST}, value = 1000}], F(?HOST)),
-    ?err(parse(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}})).
+    eq_host_config([#local_config{key = {replaced_wait_timeout, ?HOST}, value = 1000}],
+                  #{<<"general">> => #{<<"replaced_wait_timeout">> => 1000}}),
+    err_host_config(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}}).
 
 hide_service_name(_Config) ->
-    [F] = parse(#{<<"general">> => #{<<"hide_service_name">> => false}}),
-    ?eq([#local_config{key = {hide_service_name, ?HOST}, value = false}], F(?HOST)),
-    ?err(parse(#{<<"general">> => #{<<"hide_service_name">> => []}})).
+    eq_host_config([#local_config{key = {hide_service_name, ?HOST}, value = false}],
+                  #{<<"general">> => #{<<"hide_service_name">> => false}}),
+    err_host_config(#{<<"general">> => #{<<"hide_service_name">> => []}}).
 
 %% tests: listen
 
@@ -559,134 +562,138 @@ listen_http_handlers_api(_Config) ->
 %% tests: auth
 
 auth_methods(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
-         #local_config{key = {auth_method, ?HOST}, value = [internal, rdbms]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"methods">> => [<<"supernatural">>]}})).
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST}, value = []},
+       #local_config{key = {auth_method, ?HOST}, value = [internal, rdbms]}],
+      #{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
+    err_host_config(#{<<"auth">> => #{<<"methods">> => [<<"supernatural">>]}}).
 
 auth_password_format(_Config) ->
-    [F1] = parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                       <<"hash">> => [<<"sha">>,
-                                                                      <<"sha256">>]}}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{password_format, {scram, [sha, sha256]}}]}],
-        F1(?HOST)),
-    [F2] = parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{password_format, plain}]}], F2(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}})),
-    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                     <<"hash">> => []}}})),
-    ?err(parse(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                     <<"hash">> => [<<"sha1234">>]}}})).
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
+                     value = [{password_format, {scram, [sha, sha256]}}]}],
+      #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                            <<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
+                     value = [{password_format, plain}]}],
+      #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
+
+    err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}}),
+    err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                                         <<"hash">> => []}}}),
+    err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
+                                                         <<"hash">> => [<<"sha1234">>]}}}).
 
 auth_scram_iterations(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{scram_iterations, 1000}]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"scram_iterations">> => false}})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{scram_iterations, 1000}]}],
+                  #{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
+    err_host_config(#{<<"auth">> => #{<<"scram_iterations">> => false}}).
 
 auth_cyrsasl_external(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"cyrsasl_external">> =>
-                                      [<<"standard">>,
-                                       <<"common_name">>,
-                                       <<"cyrsasl_external_verification">>]}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{cyrsasl_external, [standard,
-                                                    common_name,
-                                                    {mod, cyrsasl_external_verification}]
-                                }]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"cyrsasl_external">> => [<<"unknown">>]}})).
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
+                     value = [{cyrsasl_external, [standard,
+                                                  common_name,
+                                                  {mod, cyrsasl_external_verification}]
+                              }]}],
+      #{<<"auth">> => #{<<"cyrsasl_external">> =>
+                            [<<"standard">>,
+                             <<"common_name">>,
+                             <<"cyrsasl_external_verification">>]}}),
+    err_host_config(#{<<"auth">> => #{<<"cyrsasl_external">> => [<<"unknown">>]}}).
 
 auth_allow_multiple_connections(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"allow_multiple_connections">> => true}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
-         #local_config{key = {allow_multiple_connections, ?HOST}, value = true}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"allow_multiple_connections">> => <<"yes">>}})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {allow_multiple_connections, ?HOST}, value = true}],
+                  #{<<"auth">> => #{<<"allow_multiple_connections">> => true}}),
+    err_host_config(#{<<"auth">> => #{<<"allow_multiple_connections">> => <<"yes">>}}).
 
 auth_anonymous_protocol(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"login_anon">>}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
-         #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"none">>}})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}],
+                  #{<<"auth">> => #{<<"anonymous_protocol">> => <<"login_anon">>}}),
+    err_host_config(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"none">>}}).
 
 auth_sasl_mechanisms(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
-         #local_config{key = {sasl_mechanisms, ?HOST},
-                       value = [cyrsasl_external, cyrsasl_scram]}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {sasl_mechanisms, ?HOST},
+                                 value = [cyrsasl_external, cyrsasl_scram]}],
+                  #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
+    err_host_config(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
 
 auth_ldap_pool(_Config) ->
-    [F] = parse_auth_ldap(#{<<"pool_tag">> => <<"ldap_pool">>}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_pool_tag, ldap_pool}]}], F(?HOST)),
-    ?err(parse_auth_ldap(#{<<"pool_tag">> => <<>>})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_pool_tag, ldap_pool}]}],
+                  auth_ldap(#{<<"pool_tag">> => <<"ldap_pool">>})),
+    err_host_config(auth_ldap(#{<<"pool_tag">> => <<>>})).
 
 auth_ldap_bind_pool(_Config) ->
-    [F] = parse_auth_ldap(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_bind_pool_tag, ldap_bind_pool}]}], F(?HOST)),
-    ?err(parse_auth_ldap(#{<<"bind_pool_tag">> => true})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_bind_pool_tag, ldap_bind_pool}]}],
+                  auth_ldap(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>})),
+    err_host_config(auth_ldap(#{<<"bind_pool_tag">> => true})).
+
 auth_ldap_base(_Config) ->
-    [F] = parse_auth_ldap(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_base, "ou=Users,dc=example,dc=com"}]}], F(?HOST)),
-    ?err(parse_auth_ldap(#{<<"base">> => 10})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_base, "ou=Users,dc=example,dc=com"}]}],
+                  auth_ldap(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>})),
+    err_host_config(auth_ldap(#{<<"base">> => 10})).
 
 auth_ldap_uids(_Config) ->
-    [F1] = parse_auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
-                                              <<"format">> => <<"user=%u">>}]}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_uids, [{"uid1", "user=%u"}]}]}], F1(?HOST)),
-    [F2] = parse_auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_uids, ["uid1"]}]}], F2(?HOST)),
-    ?err(parse_auth_ldap(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                       value = [{ldap_uids, [{"uid1", "user=%u"}]}]}],
+                  auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
+                                               <<"format">> => <<"user=%u">>}]})),
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_uids, ["uid1"]}]}],
+                  auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]})),
+    err_host_config(auth_ldap(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
 
 auth_ldap_filter(_Config) ->
-    [F] = parse_auth_ldap(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_filter, "(objectClass=inetOrgPerson)"}]}], F(?HOST)),
-    ?err(parse_auth_ldap(#{<<"filter">> => 10})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_filter, "(objectClass=inetOrgPerson)"}]}],
+                  auth_ldap(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>})),
+    err_host_config(auth_ldap(#{<<"filter">> => 10})).
 
 auth_ldap_dn_filter(_Config) ->
     Filter = #{<<"filter">> => <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
                <<"attributes">> => [<<"sn">>]},
-    [F] = parse_auth_ldap(#{<<"dn_filter">> => Filter}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_dn_filter, {"(&(name=%s)(owner=%D)(user=%u@%d))", ["sn"]}}]}],
-                       F(?HOST)),
-    [?err(parse_auth_ldap(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
+                     value = [{ldap_dn_filter, {"(&(name=%s)(owner=%D)(user=%u@%d))", ["sn"]}}]}],
+      auth_ldap(#{<<"dn_filter">> => Filter})),
+    [err_host_config(auth_ldap(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
         K <- maps:keys(Filter)],
-    ?err(parse_auth_ldap(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
-    ?err(parse_auth_ldap(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
+    err_host_config(auth_ldap(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
+    err_host_config(auth_ldap(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
 
 auth_ldap_local_filter(_Config) ->
     Filter = #{<<"operation">> => <<"equal">>,
                <<"attribute">> => <<"accountStatus">>,
                <<"values">> => [<<"enabled">>]},
-    [F] = parse_auth_ldap(#{<<"local_filter">> => Filter}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_local_filter, {equal, {"accountStatus", ["enabled"]}}}]}],
-                       F(?HOST)),
-    [?err(parse_auth_ldap(#{<<"local_filter">> => maps:without([K], Filter)})) ||
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
+                     value = [{ldap_local_filter, {equal, {"accountStatus", ["enabled"]}}}]}],
+      auth_ldap(#{<<"local_filter">> => Filter})),
+    [err_host_config(auth_ldap(#{<<"local_filter">> => maps:without([K], Filter)})) ||
         K <- maps:keys(Filter)],
-    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"operation">> := <<"less_than">>}})),
-    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
-    ?err(parse_auth_ldap(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
+    err_host_config(auth_ldap(#{<<"local_filter">> => Filter#{<<"operation">> := <<"lt">>}})),
+    err_host_config(auth_ldap(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
+    err_host_config(auth_ldap(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
 
 auth_ldap_deref(_Config) ->
-    [F] = parse_auth_ldap(#{<<"deref">> => <<"always">>}),
-    ?eq([#local_config{key = {auth_opts, ?HOST},
-                       value = [{ldap_deref, always}]}], F(?HOST)),
-    ?err(parse_auth_ldap(#{<<"deref">> => <<"sometimes">>})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                 value = [{ldap_deref, always}]}],
+                  auth_ldap(#{<<"deref">> => <<"always">>})),
+    err_host_config(auth_ldap(#{<<"deref">> => <<"sometimes">>})).
 
 auth_extauth_instances(_Config) ->
-    [F] = parse(#{<<"auth">> => #{<<"extauth_instances">> => 2}}),
-    ?eq([#local_config{key = {auth_opts, ?HOST}, value = []},
-         #local_config{key = {extauth_instances, ?HOST}, value = 2}], F(?HOST)),
-    ?err(parse(#{<<"auth">> => #{<<"extauth_instances">> => 0}})).
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {extauth_instances, ?HOST}, value = 2}],
+                  #{<<"auth">> => #{<<"extauth_instances">> => 2}}),
+    err_host_config(#{<<"auth">> => #{<<"extauth_instances">> => 0}}).
 
 %% tests: outgoing_pools
 
@@ -798,40 +805,48 @@ pool_rdbms_tls(_Config) ->
 %% tests: shaper, acl, access
 
 shaper(_Config) ->
-    ?eq([#config{key = {shaper, normal, global}, value = {maxrate, 1000}}],
-        parse(#{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}})),
-    ?err(parse(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}})),
-    ?err(parse(#{<<"shaper">> => #{<<"fast">> => #{}}})).
+    eq_host_or_global(
+      fun(Host) -> [#config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
+      #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
+    err_host_config(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
+    err_host_config(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
-    ?eq([{acl, {local, global}, all}],
-        parse(#{<<"acl">> => #{<<"local">> => <<"all">>}})),
-    ?eq([{acl, {local, global}, {user_regexp, <<>>}}],
-        parse(#{<<"acl">> => #{<<"local">> => #{<<"user_regexp">> => <<>>}}})),
-    ?eq([{acl, {alice, global}, {node_regexp, <<"ali.*">>, <<".*host">>}}],
-        parse(#{<<"acl">> => #{<<"alice">> => #{<<"user_regexp">> => <<"ali.*">>,
-                                                <<"server_regexp">> => <<".*host">>}}})),
-    ?eq([{acl, {alice, global}, {user, <<"alice">>, <<"localhost">>}}],
-        parse(#{<<"acl">> => #{<<"alice">> => #{<<"user">> => <<"alice">>,
-                                                <<"server">> => <<"localhost">>}}})),
-    ?err(parse(#{<<"acl">> => #{<<"local">> => <<"everybody">>}})),
-    ?err(parse(#{<<"acl">> => #{<<"alice">> => #{<<"user_glob">> => <<"a*">>,
-                                                 <<"server_blog">> => <<"blog.localhost">>}}})).
+    eq_host_or_global(
+      fun(Host) -> [{acl, {local, Host}, all}] end,
+      #{<<"acl">> => #{<<"local">> => <<"all">>}}),
+    eq_host_or_global(
+      fun(Host) -> [{acl, {local, Host}, {user_regexp, <<>>}}] end,
+      #{<<"acl">> => #{<<"local">> => #{<<"user_regexp">> => <<>>}}}),
+    eq_host_or_global(
+      fun(Host) -> [{acl, {alice, Host}, {node_regexp, <<"ali.*">>, <<".*host">>}}] end,
+      #{<<"acl">> => #{<<"alice">> => #{<<"user_regexp">> => <<"ali.*">>,
+                                        <<"server_regexp">> => <<".*host">>}}}),
+    eq_host_or_global(
+      fun(Host) -> [{acl, {alice, Host}, {user, <<"alice">>, <<"localhost">>}}] end,
+      #{<<"acl">> => #{<<"alice">> => #{<<"user">> => <<"alice">>,
+                                        <<"server">> => <<"localhost">>}}}),
+    err_host_config(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
+    err_host_config(#{<<"acl">> => #{<<"alice">> => #{<<"user_glob">> => <<"a*">>,
+                                                     <<"server_blog">> => <<"blog.localhost">>}}}).
 
 access(_Config) ->
-    ?eq([#config{key = {access, c2s, global}, value = [{deny, blocked},
-                                                       {allow, all}]}],
-        parse(#{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
-                                                  <<"value">> => <<"deny">>},
-                                                #{<<"acl">> => <<"all">>,
-                                                  <<"value">> => <<"allow">>}]}})),
-    ?eq([#config{key = {access, max_user_sessions, global}, value = [{10, all}]}],
-        parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
-                                                                <<"value">> => 10}]}})),
-    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}})),
-    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}})),
-    ?err(parse(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
-                                                                 <<"value">> => 10}]}})).
+    eq_host_or_global(
+      fun(Host) -> [#config{key = {access, c2s, Host}, value = [{deny, blocked},
+                                                                {allow, all}]}]
+      end,
+      #{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
+                                          <<"value">> => <<"deny">>},
+                                        #{<<"acl">> => <<"all">>,
+                                          <<"value">> => <<"allow">>}]}}),
+    eq_host_or_global(
+      fun(Host) -> [#config{key = {access, max_user_sessions, Host}, value = [{10, all}]}] end,
+      #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
+                                                        <<"value">> => 10}]}}),
+    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}}),
+    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}}),
+    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
+                                                                     <<"value">> => 10}]}}).
 
 %% tests: s2s
 
@@ -874,9 +889,9 @@ s2s_certfile(_Config) ->
     ?err(parse(#{<<"s2s">> => #{<<"certfile">> => []}})).
 
 s2s_default_policy(_Config) ->
-    [F] = parse(#{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
-    ?eq([#local_config{key = {s2s_default_policy, ?HOST}, value = deny}], F(?HOST)),
-    ?err(parse(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}})).
+    eq_host_config([#local_config{key = {s2s_default_policy, ?HOST}, value = deny}],
+                  #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
+    err_host_config(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}}).
 
 s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
@@ -908,14 +923,14 @@ s2s_domain_certfile(_Config) ->
      || K <- maps:keys(DomCert)].
 
 s2s_shared(_Config) ->
-    [F] = parse(#{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
-    ?eq([#local_config{key = {s2s_shared, ?HOST}, value = <<"secret">>}], F(?HOST)),
-    ?err(parse(#{<<"s2s">> => #{<<"shared">> => 536837}})).
+    eq_host_config([#local_config{key = {s2s_shared, ?HOST}, value = <<"secret">>}],
+                  #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
+    err_host_config(#{<<"s2s">> => #{<<"shared">> => 536837}}).
 
 s2s_max_retry_delay(_Config) ->
-    [F] = parse(#{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
-    ?eq([#local_config{key = {s2s_max_retry_delay, ?HOST}, value = 120}], F(?HOST)),
-    ?err(parse(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}})).
+    eq_host_config([#local_config{key = {s2s_max_retry_delay, ?HOST}, value = 120}],
+                  #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
+    err_host_config(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
 
 %% Helpers for 'listen' tests
 
@@ -935,8 +950,8 @@ parse_listener(Type, Opts) ->
 
 %% helpers for 'auth' tests
 
-parse_auth_ldap(Opts) ->
-    parse(#{<<"auth">> => #{<<"ldap">> => Opts}}).
+auth_ldap(Opts) ->
+    #{<<"auth">> => #{<<"ldap">> => Opts}}.
 
 %% helpers for 'pool' tests
 
@@ -955,6 +970,24 @@ rdbms_opts() ->
       <<"database">> => <<"db">>,
       <<"username">> => <<"dbuser">>,
       <<"password">> => <<"secret">>}.
+
+%% helpers for 'host_config' tests
+
+eq_host_config(Result, Config) ->
+    [F] = parse(Config), % check for all hosts
+    ?eq(Result, F(?HOST)),
+    ?eq(Result, parse_host_config(Config)). % check for a single host
+
+eq_host_or_global(ResultF, Config) ->
+    ?eq(ResultF(global), parse(Config)), % check for the 'global' host
+    ?eq(ResultF(?HOST), parse_host_config(Config)). % check for a single host
+
+err_host_config(Config) ->
+    ?err(parse(Config)),
+    ?err(parse_host_config(Config)).
+
+parse_host_config(Config) ->
+    parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
 
 %% helpers for 'equivalence' tests
 
