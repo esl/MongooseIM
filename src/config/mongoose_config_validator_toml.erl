@@ -266,6 +266,20 @@ validate([<<"database">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
 validate([<<"password">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
     validate_list(Value);
+validate([<<"address">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{address, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"port">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{port, Value}]) ->
+    validate_port(Value);
+validate([<<"credentials">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{credentials, User, Password}]) ->
+    validate_non_empty_string(User),
+    validate_non_empty_string(Password);
+validate([<<"cacertfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{cacertfile, Value}]) ->
+    validate_non_empty_string(Value);
+
 %% shaper
 validate([_, <<"shaper">>|Path],
          [#config{value = {maxrate, Value}}]) ->

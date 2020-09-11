@@ -111,7 +111,12 @@ groups() ->
                          pool_redis_host,
                          pool_redis_port,
                          pool_redis_database,
-                         pool_redis_password]},
+                         pool_redis_password,
+                         pool_riak_address,
+                         pool_riak_port,
+                         pool_riak_credentials,
+                         pool_riak_cacertfile,
+                         pool_riak_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -860,8 +865,40 @@ pool_redis_password(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{password, "password1"}]}),
         parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),    
     ?err(parse_pool_conn(<<"redis">>, #{<<"password">> => 0})).
-%% tests: shaper, acl, access
 
+pool_riak_address(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{address, "127.0.0.1"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"address">> => 66})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"address">> => <<"">>})).
+
+pool_riak_port(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{port, 8087}]}),
+        parse_pool_conn(<<"riak">>, #{<<"port">> => 8087})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"port">> => 666666})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"port">> => <<"airport">>})).
+
+pool_riak_credentials(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{credentials, "user", "pass"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
+            #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"">>, <<"password">> => 011001}})).
+
+pool_riak_cacertfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"path/to/cacert.pem">>})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
+
+pool_riak_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "cert.pem"}
+        ]}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
+
+%% tests: shaper, acl, access
 shaper(_Config) ->
     eq_host_or_global(
       fun(Host) -> [#config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
