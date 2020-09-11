@@ -291,6 +291,24 @@ validate([<<"host">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
 validate([<<"port">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
     validate_port(Value);
+validate([<<"amqp_host">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{amqp_host, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"amqp_port">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{amqp_port, Value}]) ->
+    validate_port(Value);
+validate([<<"amqp_username">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{amqp_username, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"amqp_password">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{amqp_password, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"confirms_enabled">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{confirms_enabled, Value}]) ->
+    validate_boolean(Value);
+validate([<<"max_worker_queue_len">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
+         [{max_worker_queue_len, Value}]) ->
+    validate_non_negative_integer_or_infinity(Value);
 
 %% shaper
 validate([_, <<"shaper">>|Path],

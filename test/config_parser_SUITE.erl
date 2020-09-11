@@ -934,6 +934,36 @@ pool_elastic_port(_Config) ->
     ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => 122333})),
     ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => <<"airport">>})).
 
+pool_rabbit_amqp_host(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_host, "localhost"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
+
+pool_rabbit_amqp_port(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_port, 5672}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
+
+pool_rabbit_amqp_username(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_username, "guest"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
+
+pool_rabbit_amqp_password(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_password, "guest"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
+
+pool_rabbit_amqp_confirms_enabled(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{confirms_enabled, true}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
+
+pool_rabbit_amqp_max_worker_queue_len(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{max_worker_queue_len, 100}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
+
 %% tests: shaper, acl, access
 shaper(_Config) ->
     eq_host_or_global(
