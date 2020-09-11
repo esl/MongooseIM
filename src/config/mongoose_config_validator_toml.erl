@@ -236,7 +236,7 @@ validate([Key, {connection, _}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
                             Key =:= <<"username">>;
                             Key =:= <<"password">> ->
     validate_non_empty_string(Value);
-validate([<<"port">>, {connection, _}, _Tag, _Type, <<"outgoing_pools">>],
+validate([<<"port">>, {connection, _}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
          [{port, Value}]) ->
     validate_port(Value);
 validate([<<"host">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
@@ -254,7 +254,18 @@ validate([<<"http_opts">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
     [validate_enum(Key, [retry, retry_timeout]) || Key <- maps:keys(Value)],
     validate_non_negative_integer(maps:get(retry, Value, 1)),
     validate_positive_integer(maps:get(retry_timeout, Value, 1));
-
+validate([<<"host">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
+         [{host, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"port">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
+         [{port, Value}]) ->
+    validate_port(Value);
+validate([<<"database">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
+         [{database, Value}]) ->
+    validate_non_negative_integer(Value);
+validate([<<"password">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
+         [{host, Value}]) ->
+    validate_list(Value);
 %% shaper
 validate([_, <<"shaper">>|Path],
          [#config{value = {maxrate, Value}}]) ->
@@ -365,3 +376,4 @@ validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
 validate_map(Value) when is_map(Value) -> ok.
+validate_list(Value) when is_list(Value) -> ok.

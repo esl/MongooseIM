@@ -552,7 +552,7 @@ http_opts([<<"retry_timeout">>|_], V) -> [{retry_timeout, V}].
 -spec redis_option(path(), toml_value()) -> [option()].
 redis_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
 redis_option([<<"port">>|_], Port) -> [{port, Port}];
-redis_option([<<"database">>|_], Database) -> [{database, b2l(Database)}];
+redis_option([<<"database">>|_], Database) -> [{database, Database}];
 redis_option([<<"password">>|_], Password) -> [{password, b2l(Password)}].
 
 %% path: outgoing_pools.ldap.*.connection.*

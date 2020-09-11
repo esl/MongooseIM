@@ -107,7 +107,11 @@ groups() ->
                          pool_http_host,
                          pool_http_path_prefix,
                          pool_http_request_timeout,
-                         pool_http_opts]},
+                         pool_http_opts,
+                         pool_redis_host,
+                         pool_redis_port,
+                         pool_redis_database,
+                         pool_redis_password]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -832,6 +836,30 @@ pool_http_opts(_Config) ->
     ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"retry">> => <<"infinity">>}})),
     ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"server">> => <<"localhost">>}})).
 
+pool_redis_host(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"redis">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"host">> => 8443})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"host">> => ""})).
+
+pool_redis_port(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{port, 6379}]}),
+        parse_pool_conn(<<"redis">>, #{<<"port">> => 6379})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"port">> => 666666})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"port">> => <<"airport">>})).
+
+pool_redis_database(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{database, 0}]}),
+        parse_pool_conn(<<"redis">>, #{<<"database">> => 0})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"database">> => -1})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"database">> => <<"my_database">>})).
+
+pool_redis_password(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{password, ""}]}),
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"">>})),
+    ?eq(pool_config({redis, global, default, [], [{password, "password1"}]}),
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),    
+    ?err(parse_pool_conn(<<"redis">>, #{<<"password">> => 0})).
 %% tests: shaper, acl, access
 
 shaper(_Config) ->
