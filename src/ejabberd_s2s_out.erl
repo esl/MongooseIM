@@ -378,7 +378,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
     case is_verify_res(El) of
         {result, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
-                         from => From, to => To, messag_id => Id, type => Type}),
+                         from => From, to => To, message_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
                 {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
                     send_queue(StateData, StateData#state.queue),
@@ -400,7 +400,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
             end;
         {verify, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
-                         from => From, to => To, messag_id => Id, type => Type}),
+                         from => From, to => To, message_id => Id, type => Type}),
             case StateData#state.verify of
                 false ->
                     NextState = wait_for_validation,
@@ -613,7 +613,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
     case is_verify_res(El) of
         {verify, VTo, VFrom, VId, VType} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
-                         to => VTo, from => VFrom, messag_id => VId, type => VType,
+                         to => VTo, from => VFrom, message_id => VId, type => VType,
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
