@@ -119,7 +119,15 @@ groups() ->
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
-                         pool_cassandra_tls]},
+                         pool_cassandra_tls,
+                         pool_ldap_host,
+                         pool_ldap_port,
+                         pool_ldap_servers,
+                         pool_ldap_encrypt,
+                         pool_ldap_rootdn,
+                         pool_ldap_password,
+                         pool_ldap_connect_interval,
+                         pool_ldap_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -963,6 +971,50 @@ pool_rabbit_amqp_max_worker_queue_len(_Config) ->
     ?eq(pool_config({rabbit, global, default, [], [{max_worker_queue_len, 100}]}),
         parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
     ?err(parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
+
+pool_ldap_host(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"host">> => <<"">>})).
+
+pool_ldap_port(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{port, 389}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"port">> => 389})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"port">> => <<"airport">>})).
+
+pool_ldap_servers(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], 
+        [{servers, ["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"servers">> => 
+            [<<"primary-ldap-server.example.com">>, <<"secondary-ldap-server.example.com">>]})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
+
+pool_ldap_encrypt(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{encrypt, none}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"encrypt">> => true})).
+
+pool_ldap_rootdn(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{rootdn, ""}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"rootdn">> => false})).
+
+pool_ldap_password(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{password, "pass"}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"password">> => <<"pass">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"password">> => true})).
+
+pool_ldap_connect_interval(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{connect_interval, 10000}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"connect_interval">> => 10000})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
+
+pool_ldap_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({ldap, global, default, [], [{tls_options, [{verify, verify_peer}
+        ]}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->

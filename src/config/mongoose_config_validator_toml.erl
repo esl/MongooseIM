@@ -265,7 +265,7 @@ validate([<<"database">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
     validate_non_negative_integer(Value);
 validate([<<"password">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
-    validate_list(Value);
+    validate_string(Value);
 validate([<<"address">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
          [{address, Value}]) ->
     validate_non_empty_string(Value);
@@ -309,6 +309,27 @@ validate([<<"confirms_enabled">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">
 validate([<<"max_worker_queue_len">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
          [{max_worker_queue_len, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
+validate([<<"host">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{host, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"port">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{port, Value}]) ->
+    validate_port(Value);
+validate([<<"servers">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{servers, Value}]) ->
+    [validate_non_empty_string(Server) || Server <- Value];
+validate([<<"encrypt">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{encrypt, Value}]) ->
+    validate_enum(Value, [tls, none]);
+validate([<<"rootdn">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{rootdn, Value}]) ->
+    validate_string(Value);
+validate([<<"password">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{password, Value}]) ->
+    validate_string(Value);
+validate([<<"connect_interval">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
+         [{connect_interval, Value}]) ->
+    validate_positive_integer(Value);
 
 %% shaper
 validate([_, <<"shaper">>|Path],
@@ -420,4 +441,4 @@ validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
 validate_map(Value) when is_map(Value) -> ok.
-validate_list(Value) when is_list(Value) -> ok.
+validate_string(Value) when is_list(Value) -> ok.
