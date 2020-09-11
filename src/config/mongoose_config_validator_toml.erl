@@ -279,6 +279,12 @@ validate([<<"credentials">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
 validate([<<"cacertfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
          [{cacertfile, Value}]) ->
     validate_non_empty_string(Value);
+validate([<<"servers">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
+         [{servers, Value}]) ->
+    [{validate_non_empty_string(Host), validate_port(Port)} || {Host, Port} <- Value];
+validate([<<"keyspace">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
+         [{keyspace, Value}]) ->
+    validate_non_empty_string(Value);
 
 %% shaper
 validate([_, <<"shaper">>|Path],

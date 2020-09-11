@@ -116,7 +116,10 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
-                         pool_riak_tls]},
+                         pool_riak_tls,
+                         pool_cassandra_servers,
+                         pool_cassandra_keyspace,
+                         pool_cassandra_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -897,6 +900,28 @@ pool_riak_tls(_Config) ->
         parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
+
+pool_cassandra_servers(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], 
+        [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
+            #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
+            #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
+            ]})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> => 
+        #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042}})).
+
+pool_cassandra_keyspace(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
+
+pool_cassandra_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({cassandra, global, default, [], [{ssl, [{verify, verify_none}
+        ]}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
