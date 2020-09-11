@@ -923,6 +923,17 @@ pool_cassandra_tls(_Config) ->
         parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
+pool_elastic_host(_Config) ->
+    ?eq(pool_config({elastic, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"host">> => <<"">>})).
+
+pool_elastic_port(_Config) ->
+    ?eq(pool_config({elastic, global, default, [], [{port, 9200}]}),
+        parse_pool_conn(<<"elastic">>, #{<<"port">> => 9200})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => 122333})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => <<"airport">>})).
+
 %% tests: shaper, acl, access
 shaper(_Config) ->
     eq_host_or_global(

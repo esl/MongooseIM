@@ -285,6 +285,12 @@ validate([<<"servers">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
 validate([<<"keyspace">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
          [{keyspace, Value}]) ->
     validate_non_empty_string(Value);
+validate([<<"host">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
+         [{host, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"port">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
+         [{host, Value}]) ->
+    validate_port(Value);
 
 %% shaper
 validate([_, <<"shaper">>|Path],
