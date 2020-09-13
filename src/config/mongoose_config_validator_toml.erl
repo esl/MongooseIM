@@ -409,6 +409,13 @@ validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>],
          [{report_commands_node, Value}]) ->
     validate_boolean(Value);
 
+%% One TOML option validate_period is parsed into several MongooseIM options
+validate([<<"validity_period">>, <<"mod_auth_token">>, <<"modules">>], Opts) ->
+    lists:foreach(fun({{validity_period, Domain}, Period}) ->
+            validate_auth_token_domain(Domain),
+            validate_period(Period)
+        end, Opts);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -513,3 +520,18 @@ validate_iqdisc(no_queue) -> ok;
 validate_iqdisc(one_queue) -> ok;
 validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
+
+-spec validate_auth_token_domain(mod_auth_token:token_type()) -> ok.
+validate_auth_token_domain(access) -> ok;
+validate_auth_token_domain(refresh) -> ok;
+validate_auth_token_domain(provision) -> ok.
+
+-spec validate_period(mod_auth_token:period()) -> ok.
+validate_period({Count, Unit}) -> 
+    validate_period_unit(Unit),
+    validate_non_negative_integer(Count).
+
+validate_period_unit(days) -> ok;
+validate_period_unit(hours) -> ok;
+validate_period_unit(minutes) -> ok;
+validate_period_unit(seconds) -> ok.

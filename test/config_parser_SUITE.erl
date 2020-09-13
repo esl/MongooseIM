@@ -153,6 +153,7 @@ groups() ->
                         s2s_shared,
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
+                            mod_auth_token,
                             mod_register]}
     ].
 
@@ -1219,6 +1220,28 @@ mod_adhoc(_Config) ->
 
     check_iqdisc(mod_adhoc),
     ok.
+
+%% ---------------------------------------------------------------------------
+
+mod_auth_token(_Config) ->
+    P = fun(X) ->
+                     Opts = #{<<"validity_period">> => X},
+                     parse(#{<<"modules">> => #{<<"mod_auth_token">> => Opts}})
+             end,
+    ?eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
+                                  {{validity_period,refresh}, {31,days}}]),
+         P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
+            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+    ?errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}])),
+
+    check_iqdisc(mod_auth_token),
+    ok.
+
 
 %% ---------------------------------------------------------------------------
 
