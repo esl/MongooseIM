@@ -152,7 +152,8 @@ groups() ->
                         s2s_domain_certfile,
                         s2s_shared,
                         s2s_max_retry_delay]},
-     {modules, [parallel], [mod_register]}
+     {modules, [parallel], [mod_adhoc,
+                            mod_register]}
     ].
 
 init_per_suite(Config) ->
@@ -1205,6 +1206,22 @@ modopts(Mod, Opts) ->
 
 %% modules
 
+%% ---------------------------------------------------------------------------
+
+mod_adhoc(_Config) ->
+    %% report_commands_node is boolean
+    ?eqf(modopts(mod_adhoc, [{report_commands_node, true}]),
+         parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => true}}})),
+    ?eqf(modopts(mod_adhoc, [{report_commands_node, false}]),
+         parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}})),
+    %% not boolean
+    ?errf(parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}})),
+
+    check_iqdisc(mod_adhoc),
+    ok.
+
+%% ---------------------------------------------------------------------------
+
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
                 [{access,register},
@@ -1272,12 +1289,15 @@ registration_watchers(JidBins) ->
     Opts = #{<<"registration_watchers">> => JidBins},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
+%% ---------------------------------------------------------------------------
+
+
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).
 
-iq_disc_register(Value) ->
+iq_disc_generic(Module, Value) ->
     Opts = #{<<"iqdisc">> => Value},
-    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+    #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
 
 check_iqdisc(Module) ->

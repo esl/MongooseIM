@@ -401,6 +401,14 @@ validate([<<"max_retry_delay">>, <<"s2s">>|Path],
 validate([_Module, <<"modules">>], [{Mod, _}]) ->
     validate_module(Mod);
 
+%% iqdisc is a generic module option
+validate([<<"iqdisc">>, _, <<"modules">>], [{iqdisc, Value}]) ->
+    validate_iqdisc(Value);
+
+validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>],
+         [{report_commands_node, Value}]) ->
+    validate_boolean(Value);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -416,9 +424,6 @@ validate([<<"welcome_message">>, <<"mod_register">>, <<"modules">>],
 validate([<<"access">>, <<"mod_register">>, <<"modules">>],
          [{access, Value}]) ->
     validate_non_empty_atom(Value);
-validate([<<"iqdisc">>, <<"mod_register">>, <<"modules">>],
-         [{iqdisc, Value}]) ->
-    validate_iqdisc(Value);
 validate([<<"registration_watchers">>,<<"mod_register">>,<<"modules">>],
          [{registration_watchers, Value}]) ->
     validate_list_of_jids(Value);
