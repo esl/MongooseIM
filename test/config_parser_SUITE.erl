@@ -12,6 +12,9 @@
 
 -define(HOST, <<"myhost">>).
 
+-define(eqf(Expected, Actual), ?assertEqual(Expected, apply(hd(Actual), [?HOST]))).
+-define(errf(Expr), ?assertError(_, apply(hd(Expr), [?HOST]))).
+
 -import(mongoose_config_parser_toml, [parse/1]).
 
 all() ->
@@ -21,7 +24,8 @@ all() ->
      {group, auth},
      {group, pool},
      {group, shaper_acl_access},
-     {group, s2s}].
+     {group, s2s},
+     {group, modules}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -147,7 +151,8 @@ groups() ->
                         s2s_ciphers,
                         s2s_domain_certfile,
                         s2s_shared,
-                        s2s_max_retry_delay]}
+                        s2s_max_retry_delay]},
+     {modules, [parallel], [mod_register]}
     ].
 
 init_per_suite(Config) ->
@@ -1195,7 +1200,96 @@ s2s_max_retry_delay(_Config) ->
                   #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     err_host_config(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
 
-%% Helpers for 'listen' tests
+modopts(Mod, Opts) ->
+    [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
+
+%% modules
+
+mod_register(_Config) ->
+    ?eqf(modopts(mod_register,
+                [{access,register},
+                 {ip_access, [{allow,{{127,0,0,0},8}},
+                              {deny,{{0,0,0,0},32}}]}
+                ]),
+         parse(ip_access_register(<<"0.0.0.0">>))),
+
+    ?eqf(modopts(mod_register,
+                [{access,register},
+                 {ip_access, [{allow,{{127,0,0,0},8}},
+                              {deny,{{0,0,0,4},32}}]}
+                ]),
+         parse(ip_access_register(<<"0.4">>))), %% Partial IPs format
+
+    ?errf(parse(invalid_ip_access_register())),
+
+    ?errf(parse(ip_access_register(<<"hello">>))),
+    ?errf(parse(ip_access_register(<<"0.d">>))),
+
+    ?eqf(modopts(mod_register,
+                [{welcome_message, {"Subject", "Body"}}]),
+         parse(welcome_message())),
+
+    %% List of jids
+    ?eqf(modopts(mod_register,
+                [{registration_watchers,
+                  [<<"alice@bob">>, <<"ilovemongoose@help">>]}]),
+         parse(registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>]))),
+    ?errf(parse(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>]))),
+
+    %% non-negative integer
+    ?eqf(modopts(mod_register, [{password_strength, 42}]),
+         parse(password_strength_register(42))),
+    ?errf(parse(password_strength_register(<<"42">>))),
+    ?errf(parse(password_strength_register(<<"strong">>))),
+    ?errf(parse(password_strength_register(-150))),
+
+    check_iqdisc(mod_register),
+    ok.
+
+welcome_message() ->
+    Opts = #{<<"welcome_message">> => #{<<"subject">> => <<"Subject">>, <<"body">> => <<"Body">>}},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+password_strength_register(Strength) ->
+    Opts = #{<<"password_strength">> => Strength},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+ip_access_register(Ip) ->
+    Opts = #{<<"access">> => <<"register">>,
+             <<"ip_access">> =>
+                [#{<<"address">> => <<"127.0.0.0/8">>, <<"policy">> => <<"allow">>},
+                 #{<<"address">> => Ip, <<"policy">> => <<"deny">>}]},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+invalid_ip_access_register() ->
+    Opts = #{<<"access">> => <<"register">>,
+             <<"ip_access">> =>
+                [#{<<"address">> => <<"127.0.0.0/8">>, <<"policy">> => <<"allawww">>},
+                 #{<<"address">> => <<"8.8.8.8">>, <<"policy">> => <<"denyh">>}]},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+registration_watchers(JidBins) ->
+    Opts = #{<<"registration_watchers">> => JidBins},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
+iqdisc(Atom) -> atom_to_binary(Atom, utf8).
+
+iq_disc_register(Value) ->
+    Opts = #{<<"iqdisc">> => Value},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+
+check_iqdisc(Module) ->
+    ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
+         parse(iq_disc_generic(Module, iqdisc({queues, 10})))),
+    ?eqf(modopts(Module, [{iqdisc, parallel}]),
+         parse(iq_disc_generic(Module, iqdisc(parallel)))),
+    ?errf(parse(iq_disc_generic(Module, iqdisc(bad_haha)))),
+    ok.
+
+
+%% helpers for 'listen' tests
 
 listener_config(Mod, Opts) ->
     [#local_config{key = listen,
@@ -1269,6 +1363,8 @@ handle_config_option(#local_config{key = K1, value = V1},
 handle_config_option(Opt1, Opt2) ->
     ?eq(Opt1, Opt2).
 
+compare_values(_, X, X) -> %% I am a simple man
+    ok;
 compare_values(listen, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
 compare_values({auth_opts, _}, V1, V2) ->

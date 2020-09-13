@@ -4,6 +4,7 @@
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -define(HOST, 'HOST').
 
@@ -397,6 +398,37 @@ validate([<<"max_retry_delay">>, <<"s2s">>|Path],
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
 
+validate([_Module, <<"modules">>], [{Mod, _}]) ->
+    validate_module(Mod);
+
+%% One call for each rule in ip_access
+validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
+         [{Policy, _Addr}]) ->
+    validate_enum(Policy, [allow, deny]);
+%% We do validations for suboptions of this option in other parts of the code.
+validate([<<"ip_access">>, <<"mod_register">>, <<"modules">>], _Value) ->
+    ok;
+validate([<<"welcome_message">>, <<"mod_register">>, <<"modules">>],
+         [{Subject, Body}]) ->
+    %% TODO We don't have any big tests for this option.
+    %% So, I don't know how it behaves with unicode characters.
+    ok;
+validate([<<"access">>, <<"mod_register">>, <<"modules">>],
+         [{access, Value}]) ->
+    validate_non_empty_atom(Value);
+validate([<<"iqdisc">>, <<"mod_register">>, <<"modules">>],
+         [{iqdisc, Value}]) ->
+    validate_iqdisc(Value);
+validate([<<"registration_watchers">>,<<"mod_register">>,<<"modules">>],
+         [{registration_watchers, Value}]) ->
+    validate_list_of_jids(Value);
+validate([<<"password_strength">>,<<"mod_register">>,<<"modules">>],
+         [{password_strength, Value}]) ->
+    validate_non_negative_integer(Value);
+
+validate(Option, Value) ->
+    ?LOG_ERROR(#{ what => validate_unknown, option => Option, value => Value}),
+    ok;
 validate(_, _) ->
     ok.
 
@@ -430,7 +462,14 @@ validate_non_negative_integer_or_infinity(Value) when is_integer(Value), Value >
 validate_non_negative_integer_or_infinity(infinity) -> ok.
 
 validate_enum(Value, Values) ->
-    true = lists:member(Value, Values).
+    case lists:member(Value, Values) of
+        true ->
+            ok;
+        false ->
+            error(#{what => validate_enum_failed,
+                    value => Value,
+                    allowed_values => Values})
+    end.
 
 validate_ip_address(Value) ->
     {ok, _} = inet:parse_address(Value).
@@ -453,3 +492,19 @@ validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
 validate_string(Value) when is_list(Value) -> ok.
+
+validate_list_of_jids(Jids) ->
+    [validate_jid(Jid) || Jid <- Jids].
+
+validate_jid(Jid) ->
+    case jid:from_binary(Jid) of
+        #jid{} ->
+            ok;
+        _ ->
+            error(#{what => validate_jid_failed, value => Jid})
+    end.
+
+validate_iqdisc(no_queue) -> ok;
+validate_iqdisc(one_queue) -> ok;
+validate_iqdisc(parallel) -> ok;
+validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.

@@ -875,8 +875,6 @@ module_opt([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>|_], 
     [{max_http_connections, V}];
 module_opt([<<"access">>, <<"mod_register">>|_], V) ->
     [{access, b2a(V)}];
-module_opt([<<"welcome_message">>, <<"mod_register">>|_], V) ->
-    [{welcome_message, {b2l(V)}}];
 module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
     [{registration_watchers, parse_list(Path, V)}];
 module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
@@ -884,6 +882,10 @@ module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
 module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
     Rules = parse_list(Path, V),
     [{ip_access, Rules}];
+module_opt([<<"welcome_message">>, <<"mod_register">>|_], V) ->
+    Subject = maps:get(<<"subject">>, V, <<>>),
+    Body = maps:get(<<"body">>, V, <<>>),
+    [{welcome_message, {binary_to_list(Subject), binary_to_list(Body)}}];
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
@@ -957,6 +959,8 @@ module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_], V) ->
     [{ldap_binary_search_fields, V}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
+module_opt([<<"iqdisc">>|_], #{<<"type">> := <<"queues">>, <<"workers">> := Workers}) ->
+    [{iqdisc, {queues, Workers}}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     [{iqdisc, b2a(V)}];

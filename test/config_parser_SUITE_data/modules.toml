@@ -128,6 +128,7 @@
 
 [modules.mod_last]
   backend = "mnesia"
+  iqdisc = {"type" = "queues", "workers" = 10}
 
 [modules.mod_mam_meta]
   backend = "rdbms"
