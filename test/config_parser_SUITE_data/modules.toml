@@ -220,6 +220,7 @@
   max_http_connections = 100
    
 [modules.mod_register]
+  welcome_message = {subject = "Subject", body = "Body"}
   access = "all"
   registration_watchers = ["JID1", "JID2"]
   password_strength = 32
