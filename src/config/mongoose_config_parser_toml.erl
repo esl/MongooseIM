@@ -1527,7 +1527,13 @@ parse_list(Path, L) ->
 handle(Path, Value) ->
     Handler = handler(Path),
     Option = Handler(Path, Value),
-    mongoose_config_validator_toml:validate(Path, Option),
+    try
+        mongoose_config_validator_toml:validate(Path, Option)
+    catch Class:Error:Stacktrace ->
+              erlang:raise(Class, #{what => toml_validate_failed,
+                                    path => Path,
+                                    reason => Error}, Stacktrace)
+    end,
     Option.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
