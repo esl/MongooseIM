@@ -103,7 +103,31 @@ groups() ->
                          pool_rdbms_keepalive_interval,
                          pool_rdbms_server,
                          pool_rdbms_port,
-                         pool_rdbms_tls]},
+                         pool_rdbms_tls,
+                         pool_http_host,
+                         pool_http_path_prefix,
+                         pool_http_request_timeout,
+                         pool_http_opts,
+                         pool_redis_host,
+                         pool_redis_port,
+                         pool_redis_database,
+                         pool_redis_password,
+                         pool_riak_address,
+                         pool_riak_port,
+                         pool_riak_credentials,
+                         pool_riak_cacertfile,
+                         pool_riak_tls,
+                         pool_cassandra_servers,
+                         pool_cassandra_keyspace,
+                         pool_cassandra_tls,
+                         pool_ldap_host,
+                         pool_ldap_port,
+                         pool_ldap_servers,
+                         pool_ldap_encrypt,
+                         pool_ldap_rootdn,
+                         pool_ldap_password,
+                         pool_ldap_connect_interval,
+                         pool_ldap_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       access]},
@@ -802,8 +826,196 @@ pool_rdbms_tls(_Config) ->
                                                       #{<<"certfile">> => true}})),
     ?err(parse_pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
 
-%% tests: shaper, acl, access
+pool_http_host(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{server, "https://localhost:8443"}]}),
+        parse_pool_conn(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"host">> => 8443})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"host">> => ""})).
 
+pool_http_path_prefix(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{path_prefix, "/"}]}),
+        parse_pool_conn(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"path_prefix">> => 8443})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"path_prefix">> => ""})).
+
+pool_http_request_timeout(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{request_timeout, 2000}]}),
+        parse_pool_conn(<<"http">>, #{<<"request_timeout">> => 2000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
+
+pool_http_opts(_Config) ->
+    ?eq(pool_config({http, global, default, [], 
+        [{http_opts, #{retry => 1, retry_timeout => 1000}}]}),
+        parse_pool_conn(<<"http">>, #{<<"retry">> => 1, <<"retry_timeout">> => 1000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"retry">> => <<"infinity">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"retry_timeout">> => 0})).
+
+pool_redis_host(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"redis">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"host">> => 8443})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"host">> => ""})).
+
+pool_redis_port(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{port, 6379}]}),
+        parse_pool_conn(<<"redis">>, #{<<"port">> => 6379})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"port">> => 666666})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"port">> => <<"airport">>})).
+
+pool_redis_database(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{database, 0}]}),
+        parse_pool_conn(<<"redis">>, #{<<"database">> => 0})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"database">> => -1})),
+    ?err(parse_pool_conn(<<"redis">>, #{<<"database">> => <<"my_database">>})).
+
+pool_redis_password(_Config) ->
+    ?eq(pool_config({redis, global, default, [], [{password, ""}]}),
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"">>})),
+    ?eq(pool_config({redis, global, default, [], [{password, "password1"}]}),
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),    
+    ?err(parse_pool_conn(<<"redis">>, #{<<"password">> => 0})).
+
+pool_riak_address(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{address, "127.0.0.1"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"address">> => 66})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"address">> => <<"">>})).
+
+pool_riak_port(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{port, 8087}]}),
+        parse_pool_conn(<<"riak">>, #{<<"port">> => 8087})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"port">> => 666666})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"port">> => <<"airport">>})).
+
+pool_riak_credentials(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{credentials, "user", "pass"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
+            #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"">>, <<"password">> => 011001}})).
+
+pool_riak_cacertfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"path/to/cacert.pem">>})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
+
+pool_riak_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "cert.pem"}
+        ]}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
+
+pool_cassandra_servers(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], 
+        [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
+            #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
+            #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
+            ]})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> => 
+        #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042}})).
+
+pool_cassandra_keyspace(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
+
+pool_cassandra_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({cassandra, global, default, [], [{ssl, [{verify, verify_none}
+        ]}]}),
+        parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+
+pool_elastic_host(_Config) ->
+    ?eq(pool_config({elastic, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"host">> => <<"">>})).
+
+pool_elastic_port(_Config) ->
+    ?eq(pool_config({elastic, global, default, [], [{port, 9200}]}),
+        parse_pool_conn(<<"elastic">>, #{<<"port">> => 9200})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => 122333})),
+    ?err(parse_pool_conn(<<"elastic">>, #{<<"port">> => <<"airport">>})).
+
+pool_rabbit_amqp_host(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_host, "localhost"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
+
+pool_rabbit_amqp_port(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_port, 5672}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
+
+pool_rabbit_amqp_username(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_username, "guest"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
+
+pool_rabbit_amqp_password(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{amqp_password, "guest"}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
+
+pool_rabbit_amqp_confirms_enabled(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{confirms_enabled, true}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
+
+pool_rabbit_amqp_max_worker_queue_len(_Config) ->
+    ?eq(pool_config({rabbit, global, default, [], [{max_worker_queue_len, 100}]}),
+        parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
+    ?err(parse_pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
+
+pool_ldap_host(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{host, "localhost"}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"host">> => <<"">>})).
+
+pool_ldap_port(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{port, 389}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"port">> => 389})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"port">> => <<"airport">>})).
+
+pool_ldap_servers(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], 
+        [{servers, ["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"servers">> => 
+            [<<"primary-ldap-server.example.com">>, <<"secondary-ldap-server.example.com">>]})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
+
+pool_ldap_encrypt(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{encrypt, none}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"encrypt">> => true})).
+
+pool_ldap_rootdn(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{rootdn, ""}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"rootdn">> => false})).
+
+pool_ldap_password(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{password, "pass"}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"password">> => <<"pass">>})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"password">> => true})).
+
+pool_ldap_connect_interval(_Config) ->
+    ?eq(pool_config({ldap, global, default, [], [{connect_interval, 10000}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"connect_interval">> => 10000})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
+
+pool_ldap_tls(_Config) ->
+    %% one option tested here as they are all checked by 'listen_tls_*' tests
+    ?eq(pool_config({ldap, global, default, [], [{tls_options, [{verify, verify_peer}
+        ]}]}),
+        parse_pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
+    ?err(parse_pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+
+%% tests: shaper, acl, access
 shaper(_Config) ->
     eq_host_or_global(
       fun(Host) -> [#config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,

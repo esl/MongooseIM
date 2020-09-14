@@ -34,8 +34,8 @@
     host = "https://localhost:8443"
     path_prefix = "/"
     request_timeout = 2000
-    http_opts.retry = 1
-    http_opts.retry_timeout = 1000
+    retry = 1
+    retry_timeout = 1000
 
 [outgoing_pools.riak.default]
     scope = "global"
