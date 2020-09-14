@@ -158,6 +158,7 @@ groups() ->
                             mod_caps,
                             mod_carboncopy,
                             mod_csi,
+                            mod_inbox,
                             mod_register]}
     ].
 
@@ -1300,6 +1301,42 @@ mod_csi(_Config) ->
          T(<<"buffer_max">>, 10)),
     ?errf(T(<<"buffer_max">>, -1)),
     ?errf(T(<<"buffer_max">>, <<"infinity">>)).
+
+%% ---------------------------------------------------------------------------
+
+mod_inbox(_Config) ->
+    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}}) end,
+    ?eqf(modopts(mod_inbox, [{reset_markers, [displayed, received, acknowledged]}]),
+         T(<<"reset_markers">>, [<<"displayed">>, <<"received">>, <<"acknowledged">>])),
+    ?eqf(modopts(mod_inbox, [{reset_markers, []}]),
+         T(<<"reset_markers">>, [])),
+    ?eqf(modopts(mod_inbox, [{groupchat, [muc, muclight]}]),
+         T(<<"groupchat">>, [<<"muc">>, <<"muclight">>])),
+    ?eqf(modopts(mod_inbox, [{groupchat, []}]),
+         T(<<"groupchat">>, [])),
+    ?eqf(modopts(mod_inbox, [{aff_changes, true}]),
+         T(<<"aff_changes">>, true)),
+    ?eqf(modopts(mod_inbox, [{aff_changes, false}]),
+         T(<<"aff_changes">>, false)),
+    ?eqf(modopts(mod_inbox, [{remove_on_kicked, true}]),
+         T(<<"remove_on_kicked">>, true)),
+    ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
+         T(<<"remove_on_kicked">>, false)),
+    ?eqf(modopts(mod_inbox, [{backend, rdbms}]),
+         T(<<"backend">>, <<"rdbms">>)),
+    ?errf(T(<<"reset_markers">>, 1)),
+    ?errf(T(<<"reset_markers">>, <<"test">>)),
+    ?errf(T(<<"reset_markers">>, [<<"test">>])),
+    ?errf(T(<<"groupchat">>, [<<"test">>])),
+    ?errf(T(<<"groupchat">>, <<"test">>)),
+    ?errf(T(<<"groupchat">>, true)),
+    ?errf(T(<<"aff_changes">>, 1)),
+    ?errf(T(<<"aff_changes">>, <<"true">>)),
+    ?errf(T(<<"remove_on_kicked">>, 1)),
+    ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
+    ?errf(T(<<"backend">>, <<"devnull">>)),
+    check_iqdisc(mod_inbox),
+    ok.
 
 %% ---------------------------------------------------------------------------
 

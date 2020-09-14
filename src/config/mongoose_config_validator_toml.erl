@@ -440,6 +440,22 @@ validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>],
          [{buffer_max, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
 
+validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>],
+         [{backend, Value}]) ->
+    validate_backend(mod_inbox, Value);
+validate([<<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
+         [{reset_markers, Types}]) ->
+    validate_marker_types(Types);
+validate([<<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
+         [{groupchat, Types}]) ->
+    validate_groupchat_types(Types);
+validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>],
+         [{aff_changes, Types}]) ->
+    validate_boolean(Types);
+validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>],
+         [{remove_on_kicked, Types}]) ->
+    validate_boolean(Types);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -488,7 +504,12 @@ validate_timeout(Timeout) when is_integer(Timeout), Timeout > 0 -> ok.
 validate_boolean(Value) when is_boolean(Value) -> ok.
 
 validate_module(Mod) ->
-    {module, _} = code:ensure_loaded(Mod).
+    case code:ensure_loaded(Mod) of
+        {module, _} ->
+            ok;
+        Other ->
+            error(#{what => module_not_found, module => Mod, reason => Other})
+    end.
 
 validate_positive_integer(Value) when is_integer(Value), Value > 0 -> ok.
 
@@ -562,3 +583,25 @@ validate_period_unit(seconds) -> ok.
 
 validate_backend(Mod, Backend) ->
     validate_module(backend_module:backend_module(Mod, Backend)).
+
+validate_marker_types(Types) ->
+    case [Type || Type <- Types, not is_valid_marker(Type)] of
+        [] ->
+            ok;
+        Invalid ->
+            error({invalid_marker_types, Invalid})
+    end.
+
+is_valid_marker(Type) ->
+    lists:member(Type, [displayed, received, acknowledged]).
+
+validate_groupchat_types(Types) ->
+    case [Type || Type <- Types, not is_groupchat_type(Type)] of
+        [] ->
+            ok;
+        Invalid ->
+            error({invalid_groupchat_type, Invalid})
+    end.
+
+is_groupchat_type(Type) ->
+    lists:member(Type, [muc, muclight]).
