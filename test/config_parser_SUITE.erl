@@ -157,6 +157,7 @@ groups() ->
                             mod_bosh,
                             mod_caps,
                             mod_carboncopy,
+                            mod_csi,
                             mod_register]}
     ].
 
@@ -1290,6 +1291,15 @@ mod_caps(_Config) ->
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
+
+%% ---------------------------------------------------------------------------
+
+mod_csi(_Config) ->
+    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_csi">> => #{K => V}}}) end,
+    ?eqf(modopts(mod_csi, [{buffer_max, 10}]),
+         T(<<"buffer_max">>, 10)),
+    ?errf(T(<<"buffer_max">>, -1)),
+    ?errf(T(<<"buffer_max">>, <<"infinity">>)).
 
 %% ---------------------------------------------------------------------------
 
