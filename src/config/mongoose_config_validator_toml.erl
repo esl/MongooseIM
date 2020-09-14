@@ -443,10 +443,12 @@ validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>],
 validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>],
          [{users_can_see_hidden_services, Value}]) ->
     validate_boolean(Value);
-
 validate([<<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
          [{extra_domains, Domains}]) ->
-    validate_binary_domains(Domains);
+    validate_list(Domains);
+validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
+         [Domain]) ->
+    validate_binary_domain(Domain);
 
 validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
          [Url]) ->
@@ -633,23 +635,11 @@ validate_groupchat_types(Types) ->
 is_groupchat_type(Type) ->
     lists:member(Type, [muc, muclight]).
 
-validate_binary_domains(Domains) ->
-    case [Domain || Domain <- Domains, not is_valid_binary_domain(Domain)] of
-        [] ->
-            ok;
-        Invalid ->
-            error({invalid_domains, Invalid})
-    end.
-
-is_valid_binary_domain(Domain) when is_binary(Domain) ->
-    case jid:from_binary(Domain) of
-        #jid{luser = <<>>, lresource = <<>>} ->
-            true;
-        _ ->
-            false
-    end;
-is_valid_binary_domain(_) ->
-    false.
+validate_binary_domain(Domain) when is_binary(Domain) ->
+    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain).
 
 validate_url(Url) ->
     validate_non_empty_string(Url).
+
+validate_list(List) when is_list(List) ->
+    ok.
