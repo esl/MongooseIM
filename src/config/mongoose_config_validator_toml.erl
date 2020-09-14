@@ -416,6 +416,19 @@ validate([<<"validity_period">>, <<"mod_auth_token">>, <<"modules">>], Opts) ->
             validate_period(Period)
         end, Opts);
 
+validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>],
+         [{inactivity, Value}]) ->
+    validate_non_negative_integer_or_infinity(Value);
+validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>],
+         [{max_wait, Value}]) ->
+    validate_non_negative_integer_or_infinity(Value);
+validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>],
+         [{server_acks, Value}]) ->
+    validate_boolean(Value);
+validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>],
+         [{backend, Value}]) ->
+    validate_backend(mod_bosh, Value);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -535,3 +548,6 @@ validate_period_unit(days) -> ok;
 validate_period_unit(hours) -> ok;
 validate_period_unit(minutes) -> ok;
 validate_period_unit(seconds) -> ok.
+
+validate_backend(Mod, Backend) ->
+    validate_module(backend_module:backend_module(Mod, Backend)).

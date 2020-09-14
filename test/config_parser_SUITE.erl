@@ -154,6 +154,7 @@ groups() ->
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
+                            mod_bosh,
                             mod_register]}
     ].
 
@@ -1242,6 +1243,32 @@ mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token),
     ok.
 
+%% ---------------------------------------------------------------------------
+
+mod_bosh(_Config) ->
+    B = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}}) end,
+    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
+         B(<<"inactivity">>, 10)),
+    ?eqf(modopts(mod_bosh, [{inactivity, infinity}]),
+         B(<<"inactivity">>, <<"infinity">>)),
+    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
+         B(<<"inactivity">>, 10)),
+    ?eqf(modopts(mod_bosh, [{max_wait, infinity}]),
+         B(<<"max_wait">>, <<"infinity">>)),
+    ?eqf(modopts(mod_bosh, [{server_acks, true}]),
+         B(<<"server_acks">>, true)),
+    ?eqf(modopts(mod_bosh, [{server_acks, false}]),
+         B(<<"server_acks">>, false)),
+    ?eqf(modopts(mod_bosh, [{backend, mnesia}]),
+         B(<<"backend">>, <<"mnesia">>)),
+    ?errf(B(<<"inactivity">>, -1)),
+    ?errf(B(<<"inactivity">>, <<"10">>)),
+    ?errf(B(<<"inactivity">>, <<"inactivity">>)),
+    ?errf(B(<<"max_wait">>, <<"10">>)),
+    ?errf(B(<<"max_wait">>, -1)),
+    ?errf(B(<<"server_acks">>, -1)),
+    ?errf(B(<<"backend">>, <<"devnull">>)),
+    ok.
 
 %% ---------------------------------------------------------------------------
 
