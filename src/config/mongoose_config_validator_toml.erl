@@ -472,18 +472,26 @@ validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
 validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>],
          [{backend, Value}]) ->
     validate_backend(mod_inbox, Value);
-validate([<<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
-         [{reset_markers, Types}]) ->
-    validate_marker_types(Types);
-validate([<<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
-         [{groupchat, Types}]) ->
-    validate_groupchat_types(Types);
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>],
          [{aff_changes, Types}]) ->
     validate_boolean(Types);
 validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>],
          [{remove_on_kicked, Types}]) ->
     validate_boolean(Types);
+%% Sublists for mod_inbox - ensure that they are lists
+validate([<<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
+         [{reset_markers, Types}]) ->
+    validate_list(Types);
+validate([<<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
+         [{groupchat, Types}]) ->
+    validate_list(Types);
+%% Sublists for mod_inbox - items
+validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
+         [Type]) ->
+    validate_marker_type(Type);
+validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
+         [Type]) ->
+    validate_groupchat_type(Type);
 
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
@@ -596,44 +604,25 @@ validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
 
 -spec validate_auth_token_domain(mod_auth_token:token_type()) -> ok.
-validate_auth_token_domain(access) -> ok;
-validate_auth_token_domain(refresh) -> ok;
-validate_auth_token_domain(provision) -> ok.
+validate_auth_token_domain(Type) ->
+    validate_enum(Type, [access, refresh, provision]).
 
 -spec validate_period(mod_auth_token:period()) -> ok.
 validate_period({Count, Unit}) -> 
     validate_period_unit(Unit),
     validate_non_negative_integer(Count).
 
-validate_period_unit(days) -> ok;
-validate_period_unit(hours) -> ok;
-validate_period_unit(minutes) -> ok;
-validate_period_unit(seconds) -> ok.
+validate_period_unit(Unit) ->
+    validate_enum(Unit, [days, hours, minutes, seconds]).
 
 validate_backend(Mod, Backend) ->
     validate_module(backend_module:backend_module(Mod, Backend)).
 
-validate_marker_types(Types) ->
-    case [Type || Type <- Types, not is_valid_marker(Type)] of
-        [] ->
-            ok;
-        Invalid ->
-            error({invalid_marker_types, Invalid})
-    end.
+validate_marker_type(Type) ->
+    validate_enum(Type, [displayed, received, acknowledged]).
 
-is_valid_marker(Type) ->
-    lists:member(Type, [displayed, received, acknowledged]).
-
-validate_groupchat_types(Types) ->
-    case [Type || Type <- Types, not is_groupchat_type(Type)] of
-        [] ->
-            ok;
-        Invalid ->
-            error({invalid_groupchat_type, Invalid})
-    end.
-
-is_groupchat_type(Type) ->
-    lists:member(Type, [muc, muclight]).
+validate_groupchat_type(Type) ->
+    validate_enum(Type, [muc, muclight]).
 
 validate_binary_domain(Domain) when is_binary(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain).
