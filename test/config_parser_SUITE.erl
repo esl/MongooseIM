@@ -845,12 +845,11 @@ pool_http_request_timeout(_Config) ->
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
 pool_http_opts(_Config) ->
-    HttpOpts = http_opts(),
     ?eq(pool_config({http, global, default, [], 
         [{http_opts, #{retry => 1, retry_timeout => 1000}}]}),
-        parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"retry">> => <<"infinity">>}})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"http_opts">> => HttpOpts#{<<"server">> => <<"localhost">>}})).
+        parse_pool_conn(<<"http">>, #{<<"retry">> => 1, <<"retry_timeout">> => 1000})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"retry">> => <<"infinity">>})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"retry_timeout">> => 0})).
 
 pool_redis_host(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
@@ -1183,10 +1182,6 @@ rdbms_opts() ->
       <<"database">> => <<"db">>,
       <<"username">> => <<"dbuser">>,
       <<"password">> => <<"secret">>}.
-
-http_opts() ->
-    #{<<"retry">> => 1, 
-      <<"retry_timeout">> => 1000}.
 
 %% helpers for 'host_config' tests
 

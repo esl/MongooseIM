@@ -248,12 +248,12 @@ validate([<<"path_prefix">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
 validate([<<"request_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
          [{request_timeout, Value}]) ->
     validate_non_negative_integer(Value);
-validate([<<"http_opts">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{http_opts, Value}]) ->
-    validate_map(Value),
-    [validate_enum(Key, [retry, retry_timeout]) || Key <- maps:keys(Value)],
-    validate_non_negative_integer(maps:get(retry, Value, 1)),
-    validate_positive_integer(maps:get(retry_timeout, Value, 1));
+validate([<<"retry">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{retry, Value}]) ->
+    validate_non_negative_integer(Value);
+validate([<<"retry_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
+         [{retry_timeout, Value}]) ->
+    validate_positive_integer(Value);
 validate([<<"host">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
     validate_non_empty_string(Value);
@@ -440,5 +440,4 @@ validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
 validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
-validate_map(Value) when is_map(Value) -> ok.
 validate_string(Value) when is_list(Value) -> ok.
