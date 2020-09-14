@@ -158,6 +158,7 @@ groups() ->
                             mod_caps,
                             mod_carboncopy,
                             mod_csi,
+                            mod_disco,
                             mod_inbox,
                             mod_register]}
     ].
@@ -1301,6 +1302,63 @@ mod_csi(_Config) ->
          T(<<"buffer_max">>, 10)),
     ?errf(T(<<"buffer_max">>, -1)),
     ?errf(T(<<"buffer_max">>, <<"infinity">>)).
+
+%% ---------------------------------------------------------------------------
+
+mod_disco(_Config) ->
+    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_disco">> => #{K => V}}}) end,
+    ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
+         T(<<"users_can_see_hidden_services">>, true)),
+    ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, false}]),
+         T(<<"users_can_see_hidden_services">>, false)),
+    %% extra_domains are binaries
+    ?eqf(modopts(mod_disco, [{extra_domains, [<<"localhost">>, <<"erlang-solutions.com">>]}]),
+         T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
+    ?eqf(modopts(mod_disco, [{extra_domains, []}]),
+         T(<<"extra_domains">>, [])),
+    ?eqf(modopts(mod_disco, [{server_info, [{all, "abuse-address", ["admin@example.com"]},
+                                            {[mod_muc, mod_disco], "friendly-spirits",
+                                             ["spirit1@localhost", "spirit2@localhost"]}]} ]),
+         T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
+                                 <<"urls">> => [<<"admin@example.com">>]},
+                               #{<<"module">> => [<<"mod_muc">>, <<"mod_disco">>],
+                                 <<"name">> => <<"friendly-spirits">>,
+                                 <<"urls">> => [<<"spirit1@localhost">>, <<"spirit2@localhost">>]} ])),
+
+    %% Correct version, used as a prototype to make invalid versions
+%%  ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
+%%                               <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Invalid name
+    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => 1,
+                                 <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Mising name
+    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
+                                 <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Invalid module
+    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"roll">>,
+                                  <<"name">> => <<"abuse-address">>,
+                                 <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Invalid module
+    ?errf(T(<<"server_info">>, [#{<<"module">> => [<<"meow_meow_meow">>],
+                                  <<"name">> => <<"abuse-address">>,
+                                 <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Missing urls
+    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
+                                  <<"name">> => <<"abuse-address">>}])),
+    %% Missing module
+    ?errf(T(<<"server_info">>, [#{<<"name">> => <<"abuse-address">>,
+                                 <<"urls">> => [<<"admin@example.com">>]}])),
+    %% Invalid url
+    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
+                                  <<"name">> => <<"abuse-address">>,
+                                 <<"urls">> => [1]}])),
+
+    ?errf(T(<<"users_can_see_hidden_services">>, 1)),
+    ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),
+    ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
+    ?errf(T(<<"extra_domains">>, [1])),
+    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)),
+    ok.
 
 %% ---------------------------------------------------------------------------
 

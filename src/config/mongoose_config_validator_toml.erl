@@ -440,6 +440,33 @@ validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>],
          [{buffer_max, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
 
+validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>],
+         [{users_can_see_hidden_services, Value}]) ->
+    validate_boolean(Value);
+
+validate([<<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
+         [{extra_domains, Domains}]) ->
+    validate_binary_domains(Domains);
+
+validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [Url]) ->
+    validate_url(Url);
+validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [Mod]) ->
+    validate_module(Mod);
+validate([<<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [all]) ->
+    ok; %% ensure that section is all or a list
+validate([<<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [Mods]) ->
+    true = is_list(Mods); %% ensure that section is all or a list
+validate([<<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [Mods]) ->
+    true = is_list(Mods);
+validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
+         [V]) ->
+    validate_non_empty_binary(V);
+
 validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>],
          [{backend, Value}]) ->
     validate_backend(mod_inbox, Value);
@@ -605,3 +632,24 @@ validate_groupchat_types(Types) ->
 
 is_groupchat_type(Type) ->
     lists:member(Type, [muc, muclight]).
+
+validate_binary_domains(Domains) ->
+    case [Domain || Domain <- Domains, not is_valid_binary_domain(Domain)] of
+        [] ->
+            ok;
+        Invalid ->
+            error({invalid_domains, Invalid})
+    end.
+
+is_valid_binary_domain(Domain) when is_binary(Domain) ->
+    case jid:from_binary(Domain) of
+        #jid{luser = <<>>, lresource = <<>>} ->
+            true;
+        _ ->
+            false
+    end;
+is_valid_binary_domain(_) ->
+    false.
+
+validate_url(Url) ->
+    validate_non_empty_string(Url).

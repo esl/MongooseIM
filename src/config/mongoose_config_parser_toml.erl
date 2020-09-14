@@ -1652,7 +1652,7 @@ handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
 handler([_, <<"validity_period">>, <<"mod_auth_token">>, <<"modules">>]) ->
     fun mod_auth_token_validity_periods/2;
 handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2l(V)] end;
+    fun(_, V) -> [V] end;
 handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
     fun mod_disco_server_info/2;
 handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
