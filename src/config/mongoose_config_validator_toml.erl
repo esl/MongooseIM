@@ -429,6 +429,13 @@ validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>],
          [{backend, Value}]) ->
     validate_backend(mod_bosh, Value);
 
+validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>],
+         [{cache_size, Value}]) ->
+    validate_non_negative_integer_or_infinity(Value);
+validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>],
+         [{cache_life_time, Value}]) ->
+    validate_non_negative_integer_or_infinity(Value);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->

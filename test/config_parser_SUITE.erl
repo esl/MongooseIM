@@ -155,6 +155,7 @@ groups() ->
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
                             mod_bosh,
+                            mod_caps,
                             mod_register]}
     ].
 
@@ -1268,6 +1269,20 @@ mod_bosh(_Config) ->
     ?errf(B(<<"max_wait">>, -1)),
     ?errf(B(<<"server_acks">>, -1)),
     ?errf(B(<<"backend">>, <<"devnull">>)),
+    ok.
+
+%% ---------------------------------------------------------------------------
+
+mod_caps(_Config) ->
+    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_caps">> => #{K => V}}}) end,
+    ?eqf(modopts(mod_caps, [{cache_size, 10}]),
+         T(<<"cache_size">>, 10)),
+    ?eqf(modopts(mod_caps, [{cache_life_time, 10}]),
+         T(<<"cache_life_time">>, 10)),
+    ?errf(T(<<"cache_size">>, -1)),
+    ?errf(T(<<"cache_size">>, <<"infinity">>)),
+    ?errf(T(<<"cache_life_time">>, -1)),
+    ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)),
     ok.
 
 %% ---------------------------------------------------------------------------
