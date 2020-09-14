@@ -156,6 +156,7 @@ groups() ->
                             mod_auth_token,
                             mod_bosh,
                             mod_caps,
+                            mod_carboncopy,
                             mod_register]}
     ].
 
@@ -1284,6 +1285,11 @@ mod_caps(_Config) ->
     ?errf(T(<<"cache_life_time">>, -1)),
     ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)),
     ok.
+
+%% ---------------------------------------------------------------------------
+
+mod_carboncopy(_Config) ->
+    check_iqdisc(mod_carboncopy).
 
 %% ---------------------------------------------------------------------------
 
