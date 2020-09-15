@@ -76,6 +76,9 @@ validate([<<"backlog">>, item, _Type, <<"listen">>],
 validate([<<"proxy_protocol">>, item, _Type, <<"listen">>],
          [{proxy_protocol, Value}]) ->
     validate_boolean(Value);
+validate([<<"num_acceptors">>, item, _Type, <<"listen">>],
+         [{acceptors_num, Value}]) ->
+    validate_positive_integer(Value);
 validate([<<"access">>, item, _Type, <<"listen">>],
          [{access, Value}]) ->
     validate_non_empty_atom(Value);
@@ -91,7 +94,7 @@ validate([<<"xml_socket">>, item, <<"c2s">>, <<"listen">>],
 validate([<<"zlib">>, item, <<"c2s">>, <<"listen">>],
          [{zlib, Value}]) ->
     validate_positive_integer(Value);
-validate([<<"hibernate_after">>, item, <<"c2s">>, <<"listen">>],
+validate([<<"hibernate_after">>, item, _, <<"listen">>],
          [{hibernate_after, Value}]) ->
     validate_non_negative_integer(Value);
 validate([<<"mode">>, {tls, _}, item, <<"c2s">>, <<"listen">>],
@@ -103,6 +106,12 @@ validate([<<"verify_mode">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
 validate([<<"disconnect_on_failure">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
          Value) ->
     validate_boolean(Value);
+validate([item, <<"crl_files">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
+         [Value]) ->
+    validate_non_empty_string(Value);
+validate([item, <<"protocol_options">>, _TLS, item, _Type, <<"listen">>],
+         [Value]) ->
+    validate_non_empty_string(Value);
 validate([FileType, _TLS, item, _Type, <<"listen">>],
          [{_, Value}]) when FileType =:= <<"certfile">>;
                             FileType =:= <<"cacertfile">>;
@@ -110,6 +119,9 @@ validate([FileType, _TLS, item, _Type, <<"listen">>],
     validate_non_empty_string(Value);
 validate([<<"max_stanza_size">>, item, _Type, <<"listen">>],
          [{max_stanza_size, Value}]) ->
+    validate_positive_integer(Value);
+validate([<<"max_fsm_queue">>, item, _Type, <<"listen">>],
+         [{max_fsm_queue, Value}]) ->
     validate_positive_integer(Value);
 validate([<<"check_from">>, item, <<"service">>, <<"listen">>],
          [{service_check_from, Value}]) ->
