@@ -15,6 +15,9 @@
 -define(eqf(Expected, Actual), ?assertEqual(Expected, apply(hd(Actual), [?HOST]))).
 -define(errf(Expr), ?assertError(_, apply(hd(Expr), [?HOST]))).
 
+%% uno uno - unordered
+-define(eqfuno(X, Y), compare_unordered_lists(X, apply(hd(Y), [?HOST]), fun handle_config_option/2)).
+
 -import(mongoose_config_parser_toml, [parse/1]).
 
 all() ->
@@ -160,6 +163,7 @@ groups() ->
                             mod_csi,
                             mod_disco,
                             mod_inbox,
+                            mod_global_distrib,
                             mod_register]}
     ].
 
@@ -1397,6 +1401,62 @@ mod_inbox(_Config) ->
     ok.
 
 %% ---------------------------------------------------------------------------
+
+mod_global_distrib(_Config) ->
+    ConnOpts = [
+              {endpoints, [{"172.16.0.2", 5555}]},
+              {num_of_connections, 22},
+              {tls_opts, [
+                    {certfile, "/home/user/dc1.pem"},
+                    {cafile, "/home/user/ca.pem"}
+                   ]}
+             ],
+    CacheOpts = [ {domain_lifetime_seconds, 60} ],
+    BounceOpts = [ {resend_after_ms, 300}, {max_retries, 3} ],
+    RedisOpts = [ {pool, global_distrib} ],
+
+    TConnOpts = #{
+      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555}],
+      <<"num_of_connections">> => 22,
+      <<"tls">> => #{
+          <<"certfile">> => <<"/home/user/dc1.pem">>,
+          <<"cacertfile">> => <<"/home/user/ca.pem">>
+         }
+     },
+    TCacheOpts = #{ <<"domain_lifetime_seconds">> => 60 },
+    TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
+    TRedisOpts = #{ <<"pool">> => <<"global_distrib">> },
+    T = fun(Opts) -> parse(#{<<"modules">> => #{<<"mod_global_distrib">> => Opts}}) end,
+    Base = #{
+           <<"global_host">> => <<"example.com">>,
+           <<"local_host">> => <<"datacenter1.example.com">>,
+           <<"message_ttl">> => 42,
+           <<"hosts_refresh_interval">> => 100,
+           <<"connections">> => TConnOpts,
+           <<"cache">> => TCacheOpts,
+           <<"bounce">> => TBounceOpts,
+           <<"redis">> => TRedisOpts
+          },
+
+    ?eqfuno(modopts(mod_global_distrib, [
+        {global_host, "example.com"},
+        {local_host, "datacenter1.example.com"},
+        {message_ttl, 42},
+        {hosts_refresh_interval, 100},
+        {connections, ConnOpts},
+        {cache, CacheOpts},
+        {bounce, BounceOpts},
+        {redis, RedisOpts}
+       ]), T(Base)),
+    ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
+    ?errf(T(Base#{<<"global_host">> => 1})),
+    ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
+    ?errf(T(Base#{<<"local_host">> => 1})),
+    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
+    ?errf(T(Base#{<<"message_ttl">> => -1})),
+    ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
+    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})),
+    ok.
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

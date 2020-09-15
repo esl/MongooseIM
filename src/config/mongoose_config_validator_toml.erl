@@ -493,6 +493,19 @@ validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
          [Type]) ->
     validate_groupchat_type(Type);
 
+validate([<<"global_host">>, <<"mod_global_distrib">>, <<"modules">>],
+         [{global_host, Host}]) ->
+    validate_domain(Host);
+validate([<<"local_host">>, <<"mod_global_distrib">>, <<"modules">>],
+         [{local_host, Host}]) ->
+    validate_domain(Host);
+validate([<<"message_ttl">>, <<"mod_global_distrib">>, <<"modules">>],
+         [{message_ttl, Value}]) ->
+    validate_non_negative_integer(Value);
+validate([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>, <<"modules">>],
+         [{hosts_refresh_interval, Value}]) ->
+    validate_non_negative_integer(Value);
+
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -624,8 +637,29 @@ validate_marker_type(Type) ->
 validate_groupchat_type(Type) ->
     validate_enum(Type, [muc, muclight]).
 
+validate_domain(Domain) ->
+    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),
+    validate_domain_res(Domain).
+
+validate_domain_res(Domain) ->
+    case inet_res:gethostbyname(Domain) of
+        {ok, _} ->
+            ok;
+        {error,nxdomain} ->
+            ?LOG_WARNING(#{what => cfg_validate_domain,
+                           reason => nxdomain, domain => Domain,
+                           text => <<"Couldn't resolve domain. "
+                  "It could cause issues with production installations">>}),
+            ok;
+        {error,formerr} ->
+            error(#{what => cfg_validate_domain_failed,
+                    reason => formerr, text => <<"Invalid domain name">>,
+                    domain => Domain})
+    end.
+
 validate_binary_domain(Domain) when is_binary(Domain) ->
-    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain).
+    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain),
+    validate_domain_res(binary_to_list(Domain)).
 
 validate_url(Url) ->
     validate_non_empty_string(Url).
