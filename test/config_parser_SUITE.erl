@@ -1212,12 +1212,7 @@ s2s_max_retry_delay(_Config) ->
                   #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     err_host_config(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
 
-modopts(Mod, Opts) ->
-    [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
-
 %% modules
-
-%% ---------------------------------------------------------------------------
 
 mod_adhoc(_Config) ->
     %% report_commands_node is boolean
@@ -1227,11 +1222,7 @@ mod_adhoc(_Config) ->
          parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}})),
     %% not boolean
     ?errf(parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}})),
-
-    check_iqdisc(mod_adhoc),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    check_iqdisc(mod_adhoc).
 
 mod_auth_token(_Config) ->
     P = fun(X) ->
@@ -1248,11 +1239,7 @@ mod_auth_token(_Config) ->
     ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
     ?errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
     ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}])),
-
-    check_iqdisc(mod_auth_token),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    check_iqdisc(mod_auth_token).
 
 mod_bosh(_Config) ->
     B = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}}) end,
@@ -1276,10 +1263,7 @@ mod_bosh(_Config) ->
     ?errf(B(<<"max_wait">>, <<"10">>)),
     ?errf(B(<<"max_wait">>, -1)),
     ?errf(B(<<"server_acks">>, -1)),
-    ?errf(B(<<"backend">>, <<"devnull">>)),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    ?errf(B(<<"backend">>, <<"devnull">>)).
 
 mod_caps(_Config) ->
     T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_caps">> => #{K => V}}}) end,
@@ -1290,15 +1274,10 @@ mod_caps(_Config) ->
     ?errf(T(<<"cache_size">>, -1)),
     ?errf(T(<<"cache_size">>, <<"infinity">>)),
     ?errf(T(<<"cache_life_time">>, -1)),
-    ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)).
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
-
-%% ---------------------------------------------------------------------------
 
 mod_csi(_Config) ->
     T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_csi">> => #{K => V}}}) end,
@@ -1306,8 +1285,6 @@ mod_csi(_Config) ->
          T(<<"buffer_max">>, 10)),
     ?errf(T(<<"buffer_max">>, -1)),
     ?errf(T(<<"buffer_max">>, <<"infinity">>)).
-
-%% ---------------------------------------------------------------------------
 
 mod_disco(_Config) ->
     T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_disco">> => #{K => V}}}) end,
@@ -1328,7 +1305,6 @@ mod_disco(_Config) ->
                                #{<<"module">> => [<<"mod_muc">>, <<"mod_disco">>],
                                  <<"name">> => <<"friendly-spirits">>,
                                  <<"urls">> => [<<"spirit1@localhost">>, <<"spirit2@localhost">>]} ])),
-
     %% Correct version, used as a prototype to make invalid versions
 %%  ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
 %%                               <<"urls">> => [<<"admin@example.com">>]}])),
@@ -1356,15 +1332,11 @@ mod_disco(_Config) ->
     ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
                                   <<"name">> => <<"abuse-address">>,
                                  <<"urls">> => [1]}])),
-
     ?errf(T(<<"users_can_see_hidden_services">>, 1)),
     ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
-    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
 
 mod_inbox(_Config) ->
     T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}}) end,
@@ -1397,10 +1369,7 @@ mod_inbox(_Config) ->
     ?errf(T(<<"remove_on_kicked">>, 1)),
     ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
     ?errf(T(<<"backend">>, <<"devnull">>)),
-    check_iqdisc(mod_inbox),
-    ok.
-
-%% ---------------------------------------------------------------------------
+    check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
     ConnOpts = [
@@ -1414,7 +1383,6 @@ mod_global_distrib(_Config) ->
     CacheOpts = [ {domain_lifetime_seconds, 60} ],
     BounceOpts = [ {resend_after_ms, 300}, {max_retries, 3} ],
     RedisOpts = [ {pool, global_distrib} ],
-
     TConnOpts = #{
       <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555}],
       <<"num_of_connections">> => 22,
@@ -1437,7 +1405,6 @@ mod_global_distrib(_Config) ->
            <<"bounce">> => TBounceOpts,
            <<"redis">> => TRedisOpts
           },
-
     ?eqfuno(modopts(mod_global_distrib, [
         {global_host, "example.com"},
         {local_host, "datacenter1.example.com"},
@@ -1455,8 +1422,7 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
     ?errf(T(Base#{<<"message_ttl">> => -1})),
     ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})),
-    ok.
+    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -1465,39 +1431,31 @@ mod_register(_Config) ->
                               {deny,{{0,0,0,0},32}}]}
                 ]),
          parse(ip_access_register(<<"0.0.0.0">>))),
-
     ?eqf(modopts(mod_register,
                 [{access,register},
                  {ip_access, [{allow,{{127,0,0,0},8}},
                               {deny,{{0,0,0,4},32}}]}
                 ]),
          parse(ip_access_register(<<"0.4">>))), %% Partial IPs format
-
     ?errf(parse(invalid_ip_access_register())),
-
     ?errf(parse(ip_access_register(<<"hello">>))),
     ?errf(parse(ip_access_register(<<"0.d">>))),
-
     ?eqf(modopts(mod_register,
                 [{welcome_message, {"Subject", "Body"}}]),
          parse(welcome_message())),
-
     %% List of jids
     ?eqf(modopts(mod_register,
                 [{registration_watchers,
                   [<<"alice@bob">>, <<"ilovemongoose@help">>]}]),
          parse(registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>]))),
     ?errf(parse(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>]))),
-
     %% non-negative integer
     ?eqf(modopts(mod_register, [{password_strength, 42}]),
          parse(password_strength_register(42))),
     ?errf(parse(password_strength_register(<<"42">>))),
     ?errf(parse(password_strength_register(<<"strong">>))),
     ?errf(parse(password_strength_register(-150))),
-
-    check_iqdisc(mod_register),
-    ok.
+    check_iqdisc(mod_register).
 
 welcome_message() ->
     Opts = #{<<"welcome_message">> => #{<<"subject">> => <<"Subject">>, <<"body">> => <<"Body">>}},
@@ -1525,8 +1483,6 @@ registration_watchers(JidBins) ->
     Opts = #{<<"registration_watchers">> => JidBins},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
-%% ---------------------------------------------------------------------------
-
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).
@@ -1535,15 +1491,15 @@ iq_disc_generic(Module, Value) ->
     Opts = #{<<"iqdisc">> => Value},
     #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
-
 check_iqdisc(Module) ->
     ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
          parse(iq_disc_generic(Module, iqdisc({queues, 10})))),
     ?eqf(modopts(Module, [{iqdisc, parallel}]),
          parse(iq_disc_generic(Module, iqdisc(parallel)))),
-    ?errf(parse(iq_disc_generic(Module, iqdisc(bad_haha)))),
-    ok.
+    ?errf(parse(iq_disc_generic(Module, iqdisc(bad_haha)))).
 
+modopts(Mod, Opts) ->
+    [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
 
 %% helpers for 'listen' tests
 
@@ -1619,8 +1575,6 @@ handle_config_option(#local_config{key = K1, value = V1},
 handle_config_option(Opt1, Opt2) ->
     ?eq(Opt1, Opt2).
 
-compare_values(_, X, X) -> %% I am a simple man
-    ok;
 compare_values(listen, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
 compare_values({auth_opts, _}, V1, V2) ->
