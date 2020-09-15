@@ -400,22 +400,20 @@ validate([<<"max_retry_delay">>, <<"s2s">>|Path],
 
 validate([_Module, <<"modules">>], [{Mod, _}]) ->
     validate_module(Mod);
-
 %% iqdisc is a generic module option
 validate([<<"iqdisc">>, _, <<"modules">>], [{iqdisc, Value}]) ->
     validate_iqdisc(Value);
-
 validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>],
          [{report_commands_node, Value}]) ->
     validate_boolean(Value);
-
+%% mod_auth_token
 %% One TOML option validate_period is parsed into several MongooseIM options
 validate([<<"validity_period">>, <<"mod_auth_token">>, <<"modules">>], Opts) ->
     lists:foreach(fun({{validity_period, Domain}, Period}) ->
             validate_auth_token_domain(Domain),
             validate_period(Period)
         end, Opts);
-
+%% mod_bosh
 validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>],
          [{inactivity, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
@@ -428,18 +426,18 @@ validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>],
 validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>],
          [{backend, Value}]) ->
     validate_backend(mod_bosh, Value);
-
+%% mod_caps
 validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>],
          [{cache_size, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
 validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>],
          [{cache_life_time, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
-
+%% mod_csi
 validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>],
          [{buffer_max, Value}]) ->
     validate_non_negative_integer_or_infinity(Value);
-
+%% mod_disco
 validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>],
          [{users_can_see_hidden_services, Value}]) ->
     validate_boolean(Value);
@@ -449,7 +447,6 @@ validate([<<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
 validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
          [Domain]) ->
     validate_binary_domain(Domain);
-
 validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
          [Url]) ->
     validate_url(Url);
@@ -468,7 +465,7 @@ validate([<<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
 validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
          [V]) ->
     validate_non_empty_binary(V);
-
+%% mod_inbox
 validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>],
          [{backend, Value}]) ->
     validate_backend(mod_inbox, Value);
@@ -492,7 +489,7 @@ validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
 validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
          [Type]) ->
     validate_groupchat_type(Type);
-
+%% mod_global_distrib
 validate([<<"global_host">>, <<"mod_global_distrib">>, <<"modules">>],
          [{global_host, Host}]) ->
     validate_domain(Host);
@@ -505,7 +502,7 @@ validate([<<"message_ttl">>, <<"mod_global_distrib">>, <<"modules">>],
 validate([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>, <<"modules">>],
          [{hosts_refresh_interval, Value}]) ->
     validate_non_negative_integer(Value);
-
+%% mod_register
 %% One call for each rule in ip_access
 validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
          [{Policy, _Addr}]) ->
@@ -527,12 +524,8 @@ validate([<<"registration_watchers">>,<<"mod_register">>,<<"modules">>],
 validate([<<"password_strength">>,<<"mod_register">>,<<"modules">>],
          [{password_strength, Value}]) ->
     validate_non_negative_integer(Value);
-
 validate(Option, Value) ->
-    ?LOG_ERROR(#{ what => validate_unknown, option => Option, value => Value}),
-    ok;
-validate(_, _) ->
-    ok.
+    ?LOG_DEBUG(#{ what => validate_unknown, option => Option, value => Value}).
 
 %% helpers
 
