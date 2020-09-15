@@ -12,11 +12,12 @@
 
 -define(HOST, <<"myhost">>).
 
--define(eqf(Expected, Actual), ?assertEqual(Expected, apply(hd(Actual), [?HOST]))).
--define(errf(Expr), ?assertError(_, apply(hd(Expr), [?HOST]))).
+-define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
+-define(errf(Config), 
+        begin ?err(parse(Config)), ?err(parse_host_config(Config)) end).
 
 %% uno uno - unordered
--define(eqfuno(X, Y), compare_unordered_lists(X, apply(hd(Y), [?HOST]), fun handle_config_option/2)).
+-define(eqfuno(X, Y), compare_unordered_lists(X, apply(hd(parse(Y)), [?HOST]), fun handle_config_option/2)).
 
 -import(mongoose_config_parser_toml, [parse/1]).
 
@@ -1217,17 +1218,17 @@ s2s_max_retry_delay(_Config) ->
 mod_adhoc(_Config) ->
     %% report_commands_node is boolean
     ?eqf(modopts(mod_adhoc, [{report_commands_node, true}]),
-         parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => true}}})),
+         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => true}}}),
     ?eqf(modopts(mod_adhoc, [{report_commands_node, false}]),
-         parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}})),
+         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}}),
     %% not boolean
-    ?errf(parse(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}})),
+    ?errf(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}}),
     check_iqdisc(mod_adhoc).
 
 mod_auth_token(_Config) ->
     P = fun(X) ->
                      Opts = #{<<"validity_period">> => X},
-                     parse(#{<<"modules">> => #{<<"mod_auth_token">> => Opts}})
+                     #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
              end,
     ?eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
                                   {{validity_period,refresh}, {31,days}}]),
@@ -1242,7 +1243,7 @@ mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token).
 
 mod_bosh(_Config) ->
-    B = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}}) end,
+    B = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
     ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
          B(<<"inactivity">>, 10)),
     ?eqf(modopts(mod_bosh, [{inactivity, infinity}]),
@@ -1266,7 +1267,7 @@ mod_bosh(_Config) ->
     ?errf(B(<<"backend">>, <<"devnull">>)).
 
 mod_caps(_Config) ->
-    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_caps">> => #{K => V}}}) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     ?eqf(modopts(mod_caps, [{cache_size, 10}]),
          T(<<"cache_size">>, 10)),
     ?eqf(modopts(mod_caps, [{cache_life_time, 10}]),
@@ -1280,14 +1281,14 @@ mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
-    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_csi">> => #{K => V}}}) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     ?eqf(modopts(mod_csi, [{buffer_max, 10}]),
          T(<<"buffer_max">>, 10)),
     ?errf(T(<<"buffer_max">>, -1)),
     ?errf(T(<<"buffer_max">>, <<"infinity">>)).
 
 mod_disco(_Config) ->
-    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_disco">> => #{K => V}}}) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
          T(<<"users_can_see_hidden_services">>, true)),
     ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, false}]),
@@ -1339,7 +1340,7 @@ mod_disco(_Config) ->
     ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
 
 mod_inbox(_Config) ->
-    T = fun(K, V) -> parse(#{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}}) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,
     ?eqf(modopts(mod_inbox, [{reset_markers, [displayed, received, acknowledged]}]),
          T(<<"reset_markers">>, [<<"displayed">>, <<"received">>, <<"acknowledged">>])),
     ?eqf(modopts(mod_inbox, [{reset_markers, []}]),
@@ -1394,7 +1395,7 @@ mod_global_distrib(_Config) ->
     TCacheOpts = #{ <<"domain_lifetime_seconds">> => 60 },
     TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
     TRedisOpts = #{ <<"pool">> => <<"global_distrib">> },
-    T = fun(Opts) -> parse(#{<<"modules">> => #{<<"mod_global_distrib">> => Opts}}) end,
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
     Base = #{
            <<"global_host">> => <<"example.com">>,
            <<"local_host">> => <<"datacenter1.example.com">>,
@@ -1430,31 +1431,31 @@ mod_register(_Config) ->
                  {ip_access, [{allow,{{127,0,0,0},8}},
                               {deny,{{0,0,0,0},32}}]}
                 ]),
-         parse(ip_access_register(<<"0.0.0.0">>))),
+         ip_access_register(<<"0.0.0.0">>)),
     ?eqf(modopts(mod_register,
                 [{access,register},
                  {ip_access, [{allow,{{127,0,0,0},8}},
                               {deny,{{0,0,0,4},32}}]}
                 ]),
-         parse(ip_access_register(<<"0.4">>))), %% Partial IPs format
-    ?errf(parse(invalid_ip_access_register())),
-    ?errf(parse(ip_access_register(<<"hello">>))),
-    ?errf(parse(ip_access_register(<<"0.d">>))),
+         ip_access_register(<<"0.4">>)), %% Partial IPs format
+    ?errf(invalid_ip_access_register()),
+    ?errf(ip_access_register(<<"hello">>)),
+    ?errf(ip_access_register(<<"0.d">>)),
     ?eqf(modopts(mod_register,
                 [{welcome_message, {"Subject", "Body"}}]),
-         parse(welcome_message())),
+         welcome_message()),
     %% List of jids
     ?eqf(modopts(mod_register,
                 [{registration_watchers,
                   [<<"alice@bob">>, <<"ilovemongoose@help">>]}]),
-         parse(registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>]))),
-    ?errf(parse(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>]))),
+         registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>])),
+    ?errf(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>])),
     %% non-negative integer
     ?eqf(modopts(mod_register, [{password_strength, 42}]),
-         parse(password_strength_register(42))),
-    ?errf(parse(password_strength_register(<<"42">>))),
-    ?errf(parse(password_strength_register(<<"strong">>))),
-    ?errf(parse(password_strength_register(-150))),
+         password_strength_register(42)),
+    ?errf(password_strength_register(<<"42">>)),
+    ?errf(password_strength_register(<<"strong">>)),
+    ?errf(password_strength_register(-150)),
     check_iqdisc(mod_register).
 
 welcome_message() ->
@@ -1493,10 +1494,10 @@ iq_disc_generic(Module, Value) ->
 
 check_iqdisc(Module) ->
     ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
-         parse(iq_disc_generic(Module, iqdisc({queues, 10})))),
+         iq_disc_generic(Module, iqdisc({queues, 10}))),
     ?eqf(modopts(Module, [{iqdisc, parallel}]),
-         parse(iq_disc_generic(Module, iqdisc(parallel)))),
-    ?errf(parse(iq_disc_generic(Module, iqdisc(bad_haha)))).
+         iq_disc_generic(Module, iqdisc(parallel))),
+    ?errf(iq_disc_generic(Module, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
     [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].

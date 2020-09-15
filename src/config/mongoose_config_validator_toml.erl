@@ -1,6 +1,7 @@
 -module(mongoose_config_validator_toml).
 
 -export([validate/2]).
+-export([module_option_paths/0]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -398,136 +399,190 @@ validate([<<"max_retry_delay">>, <<"s2s">>|Path],
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
 
-validate([_Module, <<"modules">>], [{Mod, _}]) ->
-    validate_module(Mod);
-%% iqdisc is a generic module option
-validate([<<"iqdisc">>, _, <<"modules">>], [{iqdisc, Value}]) ->
-    validate_iqdisc(Value);
-validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>],
-         [{report_commands_node, Value}]) ->
-    validate_boolean(Value);
-%% mod_auth_token
-%% One TOML option validate_period is parsed into several MongooseIM options
-validate([<<"validity_period">>, <<"mod_auth_token">>, <<"modules">>], Opts) ->
-    lists:foreach(fun({{validity_period, Domain}, Period}) ->
-            validate_auth_token_domain(Domain),
-            validate_period(Period)
-        end, Opts);
-%% mod_bosh
-validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>],
-         [{inactivity, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>],
-         [{max_wait, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>],
-         [{server_acks, Value}]) ->
-    validate_boolean(Value);
-validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>],
-         [{backend, Value}]) ->
-    validate_backend(mod_bosh, Value);
-%% mod_caps
-validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>],
-         [{cache_size, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>],
-         [{cache_life_time, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-%% mod_csi
-validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>],
-         [{buffer_max, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-%% mod_disco
-validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>],
-         [{users_can_see_hidden_services, Value}]) ->
-    validate_boolean(Value);
-validate([<<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
-         [{extra_domains, Domains}]) ->
-    validate_list(Domains);
-validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>],
-         [Domain]) ->
-    validate_binary_domain(Domain);
-validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [Url]) ->
-    validate_url(Url);
-validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [Mod]) ->
-    validate_module(Mod);
-validate([<<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [all]) ->
-    ok; %% ensure that section is all or a list
-validate([<<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [Mods]) ->
-    true = is_list(Mods); %% ensure that section is all or a list
-validate([<<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [Mods]) ->
-    true = is_list(Mods);
-validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>],
-         [V]) ->
-    validate_non_empty_binary(V);
-%% mod_inbox
-validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>],
-         [{backend, Value}]) ->
-    validate_backend(mod_inbox, Value);
-validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>],
-         [{aff_changes, Types}]) ->
-    validate_boolean(Types);
-validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>],
-         [{remove_on_kicked, Types}]) ->
-    validate_boolean(Types);
-%% Sublists for mod_inbox - ensure that they are lists
-validate([<<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
-         [{reset_markers, Types}]) ->
-    validate_list(Types);
-validate([<<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
-         [{groupchat, Types}]) ->
-    validate_list(Types);
-%% Sublists for mod_inbox - items
-validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>],
-         [Type]) ->
-    validate_marker_type(Type);
-validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>],
-         [Type]) ->
-    validate_groupchat_type(Type);
-%% mod_global_distrib
-validate([<<"global_host">>, <<"mod_global_distrib">>, <<"modules">>],
-         [{global_host, Host}]) ->
-    validate_domain(Host);
-validate([<<"local_host">>, <<"mod_global_distrib">>, <<"modules">>],
-         [{local_host, Host}]) ->
-    validate_domain(Host);
-validate([<<"message_ttl">>, <<"mod_global_distrib">>, <<"modules">>],
-         [{message_ttl, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>, <<"modules">>],
-         [{hosts_refresh_interval, Value}]) ->
-    validate_non_negative_integer(Value);
-%% mod_register
-%% One call for each rule in ip_access
-validate([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>],
-         [{Policy, _Addr}]) ->
-    validate_enum(Policy, [allow, deny]);
-%% We do validations for suboptions of this option in other parts of the code.
-validate([<<"ip_access">>, <<"mod_register">>, <<"modules">>], _Value) ->
-    ok;
-validate([<<"welcome_message">>, <<"mod_register">>, <<"modules">>],
-         [{Subject, Body}]) ->
-    %% TODO We don't have any big tests for this option.
-    %% So, I don't know how it behaves with unicode characters.
-    ok;
-validate([<<"access">>, <<"mod_register">>, <<"modules">>],
-         [{access, Value}]) ->
-    validate_non_empty_atom(Value);
-validate([<<"registration_watchers">>,<<"mod_register">>,<<"modules">>],
-         [{registration_watchers, Value}]) ->
-    validate_list_of_jids(Value);
-validate([<<"password_strength">>,<<"mod_register">>,<<"modules">>],
-         [{password_strength, Value}]) ->
-    validate_non_negative_integer(Value);
-validate(Option, Value) ->
-    ?LOG_DEBUG(#{ what => validate_unknown, option => Option, value => Value}).
+validate(Path, Value) ->
+    PathR = lists:reverse(Path),
+    validate_r(Path, PathR, Value).
 
-%% helpers
+validate_r(Path, [<<"modules">>|_], Value) ->
+    validate_modules(Path, Value);
+validate_r(Path, [<<"host_config">>, {host, _}, <<"modules">>|_], Value) ->
+    validate_modules(path_without_host_config(Path), Value);
+validate_r(Path, _PathR, Value) ->
+    ?LOG_DEBUG(#{ what => validate_unknown, path => Path, value => Value}).
+
+validate_modules([_,<<"modules">>], [{Mod,_}]) ->
+    validate_module(Mod);
+validate_modules(Path, Value) ->
+    Types = [Type || {Path1, Type} <- module_option_paths(), Path =:= Path1],
+    case Types of
+        [] ->
+            ?LOG_DEBUG(#{ what => validate_unknown_module_path, path => Path, value => Value});
+        _ ->
+            ?LOG_DEBUG(#{ what => validate_module_with, path => Path, value => Value, types => Types})
+    end,
+    [validate_type(Type, Path, Value) || Type <- Types],
+    ok.
+
+module_option_types() ->
+    [{mod_adhoc, iqdisc, iqdisc},
+     {mod_adhoc, report_commands_node, boolean},
+     %% Technically, we can use this,
+     %% if parser was calling handle for each suboption
+%    {mod_auth_token, validity_period, {list, #{token => auth_token_domain,
+%                                               value => non_neg_integer,
+%                                               unit => period_unit}}},
+     {mod_auth_token, iqdisc, iqdisc},
+     {mod_auth_token, validity_period, {unwrapped, {multi, validity_period}}},
+     {mod_bosh, inactivity, non_neg_integer_or_inf},
+     {mod_bosh, max_wait, non_neg_integer_or_inf},
+     {mod_bosh, server_acks, boolean},
+     {mod_bosh, backend, backend},
+     {mod_carboncopy, iqdisc, iqdisc},
+     {mod_caps, cache_size, non_neg_integer_or_inf},
+     {mod_caps, cache_life_time, non_neg_integer_or_inf},
+     {mod_csi, buffer_max, non_neg_integer_or_inf},
+     {mod_disco, users_can_see_hidden_services, boolean},
+     {mod_disco, extra_domains, {list, binary_domain}},
+     {mod_disco, urls, {list, url}},
+     {mod_disco, server_info, {list, #{name => non_empty_binary,
+                                       module => {list, module},
+                                       urls => {list, url}}}},
+     {mod_inbox, iqdisc, iqdisc},
+     {mod_inbox, backend, backend},
+     {mod_inbox, aff_changes, boolean},
+     {mod_inbox, remove_on_kicked, boolean},
+     {mod_inbox, reset_markers, {list, chat_marker_type}},
+     {mod_inbox, groupchat, {list, groupchat_type}},
+     {mod_global_distrib, global_host, domain},
+     {mod_global_distrib, local_host, domain},
+     {mod_global_distrib, message_ttl, non_neg_integer},
+     {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
+     %% Not called for each leaf
+%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
+     {mod_register, iqdisc, iqdisc},
+     {mod_register, ip_access, {list, ip_access}},
+     {mod_register, welcome_message, #{subject => string, body => string}},
+%    {mod_register, welcome_message, output_tuple_of_two},
+     {mod_register, access, non_empty_atom},
+     {mod_register, registration_watchers, {list, jid}},
+     {mod_register, password_strength, non_neg_integer}
+    ].
+
+type_to_validator() ->
+    #{string => fun validate_string/1,
+      boolean => fun validate_boolean/1,
+      non_empty_atom => fun validate_non_empty_atom/1,
+      non_empty_binary => fun validate_non_empty_binary/1,
+      non_neg_integer => fun validate_non_negative_integer/1,
+      non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
+      iqdisc => fun validate_iqdisc/1,
+      url => fun validate_url/1,
+      module => fun validate_module/1,
+      groupchat_type => fun validate_groupchat_type/1,
+      chat_marker_type => fun validate_chat_marker_type/1,
+      ip_mask => fun validate_ip_mask/1,
+      jid => fun validate_jid/1,
+      auth_token_domain => fun validate_auth_token_domain/1,
+      domain => fun validate_domain/1,
+      binary_domain => fun validate_binary_domain/1,
+      domain_template => fun validate_domain_template/1,
+      period_unit => fun validate_period_unit/1,
+      validity_period => fun validate_validity_period/1,
+      ip_access => fun validate_ip_access/1
+%     wpool_options => fun validate_wpool_options/1
+     }.
+
+validate_type({unwrapped, Type}, Path, Value) ->
+    validate_type(Type, Path, Value);
+validate_type({multi, Type}, Path, Value) ->
+    %% Validate multiple values in a list
+    [validate_type(Type, Path, Val) || Val <- Value];
+validate_type({listed, Type}, Path, Value) ->
+    case Value of
+        [Unwrapped] ->
+            validate_type(Type, Path, Unwrapped);
+        _ ->
+            error(#{what => list_value_expected,
+                    text => <<"We expect Value argument to be a list of one">>,
+                    value => Value, path => Path, type => Type})
+    end;
+validate_type({wrapped, Wrapper, Type}, Path, Value) ->
+    case Value of
+        {Wrapper, Unwrapped} ->
+            validate_type(Type, Path, Unwrapped);
+        _ ->
+            error(#{what => expected_to_be_wrapped,
+                    wrapper => Wrapper, value => Value, path => Path, type => Type})
+    end;
+validate_type(backend, Path, Value) ->
+    Module = path_to_module(Path),
+    validate_backend(Module, Value);
+validate_type({enum, Types}, _Path, Value) ->
+    validate_enum(Value, Types);
+validate_type(Type, Path, Value) when is_atom(Type) ->
+    case maps:find(Type, type_to_validator()) of
+        {ok, F} ->
+            F(Value);
+        _ ->
+            error(#{what => unknown_validator_type, type => Type, path => Path})
+    end;
+validate_type(Type, Path, Value) ->
+    error(#{what => unknown_validator_type, type => Type, path => Path}).
+
+module_option_paths() ->
+    lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types()]).
+
+module_option_paths(Mod, Opt, Type) ->
+    Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
+    PathType = type_to_paths(add_wrapped(Opt, Type), Path),
+    [{P, add_unlistify(T)} || {P,T} <- PathType].
+
+%% Majority of values are inside a list.
+%% We need to pass only head into a validator.
+add_unlistify({unwrapped, Type}) ->
+    Type;
+add_unlistify({multi, Type}) ->
+    {multi, Type};
+add_unlistify(Type) ->
+    {listed, Type}.
+
+%% Values for basic module options are wrapped into an option name.
+%% Tell to remove this wrapper and pass only option value into validators
+%% for most non-nested values.
+%% Example: {iqdisc, one_queue}
+add_wrapped(_Opt, Type = {list, _}) ->
+    Type;
+add_wrapped(_Opt, Type = {unwrapped, _}) ->
+    Type;
+add_wrapped(_Opt, Type = #{}) ->
+    Type;
+add_wrapped(Opt, Type) ->
+    {wrapped, Opt, Type}.
+
+type_to_paths({list, Type}, Path) ->
+    type_to_paths(Type, [item|Path]);
+type_to_paths(Dict, Path) when is_map(Dict) ->
+    lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
+                  || {Key, Type} <- maps:to_list(Dict)]);
+type_to_paths(Type, Path) ->
+    [{Path, Type}].
+
+path_to_module(Path) ->
+    PathR = lists:reverse(Path),
+    case PathR of
+        [<<"host_config">>, _, <<"modules">>, Mod|_] ->
+            binary_to_atom(Mod, utf8);
+        [<<"modules">>, Mod|_] ->
+            binary_to_atom(Mod, utf8)
+    end.
+
+path_without_host_config(Path) ->
+    PathR = lists:reverse(Path),
+    [<<"host_config">>, _|Rest] = PathR,
+    lists:reverse(Rest).
+
+
+%% validators
 
 validate_loglevel(Level) ->
     mongoose_logs:loglevel_number_keyword(Level).
@@ -591,8 +646,6 @@ validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
 validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
-validate_string(Value) when is_list(Value) -> ok.
-
 validate_list_of_jids(Jids) ->
     [validate_jid(Jid) || Jid <- Jids].
 
@@ -613,18 +666,22 @@ validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
 validate_auth_token_domain(Type) ->
     validate_enum(Type, [access, refresh, provision]).
 
--spec validate_period(mod_auth_token:period()) -> ok.
-validate_period({Count, Unit}) -> 
-    validate_period_unit(Unit),
-    validate_non_negative_integer(Count).
+validate_validity_period({{validity_period, Token}, {Value, Unit}}) ->
+    validate_auth_token_domain(Token),
+    validate_non_negative_integer(Value),
+    validate_period_unit(Unit).
 
 validate_period_unit(Unit) ->
     validate_enum(Unit, [days, hours, minutes, seconds]).
 
+validate_ip_access({Access,_}) ->
+    %% TODO validate second arg
+    validate_enum(Access, [allow, deny]).
+
 validate_backend(Mod, Backend) ->
     validate_module(backend_module:backend_module(Mod, Backend)).
 
-validate_marker_type(Type) ->
+validate_chat_marker_type(Type) ->
     validate_enum(Type, [displayed, received, acknowledged]).
 
 validate_groupchat_type(Type) ->
@@ -657,5 +714,15 @@ validate_binary_domain(Domain) when is_binary(Domain) ->
 validate_url(Url) ->
     validate_non_empty_string(Url).
 
-validate_list(List) when is_list(List) ->
+validate_string(Value) ->
+    is_binary(unicode:characters_to_binary(Value)).
+
+validate_ip_mask({IP, Mask}) ->
+    validate_string(inet:ntoa(IP)),
+    validate_range(Mask, 0, 32).
+
+validate_range(Value, Min, Max) when Value >= 0; Value =< 32 ->
     ok.
+
+validate_domain_template(Domain) ->
+    validate_domain(gen_mod:make_subhost(Domain, <<"example.com">>)).
