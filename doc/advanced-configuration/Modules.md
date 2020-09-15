@@ -69,6 +69,10 @@ Implements [XEP-0357 Push Notifiactions](https://xmpp.org/extensions/xep-0357.ht
 Forward events to an external HTTP service.
 This applies to situations such as sending messages or presences to mobile/SMS/email push service, big data, or an analytics service.
 
+#### [mod_extdisco](../modules/mod_extdisco.md)
+Implements [XEP-0215: External Service Discovery](http://xmpp.org/extensions/xep-0215.html) for discovering information about services external to the XMPP network.
+The main use-case is to help discover STUN/TURN servers to allow for negotiating media exchanges.
+
 ### [mod_http_upload](../modules/mod_http_upload.md)
 Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html) for coordinating with an XMPP server to upload files via HTTP and receive URLs that can be shared in messages.
 

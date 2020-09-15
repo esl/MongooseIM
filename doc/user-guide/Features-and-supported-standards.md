@@ -72,6 +72,7 @@
 |0202|[Entity Time](http://www.xmpp.org/extensions/xep-0202.html)||
 |0203|[Delayed Delivery](http://xmpp.org/extensions/xep-0203.html)||
 |0206|[XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)|`mod_bosh`|
+|0215|[External Service Discovery](http://xmpp.org/extensions/xep-0215.html)|`mod_extdisco`
 |0237|[Roster Versioning](http://xmpp.org/extensions/xep-0237.html)|`mod_roster`
 |0270|[XMPP Advanced Server 2010](http://xmpp.org/extensions/xep-0270.html)||
 |0279|[Server IP Check](http://xmpp.org/extensions/xep-0279.html)|`mod_sic`|
