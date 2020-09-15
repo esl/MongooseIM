@@ -15,7 +15,7 @@ This [TOML](https://github.com/toml-lang/toml) file contains the configuration o
 The file is divided into the following sections:
 
 * [**general**](advanced-configuration/general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
-* **listen** - Configured listeners, receiving incoming XMPP and HTTP connections.
+* [**listen**](advanced-configuration/listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
 * **auth** - Supported client authentication methods and their options.
 * **outgoing_pools** - Outgoing connections to external services, including databases, message queues and HTTP services.
 * **services** - Internal services like an administration API and system metrics.
