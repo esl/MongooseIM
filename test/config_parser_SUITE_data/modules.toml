@@ -62,7 +62,7 @@
   
   backend.http.pool_name = "http_pool"
   backend.http.path = "/notifications"
-  backend.http.callback_module = "mod_event_pusher_http_notifications"
+  backend.http.callback_module = "mod_event_pusher_http_defaults"
 
   backend.rabbit.presence_exchange.name ="presence"
   backend.rabbit.presence_exchange.type = "topic"

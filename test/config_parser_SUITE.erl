@@ -14,10 +14,7 @@
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
 -define(errf(Config), 
-        begin ?err(parse(Config)), ?err(parse_host_config(Config)) end).
-
-%% uno uno - unordered
--define(eqfuno(X, Y), compare_unordered_lists(X, apply(hd(parse(Y)), [?HOST]), fun handle_config_option/2)).
+        begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
 
 -import(mongoose_config_parser_toml, [parse/1]).
 
@@ -165,7 +162,8 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
-                            mod_register]}
+                            mod_register,
+                            mod_event_pusher]}
     ].
 
 init_per_suite(Config) ->
@@ -1377,12 +1375,12 @@ mod_global_distrib(_Config) ->
               {endpoints, [{"172.16.0.2", 5555}]},
               {num_of_connections, 22},
               {tls_opts, [
-                    {certfile, "/home/user/dc1.pem"},
-                    {cafile, "/home/user/ca.pem"}
+                    {cafile, "/home/user/ca.pem"},
+                    {certfile, "/home/user/dc1.pem"}
                    ]}
              ],
     CacheOpts = [ {domain_lifetime_seconds, 60} ],
-    BounceOpts = [ {resend_after_ms, 300}, {max_retries, 3} ],
+    BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {pool, global_distrib} ],
     TConnOpts = #{
       <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555}],
@@ -1406,14 +1404,14 @@ mod_global_distrib(_Config) ->
            <<"bounce">> => TBounceOpts,
            <<"redis">> => TRedisOpts
           },
-    ?eqfuno(modopts(mod_global_distrib, [
+    ?eqf(modopts(mod_global_distrib, [
+        {bounce, BounceOpts},
+        {cache, CacheOpts},
+        {connections, ConnOpts},
         {global_host, "example.com"},
+        {hosts_refresh_interval, 100},
         {local_host, "datacenter1.example.com"},
         {message_ttl, 42},
-        {hosts_refresh_interval, 100},
-        {connections, ConnOpts},
-        {cache, CacheOpts},
-        {bounce, BounceOpts},
         {redis, RedisOpts}
        ]), T(Base)),
     ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
@@ -1424,6 +1422,145 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"message_ttl">> => -1})),
     ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
     ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
+
+mod_event_pusher(_Config) ->
+    T = fun(Backend, Opt, Value) ->
+                Opts = #{<<"backend">> => #{
+                             atom_to_binary(Backend, utf8) =>
+                                 #{atom_to_binary(Opt, utf8) => Value}}},
+                #{<<"modules">> => #{<<"mod_event_pusher">> => Opts}}
+        end,
+    M = fun(Backend, Opt, Value) ->
+                Backends = [{Backend, [{Opt, Value}]}],
+                modopts(mod_event_pusher, [{backends, Backends}])
+        end,
+    [?eqf(M(Backend, Opt, Mim), T(Backend, Opt, Toml))
+     || {Backend, Opt, Toml, Mim} <- mod_event_pusher_valid_opts()],
+    [begin
+         FullToml = T(Backend, Opt, Toml),
+         try
+             ?errf(FullToml)
+         catch Class:Error:Stacktrace ->
+                   erlang:raise(Class, #{what => passed_but_shouldnt,
+                                         backend => Backend, opt => Opt,
+                                         full_toml => FullToml,
+                                         toml => Toml, reason => Error},
+                                Stacktrace)
+         end
+     end
+     || {Backend, Opt, Toml} <- mod_event_pusher_ivalid_opts()],
+    ok.
+
+mod_event_pusher_valid_opts() ->
+    %% {BackendName, BackendOptionName, TomlValue, MongooseValue}
+    [%% sns
+     {sns, access_key_id, <<"AKIAIOSFODNN7EXAMPLE">>,"AKIAIOSFODNN7EXAMPLE"},
+     {sns, secret_access_key, <<"KEY">>, "KEY"},
+     {sns, region, <<"eu-west-1">>, "eu-west-1"},
+     {sns, account_id, <<"123456789012">>, "123456789012"},
+     {sns, sns_host, <<"sns.eu-west-1.amazonaws.com">>, "sns.eu-west-1.amazonaws.com"},
+     {sns, muc_host, <<"conference.HOST">>, "conference.HOST"},
+     {sns, plugin_module, <<"mod_event_pusher_sns_defaults">>, mod_event_pusher_sns_defaults},
+     {sns, presence_updates_topic, <<"user_presence_updated">>, "user_presence_updated"},
+     {sns, pm_messages_topic, <<"user_message_sent">>, "user_message_sent"},
+     {sns, muc_messages_topic, <<"user_messagegroup_sent">>, "user_messagegroup_sent"},
+     {sns, pool_size, 100, 100},
+     {sns, publish_retry_count, 2, 2},
+     {sns, publish_retry_time_ms, 50, 50},
+     %% push
+     {push, plugin_module, <<"mod_event_pusher_push_plugin_defaults">>, mod_event_pusher_push_plugin_defaults},
+     {push, virtual_pubsub_hosts, [<<"host1">>, <<"host2">>], ["host1", "host2"]},
+     {push, backend, <<"mnesia">>, mnesia},
+     {push, wpool, #{<<"workers">> => 200}, [{workers, 200}]},
+     %% http
+     {http, pool_name, <<"http_pool">>, http_pool},
+     {http, path, <<"/notifications">>, "/notifications"},
+     {http, callback_module, <<"mod_event_pusher_http_defaults">>, mod_event_pusher_http_defaults},
+     %% rabbit
+     {rabbit, presence_exchange,
+          #{<<"name">> => <<"presence">>, <<"type">> => <<"topic">>},
+          [{name, <<"presence">>}, {type, <<"topic">>}]},
+     {rabbit, chat_msg_exchange,
+          #{<<"name">> => <<"chat_msg">>,
+            <<"recv_topic">> => <<"chat_msg_recv">>,
+            <<"sent_topic">> => <<"chat_msg_sent">>},
+          [{name, <<"chat_msg">>},
+           {recv_topic, <<"chat_msg_recv">>},
+           {sent_topic, <<"chat_msg_sent">>}]},
+     {rabbit, groupchat_msg_exchange,
+          #{<<"name">> => <<"groupchat_msg">>,
+            <<"sent_topic">> => <<"groupchat_msg_sent">>,
+            <<"recv_topic">> => <<"groupchat_msg_recv">>},
+          [{name, <<"groupchat_msg">>},
+           {recv_topic, <<"groupchat_msg_recv">>},
+           {sent_topic, <<"groupchat_msg_sent">>}]}].
+
+mod_event_pusher_ivalid_opts() ->
+    %% {BackendName, BackendOptionName, TomlValue}
+    [%% sns
+     {sns, access_key_id, 1},
+     {sns, secret_access_key, 1},
+     {sns, region, 1},
+     {sns, account_id, 1},
+     {sns, sns_host, 1},
+     {sns, muc_host, 1},
+     {sns, muc_host, <<"kek kek">>},
+     {sns, plugin_module, <<"wow_cool_but_missing">>},
+     {sns, plugin_module, 1},
+     {sns, presence_updates_topic, 1},
+     {sns, pm_messages_topic, 1},
+     {sns, muc_messages_topic, 1},
+     {sns, pool_size, <<"1">>},
+     {sns, publish_retry_count, <<"1">>},
+     {sns, publish_retry_time_ms, <<"1">>},
+     %% push
+     {push, plugin_module, <<"wow_cool_but_missing">>},
+     {push, plugin_module, 1},
+     {push, virtual_pubsub_hosts, [<<"host with whitespace">>]},
+     {push, backend, <<"mnesiAD">>},
+     {push, wpool, #{<<"workers">> => <<"500">>}},
+     %% http
+     {http, pool_name, 1},
+     {http, path, 1},
+     {http, callback_module, <<"wow_cool_but_missing">>},
+     {http, callback_module, 1},
+     %% rabbit
+     {rabbit, presence_exchange,
+          #{<<"namesss">> => <<"presence">>, <<"type">> => <<"topic">>}},
+     {rabbit, presence_exchange,
+          #{<<"name">> => <<"presence">>, <<"typessss">> => <<"topic">>}},
+     {rabbit, presence_exchange,
+          #{<<"name">> => 1, <<"type">> => <<"topic">>}},
+     {rabbit, presence_exchange,
+          #{<<"name">> => <<"presence">>, <<"type">> => 1}}
+    ] ++ make_chat_exchange_invalid_opts(chat_msg_exchange)
+      ++ make_chat_exchange_invalid_opts(groupchat_msg_exchange).
+
+make_chat_exchange_invalid_opts(Exchange) ->
+    [{rabbit, Exchange, Val} || Val <- chat_exchange_invalid_opts()].
+
+chat_exchange_invalid_opts() ->
+     [#{<<"names4">> => <<"chat_msg">>,
+        <<"recv_topic">> => <<"chat_msg_recv">>,
+        <<"sent_topic">> => <<"chat_msg_sent">>},
+      #{<<"name">> => <<"chat_msg">>,
+        <<"recv_topicsss">> => <<"chat_msg_recv">>,
+        <<"sent_topic">> => <<"chat_msg_sent">>},
+      #{<<"name">> => <<"chat_msg">>,
+        <<"recv_topics33">> => <<"chat_msg_recv">>,
+        <<"sent_topic">> => <<"chat_msg_sent">>},
+      #{<<"name">> => <<"chat_msg">>,
+        <<"recv_topic">> => <<"chat_msg_recv">>,
+        <<"sent_topics444">> => <<"chat_msg_sent">>},
+      #{<<"name">> => 1,
+        <<"recv_topic">> => <<"chat_msg_recv">>,
+        <<"sent_topic">> => <<"chat_msg_sent">>},
+      #{<<"name">> => <<"chat_msg">>,
+        <<"recv_topic">> => 1,
+        <<"sent_topic">> => <<"chat_msg_sent">>},
+      #{<<"name">> => <<"chat_msg">>,
+        <<"recv_topic">> => <<"chat_msg_recv">>,
+        <<"sent_topic">> => 1}].
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -1553,7 +1690,7 @@ eq_host_or_global(ResultF, Config) ->
     ?eq(ResultF(?HOST), parse_host_config(Config)). % check for a single host
 
 err_host_config(Config) ->
-    ?err(parse(Config)),
+    ?err(parse(Config)), %% XXX Apply me
     ?err(parse_host_config(Config)).
 
 parse_host_config(Config) ->
@@ -1702,3 +1839,7 @@ test_equivalence_between_files(Config, File1, File2) ->
     ?eq(Hosts1, Hosts2),
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
+
+parse_with_host(Config) ->
+    [F] = parse(Config),
+    apply(F, [?HOST]).

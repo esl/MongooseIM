@@ -233,8 +233,7 @@ validate([<<"workers">>, _Tag, _Type, <<"outgoing_pools">>],
     validate_positive_integer(Value);
 validate([<<"strategy">>, _Tag, _Type, <<"outgoing_pools">>],
          [{strategy, Value}]) ->
-    validate_enum(Value, [best_worker, random_worker, next_worker,
-                          available_worker, next_available_worker]);
+    validate_wpool_strategy(Value);
 validate([<<"call_timeout">>, _Tag, _Type, <<"outgoing_pools">>],
          [{call_timeout, Value}]) ->
     validate_positive_integer(Value);
@@ -420,18 +419,22 @@ validate_modules(Path, Value) ->
         _ ->
             ?LOG_DEBUG(#{ what => validate_module_with, path => Path, value => Value, types => Types})
     end,
-    [validate_type(Type, Path, Value) || Type <- Types],
+    [try
+         validate_type(Type, Path, Value)
+     catch Class:Reason:Stacktrace ->
+               erlang:raise(Class, {Type, Reason}, Stacktrace)
+     end || Type <- Types],
     ok.
 
 module_option_types() ->
     [{mod_adhoc, iqdisc, iqdisc},
      {mod_adhoc, report_commands_node, boolean},
+     {mod_auth_token, iqdisc, iqdisc},
      %% Technically, we can use this,
      %% if parser was calling handle for each suboption
 %    {mod_auth_token, validity_period, {list, #{token => auth_token_domain,
 %                                               value => non_neg_integer,
 %                                               unit => period_unit}}},
-     {mod_auth_token, iqdisc, iqdisc},
      {mod_auth_token, validity_period, {unwrapped, {multi, validity_period}}},
      {mod_bosh, inactivity, non_neg_integer_or_inf},
      {mod_bosh, max_wait, non_neg_integer_or_inf},
@@ -457,12 +460,49 @@ module_option_types() ->
      {mod_global_distrib, local_host, domain},
      {mod_global_distrib, message_ttl, non_neg_integer},
      {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
-     %% Not called for each leaf
-%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
+     {mod_event_pusher, backend, #{
+         sns => {wrapped_section,
+                 #{access_key_id => string,
+                   secret_access_key => string,
+                   region => string,
+                   account_id => string,
+                   sns_host => string,
+                   muc_host => domain_template,
+                   presence_updates_topic => string,
+                   pm_messages_topic => string,
+                   muc_messages_topic => string,
+                   plugin_module => module,
+                   pool_size => non_neg_integer,
+                   publish_retry_count => non_neg_integer,
+                   publish_retry_time_ms => non_neg_integer}},
+          push => {wrapped_section,
+                   #{backend => {backend, mod_event_pusher_push},
+                     wpool => {wrapped_section, #{strategy => wpool_strategy, workers => pos_integer}},
+                     plugin_module => module,
+                     virtual_pubsub_hosts => {list, domain_template}}},
+          http => {wrapped_section,
+                   #{pool_name => non_empty_atom,
+                     path => string,
+                     callback_module => module}},
+          rabbit => {wrapped_section,
+                     #{presence_exchange => {wrapped_section,
+                                             #{name => non_empty_binary,
+                                               type => non_empty_binary}},
+                       chat_msg_exchange => {wrapped_section,
+                                             #{name => non_empty_binary,
+                                               sent_topic => non_empty_binary,
+                                               recv_topic => non_empty_binary}},
+                       groupchat_msg_exchange => {wrapped_section,
+                                                  #{name => non_empty_binary,
+                                                    sent_topic => non_empty_binary,
+                                                    recv_topic => non_empty_binary}}}}
+
+         }},
      {mod_register, iqdisc, iqdisc},
+     %% Validator is not called for each leaf, so we need a separate validator below
+%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
      {mod_register, ip_access, {list, ip_access}},
      {mod_register, welcome_message, #{subject => string, body => string}},
-%    {mod_register, welcome_message, output_tuple_of_two},
      {mod_register, access, non_empty_atom},
      {mod_register, registration_watchers, {list, jid}},
      {mod_register, password_strength, non_neg_integer}
@@ -471,10 +511,13 @@ module_option_types() ->
 type_to_validator() ->
     #{string => fun validate_string/1,
       boolean => fun validate_boolean/1,
+      atom => fun validate_non_empty_atom/1,
       non_empty_atom => fun validate_non_empty_atom/1,
       non_empty_binary => fun validate_non_empty_binary/1,
       non_neg_integer => fun validate_non_negative_integer/1,
       non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
+      pos_integer => fun validate_positive_integer/1,
+      wpool_strategy => fun validate_wpool_strategy/1,
       iqdisc => fun validate_iqdisc/1,
       url => fun validate_url/1,
       module => fun validate_module/1,
@@ -486,6 +529,7 @@ type_to_validator() ->
       domain => fun validate_domain/1,
       binary_domain => fun validate_binary_domain/1,
       domain_template => fun validate_domain_template/1,
+      binary_domain_template => fun validate_binary_domain_template/1,
       period_unit => fun validate_period_unit/1,
       validity_period => fun validate_validity_period/1,
       ip_access => fun validate_ip_access/1
@@ -517,6 +561,8 @@ validate_type({wrapped, Wrapper, Type}, Path, Value) ->
 validate_type(backend, Path, Value) ->
     Module = path_to_module(Path),
     validate_backend(Module, Value);
+validate_type({backend, Module}, _Path, Value) ->
+    validate_backend(Module, Value);
 validate_type({enum, Types}, _Path, Value) ->
     validate_enum(Value, Types);
 validate_type(Type, Path, Value) when is_atom(Type) ->
@@ -526,7 +572,7 @@ validate_type(Type, Path, Value) when is_atom(Type) ->
         _ ->
             error(#{what => unknown_validator_type, type => Type, path => Path})
     end;
-validate_type(Type, Path, Value) ->
+validate_type(Type, Path, _Value) ->
     error(#{what => unknown_validator_type, type => Type, path => Path}).
 
 module_option_paths() ->
@@ -554,6 +600,8 @@ add_wrapped(_Opt, Type = {list, _}) ->
     Type;
 add_wrapped(_Opt, Type = {unwrapped, _}) ->
     Type;
+add_wrapped(_Opt, Type = {wrapped_section, _}) ->
+    Type;
 add_wrapped(_Opt, Type = #{}) ->
     Type;
 add_wrapped(Opt, Type) ->
@@ -561,6 +609,10 @@ add_wrapped(Opt, Type) ->
 
 type_to_paths({list, Type}, Path) ->
     type_to_paths(Type, [item|Path]);
+type_to_paths({wrapped_section, Dict}, Path) when is_map(Dict) ->
+    lists:append([type_to_paths(add_wrapped(Key, Type),
+                                [atom_to_binary(Key, utf8)|Path])
+                  || {Key, Type} <- maps:to_list(Dict)]);
 type_to_paths(Dict, Path) when is_map(Dict) ->
     lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
                   || {Key, Type} <- maps:to_list(Dict)]);
@@ -711,6 +763,12 @@ validate_binary_domain(Domain) when is_binary(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain),
     validate_domain_res(binary_to_list(Domain)).
 
+validate_domain_template(Domain) ->
+    validate_binary_domain(gen_mod:make_subhost(Domain, <<"example.com">>)).
+
+validate_binary_domain_template(Domain) ->
+    validate_domain_template(binary_to_list(Domain)).
+
 validate_url(Url) ->
     validate_non_empty_string(Url).
 
@@ -721,8 +779,9 @@ validate_ip_mask({IP, Mask}) ->
     validate_string(inet:ntoa(IP)),
     validate_range(Mask, 0, 32).
 
-validate_range(Value, Min, Max) when Value >= 0; Value =< 32 ->
+validate_range(Value, Min, Max) when Value >= Min; Value =< Max ->
     ok.
 
-validate_domain_template(Domain) ->
-    validate_domain(gen_mod:make_subhost(Domain, <<"example.com">>)).
+validate_wpool_strategy(Value) ->
+    validate_enum(Value, [best_worker, random_worker, next_worker,
+                          available_worker, next_available_worker]).
