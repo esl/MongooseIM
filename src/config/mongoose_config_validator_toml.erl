@@ -549,6 +549,9 @@ module_option_types() ->
      {mod_jingle_sip, sdp_origin, ip_address},
      {mod_keystore, ram_key_size, non_neg_integer},
      {mod_keystore, keys, {list, keystore_key}},
+     {mod_last, iqdisc, iqdisc},
+     {mod_last, backend, backend},
+     {mod_last, riak, {wrapped_section, #{bucket_type => non_empty_binary}}},
      {mod_register, iqdisc, iqdisc},
      %% Validator is not called for each leaf, so we need a separate validator below
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},

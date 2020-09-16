@@ -166,6 +166,7 @@ groups() ->
                             mod_http_upload,
                             mod_jingle_sip,
                             mod_keystore,
+                            mod_last,
                             mod_register]}
     ].
 
@@ -1745,6 +1746,19 @@ mod_keystore(_Config) ->
     ?eqf(modopts(mod_keystore, MBase), T(Base)),
     ?errf(T(Base#{<<"keys">> => [NotExistingKey]})),
     ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
+
+mod_last(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
+    Base = #{<<"iqdisc">> => <<"one_queue">>,
+             <<"backend">> => <<"riak">>,
+             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
+    MBase = [{backend, riak},
+             {iqdisc, one_queue},
+             {bucket_type, <<"test">>}],
+    ?eqf(modopts(mod_last, MBase), T(Base)),
+    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
+    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+    check_iqdisc(mod_last).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
