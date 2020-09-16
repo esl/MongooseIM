@@ -547,6 +547,8 @@ module_option_types() ->
      {mod_jingle_sip, listen_port, network_port},
      {mod_jingle_sip, local_host, network_address},
      {mod_jingle_sip, sdp_origin, ip_address},
+     {mod_keystore, ram_key_size, non_neg_integer},
+     {mod_keystore, keys, {list, keystore_key}},
      {mod_register, iqdisc, iqdisc},
      %% Validator is not called for each leaf, so we need a separate validator below
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
@@ -585,7 +587,8 @@ type_to_validator() ->
       ip_address => fun validate_ip_address/1,
       network_address  => fun validate_network_address/1,
       network_port => fun validate_network_port/1,
-      filename => fun validate_filename/1
+      filename => fun validate_filename/1,
+      keystore_key => fun validate_keystore_key/1
 %     wpool_options => fun validate_wpool_options/1
      }.
 
@@ -891,3 +894,9 @@ validate_optional_section(Name, {Name, false}) -> %% set to false to disable the
     ok;
 validate_optional_section(Name, {Name, List}) when is_list(List) -> %% proplist
     ok.
+
+validate_keystore_key({Name, ram}) ->
+    validate_non_empty_atom(Name);
+validate_keystore_key({Name, {file, Path}}) ->
+    validate_non_empty_atom(Name),
+    validate_filename(Path).

@@ -165,6 +165,7 @@ groups() ->
                             mod_event_pusher,
                             mod_http_upload,
                             mod_jingle_sip,
+                            mod_keystore,
                             mod_register]}
     ].
 
@@ -1719,8 +1720,31 @@ mod_jingle_sip(_Config) ->
     ?errf(T(Base#{<<"proxy_port">> => 10000000})),
     ?errf(T(Base#{<<"local_host">> => 1})),
     ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
-    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})),
-    ok.
+    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
+
+mod_keystore(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
+    Keys = [#{<<"name">> => <<"access_secret">>,
+              <<"type">> => <<"ram">>},
+            #{<<"name">> => <<"access_psk">>,
+              <<"type">> => <<"file">>,
+              <<"path">> => <<"priv/access_psk">>},
+            #{<<"name">> => <<"provision_psk">>,
+              <<"type">> => <<"file">>,
+              <<"path">> => <<"priv/provision_psk">>}],
+    NotExistingKey = #{<<"name">> => <<"provision_psk">>,
+                       <<"type">> => <<"file">>,
+                       <<"path">> => <<"does/not/esit">>},
+    InvalidTypeKey = #{<<"name">> => <<"provision_psk">>,
+                       <<"type">> => <<"some_cooool_type">>},
+    MKeys = [{access_secret, ram},
+             {access_psk,    {file, "priv/access_psk"}},
+             {provision_psk, {file, "priv/provision_psk"}}],
+    Base = #{<<"keys">> => Keys, <<"ram_key_size">> => 10000},
+    MBase = [{keys, MKeys}, {ram_key_size, 10000}],
+    ?eqf(modopts(mod_keystore, MBase), T(Base)),
+    ?errf(T(Base#{<<"keys">> => [NotExistingKey]})),
+    ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -2014,6 +2038,8 @@ create_files(Config) ->
     PrivkeyPath = filename:join(Root, "tools/ssl/mongooseim/privkey.pem"),
     CertPath = filename:join(Root, "tools/ssl/mongooseim/cert.pem"),
     CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
+    ok = file:write_file("priv/access_psk", ""),
+    ok = file:write_file("priv/provision_psk", ""),
     ensure_copied(CaPath, "priv/ca.pem"),
     ensure_copied(CertPath, "priv/cert.pem"),
     ensure_copied(PrivkeyPath, "priv/dc1.pem").
