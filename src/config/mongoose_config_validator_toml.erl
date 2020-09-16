@@ -480,7 +480,14 @@ module_option_types() ->
             pool => non_empty_atom,
             expire_after => non_neg_integer,
             refresh_after => non_neg_integer}}},
-
+     {mod_global_distrib, cache, {wrapped_section, #{
+                                    cache_missed => boolean,
+                                    domain_lifetime_seconds => non_neg_integer,
+                                    jid_lifetime_seconds => non_neg_integer,
+                                    max_jids => non_neg_integer}}},
+     {mod_global_distrib, bounce, {wrapped_section, #{
+                                    resend_after_ms => non_neg_integer,
+                                    max_retries => non_neg_integer}}},
      {mod_event_pusher, backend, #{
          sns => {wrapped_section,
                  #{access_key_id => string,

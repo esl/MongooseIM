@@ -1385,7 +1385,8 @@ mod_global_distrib(_Config) ->
                     {dhfile, "/dev/null"}
                    ]}
              ],
-    CacheOpts = [ {domain_lifetime_seconds, 60} ],
+    CacheOpts = [ {cache_missed, false}, {domain_lifetime_seconds, 60},
+                  {jid_lifetime_seconds, 30}, {max_jids, 9999} ],
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
     TTOpts = #{
@@ -1408,7 +1409,10 @@ mod_global_distrib(_Config) ->
       <<"endpoint_refresh_interval_when_empty">> => 5,
       <<"tls">> => TTOpts
      },
-    TCacheOpts = #{ <<"domain_lifetime_seconds">> => 60 },
+    TCacheOpts = #{ <<"cache_missed">> => false,
+                    <<"domain_lifetime_seconds">> => 60,
+                    <<"jid_lifetime_seconds">> => 30,
+                    <<"max_jids">> => 9999 },
     TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
     TRedisOpts = #{ <<"pool">> => <<"global_distrib">>,
                     <<"expire_after">> => 120,
@@ -1485,6 +1489,14 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
     ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => -1}})),
     ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
+    %% Cache Opts
+    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"cache_missed">> => 1}})),
+    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"domain_lifetime_seconds">> => -1}})),
+    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"jid_lifetime_seconds">> => -1}})),
+    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"max_jids">> => -1}})),
+    %% Bouncing Opts
+    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"resend_after_ms">> => -1}})),
+    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})),
     %% Global Opts
     ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
     ?errf(T(Base#{<<"global_host">> => 1})),
