@@ -434,36 +434,45 @@ tls_opts_spec() ->
       dhfile => filename,
       ciphers => string}.
 
-module_option_types() ->
-    [{mod_adhoc, iqdisc, iqdisc},
+module_option_types_spec() ->
+    [%% mod_adhoc
+     {mod_adhoc, iqdisc, iqdisc},
      {mod_adhoc, report_commands_node, boolean},
+     %% mod_auth_token
      {mod_auth_token, iqdisc, iqdisc},
-     %% Technically, we can use this,
-     %% if parser was calling handle for each suboption
+     %% Spec for the option:
 %    {mod_auth_token, validity_period, {list, #{token => auth_token_domain,
 %                                               value => non_neg_integer,
 %                                               unit => period_unit}}},
-     {mod_auth_token, validity_period, {unwrapped, {multi, validity_period}}},
+     %% Pass the whole list into validator
+     {mod_auth_token, validity_period, {multi, validity_period}},
+     %% mod_bosh
      {mod_bosh, inactivity, non_neg_integer_or_inf},
      {mod_bosh, max_wait, non_neg_integer_or_inf},
      {mod_bosh, server_acks, boolean},
      {mod_bosh, backend, backend},
+     %% mod_carboncopy
      {mod_carboncopy, iqdisc, iqdisc},
+     %% mod_caps
      {mod_caps, cache_size, non_neg_integer_or_inf},
      {mod_caps, cache_life_time, non_neg_integer_or_inf},
+     %% mod_csi
      {mod_csi, buffer_max, non_neg_integer_or_inf},
+     %% mod_disco
      {mod_disco, users_can_see_hidden_services, boolean},
      {mod_disco, extra_domains, {list, binary_domain}},
      {mod_disco, urls, {list, url}},
      {mod_disco, server_info, {list, #{name => non_empty_binary,
                                        module => {list, module},
                                        urls => {list, url}}}},
+     %% mod_inbox
      {mod_inbox, iqdisc, iqdisc},
      {mod_inbox, backend, backend},
      {mod_inbox, aff_changes, boolean},
      {mod_inbox, remove_on_kicked, boolean},
      {mod_inbox, reset_markers, {list, chat_marker_type}},
      {mod_inbox, groupchat, {list, groupchat_type}},
+     %% mod_global_distrib
      {mod_global_distrib, global_host, domain},
      {mod_global_distrib, local_host, domain},
      {mod_global_distrib, message_ttl, non_neg_integer},
@@ -481,44 +490,44 @@ module_option_types() ->
             pool => non_empty_atom,
             expire_after => non_neg_integer,
             refresh_after => non_neg_integer}},
-     {mod_global_distrib, cache, #{
-                                    cache_missed => boolean,
-                                    domain_lifetime_seconds => non_neg_integer,
-                                    jid_lifetime_seconds => non_neg_integer,
-                                    max_jids => non_neg_integer}},
+     {mod_global_distrib, cache, #{cache_missed => boolean,
+                                   domain_lifetime_seconds => non_neg_integer,
+                                   jid_lifetime_seconds => non_neg_integer,
+                                   max_jids => non_neg_integer}},
      {mod_global_distrib, bounce, #{resend_after_ms => non_neg_integer,
                                     max_retries => non_neg_integer}},
+     %% mod_event_pusher
      {mod_event_pusher, backend, #{
          sns => #{access_key_id => string,
-                   secret_access_key => string,
-                   region => string,
-                   account_id => string,
-                   sns_host => string,
-                   muc_host => domain_template,
-                   presence_updates_topic => string,
-                   pm_messages_topic => string,
-                   muc_messages_topic => string,
-                   plugin_module => module,
-                   pool_size => non_neg_integer,
-                   publish_retry_count => non_neg_integer,
-                   publish_retry_time_ms => non_neg_integer},
+                  secret_access_key => string,
+                  region => string,
+                  account_id => string,
+                  sns_host => string,
+                  muc_host => domain_template,
+                  presence_updates_topic => string,
+                  pm_messages_topic => string,
+                  muc_messages_topic => string,
+                  plugin_module => module,
+                  pool_size => non_neg_integer,
+                  publish_retry_count => non_neg_integer,
+                  publish_retry_time_ms => non_neg_integer},
           push => #{backend => {backend, mod_event_pusher_push},
-                     wpool => #{strategy => wpool_strategy, workers => pos_integer},
-                     plugin_module => module,
-                     virtual_pubsub_hosts => {list, domain_template}},
+                    wpool => #{strategy => wpool_strategy, workers => pos_integer},
+                    plugin_module => module,
+                    virtual_pubsub_hosts => {list, domain_template}},
           http => #{pool_name => non_empty_atom,
                     path => string,
                     callback_module => module},
           rabbit => #{presence_exchange => #{name => non_empty_binary,
-                                              type => non_empty_binary},
-                       chat_msg_exchange => #{name => non_empty_binary,
-                                              sent_topic => non_empty_binary,
-                                              recv_topic => non_empty_binary},
-                       groupchat_msg_exchange => #{name => non_empty_binary,
-                                                   sent_topic => non_empty_binary,
-                                                   recv_topic => non_empty_binary}}
-
+                                             type => non_empty_binary},
+                      chat_msg_exchange => #{name => non_empty_binary,
+                                             sent_topic => non_empty_binary,
+                                             recv_topic => non_empty_binary},
+                      groupchat_msg_exchange => #{name => non_empty_binary,
+                                                  sent_topic => non_empty_binary,
+                                                  recv_topic => non_empty_binary}}
          }},
+     %% mod_http_upload
      {mod_http_upload, iqdisc, iqdisc},
      {mod_http_upload, backend, backend},
      {mod_http_upload, host, domain_template},
@@ -526,26 +535,29 @@ module_option_types() ->
      {mod_http_upload, token_bytes, non_neg_integer},
      {mod_http_upload, token_bytes, pos_integer},
      {mod_http_upload, max_file_size, non_neg_integer},
-     {mod_http_upload, s3, #{
-                              bucket_url => url,
-                              add_acl => boolean,
-                              region => string,
-                              access_key_id => string,
-                              secret_access_key => string
-                             }},
+     {mod_http_upload, s3, #{bucket_url => url,
+                             add_acl => boolean,
+                             region => string,
+                             access_key_id => string,
+                             secret_access_key => string}},
+     %% mod_jingle_sip
      {mod_jingle_sip, proxy_host, network_address},
      {mod_jingle_sip, proxy_port, network_port},
      {mod_jingle_sip, listen_port, network_port},
      {mod_jingle_sip, local_host, network_address},
      {mod_jingle_sip, sdp_origin, ip_address},
+     %% mod_keystore
      {mod_keystore, ram_key_size, non_neg_integer},
      {mod_keystore, keys, {list, keystore_key}},
+     %% mod_last
      {mod_last, iqdisc, iqdisc},
      {mod_last, backend, backend},
-     {mod_last, riak,  #{bucket_type => non_empty_binary}},
+     {mod_last, riak, #{bucket_type => non_empty_binary}},
+     %% mod_register
      {mod_register, iqdisc, iqdisc},
-     %% Validator is not called for each leaf, so we need a separate validator below
+     %% Actual spec
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
+     %% Pass the whole thing into validator
      {mod_register, ip_access, {list, ip_access}},
      {mod_register, welcome_message, #{subject => string, body => string}},
      {mod_register, access, non_empty_atom},
@@ -630,7 +642,7 @@ validate_type(Type, Path, Value) ->
             path => Path, value => Value}).
 
 module_option_paths() ->
-    lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types()]).
+    lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types_spec()]).
 
 module_option_paths(Mod, Opt, Type) ->
     Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
@@ -664,6 +676,8 @@ add_wrapped(_Opt, Type = {optional_section, _Name, _Type}) ->
     Type;
 add_wrapped(_Opt, Type = #{}) ->
     Type;
+add_wrapped(_Opt, {multi, Type}) ->
+    {multi, Type};
 add_wrapped(Opt, Type) ->
     {wrapped, Opt, Type}.
 
