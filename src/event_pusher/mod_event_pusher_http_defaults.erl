@@ -34,4 +34,4 @@ prepare_body(_Acc, _Dir, Host, Message, Sender, Receiver, _Opts) ->
         {<<"server">>, Host}, {<<"receiver">>, Receiver}, {<<"message">>, Message}]).
 
 prepare_headers(_Acc, _Dir, _Host, _Sender, _Receiver, _Message, _Opts) ->
-    [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}].
+    [{<<"content-type">>, <<"application/x-www-form-urlencoded">>}].

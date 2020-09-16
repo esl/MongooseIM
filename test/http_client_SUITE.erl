@@ -18,6 +18,7 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 all() ->
     [get_test,
@@ -79,19 +80,19 @@ end_per_testcase(_TC, _Config) ->
 
 get_test(_Config) ->
     Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
-    {ok, {<<"200">>, <<"OK">>}} = Result.
+    ?assertEqual({ok, {<<"200">>, <<"OK">>}}, Result).
 
 no_pool_test(_Config) ->
     Result = mongoose_http_client:get(global, non_existent_pool, <<"some/path">>, []),
-    {error, pool_not_started} = Result.
+    ?assertEqual({error, pool_not_started}, Result).
 
 post_test(_Config) ->
     Result = mongoose_http_client:post(global, pool(), <<"some/path">>, [], <<"test request">>),
-    {ok, {<<"200">>, <<"OK">>}} = Result.
+    ?assertEqual({ok, {<<"200">>, <<"OK">>}}, Result).
 
 request_timeout_test(_Config) ->
     Result = mongoose_http_client:get(global, pool(), <<"some/path?sleep=true">>, []),
-    {error, request_timeout} = Result.
+    ?assertEqual({error, request_timeout}, Result).
 
 pool_timeout_test(_Config) ->
     Pid = self(),
@@ -101,7 +102,7 @@ pool_timeout_test(_Config) ->
           end),
     timer:sleep(10), % wait for the only pool worker to start handling the request
     Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
-    {error, pool_timeout} = Result,
+    ?assertEqual({error, pool_timeout}, Result),
     receive finished -> ok after 1000 -> error(no_finished_message) end.
 
 pool() -> tmp_pool.
