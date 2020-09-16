@@ -718,8 +718,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"archive_chat_markers">>, <<"mod_mam_meta">>|_], V) ->
-    [{archive_chat_markers, V}];
 module_opt([<<"pm">>, <<"mod_mam_meta">>|_], false) ->
     [];
 module_opt([<<"pm">>, <<"mod_mam_meta">>|_] = Path, V) ->
@@ -730,8 +728,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_], false) ->
 module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     Muc = parse_section(Path, V),
     [{muc, Muc}];
-module_opt([<<"extra_lookup_params">>, <<"mod_mam_meta">>|_], V) ->
-    [{extra_lookup_params, b2a(V)}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
 module_opt([<<"host">>, <<"mod_muc">>|_], V) ->
@@ -1201,10 +1197,28 @@ mod_mam_opts([<<"flush_interval">>|_], V) ->
     [{flush_interval, V}];
 mod_mam_opts([<<"max_batch_size">>|_], V) ->
     [{max_batch_size, V}];
-mod_mam_opts([<<"archive_groupchats">>, <<"pm">>|_], V) ->
+mod_mam_opts([<<"default_result_limit">>|_], V) ->
+    [{default_result_limit, V}];
+mod_mam_opts([<<"max_result_limit">>|_], V) ->
+    [{max_result_limit, V}];
+mod_mam_opts([<<"archive_chat_markers">>|_], V) ->
+    [{archive_chat_markers, V}];
+mod_mam_opts([<<"archive_groupchats">>|_], V) ->
     [{archive_groupchats, V}];
-mod_mam_opts([<<"host">>, <<"muc">>|_], V) ->
+mod_mam_opts([<<"async_writer_rdbms_pool">>|_], V) ->
+    [{async_writer_rdbms_pool, b2a(V)}];
+mod_mam_opts([<<"db_jid_format">>|_], V) ->
+    [{db_jid_format, b2a(V)}];
+mod_mam_opts([<<"db_message_format">>|_], V) ->
+    [{db_message_format, b2a(V)}];
+mod_mam_opts([<<"simple">>|_], V) ->
+    [{simple, V}];
+mod_mam_opts([<<"host">>|_], V) ->
     [{host, b2l(V)}];
+mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
+    [{extra_lookup_params, b2a(V)}];
+mod_mam_opts([<<"archive_chat_markers">>|_], V) ->
+    [{archive_chat_markers, V}];
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 

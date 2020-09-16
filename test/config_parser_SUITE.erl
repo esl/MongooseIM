@@ -12,11 +12,13 @@
 
 -define(HOST, <<"myhost">>).
 
+-define(add_loc(X), {X, #{line => ?LINE}}).
+
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(_eqf(Expected, Actual), fun() -> ?eqf(Expected, Actual) end).
+-define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
 -define(errf(Config), 
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
--define(_errf(Config), fun() -> ?errf(Config) end).
+-define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
 
 -import(mongoose_config_parser_toml, [parse/1]).
 
@@ -1765,69 +1767,117 @@ mod_last(_Config) ->
 
 mod_mam_meta(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
-    PM = #{<<"archive_groupchats">> => true},
-    MUC = #{<<"host">> => <<"conf.localhost">>},
-    Common = #{<<"async_writer">> => true,
+    %% You can define options in mod_mam and they would work.
+    %%
+    %% We _could_ validate that `host' option does not exist in the PM
+    %% section, but it would just make everything harder.
+    %%
+    %% Same with `no_stanzaid_element' for PM.
+    Common = #{<<"archive_chat_markers">> => true,
+               <<"archive_groupchats">> => true,
+               <<"async_writer">> => true,
+               <<"async_writer_rdbms_pool">> => <<"poop">>,
                <<"backend">> => <<"riak">>,
+               <<"cache_users">> => true,
+               <<"db_jid_format">> => <<"mam_jid_rfc">>, % module
+               <<"db_message_format">> => <<"mam_message_xml">>, % module
+               <<"default_result_limit">> => 50,
+               <<"extra_lookup_params">> => <<"mod_mam_utils">>,
+               <<"host">> => <<"conf.localhost">>,
                <<"flush_interval">> => 500,
                <<"full_text_search">> => true,
                <<"max_batch_size">> => 50,
+               <<"max_result_limit">> => 50,
+               <<"message_retraction">> => true,
+               <<"rdbms_message_format">> => <<"simple">>,
+               <<"simple">> => true,
                <<"no_stanzaid_element">> => true,
                <<"is_archivable_message">> => <<"mod_mam_utils">>,
-               <<"message_retraction">> => true,
                <<"user_prefs_store">> => false}, %% or rdbms. but not true
-    MCommon = [{async_writer, true},
+    MCommon = [{archive_chat_markers, true},
+               {archive_groupchats, true},
+               {async_writer, true},
+               {async_writer_rdbms_pool, poop},
                {backend, riak},
+               {cache_users, true},
+               {db_jid_format, mam_jid_rfc},
+               {db_message_format, mam_message_xml},
+               {default_result_limit, 50},
+               {extra_lookup_params, mod_mam_utils},
                {flush_interval, 500},
                {full_text_search, true},
+               %% While applied just for MUC, it could be specified as root option
+               %% Still, it probably should've been called muc_host from the
+               %% beginning
+               {host, "conf.localhost"},
                {is_archivable_message, mod_mam_utils},
                {max_batch_size, 50},
+               {max_result_limit, 50},
                {message_retraction, true},
                {no_stanzaid_element, true},
+               {rdbms_message_format, simple},
+               {simple, true},
                {user_prefs_store, false}],
+    ensure_sorted(MCommon),
     Riak = #{<<"bucket_type">> => <<"mam_yz">>, <<"search_index">> => <<"mam">>},
     MRiak = [{bucket_type, <<"mam_yz">>}, {search_index, <<"mam">>}],
-    MPM = [{archive_groupchats, true}],
-    MMUC = [{host, "conf.localhost"}],
-    Base = Common#{<<"archive_chat_markers">> => true,
-             <<"pm">> => maps:merge(Common, PM),
-             <<"muc">> => maps:merge(Common, MUC),
-             <<"riak">> => Riak, %% This one is flatten into mim opts
-             <<"extra_lookup_params">> => <<"mod_mam_utils">>},
-    MBase0 = [{archive_chat_markers, true},
-              {extra_lookup_params, mod_mam_utils},
-              {muc, pl_merge(MMUC, MCommon)},
-              {pm, pl_merge(MPM, MCommon)}],
-    MBase = pl_merge(MCommon, MBase0 ++ MRiak),
-    RiakKeys = binaries_to_atoms(maps:keys(Base) -- [<<"riak">>]),
+    Base = Common#{
+             <<"pm">> => Common,
+             <<"muc">> => Common,
+             %% Separate section for riak. We don't need it in pm or in muc,
+             %% because there is no separate riak module for muc.
+             <<"riak">> => Riak},
+    MBase0 = [{muc, MCommon},
+              {pm, MCommon}]
+              ++ MRiak, %% This one is flatten into mim opts
+    MBase = pl_merge(MCommon, MBase0),
+    %% It's not easy to test riak options with check_one_opts function,
+    %% so skip it.
+    %% We also skip single muc/pm options on this step.
+    KeysForOneOpts = binaries_to_atoms(maps:keys(Common)),
     run_multi(
       %% Test configurations with one option only
-      check_one_opts(mod_mam_meta, MBase, Base, T, RiakKeys) ++ [
+      check_one_opts(mod_mam_meta, MBase, Base, T, KeysForOneOpts) ++ [
         ?_eqf(modopts(mod_mam_meta, MBase), T(Base)),
         %% Second format for user_prefs_store
         ?_eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
-            T(Base#{<<"user_prefs_store">> => <<"rdbms">>})),
-        %% Common
-        ?_errf(T(Base#{<<"user_prefs_store">> => 1})),
-        ?_errf(T(Base#{<<"async_writer">> => 1})),
-        ?_errf(T(Base#{<<"backend">> => 1})),
-        ?_errf(T(Base#{<<"flush_interval">> => -1})),
-        ?_errf(T(Base#{<<"full_text_search">> => -1})),
-        ?_errf(T(Base#{<<"max_batch_size">> => -1})),
-        ?_errf(T(Base#{<<"no_stanzaid_element">> => -1})),
-        ?_errf(T(Base#{<<"is_archivable_message">> => -1})),
-        ?_errf(T(Base#{<<"message_retraction">> => -1})),
-        ?_errf(T(Base#{<<"user_prefs_store">> => -1})),
-        %% Others
-        ?_errf(T(Base#{<<"extra_lookup_params">> => -1})),
-        ?_errf(T(Base#{<<"extra_lookup_params">> => <<"aaaaaaa_not_exist">>})),
-        ?_errf(T(Base#{<<"message_retraction">> => -1})),
-        %% Riak
-        ?_errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-        ?_errf(T(Base#{<<"riak">> => #{<<"search_index">> => 1}}))
-    ]),
-    %% TODO PM&MUC
-    ok.
+            T(Base#{<<"user_prefs_store">> => <<"rdbms">>}))
+        ]
+      ++ mam_failing_cases(T)
+      ++ mam_failing_riak_cases(T)
+     ).
+
+mam_failing_cases(T) ->
+    [?_errf(T(#{<<"archive_chat_markers">> => 1})),
+     ?_errf(T(#{<<"archive_groupchats">> => 1})),
+     ?_errf(T(#{<<"async_writer">> => 1})),
+     ?_errf(T(#{<<"async_writer_rdbms_pool">> => 1})),
+     ?_errf(T(#{<<"backend">> => 1})),
+     ?_errf(T(#{<<"cache_users">> => 1})),
+     ?_errf(T(#{<<"db_jid_format">> => 1})),
+     ?_errf(T(#{<<"db_jid_format">> => <<"does_not_exist_mod">>})),
+     ?_errf(T(#{<<"db_message_format">> => 1})),
+     ?_errf(T(#{<<"db_message_format">> => <<"does_not_exist_mod">>})),
+     ?_errf(T(#{<<"default_result_limit">> => <<"meow">>})),
+     ?_errf(T(#{<<"default_result_limit">> => -20})),
+     ?_errf(T(#{<<"extra_lookup_params">> => -1})),
+     ?_errf(T(#{<<"extra_lookup_params">> => <<"aaaaaaa_not_exist">>})),
+     ?_errf(T(#{<<"host">> => <<"meow meow">>})),
+     ?_errf(T(#{<<"flush_interval">> => <<"meow">>})),
+     ?_errf(T(#{<<"flush_interval">> => -20})),
+     ?_errf(T(#{<<"full_text_search">> => -1})),
+     ?_errf(T(#{<<"max_batch_size">> => -1})),
+     ?_errf(T(#{<<"max_result_limit">> => -1})),
+     ?_errf(T(#{<<"message_retraction">> => -1})),
+     ?_errf(T(#{<<"rdbms_message_format">> => <<"verysimple">>})),
+     ?_errf(T(#{<<"simple">> => 1})),
+     ?_errf(T(#{<<"no_stanzaid_element">> => -1})),
+     ?_errf(T(#{<<"is_archivable_message">> => -1})),
+     ?_errf(T(#{<<"user_prefs_store">> => 1}))].
+
+mam_failing_riak_cases(T) ->
+    [?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+     ?_errf(T(#{<<"riak">> => #{<<"search_index">> => 1}}))].
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -2161,13 +2211,13 @@ binaries_to_atoms(Bins) ->
     [binary_to_atom(B, utf8) || B <- Bins].
 
 run_multi(Cases) ->
-    Results = [run_case(F) || F <- Cases],
+    Results = [run_case(F) || {F,_} <- Cases],
     case lists:all(fun(X) -> X =:= ok end, Results) of
         true ->
             ok;
         false ->
-            Failed = [Res || Res <- Results, Res =/= ok],
-            [ct:pal("~p", [Res]) || Res <- Failed],
+            Failed = [Zip || {Res,_}=Zip <- lists:zip(Results, Cases), Res =/= ok],
+            [ct:pal("Info: ~p~nResult: ~p~n", [Info, Res]) || {Res, Info} <- Failed],
             ct:fail(#{what => run_multi_failed, failed_cases => length(Failed)})
     end.
 
@@ -2177,3 +2227,7 @@ run_case(F) ->
     catch Class:Reason:Stacktrace ->
         {Class, Reason, Stacktrace}
     end.
+
+ensure_sorted(List) ->
+    [ct:fail("Not sorted list ~p~nSorted order ~p~n", [List, lists:sort(List)])
+     || lists:sort(List) =/= List].

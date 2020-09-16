@@ -101,9 +101,9 @@ handle_nested_opts(Key, RootOpts, Default, Deps) ->
             parse_opts(Key, FullOpts, Deps)
     end.
 
-
 -spec parse_opts(Type :: pm | muc, Opts :: proplists:proplist(), deps()) -> deps().
 parse_opts(Type, Opts, Deps) ->
+    %% Opts are merged root options with options inside pm or muc section
     CoreMod = mam_type_to_core_mod(Type),
     CoreModOpts = filter_opts(Opts, valid_core_mod_opts(CoreMod)),
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
@@ -123,30 +123,23 @@ filter_opts(Opts, ValidOpts) ->
             end
         end, ValidOpts).
 
+%% Get a list of options to pass into the two modules.
+%% They don't required to be defined in pm or muc sections,
+%% the root section is enough.
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
-    [
-     no_stanzaid_element,
-     is_archivable_message,
-     archive_chat_markers,
-     extra_lookup_params,
-     full_text_search,
-     message_retraction,
-     archive_groupchats,
-     default_result_limit,
-     max_result_limit
-    ];
+    [no_stanzaid_element] ++ common_opts();
 valid_core_mod_opts(mod_mam_muc) ->
-    [
-     is_archivable_message,
+    [host] ++ common_opts().
+
+common_opts() ->
+    [is_archivable_message,
      archive_chat_markers,
-     host,
      extra_lookup_params,
      full_text_search,
      message_retraction,
      default_result_limit,
-     max_result_limit
-    ].
+     max_result_limit].
 
 -spec parse_backend_opts(rdbms | cassandra | riak | elasticsearch, Type :: pm | muc,
                          Opts :: proplists:proplist(), deps()) -> deps().
