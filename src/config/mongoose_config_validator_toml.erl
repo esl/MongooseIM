@@ -1,6 +1,8 @@
 -module(mongoose_config_validator_toml).
 
 -export([validate/2]).
+
+%% To explore module option paths
 -export([module_option_paths/0]).
 
 -include("mongoose.hrl").
@@ -422,7 +424,7 @@ validate_modules(Path, Value) ->
     [try
          validate_type(Type, Path, Value)
      catch Class:Reason:Stacktrace ->
-               erlang:raise(Class, {Type, Reason}, Stacktrace)
+               erlang:raise(Class, #{type => Type, reason => Reason}, Stacktrace)
      end || Type <- Types],
     ok.
 
@@ -540,6 +542,11 @@ module_option_types() ->
                               access_key_id => string,
                               secret_access_key => string
                              }}},
+     {mod_jingle_sip, proxy_host, network_address},
+     {mod_jingle_sip, proxy_port, network_port},
+     {mod_jingle_sip, listen_port, network_port},
+     {mod_jingle_sip, local_host, network_address},
+     {mod_jingle_sip, sdp_origin, ip_address},
      {mod_register, iqdisc, iqdisc},
      %% Validator is not called for each leaf, so we need a separate validator below
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
@@ -838,25 +845,34 @@ validate_ip_mask({IP, Mask}) ->
     validate_range(Mask, 0, 32).
 
 validate_network_address(Value) ->
+    ?LOG_DEBUG(#{what => validate_network_address,
+                 value => Value}),
     validate_oneof(Value, [domain, ip_address]).
 
 validate_oneof(Value, Validators) ->
     Map = type_to_validator(),
     Funs = [maps:get(Type, Map) || Type <- Validators],
-    lists:any(fun(F) -> is_valid(F, Value) end, Funs).
+    Results = [safe_call_validator(F, Value) || F <- Funs],
+    case lists:any(fun(R) -> R =:= ok end, Results) of
+        true ->
+            ok;
+        false ->
+            error(#{what => validate_oneof_failed,
+                    validation_results => lists:zip(Validators, Results)})
+    end.
 
-is_valid(F, Value) ->
+safe_call_validator(F, Value) ->
     try
         F(Value),
-        true
-    catch _:_ ->
-              false
+        ok
+    catch Class:Reason:Stacktrace ->
+              #{class => Class, reason => Reason, stacktrace => Stacktrace}
     end.
 
 validate_network_port(Value) ->
     validate_range(Value, 0, 65535).
 
-validate_range(Value, Min, Max) when Value >= Min; Value =< Max ->
+validate_range(Value, Min, Max) when Value >= Min, Value =< Max ->
     ok.
 
 validate_wpool_strategy(Value) ->

@@ -164,6 +164,7 @@ groups() ->
                             mod_global_distrib,
                             mod_event_pusher,
                             mod_http_upload,
+                            mod_jingle_sip,
                             mod_register]}
     ].
 
@@ -1691,6 +1692,34 @@ mod_http_upload(_Config) ->
     ?errf(T(Base#{<<"s3">> => S3#{<<"region">> => -1}})),
     ?errf(T(Base#{<<"s3">> => S3#{<<"secret_access_key">> => -1}})),
     check_iqdisc(mod_http_upload).
+
+mod_jingle_sip(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
+    Base = #{
+      <<"proxy_host">> => <<"proxxxy">>,
+      <<"proxy_port">> => 5600,
+      <<"listen_port">> => 5601,
+      <<"local_host">> => <<"localhost">>,
+      <<"sdp_origin">> => <<"127.0.0.1">>
+     },
+    MBase = [
+      {listen_port, 5601},
+      {local_host, "localhost"},
+      {proxy_host, "proxxxy"},
+      {proxy_port, 5600},
+      {sdp_origin, "127.0.0.1"}
+     ],
+    ?eqf(modopts(mod_jingle_sip, MBase), T(Base)),
+    ?errf(T(Base#{<<"proxy_host">> => -1})),
+    ?errf(T(Base#{<<"proxy_host">> => <<"test test">>})),
+    ?errf(T(Base#{<<"listen_port">> => -1})),
+    ?errf(T(Base#{<<"listen_port">> => 10000000})),
+    ?errf(T(Base#{<<"proxy_port">> => -1})),
+    ?errf(T(Base#{<<"proxy_port">> => 10000000})),
+    ?errf(T(Base#{<<"local_host">> => 1})),
+    ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
+    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})),
+    ok.
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
