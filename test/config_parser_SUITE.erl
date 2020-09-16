@@ -1835,10 +1835,15 @@ mod_register(_Config) ->
     ?errf(password_strength_register(<<"42">>)),
     ?errf(password_strength_register(<<"strong">>)),
     ?errf(password_strength_register(-150)),
+    ?errf(welcome_message(<<"Subject">>, 1)),
+    ?errf(welcome_message(1, <<"Body">>)),
     check_iqdisc(mod_register).
 
 welcome_message() ->
-    Opts = #{<<"welcome_message">> => #{<<"subject">> => <<"Subject">>, <<"body">> => <<"Body">>}},
+    welcome_message(<<"Subject">>, <<"Body">>).
+
+welcome_message(S, B) ->
+    Opts = #{<<"welcome_message">> => #{<<"subject">> => S, <<"body">> => B}},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 password_strength_register(Strength) ->

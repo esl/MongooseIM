@@ -468,7 +468,7 @@ module_option_types() ->
      {mod_global_distrib, local_host, domain},
      {mod_global_distrib, message_ttl, non_neg_integer},
      {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
-     {mod_global_distrib, connections, {wrapped_section, #{
+     {mod_global_distrib, connections, #{
         endpoints => {list, #{host => network_address, port => network_port}},
         advertised_endpoints => {optional_section, advertised_endpoints,
                                  {list, #{host => network_address, port => network_port}}},
@@ -476,23 +476,20 @@ module_option_types() ->
         endpoint_refresh_interval => pos_integer,
         endpoint_refresh_interval_when_empty => pos_integer,
         disabled_gc_interval => non_neg_integer,
-        tls => {optional_section, tls_opts,
-                {wrapped_section, tls_opts_spec()}}}}},
-     {mod_global_distrib, redis, {wrapped_section, #{
+        tls => {optional_section, tls_opts, tls_opts_spec()}}},
+     {mod_global_distrib, redis, #{
             pool => non_empty_atom,
             expire_after => non_neg_integer,
-            refresh_after => non_neg_integer}}},
-     {mod_global_distrib, cache, {wrapped_section, #{
+            refresh_after => non_neg_integer}},
+     {mod_global_distrib, cache, #{
                                     cache_missed => boolean,
                                     domain_lifetime_seconds => non_neg_integer,
                                     jid_lifetime_seconds => non_neg_integer,
-                                    max_jids => non_neg_integer}}},
-     {mod_global_distrib, bounce, {wrapped_section, #{
-                                    resend_after_ms => non_neg_integer,
-                                    max_retries => non_neg_integer}}},
+                                    max_jids => non_neg_integer}},
+     {mod_global_distrib, bounce, #{resend_after_ms => non_neg_integer,
+                                    max_retries => non_neg_integer}},
      {mod_event_pusher, backend, #{
-         sns => {wrapped_section,
-                 #{access_key_id => string,
+         sns => #{access_key_id => string,
                    secret_access_key => string,
                    region => string,
                    account_id => string,
@@ -504,28 +501,22 @@ module_option_types() ->
                    plugin_module => module,
                    pool_size => non_neg_integer,
                    publish_retry_count => non_neg_integer,
-                   publish_retry_time_ms => non_neg_integer}},
-          push => {wrapped_section,
-                   #{backend => {backend, mod_event_pusher_push},
-                     wpool => {wrapped_section, #{strategy => wpool_strategy, workers => pos_integer}},
+                   publish_retry_time_ms => non_neg_integer},
+          push => #{backend => {backend, mod_event_pusher_push},
+                     wpool => #{strategy => wpool_strategy, workers => pos_integer},
                      plugin_module => module,
-                     virtual_pubsub_hosts => {list, domain_template}}},
-          http => {wrapped_section,
-                   #{pool_name => non_empty_atom,
-                     path => string,
-                     callback_module => module}},
-          rabbit => {wrapped_section,
-                     #{presence_exchange => {wrapped_section,
-                                             #{name => non_empty_binary,
-                                               type => non_empty_binary}},
-                       chat_msg_exchange => {wrapped_section,
-                                             #{name => non_empty_binary,
-                                               sent_topic => non_empty_binary,
-                                               recv_topic => non_empty_binary}},
-                       groupchat_msg_exchange => {wrapped_section,
-                                                  #{name => non_empty_binary,
-                                                    sent_topic => non_empty_binary,
-                                                    recv_topic => non_empty_binary}}}}
+                     virtual_pubsub_hosts => {list, domain_template}},
+          http => #{pool_name => non_empty_atom,
+                    path => string,
+                    callback_module => module},
+          rabbit => #{presence_exchange => #{name => non_empty_binary,
+                                              type => non_empty_binary},
+                       chat_msg_exchange => #{name => non_empty_binary,
+                                              sent_topic => non_empty_binary,
+                                              recv_topic => non_empty_binary},
+                       groupchat_msg_exchange => #{name => non_empty_binary,
+                                                   sent_topic => non_empty_binary,
+                                                   recv_topic => non_empty_binary}}
 
          }},
      {mod_http_upload, iqdisc, iqdisc},
@@ -535,13 +526,13 @@ module_option_types() ->
      {mod_http_upload, token_bytes, non_neg_integer},
      {mod_http_upload, token_bytes, pos_integer},
      {mod_http_upload, max_file_size, non_neg_integer},
-     {mod_http_upload, s3, {wrapped_section, #{
+     {mod_http_upload, s3, #{
                               bucket_url => url,
                               add_acl => boolean,
                               region => string,
                               access_key_id => string,
                               secret_access_key => string
-                             }}},
+                             }},
      {mod_jingle_sip, proxy_host, network_address},
      {mod_jingle_sip, proxy_port, network_port},
      {mod_jingle_sip, listen_port, network_port},
@@ -551,7 +542,7 @@ module_option_types() ->
      {mod_keystore, keys, {list, keystore_key}},
      {mod_last, iqdisc, iqdisc},
      {mod_last, backend, backend},
-     {mod_last, riak, {wrapped_section, #{bucket_type => non_empty_binary}}},
+     {mod_last, riak,  #{bucket_type => non_empty_binary}},
      {mod_register, iqdisc, iqdisc},
      %% Validator is not called for each leaf, so we need a separate validator below
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
@@ -652,6 +643,8 @@ add_unlistify({unwrapped, Type}) ->
     Type;
 add_unlistify({multi, Type}) ->
     {multi, Type};
+add_unlistify(Type = #{}) ->
+    {multi, Type};
 add_unlistify(Type) ->
     {listed, Type}.
 
@@ -665,8 +658,6 @@ add_wrapped(_Opt, Type = {unwrapped, _}) ->
     Type;
 add_wrapped(_Opt, Type = {wrapped, _, _}) -> %% Already wrapped
     Type;
-add_wrapped(_Opt, Type = {wrapped_section, _}) ->
-    Type;
 add_wrapped(_Opt, Type = {optional_section, _Type}) ->
     Type;
 add_wrapped(_Opt, Type = {optional_section, _Name, _Type}) ->
@@ -676,16 +667,19 @@ add_wrapped(_Opt, Type = #{}) ->
 add_wrapped(Opt, Type) ->
     {wrapped, Opt, Type}.
 
+%% maps inside lists are unwrapped
+%% other maps are usually wrapped_section
+%% maps inside optional_section are wrapped_section
 type_to_paths({list, Type}, Path) ->
     type_to_paths(Type, [item|Path]);
 type_to_paths({optional_section, Name, Dict}, Path) ->
     [{Path, {optional_section, Name}}] ++ type_to_paths(Dict, Path);
-type_to_paths({wrapped_section, Dict}, Path) when is_map(Dict) ->
-    lists:append([type_to_paths(add_wrapped(Key, Type),
-                                [atom_to_binary(Key, utf8)|Path])
+type_to_paths(Dict, [item|_] = Path) when is_map(Dict) ->
+    lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
                   || {Key, Type} <- maps:to_list(Dict)]);
 type_to_paths(Dict, Path) when is_map(Dict) ->
-    lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
+    lists:append([type_to_paths(add_wrapped(Key, Type),
+                                [atom_to_binary(Key, utf8)|Path])
                   || {Key, Type} <- maps:to_list(Dict)]);
 type_to_paths(Type, Path) ->
     [{Path, Type}].
