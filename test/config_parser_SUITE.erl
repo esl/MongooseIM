@@ -170,6 +170,7 @@ groups() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
+    create_files(Config),
     Config.
 
 end_per_suite(_Config) ->
@@ -2005,3 +2006,23 @@ parse_with_host(Config) ->
 
 set_pl(K, V, List) ->
     lists:keyreplace(K, 1, List, {K, V}).
+
+create_files(Config) ->
+    %% The files must exist for validation to pass
+    Root = small_path_helper:repo_dir(Config),
+    file:make_dir("priv"),
+    PrivkeyPath = filename:join(Root, "tools/ssl/mongooseim/privkey.pem"),
+    CertPath = filename:join(Root, "tools/ssl/mongooseim/cert.pem"),
+    CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
+    ensure_copied(CaPath, "priv/ca.pem"),
+    ensure_copied(CertPath, "priv/cert.pem"),
+    ensure_copied(PrivkeyPath, "priv/dc1.pem").
+
+ensure_copied(From, To) ->
+    case file:copy(From, To) of
+        {ok,_} ->
+            ok;
+        Other ->
+            error(#{what => ensure_copied_failed, from => From, to => To,
+                    reason => Other})
+    end.
