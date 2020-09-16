@@ -553,6 +553,22 @@ module_option_types_spec() ->
      {mod_last, iqdisc, iqdisc},
      {mod_last, backend, backend},
      {mod_last, riak, #{bucket_type => non_empty_binary}},
+     %% mod_mam_meta
+     {mod_mam_meta, backend, {enum, [rdbms, riak, cassandra, elasticsearch]}},
+     {mod_mam_meta, no_stanzaid_element, boolean},
+     {mod_mam_meta, is_archivable_message, module},
+     {mod_mam_meta, archive_chat_markers, boolean},
+     {mod_mam_meta, pm, {optional_section, pm, #{
+          }}},
+     {mod_mam_meta, muc, {optional_section, muc, #{
+          }}},
+     {mod_mam_meta, extra_lookup_params, module},
+     {mod_mam_meta, message_retraction, boolean},
+     {mod_mam_meta, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
+     {mod_mam_meta, async_writer, boolean},
+     {mod_mam_meta, flush_interval, non_neg_integer},
+     {mod_mam_meta, full_text_search, boolean},
+     {mod_mam_meta, max_batch_size, non_neg_integer},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec

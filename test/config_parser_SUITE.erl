@@ -15,6 +15,7 @@
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
 -define(errf(Config), 
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+-define(_errf(Config), fun() -> ?errf(Config) end).
 
 -import(mongoose_config_parser_toml, [parse/1]).
 
@@ -1791,18 +1792,41 @@ mod_mam_meta(_Config) ->
              <<"pm">> => maps:merge(Common, PM),
              <<"muc">> => maps:merge(Common, MUC),
              <<"riak">> => Riak, %% This one is flatten into mim opts
-             <<"extra_lookup_params">> => <<"mod_mam_utils">>,
-             <<"message_retraction">> => true},
+             <<"extra_lookup_params">> => <<"mod_mam_utils">>},
     MBase0 = [{archive_chat_markers, true},
               {extra_lookup_params, mod_mam_utils},
               {muc, pl_merge(MMUC, MCommon)},
               {pm, pl_merge(MPM, MCommon)}],
     MBase = pl_merge(MCommon, MBase0 ++ MRiak),
     RiakKeys = binaries_to_atoms(maps:keys(Base) -- [<<"riak">>]),
+    %% Test configurations with one option only
     check_one_opts(mod_mam_meta, MBase, Base, T, RiakKeys),
     ?eqf(modopts(mod_mam_meta, MBase), T(Base)),
+    %% Second format for user_prefs_store
+    ?eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
+        T(Base#{<<"user_prefs_store">> => <<"rdbms">>})),
+    run_multi([
+        %% Common
+        ?_errf(T(Base#{<<"user_prefs_store">> => 1})),
+        ?_errf(T(Base#{<<"async_writer">> => 1})),
+        ?_errf(T(Base#{<<"backend">> => 1})),
+        ?_errf(T(Base#{<<"flush_interval">> => -1})),
+        ?_errf(T(Base#{<<"full_text_search">> => -1})),
+        ?_errf(T(Base#{<<"max_batch_size">> => -1})),
+        ?_errf(T(Base#{<<"no_stanzaid_element">> => -1})),
+        ?_errf(T(Base#{<<"is_archivable_message">> => -1})),
+        ?_errf(T(Base#{<<"message_retraction">> => -1})),
+        ?_errf(T(Base#{<<"user_prefs_store">> => -1})),
+        %% Others
+        ?_errf(T(Base#{<<"extra_lookup_params">> => -1})),
+        ?_errf(T(Base#{<<"extra_lookup_params">> => <<"aaaaaaa_not_exist">>})),
+        ?_errf(T(Base#{<<"message_retraction">> => -1})),
+        %% Riak
+        ?_errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+        ?_errf(T(Base#{<<"riak">> => #{<<"search_index">> => 1}}))
+    ]),
+    %% TODO PM&MUC
     ok.
-
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -2134,3 +2158,21 @@ check_one_opts_key(M, K, MBase, Base, T) when is_atom(M), is_atom(K) ->
 
 binaries_to_atoms(Bins) ->
     [binary_to_atom(B, utf8) || B <- Bins].
+
+run_multi(Cases) ->
+    Results = [run_case(F) || F <- Cases],
+    case lists:all(fun(X) -> X =:= ok end, Results) of
+        true ->
+            ok;
+        false ->
+            Failed = [Res || Res <- Results, Res =/= ok],
+            [ct:pal("~p", [Res]) || Res <- Failed],
+            ct:fail(#{what => run_multi_failed, failed_cases => length(Failed)})
+    end.
+
+run_case(F) ->
+    try
+        F(), ok
+    catch Class:Reason:Stacktrace ->
+        {Class, Reason, Stacktrace}
+    end.
