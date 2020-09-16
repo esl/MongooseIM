@@ -192,18 +192,15 @@ c2s_listener_opt([<<"access">>|_], V) -> [{access, b2a(V)}];
 c2s_listener_opt([<<"shaper">>|_], V) -> [{shaper, b2a(V)}];
 c2s_listener_opt([<<"xml_socket">>|_], V) -> [{xml_socket, V}];
 c2s_listener_opt([<<"zlib">>|_], V) -> [{zlib, V}];
-c2s_listener_opt([<<"hibernate_after">>|_], V) -> [{hibernate_after, V}];
+c2s_listener_opt([<<"max_fsm_queue">>|_], V) -> [{max_fsm_queue, V}];
 c2s_listener_opt([{tls, _}|_] = P, V) -> listener_tls_opts(P, V);
-c2s_listener_opt([<<"max_stanza_size">>|_], V) -> [{max_stanza_size, V}];
-c2s_listener_opt(P, V) -> listener_opt(P, V).
+c2s_listener_opt(P, V) -> xmpp_listener_opt(P, V).
 
 %% path: listen.s2s[].*
 -spec s2s_listener_opt(path(), toml_value()) -> [option()].
-s2s_listener_opt([<<"access">>|_], V) -> [{access, b2a(V)}];
 s2s_listener_opt([<<"shaper">>|_], V) -> [{shaper, b2a(V)}];
 s2s_listener_opt([<<"tls">>|_] = P, V) -> parse_section(P, V);
-s2s_listener_opt([<<"max_stanza_size">>|_], V) -> [{max_stanza_size, V}];
-s2s_listener_opt(P, V) -> listener_opt(P, V).
+s2s_listener_opt(P, V) -> xmpp_listener_opt(P, V).
 
 %% path: listen.service[].*,
 %%       listen.http[].handlers.mod_websockets[].service.*
@@ -215,15 +212,22 @@ service_listener_opt([<<"hidden_components">>|_], V) -> [{hidden_components, V}]
 service_listener_opt([<<"conflict_behaviour">>|_], V) -> [{conflict_behaviour, b2a(V)}];
 service_listener_opt([<<"password">>|_], V) -> [{password, b2l(V)}];
 service_listener_opt([<<"max_fsm_queue">>|_], V) -> [{max_fsm_queue, V}];
-service_listener_opt(P, V) -> listener_opt(P, V).
+service_listener_opt(P, V) -> xmpp_listener_opt(P, V).
+
+%% path: listen.c2s[].*, listen.s2s[].*, listen.service[].*
+-spec xmpp_listener_opt(path(), toml_value()) -> [option()].
+xmpp_listener_opt([<<"hibernate_after">>|_], V) -> [{hibernate_after, V}];
+xmpp_listener_opt([<<"max_stanza_size">>|_], V) -> [{max_stanza_size, V}];
+xmpp_listener_opt([<<"backlog">>|_], N) -> [{backlog, N}];
+xmpp_listener_opt([<<"proxy_protocol">>|_], V) -> [{proxy_protocol, V}];
+xmpp_listener_opt([<<"num_acceptors">>|_], V) -> [{acceptors_num, V}];
+xmpp_listener_opt(Path, V) -> listener_opt(Path, V).
 
 %% path: listen.*[].*
 -spec listener_opt(path(), toml_value()) -> [option()].
 listener_opt([<<"proto">>|_], Proto) -> [{proto, b2a(Proto)}];
 listener_opt([<<"ip_version">>|_], 6) -> [inet6];
-listener_opt([<<"ip_version">>|_], 4) -> [inet];
-listener_opt([<<"backlog">>|_], N) -> [{backlog, N}];
-listener_opt([<<"proxy_protocol">>|_], V) -> [{proxy_protocol, V}].
+listener_opt([<<"ip_version">>|_], 4) -> [inet].
 
 %% path: listen.http[].tls.*
 -spec https_option(path(), toml_value()) -> [option()].
@@ -234,13 +238,18 @@ https_option(Path, Value) -> tls_option(Path, Value).
 -spec c2s_tls_option(path(), toml_value()) -> option().
 c2s_tls_option([<<"mode">>|_], V) -> [b2a(V)];
 c2s_tls_option([<<"verify_peer">>|_], V) -> [verify_peer(V)];
+c2s_tls_option([<<"protocol_options">>, {tls, fast_tls}|_] = Path, V) ->
+    [{protocol_options, parse_list(Path, V)}];
 c2s_tls_option([_, {tls, fast_tls}|_] = Path, V) -> fast_tls_option(Path, V);
 c2s_tls_option([<<"verify_mode">>, {tls, just_tls}|_], V) -> b2a(V);
 c2s_tls_option([<<"disconnect_on_failure">>, {tls, just_tls}|_], V) -> V;
+c2s_tls_option([<<"crl_files">>, {tls, just_tls}|_] = Path, V) -> [{crlfiles, parse_list(Path, V)}];
 c2s_tls_option([_, {tls, just_tls}|_] = Path, V) -> tls_option(Path, V).
 
 %% path: listen.s2s[].tls.*
 -spec s2s_tls_option(path(), toml_value()) -> [option()].
+s2s_tls_option([<<"protocol_options">>|_] = Path, V) ->
+    [{protocol_options, parse_list(Path, V)}];
 s2s_tls_option([Opt|_] = Path, Val) when Opt =:= <<"cacertfile">>;
                                          Opt =:= <<"dhfile">>;
                                          Opt =:= <<"ciphers">> ->
@@ -282,7 +291,7 @@ cowboy_module_options([_, <<"cowboy_swagger_json_handler">>|_], Opts) ->
 cowboy_module_options([_, <<"mongoose_api">>|_] = Path, Opts) ->
     #{<<"handlers">> := _} = Opts,
     parse_section(Path, Opts);
-cowboy_module_options([_, <<"mongoose_api_admin">>|_], 
+cowboy_module_options([_, <<"mongoose_api_admin">>|_],
     #{<<"username">> := User, <<"password">> := Pass}) ->
     [{auth, {User, Pass}}];
 cowboy_module_options([_, <<"mongoose_api_admin">>|_], #{}) ->
@@ -315,8 +324,9 @@ mongoose_api_option([<<"handlers">>|_] = Path, Value) ->
 -spec listener_tls_opts(path(), toml_section()) -> [option()].
 listener_tls_opts([{tls, just_tls}|_] = Path, M) ->
     VM = just_tls_verify_fun(Path, M),
-    Common = maps:with([<<"mode">>, <<"verify_peer">>], M),
-    OptsM = maps:without([<<"module">>, <<"mode">>, <<"verify_peer">>,
+    Common = maps:with([<<"mode">>, <<"verify_peer">>, <<"crl_files">>], M),
+    OptsM = maps:without([<<"module">>,
+                          <<"mode">>, <<"verify_peer">>, <<"crl_files">>,
                           <<"verify_mode">>, <<"disconnect_on_failure">>], M),
     SSLOpts = case VM ++ parse_section(Path, OptsM) of
                   [] -> [];
@@ -1546,7 +1556,12 @@ handler([_, _, <<"service">>, <<"listen">>]) -> fun service_listener_opt/2;
 handler([_, {tls, _}, _, <<"c2s">>, <<"listen">>]) -> fun c2s_tls_option/2;
 handler([_, <<"versions">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
     fun(_, Val) -> [b2a(Val)] end;
-handler([_, <<"ciphers">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) -> fun tls_cipher/2;
+handler([_, <<"ciphers">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
+    fun tls_cipher/2;
+handler([_, <<"crl_files">>, {tls, just_tls}, _, <<"c2s">>, <<"listen">>]) ->
+    fun(_, Val) -> [b2l(Val)] end;
+handler([_, <<"protocol_options">>, _TLS, _, _, <<"listen">>]) ->
+    fun(_, Val) -> [b2l(Val)] end;
 handler([_, <<"tls">>, _, <<"http">>, <<"listen">>]) -> fun https_option/2;
 handler([_, <<"transport">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_transport_opt/2;
 handler([_, <<"protocol">>, _, <<"http">>, <<"listen">>]) -> fun cowboy_protocol_opt/2;

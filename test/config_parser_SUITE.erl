@@ -50,21 +50,25 @@ groups() ->
                            listen_ip_version,
                            listen_backlog,
                            listen_proxy_protocol,
+                           listen_num_acceptors,
                            listen_access,
                            listen_shaper,
                            listen_xml_socket,
                            listen_zlib,
                            listen_hibernate_after,
+                           listen_max_fsm_queue,
+                           listen_max_stanza_size,
                            listen_tls_mode,
                            listen_tls_module,
                            listen_tls_verify,
                            listen_tls_verify_mode,
+                           listen_tls_crl_files,
                            listen_tls_certfile,
                            listen_tls_cacertfile,
                            listen_tls_dhfile,
                            listen_tls_ciphers,
                            listen_tls_versions,
-                           listen_max_stanza_size,
+                           listen_tls_protocol_options,
                            listen_check_from,
                            listen_hidden_components,
                            listen_conflict_behaviour,
@@ -321,13 +325,24 @@ listen_backlog(_Config) ->
 listen_proxy_protocol(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{proxy_protocol, true}]),
         parse_listener(<<"c2s">>, #{<<"proxy_protocol">> => true})),
+    ?eq(listener_config(ejabberd_s2s_in, [{proxy_protocol, true}]),
+        parse_listener(<<"s2s">>, #{<<"proxy_protocol">> => true})),
+    ?eq(listener_config(ejabberd_service, [{proxy_protocol, true}]),
+        parse_listener(<<"service">>, #{<<"proxy_protocol">> => true})),
     ?err(parse_listener(<<"c2s">>, #{<<"proxy_protocol">> => <<"awesome">>})).
+
+listen_num_acceptors(_Config) ->
+    ?eq(listener_config(ejabberd_c2s, [{acceptors_num, 100}]),
+        parse_listener(<<"c2s">>, #{<<"num_acceptors">> => 100})),
+    ?eq(listener_config(ejabberd_s2s_in, [{acceptors_num, 100}]),
+        parse_listener(<<"s2s">>, #{<<"num_acceptors">> => 100})),
+    ?eq(listener_config(ejabberd_service, [{acceptors_num, 100}]),
+        parse_listener(<<"service">>, #{<<"num_acceptors">> => 100})),
+    ?err(parse_listener(<<"c2s">>, #{<<"num_acceptors">> => 0})).
 
 listen_access(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{access, rule1}]),
         parse_listener(<<"c2s">>, #{<<"access">> => <<"rule1">>})),
-    ?eq(listener_config(ejabberd_s2s_in, [{access, rule1}]),
-        parse_listener(<<"s2s">>, #{<<"access">> => <<"rule1">>})),
     ?eq(listener_config(ejabberd_service, [{access, rule1}]),
         parse_listener(<<"service">>, #{<<"access">> => <<"rule1">>})),
     ?err(parse_listener(<<"c2s">>, #{<<"access">> => <<>>})).
@@ -354,7 +369,28 @@ listen_zlib(_Config) ->
 listen_hibernate_after(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{hibernate_after, 10}]),
         parse_listener(<<"c2s">>, #{<<"hibernate_after">> => 10})),
+    ?eq(listener_config(ejabberd_s2s_in, [{hibernate_after, 10}]),
+        parse_listener(<<"s2s">>, #{<<"hibernate_after">> => 10})),
+    ?eq(listener_config(ejabberd_service, [{hibernate_after, 10}]),
+        parse_listener(<<"service">>, #{<<"hibernate_after">> => 10})),
     ?err(parse_listener(<<"c2s">>, #{<<"hibernate_after">> => -10})).
+
+listen_max_stanza_size(_Config) ->
+    ?eq(listener_config(ejabberd_c2s, [{max_stanza_size, 10000}]),
+        parse_listener(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
+    ?eq(listener_config(ejabberd_s2s_in, [{max_stanza_size, 10000}]),
+        parse_listener(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
+    ?eq(listener_config(ejabberd_service, [{max_stanza_size, 10000}]),
+        parse_listener(<<"service">>, #{<<"max_stanza_size">> => 10000})),
+    ?err(parse_listener(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
+
+listen_max_fsm_queue(_Config) ->
+    ?eq(listener_config(ejabberd_c2s, [{max_fsm_queue, 1000}]),
+        parse_listener(<<"c2s">>, #{<<"max_fsm_queue">> => 1000})),
+    ?eq(listener_config(ejabberd_service, [{max_fsm_queue, 1000}]),
+        parse_listener(<<"service">>, #{<<"max_fsm_queue">> => 1000})),
+    ?err(parse_listener(<<"s2s">>, #{<<"max_fsm_queue">> => 1000})), % only for c2s and service
+    ?err(parse_listener(<<"c2s">>, #{<<"max_fsm_queue">> => 0})).
 
 listen_tls_mode(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [starttls]),
@@ -401,6 +437,18 @@ listen_tls_verify_mode(_Config) ->
     ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                     <<"verify_mode">> => <<"whatever">>}})),
     ?err(parse_listener(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"whatever">>}})).
+
+listen_tls_crl_files(_Config) ->
+    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
+                                       {crlfiles, ["file1", "file2"]}]),
+        parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                   <<"crl_files">> => [<<"file1">>,
+                                                                       <<"file2">>]}})),
+    ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                    <<"crl_files">> => [<<>>]}})),
+    %% only for just_tls
+    ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"crl_files">> => [<<"file1">>,
+                                                                        <<"file2">>]}})).
 
 listen_tls_certfile(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{certfile, "mycert.pem"}]),
@@ -479,12 +527,15 @@ listen_tls_versions(_Config) ->
                         #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                          <<"versions">> => <<"tlsv1.2">>}})).
 
-listen_max_stanza_size(_Config) ->
-    ?eq(listener_config(ejabberd_c2s, [{max_stanza_size, 10000}]),
-        parse_listener(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?eq(listener_config(ejabberd_s2s_in, [{max_stanza_size, 10000}]),
-        parse_listener(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?err(parse_listener(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
+listen_tls_protocol_options(_Config) ->
+    ?eq(listener_config(ejabberd_c2s, [{protocol_options, ["nosslv2"]}]),
+        parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
+    ?eq(listener_config(ejabberd_s2s_in, [{protocol_options, ["nosslv2"]}]),
+        parse_listener(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
+    ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
+    ?err(parse_listener(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
+    ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                    <<"protocol_options">> => [<<"nosslv2">>]}})).
 
 listen_check_from(_Config) ->
     ?eq(listener_config(ejabberd_service, [{service_check_from, false}]),
