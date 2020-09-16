@@ -1372,7 +1372,7 @@ mod_inbox(_Config) ->
 
 mod_global_distrib(_Config) ->
     ConnOpts = [
-              {endpoints, [{"172.16.0.2", 5555}]},
+              {endpoints, [{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]},
               {num_of_connections, 22},
               {tls_opts, [
                     {cafile, "/home/user/ca.pem"},
@@ -1383,7 +1383,9 @@ mod_global_distrib(_Config) ->
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {pool, global_distrib} ],
     TConnOpts = #{
-      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555}],
+      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
+                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
+                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
       <<"num_of_connections">> => 22,
       <<"tls">> => #{
           <<"certfile">> => <<"/home/user/dc1.pem">>,
@@ -1414,6 +1416,8 @@ mod_global_distrib(_Config) ->
         {message_ttl, 42},
         {redis, RedisOpts}
        ]), T(Base)),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+        <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
     ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
     ?errf(T(Base#{<<"global_host">> => 1})),
     ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),

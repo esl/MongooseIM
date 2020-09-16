@@ -460,6 +460,8 @@ module_option_types() ->
      {mod_global_distrib, local_host, domain},
      {mod_global_distrib, message_ttl, non_neg_integer},
      {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
+     {mod_global_distrib, connections, #{
+        endpoints => {list, #{host => network_address, port => network_port}}}},
      {mod_event_pusher, backend, #{
          sns => {wrapped_section,
                  #{access_key_id => string,
@@ -532,7 +534,10 @@ type_to_validator() ->
       binary_domain_template => fun validate_binary_domain_template/1,
       period_unit => fun validate_period_unit/1,
       validity_period => fun validate_validity_period/1,
-      ip_access => fun validate_ip_access/1
+      ip_access => fun validate_ip_access/1,
+      ip_address => fun validate_ip_address/1,
+      network_address  => fun validate_network_address/1,
+      network_port => fun validate_network_port/1
 %     wpool_options => fun validate_wpool_options/1
      }.
 
@@ -778,6 +783,25 @@ validate_string(Value) ->
 validate_ip_mask({IP, Mask}) ->
     validate_string(inet:ntoa(IP)),
     validate_range(Mask, 0, 32).
+
+validate_network_address(Value) ->
+    validate_oneof(Value, [domain, ip_address]).
+
+validate_oneof(Value, Validators) ->
+    Map = type_to_validator(),
+    Funs = [maps:get(Type, Map) || Type <- Validators],
+    lists:any(fun(F) -> is_valid(F, Value) end, Funs).
+
+is_valid(F, Value) ->
+    try
+        F(Value),
+        true
+    catch _:_ ->
+              false
+    end.
+
+validate_network_port(Value) ->
+    validate_range(Value, 0, 65535).
 
 validate_range(Value, Min, Max) when Value >= Min; Value =< Max ->
     ok.
