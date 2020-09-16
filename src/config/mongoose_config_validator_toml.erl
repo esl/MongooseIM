@@ -526,6 +526,20 @@ module_option_types() ->
                                                     recv_topic => non_empty_binary}}}}
 
          }},
+     {mod_http_upload, iqdisc, iqdisc},
+     {mod_http_upload, backend, backend},
+     {mod_http_upload, host, domain_template},
+     {mod_http_upload, expiration_time, non_neg_integer},
+     {mod_http_upload, token_bytes, non_neg_integer},
+     {mod_http_upload, token_bytes, pos_integer},
+     {mod_http_upload, max_file_size, non_neg_integer},
+     {mod_http_upload, s3, {wrapped_section, #{
+                              bucket_url => url,
+                              add_acl => boolean,
+                              region => string,
+                              access_key_id => string,
+                              secret_access_key => string
+                             }}},
      {mod_register, iqdisc, iqdisc},
      %% Validator is not called for each leaf, so we need a separate validator below
 %    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},

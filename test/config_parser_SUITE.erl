@@ -162,8 +162,9 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
-                            mod_register,
-                            mod_event_pusher]}
+                            mod_event_pusher,
+                            mod_http_upload,
+                            mod_register]}
     ].
 
 init_per_suite(Config) ->
@@ -1645,6 +1646,51 @@ chat_exchange_invalid_opts() ->
       #{<<"name">> => <<"chat_msg">>,
         <<"recv_topic">> => <<"chat_msg_recv">>,
         <<"sent_topic">> => 1}].
+
+mod_http_upload(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
+    S3 = #{
+      <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+      <<"add_acl">> => true,
+      <<"region">> => <<"antarctica-1">>,
+      <<"access_key_id">> => <<"PLEASE">>,
+      <<"secret_access_key">> => <<"ILOVEU">>
+     },
+    Base = #{
+           <<"iqdisc">> => <<"one_queue">>,
+           <<"host">> => <<"upload.@HOST@">>,
+           <<"backend">> => <<"s3">>,
+           <<"expiration_time">> => 666,
+           <<"token_bytes">> => 32,
+           <<"max_file_size">> => 42,
+           <<"s3">> => S3
+          },
+    MS3 = [{access_key_id, "PLEASE"},
+           {add_acl, true},
+           {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
+           {region, "antarctica-1"},
+           {secret_access_key, "ILOVEU"}],
+    MBase = [{backend, s3},
+             {expiration_time, 666},
+             {host, "upload.@HOST@"},
+             {iqdisc, one_queue},
+             {max_file_size, 42},
+             {s3, MS3},
+             {token_bytes, 32}],
+    ?eqf(modopts(mod_http_upload, MBase), T(Base)),
+    ?errf(T(Base#{<<"host">> => -1})),
+    ?errf(T(Base#{<<"host">> => <<" f g ">>})),
+    ?errf(T(Base#{<<"backend">> => <<"dev_null_as_a_service">>})),
+    ?errf(T(Base#{<<"expiration_time">> => <<>>})),
+    ?errf(T(Base#{<<"expiration_time">> => -1})),
+    ?errf(T(Base#{<<"token_bytes">> => -1})),
+    ?errf(T(Base#{<<"max_file_size">> => -1})),
+    ?errf(T(Base#{<<"s3">> => S3#{<<"access_key_id">> => -1}})),
+    ?errf(T(Base#{<<"s3">> => S3#{<<"add_acl">> => -1}})),
+    ?errf(T(Base#{<<"s3">> => S3#{<<"bucket_url">> => -1}})),
+    ?errf(T(Base#{<<"s3">> => S3#{<<"region">> => -1}})),
+    ?errf(T(Base#{<<"s3">> => S3#{<<"secret_access_key">> => -1}})),
+    check_iqdisc(mod_http_upload).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
