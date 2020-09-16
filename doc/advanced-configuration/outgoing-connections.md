@@ -190,8 +190,8 @@ sslrootcert = /path/to/ca/cert
 
 ## HTTP connections setup
 
-Some MongooseIM modules need an HTTP connection to an external service.
-These pools need to be configured and started before the module that needs them.
+Some MongooseIM modules need an HTTP connection to external service.
+These pools need to be configured and started before the module needs them.
 Below is a sample configuration:
 
 ```erlang
@@ -199,29 +199,28 @@ Below is a sample configuration:
  {http, global, default, PoolOptions, ConnectionOptions}
 ]}.
 ```
-where `PoolOptions` is as previously described.
-Recommended `PoolOptions` for `HTTP` pools are:
+
+`PoolOptions` are described above, below there are the recommended `PoolOptions` for `HTTP` pools:
 
 * `strategy` - the recommended value is `available_worker`
 * `call_timeout` - it should be equal or longer than the value set in `request_timeout` below.
 
 `ConnectionOptions` can take the following `{key, value}` pairs:
 
-* `{server, HostName}` - string - the URL of the destination HTTP server (including a port number if needed).
-* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`Host` option).
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
+* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
 * `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-* `{http_opts, HTTPOptions}` - extra parameters to the library responsible for making the HTTP calls.
-Defaults to the map: `#{retry => 1, retry_timeout => 1000}`.
-  More details about the possible `http_opts` can be found in [gun]'s documentation.
+* `{http_opts, HTTPOptions}` - list, default: `[]` - can be used to pass extra parameters which are passed to [fusco], the library used for making the HTTP calls.
+  More details about the possible `http_opts` can be found in [fusco]'s documentation.
 
-[gun]: https://ninenines.eu/docs/en/gun/2.0/manual/
+[fusco]: https://github.com/esl/fusco
 
 ##### Example configuration
 
 ```Erlang
 {outgoing_pools, [
   {http, global, http_auth,
-   [{strategy, available_worker}], [{server, {"https://my_server", 8080}}]}
+   [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
 ]}.
 ```
 
@@ -232,14 +231,14 @@ If peer certificate verification is required, the pool can be configured in the 
   {http, global, mongoose_push_http,
    [{workers, 50}],
    [{server, "https://localhost:8443"},
-    {http_opts, #{
-                     transport_opts => [{verify, verify_peer}]
-                 }}
+    {http_opts, [
+                 {connect_options, [{verify, verify_peer}]}
+                 ]}
    ]}
 ]}.
 ```
 
-Please note the `transport_opts` passed to [gun] via the pool's `http_opts` parameter.
+Please note the `connect_options` passed to [fusco] via the pool's `http_opts` parameter.
 
 
 ## Redis connection setup
