@@ -94,6 +94,7 @@
   global_host = "example.com"
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.num_of_connections = 22
   connections.tls.certfile = "/home/user/dc1.pem"
   connections.tls.cacertfile = "/home/user/ca.pem"

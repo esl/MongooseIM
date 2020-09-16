@@ -1165,6 +1165,10 @@ mod_global_distrib_bounce([<<"max_retries">>|_], V) ->
 mod_global_distrib_connections_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
     [{b2l(Host), Port}].
 
+-spec mod_global_distrib_connections_advertised_endpoints(path(), toml_section()) -> [option()].
+mod_global_distrib_connections_advertised_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
+    [{b2l(Host), Port}].
+
 -spec mod_keystore_keys(path(), toml_section()) -> [option()].
 mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"ram">>}) ->
     [{b2a(Name), ram}];
@@ -1701,6 +1705,8 @@ handler([_, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_redis/2;
 handler([_,<<"endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_connections_endpoints/2;
+handler([_,<<"advertised_endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
+    fun mod_global_distrib_connections_advertised_endpoints/2;
 handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun fast_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->

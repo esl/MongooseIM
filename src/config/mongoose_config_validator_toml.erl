@@ -461,7 +461,9 @@ module_option_types() ->
      {mod_global_distrib, message_ttl, non_neg_integer},
      {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
      {mod_global_distrib, connections, #{
-        endpoints => {list, #{host => network_address, port => network_port}}}},
+        endpoints => {list, #{host => network_address, port => network_port}},
+        advertised_endpoints => {list, #{host => network_address, port => network_port}}}},
+
      {mod_event_pusher, backend, #{
          sns => {wrapped_section,
                  #{access_key_id => string,
