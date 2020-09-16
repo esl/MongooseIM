@@ -620,7 +620,8 @@ service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
 %% path: (host_config[].)modules.*
 -spec process_module(path(), toml_section()) -> [option()].
 process_module([Mod|_] = Path, Opts) ->
-    [{b2a(Mod), parse_section(Path, Opts)}].
+    %% Sort option keys to ensure options could be matched in tests
+    [{b2a(Mod), lists:sort(parse_section(Path, Opts))}].
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
@@ -1203,7 +1204,9 @@ mod_mam_opts([<<"max_batch_size">>|_], V) ->
 mod_mam_opts([<<"archive_groupchats">>, <<"pm">>|_], V) ->
     [{archive_groupchats, V}];
 mod_mam_opts([<<"host">>, <<"muc">>|_], V) ->
-    [{host, b2l(V)}].
+    [{host, b2l(V)}];
+mod_mam_opts([<<"riak">>|_] = Path, V) ->
+    parse_section(Path, V).
 
 -spec mod_muc_default_room(path(), toml_value()) -> [option()].
 mod_muc_default_room([<<"title">>|_], V) ->

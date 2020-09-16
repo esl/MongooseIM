@@ -167,6 +167,7 @@ groups() ->
                             mod_jingle_sip,
                             mod_keystore,
                             mod_last,
+                            mod_mam_meta,
                             mod_register]}
     ].
 
@@ -1753,12 +1754,55 @@ mod_last(_Config) ->
              <<"backend">> => <<"riak">>,
              <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
     MBase = [{backend, riak},
-             {iqdisc, one_queue},
-             {bucket_type, <<"test">>}],
+             {bucket_type, <<"test">>},
+             {iqdisc, one_queue}],
     ?eqf(modopts(mod_last, MBase), T(Base)),
     ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
     ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_last).
+
+mod_mam_meta(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
+    PM = #{<<"archive_groupchats">> => true},
+    MUC = #{<<"host">> => <<"conf.localhost">>},
+    Common = #{<<"async_writer">> => true,
+               <<"backend">> => <<"riak">>,
+               <<"flush_interval">> => 500,
+               <<"full_text_search">> => true,
+               <<"max_batch_size">> => 50,
+               <<"no_stanzaid_element">> => true,
+               <<"is_archivable_message">> => <<"mod_mam_utils">>,
+               <<"message_retraction">> => true,
+               <<"user_prefs_store">> => false}, %% or rdbms. but not true
+    MCommon = [{async_writer, true},
+               {backend, riak},
+               {flush_interval, 500},
+               {full_text_search, true},
+               {is_archivable_message, mod_mam_utils},
+               {max_batch_size, 50},
+               {message_retraction, true},
+               {no_stanzaid_element, true},
+               {user_prefs_store, false}],
+    Riak = #{<<"bucket_type">> => <<"mam_yz">>, <<"search_index">> => <<"mam">>},
+    MRiak = [{bucket_type, <<"mam_yz">>}, {search_index, <<"mam">>}],
+    MPM = [{archive_groupchats, true}],
+    MMUC = [{host, "conf.localhost"}],
+    Base = Common#{<<"archive_chat_markers">> => true,
+             <<"pm">> => maps:merge(Common, PM),
+             <<"muc">> => maps:merge(Common, MUC),
+             <<"riak">> => Riak, %% This one is flatten into mim opts
+             <<"extra_lookup_params">> => <<"mod_mam_utils">>,
+             <<"message_retraction">> => true},
+    MBase0 = [{archive_chat_markers, true},
+              {extra_lookup_params, mod_mam_utils},
+              {muc, pl_merge(MMUC, MCommon)},
+              {pm, pl_merge(MPM, MCommon)}],
+    MBase = pl_merge(MCommon, MBase0 ++ MRiak),
+    RiakKeys = binaries_to_atoms(maps:keys(Base) -- [<<"riak">>]),
+    check_one_opts(mod_mam_meta, MBase, Base, T, RiakKeys),
+    ?eqf(modopts(mod_mam_meta, MBase), T(Base)),
+    ok.
+
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -2066,3 +2110,22 @@ ensure_copied(From, To) ->
             error(#{what => ensure_copied_failed, from => From, to => To,
                     reason => Other})
     end.
+
+pl_merge(L1, L2) ->
+    M1 = maps:from_list(L1),
+    M2 = maps:from_list(L2),
+    maps:to_list(maps:merge(M1, M2)).
+
+check_one_opts(M, MBase, Base, T, Keys) ->
+    [check_one_opts_key(M, K, MBase, Base, T) || K <- Keys].
+
+check_one_opts_key(M, K, MBase, Base, T) when is_atom(M), is_atom(K) ->
+    BK = atom_to_binary(K, utf8),
+    MimValue = maps:get(K, maps:from_list(MBase)),
+    TomValue = maps:get(BK, Base),
+    Mim = [{K, MimValue}],
+    Toml = #{BK => TomValue},
+    ?eqf(modopts(M, Mim), T(Toml)).
+
+binaries_to_atoms(Bins) ->
+    [binary_to_atom(B, utf8) || B <- Bins].
