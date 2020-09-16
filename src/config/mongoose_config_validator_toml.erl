@@ -426,6 +426,12 @@ validate_modules(Path, Value) ->
      end || Type <- Types],
     ok.
 
+tls_opts_spec() ->
+    #{cacertfile => {wrapped, cafile, filename}, %% renamed option
+      certfile => filename,
+      dhfile => filename,
+      ciphers => string}.
+
 module_option_types() ->
     [{mod_adhoc, iqdisc, iqdisc},
      {mod_adhoc, report_commands_node, boolean},
@@ -460,9 +466,16 @@ module_option_types() ->
      {mod_global_distrib, local_host, domain},
      {mod_global_distrib, message_ttl, non_neg_integer},
      {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
-     {mod_global_distrib, connections, #{
+     {mod_global_distrib, connections, {wrapped_section, #{
         endpoints => {list, #{host => network_address, port => network_port}},
-        advertised_endpoints => {list, #{host => network_address, port => network_port}}}},
+        advertised_endpoints => {optional_section, advertised_endpoints,
+                                 {list, #{host => network_address, port => network_port}}},
+        connections_per_endpoint => non_neg_integer,
+        endpoint_refresh_interval => pos_integer,
+        endpoint_refresh_interval_when_empty => pos_integer,
+        disabled_gc_interval => non_neg_integer,
+        tls => {optional_section, tls_opts,
+                {wrapped_section, tls_opts_spec()}}}}},
 
      {mod_event_pusher, backend, #{
          sns => {wrapped_section,
@@ -539,7 +552,8 @@ type_to_validator() ->
       ip_access => fun validate_ip_access/1,
       ip_address => fun validate_ip_address/1,
       network_address  => fun validate_network_address/1,
-      network_port => fun validate_network_port/1
+      network_port => fun validate_network_port/1,
+      filename => fun validate_filename/1
 %     wpool_options => fun validate_wpool_options/1
      }.
 
@@ -572,15 +586,19 @@ validate_type({backend, Module}, _Path, Value) ->
     validate_backend(Module, Value);
 validate_type({enum, Types}, _Path, Value) ->
     validate_enum(Value, Types);
+validate_type({optional_section, Name}, _Path, Value) ->
+    validate_optional_section(Name, Value);
 validate_type(Type, Path, Value) when is_atom(Type) ->
     case maps:find(Type, type_to_validator()) of
         {ok, F} ->
             F(Value);
         _ ->
-            error(#{what => unknown_validator_type, type => Type, path => Path})
+            error(#{what => unknown_validator_type, type => Type,
+                    path => Path, value => Value})
     end;
-validate_type(Type, Path, _Value) ->
-    error(#{what => unknown_validator_type, type => Type, path => Path}).
+validate_type(Type, Path, Value) ->
+    error(#{what => unknown_validator_type, type => Type,
+            path => Path, value => Value}).
 
 module_option_paths() ->
     lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types()]).
@@ -607,7 +625,13 @@ add_wrapped(_Opt, Type = {list, _}) ->
     Type;
 add_wrapped(_Opt, Type = {unwrapped, _}) ->
     Type;
+add_wrapped(_Opt, Type = {wrapped, _, _}) -> %% Already wrapped
+    Type;
 add_wrapped(_Opt, Type = {wrapped_section, _}) ->
+    Type;
+add_wrapped(_Opt, Type = {optional_section, _Type}) ->
+    Type;
+add_wrapped(_Opt, Type = {optional_section, _Name, _Type}) ->
     Type;
 add_wrapped(_Opt, Type = #{}) ->
     Type;
@@ -616,6 +640,8 @@ add_wrapped(Opt, Type) ->
 
 type_to_paths({list, Type}, Path) ->
     type_to_paths(Type, [item|Path]);
+type_to_paths({optional_section, Name, Dict}, Path) ->
+    [{Path, {optional_section, Name}}] ++ type_to_paths(Dict, Path);
 type_to_paths({wrapped_section, Dict}, Path) when is_map(Dict) ->
     lists:append([type_to_paths(add_wrapped(Key, Type),
                                 [atom_to_binary(Key, utf8)|Path])
@@ -811,3 +837,16 @@ validate_range(Value, Min, Max) when Value >= Min; Value =< Max ->
 validate_wpool_strategy(Value) ->
     validate_enum(Value, [best_worker, random_worker, next_worker,
                           available_worker, next_available_worker]).
+
+validate_filename(Filename) ->
+    case file:read_file_info(Filename) of
+        {ok, _} ->
+            ok;
+        Reason ->
+            error(#{what => invalid_filename, filename => Filename, reason => Reason})
+    end.
+
+validate_optional_section(Name, {Name, false}) -> %% set to false to disable the feature
+    ok;
+validate_optional_section(Name, {Name, List}) when is_list(List) -> %% proplist
+    ok.

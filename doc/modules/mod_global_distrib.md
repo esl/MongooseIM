@@ -171,7 +171,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
         {local_host, "datacenter1.example.com"},
         {connections, [
               {endpoints, [{"172.16.0.2", 5555}]},
-              {num_of_connections, 22},
+              {connections_per_endpoint, 22},
               {tls_opts, [
                     {certfile, "/home/user/dc1.pem"},
                     {cafile, "/home/user/ca.pem"}

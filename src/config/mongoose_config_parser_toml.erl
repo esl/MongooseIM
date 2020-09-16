@@ -1125,14 +1125,14 @@ mod_global_distrib_connections([<<"advertised_endpoints">>|_] = Path, V) ->
     [{advertised_endpoints, Endpoints}];
 mod_global_distrib_connections([<<"connections_per_endpoint">>|_], V) ->
     [{connections_per_endpoint, V}];
-mod_global_distrib_connections([<<"num_of_connections">>|_], V) ->
-    [{num_of_connections, V}];
 mod_global_distrib_connections([<<"endpoint_refresh_interval">>|_], V) ->
     [{endpoint_refresh_interval, V}];
 mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V) ->
     [{endpoint_refresh_interval_when_empty, V}];
 mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
     [{disabled_gc_interval, V}];
+mod_global_distrib_connections([<<"tls">>|_] = Path, false) ->
+    [{tls_opts, false}];
 mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
     TLSOpts = parse_section(Path, V),
     [{tls_opts, TLSOpts}].

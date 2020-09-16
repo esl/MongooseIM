@@ -1373,16 +1373,27 @@ mod_inbox(_Config) ->
 mod_global_distrib(_Config) ->
     ConnOpts = [
               {advertised_endpoints, [{"172.16.0.1", 5555}, {"localhost", 80}, {"example.com", 5555}]},
+              {connections_per_endpoint, 22},
+              {disabled_gc_interval, 60},
+              {endpoint_refresh_interval, 120},
+              {endpoint_refresh_interval_when_empty, 5},
               {endpoints, [{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {num_of_connections, 22},
               {tls_opts, [
-                    {cafile, "/home/user/ca.pem"},
-                    {certfile, "/home/user/dc1.pem"}
+                    {cafile, "/dev/null"},
+                    {certfile, "/dev/null"},
+                    {ciphers, "TLS_AES_256_GCM_SHA384"},
+                    {dhfile, "/dev/null"}
                    ]}
              ],
     CacheOpts = [ {domain_lifetime_seconds, 60} ],
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {pool, global_distrib} ],
+    TTOpts = #{
+          <<"certfile">> => <<"/dev/null">>,
+          <<"cacertfile">> => <<"/dev/null">>,
+          <<"dhfile">> => <<"/dev/null">>,
+          <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>
+         },
     TConnOpts = #{
       <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
                           #{<<"host">> => <<"localhost">>, <<"port">> => 80},
@@ -1391,11 +1402,11 @@ mod_global_distrib(_Config) ->
                          [#{<<"host">> => <<"172.16.0.1">>, <<"port">> => 5555},
                           #{<<"host">> => <<"localhost">>, <<"port">> => 80},
                           #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"num_of_connections">> => 22,
-      <<"tls">> => #{
-          <<"certfile">> => <<"/home/user/dc1.pem">>,
-          <<"cacertfile">> => <<"/home/user/ca.pem">>
-         }
+      <<"connections_per_endpoint">> => 22,
+      <<"disabled_gc_interval">> => 60,
+      <<"endpoint_refresh_interval">> => 120,
+      <<"endpoint_refresh_interval_when_empty">> => 5,
+      <<"tls">> => TTOpts
      },
     TCacheOpts = #{ <<"domain_lifetime_seconds">> => 60 },
     TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
@@ -1411,6 +1422,16 @@ mod_global_distrib(_Config) ->
            <<"bounce">> => TBounceOpts,
            <<"redis">> => TRedisOpts
           },
+    MBase = [
+        {bounce, BounceOpts},
+        {cache, CacheOpts},
+        {connections, ConnOpts},
+        {global_host, "example.com"},
+        {hosts_refresh_interval, 100},
+        {local_host, "datacenter1.example.com"},
+        {message_ttl, 42},
+        {redis, RedisOpts}
+       ],
     ?eqf(modopts(mod_global_distrib, [
         {bounce, BounceOpts},
         {cache, CacheOpts},
@@ -1421,10 +1442,42 @@ mod_global_distrib(_Config) ->
         {message_ttl, 42},
         {redis, RedisOpts}
        ]), T(Base)),
+    ?eqf(modopts(mod_global_distrib,
+                 set_pl(connections,
+                        set_pl(advertised_endpoints, false, ConnOpts),
+                        MBase)),
+         T(Base#{<<"connections">> => TConnOpts#{
+        <<"advertised_endpoints">> => false}})),
+    ?eqf(modopts(mod_global_distrib,
+                 set_pl(connections,
+                        set_pl(tls_opts, false, ConnOpts),
+                        MBase)),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+    ?eqf(modopts(mod_global_distrib,
+                 set_pl(connections,
+                        set_pl(tls_opts, false, ConnOpts),
+                        MBase)),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+            <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+            <<"tls">> =>TTOpts#{<<"dhfile">> => <<"/this/does/not/exist">>}}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+            <<"tls">> =>TTOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>}}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+            <<"tls">> =>TTOpts#{<<"ciphers">> => 42}}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
         <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
         <<"advertised_endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+        <<"connections_per_endpoint">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+        <<"connections_per_endpoint">> => <<"kek">>}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"connections_per_endpoint">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval_when_empty">> => -1}})),
     ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
     ?errf(T(Base#{<<"global_host">> => 1})),
     ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
@@ -1854,3 +1907,6 @@ test_equivalence_between_files(Config, File1, File2) ->
 parse_with_host(Config) ->
     [F] = parse(Config),
     apply(F, [?HOST]).
+
+set_pl(K, V, List) ->
+    lists:keyreplace(K, 1, List, {K, V}).
