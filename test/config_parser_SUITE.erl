@@ -13,6 +13,7 @@
 -define(HOST, <<"myhost">>).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
+-define(_eqf(Expected, Actual), fun() -> ?eqf(Expected, Actual) end).
 -define(errf(Config), 
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
 -define(_errf(Config), fun() -> ?errf(Config) end).
@@ -1799,13 +1800,13 @@ mod_mam_meta(_Config) ->
               {pm, pl_merge(MPM, MCommon)}],
     MBase = pl_merge(MCommon, MBase0 ++ MRiak),
     RiakKeys = binaries_to_atoms(maps:keys(Base) -- [<<"riak">>]),
-    %% Test configurations with one option only
-    check_one_opts(mod_mam_meta, MBase, Base, T, RiakKeys),
-    ?eqf(modopts(mod_mam_meta, MBase), T(Base)),
-    %% Second format for user_prefs_store
-    ?eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
-        T(Base#{<<"user_prefs_store">> => <<"rdbms">>})),
-    run_multi([
+    run_multi(
+      %% Test configurations with one option only
+      check_one_opts(mod_mam_meta, MBase, Base, T, RiakKeys) ++ [
+        ?_eqf(modopts(mod_mam_meta, MBase), T(Base)),
+        %% Second format for user_prefs_store
+        ?_eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
+            T(Base#{<<"user_prefs_store">> => <<"rdbms">>})),
         %% Common
         ?_errf(T(Base#{<<"user_prefs_store">> => 1})),
         ?_errf(T(Base#{<<"async_writer">> => 1})),
@@ -2154,7 +2155,7 @@ check_one_opts_key(M, K, MBase, Base, T) when is_atom(M), is_atom(K) ->
     TomValue = maps:get(BK, Base),
     Mim = [{K, MimValue}],
     Toml = #{BK => TomValue},
-    ?eqf(modopts(M, Mim), T(Toml)).
+    ?_eqf(modopts(M, Mim), T(Toml)).
 
 binaries_to_atoms(Bins) ->
     [binary_to_atom(B, utf8) || B <- Bins].
