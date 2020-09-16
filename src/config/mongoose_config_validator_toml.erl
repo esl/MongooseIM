@@ -476,6 +476,10 @@ module_option_types() ->
         disabled_gc_interval => non_neg_integer,
         tls => {optional_section, tls_opts,
                 {wrapped_section, tls_opts_spec()}}}}},
+     {mod_global_distrib, redis, {wrapped_section, #{
+            pool => non_empty_atom,
+            expire_after => non_neg_integer,
+            refresh_after => non_neg_integer}}},
 
      {mod_event_pusher, backend, #{
          sns => {wrapped_section,

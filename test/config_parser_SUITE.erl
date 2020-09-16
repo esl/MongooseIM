@@ -1387,7 +1387,7 @@ mod_global_distrib(_Config) ->
              ],
     CacheOpts = [ {domain_lifetime_seconds, 60} ],
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
-    RedisOpts = [ {pool, global_distrib} ],
+    RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
     TTOpts = #{
           <<"certfile">> => <<"/dev/null">>,
           <<"cacertfile">> => <<"/dev/null">>,
@@ -1410,7 +1410,9 @@ mod_global_distrib(_Config) ->
      },
     TCacheOpts = #{ <<"domain_lifetime_seconds">> => 60 },
     TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
-    TRedisOpts = #{ <<"pool">> => <<"global_distrib">> },
+    TRedisOpts = #{ <<"pool">> => <<"global_distrib">>,
+                    <<"expire_after">> => 120,
+                    <<"refresh_after">> => 60 },
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
     Base = #{
            <<"global_host">> => <<"example.com">>,
@@ -1458,6 +1460,7 @@ mod_global_distrib(_Config) ->
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
          T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+    %% Connection opts
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
             <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
@@ -1478,6 +1481,11 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => -1}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval_when_empty">> => -1}})),
+    %% Redis Opts
+    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
+    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => -1}})),
+    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
+    %% Global Opts
     ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
     ?errf(T(Base#{<<"global_host">> => 1})),
     ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
