@@ -637,6 +637,12 @@ module_option_types_spec() ->
      {mod_offline, access_max_user_messages, access_rule},
      {mod_offline, backend, backend},
      {mod_offline, riak, #{bucket_type => non_empty_binary}},
+     %% mod_ping
+     {mod_ping, iqdisc, iqdisc},
+     {mod_ping, send_pings, boolean},
+     {mod_ping, timeout_action, {enum, [none, kill]}},
+     {mod_ping, ping_interval, pos_integer},
+     {mod_ping, ping_req_timeout, pos_integer},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec

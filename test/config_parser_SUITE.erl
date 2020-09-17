@@ -176,6 +176,7 @@ groups() ->
                             mod_muc_log,
                             mod_muc_light,
                             mod_offline,
+                            mod_ping,
                             mod_register]}
     ].
 
@@ -2200,6 +2201,26 @@ mod_offline(_Config) ->
     ?errf(T(Base#{<<"access_max_user_messages">> => 1})),
     ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
     ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+
+mod_ping(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
+    Base = #{<<"iqdisc">> => <<"no_queue">>,
+             <<"ping_req_timeout">> => 32,
+             <<"send_pings">> => true,
+             <<"timeout_action">> => <<"none">>},
+    MBase = [{iqdisc, no_queue},
+             {ping_req_timeout, 32},
+             {send_pings, true},
+             {timeout_action, none}],
+    ensure_sorted(MBase),
+    ?eqf(modopts(mod_ping, MBase), T(Base)),
+    ?errf(T(Base#{<<"send_pings">> => 1})),
+    ?errf(T(Base#{<<"ping_interval">> => -1})),
+    ?errf(T(Base#{<<"timeout_action">> => 1})),
+    ?errf(T(Base#{<<"timeout_action">> => <<"kill_them_all">>})),
+    ?errf(T(Base#{<<"ping_req_timeout">> => -1})),
+    ?errf(T(Base#{<<"ping_req_timeout">> => <<"32">>})),
+    check_iqdisc(mod_ping).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
