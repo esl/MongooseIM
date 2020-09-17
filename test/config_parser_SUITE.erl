@@ -186,6 +186,7 @@ groups() ->
                             mod_roster,
                             mod_shared_roster_ldap,
                             mod_sic,
+                            mod_stream_management,
                             mod_version]}
     ].
 
@@ -2523,6 +2524,34 @@ mod_shared_roster_ldap(_Config) ->
 
 mod_sic(_Config) ->
     check_iqdisc(mod_sic).
+
+mod_stream_management(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
+    Base = #{
+        <<"buffer_max">> => 100,
+        <<"ack_freq">> => 1,
+        <<"resume_timeout">> => 600,
+        <<"stale_h">> => #{<<"enabled">> => true,
+                           <<"repeat_after">> => 1800,
+                           <<"geriatric">> => 3600}
+       },
+    MBase = [
+             {buffer_max, 100},
+             {ack_freq, 1},
+             {resume_timeout, 600},
+             {stale_h, [{enabled, true},
+                        {stale_h_geriatric, 3600},
+                        {stale_h_repeat_after, 1800}]}
+       ],
+    ?eqf(modopts(mod_stream_management, lists:sort(MBase)), T(Base)),
+    ?errf(T(#{<<"buffer_max">> => -1})),
+    ?errf(T(#{<<"ack_freq">> => -1})),
+    ?errf(T(#{<<"resume_timeout">> => -1})),
+    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => <<"true">>}})),
+    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => 1}})),
+    ?errf(T(#{<<"stale_h">> => #{<<"repeat_after">> => -1}})),
+    ?errf(T(#{<<"stale_h">> => #{<<"geriatric">> => -1}})),
+    ok.
 
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,

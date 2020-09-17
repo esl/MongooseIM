@@ -618,7 +618,7 @@ module_option_types_spec() ->
      {mod_muc_log, file_format, {enum, [html, plaintext]}},
      {mod_muc_log, timezone, {enum, [local, universal]}},
      {mod_muc_log, spam_prevention, boolean},
-     {mod_muc_log, css_file, {wrapped, cssfile, maybe_css_file}}, %% renamed
+     {mod_muc_log, css_file, {renamed, cssfile, maybe_css_file}},
      {mod_muc_log, top_link, top_link},
      %% mod_muc_light
      {mod_muc_light, host, domain_template},
@@ -714,6 +714,17 @@ module_option_types_spec() ->
      {mod_shared_roster_ldap, ldap_filter, string},
      %% mod_sic
      {mod_sic, iqdisc, iqdisc},
+     %% mod_stream_management
+     {mod_stream_management, buffer_max, non_neg_integer},
+     {mod_stream_management, ack_freq, non_neg_integer},
+     {mod_stream_management, resume_timeout, non_neg_integer},
+     {mod_stream_management, stale_h, #{
+                               enabled => boolean,
+                               repeat_after => {renamed, stale_h_repeat_after,
+                                                non_neg_integer},
+                               geriatric => {renamed, stale_h_geriatric,
+                                             non_neg_integer}
+        }},
      %% mod_version
      {mod_version, iqdisc, iqdisc},
      {mod_version, os_info, boolean}
@@ -870,6 +881,8 @@ add_wrapped(_Opt, Type = {unwrapped, _}) ->
     Type;
 add_wrapped(_Opt, Type = {wrapped, _, _}) -> %% Already wrapped
     Type;
+add_wrapped(_Opt, {renamed, NewName, Type}) ->
+    {wrapped, NewName, Type}; %% Reuse wrapped logic
 add_wrapped(_Opt, Type = {optional_section, _Type}) ->
     Type;
 add_wrapped(_Opt, Type = {optional_section, _Name, _Type}) ->
