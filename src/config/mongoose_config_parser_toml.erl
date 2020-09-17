@@ -881,10 +881,11 @@ module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
 module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
     Rules = parse_list(Path, V),
     [{ip_access, Rules}];
-module_opt([<<"welcome_message">>, <<"mod_register">>|_], V) ->
-    Subject = maps:get(<<"subject">>, V, <<>>),
-    Body = maps:get(<<"body">>, V, <<>>),
-    [{welcome_message, {binary_to_list(Subject), binary_to_list(Body)}}];
+module_opt([<<"welcome_message">>, <<"mod_register">>|_] = Path, V) ->
+    Props = parse_section(Path, V),
+    Subject = proplists:get_value(subject, Props, ""),
+    Body = proplists:get_value(body, Props, ""),
+    [{welcome_message, {Subject, Body}}];
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
@@ -1338,6 +1339,11 @@ mod_vcard_ldap_search_fields(_, #{<<"search_field">> := SF, <<"ldap_field">> := 
 mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> := VF}) ->
     [{SF, VF}].
 
+welcome_message([<<"subject">>|_], Value) ->
+    [{subject, b2l(Value)}];
+welcome_message([<<"body">>|_], Value) ->
+    [{body, b2l(Value)}].
+
 %% path: (host_config[].)shaper.*
 -spec process_shaper(path(), toml_section()) -> [config()].
 process_shaper([Name, _|Path], #{<<"max_rate">> := MaxRate}) ->
@@ -1683,6 +1689,8 @@ handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
     fun mod_register_ip_access_rule/2;
 handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
+handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
+    fun welcome_message/2;
 handler([_, <<"validity_period">>, <<"mod_auth_token">>, <<"modules">>]) ->
     fun mod_auth_token_validity_periods/2;
 handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
