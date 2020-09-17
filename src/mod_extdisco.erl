@@ -27,86 +27,95 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--define(EXT_DISCO, <<"urn:xmpp:extdisco:2">>).
-
 -spec start(jid:server(), list()) -> ok.
 start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    mod_disco:register_feature(Host, ?EXT_DISCO),
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    mod_disco:register_feature(Host, ?NS_EXTDISCO),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-        ?EXT_DISCO, ?MODULE, process_iq, IQDisc).
+        ?NS_EXTDISCO, ?MODULE, process_iq, IQDisc).
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    mod_disco:unregister_feature(Host, ?EXT_DISCO),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?EXT_DISCO).
+    mod_disco:unregister_feature(Host, ?NS_EXTDISCO),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_EXTDISCO).
 
 -spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
-    Response = case request_type(SubEl) of
+    {ResponseType, Response} = case request_type(SubEl) of
         all_services ->
             RequestedServices = get_external_services(),
-            create_iq_response(RequestedServices);
+            {result, create_iq_response(RequestedServices)};
         {credentials, {Type, Host}} ->
-            Services = get_external_services([Type], []),
+            Services = get_external_services(Type),
             RequestedServices = lists:filter(fun({_, Opts}) ->
                 gen_mod:get_opt(host, Opts, undefined) == binary_to_list(Host)
                 end, Services),
-            create_iq_response_credentials(RequestedServices);
+            {result, create_iq_response_credentials(RequestedServices)};
         {selected_services, Type} ->
-            RequestedServices = get_external_services([Type], []),
-            create_iq_response_services(RequestedServices, Type);
+            RequestedServices = get_external_services(Type),
+            {result, create_iq_response_services(RequestedServices, Type)};
         _ ->
-            []
+            {error, [mongoose_xmpp_errors:bad_request()]}
     end,
-    {Acc, IQ#iq{type = result, sub_el = Response}}.
+    {Acc, IQ#iq{type = ResponseType, sub_el = Response}}.
 
 request_type(#xmlel{name = <<"services">>} = Element) ->
     case exml_query:attr(Element, <<"type">>) of
         undefined -> all_services;
-        Services -> {selected_services, binary_to_atom(Services, utf8)}
+        ServiceType ->
+            case catch binary_to_existing_atom(ServiceType, utf8) of
+                {'EXIT', _} -> {error, bad_request};
+                Type -> {selected_services, Type}
+            end
     end;
-request_type(#xmlel{name = <<"credentials">>, children = [C]}) ->
-    Host = exml_query:attr(C, <<"host">>),
-    Type = exml_query:attr(C, <<"type">>),
-    {credentials, {binary_to_atom(Type, utf8), Host}};
+request_type(#xmlel{name = <<"credentials">>, children = [Children]}) ->
+    Host = exml_query:attr(Children, <<"host">>),
+    case exml_query:attr(Children, <<"type">>) of
+        undefined -> {error, bad_request};
+        ServiceType ->
+            case catch binary_to_existing_atom(ServiceType, utf8) of
+                {'EXIT', _} -> {error, bad_request};
+                Type -> {credentials, {Type, Host}}
+            end
+    end;
 request_type(_) ->
-    {error, unknown_request}.
+    {error, bad_request}.
 
 create_iq_response(Services) ->
     #xmlel{name = <<"services">>,
-        attrs = [{<<"xmlns">>, ?EXT_DISCO}],
-        children = prepare_services_element(Services, [])}.
+        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
+        children = prepare_services_element(Services)}.
 
 create_iq_response_services(Services, Type) ->
     #xmlel{name = <<"services">>,
-        attrs = [{<<"xmlns">>, ?EXT_DISCO}, {<<"type">>, atom_to_binary(Type, utf8)}],
-        children = prepare_services_element(Services, [])}.
+        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}, {<<"type">>, atom_to_binary(Type, utf8)}],
+        children = prepare_services_element(Services)}.
 
 create_iq_response_credentials(Services) ->
     #xmlel{name = <<"credentials">>,
-        attrs = [{<<"xmlns">>, ?EXT_DISCO}],
-        children = prepare_services_element(Services, [])}.
+        attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
+        children = prepare_services_element(Services)}.
 
 get_external_services() ->
-    get_external_services([stun, turn], []).
-get_external_services([], ServicesWithOpts) ->
-    ServicesWithOpts;
-get_external_services([Type | Types], ServicesWithOpts) ->
-    case gen_mod:get_module_opt(?MYNAME, ?MODULE, Type, []) of
-        [] -> get_external_services(Types, ServicesWithOpts);
-        Opts -> get_external_services(Types, [{Type, Opts} | ServicesWithOpts])
+    case gen_mod:get_module_opts(?MYNAME, ?MODULE) of
+        [] -> [];
+        ServicesWithOpts -> ServicesWithOpts
     end.
 
-prepare_services_element([], Result) ->
-    Result;
-prepare_services_element([{Type, Opts} | Services], Result) ->
-    RequiredElements = required_elements(Type, Opts),
-    OptionalElements = optional_elements(Opts),
-    NewResult = [#xmlel{name = <<"service">>,
-                        attrs = RequiredElements ++ OptionalElements}],
-    prepare_services_element(Services, Result ++ NewResult).
+get_external_services(Type) ->
+    [{T, Opts} || {T, Opts} <- get_external_services(), T == Type].
+
+prepare_services_element(Services) ->
+    lists:reverse(
+      lists:foldl(
+        fun({Type, Opts}, Acc) ->
+                RequiredElements = required_elements(Type, Opts),
+                OptionalElements = optional_elements(Opts),
+                NewResult = #xmlel{name = <<"service">>,
+                                    attrs = RequiredElements ++ OptionalElements},
+                [NewResult | Acc]
+        end, [], Services)).
 
 required_elements(Type, Opts) ->
     Host = gen_mod:get_opt(host, Opts, <<"">>),
@@ -124,9 +133,6 @@ optional_elements(Opts) ->
     filter_undefined_elements(Elements).
 
 filter_undefined_elements(Elements) ->
-    lists:filter(fun(Element) ->
-        case Element of
-            {_, undefined} -> false;
-            _ -> true
-        end
-    end, Elements).
+    lists:filter(fun({_, undefined}) -> false;
+                    (_)              -> true
+                 end, Elements).
