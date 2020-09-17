@@ -185,7 +185,8 @@ groups() ->
                             mod_revproxy,
                             mod_roster,
                             mod_shared_roster_ldap,
-                            mod_sic]}
+                            mod_sic,
+                            mod_version]}
     ].
 
 init_per_suite(Config) ->
@@ -2522,6 +2523,12 @@ mod_shared_roster_ldap(_Config) ->
 
 mod_sic(_Config) ->
     check_iqdisc(mod_sic).
+
+mod_version(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
+    ?eqf(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
+    ?errf(T(#{<<"os_info">> => 1})),
+    check_iqdisc(mod_version).
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).

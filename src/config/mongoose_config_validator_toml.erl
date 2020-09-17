@@ -713,7 +713,10 @@ module_option_types_spec() ->
      {mod_shared_roster_ldap, ldap_ufilter, string},
      {mod_shared_roster_ldap, ldap_filter, string},
      %% mod_sic
-     {mod_sic, iqdisc, iqdisc}
+     {mod_sic, iqdisc, iqdisc},
+     %% mod_version
+     {mod_version, iqdisc, iqdisc},
+     {mod_version, os_info, boolean}
     ].
 
 mod_mam_opts_spec() ->
