@@ -2157,7 +2157,15 @@ mod_muc_light_opts() ->
      {max_occupants, <<"infinity">>, infinity},
      {rooms_per_page, 1, 1},
      {rooms_per_page, <<"infinity">>, infinity},
-     {rooms_in_rosters, true, true}
+     {rooms_in_rosters, true, true},
+     {config_schema, [
+          #{<<"field">> => <<"roomname">>, <<"value">> => <<"My Room">>},
+          #{<<"field">> => <<"subject">>, <<"value">> => <<"Hi">>},
+          #{<<"field">> => <<"priority">>, <<"value">> => 0,
+            <<"internal_key">> => <<"priority">>, <<"type">> => <<"integer">>}
+      ],
+      [{"roomname", "My Room"}, {"subject", "Hi"},
+       {"priority", 0, priority, integer}]}
     ].
 
 mod_muc_light_bad_opts() ->
@@ -2172,7 +2180,11 @@ mod_muc_light_bad_opts() ->
      {all_can_invite, 1},
      {max_occupants, true},
      {rooms_per_page, false},
-     {rooms_in_rosters, 1}
+     {rooms_in_rosters, 1},
+     {config_schema, [ #{<<"field">> => 1, <<"value">> => <<"ok">>} ]},
+     {config_schema, [ #{<<"field">> => <<"subject">>} ]},
+     {config_schema, [ #{<<"field">> => <<"priority">>, <<"value">> => 0,
+            <<"internal_key">> => <<"priority">>, <<"type">> => <<"bad_integer">>} ]}
     ].
 
 mod_register(_Config) ->

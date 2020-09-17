@@ -632,6 +632,7 @@ module_option_types_spec() ->
      {mod_muc_light, max_occupants, pos_integer_or_inf},
      {mod_muc_light, rooms_per_page, pos_integer_or_inf},
      {mod_muc_light, rooms_in_rosters, boolean},
+     {mod_muc_light, config_schema, {list, muc_config_schema}},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
@@ -711,7 +712,8 @@ type_to_validator() ->
       %% Sections (the whole section term is passed into the validators)
       auth_token_domain => fun validate_auth_token_domain/1,
       validity_period => fun validate_validity_period/1,
-      muc_affiliation_rule => fun validate_muc_affiliation_rule/1
+      muc_affiliation_rule => fun validate_muc_affiliation_rule/1,
+      muc_config_schema => fun validate_muc_config_schema/1
       %% Could be useful to be separate validator:
       %% wpool_options => fun validate_wpool_options/1
       %% Called from validate_type function: 
@@ -1059,3 +1061,12 @@ validate_maybe_css_file(Bin) ->
 validate_top_link({Url, Text}) ->
     validate_url(Url),
     validate_non_empty_string(Text).
+
+validate_muc_config_schema({Field, Value}) ->
+    validate_non_empty_string(Field),
+    validate_string(Value);
+validate_muc_config_schema({Field, Value, InternalField, FieldType})
+    when is_list(Value); is_float(Value); is_integer(Value) ->
+    validate_non_empty_string(Field),
+    validate_enum(FieldType, [binary, integer, float]),
+    validate_non_empty_atom(InternalField).
