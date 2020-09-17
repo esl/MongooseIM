@@ -184,7 +184,8 @@ groups() ->
                             mod_register,
                             mod_revproxy,
                             mod_roster,
-                            mod_shared_roster_ldap]}
+                            mod_shared_roster_ldap,
+                            mod_sic]}
     ].
 
 init_per_suite(Config) ->
@@ -2518,6 +2519,9 @@ mod_shared_roster_ldap(_Config) ->
             ?_errf(T(#{<<"ldap_ufilter">> => 1})),
             ?_errf(T(#{<<"ldap_filter">> => 1}))
         ]).
+
+mod_sic(_Config) ->
+    check_iqdisc(mod_sic).
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).
