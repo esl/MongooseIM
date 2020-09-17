@@ -649,41 +649,47 @@ specs_to_map(Specs) ->
      maps:from_list([{K,V} || {_,K,V} <- Specs]).
 
 type_to_validator() ->
-    #{string => fun validate_string/1,
+    #{%% Basic
+      string => fun validate_string/1,
       boolean => fun validate_boolean/1,
       binary => fun validate_binary/1,
-      atom => fun validate_non_empty_atom/1,
       non_empty_atom => fun validate_non_empty_atom/1,
       non_empty_binary => fun validate_non_empty_binary/1,
       non_neg_integer => fun validate_non_negative_integer/1,
       non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
       pos_integer => fun validate_positive_integer/1,
-      wpool_strategy => fun validate_wpool_strategy/1,
-      iqdisc => fun validate_iqdisc/1,
-      url => fun validate_url/1,
+      filename => fun validate_filename/1,
       module => fun validate_module/1,
-      groupchat_type => fun validate_groupchat_type/1,
-      chat_marker_type => fun validate_chat_marker_type/1,
-      ip_mask => fun validate_ip_mask/1,
+      %% Networking and addresation
+      url => fun validate_url/1,
       jid => fun validate_jid/1,
-      auth_token_domain => fun validate_auth_token_domain/1,
       domain => fun validate_domain/1,
-      binary_domain => fun validate_binary_domain/1,
       domain_template => fun validate_domain_template/1,
+      binary_domain => fun validate_binary_domain/1,
       binary_domain_template => fun validate_binary_domain_template/1,
-      period_unit => fun validate_period_unit/1,
-      validity_period => fun validate_validity_period/1,
       ip_access => fun validate_ip_access/1,
       ip_address => fun validate_ip_address/1,
+      ip_mask => fun validate_ip_mask/1,
       network_address  => fun validate_network_address/1,
       network_port => fun validate_network_port/1,
-      filename => fun validate_filename/1,
+      %% Other
+      iqdisc => fun validate_iqdisc/1,
+      pool_name => fun validate_non_empty_atom/1,
+      groupchat_type => fun validate_groupchat_type/1,
+      chat_marker_type => fun validate_chat_marker_type/1,
+      period_unit => fun validate_period_unit/1,
       keystore_key => fun validate_keystore_key/1,
       access_rule => fun validate_non_empty_atom/1,
       shaper_name => fun validate_non_empty_atom/1,
-      pool_name => fun validate_non_empty_atom/1,
+      wpool_strategy => fun validate_wpool_strategy/1,
+      %% Sections (the whole section term is passed into the validators)
+      auth_token_domain => fun validate_auth_token_domain/1,
+      validity_period => fun validate_validity_period/1,
       muc_affiliation_rule => fun validate_muc_affiliation_rule/1
-%     wpool_options => fun validate_wpool_options/1
+      %% Could be useful to be separate validator:
+      %% wpool_options => fun validate_wpool_options/1
+      %% Called from validate_type function: 
+      %% backend => fun validate_backend/2,
      }.
 
 validate_type({unwrapped, Type}, Path, Value) ->
