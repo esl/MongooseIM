@@ -679,7 +679,9 @@ module_option_types_spec() ->
      {mod_register, welcome_message, #{subject => string, body => string}},
      {mod_register, access, non_empty_atom},
      {mod_register, registration_watchers, {list, jid}},
-     {mod_register, password_strength, non_neg_integer}
+     {mod_register, password_strength, non_neg_integer},
+     %% mod_revproxy
+     {mod_revproxy, routes, {list, revproxy_route}}
     ].
 
 mod_mam_opts_spec() ->
@@ -753,7 +755,8 @@ type_to_validator() ->
       validity_period => fun validate_validity_period/1,
       muc_affiliation_rule => fun validate_muc_affiliation_rule/1,
       muc_config_schema => fun validate_muc_config_schema/1,
-      pubsub_pep_mapping => fun validate_pubsub_pep_mapping/1
+      pubsub_pep_mapping => fun validate_pubsub_pep_mapping/1,
+      revproxy_route => fun validate_revproxy_route/1
       %% Could be useful to be separate validator:
       %% wpool_options => fun validate_wpool_options/1
       %% Called from validate_type function: 
@@ -1125,3 +1128,13 @@ validate_pubsub_pep_mapping({Namespace, Id}) ->
 
 b2a(Bin) ->
     binary_to_atom(Bin, utf8).
+
+validate_revproxy_route({Host, Path, Method, Upstream}) ->
+    validate_non_empty_string(Host),
+    validate_string(Path),
+    validate_string(Method),
+    validate_non_empty_string(Upstream);
+validate_revproxy_route({Host, Path, Upstream}) ->
+    validate_non_empty_string(Host),
+    validate_string(Path),
+    validate_non_empty_string(Upstream).
