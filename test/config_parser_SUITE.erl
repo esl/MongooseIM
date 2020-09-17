@@ -180,6 +180,7 @@ groups() ->
                             mod_privacy,
                             mod_private,
                             mod_pubsub,
+                            mod_push_service_mongoosepush,
                             mod_register]}
     ].
 
@@ -2308,6 +2309,20 @@ mod_pubsub_bad_opts() ->
      {pep_mapping, [#{<<"namespace">> => <<"urn:xmpp:microblog:0">>, <<"node">> => 1}]},
      {item_publisher, 1},
      {sync_broadcast, 1}].
+
+mod_push_service_mongoosepush(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_push_service_mongoosepush">> => Opts}} end,
+    Base = #{<<"pool_name">> => <<"test_pool">>,
+             <<"api_version">> => <<"v3">>,
+             <<"max_http_connections">> => 100},
+    MBase = [{pool_name, test_pool},
+             {api_version, "v3"},
+             {max_http_connections, 100}],
+    ?eqf(modopts(mod_push_service_mongoosepush, lists:sort(MBase)), T(Base)),
+    ?errf(T(Base#{<<"pool_name">> => 1})),
+    ?errf(T(Base#{<<"api_version">> => 1})),
+    ?errf(T(Base#{<<"max_http_connections">> => -1})),
+    ok.
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

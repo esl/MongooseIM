@@ -666,6 +666,10 @@ module_option_types_spec() ->
      {mod_pubsub, nodetree, pubsub_nodetree},
      {mod_pubsub, plugins, {list, pubsub_plugin}},
      {mod_pubsub, pep_mapping, {list, pubsub_pep_mapping}},
+     %% mod_push_service_mongoosepush
+     {mod_push_service_mongoosepush, pool_name, pool_name},
+     {mod_push_service_mongoosepush, api_version, string},
+     {mod_push_service_mongoosepush, max_http_connections, non_neg_integer},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
