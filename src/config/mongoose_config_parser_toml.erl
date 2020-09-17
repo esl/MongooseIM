@@ -849,6 +849,8 @@ module_opt([<<"nodetree">>, <<"mod_pubsub">>|_], V) ->
     [{nodetree, V}];
 module_opt([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>|_], V) ->
     [{ignore_pep_from_offline, V}];
+module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], false) ->
+    [{last_item_cache, false}];
 module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], V) ->
     [{last_item_cache, b2a(V)}];
 module_opt([<<"plugins">>, <<"mod_pubsub">>|_] = Path, V) ->
@@ -1547,15 +1549,24 @@ parse_list(Path, L) ->
 -spec handle(path(), toml_value()) -> option().
 handle(Path, Value) ->
     Handler = handler(Path),
-    Option = Handler(Path, Value),
+    try Handler(Path, Value) of
+        Option ->
+                validate(Path, Option),
+                Option
+    catch Class:Error:Stacktrace ->
+              erlang:raise(Class, #{what => toml_parse_failed,
+                                    path => Path,
+                                    reason => Error}, Stacktrace)
+    end.
+
+validate(Path, Option) ->
     try
         mongoose_config_validator_toml:validate(Path, Option)
     catch Class:Error:Stacktrace ->
               erlang:raise(Class, #{what => toml_validate_failed,
                                     path => Path,
                                     reason => Error}, Stacktrace)
-    end,
-    Option.
+    end.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
 handler([_]) -> fun process_section/2;

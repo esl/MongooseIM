@@ -179,6 +179,7 @@ groups() ->
                             mod_ping,
                             mod_privacy,
                             mod_private,
+                            mod_pubsub,
                             mod_register]}
     ].
 
@@ -2256,6 +2257,57 @@ mod_private(_Config) ->
     ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
     ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_private).
+
+mod_pubsub(_Config) ->
+    %% TODO default_node_config
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
+    Base = #{<<"backend">> => <<"mnesia">>,
+             <<"host">> => <<"pubsub.@HOST@">>,
+             <<"access_createnode">> => <<"all">>,
+             <<"max_items_node">> => 10,
+             <<"max_subscriptions_node">> => 10,
+             <<"nodetree">> => <<"tree">>,
+             <<"ignore_pep_from_offline">> => true,
+             <<"last_item_cache">> => false,
+             <<"plugins">> => [<<"flat">>],
+             <<"pep_mapping">> => [#{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
+                                     <<"node">> => <<"mb">>}],
+             <<"item_publisher">> => false,
+             <<"sync_broadcast">> => true},
+    MBase = [{backend, mnesia},
+             {access_createnode, all},
+             {host, "pubsub.@HOST@"},
+             {max_items_node, 10},
+             {max_subscriptions_node, 10},
+             {nodetree, <<"tree">>},
+             {ignore_pep_from_offline, true},
+             {last_item_cache, false},
+             {plugins, [<<"flat">>]},
+             {pep_mapping, [{"urn:xmpp:microblog:0", "mb"}]},
+             {item_publisher, false},
+             {sync_broadcast, true}],
+    ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
+    ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
+                 T(#{<<"last_item_cache">> => <<"mnesia">>})),
+    run_multi(generic_bad_opts_cases(T, mod_pubsub_bad_opts())),
+    check_iqdisc(mod_pubsub).
+
+mod_pubsub_bad_opts() ->
+    [{backend, 1},
+     {access_createnode, 1},
+     {host, 1},
+     {host, <<"aaa aaa">>},
+     {max_items_node, -1},
+     {max_subscriptions_node, -1},
+     {nodetree, -1},
+     {nodetree, <<"oops">>},
+     {ignore_pep_from_offline, 1},
+     {last_item_cache, 1},
+     {plugins, [<<"fat">>]},
+     {pep_mapping, [#{<<"namespace">> => 1, <<"node">> => <<"mb">>}]},
+     {pep_mapping, [#{<<"namespace">> => <<"urn:xmpp:microblog:0">>, <<"node">> => 1}]},
+     {item_publisher, 1},
+     {sync_broadcast, 1}].
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

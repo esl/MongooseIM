@@ -652,6 +652,20 @@ module_option_types_spec() ->
      {mod_private, iqdisc, iqdisc},
      {mod_private, backend, backend},
      {mod_private, riak, #{bucket_type => non_empty_binary}},
+     %% mod_pubsub
+     {mod_pubsub, iqdisc, iqdisc},
+     {mod_pubsub, host, domain_template},
+     {mod_pubsub, backend, {backend, mod_pubsub_db}},
+     {mod_pubsub, access_createnode, access_rule},
+     {mod_pubsub, max_items_node, non_neg_integer},
+     {mod_pubsub, max_subscriptions_node, non_neg_integer},
+     {mod_pubsub, ignore_pep_from_offline, boolean},
+     {mod_pubsub, last_item_cache, {enum, [mnesia, rdbms, false]}},
+     {mod_pubsub, item_publisher, boolean},
+     {mod_pubsub, sync_broadcast, boolean},
+     {mod_pubsub, nodetree, pubsub_nodetree},
+     {mod_pubsub, plugins, {list, pubsub_plugin}},
+     {mod_pubsub, pep_mapping, {list, pubsub_pep_mapping}},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
@@ -727,12 +741,15 @@ type_to_validator() ->
       shaper_name => fun validate_non_empty_atom/1,
       wpool_strategy => fun validate_wpool_strategy/1,
       maybe_css_file => fun validate_maybe_css_file/1,
-      top_link => fun validate_top_link/1,
+      pubsub_nodetree => fun validate_pubsub_nodetree/1,
+      pubsub_plugin => fun validate_pubsub_plugin/1,
       %% Sections (the whole section term is passed into the validators)
+      top_link => fun validate_top_link/1,
       auth_token_domain => fun validate_auth_token_domain/1,
       validity_period => fun validate_validity_period/1,
       muc_affiliation_rule => fun validate_muc_affiliation_rule/1,
-      muc_config_schema => fun validate_muc_config_schema/1
+      muc_config_schema => fun validate_muc_config_schema/1,
+      pubsub_pep_mapping => fun validate_pubsub_pep_mapping/1
       %% Could be useful to be separate validator:
       %% wpool_options => fun validate_wpool_options/1
       %% Called from validate_type function: 
@@ -843,9 +860,9 @@ path_to_module(Path) ->
     PathR = lists:reverse(Path),
     case PathR of
         [<<"host_config">>, _, <<"modules">>, Mod|_] ->
-            binary_to_atom(Mod, utf8);
+            b2a(Mod);
         [<<"modules">>, Mod|_] ->
-            binary_to_atom(Mod, utf8)
+            b2a(Mod)
     end.
 
 path_without_host_config(Path) ->
@@ -1089,3 +1106,18 @@ validate_muc_config_schema({Field, Value, InternalField, FieldType})
     validate_non_empty_string(Field),
     validate_enum(FieldType, [binary, integer, float]),
     validate_non_empty_atom(InternalField).
+
+validate_pubsub_nodetree(Value) ->
+    validate_non_empty_binary(Value),
+    validate_backend(nodetree, b2a(Value)).
+
+validate_pubsub_plugin(Value) ->
+    validate_non_empty_binary(Value),
+    validate_backend(node, b2a(Value)).
+
+validate_pubsub_pep_mapping({Namespace, Id}) ->
+    validate_non_empty_string(Namespace),
+    validate_non_empty_string(Id).
+
+b2a(Bin) ->
+    binary_to_atom(Bin, utf8).
