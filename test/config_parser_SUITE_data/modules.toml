@@ -164,7 +164,7 @@
     affiliation = "owner"
 
 [modules.mod_muc_log]
-  outdir = "/tmp/muclogs"
+  outdir = "www/muc"
   access_log = "muc"
   css_file = "path/to/css/file"
   top_link.target = "/"

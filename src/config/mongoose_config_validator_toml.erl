@@ -610,6 +610,16 @@ module_option_types_spec() ->
                     maygetmemberlist => {list, non_empty_atom},
                     affiliations => {list, muc_affiliation_rule}
                 }},
+     %% mod_muc_log
+     {mod_muc_log, outdir, dirname},
+     {mod_muc_log, access_log, access_rule},
+     {mod_muc_log, dirtype, {enum, [subdirs, plain]}},
+     {mod_muc_log, dirname, {enum, [room_jid, room_name]}},
+     {mod_muc_log, file_format, {enum, [html, plaintext]}},
+     {mod_muc_log, timezone, {enum, [local, universal]}},
+     {mod_muc_log, spam_prevention, boolean},
+     {mod_muc_log, css_file, {wrapped, cssfile, maybe_css_file}}, %% renamed
+     {mod_muc_log, top_link, top_link},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
@@ -659,6 +669,7 @@ type_to_validator() ->
       non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
       pos_integer => fun validate_positive_integer/1,
       filename => fun validate_filename/1,
+      dirname => fun validate_dirname/1,
       module => fun validate_module/1,
       %% Networking and addresation
       url => fun validate_url/1,
@@ -682,6 +693,8 @@ type_to_validator() ->
       access_rule => fun validate_non_empty_atom/1,
       shaper_name => fun validate_non_empty_atom/1,
       wpool_strategy => fun validate_wpool_strategy/1,
+      maybe_css_file => fun validate_maybe_css_file/1,
+      top_link => fun validate_top_link/1,
       %% Sections (the whole section term is passed into the validators)
       auth_token_domain => fun validate_auth_token_domain/1,
       validity_period => fun validate_validity_period/1,
@@ -997,6 +1010,14 @@ validate_filename(Filename) ->
             error(#{what => invalid_filename, filename => Filename, reason => Reason})
     end.
 
+validate_dirname(Dirname) ->
+    case file:list_dir(Dirname) of
+        {ok, _} ->
+            ok;
+        Reason ->
+            error(#{what => invalid_dirname, dirname => Dirname, reason => Reason})
+    end.
+
 validate_optional_section(Name, {Name, false}) -> %% set to false to disable the feature
     ok;
 validate_optional_section(Name, {Name, List}) when is_list(List) -> %% proplist
@@ -1013,3 +1034,12 @@ validate_muc_affiliation_rule({{User, Server, Resource}, Affiliation}) ->
     validate_binary_domain(Server),
     validate_binary(Resource),
     validate_non_empty_atom(Affiliation).
+
+validate_maybe_css_file(false) ->
+    ok;
+validate_maybe_css_file(Bin) ->
+    validate_non_empty_binary(Bin). %% Could be more precise type
+
+validate_top_link({Url, Text}) ->
+    validate_url(Url),
+    validate_non_empty_string(Text).

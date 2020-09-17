@@ -173,6 +173,7 @@ groups() ->
                             mod_last,
                             mod_mam_meta,
                             mod_muc,
+                            mod_muc_log,
                             mod_register]}
     ].
 
@@ -2093,6 +2094,47 @@ bad_room_opts() ->
                        <<"affiliation">> => <<"member">>}]} %% Resource required
     ].
 
+mod_muc_log(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => Opts}} end,
+    run_multi(
+        generic_opts_cases(mod_muc_log, T, mod_muc_log_opts()) ++
+        generic_renamed_opts_cases(mod_muc_log, T, mod_muc_log_renamed_opts()) ++
+        generic_bad_opts_cases(T, mod_muc_log_bad_opts())
+      ).
+
+mod_muc_log_renamed_opts() ->
+    %% toml-name mim-name toml mim
+    [{css_file, cssfile, <<"path/to/css_file">>, <<"path/to/css_file">>},
+     {css_file, cssfile, false, false}].
+
+mod_muc_log_opts() ->
+    %% name toml mim
+    [{outdir, <<"www/muc">>, "www/muc"},
+     {access_log, <<"muc_admin">>, muc_admin},
+     {dirtype, <<"subdirs">>, subdirs},
+     {dirtype, <<"plain">>, plain},
+     {file_format, <<"html">>, html},
+     {file_format, <<"plaintext">>, plaintext},
+     {timezone, <<"local">>, local},
+     {timezone, <<"universal">>, universal},
+     {spam_prevention, true, true},
+     {top_link, #{<<"target">> => <<"https://mongooseim.readthedocs.io/en/latest/modules/mod_muc_log/">>,
+                  <<"text">> => <<"docs">>},
+                {"https://mongooseim.readthedocs.io/en/latest/modules/mod_muc_log/", "docs"}}].
+
+mod_muc_log_bad_opts() ->
+    %% toml-name toml
+    [{outdir, 1},
+     {outdir, <<"does/not/exist">>},
+     {access_log, 1},
+     {dirtype, <<"subways">>},
+     {file_format, <<"haskelencodedlove">>},
+     {timezone, <<"galactive">>},
+     {spam_prevention, 69},
+     {top_link, #{<<"target">> => 1, <<"text">> => <<"docs">>}},
+     {top_link, #{<<"target">> => <<"https://mongooseim.readthedocs.io/">>, <<"text">> => <<>>}}
+    ].
+
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
                 [{access,register},
@@ -2392,6 +2434,7 @@ create_files(Config) ->
     CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
+    ok = filelib:ensure_dir("www/muc/dummy"),
     ensure_copied(CaPath, "priv/ca.pem"),
     ensure_copied(CertPath, "priv/cert.pem"),
     ensure_copied(PrivkeyPath, "priv/dc1.pem").
@@ -2451,3 +2494,24 @@ ensure_sorted(List) ->
      || lists:sort(List) =/= List].
 
 a2b(X) -> atom_to_binary(X, utf8).
+
+
+generic_opts_cases(M, T, Opts) ->
+    [generic_opts_case(M, T, K, Toml, Mim) || {K, Toml, Mim} <- Opts].
+
+generic_opts_case(M, T, K, Toml, Mim) ->
+    ?_eqf(modopts(M, [{K, Mim}]), T(#{a2b(K) => Toml})).
+
+generic_renamed_opts_cases(M, T, Opts) ->
+    [generic_renamed_opts_case(M, T, TomlKey, MimKey, Toml, Mim)
+     || {TomlKey, MimKey, Toml, Mim} <- Opts].
+
+generic_renamed_opts_case(M, T, TomlKey, MimKey, Toml, Mim) ->
+    ?_eqf(modopts(M, [{MimKey, Mim}]), T(#{a2b(TomlKey) => Toml})).
+
+
+generic_bad_opts_cases(T, Opts) ->
+    [generic_bad_opts_case(T, K, Toml) || {K, Toml} <- Opts].
+
+generic_bad_opts_case(T, K, Toml) ->
+    ?_errf(T(#{a2b(K) => Toml})).
