@@ -681,7 +681,14 @@ module_option_types_spec() ->
      {mod_register, registration_watchers, {list, jid}},
      {mod_register, password_strength, non_neg_integer},
      %% mod_revproxy
-     {mod_revproxy, routes, {list, revproxy_route}}
+     {mod_revproxy, routes, {list, revproxy_route}},
+     %% mod_roster
+     {mod_roster, iqdisc, iqdisc},
+     {mod_roster, versioning, boolean},
+     {mod_roster, store_current_id, boolean},
+     {mod_roster, backend, backend},
+     {mod_roster, riak, #{bucket_type => non_empty_binary,
+                          version_bucket_type => non_empty_binary}}
     ].
 
 mod_mam_opts_spec() ->

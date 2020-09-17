@@ -182,7 +182,8 @@ groups() ->
                             mod_pubsub,
                             mod_push_service_mongoosepush,
                             mod_register,
-                            mod_revproxy]}
+                            mod_revproxy,
+                            mod_roster]}
     ].
 
 init_per_suite(Config) ->
@@ -2415,6 +2416,31 @@ mod_revproxy(_Config) ->
             ?_errf(R(R1#{<<"host">> => <<>>}))
           ]).
 
+mod_roster(_Config) ->
+    Riak = #{<<"bucket_type">> => <<"rosters">>,
+             <<"version_bucket_type">> => <<"roster_versions">>},
+    Base = #{<<"iqdisc">> => <<"one_queue">>,
+             <<"versioning">> => false,
+             <<"store_current_id">> => false,
+             <<"backend">> => <<"mnesia">>,
+             <<"riak">> => Riak},
+    MBase = [{iqdisc, one_queue},
+             {versioning, false},
+             {store_current_id, false},
+             {backend, mnesia},
+             {bucket_type, <<"rosters">>},
+             {version_bucket_type, <<"roster_versions">>}],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
+    run_multi([
+            ?_eqf(modopts(mod_roster, lists:sort(MBase)), T(Base)),
+            ?_errf(T(#{<<"versioning">> => 1})),
+            ?_errf(T(#{<<"store_current_id">> => 1})),
+            ?_errf(T(#{<<"backend">> => 1})),
+            ?_errf(T(#{<<"backend">> => <<"iloveyou">>})),
+            ?_errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
+            ?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}}))
+          ]),
+    check_iqdisc(mod_roster).
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).
