@@ -183,7 +183,8 @@ groups() ->
                             mod_push_service_mongoosepush,
                             mod_register,
                             mod_revproxy,
-                            mod_roster]}
+                            mod_roster,
+                            mod_shared_roster_ldap]}
     ].
 
 init_per_suite(Config) ->
@@ -2441,6 +2442,82 @@ mod_roster(_Config) ->
             ?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}}))
           ]),
     check_iqdisc(mod_roster).
+
+mod_shared_roster_ldap(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
+    MBase = [{ldap_pool_tag, default},
+             {ldap_base,  "string"},
+             {ldap_deref, never},
+             %% Options: attributes
+             {ldap_groupattr, "cn"},
+             {ldap_groupdesc, "default"},
+             {ldap_userdesc, "cn"},
+             {ldap_useruid, "cn"},
+             {ldap_memberattr, "memberUid"},
+             {ldap_memberattr_format, "%u"},
+             {ldap_memberattr_format_re,""},
+             %% Options: parameters
+             {ldap_auth_check, true},
+             {ldap_user_cache_validity, 300},
+             {ldap_group_cache_validity, 300},
+             {ldap_user_cache_size, 300},
+             {ldap_group_cache_size, 300},
+             %% Options: LDAP filters
+             {ldap_rfilter, "test"},
+             {ldap_gfilter, "test"},
+             {ldap_ufilter, "test"},
+             {ldap_filter, "test"}
+        ],
+    Base = #{
+            <<"ldap_pool_tag">> => <<"default">>,
+            <<"ldap_base">> => <<"string">>,
+            <<"ldap_deref">> => <<"never">>,
+            %% Options: attributes
+            <<"ldap_groupattr">> => <<"cn">>,
+            <<"ldap_groupdesc">> => <<"default">>,
+            <<"ldap_userdesc">> => <<"cn">>,
+            <<"ldap_useruid">> => <<"cn">>,
+            <<"ldap_memberattr">> => <<"memberUid">>,
+            <<"ldap_memberattr_format">> => <<"%u">>,
+            <<"ldap_memberattr_format_re">> => <<"">>,
+            %% Options: parameters
+            <<"ldap_auth_check">> => true,
+            <<"ldap_user_cache_validity">> => 300,
+            <<"ldap_group_cache_validity">> => 300,
+            <<"ldap_user_cache_size">> => 300,
+            <<"ldap_group_cache_size">> => 300,
+            %% Options: LDAP filters
+            <<"ldap_rfilter">> => <<"test">>,
+            <<"ldap_gfilter">> => <<"test">>,
+            <<"ldap_ufilter">> => <<"test">>,
+            <<"ldap_filter">> => <<"test">>
+        },
+    run_multi(
+      check_one_opts(mod_shared_roster_ldap, MBase, Base, T) ++ [
+            ?_eqf(modopts(mod_shared_roster_ldap, lists:sort(MBase)), T(Base)),
+            ?_errf(T(#{<<"ldap_pool_tag">> => 1})),
+            ?_errf(T(#{<<"ldap_base">> => 1})),
+            ?_errf(T(#{<<"ldap_deref">> => 1})),
+            %% Options: attributes
+            ?_errf(T(#{<<"ldap_groupattr">> => 1})),
+            ?_errf(T(#{<<"ldap_groupdesc">> => 1})),
+            ?_errf(T(#{<<"ldap_userdesc">> => 1})),
+            ?_errf(T(#{<<"ldap_useruid">> => 1})),
+            ?_errf(T(#{<<"ldap_memberattr">> => 1})),
+            ?_errf(T(#{<<"ldap_memberattr_format">> => 1})),
+            ?_errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
+            %% Options: parameters
+            ?_errf(T(#{<<"ldap_auth_check">> => 1})),
+            ?_errf(T(#{<<"ldap_user_cache_validity">> => -1})),
+            ?_errf(T(#{<<"ldap_group_cache_validity">> => -1})),
+            ?_errf(T(#{<<"ldap_user_cache_size">> => -1})),
+            ?_errf(T(#{<<"ldap_group_cache_size">> => -1})),
+            %% Options: LDAP filters
+            ?_errf(T(#{<<"ldap_rfilter">> => 1})),
+            ?_errf(T(#{<<"ldap_gfilter">> => 1})),
+            ?_errf(T(#{<<"ldap_ufilter">> => 1})),
+            ?_errf(T(#{<<"ldap_filter">> => 1}))
+        ]).
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).

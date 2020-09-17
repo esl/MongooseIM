@@ -892,6 +892,8 @@ module_opt([<<"versioning">>, <<"mod_roster">>|_], V) ->
     [{versioning, V}];
 module_opt([<<"store_current_id">>, <<"mod_roster">>|_], V) ->
     [{store_current_id, V}];
+module_opt([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>|_], V) ->
+    [{ldap_useruid, b2l(V)}];
 module_opt([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_groupattr, b2l(V)}];
 module_opt([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->

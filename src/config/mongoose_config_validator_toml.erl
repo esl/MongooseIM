@@ -688,7 +688,30 @@ module_option_types_spec() ->
      {mod_roster, store_current_id, boolean},
      {mod_roster, backend, backend},
      {mod_roster, riak, #{bucket_type => non_empty_binary,
-                          version_bucket_type => non_empty_binary}}
+                          version_bucket_type => non_empty_binary}},
+     %% mod_shared_roster_ldap
+     {mod_shared_roster_ldap, ldap_pool_tag, pool_name},
+     {mod_shared_roster_ldap, ldap_base, string},
+     {mod_shared_roster_ldap, ldap_deref, {enum, [never, always, finding, searching]}},
+     %% - attributes
+     {mod_shared_roster_ldap, ldap_groupattr, string},
+     {mod_shared_roster_ldap, ldap_groupdesc, string},
+     {mod_shared_roster_ldap, ldap_userdesc, string},
+     {mod_shared_roster_ldap, ldap_useruid, string},
+     {mod_shared_roster_ldap, ldap_memberattr, string},
+     {mod_shared_roster_ldap, ldap_memberattr_format, string},
+     {mod_shared_roster_ldap, ldap_memberattr_format_re, string},
+     %% - parameters
+     {mod_shared_roster_ldap, ldap_auth_check, boolean},
+     {mod_shared_roster_ldap, ldap_user_cache_validity, non_neg_integer},
+     {mod_shared_roster_ldap, ldap_group_cache_validity, non_neg_integer},
+     {mod_shared_roster_ldap, ldap_user_cache_size, non_neg_integer},
+     {mod_shared_roster_ldap, ldap_group_cache_size, non_neg_integer},
+     %% - LDAP filters
+     {mod_shared_roster_ldap, ldap_rfilter, string},
+     {mod_shared_roster_ldap, ldap_gfilter, string},
+     {mod_shared_roster_ldap, ldap_ufilter, string},
+     {mod_shared_roster_ldap, ldap_filter, string}
     ].
 
 mod_mam_opts_spec() ->
