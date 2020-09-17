@@ -727,7 +727,9 @@ module_option_types_spec() ->
         }},
      %% mod_version
      {mod_version, iqdisc, iqdisc},
-     {mod_version, os_info, boolean}
+     {mod_version, os_info, boolean},
+     %% mod_time
+     {mod_time, iqdisc, iqdisc}
     ].
 
 mod_mam_opts_spec() ->

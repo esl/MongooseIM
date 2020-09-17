@@ -187,6 +187,7 @@ groups() ->
                             mod_shared_roster_ldap,
                             mod_sic,
                             mod_stream_management,
+                            mod_time,
                             mod_version]}
     ].
 
@@ -2552,6 +2553,9 @@ mod_stream_management(_Config) ->
     ?errf(T(#{<<"stale_h">> => #{<<"repeat_after">> => -1}})),
     ?errf(T(#{<<"stale_h">> => #{<<"geriatric">> => -1}})),
     ok.
+
+mod_time(_Config) ->
+    check_iqdisc(mod_time).
 
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
