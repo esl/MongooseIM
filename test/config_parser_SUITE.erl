@@ -174,6 +174,7 @@ groups() ->
                             mod_mam_meta,
                             mod_muc,
                             mod_muc_log,
+                            mod_muc_light,
                             mod_register]}
     ].
 
@@ -2135,6 +2136,45 @@ mod_muc_log_bad_opts() ->
      {top_link, #{<<"target">> => <<"https://mongooseim.readthedocs.io/">>, <<"text">> => <<>>}}
     ].
 
+mod_muc_light(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
+    run_multi(
+        generic_opts_cases(mod_muc_light, T, mod_muc_light_opts()) ++
+        generic_bad_opts_cases(T, mod_muc_light_bad_opts())
+      ).
+
+mod_muc_light_opts() ->
+    [{host, <<"muclight.@HOST@">>, "muclight.@HOST@"},
+     {backend, <<"mnesia">>, mnesia},
+     {equal_occupants, true, true},
+     {legacy_mode, true, true},
+     {rooms_per_user, 1, 1},
+     {rooms_per_user, <<"infinity">>, infinity},
+     {blocking, true, true},
+     {all_can_configure, true, true},
+     {all_can_invite, true, true},
+     {max_occupants, 1, 1},
+     {max_occupants, <<"infinity">>, infinity},
+     {rooms_per_page, 1, 1},
+     {rooms_per_page, <<"infinity">>, infinity},
+     {rooms_in_rosters, true, true}
+    ].
+
+mod_muc_light_bad_opts() ->
+    [{host, 1},
+     {host, <<"test test">>},
+     {equal_occupants, 1},
+     {equal_occupants, #{}},
+     {legacy_mode, 1},
+     {rooms_per_user, true},
+     {blocking, 1},
+     {all_can_configure, 1},
+     {all_can_invite, 1},
+     {max_occupants, true},
+     {rooms_per_page, false},
+     {rooms_in_rosters, 1}
+    ].
+
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
                 [{access,register},
@@ -2500,7 +2540,8 @@ generic_opts_cases(M, T, Opts) ->
     [generic_opts_case(M, T, K, Toml, Mim) || {K, Toml, Mim} <- Opts].
 
 generic_opts_case(M, T, K, Toml, Mim) ->
-    ?_eqf(modopts(M, [{K, Mim}]), T(#{a2b(K) => Toml})).
+    Info = #{key => K, toml => Toml, mim => Mim},
+    info(Info, ?_eqf(modopts(M, [{K, Mim}]), T(#{a2b(K) => Toml}))).
 
 generic_renamed_opts_cases(M, T, Opts) ->
     [generic_renamed_opts_case(M, T, TomlKey, MimKey, Toml, Mim)
@@ -2515,3 +2556,6 @@ generic_bad_opts_cases(T, Opts) ->
 
 generic_bad_opts_case(T, K, Toml) ->
     ?_errf(T(#{a2b(K) => Toml})).
+
+info(Info, {F, Extra}) ->
+    {F, maps:merge(Extra, Info)}.

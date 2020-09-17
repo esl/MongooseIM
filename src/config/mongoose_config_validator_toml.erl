@@ -620,6 +620,18 @@ module_option_types_spec() ->
      {mod_muc_log, spam_prevention, boolean},
      {mod_muc_log, css_file, {wrapped, cssfile, maybe_css_file}}, %% renamed
      {mod_muc_log, top_link, top_link},
+     %% mod_muc_light
+     {mod_muc_light, host, domain_template},
+     {mod_muc_light, backend, {backend, mod_muc_light_db}},
+     {mod_muc_light, equal_occupants, boolean},
+     {mod_muc_light, legacy_mode, boolean},
+     {mod_muc_light, rooms_per_page, pos_integer_or_inf},
+     {mod_muc_light, blocking, boolean},
+     {mod_muc_light, all_can_configure, boolean},
+     {mod_muc_light, all_can_invite, boolean},
+     {mod_muc_light, max_occupants, pos_integer_or_inf},
+     {mod_muc_light, rooms_per_page, pos_integer_or_inf},
+     {mod_muc_light, rooms_in_rosters, boolean},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
@@ -668,6 +680,7 @@ type_to_validator() ->
       non_neg_integer => fun validate_non_negative_integer/1,
       non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
       pos_integer => fun validate_positive_integer/1,
+      pos_integer_or_inf => fun validate_positive_integer_or_infinity/1,
       filename => fun validate_filename/1,
       dirname => fun validate_dirname/1,
       module => fun validate_module/1,
@@ -855,6 +868,9 @@ validate_non_negative_integer(Value) when is_integer(Value), Value >= 0 -> ok.
 
 validate_non_negative_integer_or_infinity(Value) when is_integer(Value), Value >= 0 -> ok;
 validate_non_negative_integer_or_infinity(infinity) -> ok.
+
+validate_positive_integer_or_infinity(Value) when is_integer(Value), Value > 0 -> ok;
+validate_positive_integer_or_infinity(infinity) -> ok.
 
 validate_enum(Value, Values) ->
     case lists:member(Value, Values) of
