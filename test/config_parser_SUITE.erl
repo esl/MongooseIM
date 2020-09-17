@@ -175,6 +175,7 @@ groups() ->
                             mod_muc,
                             mod_muc_log,
                             mod_muc_light,
+                            mod_offline,
                             mod_register]}
     ].
 
@@ -2186,6 +2187,19 @@ mod_muc_light_bad_opts() ->
      {config_schema, [ #{<<"field">> => <<"priority">>, <<"value">> => 0,
             <<"internal_key">> => <<"priority">>, <<"type">> => <<"bad_integer">>} ]}
     ].
+
+mod_offline(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
+    Base = #{<<"access_max_user_messages">> => <<"max_user_offline_messages">>,
+             <<"backend">> => <<"riak">>,
+             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
+    MBase = [{access_max_user_messages, max_user_offline_messages},
+             {backend, riak},
+             {bucket_type, <<"test">>}],
+    ?eqf(modopts(mod_offline, MBase), T(Base)),
+    ?errf(T(Base#{<<"access_max_user_messages">> => 1})),
+    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
+    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

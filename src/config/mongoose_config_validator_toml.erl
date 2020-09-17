@@ -633,6 +633,10 @@ module_option_types_spec() ->
      {mod_muc_light, rooms_per_page, pos_integer_or_inf},
      {mod_muc_light, rooms_in_rosters, boolean},
      {mod_muc_light, config_schema, {list, muc_config_schema}},
+     %% mod_offline
+     {mod_offline, access_max_user_messages, access_rule},
+     {mod_offline, backend, backend},
+     {mod_offline, riak, #{bucket_type => non_empty_binary}},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
