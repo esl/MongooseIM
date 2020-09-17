@@ -1835,6 +1835,9 @@ mod_mam_meta(_Config) ->
     %% so skip it.
     %% We also skip single muc/pm options on this step.
     KeysForOneOpts = binaries_to_atoms(maps:keys(Common)),
+    TPM = fun(Map) -> T(#{<<"pm">> => Map}) end,
+    TMuc = fun(Map) -> T(#{<<"muc">> => Map}) end,
+    TB = fun(Map) -> T(maps:merge(Base, Map)) end,
     run_multi(
       %% Test configurations with one option only
       check_one_opts(mod_mam_meta, MBase, Base, T, KeysForOneOpts) ++ [
@@ -1844,6 +1847,9 @@ mod_mam_meta(_Config) ->
             T(Base#{<<"user_prefs_store">> => <<"rdbms">>}))
         ]
       ++ mam_failing_cases(T)
+      ++ mam_failing_cases(TPM)
+      ++ mam_failing_cases(TMuc)
+      ++ mam_failing_cases(TB)
       ++ mam_failing_riak_cases(T)
      ).
 

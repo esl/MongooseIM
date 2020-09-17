@@ -128,7 +128,7 @@ filter_opts(Opts, ValidOpts) ->
 %% the root section is enough.
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
-    [no_stanzaid_element] ++ common_opts();
+    [no_stanzaid_element, archive_groupchats] ++ common_opts();
 valid_core_mod_opts(mod_mam_muc) ->
     [host] ++ common_opts().
 

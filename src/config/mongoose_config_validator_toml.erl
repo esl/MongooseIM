@@ -552,9 +552,29 @@ module_option_types_spec() ->
      %% mod_last
      {mod_last, iqdisc, iqdisc},
      {mod_last, backend, backend},
-     {mod_last, riak, #{bucket_type => non_empty_binary}},
+     {mod_last, riak, #{bucket_type => non_empty_binary}}
      %% mod_mam_meta
-     {mod_mam_meta, backend, {enum, [rdbms, riak, cassandra, elasticsearch]}},
+     %% We need some spec duplication,
+     %% because options could be defined as root module options
+     %% or PM (or MUC) specific
+     ] ++ mod_mam_opts_spec() ++ [
+     {mod_mam_meta, pm, {optional_section, pm, specs_to_map(mod_mam_opts_spec())}},
+     {mod_mam_meta, muc, {optional_section, muc, specs_to_map(mod_mam_opts_spec())}},
+     {mod_mam_meta, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
+     %% mod_register
+     {mod_register, iqdisc, iqdisc},
+     %% Actual spec
+%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
+     %% Pass the whole thing into validator
+     {mod_register, ip_access, {list, ip_access}},
+     {mod_register, welcome_message, #{subject => string, body => string}},
+     {mod_register, access, non_empty_atom},
+     {mod_register, registration_watchers, {list, jid}},
+     {mod_register, password_strength, non_neg_integer}
+    ].
+
+mod_mam_opts_spec() ->
+    [{mod_mam_meta, backend, {enum, [rdbms, riak, cassandra, elasticsearch]}},
      {mod_mam_meta, archive_chat_markers, boolean},
      {mod_mam_meta, archive_groupchats, boolean},
      {mod_mam_meta, async_writer, boolean},
@@ -574,23 +594,10 @@ module_option_types_spec() ->
      {mod_mam_meta, simple, boolean},
      {mod_mam_meta, no_stanzaid_element, boolean},
      {mod_mam_meta, is_archivable_message, module},
-     {mod_mam_meta, user_prefs_store, {enum, [false, rdbms, cassandra, mnesia]}},
-     {mod_mam_meta, pm, {optional_section, pm, #{
-          }}},
-     {mod_mam_meta, muc, {optional_section, muc, #{
-          }}},
-     {mod_mam_meta, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
-     %% mod_register
-     {mod_register, iqdisc, iqdisc},
-     %% Actual spec
-%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
-     %% Pass the whole thing into validator
-     {mod_register, ip_access, {list, ip_access}},
-     {mod_register, welcome_message, #{subject => string, body => string}},
-     {mod_register, access, non_empty_atom},
-     {mod_register, registration_watchers, {list, jid}},
-     {mod_register, password_strength, non_neg_integer}
-    ].
+     {mod_mam_meta, user_prefs_store, {enum, [false, rdbms, cassandra, mnesia]}}].
+
+specs_to_map(Specs) ->
+     maps:from_list([{K,V} || {_,K,V} <- mod_mam_opts_spec()]).
 
 type_to_validator() ->
     #{string => fun validate_string/1,
@@ -853,16 +860,16 @@ validate_domain_res(Domain) ->
     case inet_res:gethostbyname(Domain) of
         {ok, _} ->
             ok;
-        {error,nxdomain} ->
-            ?LOG_WARNING(#{what => cfg_validate_domain,
-                           reason => nxdomain, domain => Domain,
-                           text => <<"Couldn't resolve domain. "
-                  "It could cause issues with production installations">>}),
-            ok;
         {error,formerr} ->
             error(#{what => cfg_validate_domain_failed,
                     reason => formerr, text => <<"Invalid domain name">>,
-                    domain => Domain})
+                    domain => Domain});
+        {error,Reason} -> %% timeout, nxdomain
+            ?LOG_WARNING(#{what => cfg_validate_domain,
+                           reason => Reason, domain => Domain,
+                           text => <<"Couldn't resolve domain. "
+                  "It could cause issues with production installations">>}),
+            ignore
     end.
 
 validate_binary_domain(Domain) when is_binary(Domain) ->
