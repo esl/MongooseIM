@@ -178,6 +178,7 @@ groups() ->
                             mod_offline,
                             mod_ping,
                             mod_privacy,
+                            mod_private,
                             mod_register]}
     ].
 
@@ -2241,6 +2242,20 @@ mod_privacy(_Config) ->
     ?errf(T(Base#{<<"riak">> => #{<<"defaults_bucket_type">> => 1}})),
     ?errf(T(Base#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
     ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+
+mod_private(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
+    Riak = #{<<"bucket_type">> => <<"private_stuff">>},
+    Base = #{<<"backend">> => <<"riak">>,
+             <<"riak">> => Riak},
+    MBase = [{backend, riak},
+             %% Riak opts
+             {bucket_type, <<"private_stuff">>}],
+    ?eqf(modopts(mod_private, lists:sort(MBase)), T(Base)),
+    ?errf(T(Base#{<<"backend">> => 1})),
+    ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
+    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+    check_iqdisc(mod_private).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

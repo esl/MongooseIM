@@ -648,6 +648,10 @@ module_option_types_spec() ->
      {mod_privacy, riak, #{defaults_bucket_type => non_empty_binary,
                            names_bucket_type => non_empty_binary,
                            bucket_type => non_empty_binary}},
+     %% mod_private
+     {mod_private, iqdisc, iqdisc},
+     {mod_private, backend, backend},
+     {mod_private, riak, #{bucket_type => non_empty_binary}},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
