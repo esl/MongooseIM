@@ -177,6 +177,7 @@ groups() ->
                             mod_muc_light,
                             mod_offline,
                             mod_ping,
+                            mod_privacy,
                             mod_register]}
     ].
 
@@ -2221,6 +2222,25 @@ mod_ping(_Config) ->
     ?errf(T(Base#{<<"ping_req_timeout">> => -1})),
     ?errf(T(Base#{<<"ping_req_timeout">> => <<"32">>})),
     check_iqdisc(mod_ping).
+
+mod_privacy(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
+    Riak = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
+             <<"names_bucket_type">> => <<"privacy_lists_names">>,
+             <<"bucket_type">> => <<"privacy_defaults">>},
+    Base = #{<<"backend">> => <<"mnesia">>,
+             <<"riak">> => Riak},
+    MBase = [{backend, mnesia},
+             %% Riak opts
+             {defaults_bucket_type, <<"privacy_defaults">>},
+             {names_bucket_type, <<"privacy_lists_names">>},
+             {bucket_type, <<"privacy_defaults">>}],
+    ?eqf(modopts(mod_privacy, lists:sort(MBase)), T(Base)),
+    ?errf(T(Base#{<<"backend">> => 1})),
+    ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
+    ?errf(T(Base#{<<"riak">> => #{<<"defaults_bucket_type">> => 1}})),
+    ?errf(T(Base#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
+    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,

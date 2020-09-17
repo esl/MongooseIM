@@ -643,6 +643,11 @@ module_option_types_spec() ->
      {mod_ping, timeout_action, {enum, [none, kill]}},
      {mod_ping, ping_interval, pos_integer},
      {mod_ping, ping_req_timeout, pos_integer},
+     %% mod_privacy
+     {mod_privacy, backend, backend},
+     {mod_privacy, riak, #{defaults_bucket_type => non_empty_binary,
+                           names_bucket_type => non_empty_binary,
+                           bucket_type => non_empty_binary}},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
