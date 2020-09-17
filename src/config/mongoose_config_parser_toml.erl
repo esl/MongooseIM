@@ -745,15 +745,15 @@ module_opt([<<"history_size">>, <<"mod_muc">>|_], V) ->
 module_opt([<<"room_shaper">>, <<"mod_muc">>|_], V) ->
     [{room_shaper, b2a(V)}];
 module_opt([<<"max_room_id">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_id, infinite}];
+    [{max_room_id, infinity}];
 module_opt([<<"max_room_id">>, <<"mod_muc">>|_], V) ->
     [{max_room_id, V}];
 module_opt([<<"max_room_name">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_name, infinite}];
+    [{max_room_name, infinity}];
 module_opt([<<"max_room_name">>, <<"mod_muc">>|_], V) ->
     [{max_room_name, V}];
 module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_desc, infinite}];
+    [{max_room_desc, infinity}];
 module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], V) ->
     [{max_room_desc, V}];
 module_opt([<<"min_message_interval">>, <<"mod_muc">>|_], V) ->
@@ -765,9 +765,9 @@ module_opt([<<"max_users">>, <<"mod_muc">>|_], V) ->
 module_opt([<<"max_users_admin_threshold">>, <<"mod_muc">>|_], V) ->
     [{max_users_admin_threshold, V}];
 module_opt([<<"user_message_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_message_shaper, V}];
+    [{user_message_shaper, b2a(V)}];
 module_opt([<<"user_presence_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_presence_shaper, V}];
+    [{user_presence_shaper, b2a(V)}];
 module_opt([<<"max_user_conferences">>, <<"mod_muc">>|_], V) ->
     [{max_user_conferences, V}];
 module_opt([<<"http_auth_pool">>, <<"mod_muc">>|_], V) ->

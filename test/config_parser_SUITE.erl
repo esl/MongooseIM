@@ -172,6 +172,7 @@ groups() ->
                             mod_keystore,
                             mod_last,
                             mod_mam_meta,
+                            mod_muc,
                             mod_register]}
     ].
 
@@ -1885,6 +1886,213 @@ mam_failing_riak_cases(T) ->
     [?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
      ?_errf(T(#{<<"riak">> => #{<<"search_index">> => 1}}))].
 
+mod_muc(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
+    Base = #{
+      <<"access">> => <<"all">>,
+      <<"access_admin">> => <<"none">>,
+      <<"access_create">> => <<"all">>,
+      <<"access_persistent">> => <<"all">>,
+      <<"backend">> => <<"mnesia">>,
+      <<"hibernated_room_check_interval">> => <<"infinity">>,
+      <<"hibernated_room_timeout">> => <<"infinity">>,
+      <<"history_size">> => 20,
+      <<"host">> => <<"conference.@HOST@">>,
+      <<"http_auth_pool">> => <<"none">>,
+      <<"load_permanent_rooms_at_startup">> => false,
+      <<"max_room_desc">> => <<"infinity">>,
+      <<"max_room_id">> => <<"infinity">>,
+      <<"max_room_name">> => <<"infinity">>,
+      <<"max_user_conferences">> => 0,
+      <<"max_users">> => 200,
+      <<"max_users_admin_threshold">> => 5,
+      <<"min_message_interval">> => 0,
+      <<"min_presence_interval">> => 0,
+      <<"room_shaper">> => <<"none">>,
+      <<"user_message_shaper">> => <<"none">>,
+      <<"user_presence_shaper">> => <<"none">>
+     },
+    MBase = [{access,all},
+             {access_admin,none},
+             {access_create,all},
+             {access_persistent,all},
+             {backend,mnesia},
+             {hibernated_room_check_interval,infinity},
+             {hibernated_room_timeout,infinity},
+             {history_size,20},
+             {host,"conference.@HOST@"},
+             {http_auth_pool,none},
+             {load_permanent_rooms_at_startup,false},
+             {max_room_desc,infinity},
+             {max_room_id,infinity},
+             {max_room_name,infinity},
+             {max_user_conferences,0},
+             {max_users,200},
+             {max_users_admin_threshold,5},
+             {min_message_interval,0},
+             {min_presence_interval,0},
+             {room_shaper,none},
+             {user_message_shaper,none},
+             {user_presence_shaper,none}],
+    ensure_sorted(MBase),
+    run_multi(
+      %% Test configurations with one option only
+      check_one_opts(mod_muc, MBase, Base, T) ++ [
+        ?_eqf(modopts(mod_muc, MBase), T(Base)),
+        ?_eqf(modopts(mod_muc, [{default_room_options,[]}]),
+                               T(#{<<"default_room">> => #{}}))
+        ] ++ some_muc_opts_cases(T)
+          ++ some_room_opts_cases(T)
+          ++ bad_muc_opts_cases(T)
+          ++ bad_room_opts_cases(T)
+    ).
+
+some_muc_opts_cases(T) ->
+    [some_muc_opts_case(T, K, Toml, Mim) || {K, Toml, Mim} <- some_muc_opts()].
+
+some_muc_opts_case(T, K, Toml, Mim) ->
+    ?_eqf(modopts(mod_muc, [{K, Mim}]), T(#{a2b(K) => Toml})).
+
+bad_muc_opts_cases(T) ->
+    [bad_muc_opts_case(T, K, Toml) || {K, Toml} <- bad_muc_opts()].
+
+bad_muc_opts_case(T, K, Toml) ->
+    ?_errf(T(#{a2b(K) => Toml})).
+
+some_room_opts_cases(T) ->
+    [some_room_opts_case(T, K, Toml, Mim) || {K, Toml, Mim} <- some_room_opts()].
+
+some_room_opts_case(T, K, Toml, Mim) ->
+    ?_eqf(modopts(mod_muc, [{default_room_options, [{K, Mim}]}]),
+                           T(#{<<"default_room">> => #{a2b(K) => Toml}})).
+
+bad_room_opts_cases(T) ->
+    [bad_room_opts_case(T, K, Toml) || {K, Toml} <- bad_room_opts()].
+
+bad_room_opts_case(T, K, Toml) ->
+    ?_errf(T(#{<<"default_room">> => #{a2b(K) => Toml}})).
+
+some_muc_opts() ->
+    %% name toml mim
+    [{hibernated_room_check_interval, 1, 1},
+     {hibernated_room_timeout, 1, 1},
+     {history_size, 0, 0},
+     {host, <<"good">>, "good"},
+     {http_auth_pool, <<"deadpool">>, deadpool},
+     {load_permanent_rooms_at_startup, true, true},
+     {max_room_desc, 10, 10},
+     {max_room_id, 10, 10},
+     {max_room_name, 10, 10},
+     {max_user_conferences, 10, 10},
+     {max_users, 10, 10},
+     {max_users_admin_threshold, 10, 10},
+     {min_message_interval, 10, 10},
+     {min_presence_interval, 10, 10},
+     {room_shaper, <<"good">>, good},
+     {user_message_shaper, <<"good">>, good},
+     {user_presence_shaper, <<"good">>, good}].
+
+bad_muc_opts() ->
+    %% name toml
+    [{access, 1},
+     {access_admin, 1},
+     {access_create, 1},
+     {access_persistent, 1},
+     {backend, 1},
+     {backend, <<"meowmoew">>},
+     {hibernated_room_check_interval, -1},
+     {hibernated_room_timeout, -1},
+     {history_size, -1},
+     {host, 1},
+     {host, <<"bad bad bad">>},
+     {http_auth_pool, 1},
+     {load_permanent_rooms_at_startup, 1},
+     {max_room_desc, -1},
+     {max_room_id, -1},
+     {max_room_name, -1},
+     {max_user_conferences, -1},
+     {max_users, -1},
+     {max_users_admin_threshold, -1},
+     {min_message_interval, -1},
+     {min_presence_interval, -1},
+     {room_shaper, 1},
+     {user_message_shaper, 1},
+     {user_presence_shaper, 1}].
+
+some_room_opts() ->
+    [{title, <<"Test">>, <<"Test">>},
+     {description, <<"Test">>, <<"Test">>},
+     {allow_change_subj, true, true},
+     {allow_query_users, true, true},
+     {allow_private_messages, true, true},
+     {allow_visitor_status, true, true},
+     {allow_visitor_nickchange, true, true},
+     {public, true, true},
+     {public_list, true, true},
+     {moderated, true, true},
+     {members_by_default, true, true},
+     {members_only, true, true},
+     {allow_user_invites, true, true},
+     {allow_multiple_sessions, true, true},
+     {password_protected, true, true},
+     {password, <<"secret">>, <<"secret">>},
+     {anonymous, true, true},
+     {max_users, 10, 10},
+     {logging, true, true},
+     {maygetmemberlist, [<<"moderator">>, <<"user">>], [moderator, user]},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}],
+                    [{{<<"Alice">>, <<"home">>, <<>>}, member}]},
+     {subject, <<"Fight">>, <<"Fight">>},
+     {subject_author, <<"meow">>, <<"meow">>}
+    ].
+
+bad_room_opts() ->
+    [{title, 1},
+     {description, 1},
+     {allow_change_subj, 1},
+     {allow_query_users, 1},
+     {allow_private_messages, 1},
+     {allow_visitor_status, 1},
+     {allow_visitor_nickchange, 1},
+     {public, 1},
+     {public_list, 1},
+     {persistent, 1},
+     {moderated, 1},
+     {members_by_default, 1},
+     {members_only, 1},
+     {allow_user_invites, 1},
+     {allow_multiple_sessions, 1},
+     {password_protected, 1},
+     {password, 1},
+     {anonymous, 1},
+     {max_users, -1},
+     {logging, 1},
+     {maygetmemberlist, 1},
+     {maygetmemberlist, [1]},
+     {maygetmemberlist, #{}},
+     {subject, 1},
+     {subject_author, 1},
+     {affiliations, [1]},
+     {affiliations, 1},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home home">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => 1, <<"server">> => <<"home">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => 1,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
+                       <<"resource">> => 1, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => 1}]},
+     {affiliations, [#{<<"server">> => <<"home">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => <<"Alice">>,
+                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
+     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
+                       <<"affiliation">> => <<"member">>}]} %% Resource required
+    ].
+
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
                 [{access,register},
@@ -2202,6 +2410,10 @@ pl_merge(L1, L2) ->
     M2 = maps:from_list(L2),
     maps:to_list(maps:merge(M1, M2)).
 
+check_one_opts(M, MBase, Base, T) ->
+    Keys = maps:keys(maps:from_list(MBase)),
+    check_one_opts(M, MBase, Base, T, Keys).
+
 check_one_opts(M, MBase, Base, T, Keys) ->
     [check_one_opts_key(M, K, MBase, Base, T) || K <- Keys].
 
@@ -2237,3 +2449,5 @@ run_case(F) ->
 ensure_sorted(List) ->
     [ct:fail("Not sorted list ~p~nSorted order ~p~n", [List, lists:sort(List)])
      || lists:sort(List) =/= List].
+
+a2b(X) -> atom_to_binary(X, utf8).

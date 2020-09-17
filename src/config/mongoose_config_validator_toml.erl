@@ -561,6 +561,55 @@ module_option_types_spec() ->
      {mod_mam_meta, pm, {optional_section, pm, specs_to_map(mod_mam_opts_spec())}},
      {mod_mam_meta, muc, {optional_section, muc, specs_to_map(mod_mam_opts_spec())}},
      {mod_mam_meta, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
+     %% mod_muc
+     {mod_muc, host, domain_template},
+     {mod_muc, backend, {backend, mod_muc_db}},
+     {mod_muc, access, access_rule},
+     {mod_muc, access_create, access_rule},
+     {mod_muc, access_admin, access_rule},
+     {mod_muc, access_persistent, access_rule},
+     {mod_muc, history_size, non_neg_integer},
+     {mod_muc, room_shaper, shaper_name},
+     {mod_muc, max_room_id, non_neg_integer_or_inf},
+     {mod_muc, max_room_name, non_neg_integer_or_inf},
+     {mod_muc, max_room_desc, non_neg_integer_or_inf},
+     {mod_muc, min_message_interval, non_neg_integer},
+     {mod_muc, min_presence_interval, non_neg_integer},
+     {mod_muc, max_users, pos_integer},
+     {mod_muc, max_users_admin_threshold, pos_integer},
+     {mod_muc, user_message_shaper, shaper_name},
+     {mod_muc, user_presence_shaper, shaper_name},
+     {mod_muc, max_user_conferences, non_neg_integer},
+     {mod_muc, http_auth_pool, pool_name},
+     {mod_muc, load_permanent_rooms_at_startup, boolean},
+     {mod_muc, hibernated_room_check_interval, non_neg_integer_or_inf},
+     {mod_muc, hibernated_room_timeout, non_neg_integer_or_inf},
+     {mod_muc, default_room, #{
+                    title => string,
+                    description => binary,
+                    allow_change_subj => boolean,
+                    allow_query_users => boolean,
+                    allow_private_messages => boolean,
+                    allow_visitor_status => boolean,
+                    allow_visitor_nickchange => boolean,
+                    public => boolean,
+                    public_list => boolean,
+                    persistent => boolean,
+                    moderated => boolean,
+                    members_by_default => boolean,
+                    members_only => boolean,
+                    allow_user_invites => boolean,
+                    allow_multiple_sessions => boolean,
+                    password_protected => boolean,
+                    password => string,
+                    anonymous => boolean,
+                    max_users => pos_integer,
+                    logging => boolean,
+                    subject => string,
+                    subject_author => string,
+                    maygetmemberlist => {list, non_empty_atom},
+                    affiliations => {list, muc_affiliation_rule}
+                }},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
      %% Actual spec
@@ -597,11 +646,12 @@ mod_mam_opts_spec() ->
      {mod_mam_meta, user_prefs_store, {enum, [false, rdbms, cassandra, mnesia]}}].
 
 specs_to_map(Specs) ->
-     maps:from_list([{K,V} || {_,K,V} <- mod_mam_opts_spec()]).
+     maps:from_list([{K,V} || {_,K,V} <- Specs]).
 
 type_to_validator() ->
     #{string => fun validate_string/1,
       boolean => fun validate_boolean/1,
+      binary => fun validate_binary/1,
       atom => fun validate_non_empty_atom/1,
       non_empty_atom => fun validate_non_empty_atom/1,
       non_empty_binary => fun validate_non_empty_binary/1,
@@ -628,7 +678,11 @@ type_to_validator() ->
       network_address  => fun validate_network_address/1,
       network_port => fun validate_network_port/1,
       filename => fun validate_filename/1,
-      keystore_key => fun validate_keystore_key/1
+      keystore_key => fun validate_keystore_key/1,
+      access_rule => fun validate_non_empty_atom/1,
+      shaper_name => fun validate_non_empty_atom/1,
+      pool_name => fun validate_non_empty_atom/1,
+      muc_affiliation_rule => fun validate_muc_affiliation_rule/1
 %     wpool_options => fun validate_wpool_options/1
      }.
 
@@ -754,6 +808,8 @@ validate_loglevel(Level) ->
 
 validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
 
+validate_binary(Value) when is_binary(Value) -> ok.
+
 validate_hosts(Hosts = [_|_]) ->
     validate_unique_items(Hosts).
 
@@ -852,7 +908,7 @@ validate_chat_marker_type(Type) ->
 validate_groupchat_type(Type) ->
     validate_enum(Type, [muc, muclight]).
 
-validate_domain(Domain) ->
+validate_domain(Domain) when is_list(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),
     validate_domain_res(Domain).
 
@@ -945,3 +1001,9 @@ validate_keystore_key({Name, ram}) ->
 validate_keystore_key({Name, {file, Path}}) ->
     validate_non_empty_atom(Name),
     validate_filename(Path).
+
+validate_muc_affiliation_rule({{User, Server, Resource}, Affiliation}) ->
+    validate_non_empty_binary(User),
+    validate_binary_domain(Server),
+    validate_binary(Resource),
+    validate_non_empty_atom(Affiliation).

@@ -701,7 +701,7 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
     case acl:match_rule(ServerHost, AccessCreate, From) of
         allow ->
             (size(RoomID) =< gen_mod:get_module_opt(ServerHost, mod_muc,
-                                                    max_room_id, infinite));
+                                                    max_room_id, infinity));
         _ ->
             false
     end.
