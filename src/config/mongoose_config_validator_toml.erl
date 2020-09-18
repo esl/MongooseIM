@@ -1216,7 +1216,18 @@ validate_ip_mask_string(IPMaskString) ->
 
 validate_ip_mask({IP, Mask}) ->
     validate_string(inet:ntoa(IP)),
+    case IP of
+        {_,_,_,_} ->
+            validate_ipv4_mask(Mask);
+        _ ->
+            validate_ipv6_mask(Mask)
+    end.
+
+validate_ipv4_mask(Mask) ->
     validate_range(Mask, 0, 32).
+
+validate_ipv6_mask(Mask) ->
+    validate_range(Mask, 0, 128).
 
 validate_network_address(Value) ->
     ?LOG_DEBUG(#{what => validate_network_address,

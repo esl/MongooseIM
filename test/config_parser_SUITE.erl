@@ -2407,7 +2407,20 @@ mod_register(_Config) ->
                               {deny,"0.0.0.4"}]}
                 ]),
          ip_access_register(<<"0.0.0.4">>)),
+    ?eqf(modopts(mod_register,
+                [{access,register},
+                 {ip_access, [{allow,"127.0.0.0/8"},
+                              {deny,"::1"}]}
+                ]),
+         ip_access_register(<<"::1">>)),
+    ?eqf(modopts(mod_register,
+                [{access,register},
+                 {ip_access, [{allow,"127.0.0.0/8"},
+                              {deny,"::1/128"}]}
+                ]),
+         ip_access_register(<<"::1/128">>)),
     ?errf(invalid_ip_access_register()),
+    ?errf(invalid_ip_access_register_ipv6()),
     ?errf(ip_access_register(<<"hello">>)),
     ?errf(ip_access_register(<<"0.d">>)),
     ?eqf(modopts(mod_register,
@@ -2452,6 +2465,12 @@ invalid_ip_access_register() ->
              <<"ip_access">> =>
                 [#{<<"address">> => <<"127.0.0.0/8">>, <<"policy">> => <<"allawww">>},
                  #{<<"address">> => <<"8.8.8.8">>, <<"policy">> => <<"denyh">>}]},
+    #{<<"modules">> => #{<<"mod_register">> => Opts}}.
+
+invalid_ip_access_register_ipv6() ->
+    Opts = #{<<"access">> => <<"register">>,
+             <<"ip_access">> =>
+                [#{<<"address">> => <<"::1/129">>, <<"policy">> => <<"allow">>}]},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 registration_watchers(JidBins) ->
