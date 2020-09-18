@@ -153,6 +153,10 @@ init([]) ->
         {ejabberd_shaper_sup,
           {ejabberd_shaper_sup, start_link, []},
           permanent, infinity, supervisor, [ejabberd_shaper_sup]},
+    ConfigRefresher =
+        {mongoose_config_refresher,
+          {mongoose_config_refresher, start_link, []},
+          permanent, brutal_kill, worker, [mongoose_config_refresher]},
     {ok, {{one_for_one, 10, 1},
           [Hooks,
            Cleaner,
@@ -170,7 +174,8 @@ init([]) ->
            Listener,
            MucIQ,
            MAM,
-           ShaperSup]}}.
+           ShaperSup,
+           ConfigRefresher]}}.
 
 start_child(ChildSpec) ->
     case supervisor:start_child(ejabberd_sup, ChildSpec) of

@@ -28,8 +28,11 @@
 
 -export([start/0,
          load_file/1,
+         monitor_global_config_changes/0,
          add_global_option/2,
          get_global_option/1,
+         put_global_option/2,
+         erase_global_option/1,
          add_local_option/2,
          get_local_option/1,
          get_local_option/2,
@@ -88,6 +91,8 @@ start() ->
     add_local_option(node_start, {node_start, erlang:system_time(second)}),
     ok.
 
+monitor_global_config_changes() ->
+    mnesia:subscribe({table, config, simple}).
 
 %% @doc Get the filename of the ejabberd configuration file.
 %% The filename can be specified with: erl -config "/path/to/mongooseim.cfg".
@@ -256,12 +261,25 @@ del_local_option(Opt) ->
 
 -spec get_global_option(key()) -> value() | undefined.
 get_global_option(Opt) ->
-    case ets:lookup(config, Opt) of
-        [#config{value = Val}] ->
-            Val;
-        _ ->
-            undefined
+    case persistent_term:get({global_config, Opt}, no_such_value) of
+        no_such_value ->
+            Value = case ets:lookup(config, Opt) of
+                        [#config{value = Val}] ->
+                            Val;
+                        _ ->
+                            undefined
+                    end,
+            put_global_option(Opt, Value),
+            Value;
+        V ->
+            V
     end.
+
+put_global_option(Key, Value) ->
+    persistent_term:put({global_config, Key}, Value).
+
+erase_global_option(Key) ->
+    persistent_term:erase({global_config, Key}).
 
 -spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
