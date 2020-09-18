@@ -440,10 +440,6 @@ module_option_types_spec() ->
      {mod_adhoc, report_commands_node, boolean},
      %% mod_auth_token
      {mod_auth_token, iqdisc, iqdisc},
-     %% Spec for the option:
-%    {mod_auth_token, validity_period, {list, #{token => auth_token_domain,
-%                                               value => non_neg_integer,
-%                                               unit => period_unit}}},
      %% Pass the whole list into validator
      {mod_auth_token, validity_period, {multi, validity_period}},
      %% mod_bosh
@@ -672,8 +668,6 @@ module_option_types_spec() ->
      {mod_push_service_mongoosepush, max_http_connections, non_neg_integer},
      %% mod_register
      {mod_register, iqdisc, iqdisc},
-     %% Actual spec
-%    {mod_register, ip_access, {list, #{address => ip_mask, policy => {enum, [allow, deny]}}}},
      %% Pass the whole thing into validator
      {mod_register, ip_access, {list, ip_access}},
      {mod_register, welcome_message, #{subject => string, body => string}},
@@ -799,7 +793,6 @@ type_to_validator() ->
       binary_domain_template => fun validate_binary_domain_template/1,
       ip_access => fun validate_ip_access/1,
       ip_address => fun validate_ip_address/1,
-      ip_mask => fun validate_ip_mask/1,
       network_address  => fun validate_network_address/1,
       network_port => fun validate_network_port/1,
       %% Other
@@ -1042,9 +1035,9 @@ validate_validity_period({{validity_period, Token}, {Value, Unit}}) ->
 validate_period_unit(Unit) ->
     validate_enum(Unit, [days, hours, minutes, seconds]).
 
-validate_ip_access({Access,_}) ->
-    %% TODO validate second arg
-    validate_enum(Access, [allow, deny]).
+validate_ip_access({Access, IPMask}) ->
+    validate_enum(Access, [allow, deny]),
+    validate_ip_mask_string(IPMask).
 
 validate_backend(Mod, Backend) ->
     validate_module(backend_module:backend_module(Mod, Backend)).
@@ -1090,6 +1083,11 @@ validate_url(Url) ->
 
 validate_string(Value) ->
     is_binary(unicode:characters_to_binary(Value)).
+
+validate_ip_mask_string(IPMaskString) ->
+    validate_non_empty_string(IPMaskString),
+    {ok, IPMask} = mongoose_lib:parse_ip_netmask(IPMaskString),
+    validate_ip_mask(IPMask).
 
 validate_ip_mask({IP, Mask}) ->
     validate_string(inet:ntoa(IP)),
