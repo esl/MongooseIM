@@ -860,7 +860,7 @@ module_opt([<<"pep_mapping">>, <<"mod_pubsub">>|_] = Path, V) ->
     Mappings = parse_list(Path, V),
     [{pep_mapping, Mappings}];
 module_opt([<<"default_node_config">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Config = parse_list(Path, V),
+    Config = parse_section(Path, V),
     [{default_node_config, Config}];
 module_opt([<<"item_publisher">>, <<"mod_pubsub">>|_], V) ->
     [{item_publisher, V}];
@@ -1304,8 +1304,44 @@ mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
     [{b2l(Name), b2l(Node)}].
 
 -spec mod_pubsub_default_node_config(path(), toml_section()) -> [option()].
-mod_pubsub_default_node_config(_, #{<<"key">> := Key, <<"value">> := Value}) ->
-    [{b2a(Key), b2l(Value)}].
+mod_pubsub_default_node_config([<<"access_model">>|_], Value) ->
+    [{access_model, b2a(Value)}];
+mod_pubsub_default_node_config([<<"deliver_notifications">>|_], Value) ->
+    [{deliver_notifications, Value}];
+mod_pubsub_default_node_config([<<"deliver_payloads">>|_], Value) ->
+    [{deliver_payloads, Value}];
+mod_pubsub_default_node_config([<<"max_items">>|_], Value) ->
+    [{max_items, Value}];
+mod_pubsub_default_node_config([<<"max_payload_size">>|_], Value) ->
+    [{max_payload_size, Value}];
+mod_pubsub_default_node_config([<<"node_type">>|_], Value) ->
+    [{node_type, b2a(Value)}];
+mod_pubsub_default_node_config([<<"notification_type">>|_], Value) ->
+    [{notification_type, b2a(Value)}];
+mod_pubsub_default_node_config([<<"notify_config">>|_], Value) ->
+    [{notify_config, Value}];
+mod_pubsub_default_node_config([<<"notify_delete">>|_], Value) ->
+    [{notify_delete, Value}];
+mod_pubsub_default_node_config([<<"notify_retract">>|_], Value) ->
+    [{notify_retract, Value}];
+mod_pubsub_default_node_config([<<"persist_items">>|_], Value) ->
+    [{persist_items, Value}];
+mod_pubsub_default_node_config([<<"presence_based_delivery">>|_], Value) ->
+    [{presence_based_delivery, Value}];
+mod_pubsub_default_node_config([<<"publish_model">>|_], Value) ->
+    [{publish_model, b2a(Value)}];
+mod_pubsub_default_node_config([<<"purge_offline">>|_], Value) ->
+    [{purge_offline, Value}];
+mod_pubsub_default_node_config([<<"roster_groups_allowed">>|_] = Path, Value) ->
+    Groups = parse_list(Path, Value),
+    [{roster_groups_allowed, Groups}];
+mod_pubsub_default_node_config([<<"send_last_published_item">>|_], Value) ->
+    [{send_last_published_item, b2a(Value)}];
+mod_pubsub_default_node_config([<<"subscribe">>|_], Value) ->
+    [{subscribe, Value}].
+
+mod_pubsub_roster_groups_allowed(_, Value) ->
+    [Value].
 
 -spec mod_revproxy_routes(path(), toml_section()) -> [option()].
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
@@ -1774,6 +1810,8 @@ handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun mod_pubsub_pep_mapping/2;
 handler([_, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun mod_pubsub_default_node_config/2;
+handler([_, <<"roster_groups_allowed">>, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
+    fun mod_pubsub_roster_groups_allowed/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
 handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->

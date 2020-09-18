@@ -2298,8 +2298,67 @@ mod_pubsub(_Config) ->
     ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
     ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
                  T(#{<<"last_item_cache">> => <<"mnesia">>})),
-    run_multi(generic_bad_opts_cases(T, mod_pubsub_bad_opts())),
+    run_multi(
+        good_default_node_config_opts(T) ++
+        bad_default_node_config_opts(T) ++
+        generic_bad_opts_cases(T, mod_pubsub_bad_opts())),
     check_iqdisc(mod_pubsub).
+
+good_default_node_config_opts(T) ->
+    [good_default_node_config_opt(T, K, Toml, Mim)
+     || {K, Toml, Mim} <- default_node_config_opts()].
+
+good_default_node_config_opt(T, K, Toml, Mim) ->
+    MBase = [{default_node_config, [{K, Mim}]}],
+    Base = #{<<"default_node_config">> => #{a2b(K) => Toml}},
+    ?_eqf(modopts(mod_pubsub, MBase), T(Base)).
+
+bad_default_node_config_opts(T) ->
+    [bad_default_node_config_opt(T, K, Toml)
+     || {K, Toml} <- default_node_config_bad_opts()].
+
+bad_default_node_config_opt(T, K, Toml) ->
+    Base = #{<<"default_node_config">> => #{a2b(K) => Toml}},
+    ?_errf(T(Base)).
+
+default_node_config_opts() ->
+    [{access_model, <<"open">>, open},
+     {deliver_notifications, true, true},
+     {deliver_payloads, true, true},
+     {max_items, 10, 10},
+     {max_payload_size, 10000, 10000},
+     {node_type, <<"leaf">>, leaf},
+     {notification_type, <<"headline">>, headline},
+     {notify_config, false, false},
+     {notify_delete, false, false},
+     {notify_retract, false, false},
+     {persist_items, true, true},
+     {presence_based_delivery, true, true},
+     {publish_model, <<"open">>, open},
+     {purge_offline, false, false},
+     {roster_groups_allowed, [<<"friends">>], [<<"friends">>]},
+     {send_last_published_item, <<"on_sub_and_presence">>, on_sub_and_presence},
+     {subscribe, true, true}].
+
+default_node_config_bad_opts() ->
+    [{access_model, 1},
+     {deliver_notifications, 1},
+     {deliver_payloads, 1},
+     {max_items, -1},
+     {max_payload_size, -1},
+     {node_type, 1},
+     {notification_type, 1},
+     {notify_config, 1},
+     {notify_delete, 1},
+     {notify_retract, 1},
+     {persist_items, 1},
+     {presence_based_delivery, 1},
+     {publish_model, 1},
+     {purge_offline, 1},
+     {roster_groups_allowed, [1]},
+     {roster_groups_allowed, 1},
+     {send_last_published_item, 1},
+     {subscribe, 1}].
 
 mod_pubsub_bad_opts() ->
     [{backend, 1},

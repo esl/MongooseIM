@@ -723,7 +723,28 @@ mod_pubsub() ->
       nodetree => pubsub_nodetree,
       last_item_cache => {enum, [mnesia, rdbms, false]},
       plugins => {list, pubsub_plugin},
-      pep_mapping => {list, pubsub_pep_mapping}}.
+      pep_mapping => {list, pubsub_pep_mapping},
+      default_node_config => pubsub_default_node_config()}.
+
+pubsub_default_node_config() ->
+    #{access_model => non_empty_atom,
+      deliver_notifications => boolean,
+      deliver_payloads => boolean,
+      max_items => non_neg_integer,
+      max_payload_size => non_neg_integer,
+      node_type => non_empty_atom,
+      notification_type => non_empty_atom,
+      notify_config => boolean,
+      notify_delete => boolean,
+      notify_retract => boolean,
+      persist_items => boolean,
+      presence_based_delivery => boolean,
+      publish_model => non_empty_atom,
+      purge_offline => boolean,
+      send_last_published_item => non_empty_atom,
+      subscribe => boolean,
+      roster_groups_allowed => {list, non_empty_binary}
+    }.
 
 mod_push_service_mongoosepush() ->
     #{pool_name => pool_name,
