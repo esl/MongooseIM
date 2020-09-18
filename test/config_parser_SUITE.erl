@@ -30,7 +30,8 @@ all() ->
      {group, pool},
      {group, shaper_acl_access},
      {group, s2s},
-     {group, modules}].
+     {group, modules},
+     {group, services}].
 
 groups() ->
     [{equivalence, [parallel], [sample_pgsql,
@@ -189,7 +190,9 @@ groups() ->
                             mod_stream_management,
                             mod_time,
                             mod_vcard,
-                            mod_version]}
+                            mod_version]},
+     {services, [parallel], [service_admin_extra,
+                             service_mongoose_system_metrics]}
     ].
 
 init_per_suite(Config) ->
@@ -2710,6 +2713,36 @@ mod_version(_Config) ->
     ?errf(T(#{<<"os_info">> => 1})),
     check_iqdisc(mod_version).
 
+%% Services
+
+service_admin_extra(_Config) ->
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_admin_extra">> => Opts}} end,
+    ?eq(servopts(service_admin_extra, [{submods, [node]}]),
+        parse(T(#{<<"submods">> => [<<"node">>]}))),
+    ?err(parse(T(#{<<"submods">> => 1}))),
+    ?err(parse(T(#{<<"submods">> => [1]}))),
+    ?err(parse(T(#{<<"submods">> => [<<"nodejshaha">>]}))),
+    ok.
+
+service_mongoose_system_metrics(_Config) ->
+    M = service_mongoose_system_metrics,
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_mongoose_system_metrics">> => Opts}} end,
+    ?eq(servopts(M, [{initial_report, 5000}]),
+        parse(T(#{<<"initial_report">> => 5000}))),
+    ?eq(servopts(M, [{periodic_report, 5000}]),
+        parse(T(#{<<"periodic_report">> => 5000}))),
+    ?eq(servopts(M, [{tracking_id, "UA-123456789"}]),
+        parse(T(#{<<"tracking_id">> => <<"UA-123456789">>}))),
+    %% error cases
+    ?err(parse(T(#{<<"initial_report">> => <<"forever">>}))),
+    ?err(parse(T(#{<<"periodic_report">> => <<"forever">>}))),
+    ?err(parse(T(#{<<"initial_report">> => -1}))),
+    ?err(parse(T(#{<<"periodic_report">> => -1}))),
+    ?err(parse(T(#{<<"tracking_id">> => 666}))),
+    ok.
+
+%% Helpers for module tests
+
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> atom_to_binary(Atom, utf8).
 
@@ -2726,6 +2759,9 @@ check_iqdisc(Module) ->
 
 modopts(Mod, Opts) ->
     [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
+
+servopts(Mod, Opts) ->
+    [#local_config{key = services, value = [{Mod, Opts}]}].
 
 %% helpers for 'listen' tests
 

@@ -604,8 +604,9 @@ process_service([S|_] = Path, Opts) ->
 
 %% path: services.*.*
 -spec service_opt(path(), toml_value()) -> [option()].
-service_opt([<<"submods">>, <<"service_admin_extra">>|_], V) ->
-    [{submods, [b2a(M) || M <- V]}];
+service_opt([<<"submods">>, <<"service_admin_extra">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{submods, List}];
 service_opt([<<"initial_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
     [{initial_report, V}];
 service_opt([<<"periodic_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
@@ -1382,6 +1383,10 @@ mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> 
 mod_vcard_ldap_binary_search_fields(_, V) ->
     [V].
 
+-spec service_admin_extra_submods(path(), toml_section()) -> [option()].
+service_admin_extra_submods(_, V) ->
+    [b2a(V)].
+
 welcome_message([<<"subject">>|_], Value) ->
     [{subject, b2l(Value)}];
 welcome_message([<<"body">>|_], Value) ->
@@ -1826,6 +1831,9 @@ handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_reported/2;
 handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_binary_search_fields/2;
+handler([_, <<"submods">>, <<"service_admin_extra">>, <<"services">>]) ->
+    fun service_admin_extra_submods/2;
+
 
 %% shaper, acl, access
 handler([_, <<"shaper">>]) -> fun process_shaper/2;
