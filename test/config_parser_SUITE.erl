@@ -2335,16 +2335,16 @@ mod_push_service_mongoosepush(_Config) ->
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
                 [{access,register},
-                 {ip_access, [{allow,{{127,0,0,0},8}},
-                              {deny,{{0,0,0,0},32}}]}
+                 {ip_access, [{allow,"127.0.0.0/8"},
+                              {deny,"0.0.0.0"}]}
                 ]),
          ip_access_register(<<"0.0.0.0">>)),
     ?eqf(modopts(mod_register,
                 [{access,register},
-                 {ip_access, [{allow,{{127,0,0,0},8}},
-                              {deny,{{0,0,0,4},32}}]}
+                 {ip_access, [{allow,"127.0.0.0/8"},
+                              {deny,"0.0.0.4"}]}
                 ]),
-         ip_access_register(<<"0.4">>)), %% Partial IPs format
+         ip_access_register(<<"0.0.0.4">>)),
     ?errf(invalid_ip_access_register()),
     ?errf(ip_access_register(<<"hello">>)),
     ?errf(ip_access_register(<<"0.d">>)),
