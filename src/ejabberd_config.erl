@@ -82,13 +82,6 @@ start() ->
                           [{ets, [{read_concurrency, true}]}]},
                          {attributes, record_info(fields, config)}]),
     mnesia:add_table_copy(config, node(), ram_copies),
-    mnesia:create_table(local_config,
-                        [{ram_copies, [node()]},
-                         {storage_properties,
-                          [{ets, [{read_concurrency, true}]}]},
-                         {local_content, true},
-                         {attributes, record_info(fields, local_config)}]),
-    mnesia:add_table_copy(local_config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
@@ -202,7 +195,12 @@ do_set_opts(State) ->
     maybe_clean_global_opts(State),
     maybe_clean_local_opts(State),
     maybe_clean_acls_opts(State),
-    lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
+    lists:foreach(fun(R) -> store_option(R) end, Opts).
+
+store_option(#local_config{} = R) ->
+    add_local_option(R#local_config.key, R#local_config.value);
+store_option(R) ->
+    mnesia:write(R).
 
 maybe_clean_global_opts(State) ->
     case mongoose_config_parser:can_override(global, State) of
@@ -233,9 +231,8 @@ clean_global_opts() ->
     lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg).
 
 clean_local_opts() ->
-    Ksl = mnesia:all_keys(local_config),
-    Ksl2 = lists:delete(node_start, Ksl),
-    lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end, Ksl2).
+    Ksl2 = [K || {{local_config, K}, _} <- persistent_term:get(), K =/= node_start],
+    lists:foreach(fun(K) -> del_local_option(K) end, Ksl2).
 
 clean_acls_opts() ->
     Ksa = mnesia:all_keys(acl),
@@ -249,16 +246,13 @@ add_global_option(Opt, Val) ->
                        end).
 
 
--spec add_local_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
+-spec add_local_option(Opt :: key(), Val :: value()) -> ok.
 add_local_option(Opt, Val) ->
-    mnesia:transaction(fun() ->
-                           mnesia:write(#local_config{key   = Opt,
-                                                      value = Val})
-                       end).
+    persistent_term:put({local_config, Opt}, Val).
 
--spec del_local_option(Opt :: key()) -> {atomic | aborted, _}.
+-spec del_local_option(Opt :: key()) -> ok.
 del_local_option(Opt) ->
-    mnesia:transaction(fun mnesia:delete/1, [{local_config, Opt}]).
+    persistent_term:erase({local_config, Opt}).
 
 -spec get_global_option(key()) -> value() | undefined.
 get_global_option(Opt) ->
@@ -271,12 +265,7 @@ get_global_option(Opt) ->
 
 -spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
-    case ets:lookup(local_config, Opt) of
-        [#local_config{value = Val}] ->
-            Val;
-        _ ->
-            undefined
-    end.
+    persistent_term:get({local_config, Opt}, undefined).
 
 -spec get_local_option(key(), host()) -> value() | undefined.
 get_local_option(Opt, Host) ->
@@ -296,9 +285,7 @@ get_local_option_or_default(Opt, Default) ->
 
 %% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
-    mnesia:dirty_select(local_config,
-                        [{#local_config{key   = {auth_method, '$1'},
-                                        value = AuthMethod}, [], ['$1']}]).
+    [Host || {{local_config, {auth_method, Host}}, Auth} <- persistent_term:get(), Auth == AuthMethod].
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),
@@ -585,13 +572,15 @@ reload_listeners(#{to_start := Add,
 %% match all hosts
 -spec get_host_local_config() -> [{local_config, {term(), jid:server()}, term()}].
 get_host_local_config() ->
-    mnesia:dirty_match_object({local_config, {'_', '_'}, '_'}).
+    [#local_config{key = {K, Host}, value = V} || {{local_config, {K, Host}}, V} <- persistent_term:get()].
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun mongoose_config_parser:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun mongoose_config_parser:is_not_host_specific/1,
+                        [K || {{local_config, K}, _V} <- persistent_term:get()]),
     lists:flatten(lists:map(fun(Key) ->
-                                mnesia:dirty_read(local_config, Key)
+                                Value = get_local_option(Key),
+                                #local_config{key = Key, value = Value}
                             end,
                             Keys)).
 
