@@ -430,6 +430,17 @@ validate_modules(Path, Value) ->
 
 %% Module type specs
 
+%% Module validators follow the rules:
+%% - Each module has it's own Validator Type Spec Function.
+%% - Validator Type Spec Function has the same name as the module it validates.
+%% - Validator Type Spec Function should be present in module_spec_functions/0.
+%% - Validator Type Spec Function returns Options Spec Map.
+%% - Keys in the Options Spec Map are TOML keys. But atoms.
+%% - Values in the Options Spec Map are types.
+%% - Types are defined in type_to_validator/0 function.
+%% - Types have validators (consult with type_to_validator/0 to find out the validator function).
+%% - If Type is a map, it means that the TOML path contains a map. 
+
 mod_adhoc() ->
     #{iqdisc => iqdisc,
       report_commands_node => boolean}.
