@@ -428,350 +428,419 @@ validate_modules(Path, Value) ->
      end || Type <- Types],
     ok.
 
+%% Module type specs
+
+mod_adhoc() ->
+    #{iqdisc => iqdisc,
+      report_commands_node => boolean}.
+
+mod_auth_token() ->
+    #{iqdisc => iqdisc,
+      %% Pass the whole list into validator
+      validity_period => {multi, validity_period}}.
+
+mod_bosh() ->
+    #{inactivity => non_neg_integer_or_inf,
+      max_wait => non_neg_integer_or_inf,
+      server_acks => boolean,
+      backend => backend}.
+
+mod_carboncopy() ->
+    #{iqdisc => iqdisc}.
+
+mod_caps() ->
+    #{cache_size => non_neg_integer_or_inf,
+      cache_life_time => non_neg_integer_or_inf}.
+
+mod_csi() ->
+    #{buffer_max => non_neg_integer_or_inf}.
+
+mod_disco() ->
+    #{users_can_see_hidden_services => boolean,
+      extra_domains => {list, binary_domain},
+      urls => {list, url},
+      server_info => {list, #{name => non_empty_binary,
+                              module => {list, module},
+                              urls => {list, url}}}}.
+
+mod_inbox() ->
+    #{iqdisc => iqdisc,
+      backend => backend,
+      aff_changes => boolean,
+      remove_on_kicked => boolean,
+      reset_markers => {list, chat_marker_type},
+      groupchat => {list, groupchat_type}}.
+
+mod_global_distrib() ->
+    #{global_host => domain,
+      local_host => domain,
+      message_ttl => non_neg_integer,
+      hosts_refresh_interval => non_neg_integer,
+      connections => global_distrib_connections(),
+      redis => #{pool => non_empty_atom,
+                 expire_after => non_neg_integer,
+                 refresh_after => non_neg_integer},
+      cache => #{cache_missed => boolean,
+                 domain_lifetime_seconds => non_neg_integer,
+                 jid_lifetime_seconds => non_neg_integer,
+                 max_jids => non_neg_integer},
+      bounce => #{resend_after_ms => non_neg_integer,
+                  max_retries => non_neg_integer}}.
+
+%% This block is too long for inlining into mod_global_distrib
+global_distrib_connections() ->
+    #{endpoints => {list, #{host => network_address, port => network_port}},
+      advertised_endpoints => {optional_section, advertised_endpoints,
+                               {list, #{host => network_address, port => network_port}}},
+      connections_per_endpoint => non_neg_integer,
+      endpoint_refresh_interval => pos_integer,
+      endpoint_refresh_interval_when_empty => pos_integer,
+      disabled_gc_interval => non_neg_integer,
+      tls => {optional_section, tls_opts, tls_opts_spec()}}.
+
 tls_opts_spec() ->
     #{cacertfile => {renamed, cafile, filename},
       certfile => filename,
       dhfile => filename,
       ciphers => string}.
 
-module_option_types_spec() ->
-    [%% mod_adhoc
-     {mod_adhoc, iqdisc, iqdisc},
-     {mod_adhoc, report_commands_node, boolean},
-     %% mod_auth_token
-     {mod_auth_token, iqdisc, iqdisc},
-     %% Pass the whole list into validator
-     {mod_auth_token, validity_period, {multi, validity_period}},
-     %% mod_bosh
-     {mod_bosh, inactivity, non_neg_integer_or_inf},
-     {mod_bosh, max_wait, non_neg_integer_or_inf},
-     {mod_bosh, server_acks, boolean},
-     {mod_bosh, backend, backend},
-     %% mod_carboncopy
-     {mod_carboncopy, iqdisc, iqdisc},
-     %% mod_caps
-     {mod_caps, cache_size, non_neg_integer_or_inf},
-     {mod_caps, cache_life_time, non_neg_integer_or_inf},
-     %% mod_csi
-     {mod_csi, buffer_max, non_neg_integer_or_inf},
-     %% mod_disco
-     {mod_disco, users_can_see_hidden_services, boolean},
-     {mod_disco, extra_domains, {list, binary_domain}},
-     {mod_disco, urls, {list, url}},
-     {mod_disco, server_info, {list, #{name => non_empty_binary,
-                                       module => {list, module},
-                                       urls => {list, url}}}},
-     %% mod_inbox
-     {mod_inbox, iqdisc, iqdisc},
-     {mod_inbox, backend, backend},
-     {mod_inbox, aff_changes, boolean},
-     {mod_inbox, remove_on_kicked, boolean},
-     {mod_inbox, reset_markers, {list, chat_marker_type}},
-     {mod_inbox, groupchat, {list, groupchat_type}},
-     %% mod_global_distrib
-     {mod_global_distrib, global_host, domain},
-     {mod_global_distrib, local_host, domain},
-     {mod_global_distrib, message_ttl, non_neg_integer},
-     {mod_global_distrib, hosts_refresh_interval, non_neg_integer},
-     {mod_global_distrib, connections, #{
-        endpoints => {list, #{host => network_address, port => network_port}},
-        advertised_endpoints => {optional_section, advertised_endpoints,
-                                 {list, #{host => network_address, port => network_port}}},
-        connections_per_endpoint => non_neg_integer,
-        endpoint_refresh_interval => pos_integer,
-        endpoint_refresh_interval_when_empty => pos_integer,
-        disabled_gc_interval => non_neg_integer,
-        tls => {optional_section, tls_opts, tls_opts_spec()}}},
-     {mod_global_distrib, redis, #{
-            pool => non_empty_atom,
-            expire_after => non_neg_integer,
-            refresh_after => non_neg_integer}},
-     {mod_global_distrib, cache, #{cache_missed => boolean,
-                                   domain_lifetime_seconds => non_neg_integer,
-                                   jid_lifetime_seconds => non_neg_integer,
-                                   max_jids => non_neg_integer}},
-     {mod_global_distrib, bounce, #{resend_after_ms => non_neg_integer,
-                                    max_retries => non_neg_integer}},
-     %% mod_event_pusher
-     {mod_event_pusher, backend, #{
-         sns => #{access_key_id => string,
-                  secret_access_key => string,
-                  region => string,
-                  account_id => string,
-                  sns_host => string,
-                  muc_host => domain_template,
-                  presence_updates_topic => string,
-                  pm_messages_topic => string,
-                  muc_messages_topic => string,
-                  plugin_module => module,
-                  pool_size => non_neg_integer,
-                  publish_retry_count => non_neg_integer,
-                  publish_retry_time_ms => non_neg_integer},
-          push => #{backend => {backend, mod_event_pusher_push},
-                    wpool => #{strategy => wpool_strategy, workers => pos_integer},
-                    plugin_module => module,
-                    virtual_pubsub_hosts => {list, domain_template}},
-          http => #{pool_name => non_empty_atom,
-                    path => string,
-                    callback_module => module},
-          rabbit => #{presence_exchange => #{name => non_empty_binary,
-                                             type => non_empty_binary},
-                      chat_msg_exchange => #{name => non_empty_binary,
-                                             sent_topic => non_empty_binary,
-                                             recv_topic => non_empty_binary},
-                      groupchat_msg_exchange => #{name => non_empty_binary,
-                                                  sent_topic => non_empty_binary,
-                                                  recv_topic => non_empty_binary}}
-         }},
-     %% mod_http_upload
-     {mod_http_upload, iqdisc, iqdisc},
-     {mod_http_upload, backend, backend},
-     {mod_http_upload, host, domain_template},
-     {mod_http_upload, expiration_time, non_neg_integer},
-     {mod_http_upload, token_bytes, non_neg_integer},
-     {mod_http_upload, token_bytes, pos_integer},
-     {mod_http_upload, max_file_size, non_neg_integer},
-     {mod_http_upload, s3, #{bucket_url => url,
-                             add_acl => boolean,
-                             region => string,
-                             access_key_id => string,
-                             secret_access_key => string}},
-     %% mod_jingle_sip
-     {mod_jingle_sip, proxy_host, network_address},
-     {mod_jingle_sip, proxy_port, network_port},
-     {mod_jingle_sip, listen_port, network_port},
-     {mod_jingle_sip, local_host, network_address},
-     {mod_jingle_sip, sdp_origin, ip_address},
-     %% mod_keystore
-     {mod_keystore, ram_key_size, non_neg_integer},
-     {mod_keystore, keys, {list, keystore_key}},
-     %% mod_last
-     {mod_last, iqdisc, iqdisc},
-     {mod_last, backend, backend},
-     {mod_last, riak, #{bucket_type => non_empty_binary}}
-     %% mod_mam_meta
-     %% We need some spec duplication,
-     %% because options could be defined as root module options
-     %% or PM (or MUC) specific
-     ] ++ mod_mam_opts_spec() ++ [
-     {mod_mam_meta, pm, {optional_section, pm, specs_to_map(mod_mam_opts_spec())}},
-     {mod_mam_meta, muc, {optional_section, muc, specs_to_map(mod_mam_opts_spec())}},
-     {mod_mam_meta, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
-     %% mod_muc
-     {mod_muc, host, domain_template},
-     {mod_muc, backend, {backend, mod_muc_db}},
-     {mod_muc, access, access_rule},
-     {mod_muc, access_create, access_rule},
-     {mod_muc, access_admin, access_rule},
-     {mod_muc, access_persistent, access_rule},
-     {mod_muc, history_size, non_neg_integer},
-     {mod_muc, room_shaper, shaper_name},
-     {mod_muc, max_room_id, non_neg_integer_or_inf},
-     {mod_muc, max_room_name, non_neg_integer_or_inf},
-     {mod_muc, max_room_desc, non_neg_integer_or_inf},
-     {mod_muc, min_message_interval, non_neg_integer},
-     {mod_muc, min_presence_interval, non_neg_integer},
-     {mod_muc, max_users, pos_integer},
-     {mod_muc, max_users_admin_threshold, pos_integer},
-     {mod_muc, user_message_shaper, shaper_name},
-     {mod_muc, user_presence_shaper, shaper_name},
-     {mod_muc, max_user_conferences, non_neg_integer},
-     {mod_muc, http_auth_pool, pool_name},
-     {mod_muc, load_permanent_rooms_at_startup, boolean},
-     {mod_muc, hibernated_room_check_interval, non_neg_integer_or_inf},
-     {mod_muc, hibernated_room_timeout, non_neg_integer_or_inf},
-     {mod_muc, default_room, #{
-                    title => string,
-                    description => binary,
-                    allow_change_subj => boolean,
-                    allow_query_users => boolean,
-                    allow_private_messages => boolean,
-                    allow_visitor_status => boolean,
-                    allow_visitor_nickchange => boolean,
-                    public => boolean,
-                    public_list => boolean,
-                    persistent => boolean,
-                    moderated => boolean,
-                    members_by_default => boolean,
-                    members_only => boolean,
-                    allow_user_invites => boolean,
-                    allow_multiple_sessions => boolean,
-                    password_protected => boolean,
-                    password => string,
-                    anonymous => boolean,
-                    max_users => pos_integer,
-                    logging => boolean,
-                    subject => string,
-                    subject_author => string,
-                    maygetmemberlist => {list, non_empty_atom},
-                    affiliations => {list, muc_affiliation_rule}
-                }},
-     %% mod_muc_log
-     {mod_muc_log, outdir, dirname},
-     {mod_muc_log, access_log, access_rule},
-     {mod_muc_log, dirtype, {enum, [subdirs, plain]}},
-     {mod_muc_log, dirname, {enum, [room_jid, room_name]}},
-     {mod_muc_log, file_format, {enum, [html, plaintext]}},
-     {mod_muc_log, timezone, {enum, [local, universal]}},
-     {mod_muc_log, spam_prevention, boolean},
-     {mod_muc_log, css_file, {renamed, cssfile, maybe_css_file}},
-     {mod_muc_log, top_link, top_link},
-     %% mod_muc_light
-     {mod_muc_light, host, domain_template},
-     {mod_muc_light, backend, {backend, mod_muc_light_db}},
-     {mod_muc_light, equal_occupants, boolean},
-     {mod_muc_light, legacy_mode, boolean},
-     {mod_muc_light, rooms_per_page, pos_integer_or_inf},
-     {mod_muc_light, blocking, boolean},
-     {mod_muc_light, all_can_configure, boolean},
-     {mod_muc_light, all_can_invite, boolean},
-     {mod_muc_light, max_occupants, pos_integer_or_inf},
-     {mod_muc_light, rooms_per_page, pos_integer_or_inf},
-     {mod_muc_light, rooms_in_rosters, boolean},
-     {mod_muc_light, config_schema, {list, muc_config_schema}},
-     %% mod_offline
-     {mod_offline, access_max_user_messages, access_rule},
-     {mod_offline, backend, backend},
-     {mod_offline, riak, #{bucket_type => non_empty_binary}},
-     %% mod_ping
-     {mod_ping, iqdisc, iqdisc},
-     {mod_ping, send_pings, boolean},
-     {mod_ping, timeout_action, {enum, [none, kill]}},
-     {mod_ping, ping_interval, pos_integer},
-     {mod_ping, ping_req_timeout, pos_integer},
-     %% mod_privacy
-     {mod_privacy, backend, backend},
-     {mod_privacy, riak, #{defaults_bucket_type => non_empty_binary,
-                           names_bucket_type => non_empty_binary,
-                           bucket_type => non_empty_binary}},
-     %% mod_private
-     {mod_private, iqdisc, iqdisc},
-     {mod_private, backend, backend},
-     {mod_private, riak, #{bucket_type => non_empty_binary}},
-     %% mod_pubsub
-     {mod_pubsub, iqdisc, iqdisc},
-     {mod_pubsub, host, domain_template},
-     {mod_pubsub, backend, {backend, mod_pubsub_db}},
-     {mod_pubsub, access_createnode, access_rule},
-     {mod_pubsub, max_items_node, non_neg_integer},
-     {mod_pubsub, max_subscriptions_node, non_neg_integer},
-     {mod_pubsub, ignore_pep_from_offline, boolean},
-     {mod_pubsub, last_item_cache, {enum, [mnesia, rdbms, false]}},
-     {mod_pubsub, item_publisher, boolean},
-     {mod_pubsub, sync_broadcast, boolean},
-     {mod_pubsub, nodetree, pubsub_nodetree},
-     {mod_pubsub, plugins, {list, pubsub_plugin}},
-     {mod_pubsub, pep_mapping, {list, pubsub_pep_mapping}},
-     %% mod_push_service_mongoosepush
-     {mod_push_service_mongoosepush, pool_name, pool_name},
-     {mod_push_service_mongoosepush, api_version, string},
-     {mod_push_service_mongoosepush, max_http_connections, non_neg_integer},
-     %% mod_register
-     {mod_register, iqdisc, iqdisc},
-     %% Pass the whole thing into validator
-     {mod_register, ip_access, {list, ip_access}},
-     {mod_register, welcome_message, #{subject => string, body => string}},
-     {mod_register, access, non_empty_atom},
-     {mod_register, registration_watchers, {list, jid}},
-     {mod_register, password_strength, non_neg_integer},
-     %% mod_revproxy
-     {mod_revproxy, routes, {list, revproxy_route}},
-     %% mod_roster
-     {mod_roster, iqdisc, iqdisc},
-     {mod_roster, versioning, boolean},
-     {mod_roster, store_current_id, boolean},
-     {mod_roster, backend, backend},
-     {mod_roster, riak, #{bucket_type => non_empty_binary,
-                          version_bucket_type => non_empty_binary}},
-     %% mod_shared_roster_ldap
-     {mod_shared_roster_ldap, ldap_pool_tag, pool_name},
-     {mod_shared_roster_ldap, ldap_base, string},
-     {mod_shared_roster_ldap, ldap_deref, {enum, [never, always, finding, searching]}},
-     %% - attributes
-     {mod_shared_roster_ldap, ldap_groupattr, string},
-     {mod_shared_roster_ldap, ldap_groupdesc, string},
-     {mod_shared_roster_ldap, ldap_userdesc, string},
-     {mod_shared_roster_ldap, ldap_useruid, string},
-     {mod_shared_roster_ldap, ldap_memberattr, string},
-     {mod_shared_roster_ldap, ldap_memberattr_format, string},
-     {mod_shared_roster_ldap, ldap_memberattr_format_re, string},
-     %% - parameters
-     {mod_shared_roster_ldap, ldap_auth_check, boolean},
-     {mod_shared_roster_ldap, ldap_user_cache_validity, non_neg_integer},
-     {mod_shared_roster_ldap, ldap_group_cache_validity, non_neg_integer},
-     {mod_shared_roster_ldap, ldap_user_cache_size, non_neg_integer},
-     {mod_shared_roster_ldap, ldap_group_cache_size, non_neg_integer},
-     %% - LDAP filters
-     {mod_shared_roster_ldap, ldap_rfilter, string},
-     {mod_shared_roster_ldap, ldap_gfilter, string},
-     {mod_shared_roster_ldap, ldap_ufilter, string},
-     {mod_shared_roster_ldap, ldap_filter, string},
-     %% mod_sic
-     {mod_sic, iqdisc, iqdisc},
-     %% mod_stream_management
-     {mod_stream_management, buffer_max, non_neg_integer},
-     {mod_stream_management, ack_freq, non_neg_integer},
-     {mod_stream_management, resume_timeout, non_neg_integer},
-     {mod_stream_management, stale_h, #{
-                               enabled => boolean,
-                               repeat_after => {renamed, stale_h_repeat_after,
-                                                non_neg_integer},
-                               geriatric => {renamed, stale_h_geriatric,
-                                             non_neg_integer}
-        }},
-     %% mod_version
-     {mod_version, iqdisc, iqdisc},
-     {mod_version, os_info, boolean},
-     %% mod_vcard
-     {mod_vcard, iqdisc, iqdisc},
-     {mod_vcard, host, domain_template},
-     {mod_vcard, search, boolean},
-     {mod_vcard, backend, backend},
-     {mod_vcard, matches, non_neg_integer_or_inf},
-     %% - ldap
-     {mod_vcard, ldap_pool_tag, pool_name},
-     {mod_vcard, ldap_base, string},
-     {mod_vcard, ldap_deref, {enum, [never, always, finding, searching]}},
-     {mod_vcard, ldap_uids, {list, ldap_uids}},
-     {mod_vcard, ldap_filter, string},
-     {mod_vcard, ldap_vcard_map, {list, ldap_vcard_map}},
-     {mod_vcard, ldap_search_fields, {list, ldap_search_field}},
-     {mod_vcard, ldap_search_reported, {list, ldap_search_reported}},
-     {mod_vcard, ldap_search_operator, {enum, ['or', 'and']}},
-     {mod_vcard, ldap_binary_search_fields, {list, non_empty_binary}},
-     {mod_vcard, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
-     %% mod_time
-     {mod_time, iqdisc, iqdisc}
-    ].
+mod_event_pusher() ->
+    #{backend => event_pusher_backend()}.
 
-mod_mam_opts_spec() ->
-    [{mod_mam_meta, backend, {enum, [rdbms, riak, cassandra, elasticsearch]}},
-     {mod_mam_meta, archive_chat_markers, boolean},
-     {mod_mam_meta, archive_groupchats, boolean},
-     {mod_mam_meta, async_writer, boolean},
-     {mod_mam_meta, async_writer_rdbms_pool, non_empty_atom},
-     {mod_mam_meta, cache_users, boolean},
-     {mod_mam_meta, db_jid_format, module},
-     {mod_mam_meta, db_message_format, module},
-     {mod_mam_meta, default_result_limit, non_neg_integer},
-     {mod_mam_meta, extra_lookup_params, module},
-     {mod_mam_meta, host, domain_template},
-     {mod_mam_meta, flush_interval, non_neg_integer},
-     {mod_mam_meta, full_text_search, boolean},
-     {mod_mam_meta, max_batch_size, non_neg_integer},
-     {mod_mam_meta, max_result_limit, non_neg_integer},
-     {mod_mam_meta, message_retraction, boolean},
-     {mod_mam_meta, rdbms_message_format, {enum, [simple]}},
-     {mod_mam_meta, simple, boolean},
-     {mod_mam_meta, no_stanzaid_element, boolean},
-     {mod_mam_meta, is_archivable_message, module},
-     {mod_mam_meta, user_prefs_store, {enum, [false, rdbms, cassandra, mnesia]}}].
+event_pusher_backend() ->
+    #{sns => #{access_key_id => string,
+               secret_access_key => string,
+               region => string,
+               account_id => string,
+               sns_host => string,
+               muc_host => domain_template,
+               presence_updates_topic => string,
+               pm_messages_topic => string,
+               muc_messages_topic => string,
+               plugin_module => module,
+               pool_size => non_neg_integer,
+               publish_retry_count => non_neg_integer,
+               publish_retry_time_ms => non_neg_integer},
+       push => #{backend => {backend, mod_event_pusher_push},
+                 wpool => #{strategy => wpool_strategy, workers => pos_integer},
+                 plugin_module => module,
+                 virtual_pubsub_hosts => {list, domain_template}},
+       http => #{pool_name => non_empty_atom,
+                 path => string,
+                 callback_module => module},
+       rabbit => #{presence_exchange => #{name => non_empty_binary,
+                                          type => non_empty_binary},
+                   chat_msg_exchange => #{name => non_empty_binary,
+                                          sent_topic => non_empty_binary,
+                                          recv_topic => non_empty_binary},
+                   groupchat_msg_exchange => #{name => non_empty_binary,
+                                               sent_topic => non_empty_binary,
+                                               recv_topic => non_empty_binary}}
+      }.
 
-specs_to_map(Specs) ->
-     maps:from_list([{K,V} || {_,K,V} <- Specs]).
+mod_http_upload() ->
+    #{iqdisc => iqdisc,
+      backend => backend,
+      host => domain_template,
+      expiration_time => non_neg_integer,
+      token_bytes => pos_integer,
+      max_file_size => non_neg_integer,
+      s3 => #{bucket_url => url,
+              add_acl => boolean,
+              region => string,
+              access_key_id => string,
+              secret_access_key => string}}.
+
+mod_jingle_sip() ->
+    #{proxy_host => network_address,
+      proxy_port => network_port,
+      listen_port => network_port,
+      local_host => network_address,
+      sdp_origin => ip_address}.
+
+mod_keystore() ->
+    #{ram_key_size => non_neg_integer,
+      keys => {list, keystore_key}}.
+
+mod_last() ->
+    #{iqdisc => iqdisc,
+      backend => backend,
+      riak => #{bucket_type => non_empty_binary}}.
+
+mod_mam_meta() ->
+    Base = mam_meta_opts(),
+    Base#{
+      pm => Base,
+      muc => Base,
+      riak => #{bucket_type => non_empty_binary, search_index => non_empty_binary}
+     }.
+
+%% We need some spec duplication,
+%% because options could be defined as root module options
+%% or PM (or MUC) specific
+mam_meta_opts() ->
+    #{backend => {enum, [rdbms, riak, cassandra, elasticsearch]},
+      archive_chat_markers => boolean,
+      archive_groupchats => boolean,
+      async_writer => boolean,
+      async_writer_rdbms_pool => non_empty_atom,
+      cache_users => boolean,
+      db_jid_format => module,
+      db_message_format => module,
+      default_result_limit => non_neg_integer,
+      extra_lookup_params => module,
+      host => domain_template,
+      flush_interval => non_neg_integer,
+      full_text_search => boolean,
+      max_batch_size => non_neg_integer,
+      max_result_limit => non_neg_integer,
+      message_retraction => boolean,
+      rdbms_message_format => {enum, [simple]},
+      simple => boolean,
+      no_stanzaid_element => boolean,
+      is_archivable_message => module,
+      user_prefs_store => {enum, [false, rdbms, cassandra, mnesia]}}.
+
+mod_muc() ->
+    #{host => domain_template,
+      backend => {backend, mod_muc_db},
+      access => access_rule,
+      access_create => access_rule,
+      access_admin => access_rule,
+      access_persistent => access_rule,
+      history_size => non_neg_integer,
+      room_shaper => shaper_name,
+      max_room_id => non_neg_integer_or_inf,
+      max_room_name => non_neg_integer_or_inf,
+      max_room_desc => non_neg_integer_or_inf,
+      min_message_interval => non_neg_integer,
+      min_presence_interval => non_neg_integer,
+      max_users => pos_integer,
+      max_users_admin_threshold => pos_integer,
+      user_message_shaper => shaper_name,
+      user_presence_shaper => shaper_name,
+      max_user_conferences => non_neg_integer,
+      http_auth_pool => pool_name,
+      load_permanent_rooms_at_startup => boolean,
+      hibernated_room_check_interval => non_neg_integer_or_inf,
+      hibernated_room_timeout => non_neg_integer_or_inf,
+      default_room => muc_default_room()}.
+
+muc_default_room() ->
+    #{title => string,
+      description => binary,
+      allow_change_subj => boolean,
+      allow_query_users => boolean,
+      allow_private_messages => boolean,
+      allow_visitor_status => boolean,
+      allow_visitor_nickchange => boolean,
+      public => boolean,
+      public_list => boolean,
+      persistent => boolean,
+      moderated => boolean,
+      members_by_default => boolean,
+      members_only => boolean,
+      allow_user_invites => boolean,
+      allow_multiple_sessions => boolean,
+      password_protected => boolean,
+      password => string,
+      anonymous => boolean,
+      max_users => pos_integer,
+      logging => boolean,
+      subject => string,
+      subject_author => string,
+      maygetmemberlist => {list, non_empty_atom},
+      affiliations => {list, muc_affiliation_rule}}.
+
+mod_muc_log() ->
+    #{outdir => dirname,
+      access_log => access_rule,
+      dirtype => {enum, [subdirs, plain]},
+      dirname => {enum, [room_jid, room_name]},
+      file_format => {enum, [html, plaintext]},
+      timezone => {enum, [local, universal]},
+      spam_prevention => boolean,
+      css_file => {renamed, cssfile, maybe_css_file},
+      top_link => top_link}.
+
+mod_muc_light() ->
+    #{host => domain_template,
+      backend => {backend, mod_muc_light_db},
+      equal_occupants => boolean,
+      legacy_mode => boolean,
+      rooms_per_page => pos_integer_or_inf,
+      blocking => boolean,
+      all_can_configure => boolean,
+      all_can_invite => boolean,
+      max_occupants => pos_integer_or_inf,
+      rooms_in_rosters => boolean,
+      config_schema => {list, muc_config_schema}}.
+
+mod_offline() ->
+    #{access_max_user_messages => access_rule,
+      backend => backend,
+      riak => #{bucket_type => non_empty_binary}}.
+
+mod_ping() ->
+    #{iqdisc => iqdisc,
+      send_pings => boolean,
+      timeout_action => {enum, [none, kill]},
+      ping_interval => pos_integer,
+      ping_req_timeout => pos_integer}.
+
+mod_privacy() ->
+     #{backend => backend,
+       riak => #{defaults_bucket_type => non_empty_binary,
+                 names_bucket_type => non_empty_binary,
+                 bucket_type => non_empty_binary}}.
+
+mod_private() ->
+    #{iqdisc => iqdisc,
+      backend => backend,
+      riak => #{bucket_type => non_empty_binary}}.
+
+mod_pubsub() ->
+    #{iqdisc => iqdisc,
+      host => domain_template,
+      backend => {backend, mod_pubsub_db},
+      access_createnode => access_rule,
+      max_items_node => non_neg_integer,
+      max_subscriptions_node => non_neg_integer,
+      ignore_pep_from_offline => boolean,
+      item_publisher => boolean,
+      sync_broadcast => boolean,
+      nodetree => pubsub_nodetree,
+      last_item_cache => {enum, [mnesia, rdbms, false]},
+      plugins => {list, pubsub_plugin},
+      pep_mapping => {list, pubsub_pep_mapping}}.
+
+mod_push_service_mongoosepush() ->
+    #{pool_name => pool_name,
+      api_version => string,
+      max_http_connections => non_neg_integer}.
+
+mod_register() ->
+    #{iqdisc => iqdisc,
+      %% Pass the whole thing into validator
+      ip_access => {list, ip_access},
+      welcome_message => #{subject => string, body => string},
+      access => non_empty_atom,
+      registration_watchers => {list, jid},
+      password_strength => non_neg_integer}.
+
+mod_revproxy() ->
+    #{routes => {list, revproxy_route}}.
+
+mod_roster() ->
+    #{iqdisc => iqdisc,
+      versioning => boolean,
+      store_current_id => boolean,
+      backend => backend,
+      riak => #{bucket_type => non_empty_binary,
+                version_bucket_type => non_empty_binary}}.
+
+mod_shared_roster_ldap() ->
+    #{ldap_pool_tag => pool_name,
+      ldap_base => string,
+      ldap_deref => {enum, [never, always, finding, searching]},
+      %% - attributes
+      ldap_groupattr => string,
+      ldap_groupdesc => string,
+      ldap_userdesc => string,
+      ldap_useruid => string,
+      ldap_memberattr => string,
+      ldap_memberattr_format => string,
+      ldap_memberattr_format_re => string,
+      %% - parameters
+      ldap_auth_check => boolean,
+      ldap_user_cache_validity => non_neg_integer,
+      ldap_group_cache_validity => non_neg_integer,
+      ldap_user_cache_size => non_neg_integer,
+      ldap_group_cache_size => non_neg_integer,
+      %% - LDAP filters
+      ldap_rfilter => string,
+      ldap_gfilter => string,
+      ldap_ufilter => string,
+      ldap_filter => string}.
+
+mod_sic() ->
+    #{iqdisc => iqdisc}.
+
+mod_stream_management() ->
+    #{buffer_max => non_neg_integer,
+      ack_freq => non_neg_integer,
+      resume_timeout => non_neg_integer,
+      stale_h => #{enabled => boolean,
+                   repeat_after => {renamed, stale_h_repeat_after,
+                                    non_neg_integer},
+                   geriatric => {renamed, stale_h_geriatric,
+                                 non_neg_integer}}}.
+
+mod_version() ->
+    #{iqdisc => iqdisc,
+      os_info => boolean}.
+
+mod_vcard() ->
+    #{iqdisc => iqdisc,
+      host => domain_template,
+      search => boolean,
+      backend => backend,
+      matches => non_neg_integer_or_inf,
+      %% - ldap
+      ldap_pool_tag => pool_name,
+      ldap_base => string,
+      ldap_deref => {enum, [never, always, finding, searching]},
+      ldap_uids => {list, ldap_uids},
+      ldap_filter => string,
+      ldap_vcard_map => {list, ldap_vcard_map},
+      ldap_search_fields => {list, ldap_search_field},
+      ldap_search_reported => {list, ldap_search_reported},
+      ldap_search_operator => {enum, ['or', 'and']},
+      ldap_binary_search_fields => {list, non_empty_binary},
+      riak => #{bucket_type => non_empty_binary, search_index => non_empty_binary}}.
+
+mod_time() ->
+    #{iqdisc => iqdisc}.
+
+
+module_spec_functions() ->
+    %% Module name and function name should be the same in this map
+    #{mod_adhoc => fun mod_adhoc/0,
+      mod_auth_token => fun mod_auth_token/0,
+      mod_bosh => fun mod_bosh/0,
+      mod_carboncopy => fun mod_carboncopy/0,
+      mod_caps => fun mod_caps/0,
+      mod_csi => fun mod_csi/0,
+      mod_disco => fun mod_disco/0,
+      mod_inbox => fun mod_inbox/0,
+      mod_global_distrib => fun mod_global_distrib/0,
+      mod_event_pusher => fun mod_event_pusher/0,
+      mod_http_upload => fun mod_http_upload/0,
+      mod_jingle_sip => fun mod_jingle_sip/0,
+      mod_keystore => fun mod_keystore/0,
+      mod_last => fun mod_last/0,
+      mod_mam_meta => fun mod_mam_meta/0,
+      mod_muc => fun mod_muc/0,
+      mod_muc_log => fun mod_muc_log/0,
+      mod_muc_light => fun mod_muc_light/0,
+      mod_offline => fun mod_offline/0,
+      mod_ping => fun mod_ping/0,
+      mod_privacy => fun mod_privacy/0,
+      mod_private => fun mod_private/0,
+      mod_pubsub => fun mod_pubsub/0,
+      mod_push_service_mongoosepush => fun mod_push_service_mongoosepush/0,
+      mod_register => fun mod_register/0,
+      mod_revproxy => fun mod_revproxy/0,
+      mod_roster => fun mod_roster/0,
+      mod_shared_roster_ldap => fun mod_shared_roster_ldap/0,
+      mod_sic => fun mod_sic/0,
+      mod_stream_management => fun mod_stream_management/0,
+      mod_version => fun mod_version/0,
+      mod_vcard => fun mod_vcard/0,
+      mod_time => fun mod_time/0}.
 
 type_to_validator() ->
-    #{%% Basic
+    #{%% Basic validators
       string => fun validate_string/1,
       boolean => fun validate_boolean/1,
       binary => fun validate_binary/1,
@@ -869,6 +938,13 @@ validate_type(Type, Path, Value) ->
 
 module_option_paths() ->
     lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types_spec()]).
+
+module_option_types_spec() ->
+    ModuleSpecs = [{Module, Fun()}
+                   || {Module, Fun} <- maps:to_list(module_spec_functions())],
+    [{Module, OptName, OptSpec} ||
+     {Module, SpecMap} <- ModuleSpecs,
+     {OptName, OptSpec} <- maps:to_list(SpecMap)].
 
 module_option_paths(Mod, Opt, Type) ->
     Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
