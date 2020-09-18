@@ -436,7 +436,7 @@ validate_r(Path, [<<"modules">>|_], Value) ->
 validate_r(Path, [<<"host_config">>, {host, _}, <<"modules">>|_], Value) ->
     validate_modules(path_without_host_config(Path), Value);
 validate_r(Path, _PathR, Value) ->
-    ?LOG_DEBUG(#{ what => validate_unknown, path => Path, value => Value}).
+    ?LOG_DEBUG(#{what => validate_unknown, path => Path, value => Value}).
 
 validate_modules([_,<<"modules">>], [{Mod,_}]) ->
     validate_module(Mod);
@@ -444,9 +444,9 @@ validate_modules(Path, Value) ->
     Types = [Type || {Path1, Type} <- module_option_paths(), Path =:= Path1],
     case Types of
         [] ->
-            ?LOG_DEBUG(#{ what => validate_unknown_module_path, path => Path, value => Value});
+            ?LOG_DEBUG(#{what => validate_unknown_module_path, path => Path, value => Value});
         _ ->
-            ?LOG_DEBUG(#{ what => validate_module_with, path => Path, value => Value, types => Types})
+            ?LOG_DEBUG(#{what => validate_module_with, path => Path, value => Value, types => Types})
     end,
     [try
          validate_type(Type, Path, Value)
@@ -469,12 +469,13 @@ validate_modules(Path, Value) ->
 %% - If Type is a map, it means that the TOML path contains a map. 
 
 mod_adhoc() ->
+    %% TomlPropertyName => ValidatorType
     #{iqdisc => iqdisc,
       report_commands_node => boolean}.
 
 mod_auth_token() ->
     #{iqdisc => iqdisc,
-      %% Pass the whole list into validator
+      %% Pass the whole list the into validator
       validity_period => {multi, validity_period}}.
 
 mod_bosh() ->
@@ -496,7 +497,9 @@ mod_csi() ->
 mod_disco() ->
     #{users_can_see_hidden_services => boolean,
       extra_domains => {list, binary_domain},
+      %% List of urls
       urls => {list, url},
+      %% List of sections
       server_info => {list, #{name => non_empty_binary,
                               module => {list, module},
                               urls => {list, url}}}}.
@@ -515,7 +518,7 @@ mod_global_distrib() ->
       message_ttl => non_neg_integer,
       hosts_refresh_interval => non_neg_integer,
       connections => global_distrib_connections(),
-      redis => #{pool => non_empty_atom,
+      redis => #{pool => pool_name,
                  expire_after => non_neg_integer,
                  refresh_after => non_neg_integer},
       cache => #{cache_missed => boolean,
@@ -528,6 +531,7 @@ mod_global_distrib() ->
 %% This block is too long for inlining into mod_global_distrib
 global_distrib_connections() ->
     #{endpoints => {list, #{host => network_address, port => network_port}},
+      %% Could be a section or false
       advertised_endpoints => {optional_section,
                                {list, #{host => network_address, port => network_port}}},
       connections_per_endpoint => non_neg_integer,
@@ -537,6 +541,7 @@ global_distrib_connections() ->
       tls => {optional_section, tls_opts, tls_opts_spec()}}.
 
 tls_opts_spec() ->
+    %% cacertfile in TOML, but cafile in MongooseIM
     #{cacertfile => {renamed, cafile, filename},
       certfile => filename,
       dhfile => filename,
@@ -563,7 +568,7 @@ event_pusher_backend() ->
                  wpool => #{strategy => wpool_strategy, workers => pos_integer},
                  plugin_module => module,
                  virtual_pubsub_hosts => {list, domain_template}},
-       http => #{pool_name => non_empty_atom,
+       http => #{pool_name => pool_name,
                  path => string,
                  callback_module => module},
        rabbit => #{presence_exchange => #{name => non_empty_binary,
@@ -633,7 +638,7 @@ mam_meta_opts() ->
       max_batch_size => non_neg_integer,
       max_result_limit => non_neg_integer,
       message_retraction => boolean,
-      rdbms_message_format => {enum, [simple]},
+      rdbms_message_format => {enum, [simple, internal]},
       simple => boolean,
       no_stanzaid_element => boolean,
       is_archivable_message => module,
