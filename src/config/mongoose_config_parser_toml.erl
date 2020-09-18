@@ -1383,7 +1383,7 @@ mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> 
 mod_vcard_ldap_binary_search_fields(_, V) ->
     [V].
 
--spec service_admin_extra_submods(path(), toml_section()) -> [option()].
+-spec service_admin_extra_submods(path(), toml_value()) -> [option()].
 service_admin_extra_submods(_, V) ->
     [b2a(V)].
 

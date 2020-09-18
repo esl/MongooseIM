@@ -11,7 +11,15 @@
 
 -define(HOST, 'HOST').
 
--type validator_spec() :: atom() | {atom(), term()} | {atom(), term(), term()}.
+-type validator_spec() :: atom()
+    | {list, validator_spec()}
+    | {list1, validator_spec()}
+    | {multi, validator_spec()}
+    | {enum, [term()]}
+    | {backend, atom()}
+    | {optional_section, validator_spec()}
+    | {optional_section, atom(), validator_spec()}
+    | #{atom() => validator_spec()}.
 
 -spec validate(mongoose_config_parser_toml:path(),
                mongoose_config_parser_toml:option() | mongoose_config_parser_toml:config_list()) ->
@@ -857,6 +865,7 @@ mod_time() ->
     #{iqdisc => iqdisc}.
 
 
+-spec module_spec_functions() -> #{module() => fun()}.
 module_spec_functions() ->
     %% Module name and function name should be the same in this map
     #{mod_adhoc => fun mod_adhoc/0,
@@ -893,6 +902,7 @@ module_spec_functions() ->
       mod_vcard => fun mod_vcard/0,
       mod_time => fun mod_time/0}.
 
+-spec type_to_validator() -> #{validator_spec() => fun()}.
 type_to_validator() ->
     #{%% Basic validators
       string => fun validate_string/1,
@@ -964,6 +974,10 @@ type_to_validator() ->
       %% typespecs for values, that are passed into validate_modules function.
      }.
 
+-spec validate_type(validator_spec(),
+                    mongoose_config_parser_toml:path(),
+                    mongoose_config_parser_toml:option()
+                    | mongoose_config_parser_toml:config_list()) -> any().
 validate_type({multi, Type}, Path, Value) ->
     %% Validate multiple values in a list
     [validate_type(Type, Path, Val) || Val <- Value];
@@ -1031,6 +1045,7 @@ module_option_types_spec() ->
 
 %% Majority of values are inside a list.
 %% We need to pass only head into a validator.
+-spec add_unlistify(validator_spec()) -> validator_spec().
 add_unlistify({multi, Type}) ->
     {multi, Type};
 add_unlistify(Type = #{}) ->
@@ -1042,6 +1057,7 @@ add_unlistify(Type) ->
 %% Tell to remove this tag wrapper and pass only option value into validators
 %% for most non-nested values.
 %% Example: {iqdisc, one_queue}
+-spec add_tagged(atom(), validator_spec()) -> validator_spec().
 add_tagged(_Opt, Type = {list, _}) ->
     Type;
 add_tagged(_Opt, Type = {tagged, _, _}) -> %% Already tagged
@@ -1078,6 +1094,8 @@ add_tagged(Opt, Type) ->
 %%
 %% Optional sections could be maps (in toml) or an atom false (so, we produce
 %% an extra rule for such path with {optional_section,Tag} validator).
+-spec type_to_paths(validator_spec(), mongoose_config_parser_toml:path()) ->
+        [{mongoose_config_parser_toml:path(), validator_spec()}].
 type_to_paths({list, Type}, Path) ->
     type_to_paths(Type, [item|Path]);
 type_to_paths({optional_section, Tag, Dict}, Path) ->
@@ -1094,6 +1112,7 @@ type_to_paths(Dict, Path) when is_map(Dict) ->
 type_to_paths(Type, Path) ->
     [{Path, Type}].
 
+-spec path_to_module(mongoose_config_parser_toml:path()) -> module().
 path_to_module(Path) ->
     PathR = lists:reverse(Path),
     case PathR of
@@ -1103,6 +1122,8 @@ path_to_module(Path) ->
             b2a(Mod)
     end.
 
+-spec path_without_host_config(mongoose_config_parser_toml:path()) ->
+        mongoose_config_parser_toml:path().
 path_without_host_config(Path) ->
     PathR = lists:reverse(Path),
     [<<"host_config">>, _|Rest] = PathR,
