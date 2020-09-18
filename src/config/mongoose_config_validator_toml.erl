@@ -11,6 +11,8 @@
 
 -define(HOST, 'HOST').
 
+-type validator_spec() :: atom() | {atom(), term()} | {atom(), term(), term()}.
+
 -spec validate(mongoose_config_parser_toml:path(),
                mongoose_config_parser_toml:option() | mongoose_config_parser_toml:config_list()) ->
           any().
@@ -518,7 +520,7 @@ mod_global_distrib() ->
 %% This block is too long for inlining into mod_global_distrib
 global_distrib_connections() ->
     #{endpoints => {list, #{host => network_address, port => network_port}},
-      advertised_endpoints => {optional_section, advertised_endpoints,
+      advertised_endpoints => {optional_section,
                                {list, #{host => network_address, port => network_port}}},
       connections_per_endpoint => non_neg_integer,
       endpoint_refresh_interval => pos_integer,
@@ -791,7 +793,7 @@ mod_roster() ->
 mod_shared_roster_ldap() ->
     #{ldap_pool_tag => pool_name,
       ldap_base => string,
-      ldap_deref => {enum, [never, always, finding, searching]},
+      ldap_deref => ldap_deref_type(),
       %% - attributes
       ldap_groupattr => string,
       ldap_groupdesc => string,
@@ -811,6 +813,9 @@ mod_shared_roster_ldap() ->
       ldap_gfilter => string,
       ldap_ufilter => string,
       ldap_filter => string}.
+
+ldap_deref_type() ->
+     {enum, [never, always, finding, searching]}.
 
 mod_sic() ->
     #{iqdisc => iqdisc}.
@@ -838,7 +843,7 @@ mod_vcard() ->
       %% - ldap
       ldap_pool_tag => pool_name,
       ldap_base => string,
-      ldap_deref => {enum, [never, always, finding, searching]},
+      ldap_deref => ldap_deref_type(),
       ldap_uids => {list, ldap_uids},
       ldap_filter => string,
       ldap_vcard_map => {list, ldap_vcard_map},
@@ -938,31 +943,46 @@ type_to_validator() ->
       ldap_vcard_map => fun validate_ldap_vcard_map/1,
       ldap_search_field => fun validate_ldap_search_field/1,
       ldap_search_reported => fun validate_ldap_search_reported/1
-      %% Called from validate_type function: 
-      %% backend => fun validate_backend/2,
+      %% Compound types
+      %% {list, Type} - a list of elements of type Type.
+      %%                Parser calls validate for each element.
+      %% {multi, Type} - a list of elements of type Type
+      %%                Parser calls validate once passing the whole list
+      %%                as an argument.
+      %%                validate_type calls type validator for each element.
+      %% {list1, Type} - a list of one element of type Type.
+      %% {tagged, Tag, Type} - Type, wrapped into a tuple, where first element
+      %%                       is an atom Tag.
+      %% {renamed, NewName, Type} - The same as {tagged, NewName, Type}
+      %%                            (but more readable).
+      %% {backend, Module} - see validate_type/2
+      %%
+      %% list1 and tagged types are added missing in specs,
+      %% but would be added from functions add_tagged and add_unlistify
+      %% before module_option_paths returns.
+      %% Check module_option_paths output function to know the final
+      %% typespecs for values, that are passed into validate_modules function.
      }.
 
-validate_type({unwrapped, Type}, Path, Value) ->
-    validate_type(Type, Path, Value);
 validate_type({multi, Type}, Path, Value) ->
     %% Validate multiple values in a list
     [validate_type(Type, Path, Val) || Val <- Value];
-validate_type({listed, Type}, Path, Value) ->
+validate_type({list1, Type}, Path, Value) ->
     case Value of
-        [Unwrapped] ->
-            validate_type(Type, Path, Unwrapped);
+        [Untagged] ->
+            validate_type(Type, Path, Untagged);
         _ ->
             error(#{what => list_value_expected,
                     text => <<"We expect Value argument to be a list of one">>,
                     value => Value, path => Path, type => Type})
     end;
-validate_type({wrapped, Wrapper, Type}, Path, Value) ->
+validate_type({tagged, Tag, Type}, Path, Value) ->
     case Value of
-        {Wrapper, Unwrapped} ->
-            validate_type(Type, Path, Unwrapped);
+        {Tag, Untagged} ->
+            validate_type(Type, Path, Untagged);
         _ ->
-            error(#{what => expected_to_be_wrapped,
-                    wrapper => Wrapper, value => Value, path => Path, type => Type})
+            error(#{what => expected_to_be_tagged,
+                    tag => Tag, value => Value, path => Path, type => Type})
     end;
 validate_type(backend, Path, Value) ->
     Module = path_to_module(Path),
@@ -971,8 +991,8 @@ validate_type({backend, Module}, _Path, Value) ->
     validate_backend(Module, Value);
 validate_type({enum, Types}, _Path, Value) ->
     validate_enum(Value, Types);
-validate_type({optional_section, Name}, _Path, Value) ->
-    validate_optional_section(Name, Value);
+validate_type({optional_section, Tag}, _Path, Value) ->
+    validate_optional_section(Tag, Value);
 validate_type(Type, Path, Value) when is_atom(Type) ->
     case maps:find(Type, type_to_validator()) of
         {ok, F} ->
@@ -985,9 +1005,23 @@ validate_type(Type, Path, Value) ->
     error(#{what => unknown_validator_type, type => Type,
             path => Path, value => Value}).
 
+
+%% Returns a list of Paths and validator types for each module option.
+-spec module_option_paths() ->
+    [{mongoose_config_parser_toml:path(), validator_spec()}].
 module_option_paths() ->
     lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types_spec()]).
 
+%% Unfolds type specs and creates paths.
+%% Determines if we need untag and unlistify values before passing them into
+%% the validator functions.
+module_option_paths(Mod, Opt, Type) ->
+    Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
+    PathType = type_to_paths(add_tagged(Opt, Type), Path),
+    [{P, add_unlistify(T)} || {P,T} <- PathType].
+
+%% Collects all module specs (still folded) into one list for processing
+-spec module_option_types_spec() -> [{module(), atom(), validator_spec()}].
 module_option_types_spec() ->
     ModuleSpecs = [{Module, Fun()}
                    || {Module, Fun} <- maps:to_list(module_spec_functions())],
@@ -995,57 +1029,66 @@ module_option_types_spec() ->
      {Module, SpecMap} <- ModuleSpecs,
      {OptName, OptSpec} <- maps:to_list(SpecMap)].
 
-module_option_paths(Mod, Opt, Type) ->
-    Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
-    PathType = type_to_paths(add_wrapped(Opt, Type), Path),
-    [{P, add_unlistify(T)} || {P,T} <- PathType].
-
 %% Majority of values are inside a list.
 %% We need to pass only head into a validator.
-add_unlistify({unwrapped, Type}) ->
-    Type;
 add_unlistify({multi, Type}) ->
     {multi, Type};
 add_unlistify(Type = #{}) ->
     {multi, Type};
 add_unlistify(Type) ->
-    {listed, Type}.
+    {list1, Type}. %% wrapped into a list of length one.
 
-%% Values for basic module options are wrapped into an option name.
-%% Tell to remove this wrapper and pass only option value into validators
+%% Values for basic module options are tagged into an option name.
+%% Tell to remove this tag wrapper and pass only option value into validators
 %% for most non-nested values.
 %% Example: {iqdisc, one_queue}
-add_wrapped(_Opt, Type = {list, _}) ->
+add_tagged(_Opt, Type = {list, _}) ->
     Type;
-add_wrapped(_Opt, Type = {unwrapped, _}) ->
+add_tagged(_Opt, Type = {tagged, _, _}) -> %% Already tagged
     Type;
-add_wrapped(_Opt, Type = {wrapped, _, _}) -> %% Already wrapped
+add_tagged(_Opt, {renamed, NewName, Type}) ->
+    {tagged, NewName, Type}; %% Reuse tagged logic
+add_tagged(Opt, {optional_section, Type}) ->
+    {optional_section, Opt, Type}; %% Just use Opt as Tag, if Tag is unspecified
+add_tagged(_Opt, Type = {optional_section, _Tag, _Type}) ->
     Type;
-add_wrapped(_Opt, {renamed, NewName, Type}) ->
-    {wrapped, NewName, Type}; %% Reuse wrapped logic
-add_wrapped(_Opt, Type = {optional_section, _Type}) ->
+add_tagged(_Opt, Type = #{}) ->
     Type;
-add_wrapped(_Opt, Type = {optional_section, _Name, _Type}) ->
-    Type;
-add_wrapped(_Opt, Type = #{}) ->
-    Type;
-add_wrapped(_Opt, {multi, Type}) ->
+add_tagged(_Opt, {multi, Type}) ->
     {multi, Type};
-add_wrapped(Opt, Type) ->
-    {wrapped, Opt, Type}.
+add_tagged(Opt, Type) ->
+    {tagged, Opt, Type}.
 
-%% maps inside lists are unwrapped
-%% other maps are usually wrapped_section
-%% maps inside optional_section are wrapped_section
+%% If map is inside a list, fields would not be tagged usually.
+%% Example: Path and validator for mod_global_distrib.connections.endpoints._.host:
+%%
+%%  {[<<"host">>,item,<<"endpoints">>,<<"connections">>,
+%%   <<"mod_global_distrib">>,<<"modules">>],
+%%   {list1,network_address}}
+%%
+%% Otherwise fields would be tagged with a field name
+%% (including optional_section case).
+%%
+%% Example: Path and validator for mod_stream_management.stale_h.enabled:
+%%
+%%  {[<<"enabled">>,<<"stale_h">>,<<"mod_stream_management">>,<<"modules">>],
+%%   {list1,{tagged,enabled,boolean}}}
+%%
+%% Both examples are produced by module_option_paths() function.
+%%
+%% Optional sections could be maps (in toml) or an atom false (so, we produce
+%% an extra rule for such path with {optional_section,Tag} validator).
 type_to_paths({list, Type}, Path) ->
     type_to_paths(Type, [item|Path]);
-type_to_paths({optional_section, Name, Dict}, Path) ->
-    [{Path, {optional_section, Name}}] ++ type_to_paths(Dict, Path);
+type_to_paths({optional_section, Tag, Dict}, Path) ->
+    [{Path, {optional_section, Tag}}] ++ type_to_paths(Dict, Path);
+%% untagged map fields
 type_to_paths(Dict, [item|_] = Path) when is_map(Dict) ->
     lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
                   || {Key, Type} <- maps:to_list(Dict)]);
+%% tagged map fields
 type_to_paths(Dict, Path) when is_map(Dict) ->
-    lists:append([type_to_paths(add_wrapped(Key, Type),
+    lists:append([type_to_paths(add_tagged(Key, Type),
                                 [atom_to_binary(Key, utf8)|Path])
                   || {Key, Type} <- maps:to_list(Dict)]);
 type_to_paths(Type, Path) ->
@@ -1280,9 +1323,9 @@ validate_dirname(Dirname) ->
             error(#{what => invalid_dirname, dirname => Dirname, reason => Reason})
     end.
 
-validate_optional_section(Name, {Name, false}) -> %% set to false to disable the feature
+validate_optional_section(Tag, {Tag, false}) -> %% set to false to disable the feature
     ok;
-validate_optional_section(Name, {Name, List}) when is_list(List) -> %% proplist
+validate_optional_section(Tag, {Tag, List}) when is_list(List) -> %% proplist
     ok.
 
 validate_keystore_key({Name, ram}) ->
