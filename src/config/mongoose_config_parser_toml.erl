@@ -949,6 +949,9 @@ module_opt([<<"matches">>, <<"mod_vcard">>|_], V) ->
 module_opt([<<"ldap_vcard_map">>, <<"mod_vcard">>|_] = Path, V) ->
     Maps = parse_list(Path, V),
     [{ldap_vcard_map, Maps}];
+module_opt([<<"ldap_uids">>, <<"mod_vcard">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{ldap_uids, List}];
 module_opt([<<"ldap_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
     Fields = parse_list(Path, V),
     [{ldap_search_fields, Fields}];
@@ -957,8 +960,9 @@ module_opt([<<"ldap_search_reported">>, <<"mod_vcard">>|_] = Path, V) ->
     [{ldap_search_reported, Reported}];
 module_opt([<<"ldap_search_operator">>, <<"mod_vcard">>|_], V) ->
     [{ldap_search_operator, b2a(V)}];
-module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_], V) ->
-    [{ldap_binary_search_fields, V}];
+module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{ldap_binary_search_fields, List}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
 module_opt([<<"iqdisc">>|_], #{<<"type">> := <<"queues">>, <<"workers">> := Workers}) ->
@@ -1133,7 +1137,7 @@ mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V
     [{endpoint_refresh_interval_when_empty, V}];
 mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
     [{disabled_gc_interval, V}];
-mod_global_distrib_connections([<<"tls">>|_] = Path, false) ->
+mod_global_distrib_connections([<<"tls">>|_] = _Path, false) ->
     [{tls_opts, false}];
 mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
     TLSOpts = parse_section(Path, V),
@@ -1222,8 +1226,6 @@ mod_mam_opts([<<"host">>|_], V) ->
     [{host, b2l(V)}];
 mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
     [{extra_lookup_params, b2a(V)}];
-mod_mam_opts([<<"archive_chat_markers">>|_], V) ->
-    [{archive_chat_markers, V}];
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
@@ -1322,9 +1324,10 @@ mod_stream_management_stale_h([<<"geriatric">>|_], V) ->
 
 -spec mod_vcard_ldap_uids(path(), toml_section()) -> [option()].
 mod_vcard_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
-    [{b2a(Attr), b2l(Format)}];
+    [{b2l(Attr), b2l(Format)}];
 mod_vcard_ldap_uids(_, #{<<"attr">> := Attr}) ->
-    [b2a(Attr)].
+    [b2l(Attr)].
+
 
 -spec mod_vcard_ldap_vcard_map(path(), toml_section()) -> [option()].
 mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP,
@@ -1338,6 +1341,10 @@ mod_vcard_ldap_search_fields(_, #{<<"search_field">> := SF, <<"ldap_field">> := 
 -spec mod_vcard_ldap_search_reported(path(), toml_section()) -> [option()].
 mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> := VF}) ->
     [{SF, VF}].
+
+-spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
+mod_vcard_ldap_binary_search_fields(_, V) ->
+    [V].
 
 welcome_message([<<"subject">>|_], Value) ->
     [{subject, b2l(Value)}];
@@ -1779,6 +1786,8 @@ handler([_, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_fields/2;
 handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_reported/2;
+handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
+    fun mod_vcard_ldap_binary_search_fields/2;
 
 %% shaper, acl, access
 handler([_, <<"shaper">>]) -> fun process_shaper/2;

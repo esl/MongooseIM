@@ -429,7 +429,7 @@ validate_modules(Path, Value) ->
     ok.
 
 tls_opts_spec() ->
-    #{cacertfile => {wrapped, cafile, filename}, %% renamed option
+    #{cacertfile => {renamed, cafile, filename},
       certfile => filename,
       dhfile => filename,
       ciphers => string}.
@@ -728,6 +728,24 @@ module_option_types_spec() ->
      %% mod_version
      {mod_version, iqdisc, iqdisc},
      {mod_version, os_info, boolean},
+     %% mod_vcard
+     {mod_vcard, iqdisc, iqdisc},
+     {mod_vcard, host, domain_template},
+     {mod_vcard, search, boolean},
+     {mod_vcard, backend, backend},
+     {mod_vcard, matches, non_neg_integer_or_inf},
+     %% - ldap
+     {mod_vcard, ldap_pool_tag, pool_name},
+     {mod_vcard, ldap_base, string},
+     {mod_vcard, ldap_deref, {enum, [never, always, finding, searching]}},
+     {mod_vcard, ldap_uids, {list, ldap_uids}},
+     {mod_vcard, ldap_filter, string},
+     {mod_vcard, ldap_vcard_map, {list, ldap_vcard_map}},
+     {mod_vcard, ldap_search_fields, {list, ldap_search_field}},
+     {mod_vcard, ldap_search_reported, {list, ldap_search_reported}},
+     {mod_vcard, ldap_search_operator, {enum, ['or', 'and']}},
+     {mod_vcard, ldap_binary_search_fields, {list, non_empty_binary}},
+     {mod_vcard, riak, #{bucket_type => non_empty_binary, search_index => non_empty_binary}},
      %% mod_time
      {mod_time, iqdisc, iqdisc}
     ].
@@ -804,9 +822,11 @@ type_to_validator() ->
       muc_affiliation_rule => fun validate_muc_affiliation_rule/1,
       muc_config_schema => fun validate_muc_config_schema/1,
       pubsub_pep_mapping => fun validate_pubsub_pep_mapping/1,
-      revproxy_route => fun validate_revproxy_route/1
-      %% Could be useful to be separate validator:
-      %% wpool_options => fun validate_wpool_options/1
+      revproxy_route => fun validate_revproxy_route/1,
+      ldap_uids => fun validate_ldap_uids/1,
+      ldap_vcard_map => fun validate_ldap_vcard_map/1,
+      ldap_search_field => fun validate_ldap_search_field/1,
+      ldap_search_reported => fun validate_ldap_search_reported/1
       %% Called from validate_type function: 
       %% backend => fun validate_backend/2,
      }.
@@ -997,9 +1017,6 @@ validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
 validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
-validate_list_of_jids(Jids) ->
-    [validate_jid(Jid) || Jid <- Jids].
-
 validate_jid(Jid) ->
     case jid:from_binary(Jid) of
         #jid{} ->
@@ -1188,3 +1205,22 @@ validate_revproxy_route({Host, Path, Upstream}) ->
     validate_non_empty_string(Host),
     validate_string(Path),
     validate_non_empty_string(Upstream).
+
+validate_ldap_vcard_map({VCardField, LDAPPattern, LDAPFields}) ->
+    validate_non_empty_binary(VCardField),
+    validate_non_empty_binary(LDAPPattern),
+    lists:foreach(fun validate_non_empty_binary/1, LDAPFields).
+
+validate_ldap_search_field({SearchField, LDAPField}) ->
+    validate_non_empty_binary(SearchField),
+    validate_non_empty_binary(LDAPField).
+
+validate_ldap_search_reported({SearchField, VCardField}) ->
+    validate_non_empty_binary(SearchField),
+    validate_non_empty_binary(VCardField).
+
+validate_ldap_uids({Attribute, Format}) ->
+    validate_non_empty_string(Attribute),
+    validate_non_empty_string(Format);
+validate_ldap_uids(Attribute) ->
+    validate_non_empty_string(Attribute).

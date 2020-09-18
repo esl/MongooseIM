@@ -188,6 +188,7 @@ groups() ->
                             mod_sic,
                             mod_stream_management,
                             mod_time,
+                            mod_vcard,
                             mod_version]}
     ].
 
@@ -2557,6 +2558,93 @@ mod_stream_management(_Config) ->
 mod_time(_Config) ->
     check_iqdisc(mod_time).
 
+mod_vcard(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
+    MBase = [{iqdisc, one_queue},
+             {host, "vjud.@HOST@"},
+             {search, true},
+             {backend, mnesia},
+             {matches, infinity},
+             %% ldap
+             {ldap_pool_tag, default},
+             {ldap_base, "ou=Users,dc=ejd,dc=com"},
+             {ldap_deref, never},
+             {ldap_uids, [{"mail", "%u@mail.example.org"}, "name"]},
+             {ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
+             %% MIM accepts {"FAMILY", "%s", ["sn", "cn"]} form too
+             {ldap_vcard_map, [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]}]}, %% iolists
+             {ldap_search_fields, [{<<"Full Name">>, <<"cn">>}]}, %% pair of iolists
+             {ldap_search_reported, [{<<"Full Name">>, <<"FN">>}]}, %% iolists
+             {ldap_search_operator, 'or'},
+             {ldap_binary_search_fields, [<<"PHOTO">>]},
+             %% riak
+             {bucket_type, <<"vcard">>},
+             {search_index, <<"vcard">>}
+            ],
+    Riak = #{<<"bucket_type">> => <<"vcard">>,
+             <<"search_index">> => <<"vcard">>},
+    Base = #{
+      <<"iqdisc">> => <<"one_queue">>,
+      <<"host">> => <<"vjud.@HOST@">>,
+      <<"search">> => true,
+      <<"backend">> => <<"mnesia">>,
+      <<"matches">> => <<"infinity">>,
+      %% ldap
+      <<"ldap_pool_tag">> => <<"default">>,
+      <<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>,
+      <<"ldap_deref">> => <<"never">>,
+      <<"ldap_uids">> => [#{<<"attr">> => <<"mail">>,
+                            <<"format">> => <<"%u@mail.example.org">>},
+                          #{<<"attr">> => <<"name">>}],
+      <<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
+      <<"ldap_vcard_map">> => [#{<<"vcard_field">> => <<"FAMILY">>,
+                                 <<"ldap_pattern">> => <<"%s">>,
+                                 <<"ldap_field">> => <<"sn">>}],
+      <<"ldap_search_fields">> => [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => <<"cn">>}],
+      <<"ldap_search_reported">> => [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => <<"FN">>}],
+      <<"ldap_search_operator">> => <<"or">>, % atom
+      <<"ldap_binary_search_fields">> => [<<"PHOTO">>],
+      <<"riak">> => Riak
+     },
+    run_multi(check_one_opts_with_same_field_name(mod_vcard, MBase, Base, T)
+              ++ [ ?_eqf(modopts(mod_vcard, lists:sort(MBase)), T(Base)),
+                   ?_eqf(modopts(mod_vcard, [{matches, 1}]), T(#{<<"matches">> => 1})) ]
+              ++ generic_bad_opts_cases(T, mod_vcard_bad_opts())),
+    check_iqdisc(mod_vcard).
+
+mod_vcard_bad_opts() ->
+    M = #{<<"vcard_field">> => <<"FAMILY">>,
+          <<"ldap_pattern">> => <<"%s">>,
+          <<"ldap_field">> => <<"sn">>},
+    [{host, 1},
+     {host, <<"test test">>},
+     {search, 1},
+     {backend, 1},
+     {backend, <<"mememesia">>},
+     {matches, -1},
+     {ldap_pool_tag, -1},
+     {ldap_base, -1},
+     {ldap_deref, <<"nevernever">>},
+     {ldap_deref, -1},
+     {ldap_uids, -1},
+     {ldap_uids, [#{}]},
+     {ldap_uids, [#{<<"attr">> => 1, <<"format">> => <<"ok">>}]},
+     {ldap_uids, [#{<<"attr">> => <<"ok">>, <<"format">> => 1}]},
+     {ldap_uids, [#{<<"format">> => <<"ok">>}]},
+     {ldap_filter, 1},
+     {ldap_vcard_map, [M#{<<"vcard_field">> => 1}]},
+     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
+     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
+     {ldap_search_fields, [#{<<"search_field">> => 1, <<"ldap_field">> => <<"cn">>}]},
+     {ldap_search_fields, [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => 1}]},
+     {ldap_search_reported, [#{<<"search_field">> => 1, <<"vcard_field">> => <<"FN">>}]},
+     {ldap_search_reported, [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => 1}]},
+     {ldap_search_operator, <<"more">>},
+     {ldap_binary_search_fields, [1]},
+     {ldap_binary_search_fields, 1},
+     {riak, #{<<"bucket_type">> => 1}},
+     {riak, #{<<"search_index">> => 1}}].
+
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
     ?eqf(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
@@ -2816,6 +2904,16 @@ pl_merge(L1, L2) ->
     M2 = maps:from_list(L2),
     maps:to_list(maps:merge(M1, M2)).
 
+%% Runs check_one_opts, but only for fields, that present in both
+%% MongooseIM and TOML config formats with the same name.
+%% Helps to filter out riak fields automatically.
+check_one_opts_with_same_field_name(M, MBase, Base, T) ->
+    KeysM = maps:keys(maps:from_list(MBase)),
+    KeysT = lists:map(fun b2a/1, maps:keys(Base)),
+    Keys = ordsets:intersection(ordsets:from_list(KeysT),
+                                ordsets:from_list(KeysM)),
+    check_one_opts(M, MBase, Base, T, Keys).
+
 check_one_opts(M, MBase, Base, T) ->
     Keys = maps:keys(maps:from_list(MBase)),
     check_one_opts(M, MBase, Base, T, Keys).
@@ -2857,6 +2955,7 @@ ensure_sorted(List) ->
      || lists:sort(List) =/= List].
 
 a2b(X) -> atom_to_binary(X, utf8).
+b2a(X) -> binary_to_atom(X, utf8).
 
 
 generic_opts_cases(M, T, Opts) ->
