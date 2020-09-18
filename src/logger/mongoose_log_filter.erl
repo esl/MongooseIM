@@ -18,8 +18,9 @@ fill_metadata_filter(Event=#{msg := {report, Msg}, meta := Meta}, Fields) ->
     FieldMap = maps:with(Fields, Msg),
     %% Remove the fields to not print them twice
     Msg2 = maps:without(Fields, Msg),
-    Event#{meta => maps:merge(FieldMap, Meta), msg => {report, Msg2}}.
-
+    Event#{meta => maps:merge(FieldMap, Meta), msg => {report, Msg2}};
+fill_metadata_filter(Event, _) ->
+    Event.
 
 format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_state := State}}}, _) ->
     StateMap = filter_undefined(c2s_state_to_map(State)),
@@ -38,7 +39,7 @@ format_acc_filter(Event, _) ->
 
 %% Encodes exml_packet
 format_packet_filter(Event=#{msg := {report, Msg=#{exml_packet := Packet}}}, _) ->
-    BinPacket = exml_packet:to_binary(Packet),
+    BinPacket = exml:to_binary(Packet),
     Msg2 = maps:put(packet, BinPacket, maps:remove(exml_packet, Msg)),
     Event#{msg => {report, Msg2}};
 format_packet_filter(Event, _) ->
