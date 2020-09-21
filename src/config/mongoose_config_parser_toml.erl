@@ -1601,7 +1601,9 @@ handle(Path, Value) ->
         Option ->
                 validate(Path, Option),
                 Option
-    catch Class:Error:Stacktrace ->
+    %% attach path if it has no path attached yet
+    catch Class:Error:Stacktrace
+         when not is_map(Error); not is_map_key(path, Error) ->
               erlang:raise(Class, #{what => toml_parse_failed,
                                     path => Path,
                                     reason => Error}, Stacktrace)
@@ -1610,7 +1612,8 @@ handle(Path, Value) ->
 validate(Path, Option) ->
     try
         mongoose_config_validator_toml:validate(Path, Option)
-    catch Class:Error:Stacktrace ->
+    catch Class:Error:Stacktrace
+         when not is_map(Error); not is_map_key(path, Error) ->
               erlang:raise(Class, #{what => toml_validate_failed,
                                     path => Path,
                                     reason => Error}, Stacktrace)
