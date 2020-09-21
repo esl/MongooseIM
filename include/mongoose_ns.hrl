@@ -5,6 +5,7 @@
 -define(NS_CONFERENCE,          <<"jabber:x:conference">>).
 -define(NS_DISCO_ITEMS,         <<"http://jabber.org/protocol/disco#items">>).
 -define(NS_DISCO_INFO,          <<"http://jabber.org/protocol/disco#info">>).
+-define(NS_EXTDISCO,            <<"urn:xmpp:extdisco:2">>).
 -define(NS_VCARD,               <<"vcard-temp">>).
 -define(NS_VCARD_UPDATE,        <<"vcard-temp:x:update">>).
 -define(NS_OAUTH_0,             <<"urn:xmpp:oauth:0">>).% Defined by XEP-0235: Authorization Tokens.
