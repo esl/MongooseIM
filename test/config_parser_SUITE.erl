@@ -1312,8 +1312,9 @@ mod_csi(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     ?eqf(modopts(mod_csi, [{buffer_max, 10}]),
          T(<<"buffer_max">>, 10)),
-    ?errf(T(<<"buffer_max">>, -1)),
-    ?errf(T(<<"buffer_max">>, <<"infinity">>)).
+    ?eqf(modopts(mod_csi, [{buffer_max, infinity}]),
+         T(<<"buffer_max">>, <<"infinity">>)),
+    ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,

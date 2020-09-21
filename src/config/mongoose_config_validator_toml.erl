@@ -637,7 +637,7 @@ validate([<<"ack_freq">>, <<"mod_stream_management">>, <<"modules">>|_],
     validate_non_negative_integer(V);
 validate([<<"buffer_max">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{buffer_max, V}]) ->
-    validate_non_negative_integer(V);
+    validate_non_negative_integer_or_infinity(V);
 validate([<<"resume_timeout">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{resume_timeout, V}]) ->
     validate_non_negative_integer(V);

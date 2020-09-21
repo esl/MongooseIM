@@ -644,6 +644,8 @@ module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
     [{cache_size, V}];
 module_opt([<<"cache_life_time">>, <<"mod_caps">>|_], V) ->
     [{cache_life_time, V}];
+module_opt([<<"buffer_max">>, <<"mod_csi">>|_], <<"infinity">>) ->
+    [{buffer_max, infinity}];
 module_opt([<<"buffer_max">>, <<"mod_csi">>|_], V) ->
     [{buffer_max, V}];
 module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
