@@ -3,9 +3,7 @@ Implements [XEP-0215: External Service Discovery](http://xmpp.org/extensions/xep
 The main use-case is to help discover STUN/TURN servers to allow for negotiating media exchanges.
 
 ### Options
-* **type** (atom, default: unset) - service type
-
-#### Service Options
+* **type** (atom, default: unset) - Service type.
 * **host** (string, required, default: unset): Hostname or an IP address where the service is hosted.
 * **port** (string, recommended, default: unset): The communications port to be used at the host.
 * **transport** (string, optional, default: unset): The underlying transport protocol to be used when communicating with the service.
@@ -18,17 +16,15 @@ The main use-case is to help discover STUN/TURN servers to allow for negotiating
 
 ```Erlang
 {mod_extdisco, [
-    {stun, [
-        {host, "127.0.0.1"},
-        {port, "3478"},
-        {transport, "udp"},
-        {username, "username"},
-        {password, "secret"}
-    ]},
-    {turn, [
-        {host, "hostname"},
-        {port, "3478"},
-        {transport, "tcp"},
-    ]}
+    [{type, stun},
+     {host, "127.0.0.1"},
+     {port, "3478"},
+     {transport, "udp"},
+     {username, "username"},
+     {password, "secret"}],
+    [{type, turn},
+     {host, "hostname"},
+     {port, "3478"},
+     {transport, "tcp"}]
 ]}.
 ```

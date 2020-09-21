@@ -73,7 +73,7 @@ init_per_group(multiple_extdisco_configured, Config) ->
     ExternalServices = [stun_service(), stun_service(), turn_service()],
     set_external_services(ExternalServices, Config);
 init_per_group(external_service_required_elements_configured, Config) ->
-    ExternalServices = [{ftp, [{host, "3.3.3.3"}]}],
+    ExternalServices = [[{type, ftp},{host, "3.3.3.3"}]],
     set_external_services(ExternalServices, Config);
 init_per_group(_GroupName, Config) ->
    Config.
@@ -297,22 +297,20 @@ external_service_required_elements_configured(Config) ->
 %%-----------------------------------------------------------------
 
 stun_service() ->
-    {stun, [
+      [{type, stun},
        {host, "1.1.1.1"},
-       {port, "3478"},
+       {port, 3478},
        {transport, "udp"},
        {username, "username"},
-       {password, "secret"}
-    ]}.
+       {password, "secret"}].
 
 turn_service() ->
-    {turn, [
+       [{type, turn},
         {host, "2.2.2.2"},
-        {port, "3478"},
+        {port, 3478},
         {transport, "tcp"},
         {username, "username"},
-        {password, "secret"}
-    ]}.
+        {password, "secret"}].
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
