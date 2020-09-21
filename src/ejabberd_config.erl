@@ -87,6 +87,8 @@ start() ->
     mnesia:add_table_copy(config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
+    erase_global_opts(), % because this is started before refresher, and we have to cater
+    % for a rare situation when only mongooseim application is restarted (e.g. in test)
     %% This start time is used by mod_last:
     add_local_option(node_start, {node_start, erlang:system_time(second)}),
     ok.
@@ -234,6 +236,10 @@ maybe_clean_acls_opts(State) ->
 clean_global_opts() ->
     Ksg = mnesia:all_keys(config),
     lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg).
+
+erase_global_opts() ->
+    Ksl2 = [K || {{global_config, K}, _} <- persistent_term:get()],
+    lists:foreach(fun(K) -> erase_global_option(K) end, Ksl2).
 
 clean_local_opts() ->
     Ksl2 = [K || {{local_config, K}, _} <- persistent_term:get(), K =/= node_start],

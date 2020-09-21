@@ -331,6 +331,8 @@ register(Host, Password) ->
                                       | {'exists', io_lib:chars()}
                                       | {'ok', io_lib:chars()}.
 register(User, Host, Password) ->
+    ?WARNING_MSG("{User, Host}: ~p", [{User, Host}]),
+    ?WARNING_MSG("ejabberd_config:get_global_option(hosts): ~p", [ejabberd_config:get_global_option(hosts)]),
     case ejabberd_auth:try_register(User, Host, Password) of
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",

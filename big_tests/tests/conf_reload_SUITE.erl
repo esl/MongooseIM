@@ -48,7 +48,8 @@ groups() ->
            user_should_be_registered_and_unregistered_via_xmpp,
            user_should_be_disconnected_from_removed_domain
           ]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    G.
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++
@@ -123,10 +124,14 @@ user_should_be_registered_and_unregistered_via_xmpp(Config) ->
     UserDomain = get_user_domain(?RELOADED_DOMAIN_USER),
     ?assert(lists:member(UserDomain, ?config(new_hosts_value, Config))),
 
+    ct:pal("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: ~p", [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]),
+    timer:sleep(5000),
     %% WHEN
     reload_through_ctl(default_node(Config), Config),
 
+    ct:pal("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: ~p", [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]),
     %% THEN
+    timer:sleep(5000),
     ?assertMatch(ok, create_user(?RELOADED_DOMAIN_USER, Config)),
     ?assertMatch({ok, result, _},
                  delete_user(?RELOADED_DOMAIN_USER, Config)).
