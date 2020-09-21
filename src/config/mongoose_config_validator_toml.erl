@@ -2,24 +2,11 @@
 
 -export([validate/2]).
 
-%% To explore module option paths
--export([module_option_paths/0]).
-
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("jid/include/jid.hrl").
 
 -define(HOST, 'HOST').
-
--type validator_spec() :: atom()
-    | {list, validator_spec()}
-    | {list1, validator_spec()}
-    | {multi, validator_spec()}
-    | {enum, [term()]}
-    | {backend, atom()}
-    | {optional_section, validator_spec()}
-    | {optional_section, atom(), validator_spec()}
-    | #{atom() => validator_spec()}.
 
 -spec validate(mongoose_config_parser_toml:path(),
                mongoose_config_parser_toml:option() | mongoose_config_parser_toml:config_list()) ->
@@ -427,712 +414,1105 @@ validate([<<"tracking_id">>,
          [{tracking_id, Value}]) ->
     validate_non_empty_string(Value);
 
-validate(Path, Value) ->
-    PathR = lists:reverse(Path),
-    validate_r(Path, PathR, Value).
-
-validate_r(Path, [<<"modules">>|_], Value) ->
-    validate_modules(Path, Value);
-validate_r(Path, [<<"host_config">>, {host, _}, <<"modules">>|_], Value) ->
-    validate_modules(path_without_host_config(Path), Value);
-validate_r(Path, _PathR, Value) ->
-    ?LOG_DEBUG(#{what => validate_unknown, path => Path, value => Value}).
-
-validate_modules([_,<<"modules">>], [{Mod,_}]) ->
-    validate_module(Mod);
-validate_modules(Path, Value) ->
-    Types = [Type || {Path1, Type} <- module_option_paths(), Path =:= Path1],
-    case Types of
-        [] ->
-            ?LOG_DEBUG(#{what => validate_unknown_module_path, path => Path, value => Value});
-        _ ->
-            ?LOG_DEBUG(#{what => validate_module_with, path => Path, value => Value, types => Types})
-    end,
-    [try
-         validate_type(Type, Path, Value)
-     catch Class:Reason:Stacktrace ->
-               erlang:raise(Class, #{type => Type, reason => Reason}, Stacktrace)
-     end || Type <- Types],
+%% Modules
+validate([<<"callback_module">>, <<"http">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{callback_module, V}]) ->
+    validate_module(V);
+validate([<<"path">>, <<"http">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{path, V}]) ->
+    validate_string(V);
+validate([<<"pool_name">>, <<"http">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{pool_name, V}]) ->
+    validate_pool_name(V);
+validate([<<"backend">>, <<"push">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_event_pusher_push, V);
+validate([<<"plugin_module">>, <<"push">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{plugin_module, V}]) ->
+    validate_module(V);
+validate([item, <<"virtual_pubsub_hosts">>, <<"push">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [V]) ->
+    validate_domain_template(V);
+validate([<<"strategy">>, <<"wpool">>, <<"push">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{strategy, V}]) ->
+    validate_wpool_strategy(V);
+validate([<<"workers">>, <<"wpool">>, <<"push">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{workers, V}]) ->
+    validate_positive_integer(V);
+validate([<<"name">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{name, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"recv_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{recv_topic, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"sent_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{sent_topic, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"name">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{name, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"recv_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{recv_topic, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"sent_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{sent_topic, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"name">>, <<"presence_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{name, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"type">>, <<"presence_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"access_key_id">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{access_key_id, V}]) ->
+    validate_string(V);
+validate([<<"account_id">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{account_id, V}]) ->
+    validate_string(V);
+validate([<<"muc_host">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{muc_host, V}]) ->
+    validate_domain_template(V);
+validate([<<"muc_messages_topic">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{muc_messages_topic, V}]) ->
+    validate_string(V);
+validate([<<"plugin_module">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{plugin_module, V}]) ->
+    validate_module(V);
+validate([<<"pm_messages_topic">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{pm_messages_topic, V}]) ->
+    validate_string(V);
+validate([<<"pool_size">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{pool_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"presence_updates_topic">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{presence_updates_topic, V}]) ->
+    validate_string(V);
+validate([<<"publish_retry_count">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{publish_retry_count, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"publish_retry_time_ms">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{publish_retry_time_ms, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"region">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{region, V}]) ->
+    validate_string(V);
+validate([<<"secret_access_key">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{secret_access_key, V}]) ->
+    validate_string(V);
+validate([<<"sns_host">>, <<"sns">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{sns_host, V}]) ->
+    validate_string(V);
+validate([<<"max_retries">>, <<"bounce">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{max_retries, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"resend_after_ms">>, <<"bounce">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{resend_after_ms, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"cache_missed">>, <<"cache">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{cache_missed, V}]) ->
+    validate_boolean(V);
+validate([<<"domain_lifetime_seconds">>, <<"cache">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{domain_lifetime_seconds, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"jid_lifetime_seconds">>, <<"cache">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{jid_lifetime_seconds, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_jids">>, <<"cache">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{max_jids, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"advertised_endpoints">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [false]) ->
+   ok;
+validate([<<"host">>, item, <<"advertised_endpoints">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [V]) ->
+    validate_network_address(V);
+validate([<<"port">>, item, <<"advertised_endpoints">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [V]) ->
+    validate_network_port(V);
+validate([<<"connections_per_endpoint">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{connections_per_endpoint, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"disabled_gc_interval">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{disabled_gc_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"endpoint_refresh_interval">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{endpoint_refresh_interval, V}]) ->
+    validate_positive_integer(V);
+validate([<<"endpoint_refresh_interval_when_empty">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{endpoint_refresh_interval_when_empty, V}]) ->
+    validate_positive_integer(V);
+validate([<<"host">>, item, <<"endpoints">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [V]) ->
+    validate_network_address(V);
+validate([<<"port">>, item, <<"endpoints">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [V]) ->
+    validate_network_port(V);
+validate([<<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [false]) ->
+    ok;
+validate([<<"cacertfile">>, <<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{cafile, V}]) ->
+    validate_filename(V);
+validate([<<"certfile">>, <<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{certfile, V}]) ->
+    validate_filename(V);
+validate([<<"ciphers">>, <<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{ciphers, V}]) ->
+    validate_string(V);
+validate([<<"dhfile">>, <<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{dhfile, V}]) ->
+    validate_filename(V);
+validate([<<"global_host">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{global_host, V}]) ->
+    validate_domain(V);
+validate([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{hosts_refresh_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"local_host">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{local_host, V}]) ->
+    validate_domain(V);
+validate([<<"message_ttl">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{message_ttl, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"expire_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{expire_after, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"pool">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{pool, V}]) ->
+    validate_pool_name(V);
+validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{refresh_after, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ack_freq">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{ack_freq, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"buffer_max">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{buffer_max, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"resume_timeout">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{resume_timeout, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"enabled">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{enabled, V}]) ->
+    validate_boolean(V);
+validate([<<"geriatric">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{stale_h_geriatric, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"repeat_after">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
+         [{stale_h_repeat_after, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_auth_check, V}]) ->
+    validate_boolean(V);
+validate([<<"ldap_base">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_base, V}]) ->
+    validate_string(V);
+validate([<<"ldap_deref">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_deref, V}]) ->
+    validate_enum(V, [never,always,finding,searching]);
+validate([<<"ldap_filter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_filter, V}]) ->
+    validate_string(V);
+validate([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_gfilter, V}]) ->
+    validate_string(V);
+validate([<<"ldap_group_cache_size">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_group_cache_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ldap_group_cache_validity">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_group_cache_validity, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_groupattr, V}]) ->
+    validate_string(V);
+validate([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_groupdesc, V}]) ->
+    validate_string(V);
+validate([<<"ldap_memberattr">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_memberattr, V}]) ->
+    validate_string(V);
+validate([<<"ldap_memberattr_format">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_memberattr_format, V}]) ->
+    validate_string(V);
+validate([<<"ldap_memberattr_format_re">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_memberattr_format_re, V}]) ->
+    validate_string(V);
+validate([<<"ldap_pool_tag">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_pool_tag, V}]) ->
+    validate_pool_name(V);
+validate([<<"ldap_rfilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_rfilter, V}]) ->
+    validate_string(V);
+validate([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_ufilter, V}]) ->
+    validate_string(V);
+validate([<<"ldap_user_cache_size">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_user_cache_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ldap_user_cache_validity">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_user_cache_validity, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"ldap_userdesc">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_userdesc, V}]) ->
+    validate_string(V);
+validate([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
+         [{ldap_useruid, V}]) ->
+    validate_string(V);
+validate([<<"iqdisc">>, <<"mod_version">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"os_info">>, <<"mod_version">>, <<"modules">>|_],
+         [{os_info, V}]) ->
+    validate_boolean(V);
+validate([<<"access">>, <<"mod_register">>, <<"modules">>|_],
+         [{access, V}]) ->
+    validate_non_empty_atom(V);
+validate([item, <<"ip_access">>, <<"mod_register">>, <<"modules">>|_],
+         [V]) ->
+    validate_ip_access(V);
+validate([<<"iqdisc">>, <<"mod_register">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"password_strength">>, <<"mod_register">>, <<"modules">>|_],
+         [{password_strength, V}]) ->
+    validate_non_negative_integer(V);
+validate([item, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>|_],
+         [V]) ->
+    validate_jid(V);
+validate([<<"body">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
+         [{body, V}]) ->
+    validate_string(V);
+validate([<<"subject">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
+         [{subject, V}]) ->
+    validate_string(V);
+validate([<<"iqdisc">>, <<"mod_adhoc">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>|_],
+         [{report_commands_node, V}]) ->
+    validate_boolean(V);
+validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
+         [{cache_life_time, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
+         [{cache_size, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_http_upload, V);
+validate([<<"expiration_time">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{expiration_time, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"host">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"iqdisc">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"max_file_size">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{max_file_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"access_key_id">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{access_key_id, V}]) ->
+    validate_string(V);
+validate([<<"add_acl">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{add_acl, V}]) ->
+    validate_boolean(V);
+validate([<<"bucket_url">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{bucket_url, V}]) ->
+    validate_url(V);
+validate([<<"region">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{region, V}]) ->
+    validate_string(V);
+validate([<<"secret_access_key">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{secret_access_key, V}]) ->
+    validate_string(V);
+validate([<<"token_bytes">>, <<"mod_http_upload">>, <<"modules">>|_],
+         [{token_bytes, V}]) ->
+    validate_positive_integer(V);
+validate([<<"api_version">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
+         [{api_version, V}]) ->
+    validate_string(V);
+validate([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
+         [{max_http_connections, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"pool_name">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
+         [{pool_name, V}]) ->
+    validate_pool_name(V);
+validate([<<"backend">>, <<"mod_last">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_last, V);
+validate([<<"iqdisc">>, <<"mod_last">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_last">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([item, <<"routes">>, <<"mod_revproxy">>, <<"modules">>|_],
+         [V]) ->
+    validate_revproxy_route(V);
+validate([<<"backend">>, <<"mod_privacy">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_privacy, V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"defaults_bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
+         [{defaults_bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"names_bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
+         [{names_bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"archive_chat_markers">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_chat_markers, V}]) ->
+    validate_boolean(V);
+validate([<<"archive_groupchats">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_groupchats, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer_rdbms_pool">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer_rdbms_pool, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"backend">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_enum(V, [rdbms,riak,cassandra,elasticsearch]);
+validate([<<"cache_users">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{cache_users, V}]) ->
+    validate_boolean(V);
+validate([<<"db_jid_format">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_jid_format, V}]) ->
+    validate_module(V);
+validate([<<"db_message_format">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_message_format, V}]) ->
+    validate_module(V);
+validate([<<"default_result_limit">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{default_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"extra_lookup_params">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{extra_lookup_params, V}]) ->
+    validate_module(V);
+validate([<<"flush_interval">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{flush_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"full_text_search">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{full_text_search, V}]) ->
+    validate_boolean(V);
+validate([<<"host">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"is_archivable_message">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{is_archivable_message, V}]) ->
+    validate_module(V);
+validate([<<"max_batch_size">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_batch_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_result_limit">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"message_retraction">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{message_retraction, V}]) ->
+    validate_boolean(V);
+validate([<<"archive_chat_markers">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_chat_markers, V}]) ->
+    validate_boolean(V);
+validate([<<"archive_groupchats">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_groupchats, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer_rdbms_pool">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer_rdbms_pool, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"backend">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_enum(V, [rdbms,riak,cassandra,elasticsearch]);
+validate([<<"cache_users">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{cache_users, V}]) ->
+    validate_boolean(V);
+validate([<<"db_jid_format">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_jid_format, V}]) ->
+    validate_module(V);
+validate([<<"db_message_format">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_message_format, V}]) ->
+    validate_module(V);
+validate([<<"default_result_limit">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{default_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"extra_lookup_params">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{extra_lookup_params, V}]) ->
+    validate_module(V);
+validate([<<"flush_interval">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{flush_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"full_text_search">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{full_text_search, V}]) ->
+    validate_boolean(V);
+validate([<<"host">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"is_archivable_message">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{is_archivable_message, V}]) ->
+    validate_module(V);
+validate([<<"max_batch_size">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_batch_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_result_limit">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"message_retraction">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{message_retraction, V}]) ->
+    validate_boolean(V);
+validate([<<"no_stanzaid_element">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{no_stanzaid_element, V}]) ->
+    validate_boolean(V);
+validate([<<"rdbms_message_format">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{rdbms_message_format, V}]) ->
+    validate_enum(V, [simple,internal]);
+validate([<<"simple">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{simple, V}]) ->
+    validate_boolean(V);
+validate([<<"user_prefs_store">>, <<"muc">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{user_prefs_store, V}]) ->
+    validate_enum(V, [false,rdbms,cassandra,mnesia]);
+validate([<<"no_stanzaid_element">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{no_stanzaid_element, V}]) ->
+    validate_boolean(V);
+validate([<<"archive_chat_markers">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_chat_markers, V}]) ->
+    validate_boolean(V);
+validate([<<"archive_groupchats">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{archive_groupchats, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer, V}]) ->
+    validate_boolean(V);
+validate([<<"async_writer_rdbms_pool">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{async_writer_rdbms_pool, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"backend">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_enum(V, [rdbms,riak,cassandra,elasticsearch]);
+validate([<<"cache_users">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{cache_users, V}]) ->
+    validate_boolean(V);
+validate([<<"db_jid_format">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_jid_format, V}]) ->
+    validate_module(V);
+validate([<<"db_message_format">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{db_message_format, V}]) ->
+    validate_module(V);
+validate([<<"default_result_limit">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{default_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"extra_lookup_params">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{extra_lookup_params, V}]) ->
+    validate_module(V);
+validate([<<"flush_interval">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{flush_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"full_text_search">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{full_text_search, V}]) ->
+    validate_boolean(V);
+validate([<<"host">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"is_archivable_message">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{is_archivable_message, V}]) ->
+    validate_module(V);
+validate([<<"max_batch_size">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_batch_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_result_limit">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{max_result_limit, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"message_retraction">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{message_retraction, V}]) ->
+    validate_boolean(V);
+validate([<<"no_stanzaid_element">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{no_stanzaid_element, V}]) ->
+    validate_boolean(V);
+validate([<<"rdbms_message_format">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{rdbms_message_format, V}]) ->
+    validate_enum(V, [simple,internal]);
+validate([<<"simple">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{simple, V}]) ->
+    validate_boolean(V);
+validate([<<"user_prefs_store">>, <<"pm">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{user_prefs_store, V}]) ->
+    validate_enum(V, [false,rdbms,cassandra,mnesia]);
+validate([<<"rdbms_message_format">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{rdbms_message_format, V}]) ->
+    validate_enum(V, [simple,internal]);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"search_index">>, <<"riak">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{search_index, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"simple">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{simple, V}]) ->
+    validate_boolean(V);
+validate([<<"user_prefs_store">>, <<"mod_mam_meta">>, <<"modules">>|_],
+         [{user_prefs_store, V}]) ->
+    validate_enum(V, [false,rdbms,cassandra,mnesia]);
+validate([<<"iqdisc">>, <<"mod_auth_token">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"validity_period">>,<<"mod_auth_token">>,<<"modules">>|_], Vs) ->
+    lists:foreach(fun validate_validity_period/1, Vs);
+validate([<<"listen_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
+         [{listen_port, V}]) ->
+    validate_network_port(V);
+validate([<<"local_host">>, <<"mod_jingle_sip">>, <<"modules">>|_],
+         [{local_host, V}]) ->
+    validate_network_address(V);
+validate([<<"proxy_host">>, <<"mod_jingle_sip">>, <<"modules">>|_],
+         [{proxy_host, V}]) ->
+    validate_network_address(V);
+validate([<<"proxy_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
+         [{proxy_port, V}]) ->
+    validate_network_port(V);
+validate([<<"sdp_origin">>, <<"mod_jingle_sip">>, <<"modules">>|_],
+         [{sdp_origin, V}]) ->
+    validate_ip_address(V);
+validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>|_],
+         [{buffer_max, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"backend">>, <<"mod_roster">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_roster, V);
+validate([<<"iqdisc">>, <<"mod_roster">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_roster">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"version_bucket_type">>, <<"riak">>, <<"mod_roster">>, <<"modules">>|_],
+         [{version_bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"store_current_id">>, <<"mod_roster">>, <<"modules">>|_],
+         [{store_current_id, V}]) ->
+    validate_boolean(V);
+validate([<<"versioning">>, <<"mod_roster">>, <<"modules">>|_],
+         [{versioning, V}]) ->
+    validate_boolean(V);
+validate([item, <<"keys">>, <<"mod_keystore">>, <<"modules">>|_],
+         [V]) ->
+    validate_keystore_key(V);
+validate([<<"ram_key_size">>, <<"mod_keystore">>, <<"modules">>|_],
+         [{ram_key_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"backend">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_vcard, V);
+validate([<<"host">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"iqdisc">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"ldap_base">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{ldap_base, V}]) ->
+    validate_string(V);
+validate([item, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>|_],
+         [V]) ->
+    validate_non_empty_binary(V);
+validate([<<"ldap_deref">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{ldap_deref, V}]) ->
+    validate_enum(V, [never,always,finding,searching]);
+validate([<<"ldap_filter">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{ldap_filter, V}]) ->
+    validate_string(V);
+validate([<<"ldap_pool_tag">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{ldap_pool_tag, V}]) ->
+    validate_pool_name(V);
+validate([item, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>|_],
+         [V]) ->
+    validate_ldap_search_field(V);
+validate([<<"ldap_search_operator">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{ldap_search_operator, V}]) ->
+    validate_enum(V, ['or','and']);
+validate([item, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>|_],
+         [V]) ->
+    validate_ldap_search_reported(V);
+validate([item, <<"ldap_uids">>, <<"mod_vcard">>, <<"modules">>|_],
+         [V]) ->
+    validate_ldap_uids(V);
+validate([item, <<"ldap_vcard_map">>, <<"mod_vcard">>, <<"modules">>|_],
+         [V]) ->
+    validate_ldap_vcard_map(V);
+validate([<<"matches">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{matches, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"search_index">>, <<"riak">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{search_index, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"search">>, <<"mod_vcard">>, <<"modules">>|_],
+         [{search, V}]) ->
+    validate_boolean(V);
+validate([<<"backend">>, <<"mod_private">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_private, V);
+validate([<<"iqdisc">>, <<"mod_private">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_bosh, V);
+validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
+         [{inactivity, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>|_],
+         [{max_wait, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
+         [{server_acks, V}]) ->
+    validate_boolean(V);
+validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
+         [{aff_changes, V}]) ->
+    validate_boolean(V);
+validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_inbox, V);
+validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>|_],
+         [V]) ->
+    validate_groupchat_type(V);
+validate([<<"iqdisc">>, <<"mod_inbox">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
+         [{remove_on_kicked, V}]) ->
+    validate_boolean(V);
+validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
+         [V]) ->
+    validate_chat_marker_type(V);
+validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>|_],
+         [V]) ->
+    validate_binary_domain(V);
+validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+         [V]) ->
+    validate_module(V);
+validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+         [V]) ->
+    validate_non_empty_binary(V);
+validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+         [V]) ->
+    validate_url(V);
+validate([item, <<"urls">>, <<"mod_disco">>, <<"modules">>|_],
+         [V]) ->
+    validate_url(V);
+validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>|_],
+         [{users_can_see_hidden_services, V}]) ->
+    validate_boolean(V);
+validate([<<"all_can_configure">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{all_can_configure, V}]) ->
+    validate_boolean(V);
+validate([<<"all_can_invite">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{all_can_invite, V}]) ->
+    validate_boolean(V);
+validate([<<"backend">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_muc_light_db, V);
+validate([<<"blocking">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{blocking, V}]) ->
+    validate_boolean(V);
+validate([item, <<"config_schema">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [V]) ->
+    validate_muc_config_schema(V);
+validate([<<"equal_occupants">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{equal_occupants, V}]) ->
+    validate_boolean(V);
+validate([<<"host">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"legacy_mode">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{legacy_mode, V}]) ->
+    validate_boolean(V);
+validate([<<"max_occupants">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{max_occupants, V}]) ->
+    validate_positive_integer_or_infinity(V);
+validate([<<"rooms_in_rosters">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{rooms_in_rosters, V}]) ->
+    validate_boolean(V);
+validate([<<"rooms_per_page">>, <<"mod_muc_light">>, <<"modules">>|_],
+         [{rooms_per_page, V}]) ->
+    validate_positive_integer_or_infinity(V);
+validate([<<"iqdisc">>, <<"mod_carboncopy">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"access_max_user_messages">>, <<"mod_offline">>, <<"modules">>|_],
+         [{access_max_user_messages, V}]) ->
+    validate_access_rule(V);
+validate([<<"backend">>, <<"mod_offline">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_offline, V);
+validate([<<"bucket_type">>, <<"riak">>, <<"mod_offline">>, <<"modules">>|_],
+         [{bucket_type, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"access_log">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{access_log, V}]) ->
+    validate_access_rule(V);
+validate([<<"css_file">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{cssfile, V}]) ->
+    validate_maybe_css_file(V);
+validate([<<"dirname">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{dirname, V}]) ->
+    validate_enum(V, [room_jid,room_name]);
+validate([<<"dirtype">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{dirtype, V}]) ->
+    validate_enum(V, [subdirs,plain]);
+validate([<<"file_format">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{file_format, V}]) ->
+    validate_enum(V, [html,plaintext]);
+validate([<<"outdir">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{outdir, V}]) ->
+    validate_dirname(V);
+validate([<<"spam_prevention">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{spam_prevention, V}]) ->
+    validate_boolean(V);
+validate([<<"timezone">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{timezone, V}]) ->
+    validate_enum(V, [local,universal]);
+validate([<<"top_link">>, <<"mod_muc_log">>, <<"modules">>|_],
+         [{top_link, V}]) ->
+    validate_top_link(V);
+validate([<<"access_createnode">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{access_createnode, V}]) ->
+    validate_access_rule(V);
+validate([<<"backend">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_pubsub_db, V);
+validate([<<"access_model">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{access_model, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"deliver_notifications">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{deliver_notifications, V}]) ->
+    validate_boolean(V);
+validate([<<"deliver_payloads">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{deliver_payloads, V}]) ->
+    validate_boolean(V);
+validate([<<"max_items">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{max_items, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_payload_size">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{max_payload_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"node_type">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{node_type, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"notification_type">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{notification_type, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"notify_config">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{notify_config, V}]) ->
+    validate_boolean(V);
+validate([<<"notify_delete">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{notify_delete, V}]) ->
+    validate_boolean(V);
+validate([<<"notify_retract">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{notify_retract, V}]) ->
+    validate_boolean(V);
+validate([<<"persist_items">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{persist_items, V}]) ->
+    validate_boolean(V);
+validate([<<"presence_based_delivery">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{presence_based_delivery, V}]) ->
+    validate_boolean(V);
+validate([<<"publish_model">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{publish_model, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"purge_offline">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{purge_offline, V}]) ->
+    validate_boolean(V);
+validate([item, <<"roster_groups_allowed">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [V]) ->
+    validate_non_empty_binary(V);
+validate([<<"send_last_published_item">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{send_last_published_item, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"subscribe">>, <<"default_node_config">>,
+          <<"mod_pubsub">>, <<"modules">>|_],
+         [{subscribe, V}]) ->
+    validate_boolean(V);
+validate([<<"host">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{ignore_pep_from_offline, V}]) ->
+    validate_boolean(V);
+validate([<<"iqdisc">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"item_publisher">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{item_publisher, V}]) ->
+    validate_boolean(V);
+validate([<<"last_item_cache">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{last_item_cache, V}]) ->
+    validate_enum(V, [mnesia,rdbms,false]);
+validate([<<"max_items_node">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{max_items_node, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_subscriptions_node">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{max_subscriptions_node, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"nodetree">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{nodetree, V}]) ->
+    validate_pubsub_nodetree(V);
+validate([item, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [V]) ->
+    validate_pubsub_pep_mapping(V);
+validate([item, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [V]) ->
+    validate_pubsub_plugin(V);
+validate([<<"sync_broadcast">>, <<"mod_pubsub">>, <<"modules">>|_],
+         [{sync_broadcast, V}]) ->
+    validate_boolean(V);
+validate([<<"access">>, <<"mod_muc">>, <<"modules">>|_],
+         [{access, V}]) ->
+    validate_access_rule(V);
+validate([<<"access_admin">>, <<"mod_muc">>, <<"modules">>|_],
+         [{access_admin, V}]) ->
+    validate_access_rule(V);
+validate([<<"access_create">>, <<"mod_muc">>, <<"modules">>|_],
+         [{access_create, V}]) ->
+    validate_access_rule(V);
+validate([<<"access_persistent">>, <<"mod_muc">>, <<"modules">>|_],
+         [{access_persistent, V}]) ->
+    validate_access_rule(V);
+validate([<<"backend">>, <<"mod_muc">>, <<"modules">>|_],
+         [{backend, V}]) ->
+    validate_backend(mod_muc_db, V);
+validate([item, <<"affiliations">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [V]) ->
+    validate_muc_affiliation_rule(V);
+validate([<<"allow_change_subj">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_change_subj, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_multiple_sessions">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_multiple_sessions, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_private_messages">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_private_messages, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_query_users">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_query_users, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_user_invites">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_user_invites, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_visitor_nickchange">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_visitor_nickchange, V}]) ->
+    validate_boolean(V);
+validate([<<"allow_visitor_status">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{allow_visitor_status, V}]) ->
+    validate_boolean(V);
+validate([<<"anonymous">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{anonymous, V}]) ->
+    validate_boolean(V);
+validate([<<"description">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{description, V}]) ->
+    validate_binary(V);
+validate([<<"logging">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{logging, V}]) ->
+    validate_boolean(V);
+validate([<<"max_users">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_users, V}]) ->
+    validate_positive_integer(V);
+validate([item, <<"maygetmemberlist">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [V]) ->
+    validate_non_empty_atom(V);
+validate([<<"members_by_default">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{members_by_default, V}]) ->
+    validate_boolean(V);
+validate([<<"members_only">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{members_only, V}]) ->
+    validate_boolean(V);
+validate([<<"moderated">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{moderated, V}]) ->
+    validate_boolean(V);
+validate([<<"password">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{password, V}]) ->
+    validate_string(V);
+validate([<<"password_protected">>, <<"default_room">>,
+          <<"mod_muc">>, <<"modules">>|_],
+         [{password_protected, V}]) ->
+    validate_boolean(V);
+validate([<<"persistent">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{persistent, V}]) ->
+    validate_boolean(V);
+validate([<<"public">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{public, V}]) ->
+    validate_boolean(V);
+validate([<<"public_list">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{public_list, V}]) ->
+    validate_boolean(V);
+validate([<<"subject">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{subject, V}]) ->
+    validate_string(V);
+validate([<<"subject_author">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{subject_author, V}]) ->
+    validate_string(V);
+validate([<<"title">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
+         [{title, V}]) ->
+    validate_string(V);
+validate([<<"hibernated_room_check_interval">>, <<"mod_muc">>, <<"modules">>|_],
+         [{hibernated_room_check_interval, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"hibernated_room_timeout">>, <<"mod_muc">>, <<"modules">>|_],
+         [{hibernated_room_timeout, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"history_size">>, <<"mod_muc">>, <<"modules">>|_],
+         [{history_size, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"host">>, <<"mod_muc">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_domain_template(V);
+validate([<<"http_auth_pool">>, <<"mod_muc">>, <<"modules">>|_],
+         [{http_auth_pool, V}]) ->
+    validate_pool_name(V);
+validate([<<"load_permanent_rooms_at_startup">>, <<"mod_muc">>, <<"modules">>|_],
+         [{load_permanent_rooms_at_startup, V}]) ->
+    validate_boolean(V);
+validate([<<"max_room_desc">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_room_desc, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"max_room_id">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_room_id, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"max_room_name">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_room_name, V}]) ->
+    validate_non_negative_integer_or_infinity(V);
+validate([<<"max_user_conferences">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_user_conferences, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"max_users">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_users, V}]) ->
+    validate_positive_integer(V);
+validate([<<"max_users_admin_threshold">>, <<"mod_muc">>, <<"modules">>|_],
+         [{max_users_admin_threshold, V}]) ->
+    validate_positive_integer(V);
+validate([<<"min_message_interval">>, <<"mod_muc">>, <<"modules">>|_],
+         [{min_message_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"min_presence_interval">>, <<"mod_muc">>, <<"modules">>|_],
+         [{min_presence_interval, V}]) ->
+    validate_non_negative_integer(V);
+validate([<<"room_shaper">>, <<"mod_muc">>, <<"modules">>|_],
+         [{room_shaper, V}]) ->
+    validate_shaper_name(V);
+validate([<<"user_message_shaper">>, <<"mod_muc">>, <<"modules">>|_],
+         [{user_message_shaper, V}]) ->
+    validate_shaper_name(V);
+validate([<<"user_presence_shaper">>, <<"mod_muc">>, <<"modules">>|_],
+         [{user_presence_shaper, V}]) ->
+    validate_shaper_name(V);
+validate([<<"iqdisc">>, <<"mod_ping">>, <<"modules">>|_],
+         [{iqdisc, V}]) ->
+    validate_iqdisc(V);
+validate([<<"ping_interval">>, <<"mod_ping">>, <<"modules">>|_],
+         [{ping_interval, V}]) ->
+    validate_positive_integer(V);
+validate([<<"ping_req_timeout">>, <<"mod_ping">>, <<"modules">>|_],
+         [{ping_req_timeout, V}]) ->
+    validate_positive_integer(V);
+validate([<<"send_pings">>, <<"mod_ping">>, <<"modules">>|_],
+         [{send_pings, V}]) ->
+    validate_boolean(V);
+validate([<<"timeout_action">>, <<"mod_ping">>, <<"modules">>|_],
+         [{timeout_action, V}]) ->
+    validate_enum(V, [none,kill]);
+validate(_Path, _Value) ->
     ok.
-
-%% Module type specs
-
-%% Module validators follow the rules:
-%% - Each module has it's own Validator Type Spec Function.
-%% - Validator Type Spec Function has the same name as the module it validates.
-%% - Validator Type Spec Function should be present in module_spec_functions/0.
-%% - Validator Type Spec Function returns Options Spec Map.
-%% - Keys in the Options Spec Map are TOML keys. But atoms.
-%% - Values in the Options Spec Map are types.
-%% - Types are defined in type_to_validator/0 function.
-%% - Types have validators (consult with type_to_validator/0 to find out the validator function).
-%% - If Type is a map, it means that the TOML path contains a map. 
-
-mod_adhoc() ->
-    %% TomlPropertyName => ValidatorType
-    #{iqdisc => iqdisc,
-      report_commands_node => boolean}.
-
-mod_auth_token() ->
-    #{iqdisc => iqdisc,
-      %% Pass the whole list the into validator
-      validity_period => {multi, validity_period}}.
-
-mod_bosh() ->
-    #{inactivity => non_neg_integer_or_inf,
-      max_wait => non_neg_integer_or_inf,
-      server_acks => boolean,
-      backend => backend}.
-
-mod_carboncopy() ->
-    #{iqdisc => iqdisc}.
-
-mod_caps() ->
-    #{cache_size => non_neg_integer_or_inf,
-      cache_life_time => non_neg_integer_or_inf}.
-
-mod_csi() ->
-    #{buffer_max => non_neg_integer_or_inf}.
-
-mod_disco() ->
-    #{users_can_see_hidden_services => boolean,
-      extra_domains => {list, binary_domain},
-      %% List of urls
-      urls => {list, url},
-      %% List of sections
-      server_info => {list, #{name => non_empty_binary,
-                              module => {list, module},
-                              urls => {list, url}}}}.
-
-mod_inbox() ->
-    #{iqdisc => iqdisc,
-      backend => backend,
-      aff_changes => boolean,
-      remove_on_kicked => boolean,
-      reset_markers => {list, chat_marker_type},
-      groupchat => {list, groupchat_type}}.
-
-mod_global_distrib() ->
-    #{global_host => domain,
-      local_host => domain,
-      message_ttl => non_neg_integer,
-      hosts_refresh_interval => non_neg_integer,
-      connections => global_distrib_connections(),
-      redis => #{pool => pool_name,
-                 expire_after => non_neg_integer,
-                 refresh_after => non_neg_integer},
-      cache => #{cache_missed => boolean,
-                 domain_lifetime_seconds => non_neg_integer,
-                 jid_lifetime_seconds => non_neg_integer,
-                 max_jids => non_neg_integer},
-      bounce => #{resend_after_ms => non_neg_integer,
-                  max_retries => non_neg_integer}}.
-
-%% This block is too long for inlining into mod_global_distrib
-global_distrib_connections() ->
-    #{endpoints => {list, #{host => network_address, port => network_port}},
-      %% Could be a section or false
-      advertised_endpoints => {optional_section,
-                               {list, #{host => network_address, port => network_port}}},
-      connections_per_endpoint => non_neg_integer,
-      endpoint_refresh_interval => pos_integer,
-      endpoint_refresh_interval_when_empty => pos_integer,
-      disabled_gc_interval => non_neg_integer,
-      tls => {optional_section, tls_opts, tls_opts_spec()}}.
-
-tls_opts_spec() ->
-    %% cacertfile in TOML, but cafile in MongooseIM
-    #{cacertfile => {renamed, cafile, filename},
-      certfile => filename,
-      dhfile => filename,
-      ciphers => string}.
-
-mod_event_pusher() ->
-    #{backend => event_pusher_backend()}.
-
-event_pusher_backend() ->
-    #{sns => #{access_key_id => string,
-               secret_access_key => string,
-               region => string,
-               account_id => string,
-               sns_host => string,
-               muc_host => domain_template,
-               presence_updates_topic => string,
-               pm_messages_topic => string,
-               muc_messages_topic => string,
-               plugin_module => module,
-               pool_size => non_neg_integer,
-               publish_retry_count => non_neg_integer,
-               publish_retry_time_ms => non_neg_integer},
-       push => #{backend => {backend, mod_event_pusher_push},
-                 wpool => #{strategy => wpool_strategy, workers => pos_integer},
-                 plugin_module => module,
-                 virtual_pubsub_hosts => {list, domain_template}},
-       http => #{pool_name => pool_name,
-                 path => string,
-                 callback_module => module},
-       rabbit => #{presence_exchange => #{name => non_empty_binary,
-                                          type => non_empty_binary},
-                   chat_msg_exchange => #{name => non_empty_binary,
-                                          sent_topic => non_empty_binary,
-                                          recv_topic => non_empty_binary},
-                   groupchat_msg_exchange => #{name => non_empty_binary,
-                                               sent_topic => non_empty_binary,
-                                               recv_topic => non_empty_binary}}
-      }.
-
-mod_http_upload() ->
-    #{iqdisc => iqdisc,
-      backend => backend,
-      host => domain_template,
-      expiration_time => non_neg_integer,
-      token_bytes => pos_integer,
-      max_file_size => non_neg_integer,
-      s3 => #{bucket_url => url,
-              add_acl => boolean,
-              region => string,
-              access_key_id => string,
-              secret_access_key => string}}.
-
-mod_jingle_sip() ->
-    #{proxy_host => network_address,
-      proxy_port => network_port,
-      listen_port => network_port,
-      local_host => network_address,
-      sdp_origin => ip_address}.
-
-mod_keystore() ->
-    #{ram_key_size => non_neg_integer,
-      keys => {list, keystore_key}}.
-
-mod_last() ->
-    #{iqdisc => iqdisc,
-      backend => backend,
-      riak => #{bucket_type => non_empty_binary}}.
-
-mod_mam_meta() ->
-    Base = mam_meta_opts(),
-    Base#{
-      pm => Base,
-      muc => Base,
-      riak => #{bucket_type => non_empty_binary, search_index => non_empty_binary}
-     }.
-
-%% We need some spec duplication,
-%% because options could be defined as root module options
-%% or PM (or MUC) specific
-mam_meta_opts() ->
-    #{backend => {enum, [rdbms, riak, cassandra, elasticsearch]},
-      archive_chat_markers => boolean,
-      archive_groupchats => boolean,
-      async_writer => boolean,
-      async_writer_rdbms_pool => non_empty_atom,
-      cache_users => boolean,
-      db_jid_format => module,
-      db_message_format => module,
-      default_result_limit => non_neg_integer,
-      extra_lookup_params => module,
-      host => domain_template,
-      flush_interval => non_neg_integer,
-      full_text_search => boolean,
-      max_batch_size => non_neg_integer,
-      max_result_limit => non_neg_integer,
-      message_retraction => boolean,
-      rdbms_message_format => {enum, [simple, internal]},
-      simple => boolean,
-      no_stanzaid_element => boolean,
-      is_archivable_message => module,
-      user_prefs_store => {enum, [false, rdbms, cassandra, mnesia]}}.
-
-mod_muc() ->
-    #{host => domain_template,
-      backend => {backend, mod_muc_db},
-      access => access_rule,
-      access_create => access_rule,
-      access_admin => access_rule,
-      access_persistent => access_rule,
-      history_size => non_neg_integer,
-      room_shaper => shaper_name,
-      max_room_id => non_neg_integer_or_inf,
-      max_room_name => non_neg_integer_or_inf,
-      max_room_desc => non_neg_integer_or_inf,
-      min_message_interval => non_neg_integer,
-      min_presence_interval => non_neg_integer,
-      max_users => pos_integer,
-      max_users_admin_threshold => pos_integer,
-      user_message_shaper => shaper_name,
-      user_presence_shaper => shaper_name,
-      max_user_conferences => non_neg_integer,
-      http_auth_pool => pool_name,
-      load_permanent_rooms_at_startup => boolean,
-      hibernated_room_check_interval => non_neg_integer_or_inf,
-      hibernated_room_timeout => non_neg_integer_or_inf,
-      default_room => muc_default_room()}.
-
-muc_default_room() ->
-    #{title => string,
-      description => binary,
-      allow_change_subj => boolean,
-      allow_query_users => boolean,
-      allow_private_messages => boolean,
-      allow_visitor_status => boolean,
-      allow_visitor_nickchange => boolean,
-      public => boolean,
-      public_list => boolean,
-      persistent => boolean,
-      moderated => boolean,
-      members_by_default => boolean,
-      members_only => boolean,
-      allow_user_invites => boolean,
-      allow_multiple_sessions => boolean,
-      password_protected => boolean,
-      password => string,
-      anonymous => boolean,
-      max_users => pos_integer,
-      logging => boolean,
-      subject => string,
-      subject_author => string,
-      maygetmemberlist => {list, non_empty_atom},
-      affiliations => {list, muc_affiliation_rule}}.
-
-mod_muc_log() ->
-    #{outdir => dirname,
-      access_log => access_rule,
-      dirtype => {enum, [subdirs, plain]},
-      dirname => {enum, [room_jid, room_name]},
-      file_format => {enum, [html, plaintext]},
-      timezone => {enum, [local, universal]},
-      spam_prevention => boolean,
-      css_file => {renamed, cssfile, maybe_css_file},
-      top_link => top_link}.
-
-mod_muc_light() ->
-    #{host => domain_template,
-      backend => {backend, mod_muc_light_db},
-      equal_occupants => boolean,
-      legacy_mode => boolean,
-      rooms_per_page => pos_integer_or_inf,
-      blocking => boolean,
-      all_can_configure => boolean,
-      all_can_invite => boolean,
-      max_occupants => pos_integer_or_inf,
-      rooms_in_rosters => boolean,
-      config_schema => {list, muc_config_schema}}.
-
-mod_offline() ->
-    #{access_max_user_messages => access_rule,
-      backend => backend,
-      riak => #{bucket_type => non_empty_binary}}.
-
-mod_ping() ->
-    #{iqdisc => iqdisc,
-      send_pings => boolean,
-      timeout_action => {enum, [none, kill]},
-      ping_interval => pos_integer,
-      ping_req_timeout => pos_integer}.
-
-mod_privacy() ->
-     #{backend => backend,
-       riak => #{defaults_bucket_type => non_empty_binary,
-                 names_bucket_type => non_empty_binary,
-                 bucket_type => non_empty_binary}}.
-
-mod_private() ->
-    #{iqdisc => iqdisc,
-      backend => backend,
-      riak => #{bucket_type => non_empty_binary}}.
-
-mod_pubsub() ->
-    #{iqdisc => iqdisc,
-      host => domain_template,
-      backend => {backend, mod_pubsub_db},
-      access_createnode => access_rule,
-      max_items_node => non_neg_integer,
-      max_subscriptions_node => non_neg_integer,
-      ignore_pep_from_offline => boolean,
-      item_publisher => boolean,
-      sync_broadcast => boolean,
-      nodetree => pubsub_nodetree,
-      last_item_cache => {enum, [mnesia, rdbms, false]},
-      plugins => {list, pubsub_plugin},
-      pep_mapping => {list, pubsub_pep_mapping},
-      default_node_config => pubsub_default_node_config()}.
-
-pubsub_default_node_config() ->
-    #{access_model => non_empty_atom,
-      deliver_notifications => boolean,
-      deliver_payloads => boolean,
-      max_items => non_neg_integer,
-      max_payload_size => non_neg_integer,
-      node_type => non_empty_atom,
-      notification_type => non_empty_atom,
-      notify_config => boolean,
-      notify_delete => boolean,
-      notify_retract => boolean,
-      persist_items => boolean,
-      presence_based_delivery => boolean,
-      publish_model => non_empty_atom,
-      purge_offline => boolean,
-      send_last_published_item => non_empty_atom,
-      subscribe => boolean,
-      roster_groups_allowed => {list, non_empty_binary}
-    }.
-
-mod_push_service_mongoosepush() ->
-    #{pool_name => pool_name,
-      api_version => string,
-      max_http_connections => non_neg_integer}.
-
-mod_register() ->
-    #{iqdisc => iqdisc,
-      %% Pass the whole thing into validator
-      ip_access => {list, ip_access},
-      welcome_message => #{subject => string, body => string},
-      access => non_empty_atom,
-      registration_watchers => {list, jid},
-      password_strength => non_neg_integer}.
-
-mod_revproxy() ->
-    #{routes => {list, revproxy_route}}.
-
-mod_roster() ->
-    #{iqdisc => iqdisc,
-      versioning => boolean,
-      store_current_id => boolean,
-      backend => backend,
-      riak => #{bucket_type => non_empty_binary,
-                version_bucket_type => non_empty_binary}}.
-
-mod_shared_roster_ldap() ->
-    #{ldap_pool_tag => pool_name,
-      ldap_base => string,
-      ldap_deref => ldap_deref_type(),
-      %% - attributes
-      ldap_groupattr => string,
-      ldap_groupdesc => string,
-      ldap_userdesc => string,
-      ldap_useruid => string,
-      ldap_memberattr => string,
-      ldap_memberattr_format => string,
-      ldap_memberattr_format_re => string,
-      %% - parameters
-      ldap_auth_check => boolean,
-      ldap_user_cache_validity => non_neg_integer,
-      ldap_group_cache_validity => non_neg_integer,
-      ldap_user_cache_size => non_neg_integer,
-      ldap_group_cache_size => non_neg_integer,
-      %% - LDAP filters
-      ldap_rfilter => string,
-      ldap_gfilter => string,
-      ldap_ufilter => string,
-      ldap_filter => string}.
-
-ldap_deref_type() ->
-     {enum, [never, always, finding, searching]}.
-
-mod_sic() ->
-    #{iqdisc => iqdisc}.
-
-mod_stream_management() ->
-    #{buffer_max => non_neg_integer,
-      ack_freq => non_neg_integer,
-      resume_timeout => non_neg_integer,
-      stale_h => #{enabled => boolean,
-                   repeat_after => {renamed, stale_h_repeat_after,
-                                    non_neg_integer},
-                   geriatric => {renamed, stale_h_geriatric,
-                                 non_neg_integer}}}.
-
-mod_version() ->
-    #{iqdisc => iqdisc,
-      os_info => boolean}.
-
-mod_vcard() ->
-    #{iqdisc => iqdisc,
-      host => domain_template,
-      search => boolean,
-      backend => backend,
-      matches => non_neg_integer_or_inf,
-      %% - ldap
-      ldap_pool_tag => pool_name,
-      ldap_base => string,
-      ldap_deref => ldap_deref_type(),
-      ldap_uids => {list, ldap_uids},
-      ldap_filter => string,
-      ldap_vcard_map => {list, ldap_vcard_map},
-      ldap_search_fields => {list, ldap_search_field},
-      ldap_search_reported => {list, ldap_search_reported},
-      ldap_search_operator => {enum, ['or', 'and']},
-      ldap_binary_search_fields => {list, non_empty_binary},
-      riak => #{bucket_type => non_empty_binary, search_index => non_empty_binary}}.
-
-mod_time() ->
-    #{iqdisc => iqdisc}.
-
-
--spec module_spec_functions() -> #{module() => fun()}.
-module_spec_functions() ->
-    %% Module name and function name should be the same in this map
-    #{mod_adhoc => fun mod_adhoc/0,
-      mod_auth_token => fun mod_auth_token/0,
-      mod_bosh => fun mod_bosh/0,
-      mod_carboncopy => fun mod_carboncopy/0,
-      mod_caps => fun mod_caps/0,
-      mod_csi => fun mod_csi/0,
-      mod_disco => fun mod_disco/0,
-      mod_inbox => fun mod_inbox/0,
-      mod_global_distrib => fun mod_global_distrib/0,
-      mod_event_pusher => fun mod_event_pusher/0,
-      mod_http_upload => fun mod_http_upload/0,
-      mod_jingle_sip => fun mod_jingle_sip/0,
-      mod_keystore => fun mod_keystore/0,
-      mod_last => fun mod_last/0,
-      mod_mam_meta => fun mod_mam_meta/0,
-      mod_muc => fun mod_muc/0,
-      mod_muc_log => fun mod_muc_log/0,
-      mod_muc_light => fun mod_muc_light/0,
-      mod_offline => fun mod_offline/0,
-      mod_ping => fun mod_ping/0,
-      mod_privacy => fun mod_privacy/0,
-      mod_private => fun mod_private/0,
-      mod_pubsub => fun mod_pubsub/0,
-      mod_push_service_mongoosepush => fun mod_push_service_mongoosepush/0,
-      mod_register => fun mod_register/0,
-      mod_revproxy => fun mod_revproxy/0,
-      mod_roster => fun mod_roster/0,
-      mod_shared_roster_ldap => fun mod_shared_roster_ldap/0,
-      mod_sic => fun mod_sic/0,
-      mod_stream_management => fun mod_stream_management/0,
-      mod_version => fun mod_version/0,
-      mod_vcard => fun mod_vcard/0,
-      mod_time => fun mod_time/0}.
-
--spec type_to_validator() -> #{validator_spec() => fun()}.
-type_to_validator() ->
-    #{%% Basic validators
-      string => fun validate_string/1,
-      boolean => fun validate_boolean/1,
-      binary => fun validate_binary/1,
-      non_empty_atom => fun validate_non_empty_atom/1,
-      non_empty_binary => fun validate_non_empty_binary/1,
-      non_neg_integer => fun validate_non_negative_integer/1,
-      non_neg_integer_or_inf => fun validate_non_negative_integer_or_infinity/1,
-      pos_integer => fun validate_positive_integer/1,
-      pos_integer_or_inf => fun validate_positive_integer_or_infinity/1,
-      filename => fun validate_filename/1,
-      dirname => fun validate_dirname/1,
-      module => fun validate_module/1,
-      %% Networking and addresation
-      url => fun validate_url/1,
-      jid => fun validate_jid/1,
-      domain => fun validate_domain/1,
-      domain_template => fun validate_domain_template/1,
-      binary_domain => fun validate_binary_domain/1,
-      binary_domain_template => fun validate_binary_domain_template/1,
-      ip_access => fun validate_ip_access/1,
-      ip_address => fun validate_ip_address/1,
-      network_address  => fun validate_network_address/1,
-      network_port => fun validate_network_port/1,
-      %% Other
-      iqdisc => fun validate_iqdisc/1,
-      pool_name => fun validate_non_empty_atom/1,
-      groupchat_type => fun validate_groupchat_type/1,
-      chat_marker_type => fun validate_chat_marker_type/1,
-      period_unit => fun validate_period_unit/1,
-      keystore_key => fun validate_keystore_key/1,
-      access_rule => fun validate_non_empty_atom/1,
-      shaper_name => fun validate_non_empty_atom/1,
-      wpool_strategy => fun validate_wpool_strategy/1,
-      maybe_css_file => fun validate_maybe_css_file/1,
-      pubsub_nodetree => fun validate_pubsub_nodetree/1,
-      pubsub_plugin => fun validate_pubsub_plugin/1,
-      %% Sections (the whole section term is passed into the validators)
-      top_link => fun validate_top_link/1,
-      auth_token_domain => fun validate_auth_token_domain/1,
-      validity_period => fun validate_validity_period/1,
-      muc_affiliation_rule => fun validate_muc_affiliation_rule/1,
-      muc_config_schema => fun validate_muc_config_schema/1,
-      pubsub_pep_mapping => fun validate_pubsub_pep_mapping/1,
-      revproxy_route => fun validate_revproxy_route/1,
-      ldap_uids => fun validate_ldap_uids/1,
-      ldap_vcard_map => fun validate_ldap_vcard_map/1,
-      ldap_search_field => fun validate_ldap_search_field/1,
-      ldap_search_reported => fun validate_ldap_search_reported/1
-      %% Compound types
-      %% {list, Type} - a list of elements of type Type.
-      %%                Parser calls validate for each element.
-      %% {multi, Type} - a list of elements of type Type
-      %%                Parser calls validate once passing the whole list
-      %%                as an argument.
-      %%                validate_type calls type validator for each element.
-      %% {list1, Type} - a list of one element of type Type.
-      %% {tagged, Tag, Type} - Type, wrapped into a tuple, where first element
-      %%                       is an atom Tag.
-      %% {renamed, NewName, Type} - The same as {tagged, NewName, Type}
-      %%                            (but more readable).
-      %% {backend, Module} - see validate_type/2
-      %%
-      %% list1 and tagged types are added missing in specs,
-      %% but would be added from functions add_tagged and add_unlistify
-      %% before module_option_paths returns.
-      %% Check module_option_paths output function to know the final
-      %% typespecs for values, that are passed into validate_modules function.
-     }.
-
--spec validate_type(validator_spec(),
-                    mongoose_config_parser_toml:path(),
-                    mongoose_config_parser_toml:option()
-                    | mongoose_config_parser_toml:config_list()) -> any().
-validate_type({multi, Type}, Path, Value) ->
-    %% Validate multiple values in a list
-    [validate_type(Type, Path, Val) || Val <- Value];
-validate_type({list1, Type}, Path, Value) ->
-    case Value of
-        [Untagged] ->
-            validate_type(Type, Path, Untagged);
-        _ ->
-            error(#{what => list_value_expected,
-                    text => <<"We expect Value argument to be a list of one">>,
-                    value => Value, path => Path, type => Type})
-    end;
-validate_type({tagged, Tag, Type}, Path, Value) ->
-    case Value of
-        {Tag, Untagged} ->
-            validate_type(Type, Path, Untagged);
-        _ ->
-            error(#{what => expected_to_be_tagged,
-                    tag => Tag, value => Value, path => Path, type => Type})
-    end;
-validate_type(backend, Path, Value) ->
-    Module = path_to_module(Path),
-    validate_backend(Module, Value);
-validate_type({backend, Module}, _Path, Value) ->
-    validate_backend(Module, Value);
-validate_type({enum, Types}, _Path, Value) ->
-    validate_enum(Value, Types);
-validate_type({optional_section, Tag}, _Path, Value) ->
-    validate_optional_section(Tag, Value);
-validate_type(Type, Path, Value) when is_atom(Type) ->
-    case maps:find(Type, type_to_validator()) of
-        {ok, F} ->
-            F(Value);
-        _ ->
-            error(#{what => unknown_validator_type, type => Type,
-                    path => Path, value => Value})
-    end;
-validate_type(Type, Path, Value) ->
-    error(#{what => unknown_validator_type, type => Type,
-            path => Path, value => Value}).
-
-
-%% Returns a list of Paths and validator types for each module option.
--spec module_option_paths() ->
-    [{mongoose_config_parser_toml:path(), validator_spec()}].
-module_option_paths() ->
-    lists:append([module_option_paths(M, O, T) || {M,O,T} <- module_option_types_spec()]).
-
-%% Unfolds type specs and creates paths.
-%% Determines if we need untag and unlistify values before passing them into
-%% the validator functions.
-module_option_paths(Mod, Opt, Type) ->
-    Path = [atom_to_binary(Opt, utf8), atom_to_binary(Mod, utf8), <<"modules">>],
-    PathType = type_to_paths(add_tagged(Opt, Type), Path),
-    [{P, add_unlistify(T)} || {P,T} <- PathType].
-
-%% Collects all module specs (still folded) into one list for processing
--spec module_option_types_spec() -> [{module(), atom(), validator_spec()}].
-module_option_types_spec() ->
-    ModuleSpecs = [{Module, Fun()}
-                   || {Module, Fun} <- maps:to_list(module_spec_functions())],
-    [{Module, OptName, OptSpec} ||
-     {Module, SpecMap} <- ModuleSpecs,
-     {OptName, OptSpec} <- maps:to_list(SpecMap)].
-
-%% Majority of values are inside a list.
-%% We need to pass only head into a validator.
--spec add_unlistify(validator_spec()) -> validator_spec().
-add_unlistify({multi, Type}) ->
-    {multi, Type};
-add_unlistify(Type = #{}) ->
-    {multi, Type};
-add_unlistify(Type) ->
-    {list1, Type}. %% wrapped into a list of length one.
-
-%% Values for basic module options are tagged into an option name.
-%% Tell to remove this tag wrapper and pass only option value into validators
-%% for most non-nested values.
-%% Example: {iqdisc, one_queue}
--spec add_tagged(atom(), validator_spec()) -> validator_spec().
-add_tagged(_Opt, Type = {list, _}) ->
-    Type;
-add_tagged(_Opt, Type = {tagged, _, _}) -> %% Already tagged
-    Type;
-add_tagged(_Opt, {renamed, NewName, Type}) ->
-    {tagged, NewName, Type}; %% Reuse tagged logic
-add_tagged(Opt, {optional_section, Type}) ->
-    {optional_section, Opt, Type}; %% Just use Opt as Tag, if Tag is unspecified
-add_tagged(_Opt, Type = {optional_section, _Tag, _Type}) ->
-    Type;
-add_tagged(_Opt, Type = #{}) ->
-    Type;
-add_tagged(_Opt, {multi, Type}) ->
-    {multi, Type};
-add_tagged(Opt, Type) ->
-    {tagged, Opt, Type}.
-
-%% If map is inside a list, fields would not be tagged usually.
-%% Example: Path and validator for mod_global_distrib.connections.endpoints._.host:
-%%
-%%  {[<<"host">>,item,<<"endpoints">>,<<"connections">>,
-%%   <<"mod_global_distrib">>,<<"modules">>],
-%%   {list1,network_address}}
-%%
-%% Otherwise fields would be tagged with a field name
-%% (including optional_section case).
-%%
-%% Example: Path and validator for mod_stream_management.stale_h.enabled:
-%%
-%%  {[<<"enabled">>,<<"stale_h">>,<<"mod_stream_management">>,<<"modules">>],
-%%   {list1,{tagged,enabled,boolean}}}
-%%
-%% Both examples are produced by module_option_paths() function.
-%%
-%% Optional sections could be maps (in toml) or an atom false (so, we produce
-%% an extra rule for such path with {optional_section,Tag} validator).
--spec type_to_paths(validator_spec(), mongoose_config_parser_toml:path()) ->
-        [{mongoose_config_parser_toml:path(), validator_spec()}].
-type_to_paths({list, Type}, Path) ->
-    type_to_paths(Type, [item|Path]);
-type_to_paths({optional_section, Tag, Dict}, Path) ->
-    [{Path, {optional_section, Tag}}] ++ type_to_paths(Dict, Path);
-%% untagged map fields
-type_to_paths(Dict, [item|_] = Path) when is_map(Dict) ->
-    lists:append([type_to_paths(Type, [atom_to_binary(Key, utf8)|Path])
-                  || {Key, Type} <- maps:to_list(Dict)]);
-%% tagged map fields
-type_to_paths(Dict, Path) when is_map(Dict) ->
-    lists:append([type_to_paths(add_tagged(Key, Type),
-                                [atom_to_binary(Key, utf8)|Path])
-                  || {Key, Type} <- maps:to_list(Dict)]);
-type_to_paths(Type, Path) ->
-    [{Path, Type}].
-
--spec path_to_module(mongoose_config_parser_toml:path()) -> module().
-path_to_module(Path) ->
-    PathR = lists:reverse(Path),
-    case PathR of
-        [<<"host_config">>, _, <<"modules">>, Mod|_] ->
-            b2a(Mod);
-        [<<"modules">>, Mod|_] ->
-            b2a(Mod)
-    end.
-
--spec path_without_host_config(mongoose_config_parser_toml:path()) ->
-        mongoose_config_parser_toml:path().
-path_without_host_config(Path) ->
-    PathR = lists:reverse(Path),
-    [<<"host_config">>, _|Rest] = PathR,
-    lists:reverse(Rest).
 
 
 %% validators
@@ -1269,9 +1649,6 @@ validate_binary_domain(Domain) when is_binary(Domain) ->
 validate_domain_template(Domain) ->
     validate_binary_domain(gen_mod:make_subhost(Domain, <<"example.com">>)).
 
-validate_binary_domain_template(Domain) ->
-    validate_domain_template(binary_to_list(Domain)).
-
 validate_url(Url) ->
     validate_non_empty_string(Url).
 
@@ -1301,18 +1678,16 @@ validate_ipv6_mask(Mask) ->
 validate_network_address(Value) ->
     ?LOG_DEBUG(#{what => validate_network_address,
                  value => Value}),
-    validate_oneof(Value, [domain, ip_address]).
+    validate_oneof(Value, [fun validate_domain/1, fun validate_ip_address/1]).
 
-validate_oneof(Value, Validators) ->
-    Map = type_to_validator(),
-    Funs = [maps:get(Type, Map) || Type <- Validators],
+validate_oneof(Value, Funs) ->
     Results = [safe_call_validator(F, Value) || F <- Funs],
     case lists:any(fun(R) -> R =:= ok end, Results) of
         true ->
             ok;
         false ->
             error(#{what => validate_oneof_failed,
-                    validation_results => lists:zip(Validators, Results)})
+                    validation_results => Results})
     end.
 
 safe_call_validator(F, Value) ->
@@ -1348,11 +1723,6 @@ validate_dirname(Dirname) ->
         Reason ->
             error(#{what => invalid_dirname, dirname => Dirname, reason => Reason})
     end.
-
-validate_optional_section(Tag, {Tag, false}) -> %% set to false to disable the feature
-    ok;
-validate_optional_section(Tag, {Tag, List}) when is_list(List) -> %% proplist
-    ok.
 
 validate_keystore_key({Name, ram}) ->
     validate_non_empty_atom(Name);
@@ -1427,3 +1797,12 @@ validate_ldap_uids({Attribute, Format}) ->
     validate_non_empty_string(Format);
 validate_ldap_uids(Attribute) ->
     validate_non_empty_string(Attribute).
+
+validate_pool_name(V) ->
+    validate_non_empty_atom(V).
+
+validate_access_rule(V) ->
+    validate_non_empty_atom(V).
+
+validate_shaper_name(V) ->
+    validate_non_empty_atom(V).
