@@ -644,10 +644,8 @@ module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
     [{cache_size, V}];
 module_opt([<<"cache_life_time">>, <<"mod_caps">>|_], V) ->
     [{cache_life_time, V}];
-module_opt([<<"buffer_max">>, <<"mod_csi">>|_], <<"infinity">>) ->
-    [{buffer_max, infinity}];
 module_opt([<<"buffer_max">>, <<"mod_csi">>|_], V) ->
-    [{buffer_max, V}];
+    [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
     Domains = parse_list(Path, V),
     [{extra_domains, Domains}];
@@ -747,18 +745,12 @@ module_opt([<<"history_size">>, <<"mod_muc">>|_], V) ->
     [{history_size, V}];
 module_opt([<<"room_shaper">>, <<"mod_muc">>|_], V) ->
     [{room_shaper, b2a(V)}];
-module_opt([<<"max_room_id">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_id, infinity}];
 module_opt([<<"max_room_id">>, <<"mod_muc">>|_], V) ->
-    [{max_room_id, V}];
-module_opt([<<"max_room_name">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_name, infinity}];
+    [{max_room_id, int_or_infinity(V)}];
 module_opt([<<"max_room_name">>, <<"mod_muc">>|_], V) ->
-    [{max_room_name, V}];
-module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_desc, infinity}];
+    [{max_room_name, int_or_infinity(V)}];
 module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], V) ->
-    [{max_room_desc, V}];
+    [{max_room_desc, int_or_infinity(V)}];
 module_opt([<<"min_message_interval">>, <<"mod_muc">>|_], V) ->
     [{min_message_interval, V}];
 module_opt([<<"min_presence_interval">>, <<"mod_muc">>|_], V) ->
@@ -928,12 +920,10 @@ module_opt([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_gfilter, b2l(V)}];
 module_opt([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_ufilter, b2l(V)}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"infinity">>) ->
-    [{buffer_max, infinity}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"no_buffer">>) ->
     [{buffer_max, no_buffer}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], V) ->
-    [{buffer_max, V}];
+    [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], <<"never">>) ->
     [{ack_freq, never}];
 module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], V) ->
