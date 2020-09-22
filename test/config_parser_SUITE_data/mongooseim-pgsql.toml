@@ -183,7 +183,7 @@
   password.format = "scram"
   password.hash = ["sha256"]
   scram_iterations = 64
-  cyrsasl_external = ["standard"]
+  sasl_external = ["standard"]
 
 [outgoing_pools.redis.global_distrib]
   scope = "single_host"
@@ -373,5 +373,5 @@
 
   [host_config.auth]
     methods = ["anonymous"]
-    allow_multiple_connections = true
-    anonymous_protocol = "both"
+    anonymous.allow_multiple_connections = true
+    anonymous.protocol = "both"

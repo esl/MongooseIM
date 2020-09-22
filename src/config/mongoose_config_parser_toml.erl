@@ -347,25 +347,29 @@ just_tls_verify_fun(_, _) -> [].
 -spec auth_option(path(), toml_value()) -> [option()].
 auth_option([<<"methods">>|_] = Path, Methods) ->
     [{auth_method, parse_list(Path, Methods)}];
-auth_option([<<"password">>|_] = Path, #{<<"format">> := <<"scram">>, <<"hash">> := Hashes}) ->
+auth_option([<<"password">>|_] = Path, #{<<"hash">> := Hashes}) ->
     [{password_format, {scram, parse_list([<<"hash">> | Path], Hashes)}}];
-auth_option([<<"password">>|_], #{<<"format">> := Format}) ->
-    [{password_format, b2a(Format)}];
+auth_option([<<"password">>|_], #{<<"format">> := V}) ->
+    [{password_format, b2a(V)}];
 auth_option([<<"scram_iterations">>|_], V) ->
     [{scram_iterations, V}];
-auth_option([<<"cyrsasl_external">>|_] = Path, V) ->
+auth_option([<<"sasl_external">>|_] = Path, V) ->
     [{cyrsasl_external, parse_list(Path, V)}];
-auth_option([<<"allow_multiple_connections">>|_], V) ->
-    [{allow_multiple_connections, V}];
-auth_option([<<"anonymous_protocol">>|_], V) ->
-    [{anonymous_protocol, b2a(V)}];
-auth_option([<<"ldap">>|_] = Path, V) ->
-    parse_section(Path, V);
 auth_option([<<"sasl_mechanisms">>|_] = Path, V) ->
     [{sasl_mechanisms, parse_list(Path, V)}];
-auth_option([<<"extauth_instances">>|_], V) ->
-    [{extauth_instances, V}].
+auth_option([<<"jwt">>|_] = Path, V) ->
+    ensure_keys([<<"secret">>, <<"algorithm">>, <<"username_key">>], V),
+    parse_section(Path, V);
+auth_option(Path, V) ->
+    parse_section(Path, V).
 
+%% path: (host_config[].)auth.anonymous.*
+auth_anonymous_option([<<"allow_multiple_connections">>|_], V) ->
+    [{allow_multiple_connections, V}];
+auth_anonymous_option([<<"protocol">>|_], V) ->
+    [{anonymous_protocol, b2a(V)}].
+
+%% path: (host_config[].)auth.ldap.*
 -spec auth_ldap_option(path(), toml_section()) -> [option()].
 auth_ldap_option([<<"pool_tag">>|_], V) ->
     [{ldap_pool_tag, b2a(V)}];
@@ -413,12 +417,48 @@ auth_ldap_local_filter([<<"values">>|_] = Path, V) ->
     Attrs = parse_list(Path, V),
     [{values, Attrs}].
 
-%% path: (host_config[].)auth.cyrsasl_external[]
--spec cyrsasl_external(path(), toml_value()) -> [option()].
-cyrsasl_external(_, <<"standard">>) -> [standard];
-cyrsasl_external(_, <<"common_name">>) -> [common_name];
-cyrsasl_external(_, <<"auth_id">>) -> [auth_id];
-cyrsasl_external(_, M) -> [{mod, b2a(M)}].
+%% path: (host_config[].)auth.external.*
+-spec auth_external_option(path(), toml_value()) -> [option()].
+auth_external_option([<<"instances">>|_], V) ->
+    [{extauth_instances, V}];
+auth_external_option([<<"program">>|_], V) ->
+    [{extauth_program, b2l(V)}].
+
+%% path: (host_config[].)auth.http.*
+-spec auth_http_option(path(), toml_value()) -> [option()].
+auth_http_option([<<"basic_auth">>|_], V) ->
+    [{basic_auth, b2l(V)}].
+
+%% path: (host_config[].)auth.jwt.*
+-spec auth_jwt_option(path(), toml_value()) -> [option()].
+auth_jwt_option([<<"secret">>|_] = Path, V) ->
+    [Item] = parse_section(Path, V), % expect exactly one option
+    [Item];
+auth_jwt_option([<<"algorithm">>|_], V) ->
+    [{jwt_algorithm, b2l(V)}];
+auth_jwt_option([<<"username_key">>|_], V) ->
+    [{jwt_username_key, b2a(V)}].
+
+%% path: (host_config[].)auth.jwt.secret.*
+-spec auth_jwt_secret(path(), toml_value()) -> [option()].
+auth_jwt_secret([<<"file">>|_], V) ->
+    [{jwt_secret_source, b2l(V)}];
+auth_jwt_secret([<<"env">>|_], V) ->
+    [{jwt_secret_source, {env, b2l(V)}}];
+auth_jwt_secret([<<"value">>|_], V) ->
+    [{jwt_secret, b2l(V)}].
+
+%% path: (host_config[].)auth.riak.*
+-spec auth_riak_option(path(), toml_value()) -> [option()].
+auth_riak_option([<<"bucket_type">>|_], V) ->
+    [{bucket_type, V}].
+
+%% path: (host_config[].)auth.sasl_external[]
+-spec sasl_external(path(), toml_value()) -> [option()].
+sasl_external(_, <<"standard">>) -> [standard];
+sasl_external(_, <<"common_name">>) -> [common_name];
+sasl_external(_, <<"auth_id">>) -> [auth_id];
+sasl_external(_, M) -> [{mod, b2a(M)}].
 
 %% path: (host_config[].)auth.sasl_mechanism[]
 %%       auth.sasl_mechanisms.*
@@ -1484,6 +1524,10 @@ int_or_infinity(<<"infinity">>) -> infinity.
 limit_keys(Keys, Section) ->
     Section = maps:with(Keys, Section).
 
+-spec ensure_keys([toml_key()], toml_section()) -> any().
+ensure_keys(Keys, Section) ->
+    true = lists:all(fun(Key) -> maps:is_key(Key, Section) end, Keys).
+
 -spec parse_kv(path(), toml_key(), toml_section(), option()) -> option().
 parse_kv(Path, K, Section, Default) ->
     Value = maps:get(K, Section, Default),
@@ -1501,7 +1545,7 @@ parse_section(Path, M) ->
     lists:flatmap(fun({K, V}) ->
                           Key = key(K, Path, V),
                           handle([Key|Path], V)
-                  end, maps:to_list(M)).
+                  end, lists:sort(maps:to_list(M))).
 
 -spec parse_list(path(), [toml_value()]) -> [option()].
 parse_list(Path, L) ->
@@ -1569,7 +1613,13 @@ handler([_, <<"service">>, _, <<"mod_websockets">>, <<"handlers">>, _, <<"http">
 
 %% auth
 handler([_, <<"auth">>]) -> fun auth_option/2;
+handler([_, <<"anonymous">>, <<"auth">>]) -> fun auth_anonymous_option/2;
 handler([_, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_option/2;
+handler([_, <<"external">>, <<"auth">>]) -> fun auth_external_option/2;
+handler([_, <<"http">>, <<"auth">>]) -> fun auth_http_option/2;
+handler([_, <<"jwt">>, <<"auth">>]) -> fun auth_jwt_option/2;
+handler([_, <<"secret">>, <<"jwt">>, <<"auth">>]) -> fun auth_jwt_secret/2;
+handler([_, <<"riak">>, <<"auth">>]) -> fun auth_riak_option/2;
 handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
 handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
 handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
@@ -1577,7 +1627,7 @@ handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V
 handler([_, <<"values">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
 handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
 handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
-handler([_, <<"cyrsasl_external">>, <<"auth">>]) -> fun cyrsasl_external/2;
+handler([_, <<"sasl_external">>, <<"auth">>]) -> fun sasl_external/2;
 handler([_, <<"sasl_mechanisms">>, <<"auth">>]) -> fun sasl_mechanism/2;
 
 %% outgoing_pools
@@ -1740,12 +1790,8 @@ handler([_, _, <<"host_config">>]) -> fun process_section/2;
 handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
-    case lists:reverse(Path) of
-        [<<"host_config">>, {host, _} | Rest] ->
-            handler(lists:reverse(Rest));
-        _ ->
-            throw({unhandled_config_path, Path})
-    end.
+    [<<"host_config">>, {host, _} | Rest] = lists:reverse(Path),
+    handler(lists:reverse(Rest)).
 
 %% 1. Strip host_config, choose the handler for the remaining path
 %% 2. Wrap the handler in a fun that calls the resulting function F for the current host

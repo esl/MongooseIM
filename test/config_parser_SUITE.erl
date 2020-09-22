@@ -84,7 +84,7 @@ groups() ->
      {auth, [parallel], [auth_methods,
                          auth_password_format,
                          auth_scram_iterations,
-                         auth_cyrsasl_external,
+                         auth_sasl_external,
                          auth_allow_multiple_connections,
                          auth_anonymous_protocol,
                          auth_sasl_mechanisms,
@@ -96,7 +96,11 @@ groups() ->
                          auth_ldap_dn_filter,
                          auth_ldap_local_filter,
                          auth_ldap_deref,
-                         auth_extauth_instances]},
+                         auth_external_instances,
+                         auth_external_program,
+                         auth_http_basic_auth,
+                         auth_jwt,
+                         auth_riak_bucket_type]},
      {pool, [parallel], [pool_type,
                          pool_tag,
                          pool_scope,
@@ -650,14 +654,18 @@ auth_password_format(_Config) ->
                                             <<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
     eq_host_config(
       [#local_config{key = {auth_opts, ?HOST},
+                     value = [{password_format, scram}]}],
+      #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>}}}),
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
                      value = [{password_format, plain}]}],
       #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
 
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}}),
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                         <<"hash">> => []}}}),
+                                                          <<"hash">> => []}}}),
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                         <<"hash">> => [<<"sha1234">>]}}}).
+                                                          <<"hash">> => [<<"sha1234">>]}}}).
 
 auth_scram_iterations(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST},
@@ -665,30 +673,18 @@ auth_scram_iterations(_Config) ->
                   #{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
     err_host_config(#{<<"auth">> => #{<<"scram_iterations">> => false}}).
 
-auth_cyrsasl_external(_Config) ->
+auth_sasl_external(_Config) ->
     eq_host_config(
       [#local_config{key = {auth_opts, ?HOST},
                      value = [{cyrsasl_external, [standard,
                                                   common_name,
                                                   {mod, cyrsasl_external_verification}]
                               }]}],
-      #{<<"auth">> => #{<<"cyrsasl_external">> =>
+      #{<<"auth">> => #{<<"sasl_external">> =>
                             [<<"standard">>,
                              <<"common_name">>,
                              <<"cyrsasl_external_verification">>]}}),
-    err_host_config(#{<<"auth">> => #{<<"cyrsasl_external">> => [<<"unknown">>]}}).
-
-auth_allow_multiple_connections(_Config) ->
-    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
-                   #local_config{key = {allow_multiple_connections, ?HOST}, value = true}],
-                  #{<<"auth">> => #{<<"allow_multiple_connections">> => true}}),
-    err_host_config(#{<<"auth">> => #{<<"allow_multiple_connections">> => <<"yes">>}}).
-
-auth_anonymous_protocol(_Config) ->
-    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
-                   #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}],
-                  #{<<"auth">> => #{<<"anonymous_protocol">> => <<"login_anon">>}}),
-    err_host_config(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"none">>}}).
+    err_host_config(#{<<"auth">> => #{<<"sasl_external">> => [<<"unknown">>]}}).
 
 auth_sasl_mechanisms(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
@@ -696,6 +692,18 @@ auth_sasl_mechanisms(_Config) ->
                                  value = [cyrsasl_external, cyrsasl_scram]}],
                   #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     err_host_config(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
+
+auth_allow_multiple_connections(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {allow_multiple_connections, ?HOST}, value = true}],
+                   auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => true})),
+    err_host_config(auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => <<"yes">>})).
+
+auth_anonymous_protocol(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}],
+                  auth_config(<<"anonymous">>, #{<<"protocol">> => <<"login_anon">>})),
+    err_host_config(auth_config(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
 
 auth_ldap_pool(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST},
@@ -763,11 +771,58 @@ auth_ldap_deref(_Config) ->
                   auth_ldap(#{<<"deref">> => <<"always">>})),
     err_host_config(auth_ldap(#{<<"deref">> => <<"sometimes">>})).
 
-auth_extauth_instances(_Config) ->
+auth_external_instances(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
                    #local_config{key = {extauth_instances, ?HOST}, value = 2}],
-                  #{<<"auth">> => #{<<"extauth_instances">> => 2}}),
-    err_host_config(#{<<"auth">> => #{<<"extauth_instances">> => 0}}).
+                  auth_config(<<"external">>, #{<<"instances">> => 2})),
+    err_host_config(auth_config(<<"external">>, #{<<"instances">> => 0})).
+
+auth_external_program(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{extauth_program, "/usr/bin/auth"}]}],
+                   auth_config(<<"external">>, #{<<"program">> => <<"/usr/bin/auth">>})),
+    err_host_config(auth_config(<<"external">>, #{<<"program">> => <<>>})).
+
+auth_http_basic_auth(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{basic_auth, "admin:admin123"}]}],
+                    auth_config(<<"http">>, #{<<"basic_auth">> => <<"admin:admin123">>})),
+    err_host_config(auth_config(<<"http">>, #{<<"basic_auth">> => true})).
+
+auth_jwt(_Config) ->
+    Opts = #{<<"secret">> => #{<<"value">> => <<"secret123">>},
+             <<"algorithm">> => <<"HS512">>,
+             <<"username_key">> => <<"user">>}, % tested together as all options are required
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret, "secret123"},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, Opts)),
+    FileOpts = Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}},
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret_source, "/home/user/jwt_secret"},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, FileOpts)),
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret_source, {env, "SECRET"}},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<>>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/jwt_secret">>,
+                                                                   <<"env">> => <<"SECRET">>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"algorithm">> := <<"bruteforce">>})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"username_key">> := <<>>})),
+    [err_host_config(auth_config(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
+
+auth_riak_bucket_type(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{bucket_type, <<"buckethead">>}]}],
+                   auth_config(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
+    err_host_config(auth_config(<<"riak">>, #{<<"bucket_type">> => <<>>})).
 
 %% tests: outgoing_pools
 
@@ -1206,7 +1261,10 @@ parse_listener(Type, Opts) ->
 %% helpers for 'auth' tests
 
 auth_ldap(Opts) ->
-    #{<<"auth">> => #{<<"ldap">> => Opts}}.
+    auth_config(<<"ldap">>, Opts).
+
+auth_config(Method, Opts) ->
+    #{<<"auth">> => #{Method => Opts}}.
 
 %% helpers for 'pool' tests
 
@@ -1230,12 +1288,12 @@ rdbms_opts() ->
 
 eq_host_config(Result, Config) ->
     [F] = parse(Config), % check for all hosts
-    ?eq(Result, F(?HOST)),
-    ?eq(Result, parse_host_config(Config)). % check for a single host
+    compare_config(Result, F(?HOST)),
+    compare_config(Result, parse_host_config(Config)). % Check for a single host
 
 eq_host_or_global(ResultF, Config) ->
-    ?eq(ResultF(global), parse(Config)), % check for the 'global' host
-    ?eq(ResultF(?HOST), parse_host_config(Config)). % check for a single host
+    compare_config(ResultF(global), parse(Config)), % check for the 'global' host
+    compare_config(ResultF(?HOST), parse_host_config(Config)). % check for a single host
 
 err_host_config(Config) ->
     ?err(parse(Config)),
@@ -1245,6 +1303,9 @@ parse_host_config(Config) ->
     parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
 
 %% helpers for 'equivalence' tests
+
+compare_config(C1, C2) ->
+    compare_unordered_lists(C1, C2, fun handle_config_option/2).
 
 filter_config(#config{key = required_files}) ->
     false; % not supported yet in TOML

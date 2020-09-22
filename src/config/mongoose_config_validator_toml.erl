@@ -178,15 +178,15 @@ validate([<<"scram_iterations">>, <<"auth">>|Path],
          [{scram_iterations, Value}]) ->
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
-validate([item, <<"cyrsasl_external">>, <<"auth">>|Path],
+validate([item, <<"sasl_external">>, <<"auth">>|Path],
          [{mod, Module}]) ->
     validate_root_or_host_config(Path),
     validate_module(Module);
-validate([<<"allow_multiple_connections">>, <<"auth">>|Path],
+validate([<<"allow_multiple_connections">>, <<"anonymous">>, <<"auth">>|Path],
          [{allow_multiple_connections, Value}]) ->
     validate_root_or_host_config(Path),
     validate_boolean(Value);
-validate([<<"anonymous_protocol">>, <<"auth">>|Path],
+validate([<<"protocol">>, <<"anonymous">>, <<"auth">>|Path],
          [{anonymous_protocol, Value}]) ->
     validate_root_or_host_config(Path),
     validate_enum(Value, [sasl_anon, login_anon, both]);
@@ -215,10 +215,35 @@ validate([item, <<"sasl_mechanisms">>, <<"auth">>|Path],
          [Value]) ->
     validate_root_or_host_config(Path),
     validate_module(Value);
-validate([<<"extauth_instances">>, <<"auth">>|Path],
+validate([<<"instances">>, <<"external">>, <<"auth">>|Path],
          [{extauth_instances, Value}]) ->
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
+validate([<<"program">>, <<"external">>, <<"auth">>|Path],
+         [{extauth_program, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"file">>, <<"secret">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_secret_source, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"env">>, <<"secret">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_secret_source, {env, Value}}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"algorithm">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_algorithm, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_enum(Value, ["HS256", "RS256", "ES256", "HS386", "RS386", "ES386",
+                          "HS512", "RS512", "ES512"]);
+validate([<<"username_key">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_username_key, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_atom(Value);
+validate([<<"bucket_type">>, <<"riak">>, <<"auth">>|Path],
+         [{bucket_type, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_binary(Value);
 
 %% outgoing_pools
 validate([_Tag, _Type, <<"outgoing_pools">>],

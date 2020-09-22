@@ -20,8 +20,22 @@
     argument_restrictions.node = "mongooseim@prime"
 
 [auth]
-  extauth_instances = 1
-  
+  http.basic_auth = "admin:admin"
+  riak.bucket_type = "user_bucket"
+
+  [auth.anonymous]
+    protocol = "sasl_anon"
+    allow_multiple_connections = true
+
+  [auth.external]
+    program = "/usr/bin/authenticator"
+    instances = 1
+
+  [auth.jwt]
+    secret.value = "secret123"
+    algorithm = "RS256"
+    username_key = "user"
+
   [auth.ldap]
     pool_tag = "default"
     bind_pool_tag = "bind"
@@ -33,7 +47,7 @@
     local_filter.attribute = "accountStatus"
     local_filter.values = ["enabled"]
     deref = "never"
-    
+
     [[auth.ldap.uids]]
       attr = "uid"
 
