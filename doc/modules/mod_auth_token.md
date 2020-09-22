@@ -15,10 +15,10 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 ### Options
 
-#### `modules.mod_auth.token.validity_period`
+#### `modules.mod_auth_token.validity_period`
 * **Syntax:** Array of TOML tables with the following keys: `token`, `value`, `unit` and following values: {token = `values: "access", "refresh", "provision"`, value = `non-negative integer`, unit = `values: "days", "hours", "minutes", "seconds"`}.
-* **Default:** `{token = "access", value = 1, unit = "hours"} or {token = "refresh", value = 25, unit = "days"}`
-* **Example:** `{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}`
+* **Default:** `[{token = "access", value = 1, unit = "hours"}, {token = "refresh", value = 25, unit = "days"}]`
+* **Example:** `[{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}]`
 
 Validity periods of access and refresh tokens can be defined independently.
 Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
