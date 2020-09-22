@@ -15,9 +15,12 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
 -define(errf(Config), 
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+
+%% Constructs HOF to pass into run_multi/1 function
+%% It's a HOF, so it would always pass if not passed into run_multi/1
+-define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
 -define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
 
 -import(mongoose_config_parser_toml, [parse/1]).
@@ -1244,77 +1247,85 @@ s2s_max_retry_delay(_Config) ->
 %% modules
 
 mod_adhoc(_Config) ->
+    check_iqdisc(mod_adhoc),
+    run_multi(mod_adhoc_cases()).
+
+mod_adhoc_cases() ->
+    M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    ?eqf(modopts(mod_adhoc, [{report_commands_node, true}]),
-         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => true}}}),
-    ?eqf(modopts(mod_adhoc, [{report_commands_node, false}]),
-         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}}),
-    %% not boolean
-    ?errf(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}}),
-    check_iqdisc(mod_adhoc).
+    [?_eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
+     ?_eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+     %% not boolean
+     ?_errf(T(<<"report_commands_node">>, <<"hello">>))].
 
 mod_auth_token(_Config) ->
+    check_iqdisc(mod_auth_token),
+    run_multi(mod_auth_token_cases()).
+
+mod_auth_token_cases() ->
     P = fun(X) ->
                      Opts = #{<<"validity_period">> => X},
                      #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
              end,
-    ?eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
-                                  {{validity_period,refresh}, {31,days}}]),
-         P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
-            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-    ?errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}])),
-    check_iqdisc(mod_auth_token).
+    [?_eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
+                                    {{validity_period,refresh}, {31,days}}]),
+           P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
+              #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+     ?_errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}]))].
+
 
 mod_bosh(_Config) ->
-    B = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
-    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
-         B(<<"inactivity">>, 10)),
-    ?eqf(modopts(mod_bosh, [{inactivity, infinity}]),
-         B(<<"inactivity">>, <<"infinity">>)),
-    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
-         B(<<"inactivity">>, 10)),
-    ?eqf(modopts(mod_bosh, [{max_wait, infinity}]),
-         B(<<"max_wait">>, <<"infinity">>)),
-    ?eqf(modopts(mod_bosh, [{server_acks, true}]),
-         B(<<"server_acks">>, true)),
-    ?eqf(modopts(mod_bosh, [{server_acks, false}]),
-         B(<<"server_acks">>, false)),
-    ?eqf(modopts(mod_bosh, [{backend, mnesia}]),
-         B(<<"backend">>, <<"mnesia">>)),
-    ?errf(B(<<"inactivity">>, -1)),
-    ?errf(B(<<"inactivity">>, <<"10">>)),
-    ?errf(B(<<"inactivity">>, <<"inactivity">>)),
-    ?errf(B(<<"max_wait">>, <<"10">>)),
-    ?errf(B(<<"max_wait">>, -1)),
-    ?errf(B(<<"server_acks">>, -1)),
-    ?errf(B(<<"backend">>, <<"devnull">>)).
+    run_multi(mod_bosh_cases()).
+
+mod_bosh_cases() ->
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
+    M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
+    [?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+     ?_eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
+     ?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+     ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
+     ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
+     ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
+     ?_eqf(M(backend, mnesia), T(<<"backend">>, <<"mnesia">>)),
+     ?errf(T(<<"inactivity">>, -1)),
+     ?errf(T(<<"inactivity">>, <<"10">>)),
+     ?errf(T(<<"inactivity">>, <<"inactivity">>)),
+     ?errf(T(<<"max_wait">>, <<"10">>)),
+     ?errf(T(<<"max_wait">>, -1)),
+     ?errf(T(<<"server_acks">>, -1)),
+     ?errf(T(<<"backend">>, <<"devnull">>))].
 
 mod_caps(_Config) ->
+    run_multi(mod_caps_cases()).
+
+mod_caps_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
-    ?eqf(modopts(mod_caps, [{cache_size, 10}]),
-         T(<<"cache_size">>, 10)),
-    ?eqf(modopts(mod_caps, [{cache_life_time, 10}]),
-         T(<<"cache_life_time">>, 10)),
-    ?errf(T(<<"cache_size">>, -1)),
-    ?errf(T(<<"cache_size">>, <<"infinity">>)),
-    ?errf(T(<<"cache_life_time">>, -1)),
-    ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)).
+    M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
+    [?_eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
+     ?_eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+     ?_errf(T(<<"cache_size">>, -1)),
+     ?_errf(T(<<"cache_size">>, <<"infinity">>)),
+     ?_errf(T(<<"cache_life_time">>, -1)),
+     ?_errf(T(<<"cache_life_time">>, <<"cache_life_time">>))].
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
+    run_multi(mod_csi_cases()).
+
+mod_csi_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
-    ?eqf(modopts(mod_csi, [{buffer_max, 10}]),
-         T(<<"buffer_max">>, 10)),
-    ?eqf(modopts(mod_csi, [{buffer_max, infinity}]),
-         T(<<"buffer_max">>, <<"infinity">>)),
-    ?errf(T(<<"buffer_max">>, -1)).
+    M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
+    [?_eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
+     ?_eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+     ?_errf(T(<<"buffer_max">>, -1))].
 
 mod_disco(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
