@@ -34,12 +34,10 @@
     host = "https://localhost:8443"
     path_prefix = "/"
     request_timeout = 2000
-    retry = 1
-    retry_timeout = 1000
 
 [outgoing_pools.riak.default]
     scope = "global"
-    workers = 20 
+    workers = 20
     strategy = "next_worker"
     connection.address = "127.0.0.1"
     connection.port = 8087

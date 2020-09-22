@@ -471,13 +471,6 @@ connection_options([_, _, <<"riak">>|_] = Path, Options = #{<<"username">> := Us
                                                             <<"password">> := Password}) ->
     M = maps:without([<<"username">>, <<"password">>], Options),
     [{credentials, b2l(UserName), b2l(Password)} | parse_section(Path, M)];
-connection_options([_, _, <<"http">>|_] = Path, M) ->
-    HttpOpts = parse_section(Path, maps:with([<<"retry">>, <<"retry_timeout">>], M)),
-    Opts = parse_section(Path, maps:without([<<"retry">>, <<"retry_timeout">>], M)),
-    case HttpOpts of
-        [] -> Opts;
-        V -> [{http_opts, maps:from_list(V)} | Opts]
-    end;
 connection_options(Path, Options) ->
     parse_section(Path, Options).
 
@@ -532,9 +525,7 @@ rdbms_option([<<"driver">>|_], _V) -> [].
 -spec http_option(path(), toml_value()) -> [option()].
 http_option([<<"host">>|_], V) -> [{server, b2l(V)}];
 http_option([<<"path_prefix">>|_], V) -> [{path_prefix, b2l(V)}];
-http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}];
-http_option([<<"retry">>|_], V) -> [{retry, V}];
-http_option([<<"retry_timeout">>|_], V) -> [{retry_timeout, V}].
+http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}].
 
 %% path: outgoing_pools.redis.*.connection.*
 -spec redis_option(path(), toml_value()) -> [option()].

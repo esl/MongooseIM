@@ -111,7 +111,6 @@ groups() ->
                          pool_http_host,
                          pool_http_path_prefix,
                          pool_http_request_timeout,
-                         pool_http_opts,
                          pool_redis_host,
                          pool_redis_port,
                          pool_redis_database,
@@ -894,13 +893,6 @@ pool_http_request_timeout(_Config) ->
         parse_pool_conn(<<"http">>, #{<<"request_timeout">> => 2000})),
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
-
-pool_http_opts(_Config) ->
-    ?eq(pool_config({http, global, default, [], 
-        [{http_opts, #{retry => 1, retry_timeout => 1000}}]}),
-        parse_pool_conn(<<"http">>, #{<<"retry">> => 1, <<"retry_timeout">> => 1000})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"retry">> => <<"infinity">>})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"retry_timeout">> => 0})).
 
 pool_redis_host(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
