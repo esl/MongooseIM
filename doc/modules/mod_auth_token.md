@@ -15,31 +15,12 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 ### Options
 
-#### Validity periods
+#### `modules.mod_auth.token.validity_period`
+* **Syntax:** Array of TOML tables with the following keys: `token`, `value`, `unit` and following values: {token = `values: "access", "refresh", "provision"`, value = `non-negative integer`, unit = `values: "days", "hours", "minutes", "seconds"`}.
+* **Default:** `{token = "access", value = 1, unit = "hours"} or {token = "refresh", value = 25, unit = "days"}`
+* **Example:** `{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}`
 
 Validity periods of access and refresh tokens can be defined independently.
-
-Allowed units are:
-
-* days
-* hours
-* minutes
-* seconds
-
-The default values for tokens are:
-
-* 1 hour for an access token
-* 25 days for a refresh token
-
-Example configuration from `mongooseim.cfg`, inside `modules` section:
-
-```erlang
-{modules, [
-    {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                      {{validity_period, refresh}, {13, days}}]
-]}.
-```
-
 Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
 
 #### Required keys
@@ -47,12 +28,21 @@ Validity period configuration for provision tokens happens outside the module si
 Keys are used for signing binary tokens using an HMAC with SHA-2 family function SHA-384.
 Therefore, `mod_auth_token` requires `mod_keystore` to provide some predefined keys.
 
-The required keys are (example from `mongooseim.cfg`):
-
-```erlang
-{mod_keystore, [{keys, [{token_secret, ram},
-                        {provision_pre_shared, {file, "priv/provision_pre_shared.key"}}]}]}
+The required keys are (example from `mongooseim.toml`):
 ```
+[modules.mod_keystore]
+  ram_key_size = 1000
+  
+  [[modules.mod_keystore.keys]]
+    name = "token_secret"
+    type = "ram"
+
+  [[modules.mod_keystore.keys]]
+    name = "provision_pre_shared"
+    type = "file"
+    path = "priv/provision_pre_shared.key"
+```
+
 
 `token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk) key used for signing and verifying access and refresh tokens.
 
@@ -193,9 +183,10 @@ Access token validity can't be sidestepped right now.
 
 ### Example configuration
 
-```erlang
-{modules, [
-    {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                      {{validity_period, refresh}, {13, days}}]
-]}.
+```
+[modules.mod_auth_token]
+  validity_period = [
+    {token = "access", value = 13, unit = "minutes"},
+    {token = "refresh", value = 13, unit = "days"}
+  ]
 ```
