@@ -92,6 +92,7 @@ prep_stop(State) ->
     lists:foreach(fun ejabberd_users:stop/1, ?MYHOSTS),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
+    ejabberd_config:stop(),
     State.
 
 %% All the processes were killed when this function is called

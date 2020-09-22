@@ -27,6 +27,7 @@
 -author('alexey@process-one.net').
 
 -export([start/0,
+         stop/0,
          load_file/1,
          monitor_global_config_changes/0,
          add_global_option/2,
@@ -87,11 +88,13 @@ start() ->
     mnesia:add_table_copy(config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
-    erase_global_opts(), % because this is started before refresher, and we have to cater
-    % for a rare situation when only mongooseim application is restarted (e.g. in test)
     %% This start time is used by mod_last:
     add_local_option(node_start, {node_start, erlang:system_time(second)}),
     ok.
+
+stop() ->
+    % so that when the app is restarted we fill it with new values
+    erase_global_opts().
 
 monitor_global_config_changes() ->
     mnesia:subscribe({table, config, simple}).
