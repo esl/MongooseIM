@@ -1,39 +1,45 @@
 ## Overview
 
-The purpose of this module is to connect with an external REST API and delegate the authentication operations to it whenever possible.
-The component must implement the API described in one of the next sections for `ejabberd_auth_http` to work out of the box.
+The purpose of this method is to connect to an external REST API and delegate the authentication operations to it.
+The component must implement the [API described below](#authentication-service-api).
 
-The module can be especially useful for users maintaining their own central user database which is shared with other services. It fits perfectly when the client application uses a custom authentication token and MongooseIM has to validate it externally.
-
-## Configuration
-
-### How to enable
-
-For a full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication).
-The simplest way is to just replace the default `auth_method` option in `rel/files/mongooseim.cfg` with `{auth_method, http}`.
-
-Enabling the module **is not enough!**
-Please follow instructions below.
+This method can be especially useful when the user database is shared with other services. It fits perfectly when the client application uses a custom authentication token and MongooseIM has to validate it externally.
 
 ### Configuration options
 
-`ejabberd_auth_http` uses an outgoing http connection pool called `auth`.
-The pool has to be defined in outgoing_pools section (see [Outgoing-connections#/http-connections](../advanced-configuration/outgoing-connections#http-connections-setup)).
-The following options can be set in the `auth_opts` tuple in `rel/files/mongooseim.cfg`:
+The `auth` method uses an outgoing HTTP connection pool called `auth`, which has to be defined in the `outgoing_pools` section.
 
-* `basic_auth` (default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
+For additional configuration, the following options can be provided in the `auth` section:
 
-#### Example
+### `auth.http.basic_auth`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `basic_auth = "admin:secret"`
 
+Optional HTTP Basic Authentication in format `"username:password"` - used to authenticate MongooseIM in the HTTP service.
+
+### Example
+
+Authentication:
+
+```toml
+[auth]
+  methods = ["http"]
+
+  [auth.http]
+    basic_auth = "mongooseim:DzviNQw3qyGJDrJDu+ClyA"
 ```
-{auth_opts, [
-             {basic_auth, "mongooseim:DzviNQw3qyGJDrJDu+ClyA"},
-            ]}.
+
+Outgoing pools:
+
+```toml
+[outgoing_pools.http.auth]
+  connection.host = "https://auth-service:8000"
 ```
 
 ## SCRAM support
 
-`ejabberd_auth_http` can use the SCRAM method.
+The `http` method can use the `SASL SCRAM-*` mechanisms.
 When SCRAM is enabled, the passwords sent to the auth service are serialised and the same serialised format is expected when fetching a password from the component.
 
 It is transparent when MongooseIM is responsible for all DB operations such as password setting, account creation etc.
@@ -151,23 +157,23 @@ Below you can find some examples of the auth service APIs and MongooseIM-side co
 An Auth token is provided as a password.
 
 * **Service implements:** `check_password`, `user_exists`
-* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
-* **Client side:** MUST NOT use `DIGEST-MD5` mechanism; use `PLAIN`
+* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
+* **Client side:** Must NOT use the `DIGEST-MD5` mechanism; use `PLAIN` instead
 
 #### Central database of plaintext passwords
 
 * **Service implements:** `check_password`, `get_password`, `user_exists`
-* **MongooseIM config:** `password_format`: `plain`, `mod_register` disabled
-* **Client side:** May use any available auth method
+* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
+* **Client side:** May use any available SASL mechanism
 
 #### Central database able to process SCRAM
 
 * **Service implements:** `get_password`, `user_exists`
-* **MongooseIM config:** `password_format`: `scram`, `mod_register` disabled
-* **Client side:** May use any available auth method
+* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `scram`, `mod_register` disabled
+* **Client side:** May use any available SASL mechanism
 
 #### Godlike MongooseIM
 
 * **Service implements:** all methods
-* **MongooseIM config:** `password_format`: `scram` (recommended) or `plain`, `mod_register` enabled
-* **Client side:** May use any available auth method
+* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `scram` (recommended) or `plain`, `mod_register` enabled
+* **Client side:** May use any available SASL mechanism

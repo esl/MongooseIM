@@ -1,8 +1,8 @@
 ## Overview
 
-This backend delegates the authentication to an external script.
+This authentication method delegates the authentication to an external script.
 
-Requires the SASL PLAIN method.
+It uses the `SASL PLAIN` mechanism.
 
 ## Script API specification
 
@@ -24,6 +24,27 @@ The following list describes packets that the script should support.
 
 ## Configuration options
 
-* **extauth_program**
-     * **Description:** Path to the authentication script used by the `external` auth module.
+### `auth.external.program`
+* **Syntax:** string
+* **Default:** no default, this option is mandatory for the `external` authentication method
+* **Example:** `program = "/usr/bin/auth-script.sh"`
 
+Path to the external authentication program.
+
+### `auth.external.instances`
+* **Syntax:** positive integer
+* **Default:** `1`
+* **Example:** `instances = 2`
+
+Specifies the number of workers serving external authentication requests.
+
+### Example
+
+```toml
+[auth]
+  methods = ["external"]
+
+  [auth.external]
+    program = "/home/user/authenticator"
+    instances = 5
+```
