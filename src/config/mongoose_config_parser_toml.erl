@@ -1597,26 +1597,23 @@ parse_list(Path, L) ->
 -spec handle(path(), toml_value()) -> option().
 handle(Path, Value) ->
     Handler = handler(Path),
-    try Handler(Path, Value) of
-        Option ->
-                validate(Path, Option),
-                Option
-    %% attach path if it has no path attached yet
-    catch Class:Error:Stacktrace
-         when not is_map(Error); not is_map_key(path, Error) ->
-              erlang:raise(Class, #{what => toml_parse_failed,
-                                    path => Path,
-                                    reason => Error}, Stacktrace)
-    end.
+    Option = try Handler(Path, Value)
+             catch error:Error:Stacktrace
+                  when not is_map(Error); not is_map_key(path, Error) ->
+                      E = #{what => toml_parse_failed,
+                            path => Path, reason => Error},
+                      erlang:raise(error, E, Stacktrace)
+             end,
+    validate(Path, Option),
+    Option.
 
 validate(Path, Option) ->
-    try
-        mongoose_config_validator_toml:validate(Path, Option)
-    catch Class:Error:Stacktrace
+    try mongoose_config_validator_toml:validate(Path, Option)
+    catch error:Error:Stacktrace
          when not is_map(Error); not is_map_key(path, Error) ->
-              erlang:raise(Class, #{what => toml_validate_failed,
-                                    path => Path,
-                                    reason => Error}, Stacktrace)
+              E = #{what => toml_validate_failed,
+                    path => Path, reason => Error},
+              erlang:raise(error, E, Stacktrace)
     end.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
