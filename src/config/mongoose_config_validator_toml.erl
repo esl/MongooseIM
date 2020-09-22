@@ -1694,8 +1694,8 @@ safe_call_validator(F, Value) ->
     try
         F(Value),
         ok
-    catch Class:Reason:Stacktrace ->
-              #{class => Class, reason => Reason, stacktrace => Stacktrace}
+    catch error:Reason:Stacktrace ->
+              #{reason => Reason, stacktrace => Stacktrace}
     end.
 
 validate_network_port(Value) ->
