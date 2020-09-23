@@ -100,16 +100,45 @@ MongooseIM packages are built with Jingle/SIP support.
 
 ### Options
 
-* `proxy_host` (default: "localhost") name or IP address of the SIP Proxy to which MongooseIM will send SIP messages
-* `proxy_port` (default: 5600) port of the SIP Proxy
-* `listen_port` (default: 5600) the port on which MongooseIM will listen for incomming SIP messages
-* `local_host` (default: "localhost") value used to create SIP URIs (including VIA headers)
-* `sdp_origin` (default: "127.0.0.1") value of the `c=` SDP attribute
+#### `modules.mod_jingle_sip.proxy_host`
+* **Syntax:** string
+* **Default:** `"localhost"`
+* **Example:** `proxy_host = "localhost"`
+
+The name or IP address of the SIP Proxy to which MongooseIM will send SIP messages.
+
+#### `modules.mod_jingle_sip.proxy_port`
+* **Syntax:** non-negative integer
+* **Default:** `5600`
+* **Example:** `proxy_port = 5600`
+
+The port of the SIP Proxy.
+
+#### `modules.mod_jingle_sip.listen_port`
+* **Syntax:** non-negative integer
+* **Default:** `5600`
+* **Example:** `listen_port = 5600`
+
+The port on which MongooseIM will listen for incomming SIP messages.
+
+#### `modules.mod_jingle_sip.local_host`
+* **Syntax:** string
+* **Default:** `"127.0.0.1"`
+* **Example:** `local_host = "localhost"`
+
+The value used to create SIP URIs (including VIA headers).
+
+#### `modules.mod_jingle_sip.sdp_origin`
+* **Syntax:** string
+* **Default:** `"127.0.0.1"`
+* **Example:** `sdp_origin = "127.0.0.1"`
+
+The value of the `c=` SDP attribute.
 
 The simplest configuration is the following:
 
-```erlang
-{mod_jingle_sip, []}
+```
+[modules.mod_jingle_sip]
 ```
 
 With this configuration MongooseIM will try sending SIP messages to a SIP proxy listening on localhost and port 5060.

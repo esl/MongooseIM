@@ -6,8 +6,17 @@ Use with caution, as it was observed that a user disconnect spike might result i
 
 ### Options
 
-* **iqdisc** (default: `one_queue`)
-* **backend** (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported.
+#### `modules.mod_last.iqdisc`
+* **Syntax:** string
+* **Default:** `no_queue`
+* **Example:** `iqdisc = one_queue`
+
+#### `modules.mod_last.backend`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
+* **Default:** `mnesia`
+* **Example:** `backend = rdbms`
+
+Storage backend.
 
 ##### Riak-specific options
 
@@ -15,7 +24,10 @@ Use with caution, as it was observed that a user disconnect spike might result i
 
 ### Example Configuration
 
-` {mod_last, []} `
+```
+[modules.mod_last]
+  backend = "rdbms"
+```
 
 ### Metrics
 
