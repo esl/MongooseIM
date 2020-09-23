@@ -3,27 +3,69 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
-* `access` (atom, default: `all`): Defines which ACL should be used for checking if a chosen username is allowed for registration.
-* `welcome_message` (`{Subject :: string(), Body :: string()}`, default: `{"", ""}`): Body and subject of a `<message>` stanza sent to new users.
-* `registration_watchers` (list of binaries, default: `[]`): List of JIDs, which should receive a `<message>` notification about every successful registration.
-* `password_strength` (non-negative integer, default: 0): Specifies minimal entropy of allowed password. 
- Entropy is measured with `ejabberd_auth:entropy/1`.
- Recommended minimum is 32.
- The entropy calculation algorithm is described in a section below.
-* `ip_access` (list of `{deny|allow, StringIP|StringSubnet, default: `[]`): Access list for specified IPs or networks. 
- Default value allows registration from every IP.
+#### `modules.mod_register.iqdisc`
+* **Syntax:** string
+* **Default:** `no_queue`
+* **Example:** `iqdisc = one_queue`
+
+#### `modules.mod_register.access`
+* **Syntax:** string
+* **Default:** `all`
+* **Example:** `access = all`
+
+Defines which ACL should be used for checking if a chosen username is allowed for registration.
+
+#### `modules.mod_register.welcome_message`
+* **Syntax:** TOML table with the following keys: `"body"`, `"subject"` and string values.
+* **Default:** `[]`
+* **Example:** `welcome_message = ["Hello from MIM!", "Message body."]`
+
+Body and subject of a `<message>` stanza sent to new users. Only one of the fields (but non-empty) is mandatory for the message to be sent.
+
+#### `modules.mod_register.registration_watchers`
+* **Syntax:** array of strings
+* **Default:** `[]`
+* **Example:** `registration_watchers = ["JID1", "JID2"]`
+
+List of JIDs, which should receive a `<message>` notification about every successful registration.
+
+#### `modules.mod_register.password_strength`
+* **Syntax:** non-negative integer
+* **Default:** `0`
+* **Example:** `password_strength = 32`
+
+Specifies minimal entropy of allowed password.
+Entropy is measured with `ejabberd_auth:entropy/1`.
+Recommended minimum is 32.
+The entropy calculation algorithm is described in a section below.
+
+#### `modules.mod_register.ip_access`
+* **Syntax:** Array of TOML tables with the following keys: `address`, `policy` and following values: {address = `string`, policy = `values: "allow", "deny"`}.
+* **Default:** `[]`
+* **Example:** `ip_access = [{address = "127.0.0.0/8", policy = "allow"}, {address = "0.0.0.0/0", policy = "deny"}]`
+
+Access list for specified IPs or networks. 
+Default value allows registration from every IP.
 
 ### Example configuration
 
 Allow registrations from localhost:
 ``` 
-{mod_register, [{allow, "127.0.0.1"}]} 
+[modules.mod_register]
+  welcome_message = ["", ""]
+  ip_access = [
+    {address = "127.0.0.1", policy = "allow"}
+  ]
+  access = "register"
 ```
 
 Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 ```
-{mod_register, [{deny, "10.20.0.0/16"}]}
+[modules.mod_register]
+  welcome_message = ["", ""]
+  ip_access = [
+    {address = "10.20.0.0/16", policy = "deny"}
+  ]
 ```
 
 ### Metrics
