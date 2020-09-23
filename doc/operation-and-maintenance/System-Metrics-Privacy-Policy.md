@@ -69,13 +69,11 @@ To create a new Tracking ID, please follow the steps below:
 ## Example configuration
 New Tracking ID can be added to the list of options
 ```
-{service_mongoose_system_metrics, [
-                                   report,
-                                   {intial_report, 300000},
-                                   {periodic_report, 108000000},
-                                   {tracking_id, UA-XXXX-Y}
-                                  ]
-}
+[[services]]
+  name = "service_mongoose_system_metrics"
+  initial_report = 300_000
+  periodic_report = 10_800_000
+  tracking_id = "UA-XXXX-Y"
 ```
 
 For more details regarding service configuration, please see [Services](../advanced-configuration/Services.md) section.
