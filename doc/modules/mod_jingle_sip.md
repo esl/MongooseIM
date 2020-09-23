@@ -141,7 +141,7 @@ The simplest configuration is the following:
 [modules.mod_jingle_sip]
 ```
 
-With this configuration MongooseIM will try sending SIP messages to a SIP proxy listening on localhost and port 5060.
+With this configuration MongooseIM will try sending SIP messages to a SIP proxy listening on localhost and port 5600.
 
 ### Use cases covered by tests
 

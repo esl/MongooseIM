@@ -18,7 +18,7 @@ Defines which ACL should be used for checking if a chosen username is allowed fo
 #### `modules.mod_register.welcome_message`
 * **Syntax:** TOML table with the following keys: `"body"`, `"subject"` and string values.
 * **Default:** `[]`
-* **Example:** `welcome_message = ["Hello from MIM!", "Message body."]`
+* **Example:** `welcome_message = [subject = "Hello from MIM!", body = "Message body."]`
 
 Body and subject of a `<message>` stanza sent to new users. Only one of the fields (but non-empty) is mandatory for the message to be sent.
 
@@ -52,7 +52,7 @@ Default value allows registration from every IP.
 Allow registrations from localhost:
 ``` 
 [modules.mod_register]
-  welcome_message = ["", ""]
+  welcome_message = [subject = "", body = ""]
   ip_access = [
     {address = "127.0.0.1", policy = "allow"}
   ]
@@ -62,7 +62,7 @@ Allow registrations from localhost:
 Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 ```
 [modules.mod_register]
-  welcome_message = ["", ""]
+  welcome_message = [subject = "", body = ""]
   ip_access = [
     {address = "10.20.0.0/16", policy = "deny"}
   ]

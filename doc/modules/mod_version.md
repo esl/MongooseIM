@@ -14,7 +14,7 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 * **Default:** `false`
 * **Example:** `os_info = true`
 
-Determines wheter information about the operating system will be included.
+Determines whether information about the operating system will be included.
 
 ### Example configuration 
 

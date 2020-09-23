@@ -38,7 +38,7 @@ Database backend to use.
 * **Default:** `all`
 * **Example:** `access_createnode = all`
 
-Who is allowed to create pubsub nodes.
+Specifies who is allowed to create pubsub nodes.
 
 #### `modules.mod_pubsub.max_items_node`
 * **Syntax:** non-negative integer
@@ -57,7 +57,7 @@ The maximum number of subscriptions managed by a node. The `undefined` value mea
 #### `modules.mod_pubsub.nodetree`
 * **Syntax:** string
 * **Default:** `"tree"`
-* **Example:** `nodetree = "tree">>`
+* **Example:** `nodetree = "tree"`
 
 Specifies the storage and organisation of the pubsub nodes. See the section below.
 
@@ -142,7 +142,7 @@ It is not coupled with the main DB backend, so it is possible to store the cache
 Called on `get`, `create` and `delete` node.
 Only one nodetree can be used per host and is shared by all node plugins.
 
-#### `<<"tree">>`
+#### `"tree"`
 
 Stores nodes in a tree structure.
 Every node name must be formatted like a UNIX path (e.g. `/top/middle/leaf`).
@@ -151,10 +151,10 @@ A user may create any top-level node.
 A user may create a subnode of a node, only if they own it or it was created by the service.
 
 
-#### `<<"dag">>`
+#### `"dag"`
 
 Provides experimental support for [XEP-0248 (PubSub Collection Nodes)](http://xmpp.org/extensions/xep-0248.html).
-In this case you should also add the `<<"dag">>` node plugin as default, for example: `{plugins, [<<"dag">>,<<"flat">>,<<"hometree">>,<<"pep">>]}`
+In this case you should also add the `"dag"` node plugin as default, for example: `plugins = ["dag", "flat", "hometree", "pep"]`
 
 ### Plugins
 
@@ -162,31 +162,31 @@ They handle affiliations, subscriptions and items and also provide default node 
 PubSub clients can define which plugin to use when creating a node by adding `type='plugin-name'` attribute to the create stanza element.
 If such an attribute is not specified, the default plugin will be the first on the plugin list.
 
-#### `<<"flat">>`
+#### `"flat"`
 
 No node hierarchy.
 It handles the standard PubSub case.
 
-#### `<<"hometree">>`
+#### `"hometree"`
 
 Uses the exact same features as the flat plugin but additionally organises nodes in a tree.
 Basically it follows a scheme similar to the filesystem's structure.
 Every user can create nodes in their own home root: e.g `/home/user`.
 Each node can contain items and/or sub-nodes.
 
-#### `<<"pep">>`
+#### `"pep"`
 
 Implementation of [XEP-0060 (Personal Eventing Protocol)](http://xmpp.org/extensions/xep-0163.html).
 In this case, items are not persisted but kept in an in-memory cache.
 When the `pep` plugin is enabled, a user can have their own node (exposed as their bare jid) with a common namespace.
 Requires module `mod_caps` to be enabled.
 
-#### `<<"dag">>`
+#### `"dag"`
 
 Implementation of [XEP-0248 (PubSub Collection Nodes)](https://xmpp.org/extensions/xep-0248.html).
 Every node takes a place in a collection and becomes either a collection node (and have only sub-nodes) or a leaf node (contains only items).
 
-#### `<<"push">>`
+#### `"push"`
 
 Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
 For each published notification, a hook `push_notification` is run.
