@@ -260,12 +260,6 @@ validate([<<"path_prefix">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
 validate([<<"request_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
          [{request_timeout, Value}]) ->
     validate_non_negative_integer(Value);
-validate([<<"retry">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{retry, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"retry_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{retry_timeout, Value}]) ->
-    validate_positive_integer(Value);
 validate([<<"host">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
     validate_non_empty_string(Value);
