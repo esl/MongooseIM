@@ -20,7 +20,12 @@ Storage backend.
 
 ##### Riak-specific options
 
-* `bucket_type` (default `"last"`) - Riak bucket type.
+###### `bucket_type`
+* **Syntax:** string
+* **Default:** `last`
+* **Example:** `bucket_type = last`
+
+Riak bucket type.
 
 ### Example Configuration
 
