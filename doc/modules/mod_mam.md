@@ -44,65 +44,159 @@ Also note that the default separator for the search query is `AND` (which roughl
 
 ### Options
 
-* **backend** (atom, default: `rdbms`) - Database backend to use. `rdbms`, `riak`, `cassandra` and `elasticsearch` are supported.
-* **no_stanzaid_element** (boolean, default: `false`) - Do not add a `<stanza-id/>` element from MAM v0.6.
-* **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
- **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
-* **archive_chat_markers** (boolean, default: `false`) - If set to true, XEP-0333 chat markers will be archived. See more details [here](#archiving-chat-markers)
-* **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
-* **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
-* **extra_lookup_params** (atom, default: `undefined`) - a module implementing `mam_iq` behaviour.
- If this option has value other then undefined, function `extra_lookup_params/2` from this module will be called when building MAM lookup parameters.
- This can be used to extend currently supported MAM query fields by a custom field or fields.
- This field(s) can be added to lookup params later passed to MAM backend.
-* **message_retraction** (boolean, default: `true`) - Enables [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html). This functionality is currently implemented only for the `rdbms` backend. [Retraction messages](https://xmpp.org/extensions/xep-0424.html#example-4) are always archived regardless of this option.
+#### `modules.mod_mam_meta.backend`
+* **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
+* **Default:** `"rdbms"`
+* **Example:** `backend = "riak"`
+* **Note:**
 
-**backend**, **no_stanzaid_element**, **is_archivable_message** and **message_retraction** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+Database backend to use.
+
+#### `modules.mod_mam_meta.no_stanzaid_element`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `no_stanzaid_element = true`
+
+Do not add a `<stanza-id/>` element from MAM v0.6.
+
+#### `modules.mod_mam_meta.is_archivable_message`
+* **Syntax:** string
+* **Default:** `"mod_mam_utils"`
+* **Example:** `is_archivable_message = "mod_mam_utils"`
+* **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain
+
+Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
+
+#### `modules.mod_mam_meta.archive_chat_markers`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `archive_chat_markers = true`
+
+If set to true, XEP-0333 chat markers will be archived.
+See more details [here](#archiving-chat-markers)
+
+#### `modules.mod_mam_meta.message_retraction`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `message_retraction = false`
+
+Enables [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html).
+This functionality is currently implemented only for the `rdbms` backend.
+[Retraction messages](https://xmpp.org/extensions/xep-0424.html#example-4) are always archived regardless of this option.
+
+#### `modules.mod_mam_meta.pm`
+* **Syntax:** boolean with only `false` bing a valid value
+* **Default:** when this option is not specified the one-to-one message archive is enabled
+* **Example:** `modules.mod_mam_meta.pm = false`
+
+If the value of this option is `false`, one-to-one message archive is disabled.
+
+#### `modules.mod_mam_meta.muc`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.muc = true`
+
+If the value of this option is `false`, group chat message archive is disabled.
+
+**backend**, **no_stanzaid_element**, **is_archivable_message** and **message_retraction** will be applied to both `pm` and `muc` (if they are enabled), unless overridden explicitly (see example below).
 
 #### PM-specific options
 
-* **archive_groupchats** (boolean, default: `true`) - When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
+#### `modules.mod_mam_meta.pm.archive_groupchats`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.muc = true`
+
+When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 MongooseIM will print a warning on startup if `pm` MAM is enabled without `archive_groupchats` being explicitly set to a specific value. In one of the future MongooseIM releases this option will default to `false` (as it's more common use case and less DB-consuming) and the warning message will be removed.
 
 #### MUC-specific options
 
-* **host** (string, default: `"conference.@HOST@"`) - MUC host that will be archived if MUC archiving is enabled.
+#### `modules.mod_mam_meta.muc.host`
+* **Syntax:** string
+* **Default:** `"conference.@HOST@"`
+* **Example:** `modules.mod_mam_meta.muc.host = "conference.@HOST@"`
+
+The MUC host that will be archived if MUC archiving is enabled.
 
 #### Example
 
 The example below presents how to override common option for `muc` module specifically.
+Please note that you can override all common options in similar way.
 
-```erlang
-{mod_mam_meta, [
-  {backend, rdbms},
-  {async_writer, true}, %% this option enables async writer for RDBMS backend
-  {muc, [
-    {async_writer, false} %% disable async writer for MUC archive only
-  ]}
-]}
+```
+[modules.mod_mam_meta]
+  backend = "rdbms"
+  async_writer = true # this option enables async writer for RDBMS backend
+  
+  muc.async_writer = false # disable async writer for MUC archive only
 ```
 
 #### RDBMS backend options
 
 These options will only have effect when the `rdbms` backend is used:
 
-* **cache_users** (boolean, default: `true`) - Enables Archive ID to integer mappings cache.
-* **rdbms_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
- When set to `internal`, stores messages and JIDs in internal format.
- **Warning**: Archive MUST be empty to change this option.
-* **async_writer** (boolean, default: `true`) - Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
-  The async writers store batches of messages with a certain delay (see **flush_interval**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes.
-* **flush_interval** (integer, default: `2000`) How often (in milliseconds) the buffered messages are flushed to a DB.
-* **max_batch_size** (integer, default, `30`) Max size of the batch insert query for an async writer.
-  If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
+#### `modules.mod_mam_meta.cache_users`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `modules.mod_mam_meta.cache_users = false`
+
+Enables Archive ID to integer mappings cache.
+
+#### `modules.mod_mam_meta.rdbms_message_format`
+* **Syntax:** string, one of `"internal"` and `"simple"`
+* **Default:** `"internal"`
+* **Example:** `modules.mod_mam_meta.rdbms_message_format = "simple"`
+* **Warning**: archive MUST be empty to change this option
+
+When set to `simple`, stores messages in XML and full JIDs.
+When set to `internal`, stores messages and JIDs in internal format.
+
+#### `modules.mod_mam_meta.async_writer`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `modules.mod_mam_meta.async_writer = false`
+
+Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
+The async writers store batches of messages with a certain delay (see **flush_interval**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes.
+
+#### `modules.mod_mam_meta.flush_interval`
+* **Syntax:** non-negative integer
+* **Default:** `2000`
+* **Example:** `modules.mod_mam_meta.flush_interval = 2000`
+
+How often (in milliseconds) the buffered messages are flushed to a DB.
+
+#### `modules.mod_mam_meta.max_batch_size`
+* **Syntax:** non-negative integer
+* **Default:** `30`
+* **Example:** `modules.mod_mam_meta.max_batch_size = 30`
+
+Max size of the batch insert query for an async writer.
+If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
 #### Common backend options
 
-* **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-    * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
-    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
-* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `rdbms` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
+#### `modules.mod_mam_meta.user_prefs_store`
+* **Syntax:** one of `false`, `"rdbms"`, `"cassandra"`, `"mnesia"`
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.user_prefs_store = 30`
+
+Leaving this option as `false` will prevent users from setting their archiving preferences.
+It will also increase performance.
+The possible values are:
+    * `"rdbms"` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
+    * `"cassandra"` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+    * `"mnesia"` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+
+#### `modules.mod_mam_meta.full_text_search`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `modules.mod_mam_meta.full_text_search = false`
+
+Enables full text search in message archive (see *Full Text Search* paragraph).
+Please note that the full text search is currently only implemented for `"rdbms"` and `"riak"` backends.
+Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
 
@@ -134,20 +228,25 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 ##### Riak-specific options
 
-* `bucket_type` (default `<<"mam_yz">>`) - Riak bucket type.
+#### `modules.mod_mam_meta.riak.bucket_type`
+* **Syntax:** string
+* **Default:** `"mam_yz"`
+* **Example:** `modules.mod_mam_meta.riak.bucket_type = "mam_yz"`
 
-* `search_index` (default `<<"mam">>`) - Riak index name.
+Riak bucket type.
+
+#### `modules.mod_mam_meta.riak.search_index`
+* **Syntax:** string
+* **Default:** `"mam"`
+* **Example:** `modules.mod_mam_meta.riak.search_index = "mam"`
+
+Riak index name.
 
 ### Cassandra backend
 
 Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.
 By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag:
 
-```erlang
-{outgoing_pools, [
-    {cassandra, global, default, [], []}.
-]}.
-```
 
 ### ElasticSearch backend
 
@@ -156,20 +255,18 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
 
 ### Example configuration
 
-```erlang
-{mod_mam_meta, [
-        {backend, rdbms},
+```
+[modules.mod_mam_meta]
+  backend = "rdbms"
+  no_stanzaid_element = true
 
-        {no_stanzaid_element, true},
+  pm.user_prefs_store = "rdbms"
 
-        {pm, [{user_prefs_store, rdbms}]},
-        {muc, [
-               {host, "muc.example.com"},
-               {rdbms_message_format, simple},
-               {async_writer, false},
-               {user_prefs_store, mnesia}
-              ]}
-       ]}.
+  muc.host = "muc.example.com"
+  muc.host.rdbms_message_format = "simple",
+  muc.host.async_writer = false
+  muc.host.user_prefs_store = "mnesia"
+
 ```
 
 ### Metrics
