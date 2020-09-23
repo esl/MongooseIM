@@ -124,13 +124,17 @@ It is not coupled with the main DB backend, so it is possible to store the cache
 ### Example Configuration
 
 ```
-   {mod_pubsub, [{access_createnode, pubsub_createnode},
-                 {ignore_pep_from_offline, false},
-                 {backend, rdbms},
-                 {last_item_cache, mnesia},
-                 {max_items_node, 1000},
-                 {plugins, [<<"flat">>, <<"pep">>]}
-  ]},
+[modules.mod_pubsub]
+  access_createnode = "pubsub_createnode"
+  ignore_pep_from_offline = false
+  backend = "rdbms"
+  last_item_cache = "mnesia"
+  max_items_node = 1000
+  plugins = ["flat", "pep"]
+
+  [[modules.mod_pubsub.pep_mapping]]
+    namespace = "urn:xmpp:microblog:0"
+    node = "mb"
 ```
 
 ### Nodetrees
