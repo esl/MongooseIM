@@ -8,7 +8,7 @@ It is not this module's responsibility to intercept and answer disco requests ro
 This module expects two optional arguments that apply to [cache tab](https://github.com/processone/cache_tab):
 
 #### `modules.mod_caps.cache_size`
-* **Syntax:** non-negative integer or the string `"infinity"`
+* **Syntax:** non-negative integer
 * **Default:** `1000`
 * **Example:** `cache_size = true`
 
