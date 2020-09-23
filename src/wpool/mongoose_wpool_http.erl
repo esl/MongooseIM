@@ -1,3 +1,11 @@
+%%% @doc
+%% options and defaults:
+%%     * server - (required)
+%%     * path_prefix - ""
+%%     * request_timeout - 2000,
+%%     * http_opts - [] % passed to fusco
+%%%
+%%% @end
 -module(mongoose_wpool_http).
 -behaviour(mongoose_wpool).
 

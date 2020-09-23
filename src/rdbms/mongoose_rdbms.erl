@@ -426,6 +426,8 @@ init(Opts) ->
     process_flag(trap_exit, true),
     {server, Settings} = lists:keyfind(server, 1, Opts),
     KeepaliveInterval = proplists:get_value(keepalive_interval, Opts),
+    % retries are delayed exponentially, this param limits the delay
+    % so if we start with 2 and try 6 times, we have 2, 4, 8, 16, 30
     MaxStartInterval = proplists:get_value(start_interval, Opts, 30),
     case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
