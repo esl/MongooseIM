@@ -8,14 +8,14 @@ It is not this module's responsibility to intercept and answer disco requests ro
 This module expects two optional arguments that apply to [cache tab](https://github.com/processone/cache_tab):
 
 #### `modules.mod_caps.cache_size`
-* **Syntax:** non-negative integer
+* **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `1000`
 * **Example:** `cache_size = true`
 
 The size of a cache_tab (the amount of entries) holding the information about capabilities of each user. 
 
 #### `modules.mod_caps.cache_life_time`
-* **Syntax:** non-negative integer
+* **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `86`
 * **Example:** `cache_life_time = 30`
 

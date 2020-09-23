@@ -10,7 +10,7 @@ The implementation in MongooseIM will simply buffer all packets (up to a configu
 ### Options
 
 #### `modules.mod_csi.buffer_max`
-* **Syntax:** non-negative integer
+* **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `20`
 * **Example:** `buffer_max = 40`
 
