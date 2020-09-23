@@ -13,25 +13,107 @@ It's all about tailoring PubSub to your needs!
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
-* `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
+#### `modules.mod_pubsub.iqdisc`
+* **Syntax:** string
+* **Default:** `no_queue`
+* **Example:** `iqdisc = one_queue`
+
+#### `modules.mod_pubsub.host`
+* **Syntax:** string
+* **Default:** `pubsub.@HOST@`
+* **Example:** `host = pubsub.localhost`
+
+Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
-* `backend` (atom, default: `mnesia`) - Database backend to use. `mnesia` and `rdbms` are supported currently.
-* `access_createnode` (atom, default: `all`): Who is allowed to create pubsub nodes.
-* `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
-* `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
-* `nodetree` (binary, default: `<<"tree">>`): Specifies the storage and organisation of the pubsub nodes. See the section below.
-* `ignore_pep_from_offline` (boolean, default: `true`): specify whether or not we should get last published PEP items from users in our roster which are offline when we connect.
+
+#### `modules.mod_pubsub.backend`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`
+* **Default:** `mnesia`
+* **Example:** `backend = rdbms`
+
+Database backend to use.
+
+#### `modules.mod_pubsub.access_createnode`
+* **Syntax:** string
+* **Default:** `all`
+* **Example:** `access_createnode = all`
+
+Who is allowed to create pubsub nodes.
+
+#### `modules.mod_pubsub.max_items_node`
+* **Syntax:** non-negative integer
+* **Default:** `10`
+* **Example:** `max_items_node = 10`
+
+Defines the maximum number of items that can be stored in a node.
+
+#### `modules.mod_pubsub.max_subscriptions_node`
+* **Syntax:** non-negative integer or the string `"undefined"`
+* **Default:** `undefined`
+* **Example:** `max_subscriptions_node = 10`
+
+The maximum number of subscriptions managed by a node. The `undefined` value means no limitations.
+
+#### `modules.mod_pubsub.nodetree`
+* **Syntax:** string
+* **Default:** `"tree"`
+* **Example:** `nodetree = "tree">>`
+
+Specifies the storage and organisation of the pubsub nodes. See the section below.
+
+#### `modules.mod_pubsub.ignore_pep_from_offline`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `ignore_pep_from_offline = false`
+
+Specifies whether or not we should get last published PEP items from users in our roster which are offline when we connect.
 The default option is `true` hence we will get only the last items from the online contacts.
-* `last_item_cache` (atom, default `false`): If enabled, PubSub will cache the last published items in the nodes. It may increase PubSub performance but at a price of an increased memory usage. Valid values are `mnesia`, `rdbms` and `false`.
-* `plugins` ([Plugin, ...], default: `[<<"flat">>]`): List of enabled pubsub plugins.
-* `pep_mapping` ([{Key, Value}, ...]): This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
+
+#### `modules.mod_pubsub.last_item_cache`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"false"`
+* **Default:** `false`
+* **Example:** `last_item_cache = "mnesia"`
+
+If enabled, PubSub will cache the last published items in the nodes. It may increase PubSub performance but at a price of an increased memory usage.
+
+#### `modules.mod_pubsub.plugins`
+* **Syntax:** array of strings
+* **Default:** `["flat"]`
+* **Example:** `plugins = ["flat", "pep"]`
+
+List of enabled pubsub plugins.
+
+#### `modules.mod_pubsub.pep_mapping`
+* **Syntax:** TOML table with the following keys: `"namespace"`, `"node"` and string values.
+* **Default:** ``
+* **Example:** `pep_mapping = {namespace = "urn:xmpp:microblog:0", node = "mb"}`
+
+This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
-* `default_node_config` ([{Key, Value}, ...]): Overrides the default node configuration, regradless of the node plugin.
+
+
+#### `modules.mod_pubsub.default_node_config`
+* **Syntax:** TOML table with the following values: string, boolean or non-negative integer.
+* **Default:** ``
+* **Example:** `default_node_config = {deliver_payloads = true, max_payload_size, 10000, node_type = "leaf"}`
+
+Overrides the default node configuration, regradless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
-* `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
- This effectively makes them an owner of this item.
-* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
+
+#### `modules.mod_pubsub.item_publisher`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `item_publisher = false`
+
+When enabled, a JID of the publisher will be saved in the item metadata.
+This effectively makes them an owner of this item.
+
+#### `modules.mod_pubsub.sync_broadcast`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `sync_broadcast = false`
+
+If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
 
 #### Cache Backend
 
