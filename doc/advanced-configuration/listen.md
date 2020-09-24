@@ -10,7 +10,7 @@ The `listen` section specifies how MongooseIM handles incoming connections.
 
 The double-bracket syntax is used because there can be multiple listeners of a given type, so for each listener type there is a TOML array of one or more tables (subsections).
 
-* **Default:** None - each listener needs to be enabled explicitely. Typical listeners are already specified in the example configuration file.
+* **Default:** None - each listener needs to be enabled explicitly. Typical listeners are already specified in the example configuration file.
 * **Example:** The simplest XMPP listener configuration, handling only incoming XMPP client connections:
 
 ```toml
@@ -107,19 +107,20 @@ The recommended port number for a C2S listener is 5222 [as registered in the XMP
 The following options are supported for each C2S listener:
 
 #### `listen.c2s.access`
-* **Syntax:** string, access rule name
+* **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "c2s"`
 
-The access rule that determines who is allowed to connect. By default the rule is `all`, which means that anyone can connect. The access rule referenced here needs to be defined in the `access` configuration section.
+The rule that determines who is allowed to connect. By default the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
 #### `listen.c2s.shaper`
-* **Syntax:** string, access rule name
-* **Default:** `"none"`
+* **Syntax:** string, rule name
+* **Default:** `"none"` (no shaper)
 * **Example:** `shaper = "c2s_shaper"`
 
-The access rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The access rule referenced here needs to be defined in the `access` configuration section.
+The rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
+The rule referenced here needs to be defined in the `access` configuration section.
+The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
 
 #### `listen.c2s.zlib`
 * **Syntax:** positive integer
@@ -268,12 +269,11 @@ The recommended port number for an S2S listener is 5269 [as registered in the XM
 **Note:** Many S2S options are configured in the `s2s` section of the configuration file and they apply to both incoming and outgoing connections.
 
 #### `listen.s2s.shaper`
-* **Syntax:** string, name of the shaper rule
-* **Default:** `"none"`
+* **Syntax:** string, name of the shaper rule or `"none"`
+* **Default:** `"none"` - no shaper
 * **Example:** `shaper = "s2s_shaper"`
 
-The access rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data.
-The access rule referenced here needs to be defined in the `access` config section.
+Name of the rule that determines what traffic shaper is used to limit the incoming XMPP traffic to prevent the server from being flooded with incoming data. The rule referenced here needs to be defined in the `access` config section and it should return the shaper name or the value `"none"`.
 
 ### TLS options for S2S
 
@@ -321,11 +321,11 @@ Interface for external services acting as XMPP components ([XEP-0114: Jabber Com
 According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) the component's hostname should be given in the <stream:stream> element.
 
 #### `listen.service.access`
-* **Syntax:** string, name of the access rule
+* **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
-Determines who is allowed to connect to the listener. By default the rule is `all`, which means that anyone can connect. The access rule referenced here needs to be defined in the `access` configuration section.
+Determines who is allowed to connect to the listener. By default the rule is `all`, which means that any external component can connect. The access rule referenced here needs to be defined in the `access` configuration section.
 
 #### `listen.service.password`
 * **Syntax:** string
@@ -340,7 +340,7 @@ The external component needs to authenticate with this password to connect.
 * **Example:** `shaper = "component_shaper"`
 
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
-Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper defined in the `shaper` section.
+Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](shaper.md) section.
 
 #### `listen.service.check_from`
 * **Syntax:** boolean
