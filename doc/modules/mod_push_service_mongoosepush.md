@@ -11,21 +11,41 @@ It must be defined in [outgoing_pools setting](../advanced-configuration/outgoin
 
 ### Options
 
-* **pool_name** (atom, required) - name of the pool to use (as defined in `outgoing_pools`)
-* **api_version** (string, default: `v3`) - REST API version to be used.
-* **max_http_connections** (integer, default: 100) - the maximum amount of concurrent http connections
+#### `modules.mod_push_service_mongoosepush.pool_name`
+* **Syntax:** string
+* **Default:** `"http_pool"`
+* **Example:** `pool_name = "mongoose_push_http"`
+
+The name of the pool to use (as defined in `outgoing_pools`).
+
+#### `modules.mod_push_service_mongoosepush.api_version`
+* **Syntax:** string
+* **Default:** `"v3"`
+* **Example:** `api_version = "v3"`
+
+REST API version to be used.
+
+#### `modules.mod_push_service_mongoosepush.max_http_connections`
+* **Syntax:** non-negative integer
+* **Default:** `100`
+* **Example:** `max_http_connections = 100`
+
+The maximum amount of concurrent HTTP connections.
 
 ### Example configuration
 
-```Erlang
-{outgoing_pools,
- {http, global, mongoose_push_http, [],
-    [{server, "https://localhost:8443"}]
- }
-]}.
+```
+[outgoing_pools.http.mongoose_push_http]
+  scope = "global"
+  workers = 50
 
-{mod_push_service_mongoosepush, [
-        {pool_name, mongoose_push_http}
-        {api_version, "v3"}
-]}.
+  [outgoing_pools.http.mongoose_push_http.connection]
+    host = "https://localhost:8443"
+    path_prefix = "/"
+    request_timeout = 2000
+
+[modules.mod_push_service_mongoosepush]
+  pool_name = "mongoose_push_http"
+  api_version = "v3"
+  max_http_connections = 100
 ```
