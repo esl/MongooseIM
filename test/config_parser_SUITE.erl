@@ -2360,7 +2360,7 @@ mod_pubsub(_Config) ->
     ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
     ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
                  T(#{<<"last_item_cache">> => <<"mnesia">>})),
-    ?eqf(modopts(mod_pubsub, [{max_subscriptions_node, undefined}]),
+    ?eqf(modopts(mod_pubsub, []), %% The option is undefined, i.e. parser just removes it
                  T(#{<<"max_subscriptions_node">> => <<"infinity">>})),
     run_multi(
         good_default_node_config_opts(T) ++
