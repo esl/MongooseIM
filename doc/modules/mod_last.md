@@ -8,13 +8,13 @@ Use with caution, as it was observed that a user disconnect spike might result i
 
 #### `modules.mod_last.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_last.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
-* **Default:** `mnesia`
-* **Example:** `backend = rdbms`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "rdbms"`
 
 Storage backend.
 
@@ -22,8 +22,8 @@ Storage backend.
 
 ###### `bucket_type`
 * **Syntax:** string
-* **Default:** `last`
-* **Example:** `bucket_type = last`
+* **Default:** `"last"`
+* **Example:** `bucket_type = "last"`
 
 Riak bucket type.
 

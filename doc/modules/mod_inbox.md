@@ -7,8 +7,8 @@ To use it, enable mod\_inbox in the config file.
 
 #### `modules.mod_inbox.backend`
 * **Syntax:** string
-* **Default:** `rdbms`
-* **Example:** `backend = rdbms`
+* **Default:** `"rdbms"`
+* **Example:** `backend = "rdbms"`
 
 Database backend to use. For now, only `rdbms` is supported.
 
@@ -24,7 +24,7 @@ Setting as empty list (not recommended) means that no chat marker can decrease t
 #### `modules.mod_inbox.groupchat`
 * **Syntax:** array of strings
 * **Default:** `["muclight"]`
-* **Example:** `groupchat = muclight`
+* **Example:** `groupchat = ["muclight"]`
 
 The list indicating which groupchats will be included in inbox.
 Possible values are `muclight` [Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html) or `muc` [Multi-User Chat](https://xmpp.org/extensions/xep-0045.html).
@@ -48,8 +48,9 @@ If true, the inbox conversation is removed for a user when they are removed from
 
 #### `modules.mod_inbox.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = no_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "no_queue"`
+
 ### Note about supported RDBMS
 
 `mod_inbox` executes upsert queries, which have different syntax in every supported RDBMS.

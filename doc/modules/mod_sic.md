@@ -5,8 +5,8 @@ This module implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xe
 
 #### `modules.mod_sic.iqdisc`
 * **Syntax:** string
-* **Default:** `one_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"one_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 ### Example Configuration
 

@@ -6,8 +6,8 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 
 #### `modules.mod_version.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_version.os_info`
 * **Syntax:** boolean

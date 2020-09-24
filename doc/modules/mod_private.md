@@ -6,8 +6,8 @@ It allows users to store custom XML data in the server's database. Used e.g. for
 
 #### `modules.mod_private.iqdisc`
 * **Syntax:** string
-* **Default:** `one_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"one_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_private.backend`
 * **Syntax:** string, one of "mnesia", "rdbms", "riak", "mysql".

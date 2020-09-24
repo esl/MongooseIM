@@ -15,28 +15,28 @@ It's all about tailoring PubSub to your needs!
 
 #### `modules.mod_pubsub.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_pubsub.host`
 * **Syntax:** string
-* **Default:** `pubsub.@HOST@`
-* **Example:** `host = pubsub.localhost`
+* **Default:** `"pubsub.@HOST@"`
+* **Example:** `host = "pubsub.localhost"`
 
 Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
 
 #### `modules.mod_pubsub.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
-* **Default:** `mnesia`
-* **Example:** `backend = rdbms`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "rdbms"`
 
 Database backend to use.
 
 #### `modules.mod_pubsub.access_createnode`
 * **Syntax:** string
-* **Default:** `all`
-* **Example:** `access_createnode = all`
+* **Default:** `"all"`
+* **Example:** `access_createnode = "all"`
 
 Specifies who is allowed to create pubsub nodes.
 
@@ -49,7 +49,7 @@ Defines the maximum number of items that can be stored in a node.
 
 #### `modules.mod_pubsub.max_subscriptions_node`
 * **Syntax:** non-negative integer or the string `"undefined"`
-* **Default:** `undefined`
+* **Default:** `"undefined"`
 * **Example:** `max_subscriptions_node = 10`
 
 The maximum number of subscriptions managed by a node. The `undefined` value means no limitations.
@@ -71,7 +71,7 @@ The default option is `true` hence we will get only the last items from the onli
 
 #### `modules.mod_pubsub.last_item_cache`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"false"`
-* **Default:** `false`
+* **Default:** `"false"`
 * **Example:** `last_item_cache = "mnesia"`
 
 If enabled, PubSub will cache the last published items in the nodes. It may increase PubSub performance but at a price of an increased memory usage.

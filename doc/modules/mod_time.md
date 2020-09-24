@@ -8,8 +8,8 @@ Protocol is described under [XEP-0202: Entity Time](http://www.xmpp.org/extensio
 
 #### `modules.mod_time.iqdisc`
 * **Syntax:** string
-* **Default:** `one_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"one_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 ### Example Configuration
 

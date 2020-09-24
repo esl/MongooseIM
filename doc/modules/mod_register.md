@@ -5,13 +5,13 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 
 #### `modules.mod_register.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_register.access`
 * **Syntax:** string
-* **Default:** `all`
-* **Example:** `access = all`
+* **Default:** `"all"`
+* **Example:** `access = "all"`
 
 Defines which ACL should be used for checking if a chosen username is allowed for registration.
 

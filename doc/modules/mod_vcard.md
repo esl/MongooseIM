@@ -5,13 +5,13 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 #### `modules.mod_vcard.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_vcard.host`
 * **Syntax:** string
-* **Default:** `vjud.@HOST@`
-* **Example:** `host = vjud.@HOST@`
+* **Default:** `"vjud.@HOST@"`
+* **Example:** `host = "vjud.@HOST@"`
 
 Domain of the vCard User Directory, used for searching.
 `@HOST@` is replaced with the domain(s) supported by the cluster.
@@ -25,8 +25,8 @@ Enables/disables the domain set in the previous option. `false` makes searching 
 
 #### `modules.mod_vcard.backend`
 * **Syntax:** string, one of `"ldap"`, `"rdbms"`, `"riak"`, `"mnesia"`
-* **Default:** `mnesia`
-* **Example:** `backend = rdbms`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "rdbms"`
 
 vCard storage backend. **Warning:** LDAP backend is read-only.
 
@@ -72,8 +72,8 @@ For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`,
 
 ###### `ldap_search_operator`
 * **Syntax:** string, one of `"or"`, `"and"`
-* **Default:** `and`
-* **Example:** `ldap_search_operator = or`
+* **Default:** `"and"`
+* **Example:** `ldap_search_operator = "or"`
 
 A default operator used for search query items.
 
@@ -88,14 +88,14 @@ An array of search fields, which values should be Base64-encoded by MongooseIM b
 
 ###### `bucket_type`
 * **Syntax:** string
-* **Default:** `vcard`
+* **Default:** `"vcard"`
 * **Example:** `bucket_type = "vcard"`
 
 Riak bucket type.
 
 ###### `search_index`
 * **Syntax:** string
-* **Default:** `vcard`
+* **Default:** `"vcard"`
 * **Example:** `search_index = "vcard"`
 
 Riak index name.

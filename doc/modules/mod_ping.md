@@ -20,8 +20,8 @@ Defines the client inactivity timeout after which the server will send a ping re
 
 #### `modules.mod_ping.timeout_action`
 * **Syntax:** string, `"none"` or `"kill"`
-* **Default:** `none`
-* **Example:** `timeout_action = kill`
+* **Default:** `"none"`
+* **Example:** `timeout_action = "kill"`
 
 Defines if the client connection should be closed if it doesn't reply to a ping request in less than `ping_req_timeout`.
 
@@ -34,8 +34,8 @@ Defines how long the server waits for the client to reply to the ping request.
 
 #### `modules.mod_ping.iqdisc`
 * **Syntax:** string
-* **Default:** `no_queue`
-* **Example:** `iqdisc = one_queue`
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
 
 ### Example Configuration
 
