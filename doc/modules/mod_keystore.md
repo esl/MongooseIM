@@ -10,7 +10,7 @@ and pre-shared keys which can be read from a file.
 RAM-only keys provide better security since they are never written to persistent
 storage, at the cost of loss in case of a cluster-global failure or restart.
 
-As of now [`mod_auth_token`](mod_auth_token) is the only module
+As of now [`mod_auth_token`](mod_auth_token.md) is the only module
 dependent on `mod_keystore`.
 
 It's crucial to understand the distinction between single-tenant and
@@ -20,18 +20,19 @@ for each virtual XMPP domain to avoid sharing keys between domains!**
 
 ### Options
 
-* `ram_key_size`: size to use when generating RAM-only keys (designated
-    by type `ram`)
-* `keys`: list of _specifiers_ of keys which will be provided by the
-    module at runtime
+#### `modules.mod_keystore.ram_key_size`
+* **Syntax:** non-negative integer
+* **Default:** `1000`
+* **Example:** `ram_key_size = 10000`
 
-Each _key specifier_ is a pair of `{KeyName, KeyType}`, where:
+Size to use when generating RAM-only keys (designated by type `ram`).
 
-* `KeyName`: any Erlang term. For simplicity's sake atoms are advised.
-    Names have to be unique in the context of one virtual domain.
-* `KeyType`: one of `ram` or `{file, "path/to/file"}`.
-    The file is read and its contents are provided
-    as the key (whitespace is trimmed).
+#### `modules.mod_keystore.keys`
+* **Syntax:** Array of TOML tables with the following keys: `"name"`, `"type"`, `"file"`, and following values: {name = `string`, type = `values: "file", "ram"`, file = `string`}.
+* **Default:** `[name = "", type = ""]`
+* **Example:** `modules.mod_keystore.keys = [name = "access_psk", type = "file", path = "priv/access_psk"]`
+
+Names, types, and optional filepaths of the keys.
 
 ### API
 
@@ -47,36 +48,59 @@ An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://
 
 Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 
-```erlang
-{mod_keystore, [{keys, [{access_secret, ram},
-                        {access_psk,    {file, "priv/access_psk"}},
-                        {provision_psk, {file, "priv/provision_psk"}}]}]}
+```
+[modules.mod_keystore]
+  
+  [[modules.mod_keystore.keys]]
+    name = "access_secret"
+    type = "ram"
 
+  [[modules.mod_keystore.keys]]
+    name = "access_psk"
+    type = "file"
+    path = "priv/access_psk"
+
+  [[modules.mod_keystore.keys]]
+    name = "provision_psk"
+    type = "file"
+    path = "priv/provision_psk"
 ```
 
 Multi-tenant setup (`mod_keystore` configured differently
 for each virtual XMPP domain):
 
 ```
-{host_config, "first.com",
- [
-  {modules,
-   [
-    {mod_keystore, [ {keys, [{access_secret, ram},
-                             {access_psk,    {file, "priv/first_access_psk"}},
-                             {provision_psk, {file, "priv/first_provision_psk"}}]}
-                   ]}
-   ]}
- ]}.
+[[host_config]]
+  host = "first.com"
+  
+    [[[modules.mod_keystore.keys]]]
+      name = "access_secret"
+      type = "ram"
 
-{host_config, "second.com",
- [
-  {modules,
-   [
-    {mod_keystore, [ {keys, [{access_secret, ram},
-                             {access_psk,    {file, "priv/second_access_psk"}},
-                             {provision_psk, {file, "priv/second_provision_psk"}}]}
-                   ]}
-   ]}
- ]}.
+    [[[modules.mod_keystore.keys]]]
+      name = "access_psk"
+      type = "file"
+      path = "priv/access_psk"
+
+    [[[modules.mod_keystore.keys]]]
+      name = "provision_psk"
+      type = "file"
+      path = "priv/provision_psk"
+
+[[host_config]]
+  host = "second.com"
+  
+    [[[modules.mod_keystore.keys]]]
+      name = "access_secret"
+      type = "ram"
+
+    [[[modules.mod_keystore.keys]]]
+      name = "access_psk"
+      type = "file"
+      path = "priv/access_psk"
+
+    [[[modules.mod_keystore.keys]]]
+      name = "provision_psk"
+      type = "file"
+      path = "priv/provision_psk"
 ```
