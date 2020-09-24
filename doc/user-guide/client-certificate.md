@@ -33,16 +33,7 @@ The `SASL EXTERNAL` authentication method requires a digital client certificate.
 This digital certificate should contain `xmppAddr` field(s), which is always checked first.
 If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
 
-When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional (not enabled by default).
-There are three possible ways of using the `SASL EXTERNAL` authentication
-method. It can be configured by adding one of the following options to
-the list of `auth_opts` in MongooseIM config file:
-
-* `{cyrsasl_external, standard}` - do not accept a certificate with no `xmpp_addrs` field (default);
-* `{cyrsasl_external, use_common_name}` - use the `common_name` field if it is provided in the certificate;
-* `{cyrsasl_external, allow_just_user_identity}` - accept a certificate if there are no `xmpp_addrs`
-provided and use the user identity from the authentication request.
-
+When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#auth-sasl-external) option in the `auth` section.
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 

@@ -16,7 +16,7 @@ The file is divided into the following sections:
 
 * [**general**](advanced-configuration/general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
 * [**listen**](advanced-configuration/listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
-* **auth** - Supported client authentication methods and their options.
+* [**auth**](advanced-configuration/auth.md) - Supported client authentication methods and their options.
 * **outgoing_pools** - Outgoing connections to external services, including databases, message queues and HTTP services.
 * **services** - Internal services like an administration API and system metrics.
 * **modules** - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
@@ -39,11 +39,6 @@ The file is divided into the following sections:
 * Section names below correspond with the ones in the file.
 
 ### Listening ports
-
-* **listen** (local)
-    * **Description:** List of modules handling the incoming connections. By default, 3 are enabled: `ejabberd_cowboy`, `ejabberd_c2s` and `ejabberd_s2s_in`. They accept XMPP, BOSH, Websocket and S2S connections (plus queries to metrics API).
-    * **Syntax:** List of tuples: `{Port, Module, ModuleSpecificOptions}`
-    * **See also:** [Listener modules](advanced-configuration/Listener-modules.md)
 
 * **s2s_use_starttls** (global)
     * **Description:** Controls StartTLS feature for S2S connections.
@@ -104,85 +99,6 @@ The file is divided into the following sections:
     * **Syntax:** `{s2s_max_retry_delay, Delay}.`
     * **Default:** 300
     * **Example:** `{s2s_max_retry_delay, 30}.`
-
-### Authentication
-
-* **auth_method** (local)
-    * **Description:** Chooses an authentication module or a list of modules. Modules from the list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`, `pki`
-    * **Warning:** Authentication backends support only specific SASL mechanisms, see [auth backends capabilities](#authentication-backend-capabilities).
-    * **Examples:** `rdbms`, `[internal, anonymous]`
-
-* **auth_opts** (local)
-    * **Description:** Provides different parameters that will be applied to a chosen authentication method.
-                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
-
-        * **auth_password_format**
-             * **Description:** Decide whether user passwords will be kept plain or hashed in the database.
-             Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version.
-             MongooseIM supports SHA-1, SHA-224, SHA-256, SHA-384 and SHA-512 for SCRAM hashing which can be provided as an argument and this will result in storing and supporting only hashes specified in the configuration.
-             The older XMPP clients can still use the `PLAIN` mechanism. `DIGEST-MD5` is not available with `scram`.
-             * **Values:** `plain`, `scram`, `{scram, [sha256]}` (`scram` and `{scram, [sha, sha224, sha256, sha384, sha512]}` are equivalent configurations)
-             * **Default:** `scram`
-
-        * **auth_scram_iterations**
-             * **Description:** Hash function round count.
-               This is a tradeoff between latency and security.
-               The higher the value, the more difficult breaking the hashes is: it is a work factor: increasing the count increases the work it requires to compute a full hash, which effectively slows down brute-force attacks.
-               But it adds load on both client and server, so this parameter should be tuned as high as the business-rules allow.
-               Note that increasing the security of a password has a higher impact over the security of the algorithm, without impacting its load.
-               See more information in this [NIST guide, Appendix A.2.2](https://csrc.nist.gov/publications/detail/sp/800-132/final),
-             * **Default:** 10000, as recommended in this [XEP](https://xmpp.org/extensions/xep-0438.html#pbkdf2) and this [NIST Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html#sec5)
-
-        * [`external` backend options](authentication-backends/External-authentication-module.md#configuration-options)
-
-        * [`http` backend options](authentication-backends/HTTP-authentication-module.md#configuration-options)
-
-        * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
-
-        * [`ldap` backend options](authentication-backends/LDAP-authentication-module.md#configuration-options)
-
-        * [`riak` backend options](authentication-backends/Riak-authentication-module.md#configuration-options)
-
-* **sasl_mechanisms** (local)
-    * **Description:** Specifies a list of allowed SASL mechanisms.
-    It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
-    All SCRAM-SHA mechanisms support channel binding and are advertised as a separate authentication mechanisms that is suffixed with `-PLUS`.
-    Please note that the list of advertised authentication mechanisms is filtered out by the supported password formats to assure that it is possible to authenticate using authentication mechanisms that are offered.
-    * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
-    * **Valid values:** `cyrsasl_scram_sha512_plus, cyrsasl_scram_sha512, cyrsasl_scram_sh384_plus, cyrsasl_scram_sh384, cyrsasl_scram_sha256_plus, cyrsasl_scram_sha256, cyrsasl_scram_sha224_plus, cyrsasl_scram_sha224, cyrsasl_scram_sha1_plus, cyrsasl_scram_sha1, cyrsasl_plain, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external, cyrsasl_digest`
-    * **Default:** `[cyrsasl_scram_sha512_plus, cyrsasl_scram_sha512, cyrsasl_scram_sh384_plus, cyrsasl_scram_sh384, cyrsasl_scram_sha256_plus, cyrsasl_scram_sha256, cyrsasl_scram_sha224_plus, cyrsasl_scram_sha224, cyrsasl_scram_sha1_plus, cyrsasl_scram_sha1, cyrsasl_plain, cyrsasl_anonymous, cyrsasl_oauth]`
-
-        Please note that configuring the `sasl_mechanisms` parameter will take precedence over the default list.
-        Should more than one parameter be configured in the list of `sasl_mechanisms`, the order of how they are listed in the config will be taken as the order in which they are advertised.
-
-    * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_scram_sha256_plus, cyrsasl_anonymous]`
-    * **Deprecations:** Please note that the DIGEST-MD5 authentication method `cyrsasl_digest` is deprecated and will be removed in the next release.
-
-* **extauth_instances** (local)
-    * **Description:** Specifies a number of workers serving external authentication requests.
-    * **Syntax:** `{extauth_instances, Count}.`
-    * **Default:** 1
-
-#### Authentication backend capabilities
-
-The table below shows the supported SASL mechanisms for each authentication backend module.
-
-|           | cyrsasl<br>plain | cyrsasl<br>digest | cyrsasl<br>scram_sha* | cyrsasl<br>anonymous | cyrsasl<br>external |
-|-----------|:----------------:|:-----------------:|:---------------------:|:--------------------:|:-------------------:|
-| internal  |         x        |         x         |           x           |                      |                     |
-| rdbms     |         x        |         x         |           x           |                      |                     |
-| external  |         x        |                   |                       |                      |                     |
-| anonymous |         x        |         x         |           x           |           x          |                     |
-| ldap      |         x        |                   |                       |                      |          x          |
-| jwt       |         x        |                   |                       |                      |                     |
-| riak      |         x        |         x         |           x           |                      |                     |
-| http      |         x        |         x         |           x           |                      |                     |
-| pki       |                  |                   |                       |                      |          x          |
-
-`cyrsasl_oauth` does not use the auth backends at all and requires the `mod_auth_token` module enabled instead.
-
-`cyrsasl_digest` is deprecated and will be removed in the next release.
 
 ### Outgoing connections setup
 
