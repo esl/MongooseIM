@@ -838,6 +838,8 @@ module_opt([<<"access_createnode">>, <<"mod_pubsub">>|_], V) ->
     [{access_createnode, b2a(V)}];
 module_opt([<<"max_items_node">>, <<"mod_pubsub">>|_], V) ->
     [{max_items_node, V}];
+module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], <<"infinity">>) ->
+    [{max_subscriptions_node, undefined}];
 module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], V) ->
     [{max_subscriptions_node, V}];
 module_opt([<<"nodetree">>, <<"mod_pubsub">>|_], V) ->

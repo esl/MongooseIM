@@ -2313,6 +2313,8 @@ mod_pubsub(_Config) ->
     ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
     ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
                  T(#{<<"last_item_cache">> => <<"mnesia">>})),
+    ?eqf(modopts(mod_pubsub, [{max_subscriptions_node, undefined}]),
+                 T(#{<<"max_subscriptions_node">> => <<"infinity">>})),
     run_multi(
         good_default_node_config_opts(T) ++
         bad_default_node_config_opts(T) ++
