@@ -15,11 +15,8 @@ attempts to enable them again.
 This module is very easy to enable, just paste the following to your MongooseIM configuration file:
 
 ```
-{mod_event_pusher, [
-  {backends, [
-    {push, [{wpool, [{workers, 100}]}]}
-  ]}
-]}.
+[modules.mod_event_pusher]
+  backend.push.wpool.workers = 100
 ```
 
 And that's basically it. You have just enabled the push notification support
@@ -28,17 +25,37 @@ with 100 asynchronous workers that will handle all push notification related wor
 
 ## Options
 
-* **backend** (atom, default: `mnesia`) - Backend to use for storing the registrations.
- Possible options are `mnesia` and `rdbms`.
-* **wpool** (list, default: `[]`) - List of options that will be passed to the `worker_pool` library that handles all the requests.
- Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
-* **plugin_module** (atom, default: `mod_event_pusher_push_plugin_defaults`) - module implementing
-  `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
-  See the [relevant section](#plugin-module) for more details.
-* **virtual_pubsub_hosts** (list of strings, default: `[]`) - a list of "simulated"
-  Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name. It will
-  automatically be replaced by a respective XMPP domain (e.g. `localhost`).
-  See the [relevant section](#virtual-pubsub-hosts) for more details.
+#### `modules.mod_event_pusher_push.backend`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "rdbms"`
+
+Backend to use for storing the registrations.
+
+#### `modules.mod_event_pusher_push.wpool`
+* **Syntax:** Array of TOML tables. See description.
+* **Default:** `[""]`
+* **Example:** `wpool = [workers = 200]`
+
+List of options that will be passed to the `worker_pool` library that handles all the requests.
+Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
+
+#### `modules.mod_event_pusher_push.plugin_module`
+* **Syntax:** string
+* **Default:** `"mod_event_pusher_push_plugin_defaults"`
+* **Example:** `plugin_module = "mod_event_pusher_push_plugin_defaults"`
+
+The module implementing `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
+See the [relevant section](#plugin-module) for more details.
+
+#### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
+* **Syntax:** array of strings
+* **Default:** `[""]`
+* **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
+
+The list of "simulated" Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name.
+It will automatically be replaced by a respective XMPP domain (e.g. `localhost`).
+See the [relevant section](#virtual-pubsub-hosts) for more details.
 
 ## Virtual PubSub hosts
 
@@ -56,19 +73,15 @@ exists, just for the case of a user attempting to create a node. However, its do
 for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
 option. `pubsub.@HOSTS@` is the default domain for `mod_pubsub`.
 
-```Erlang
-{mod_pubsub, [{plugins, [<<"push">>]}]}, % mandatory minimal config
+```
+[modules.mod_pubsub]
+  plugins = ["push"] # mandatory minimal config
 
-{mod_event_pusher, [
-    {backends, [
-        {push, [
-            {backend, mnesia}, % optional
-            {wpool, [{workers, 200}]}, % optional
-            {plugin_module, mod_event_pusher_push_plugin_defaults}, % optional
-            {virtual_pubsub_hosts, ["pubsub.@HOSTS@"]}
-        ]}
-    ]}
-]}
+[modules.mod_event_pusher]
+  backend.push.backend = "mnesia" # optional
+  backend.push.wpool.workers = 200 # optional
+  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
+  backend.push.virtual_pubsub_hosts = ["pubsub.@HOSTS@"]
 ```
 
 #### Advantages
