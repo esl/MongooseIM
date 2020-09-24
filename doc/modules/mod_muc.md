@@ -6,70 +6,407 @@ Note that only `mod_muc` needs to be enabled in the configuration file.
 Also `mod_muc_log` is a logging submodule.
 
 ### Options
-* `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under.
- `@HOST@` is replaced with each served domain.
-* `backend` (atom, default: `mnesia`): Storage backend, `mnesia` and `rdbms` are supported.
-* `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
-* `access_create` (atom, default: `all`): Who is allowed to create rooms.
-* `access_admin` (atom, default: `none`): Who is the administrator in all rooms.
-* `access_persistent` (atom, default: `all`): Who is allowed to make the rooms persistent.
- In order to change this parameter, the user must not only match the Access Rule but also be the owner of the room.
-* `history_size` (non-negative integer, default: 20): Room message history to be kept in RAM.
- After node restart, the history is lost.
-* `room_shaper` (atom, default: `none`): Limits per-room data throughput with traffic shaper.
-* `max_room_id` (atom or positive integer, default: `infinity`): Maximum room username length (in JID).
-* `max_room_name` (atom or positive integer, default: `infinity`): Maximum room name length.
-* `max_room_desc` (atom or positive integer, default: `infinity`): Maximum room description length.
-* `min_message_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between messages processed by the room.
-* `min_presence_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between presences processed by the room.
-* `max_users` (positive integer, default: 200): Absolute maximum user count per room on the node.
-* `max_users_admin_threshold` (positive integer, default: 5): When the server checks if a new user can join a room and they are an admin, `max_users_admin_threshold` is added to `max_users` during occupant limit check.
-* `user_message_shaper` (atom, default: `none`): Shaper for user messages processed by a room (global for the room).
-* `user_presence_shaper` (atom, default: `none`): Shaper for user presences processed by a room (global for the room).
-* `max_user_conferences` (non-negative, default: 10): Specifies the number of rooms that a user can occupy simultaneously.
-* `http_auth_pool` (atom, default: `none`): If an external HTTP service is chosen to check passwords for password-protected rooms, this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
-* `load_permanent_rooms_at_startup` (boolean, default: false) - Load all rooms at startup (can be unsafe when there are many rooms, that's why disabled).
-* `hibernate_timeout` (timeout, default: `90000`): Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
-* `hibernated_room_check_interval` (timeout, default: `infinity`): Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
-* `hibernated_room_timeout` (timeout, default: `inifitniy`): A time after which a hibernated room is stopped (deeply hibernated).
- See [MUC performance optimisation](#performance-optimisations).
-* `default_room_options` (list of key-value tuples, default: `[]`): List of room configuration options to be overridden in the initial state.
-    * `title` (binary, default: `<<>>`): Room title, short free text.
-    * `description` (binary, default: `<<>>`): Room description, long free text.
-    * `allow_change_subj` (boolean, default: `true`): Allow all occupants to change the room subject.
-    * `allow_query_users` (boolean, default: `true`): Allow occupants to send IQ queries to other occupants.
-    * `allow_private_messages` (boolean, default: `true`): Allow private messaging between occupants.
-    * `allow_visitor_status` (boolean, default: `true`): Allow occupants to use text statuses in presences.
-     When disabled, text is removed by the room before broadcasting.
-    * `allow_visitor_nickchange` (boolean, default: `true`): Allow occupants to change nicknames.
-    * `public` (boolean, default: `true`): Room is included in the list available via Service Discovery.
-    * `public_list` (boolean, default: `true`): Member list can be fetched by non-members.
-    * `persistent` (boolean, default: `false`): Room will be stored in DB and survive even when the last occupant leaves or the node is restarted.
-    * `moderated` (boolean, default: `true`): Only occupants with a "voice" can send group chat messages.
-    * `members_by_default` (boolean, default: `true`): All new occupants are members by default, unless they have a different affiliation assigned.
-    * `members_only` (boolean, default: `false`): Only users with a member affiliation can join the room.
-    * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
-    * `allow_multiple_sessions` (boolean, default: `false`): Allow multiple user session to use the same nick.
-    * `password_protected` (boolean, default: `false`): Room is protected with a password.
-    * `password` (binary, default: `<<>>`): Room password is required upon joining.
-     This option has no effect when `password_protected` is `false`.
-    * `anonymous` (boolean, default: `true`): Room is anonymous, meaning occupants can't see each others real JIDs, except for the room moderators.
-    * `max_users` (positive integer, default: 200): Maximum user count per room.
-     Admins and the room owner are not affected.
-    * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to a file on the disk. Uses `mod_muc_log`.
-    * `maygetmemberlist` (list of atoms, default: `[]`): A list of roles and/or privileges that enable retrieving the room's member list.
-    * `affiliations` (list of `{{<<"user">>, <<"server">>, <<"resource">>}, affiliation}` tuples, default: `[]`): A default list of affiliations set for every new room.
-    * `subject` (binary, default: `<<>>`): A default subject for new room.
-    * `subject_author` (binary, default: `<<>>`): A nick name of the default subject's author.
+#### `modules.mod_muc.host`
+ * **Syntax:** string, a valid subdomain
+ * **Default:** `"conference.@HOST@"`
+ * **Example:** `host = "group.@HOST@"`
 
+Subdomain for MUC service to reside under. `@HOST@` is replaced with each served domain.
+
+#### `modules.mod_muc.backend`
+ * **Syntax:** string, one of `"mnesia"` or `"rdbms"`
+ * **Default:** `"mnesia"`
+ * **Example:** `backend = "rdbms"`
+ 
+Storage backend.
+
+####`modules.mod_muc.access`
+ * **Syntax:** string
+ * **Default:** `"all"`
+ * **Example:** `access = "muc"`
+
+Access Rule to determine who is allowed to use the MUC service.
+
+#### `modules.mod_muc.access_create` 
+ * **Syntax:** string
+ * **Default:** `"all"`
+ * **Example:** `access_create = "muc_create"`
+ 
+Access Rule to determine who is allowed to create rooms.
+
+#### `modules.mod_muc.access_admin` 
+ * **Syntax:** string
+ * **Default:** `"none"`
+ * **Example:** `access_admin = "muc_create"`
+
+Access Rule to determine who is the administrator in all rooms.
+
+#### `modules.mod_muc.access_persistent`
+ * **Syntax:** string
+ * **Default:** `"all"`
+ * **Example:** `access_persistent = "none"`
+ 
+Access Rule to determine who is allowed to make the rooms persistent.
+In order to change this parameter, the user must not only match the Access Rule but also be the owner of the room.
+
+#### `modules.mod_muc.history_size` 
+ * **Syntax:** non-negative integer
+ * **Default:** `20`
+ * **Example:** `history_size = 30`
+
+Room message history to be kept in RAM. After node restart, the history is lost.
+
+#### `modules.mod_muc.room_shaper` 
+ * **Syntax:** string
+ * **Default:** `"none"`
+ * **Example:** `room_shaper = "muc_room_shaper"`
+
+Limits per-room data throughput with traffic shaper.
+
+#### `modules.mod_muc.max_room_id` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `max_room_id = 30`
+ 
+Maximum room username length (in JID).
+
+#### `modules.mod_muc.max_room_name` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `max_room_name = 30`
+
+Maximum room name length.
+
+#### `modules.mod_muc.max_room_desc` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `max_room_desc = 140`
+ 
+Maximum room description length.
+
+#### `modules.mod_muc.min_message_interval` 
+ * **Syntax:** non-negative integer
+ * **Default:** `0`
+ * **Example:** `min_message_interval = 1`
+
+Minimal interval (in seconds) between messages processed by the room
+
+#### `modules.mod_muc.min_presence_interval` 
+ * **Syntax:** non-negative integer
+ * **Default:** `0`
+ * **Example:** `min_presence_interval = 1`
+ 
+Minimal interval (in seconds) between presences processed by the room.
+
+#### `modules.mod_muc.max_users` 
+ * **Syntax:** positive integer
+ * **Default:** `200`
+ * **Example:** `max_users = 100`
+
+Absolute maximum user count per room on the node.
+
+#### `modules.mod_muc.max_users_admin_threshold` 
+ * **Syntax:** positive integer
+ * **Default:** `5`
+ * **Example:** `max_users_admin_threshold = 10`
+
+When the server checks if a new user can join a room and they are an admin,
+ `max_users_admin_threshold` is added to `max_users` during occupant limit check.
+ 
+#### `modules.mod_muc.user_message_shaper`
+ * **Syntax:** string
+ * **Default:** `"none"`
+ * **Example:** `user_message_shaper = "muc_user_msg_shaper"`
+
+Shaper for user messages processed by a room (global for the room).
+
+#### `modules.mod_muc.user_presence_shaper`
+ * **Syntax:** string
+ * **Default:** `"none"`
+ * **Example:** `user_presence_shaper = "muc_user_presence_shaper"`
+
+Shaper for user presences processed by a room (global for the room).
+
+#### `modules.mod_muc.max_user_conferences` 
+ * **Syntax:** non-negative integer
+ * **Default:** `10`
+ * **Example:** `max_user_conferences = 5`
+
+Specifies the number of rooms that a user can occupy simultaneously.
+
+#### `modules.mod_muc.http_auth_pool`
+ * **Syntax:** string
+ * **Default:** `"none"`
+ * **Example:** `http_auth_pool = "external_auth"`
+
+If an external HTTP service is chosen to check passwords for password-protected rooms,
+this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
+
+#### `modules.mod_muc.load_permanent_rooms_at_startup`
+  * **Syntax:** boolean
+  * **Default:** `false`
+  * **Example:** `load_permanent_rooms_at_startup = true`
+ 
+Load all rooms at startup. Because it can be unsafe when there are many rooms,
+it is disabled by default.
+
+#### `modules.mod_muc.hibernate_timeout` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `90000` (milliseconds, 90 seconds)
+ * **Example:** `hibernate_timeout = 60000`
+
+Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
+
+#### `modules.mod_muc.hibernated_room_check_interval` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `hibernated_room_check_interval = 120000`
+
+Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
+
+#### `modules.mod_muc.hibernated_room_timeout` 
+ * **Syntax:** non-negative integer or the string `"infinity"`
+ * **Default:** `"infinity"`
+ * **Example:** `hibernated_room_timeout = 120000`
+
+A time after which a hibernated room is stopped (deeply hibernated).
+ See [MUC performance optimisation](#performance-optimisations).
+ 
+#### `modules.mod_muc.default_room`
+ * **Syntax:** A TOML table of options described below
+ * **Default:** Default room options
+ * **Example:**  
+```  
+  [modules.mod_muc.default_room]
+    password_protected = true
+    description = "An example description."
+    
+    [[modules.mod_muc.default_room.affiliations]]
+        user = "alice"
+        server = "localhost"
+        resource = "resource1"
+        affiliation = "member"
+```
+or:
+```
+  default_room.password_protected = true
+  default_room.description = "An example description."
+
+  [[modules.mod_muc.default_room.affiliations]]
+    user = "alice"
+    server = "localhost"
+    resource = "resource1"
+    affiliation = "member"
+```
+
+Available room configuration options to be overridden in the initial state.
+
+* `modules.mod_muc.default_room.title`
+    * **Syntax:** string
+    * **Default:** `""`
+    * **Example:** `title = "example_title"` 
+   
+   Room title, short free text.
+   
+* `modules.mod_muc.default_room.description`
+    * **Syntax:** string
+    * **Default:** `""`
+    * **Example:** `description = "An example description."` 
+ 
+    Room description, long free text.
+
+* `modules.mod_muc.default_room.allow_change_subj` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `allow_change_subj = false` 
+
+    Allow all occupants to change the room subject.
+    
+* `modules.mod_muc.default_room.allow_query_users` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `allow_query_users = false`
+    
+    Allow occupants to send IQ queries to other occupants.
+    
+* `modules.mod_muc.default_room.allow_private_messages` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `allow_private_messages = false`
+
+    Allow private messaging between occupants.
+    
+* `modules.mod_muc.default_room.allow_visitor_status` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `allow_visitor_status = false`
+
+    Allow occupants to use text statuses in presences.
+    When disabled, text is removed by the room before broadcasting.
+    
+* `modules.mod_muc.default_room.allow_visitor_nickchange` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `allow_visitor_nickchange = false`
+    
+    Allow occupants to change nicknames.
+    
+* `modules.mod_muc.default_room.public` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `public = false`
+    
+    Room is included in the list available via Service Discovery.
+
+* `modules.mod_muc.default_room.public_list` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `public_list = false`
+
+    Member list can be fetched by non-members.
+
+* `modules.mod_muc.default_room.persistent` 
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `persistent = true`
+
+    Room will be stored in DB and survive even when the last occupant leaves or the node is restarted.
+
+* `modules.mod_muc.default_room.moderated` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `moderated = false`
+
+    Only occupants with a "voice" can send group chat messages.
+
+* `modules.mod_muc.default_room.members_by_default`
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `members_by_default = false`
+ 
+     All new occupants are members by default, unless they have a different affiliation assigned.
+
+* `modules.mod_muc.default_room.members_only` 
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `members_only = true`
+
+    Only users with a member affiliation can join the room.
+
+* `modules.mod_muc.default_room.allow_user_invites` 
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `allow_user_invites = true`
+
+    Allow ordinary members to send mediated invitations.
+
+* `modules.mod_muc.default_room.allow_multiple_sessions` 
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `allow_multiple_sessions = true`
+
+    Allow multiple user session to use the same nick.
+
+* `modules.mod_muc.default_room.password_protected` 
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `password_protected = true`
+    
+    Room is protected with a password.
+
+* `modules.mod_muc.default_room.password` 
+    * **Syntax:** string
+    * **Default:** `""`
+    * **Example:** `password = "secret"`
+    
+    Room password is required upon joining.
+    This option has no effect when `password_protected` is `false`.
+
+* `modules.mod_muc.default_room.anonymous` 
+    * **Syntax:** boolean
+    * **Default:** `true`
+    * **Example:** `anonymous = false`
+
+    Room is anonymous, meaning occupants can't see each others real JIDs, except for the room moderators.
+
+* `modules.mod_muc.default_room.max_users` 
+    * **Syntax:** positive integer
+    * **Default:** `200`
+    * **Example:** `max_users = 100`
+
+    Maximum user count per room. Admins and the room owner are not affected.
+
+* `modules.mod_muc.default_room.logging`
+    * **Syntax:** boolean
+    * **Default:** `false`
+    * **Example:** `logging = true`
+
+    Enables logging of room events (messages, presences) to a file on the disk.
+    Uses `mod_muc_log`.
+
+* `modules.mod_muc.default_room.maygetmemberlist` 
+    * **Syntax:** array of strings
+    * **Default:** `[]`
+    * **Example:** `maygetmemberlist = ["moderator"]`
+    
+    An array of roles and/or privileges that enable retrieving the room's member list.
+
+* `modules.mod_muc.default_room.affiliations` 
+    * **Syntax:** array of tables in which each value is a string
+    * **Default:** `[]`
+    * **Example:**
+    
+```
+[[modules.mod_muc.default_room.affiliations]]
+  user = "alice"
+  server = "localhost"
+  resource = "resource1"
+  affiliation = "member"
+                
+[[modules.mod_muc.default_room.affiliations]]
+  user = "bob"
+  server = "localhost"
+  resource = "resource2"
+  affiliation = "owner"
+```
+   An array of tables with keys: `user` - non-empty string, `server` - a valid domain,
+    `resource` - string, `affiliation` - . 
+   This is the default list of affiliations set for every new room.
+
+* `modules.mod_muc.default_room.subject` 
+    * **Syntax:** string
+    * **Default:** `""`
+    * **Example:** `subject = "Lambda days"`
+
+    A default subject for new room.
+
+* `modules.mod_muc.default_room.subject_author`
+    * **Syntax:** string
+    * **Default:** `""`
+    * **Example:** `subject_author = "Alice"`
+
+    A nick name of the default subject's author.
 
 ### Example Configuration
 ```
-{mod_muc, [
-             {host, "muc.example.com"},
-             {access, muc},
-             {access_create, muc_create}
-            ]},
+[modules.mod_muc]
+  host = "muc.example.com"
+  access = "muc"
+  access_create = "muc_create"
+  http_auth_pool = "my_auth_pool"
+  default_room.password_protected = true
+  
+  [[modules.mod_muc.default_room.affiliations]]
+    user = "alice"
+    server = "localhost"
+    resource = "resource1"
+    affiliation = "member"
+
+  [[modules.mod_muc.default_room.affiliations]]
+    user = "bob"
+    server = "localhost"
+    resource = "resource2"
+    affiliation = "owner"
 ```
 
 ### Performance optimisations
@@ -85,7 +422,7 @@ This timeout can be modified by `hibernate_timeout` option.
 
 #### Room deep hibernation
 
-MongooseIM introduces an addtional option of deep hibernation for unused rooms.
+MongooseIM introduces an additional option of deep hibernation for unused rooms.
 This optimisation works only for persistent rooms as only these can be restored on demand.
 The improvement works as follows:
 1. All room processes are traversed at a chosen `hibernated_room_check_interval`.
@@ -115,31 +452,17 @@ If the server returns something else, an error presence will be sent back to the
 
 **Example:**
 
-```Erlang
+```
+[outgoing_pools.http.my_auth_pool]
+  strategy = "available_worker"
+  connection.host = "http://my_server:8000"
 
-{outgoing_pools,
- [{http, global, my_auth_pool,
-   [{strategy, available_worker}],
-   [{server, "http://my_server:8000"}]}
- ]
-}.
-
-{modules, [
-
-  (...)
-
-  {mod_muc, [
-             {host, "muc.example.com"},
-             {access, muc},
-             {access_create, muc_create},
-             {http_auth_pool, my_auth_pool},
-             {default_room_options, [{password_protected, true}]}
-            ]},
-
-  (...)
-
-]}.
-
+[modules.mod_muc]
+  host = "muc.example.com"
+  access = "muc"
+  access_create = "muc_create"
+  http_auth_pool = "my_auth_pool"
+  default_room.password_protected = true
 ```
 
 ### Metrics
