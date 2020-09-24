@@ -13,13 +13,13 @@ To use it, enable mod\_inbox in the config file.
 Database backend to use. For now, only `rdbms` is supported.
 
 #### `modules.mod_inbox.reset_markers`
-* **Syntax:** array of strings
+* **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
 * **Example:** `reset_markers = ["received"]`
 
 List of chat markers that when sent, will reset the unread message counter for a conversation.
 This works when [Chat Markers](https://xmpp.org/extensions/xep-0333.html) are enabled on the client side.
-Possible values are from the set: `displayed`, `received`, `acknowledged`. Setting as empty list (not recommended) means that no chat marker can decrease the counter value.
+Setting as empty list (not recommended) means that no chat marker can decrease the counter value.
 
 #### `modules.mod_inbox.groupchat`
 * **Syntax:** array of strings
