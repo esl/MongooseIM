@@ -1,20 +1,26 @@
 ### Module Description
-This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html). This extension allows user to block IQs, messages, presences, or all, based on JIDs, subscription, and roster groups.
+This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).
+This extension allows user to block IQs, messages, presences, or all, based on JIDs, subscription, and roster groups.
 
 ### Options
-* `backend` (atom, default: `mnesia`): Storage backend. Currently supported are `mnesia`, `rdbms` and `riak`.
 
-### Example Configuration
-```
-{mod_privacy, []},
-```
-
+#### `modules.mod_privacy.backend`
+* **Syntax:** string, one of "mnesia", "rdbms", "riak".
+* **Default:** "mnesia"
+* **Example:** `backend = "mnesia"`
 
 ##### Riak-specific options
 
-* `defaults_bucket_type` (default `<<"privacy_defaults">>`) - Riak bucket type for information about default list name.
-* `names_bucket_type` (default `<<"privacy_lists_names">>`) - Riak bucket type for information about privacy list names.
-* `bucket_type` (default `<<"privacy_lists">>`) - Riak bucket type for privacy lists.
+* `modules.mod_privacy.riak.defaults_bucket_type` (default `"privacy_defaults"`) - Riak bucket type for information about default list name.
+* `modules.mod_privacy.riak.names_bucket_type` (default `"privacy_lists_names"`) - Riak bucket type for information about privacy list names.
+* `modules.mod_privacy.riak.bucket_type` (default `"privacy_lists"`) - Riak bucket type for privacy lists.
+
+### Example Configuration
+```
+[modules.mod_privacy]
+  backend = "riak"
+  riak.defaults_bucket_type = "privacy_defaults"
+```
 
 ### Metrics
 
