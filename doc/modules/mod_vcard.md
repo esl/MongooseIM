@@ -3,47 +3,137 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
-* `host` (string, default: `"vjud.@HOST@"`): Domain of the vCard User Directory, used for searching.
- `@HOST@` is replaced with the domain(s) supported by the cluster.
-* `search` (boolean, default: `true`): Enables/disables the domain set in the previous option.
- `false` makes searching for users impossible.
-* `backend` (atom, default: `mnesia`): vCard storage backend.
- Valid values are `ldap`, `rdbms`, `riak` and `mnesia`.
- **Warning:** LDAP backend is read-only.
-* `matches` (`infinity` or positive integer, default: 30): Maxmimum search results to be returned to the user.
+#### `modules.mod_vcard.iqdisc`
+* **Syntax:** string
+* **Default:** `no_queue`
+* **Example:** `iqdisc = one_queue`
+
+#### `modules.mod_vcard.host`
+* **Syntax:** string
+* **Default:** `vjud.@HOST@`
+* **Example:** `host = vjud.@HOST@`
+
+Domain of the vCard User Directory, used for searching.
+`@HOST@` is replaced with the domain(s) supported by the cluster.
+
+#### `modules.mod_vcard.search`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `search = false`
+
+Enables/disables the domain set in the previous option. `false` makes searching for users impossible.
+
+#### `modules.mod_vcard.backend`
+* **Syntax:** string, one of `"ldap"`, `"rdbms"`, `"riak"`, `"mnesia"`
+* **Default:** `mnesia`
+* **Example:** `backend = rdbms`
+
+vCard storage backend. **Warning:** LDAP backend is read-only.
+
+#### `modules.mod_vcard.matches`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `30`
+* **Example:** `matches = 10`
+
+Maximum search results to be returned to the user.
 
 ##### LDAP-specific options
 
-* `ldap_pool_tag`, `ldap_base`, `ldap_uids`, `ldap_filter`, `ldap_deref`:
-  These options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options).
 
-* `ldap_vcard_map` (list of `{VCardField, LDAPPattern, [LDAPField]}`, default: see description): Mappings between VCard and LDAP fields. For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 74.
+###### `ldap_pool_tag`, `ldap_base`, `ldap_uids`, `ldap_filter`, `ldap_deref`
+* **Syntax:** see description
+* **Default:** see description
+* **Example:** see description
 
-* `ldap_search_fields` (list of `{SearchField, LDAPField}`, default: see description): Mappings between the human-readable search fields and LDAP fields.
- For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 96.
+These options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options).
 
-* `ldap_search_reported` (list of `{SearchField, VCardField}`, default: see description): Mappings between the human-readable search fields and VCard fields.
- For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 109.
+###### `ldap_vcard_map`
+* **Syntax:** Array of TOML tables with the following keys: `"vcard_field"`, `"ldap_pattern"`, `"ldap_field"` and string values.
+* **Default:** see description
+* **Example:** `ldap_vcard_map = [{vcard_field = "FN", ldap_pattern = "%s", ldap_field = "displayName"}]`
 
-* `ldap_search_operator` (`or` | `and`, default: `and`): A default operator used for search query items.
+Mappings between VCard and LDAP fields. For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 79.
 
-* `ldap_binary_search_fields` (list of binaries, default: `[]`): A list of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
+###### `ldap_search_fields`
+* **Syntax:** Array of TOML tables with the following keys: `"search_field"`, `"ldap_field"` and string values.
+* **Default:** see description
+* **Example:** `ldap_search_fields = [{search_field = "User", ldap_field = "%u"}]`
+
+Mappings between the human-readable search fields and LDAP fields.
+For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 101.
+
+###### `ldap_search_reported`
+* **Syntax:** Array of TOML tables with the following keys: `"search_field"`, `"vcard_field"` and string values.
+* **Default:** see description
+* **Example:** `ldap_search_reported = [{search_field = "Full Name", vcard_field = "FN"}]`
+
+Mappings between the human-readable search fields and VCard fields.
+For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 114.
+
+###### `ldap_search_operator`
+* **Syntax:** string, one of `"or"`, `"and"`
+* **Default:** `and`
+* **Example:** `ldap_search_operator = or`
+
+A default operator used for search query items.
+
+###### `ldap_binary_search_fields`
+* **Syntax:** array of strings
+* **Default:** `[""]`
+* **Example:** `ldap_binary_search_fields = ["User", "Full Name"]`
+
+An array of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
 
 ##### Riak-specific options
 
-* `bucket_type` (default `<<"vcard">>`) - Riak bucket type.
+###### `bucket_type`
+* **Syntax:** string
+* **Default:** `vcard`
+* **Example:** `bucket_type = "vcard"`
 
-* `search_index` (default `<<"vcard">>`) - Riak index name.
+Riak bucket type.
+
+###### `search_index`
+* **Syntax:** string
+* **Default:** `vcard`
+* **Example:** `search_index = "vcard"`
+
+Riak index name.
 
 ### Example Configuration
 ```
-{mod_vcard, [ {allow_return_all, true},
-              {search_all_hosts, true},
-              {matches, 1},
-              {search, true},
-              {host, "directory.example.com"}
-             ]}
+[modules.mod_vcard] 
+  allow_return_all = true
+  search_all_hosts = true
+  matches = 1
+  search = true
+  host = "directory.example.com"
+
+  [[modules.mod_vcard.ldap_vcard_map]]
+    vcard_field = "FAMILY"
+    ldap_pattern = "%s"
+    ldap_field = "sn"
+
+  [[modules.mod_vcard.ldap_vcard_map]]
+    vcard_field = "FN"
+    ldap_pattern = "%s"
+    ldap_field = "displayName"
+
+  [[modules.mod_vcard.ldap_search_fields]]
+    search_field = "User"
+    ldap_field = "%u"
+  
+  [[modules.mod_vcard.ldap_search_fields]]
+    search_field = "Full Name"
+    ldap_field = "displayName"
+
+  [[modules.mod_vcard.ldap_search_reported]]
+    search_field = "Full Name"
+    vcard_field = "FN"
+
+  [[modules.mod_vcard.ldap_search_reported]]
+    search_field = "Given Name"
+    vcard_field = "FIRST"
 ```
 
 ### Metrics
