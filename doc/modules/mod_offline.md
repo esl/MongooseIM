@@ -5,16 +5,35 @@ It is not well suited for applications supporting multiple user devices, because
 Although `mod_offline` may be sufficient in some cases, it is preferable to use [mod_mam](mod_mam.md).
 
 ### Options
-* `access_max_user_messages` (atom, default: `max_user_offline_messages`): Access Rule to use for limiting the storage size per user.
-* `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported. 
+#### `modules.mod_offline.access_max_user_messages`
+ * **Syntax:** string
+ * **Default:** `"max_user_offline_messages"`
+ * **Example:** `access_max_user_messages = "custom_max_user_offline_messages"`
+ 
+ Access Rule to use for limiting the storage size per user.
+ 
+#### `modules.mod_offline.backend`
+ * **Syntax:** string
+ * **Default:** `"mnesia"`
+ * **Example:** `backend = "rdbms"`
 
-##### Riak-specific options
+ Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported. 
 
-* `bucket_type` (default `<<"offline">>`) - Riak bucket type.
+### Riak-specific options
+
+#### `modules.mod_offline.riak.bucket_type`
+ * **Syntax:** string
+ * **Default:** `"offline"`
+ * **Example:** `bucket_type = "offline_bucket_type"`
+
+Riak bucket type.
 
 ### Example Configuration
 ```
-{mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
+[modules.mod_offline]
+  access_max_user_messages = "max_user_offline_messages"
+  backend = "riak"
+  riak.bucket_type = "offline"
 ```
 
 ### Metrics
