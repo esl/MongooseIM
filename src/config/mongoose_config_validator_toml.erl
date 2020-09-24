@@ -745,7 +745,7 @@ validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
     validate_non_negative_integer_or_infinity(V);
 validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
          [{cache_size, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_non_negative_integer(V);
 validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_http_upload, V);
