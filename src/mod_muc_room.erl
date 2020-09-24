@@ -3349,7 +3349,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
         {value, {_, [N]}} ->
         byte_size(N) =< gen_mod:get_module_opt(StateData#state.server_host,
                             mod_muc, max_room_name,
-                            infinite);
+                            infinity);
         _ ->
         true
     end,
@@ -3359,7 +3359,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
         {value, {_, [D]}} ->
         byte_size(D) =< gen_mod:get_module_opt(StateData#state.server_host,
                             mod_muc, max_room_desc,
-                            infinite);
+                            infinity);
         _ ->
         true
     end,

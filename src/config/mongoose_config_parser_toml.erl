@@ -635,8 +635,9 @@ process_service([S|_] = Path, Opts) ->
 
 %% path: services.*.*
 -spec service_opt(path(), toml_value()) -> [option()].
-service_opt([<<"submods">>, <<"service_admin_extra">>|_], V) ->
-    [{submods, [b2a(M) || M <- V]}];
+service_opt([<<"submods">>, <<"service_admin_extra">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{submods, List}];
 service_opt([<<"initial_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
     [{initial_report, V}];
 service_opt([<<"periodic_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
@@ -651,7 +652,8 @@ service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
 %% path: (host_config[].)modules.*
 -spec process_module(path(), toml_section()) -> [option()].
 process_module([Mod|_] = Path, Opts) ->
-    [{b2a(Mod), parse_section(Path, Opts)}].
+    %% Sort option keys to ensure options could be matched in tests
+    [{b2a(Mod), lists:sort(parse_section(Path, Opts))}].
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
@@ -674,7 +676,7 @@ module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
 module_opt([<<"cache_life_time">>, <<"mod_caps">>|_], V) ->
     [{cache_life_time, V}];
 module_opt([<<"buffer_max">>, <<"mod_csi">>|_], V) ->
-    [{buffer_max, V}];
+    [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
     Domains = parse_list(Path, V),
     [{extra_domains, Domains}];
@@ -748,8 +750,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"archive_chat_markers">>, <<"mod_mam_meta">>|_], V) ->
-    [{archive_chat_markers, V}];
 module_opt([<<"pm">>, <<"mod_mam_meta">>|_], false) ->
     [];
 module_opt([<<"pm">>, <<"mod_mam_meta">>|_] = Path, V) ->
@@ -760,8 +760,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_], false) ->
 module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     Muc = parse_section(Path, V),
     [{muc, Muc}];
-module_opt([<<"extra_lookup_params">>, <<"mod_mam_meta">>|_], V) ->
-    [{extra_lookup_params, b2a(V)}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
 module_opt([<<"host">>, <<"mod_muc">>|_], V) ->
@@ -778,18 +776,12 @@ module_opt([<<"history_size">>, <<"mod_muc">>|_], V) ->
     [{history_size, V}];
 module_opt([<<"room_shaper">>, <<"mod_muc">>|_], V) ->
     [{room_shaper, b2a(V)}];
-module_opt([<<"max_room_id">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_id, infinite}];
 module_opt([<<"max_room_id">>, <<"mod_muc">>|_], V) ->
-    [{max_room_id, V}];
-module_opt([<<"max_room_name">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_name, infinite}];
+    [{max_room_id, int_or_infinity(V)}];
 module_opt([<<"max_room_name">>, <<"mod_muc">>|_], V) ->
-    [{max_room_name, V}];
-module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], <<"infinity">>) ->
-    [{max_room_desc, infinite}];
+    [{max_room_name, int_or_infinity(V)}];
 module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], V) ->
-    [{max_room_desc, V}];
+    [{max_room_desc, int_or_infinity(V)}];
 module_opt([<<"min_message_interval">>, <<"mod_muc">>|_], V) ->
     [{min_message_interval, V}];
 module_opt([<<"min_presence_interval">>, <<"mod_muc">>|_], V) ->
@@ -799,9 +791,9 @@ module_opt([<<"max_users">>, <<"mod_muc">>|_], V) ->
 module_opt([<<"max_users_admin_threshold">>, <<"mod_muc">>|_], V) ->
     [{max_users_admin_threshold, V}];
 module_opt([<<"user_message_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_message_shaper, V}];
+    [{user_message_shaper, b2a(V)}];
 module_opt([<<"user_presence_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_presence_shaper, V}];
+    [{user_presence_shaper, b2a(V)}];
 module_opt([<<"max_user_conferences">>, <<"mod_muc">>|_], V) ->
     [{max_user_conferences, V}];
 module_opt([<<"http_auth_pool">>, <<"mod_muc">>|_], V) ->
@@ -877,12 +869,16 @@ module_opt([<<"access_createnode">>, <<"mod_pubsub">>|_], V) ->
     [{access_createnode, b2a(V)}];
 module_opt([<<"max_items_node">>, <<"mod_pubsub">>|_], V) ->
     [{max_items_node, V}];
+module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], <<"infinity">>) ->
+    [{max_subscriptions_node, undefined}];
 module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], V) ->
     [{max_subscriptions_node, V}];
 module_opt([<<"nodetree">>, <<"mod_pubsub">>|_], V) ->
     [{nodetree, V}];
 module_opt([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>|_], V) ->
     [{ignore_pep_from_offline, V}];
+module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], false) ->
+    [{last_item_cache, false}];
 module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], V) ->
     [{last_item_cache, b2a(V)}];
 module_opt([<<"plugins">>, <<"mod_pubsub">>|_] = Path, V) ->
@@ -892,7 +888,7 @@ module_opt([<<"pep_mapping">>, <<"mod_pubsub">>|_] = Path, V) ->
     Mappings = parse_list(Path, V),
     [{pep_mapping, Mappings}];
 module_opt([<<"default_node_config">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Config = parse_list(Path, V),
+    Config = parse_section(Path, V),
     [{default_node_config, Config}];
 module_opt([<<"item_publisher">>, <<"mod_pubsub">>|_], V) ->
     [{item_publisher, V}];
@@ -906,8 +902,6 @@ module_opt([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>|_], 
     [{max_http_connections, V}];
 module_opt([<<"access">>, <<"mod_register">>|_], V) ->
     [{access, b2a(V)}];
-module_opt([<<"welcome_message">>, <<"mod_register">>|_], V) ->
-    [{welcome_message, {b2l(V)}}];
 module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
     [{registration_watchers, parse_list(Path, V)}];
 module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
@@ -915,6 +909,11 @@ module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
 module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
     Rules = parse_list(Path, V),
     [{ip_access, Rules}];
+module_opt([<<"welcome_message">>, <<"mod_register">>|_] = Path, V) ->
+    Props = parse_section(Path, V),
+    Subject = proplists:get_value(subject, Props, ""),
+    Body = proplists:get_value(body, Props, ""),
+    [{welcome_message, {Subject, Body}}];
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
@@ -922,6 +921,8 @@ module_opt([<<"versioning">>, <<"mod_roster">>|_], V) ->
     [{versioning, V}];
 module_opt([<<"store_current_id">>, <<"mod_roster">>|_], V) ->
     [{store_current_id, V}];
+module_opt([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>|_], V) ->
+    [{ldap_useruid, b2l(V)}];
 module_opt([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_groupattr, b2l(V)}];
 module_opt([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->
@@ -952,12 +953,10 @@ module_opt([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_gfilter, b2l(V)}];
 module_opt([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_ufilter, b2l(V)}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"infinity">>) ->
-    [{buffer_max, infinity}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"no_buffer">>) ->
     [{buffer_max, no_buffer}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], V) ->
-    [{buffer_max, V}];
+    [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], <<"never">>) ->
     [{ack_freq, never}];
 module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], V) ->
@@ -976,6 +975,9 @@ module_opt([<<"matches">>, <<"mod_vcard">>|_], V) ->
 module_opt([<<"ldap_vcard_map">>, <<"mod_vcard">>|_] = Path, V) ->
     Maps = parse_list(Path, V),
     [{ldap_vcard_map, Maps}];
+module_opt([<<"ldap_uids">>, <<"mod_vcard">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{ldap_uids, List}];
 module_opt([<<"ldap_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
     Fields = parse_list(Path, V),
     [{ldap_search_fields, Fields}];
@@ -984,10 +986,13 @@ module_opt([<<"ldap_search_reported">>, <<"mod_vcard">>|_] = Path, V) ->
     [{ldap_search_reported, Reported}];
 module_opt([<<"ldap_search_operator">>, <<"mod_vcard">>|_], V) ->
     [{ldap_search_operator, b2a(V)}];
-module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_], V) ->
-    [{ldap_binary_search_fields, V}];
+module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
+    List = parse_list(Path, V),
+    [{ldap_binary_search_fields, List}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
+module_opt([<<"iqdisc">>|_], #{<<"type">> := <<"queues">>, <<"workers">> := Workers}) ->
+    [{iqdisc, {queues, Workers}}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     [{iqdisc, b2a(V)}];
@@ -1152,14 +1157,14 @@ mod_global_distrib_connections([<<"advertised_endpoints">>|_] = Path, V) ->
     [{advertised_endpoints, Endpoints}];
 mod_global_distrib_connections([<<"connections_per_endpoint">>|_], V) ->
     [{connections_per_endpoint, V}];
-mod_global_distrib_connections([<<"num_of_connections">>|_], V) ->
-    [{num_of_connections, V}];
 mod_global_distrib_connections([<<"endpoint_refresh_interval">>|_], V) ->
     [{endpoint_refresh_interval, V}];
 mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V) ->
     [{endpoint_refresh_interval_when_empty, V}];
 mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
     [{disabled_gc_interval, V}];
+mod_global_distrib_connections([<<"tls">>|_] = _Path, false) ->
+    [{tls_opts, false}];
 mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
     TLSOpts = parse_section(Path, V),
     [{tls_opts, TLSOpts}].
@@ -1190,6 +1195,10 @@ mod_global_distrib_bounce([<<"max_retries">>|_], V) ->
 
 -spec mod_global_distrib_connections_endpoints(path(), toml_section()) -> [option()].
 mod_global_distrib_connections_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
+    [{b2l(Host), Port}].
+
+-spec mod_global_distrib_connections_advertised_endpoints(path(), toml_section()) -> [option()].
+mod_global_distrib_connections_advertised_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
     [{b2l(Host), Port}].
 
 -spec mod_keystore_keys(path(), toml_section()) -> [option()].
@@ -1223,10 +1232,28 @@ mod_mam_opts([<<"flush_interval">>|_], V) ->
     [{flush_interval, V}];
 mod_mam_opts([<<"max_batch_size">>|_], V) ->
     [{max_batch_size, V}];
-mod_mam_opts([<<"archive_groupchats">>, <<"pm">>|_], V) ->
+mod_mam_opts([<<"default_result_limit">>|_], V) ->
+    [{default_result_limit, V}];
+mod_mam_opts([<<"max_result_limit">>|_], V) ->
+    [{max_result_limit, V}];
+mod_mam_opts([<<"archive_chat_markers">>|_], V) ->
+    [{archive_chat_markers, V}];
+mod_mam_opts([<<"archive_groupchats">>|_], V) ->
     [{archive_groupchats, V}];
-mod_mam_opts([<<"host">>, <<"muc">>|_], V) ->
-    [{host, b2l(V)}].
+mod_mam_opts([<<"async_writer_rdbms_pool">>|_], V) ->
+    [{async_writer_rdbms_pool, b2a(V)}];
+mod_mam_opts([<<"db_jid_format">>|_], V) ->
+    [{db_jid_format, b2a(V)}];
+mod_mam_opts([<<"db_message_format">>|_], V) ->
+    [{db_message_format, b2a(V)}];
+mod_mam_opts([<<"simple">>|_], V) ->
+    [{simple, V}];
+mod_mam_opts([<<"host">>|_], V) ->
+    [{host, b2l(V)}];
+mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
+    [{extra_lookup_params, b2a(V)}];
+mod_mam_opts([<<"riak">>|_] = Path, V) ->
+    parse_section(Path, V).
 
 -spec mod_muc_default_room(path(), toml_value()) -> [option()].
 mod_muc_default_room([<<"title">>|_], V) ->
@@ -1303,8 +1330,44 @@ mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
     [{b2l(Name), b2l(Node)}].
 
 -spec mod_pubsub_default_node_config(path(), toml_section()) -> [option()].
-mod_pubsub_default_node_config(_, #{<<"key">> := Key, <<"value">> := Value}) ->
-    [{b2a(Key), b2l(Value)}].
+mod_pubsub_default_node_config([<<"access_model">>|_], Value) ->
+    [{access_model, b2a(Value)}];
+mod_pubsub_default_node_config([<<"deliver_notifications">>|_], Value) ->
+    [{deliver_notifications, Value}];
+mod_pubsub_default_node_config([<<"deliver_payloads">>|_], Value) ->
+    [{deliver_payloads, Value}];
+mod_pubsub_default_node_config([<<"max_items">>|_], Value) ->
+    [{max_items, Value}];
+mod_pubsub_default_node_config([<<"max_payload_size">>|_], Value) ->
+    [{max_payload_size, Value}];
+mod_pubsub_default_node_config([<<"node_type">>|_], Value) ->
+    [{node_type, b2a(Value)}];
+mod_pubsub_default_node_config([<<"notification_type">>|_], Value) ->
+    [{notification_type, b2a(Value)}];
+mod_pubsub_default_node_config([<<"notify_config">>|_], Value) ->
+    [{notify_config, Value}];
+mod_pubsub_default_node_config([<<"notify_delete">>|_], Value) ->
+    [{notify_delete, Value}];
+mod_pubsub_default_node_config([<<"notify_retract">>|_], Value) ->
+    [{notify_retract, Value}];
+mod_pubsub_default_node_config([<<"persist_items">>|_], Value) ->
+    [{persist_items, Value}];
+mod_pubsub_default_node_config([<<"presence_based_delivery">>|_], Value) ->
+    [{presence_based_delivery, Value}];
+mod_pubsub_default_node_config([<<"publish_model">>|_], Value) ->
+    [{publish_model, b2a(Value)}];
+mod_pubsub_default_node_config([<<"purge_offline">>|_], Value) ->
+    [{purge_offline, Value}];
+mod_pubsub_default_node_config([<<"roster_groups_allowed">>|_] = Path, Value) ->
+    Groups = parse_list(Path, Value),
+    [{roster_groups_allowed, Groups}];
+mod_pubsub_default_node_config([<<"send_last_published_item">>|_], Value) ->
+    [{send_last_published_item, b2a(Value)}];
+mod_pubsub_default_node_config([<<"subscribe">>|_], Value) ->
+    [{subscribe, Value}].
+
+mod_pubsub_roster_groups_allowed(_, Value) ->
+    [Value].
 
 -spec mod_revproxy_routes(path(), toml_section()) -> [option()].
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
@@ -1323,9 +1386,10 @@ mod_stream_management_stale_h([<<"geriatric">>|_], V) ->
 
 -spec mod_vcard_ldap_uids(path(), toml_section()) -> [option()].
 mod_vcard_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
-    [{b2a(Attr), b2l(Format)}];
+    [{b2l(Attr), b2l(Format)}];
 mod_vcard_ldap_uids(_, #{<<"attr">> := Attr}) ->
-    [b2a(Attr)].
+    [b2l(Attr)].
+
 
 -spec mod_vcard_ldap_vcard_map(path(), toml_section()) -> [option()].
 mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP,
@@ -1339,6 +1403,19 @@ mod_vcard_ldap_search_fields(_, #{<<"search_field">> := SF, <<"ldap_field">> := 
 -spec mod_vcard_ldap_search_reported(path(), toml_section()) -> [option()].
 mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> := VF}) ->
     [{SF, VF}].
+
+-spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
+mod_vcard_ldap_binary_search_fields(_, V) ->
+    [V].
+
+-spec service_admin_extra_submods(path(), toml_value()) -> [option()].
+service_admin_extra_submods(_, V) ->
+    [b2a(V)].
+
+welcome_message([<<"subject">>|_], Value) ->
+    [{subject, b2l(Value)}];
+welcome_message([<<"body">>|_], Value) ->
+    [{body, b2l(Value)}].
 
 %% path: (host_config[].)shaper.*
 -spec process_shaper(path(), toml_section()) -> [config()].
@@ -1557,9 +1634,24 @@ parse_list(Path, L) ->
 -spec handle(path(), toml_value()) -> option().
 handle(Path, Value) ->
     Handler = handler(Path),
-    Option = Handler(Path, Value),
-    mongoose_config_validator_toml:validate(Path, Option),
+    Option = try Handler(Path, Value)
+             catch error:Error:Stacktrace
+                  when not is_map(Error); not is_map_key(path, Error) ->
+                      E = #{what => toml_parse_failed,
+                            path => Path, reason => Error},
+                      erlang:raise(error, E, Stacktrace)
+             end,
+    validate(Path, Option),
     Option.
+
+validate(Path, Option) ->
+    try mongoose_config_validator_toml:validate(Path, Option)
+    catch error:Error:Stacktrace
+         when not is_map(Error); not is_map_key(path, Error) ->
+              E = #{what => toml_validate_failed,
+                    path => Path, reason => Error},
+              erlang:raise(error, E, Stacktrace)
+    end.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
 handler([_]) -> fun process_section/2;
@@ -1680,10 +1772,12 @@ handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
     fun mod_register_ip_access_rule/2;
 handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
+handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
+    fun welcome_message/2;
 handler([_, <<"validity_period">>, <<"mod_auth_token">>, <<"modules">>]) ->
     fun mod_auth_token_validity_periods/2;
 handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2l(V)] end;
+    fun(_, V) -> [V] end;
 handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
     fun mod_disco_server_info/2;
 handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
@@ -1732,6 +1826,8 @@ handler([_, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_redis/2;
 handler([_,<<"endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_connections_endpoints/2;
+handler([_,<<"advertised_endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
+    fun mod_global_distrib_connections_advertised_endpoints/2;
 handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun fast_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
@@ -1754,6 +1850,8 @@ handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun mod_pubsub_pep_mapping/2;
 handler([_, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun mod_pubsub_default_node_config/2;
+handler([_, <<"roster_groups_allowed">>, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
+    fun mod_pubsub_roster_groups_allowed/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
 handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
@@ -1766,6 +1864,11 @@ handler([_, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_fields/2;
 handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_reported/2;
+handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
+    fun mod_vcard_ldap_binary_search_fields/2;
+handler([_, <<"submods">>, <<"service_admin_extra">>, <<"services">>]) ->
+    fun service_admin_extra_submods/2;
+
 
 %% shaper, acl, access
 handler([_, <<"shaper">>]) -> fun process_shaper/2;

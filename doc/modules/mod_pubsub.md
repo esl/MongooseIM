@@ -17,7 +17,7 @@ It's all about tailoring PubSub to your needs!
 * `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
 * `backend` (atom, default: `mnesia`) - Database backend to use. `mnesia` and `rdbms` are supported currently.
-* `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
+* `access_createnode` (atom, default: `all`): Who is allowed to create pubsub nodes.
 * `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
 * `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
 * `nodetree` (binary, default: `<<"tree">>`): Specifies the storage and organisation of the pubsub nodes. See the section below.

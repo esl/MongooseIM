@@ -430,9 +430,11 @@ is_strong_password(Server, Password) ->
 get_ip_access(Host) ->
     IPAccess = gen_mod:get_module_opt(Host, ?MODULE, ip_access, []),
     lists:flatmap(
-      fun({Access, S}) ->
-              case parse_ip_netmask(S) of
-                  {ok, IP, Mask} ->
+      fun({Access, {IP, Mask}}) ->
+              [{Access, IP, Mask}];
+         ({Access, S}) ->
+              case mongoose_lib:parse_ip_netmask(S) of
+                  {ok, {IP, Mask}} ->
                       [{Access, IP, Mask}];
                   error ->
                       ?LOG_ERROR(#{what => reg_invalid_network_specification,
@@ -440,38 +442,6 @@ get_ip_access(Host) ->
                       []
               end
       end, IPAccess).
-
-parse_ip_netmask(S) ->
-    case string:tokens(S, "/") of
-        [IPStr] -> parse_ip_netmask(IPStr, undefined);
-        [IPStr, MaskStr] -> parse_ip_netmask(IPStr, MaskStr);
-        _ -> error
-    end.
-
-parse_ip_netmask(IPStr, undefined) ->
-    case inet_parse:address(IPStr) of
-        {ok, {_, _, _, _} = IP} ->
-            {ok, IP, 32};
-        {ok, {_, _, _, _, _, _, _, _} = IP} ->
-            {ok, IP, 128};
-        _ ->
-            error
-    end;
-parse_ip_netmask(IPStr, MaskStr) ->
-    case catch list_to_integer(MaskStr) of
-        Mask when is_integer(Mask),
-                  Mask >= 0 ->
-            case inet_parse:address(IPStr) of
-                {ok, {_, _, _, _} = IP} when Mask =< 32 ->
-                    {ok, IP, Mask};
-                {ok, {_, _, _, _, _, _, _, _} = IP} when Mask =< 128 ->
-                    {ok, IP, Mask};
-                _ ->
-                    error
-            end;
-        _ ->
-            error
-    end.
 
 check_ip_access(_Source, []) ->
     allow;
@@ -502,10 +472,11 @@ check_ip_access(IP, [_ | IPAccess]) ->
     check_ip_access(IP, IPAccess).
 
 ip_to_integer({IP1, IP2, IP3, IP4}) ->
-    (((((IP1 bsl 8) bor IP2) bsl 8) bor IP3) bsl 8) bor IP4;
+    <<X:32>> = <<IP1, IP2, IP3, IP4>>,
+    X;
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
-    (((((((((((((IP1 bsl 16) bor IP2) bsl 16) bor IP3) bsl 16) bor IP4)
-               bsl 16) bor IP5) bsl 16) bor IP6) bsl 16) bor IP7) bsl 16) bor IP8.
+    <<X:64>> = <<IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8>>,
+    X.
 
 make_host_only_jid(Name) when is_binary(Name) ->
     jid:make(<<>>, Name, <<>>).

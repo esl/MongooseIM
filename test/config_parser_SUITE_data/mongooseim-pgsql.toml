@@ -243,7 +243,7 @@
   backend = "rdbms"
 
 [modules.mod_register]
-  welcome_message = ""
+  welcome_message = {subject = "Hello", body = "I am MongooseIM"}
   ip_access = [
     {address = "127.0.0.0/8", policy = "allow"},
     {address = "0.0.0.0/0", policy = "deny"}

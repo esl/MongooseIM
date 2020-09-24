@@ -11,14 +11,14 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 * `backend` (atom, default: `mnesia`): vCard storage backend.
  Valid values are `ldap`, `rdbms`, `riak` and `mnesia`.
  **Warning:** LDAP backend is read-only.
-* `matches` (`inifnity` or positive integer, default: 30): Maxmimum search results to be returned to the user.
+* `matches` (`infinity` or positive integer, default: 30): Maxmimum search results to be returned to the user.
 
 ##### LDAP-specific options
 
 * `ldap_pool_tag`, `ldap_base`, `ldap_uids`, `ldap_filter`, `ldap_deref`:
   These options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options).
 
-* `ldap_vcard_map` (list of `{VCardField, LDAPPattern, LDAPField}`, default: see description): Mappings between VCard and LDAP fields. For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 74.
+* `ldap_vcard_map` (list of `{VCardField, LDAPPattern, [LDAPField]}`, default: see description): Mappings between VCard and LDAP fields. For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 74.
 
 * `ldap_search_fields` (list of `{SearchField, LDAPField}`, default: see description): Mappings between the human-readable search fields and LDAP fields.
  For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 96.

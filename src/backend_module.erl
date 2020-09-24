@@ -27,6 +27,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 
 -export([create/2, create/3]).
+-export([backend_module/2]).
 
 %% Callback implemented by proxy modules.
 -callback backend() -> module().

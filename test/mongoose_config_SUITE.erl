@@ -101,7 +101,7 @@ flat_module_subopts_case(_C) ->
     State = mongoose_config_parser_cfg:parse_terms(gd_config()),
     FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     NumConnsKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
-                   connections,num_of_connections],
+                   connections,connections_per_endpoint],
     ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
                 connections],
     RedisServerKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
@@ -142,7 +142,7 @@ gd_config() ->
              {local_host, "datacenter1.example.com"},
              {connections, [
                    {endpoints, [{"172.16.0.2", 5555}]},
-                   {num_of_connections, 22},
+                   {connections_per_endpoint, 22},
                    {tls_opts, [
                          {certfile, "/home/user/dc1.pem"},
                          {cafile, "/home/user/ca.pem"}

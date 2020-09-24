@@ -62,7 +62,7 @@
   
   backend.http.pool_name = "http_pool"
   backend.http.path = "/notifications"
-  backend.http.callback_module = "mod_event_pusher_http_notifications"
+  backend.http.callback_module = "mod_event_pusher_http_defaults"
 
   backend.rabbit.presence_exchange.name ="presence"
   backend.rabbit.presence_exchange.type = "topic"
@@ -94,9 +94,10 @@
   global_host = "example.com"
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
-  connections.num_of_connections = 22
-  connections.tls.certfile = "/home/user/dc1.pem"
-  connections.tls.cacertfile = "/home/user/ca.pem"
+  connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.certfile = "priv/dc1.pem"
+  connections.tls.cacertfile = "priv/ca.pem"
+  connections.connections_per_endpoint = 30
   cache.domain_lifetime_seconds = 60
   bounce.resend_after_ms = 300
   bounce.max_retries = 3
@@ -128,6 +129,7 @@
 
 [modules.mod_last]
   backend = "mnesia"
+  iqdisc = {"type" = "queues", "workers" = 10}
 
 [modules.mod_mam_meta]
   backend = "rdbms"
@@ -162,7 +164,7 @@
     affiliation = "owner"
 
 [modules.mod_muc_log]
-  outdir = "/tmp/muclogs"
+  outdir = "www/muc"
   access_log = "muc"
   css_file = "path/to/css/file"
   top_link.target = "/"
@@ -219,6 +221,7 @@
   max_http_connections = 100
    
 [modules.mod_register]
+  welcome_message = {subject = "Subject", body = "Body"}
   access = "all"
   registration_watchers = ["JID1", "JID2"]
   password_strength = 32

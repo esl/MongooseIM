@@ -17,9 +17,9 @@ Also `mod_muc_log` is a logging submodule.
 * `history_size` (non-negative integer, default: 20): Room message history to be kept in RAM.
  After node restart, the history is lost.
 * `room_shaper` (atom, default: `none`): Limits per-room data throughput with traffic shaper.
-* `max_room_id` (atom or positive integer, default: `infinite`): Maximum room username length (in JID).
-* `max_room_name` (atom or positive integer, default: `infinite`): Maximum room name length.
-* `max_room_desc` (atom or positive integer, default: `infinite`): Maximum room description length.
+* `max_room_id` (atom or positive integer, default: `infinity`): Maximum room username length (in JID).
+* `max_room_name` (atom or positive integer, default: `infinity`): Maximum room name length.
+* `max_room_desc` (atom or positive integer, default: `infinity`): Maximum room description length.
 * `min_message_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between messages processed by the room.
 * `min_presence_interval` (non-negative integer, default: 0): Minimal interval (in seconds) between presences processed by the room.
 * `max_users` (positive integer, default: 200): Absolute maximum user count per room on the node.
