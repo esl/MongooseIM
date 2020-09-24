@@ -10,7 +10,7 @@ This module expects two optional arguments that apply to [cache tab](https://git
 #### `modules.mod_caps.cache_size`
 * **Syntax:** non-negative integer
 * **Default:** `1000`
-* **Example:** `cache_size = true`
+* **Example:** `cache_size = 2000`
 
 The size of a cache_tab (the amount of entries) holding the information about capabilities of each user. 
 

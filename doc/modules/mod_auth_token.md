@@ -25,35 +25,7 @@ Validity period configuration for provision tokens happens outside the module si
 
 #### Required keys
 
-Keys are used for signing binary tokens using an HMAC with SHA-2 family function SHA-384.
-Therefore, `mod_auth_token` requires `mod_keystore` to provide some predefined keys.
-
-The required keys are (example from `mongooseim.toml`):
-```
-[modules.mod_keystore]
-  ram_key_size = 1000
-  
-  [[modules.mod_keystore.keys]]
-    name = "token_secret"
-    type = "ram"
-
-  [[modules.mod_keystore.keys]]
-    name = "provision_pre_shared"
-    type = "file"
-    path = "priv/provision_pre_shared.key"
-```
-
-
-`token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk) key used for signing and verifying access and refresh tokens.
-
-`provision_pre_shared` is a key read from a file.
-As its name suggests, it's shared with a service issuing provision tokens.
-Clients then use these provision tokens to authenticate with MongooseIM.
-
-While it's not enforced by the server and left completely to the operator, `provision_pre_shared` keys probably should not be shared between virtual XMPP domains hosted by the server.
-That is, make sure the module configuration specifying a `provision_pre_shared` key is specific to an XMPP domain.
-
-MongooseIM can't generate provision tokens on its own (neither can it distribute them to clients), so while configuring a `provision_pre_shared` key to be RAM-only is technically possible, it would in practice disable the provision token support (as no external service could generate a valid token with this particular RAM key).
+To read more about the keys MongooseIM makes use of, please refer to [mod_keystore](mod_keystore.md) documentation.
 
 ### Token types
 
