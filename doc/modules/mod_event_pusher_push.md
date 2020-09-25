@@ -41,7 +41,7 @@ List of options that will be passed to the `worker_pool` library that handles al
 Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
 
 #### `modules.mod_event_pusher_push.plugin_module`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"mod_event_pusher_push_plugin_defaults"`
 * **Example:** `plugin_module = "mod_event_pusher_push_plugin_defaults"`
 

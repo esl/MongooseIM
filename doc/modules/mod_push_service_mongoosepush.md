@@ -12,7 +12,7 @@ It must be defined in [outgoing_pools setting](../advanced-configuration/outgoin
 ### Options
 
 #### `modules.mod_push_service_mongoosepush.pool_name`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"http_pool"`
 * **Example:** `pool_name = "mongoose_push_http"`
 
