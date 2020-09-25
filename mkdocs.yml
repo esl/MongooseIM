@@ -45,6 +45,7 @@ pages:
       - 'Options: Shaper': 'advanced-configuration/shaper.md'
       - 'Options: Acl': 'advanced-configuration/acl.md'
       - 'Options: Access': 'advanced-configuration/access.md'
+      - 'Options: S2S': 'advanced-configuration/s2s.md'
       - 'TLS hardening': 'advanced-configuration/TLS-hardening.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
       - 'Outgoing connections': 'advanced-configuration/outgoing-connections.md'
