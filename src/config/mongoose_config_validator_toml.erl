@@ -1125,10 +1125,10 @@ validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>|_],
     validate_backend(mod_bosh, V);
 validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
          [{inactivity, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_positive_integer_or_infinity(V);
 validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>|_],
          [{max_wait, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_positive_integer_or_infinity(V);
 validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
          [{server_acks, V}]) ->
     validate_boolean(V);
