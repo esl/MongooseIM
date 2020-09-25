@@ -2,14 +2,55 @@
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html). The module itself provides only the essential disco interface, the actual capabilities announced by Service Discovery are gathered via executing a fold-type hook.
 
 ### Options
-* **iqdisc** (default: `one_queue`)
-* **extra_domains** (list of binaries, default: `[]`): Adds domains that are not registered with other means to a local item announcement (response to `http://jabber.org/protocol/disco#items` IQ get). 
- Please note that `mod_disco` doesn't verify these domains, so if no handlers are registered later for them, a client will receive a `service-unavailable` error for every stanza sent to one of these hosts.
-* **server_info** (list of tuples `{[Module] | all, Name, [URL]}`, default: `[]`): Adds extra disco information to all or chosen modules. 
- Example: `{server_info, [{all, "abuse-address", ["admin@example.com"]}, {[mod_muc, mod_disco], "friendly-spirits", ["spirit1@localhost", "spirit2@localhost"]}]}`. 
- New fields will be added in a manner compliant with XEP-0157.
-* **users_can_see_hidden_services** (boolean, default: `true`): MongooseIM node with this option set to `false` will exclude ["hidden services"](../advanced-configuration/Listener-modules.md#xmpp-components-ejabberd_service) from disco results sent to clients (identified by bare or full JID).
-Other entities, with empty username part in their JIDs (e.g. `component.example.com`), will still receive full disco results.
+#### `modules.mod_disco.iqdisc`
+* **Syntax:** string
+* **Default:** `"no_queue"`
+* **Example:** `iqdisc = "one_queue"`
+
+#### `modules.mod_disco.extra_domains`
+* **Syntax:** array of strings
+* **Default:** `[]`
+* **Example:** `extra_domains = ["custom_domain"]`
+ 
+Adds domains that are not registered with other means to a local item announcement (response to `http://jabber.org/protocol/disco#items` IQ get). 
+Please note that `mod_disco` doesn't verify these domains, so if no handlers are registered later for them, a client will receive a `service-unavailable` error for every stanza sent to one of these hosts.
+
+#### `modules.mod_disco.server_info`
+* **Syntax:** array of tables described below
+* **Default:** `[]`
+* **Example:** 
+```
+server_info = [
+                {module = "all", name = "abuse-address", urls = ["admin@example.com"]}
+              ]
+```
+Adds extra disco information to all or chosen modules. 
+New fields will be added in a manner compliant with XEP-0157.
+
+Required keys and their values for each entry:
+
+* `module` - the string `"all"` or an array of module names for which the additional server information is to be returned
+* `name` - a string with the name of the field
+* `urls` - an array of addresses
+
+#### `modules.mod_disco.users_can_see_hidden_services`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `users_can_see_hidden_services = false`
+
+MongooseIM node with this option set to `false` will exclude ["hidden services"](../advanced-configuration/Listener-modules.md#xmpp-components-ejabberd_service)
+from disco results sent to clients (identified by bare or full JID).
+Other entities, with empty username part in their JIDs (e.g. `component.example.com`),
+will still receive full disco results.
 
 ### Example Configuration
-`    {mod_disco, []} `
+```
+[modules.mod_disco]
+  iqdisc = "one_queue"
+  extra_domains = ["some_domain", "another_domain"]
+  server_info = [
+    {module = "all", name = "abuse-address", urls = ["admin@example.com"]},
+    {module = ["mod_muc", "mod_disco"], name = "friendly-spirits", urls = ["spirit1@localhost", "spirit2@localhost"]}
+  ]
+  users_can_see_hidden_services = true
+```
