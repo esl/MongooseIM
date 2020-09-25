@@ -3,10 +3,10 @@
 
 %% Defines which RDBMS pool to use
 %% Parent host of the MUC service
--type server_host() :: ejabberd:server().
+-type server_host() :: jid:server().
 
 %% Host of MUC service
--type muc_host() :: ejabberd:server().
+-type muc_host() :: jid:server().
 
 %% User's JID. Can be on another domain accessable over FED.
 %% Only bare part (user@host) is important.

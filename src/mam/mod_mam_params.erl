@@ -26,24 +26,24 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec extra_params_module(mam_module(), Host :: ejabberd:lserver()) -> module() | undefined.
+-spec extra_params_module(mam_module(), Host :: jid:lserver()) -> module() | undefined.
 extra_params_module(Module, Host) ->
     param(Module, Host, extra_lookup_params, undefined).
 
--spec max_result_limit(mam_module(), Host :: ejabberd:lserver()) -> pos_integer().
+-spec max_result_limit(mam_module(), Host :: jid:lserver()) -> pos_integer().
 max_result_limit(Module, Host) ->
     param(Module, Host, max_result_limit, 50).
 
--spec default_result_limit(mam_module(), Host :: ejabberd:lserver()) -> pos_integer().
+-spec default_result_limit(mam_module(), Host :: jid:lserver()) -> pos_integer().
 default_result_limit(Module, Host) ->
     param(Module, Host, default_result_limit, 50).
 
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server()) -> boolean().
+-spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->
     param(Module, Host, full_text_search, true).
 
--spec is_archivable_message_fun(mam_module(), Host :: ejabberd:lserver()) ->
+-spec is_archivable_message_fun(mam_module(), Host :: jid:lserver()) ->
                                        MF :: {module(), atom()}.
 is_archivable_message_fun(Module, Host) ->
     {IsArchivableModule, IsArchivableFunction} =
@@ -58,11 +58,11 @@ is_archivable_message_fun(Module, Host) ->
         end,
     {IsArchivableModule, IsArchivableFunction}.
 
--spec archive_chat_markers(mam_module(), Host :: ejabberd:lserver()) -> boolean().
+-spec archive_chat_markers(mam_module(), Host :: jid:lserver()) -> boolean().
 archive_chat_markers(Module, Host) ->
     param(Module, Host, archive_chat_markers, false).
 
--spec add_stanzaid_element(mam_module(), Host :: ejabberd:lserver()) -> boolean().
+-spec add_stanzaid_element(mam_module(), Host :: jid:lserver()) -> boolean().
 add_stanzaid_element(Module, Host) ->
     not param(Module, Host, no_stanzaid_element, false).
 
@@ -70,6 +70,6 @@ add_stanzaid_element(Module, Host) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
--spec param(mam_module(), Host :: ejabberd:lserver(), Opt :: term(), Default :: term()) -> term().
+-spec param(mam_module(), Host :: jid:lserver(), Opt :: term(), Default :: term()) -> term().
 param(Module, Host, Opt, Default) ->
     gen_mod:get_module_opt(Host, Module, Opt, Default).

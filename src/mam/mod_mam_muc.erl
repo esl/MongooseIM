@@ -599,7 +599,7 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?LOG_ERROR(#{what => mam_muc_error, issue => Issue, reason => Reason,
                  user => LUser, server => LServer, iq => IQ, stacktrace => Stacktrace}).
 
--spec is_archivable_message(MUCHost :: ejabberd:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(MUCHost :: jid:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
 is_archivable_message(MUCHost, Dir, Packet) ->
     {ok, Host} = mongoose_subhosts:get_host(MUCHost),
