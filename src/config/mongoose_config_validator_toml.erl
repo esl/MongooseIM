@@ -1749,7 +1749,7 @@ validate_muc_config_schema({Field, Value}) ->
     validate_non_empty_string(Field),
     validate_string(Value);
 validate_muc_config_schema({Field, Value, InternalField, FieldType})
-    when is_list(Value); is_float(Value); is_integer(Value) ->
+    when is_binary(Value); is_float(Value); is_integer(Value) ->
     validate_non_empty_string(Field),
     validate_enum(FieldType, [binary, integer, float]),
     validate_non_empty_atom(InternalField).
