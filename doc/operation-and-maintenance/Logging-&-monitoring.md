@@ -47,6 +47,9 @@ For more advanced processing and analysis of logs, including gathering logs from
 you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk),
 by redirecting mongoose logs to such service with an appropriate [Logger](Logger)'s handler.
 
+Check [Logging](Logging.md) for more information.
+
+
 ## Monitoring
 
 ### WombatOAM

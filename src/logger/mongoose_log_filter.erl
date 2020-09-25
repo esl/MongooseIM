@@ -5,6 +5,7 @@
 -export([format_packet_filter/2]).
 -export([format_stacktrace_filter/2]).
 -export([preserve_acc_filter/2]).
+-export([filter_module/2]).
 
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
@@ -124,3 +125,13 @@ more_format_stacktrace(H, T) ->
 
 filter_undefined(Map) ->
     maps:filter(fun(_, V) -> V =/= undefined end, Map).
+
+filter_module(Event = #{meta := #{mfa := {M,_,_}}}, Modules) when is_list(Modules) ->
+    case lists:member(M, Modules) of
+        true ->
+            Event;
+        false ->
+            stop
+    end;
+filter_module(_Event, _Modules) ->
+    stop. %% module unknown, drop
