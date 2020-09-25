@@ -7,23 +7,91 @@ Currently, the module supports only the [S3][s3] backend using [AWS Signature Ve
 
 ### Options
 
-* **iqdisc** (default: `one_queue`)
-* **host** (string, default: `"upload.@HOST@"`): Subdomain for the upload service to reside under. `@HOST@` is replaced with each served domain.
-* **backend** (atom, default: `s3`) - Backend to use for generating slots. Currently only `s3` can be used.
-* **expiration_time** (integer, default: `60`) - Duration (in seconds) after which the generated `PUT` URL will become invalid.
-* **token_bytes** (integer, default: `32`) - Number of random bytes of a token that will be used in a generated URL. 
- The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
-* **max_file_size** (integer, default: 10485760 (10 MB)) - Maximum file size (in bytes) accepted by the module. Disabled if set to `undefined`.
-* **s3** (list, default: unset) - Options specific to [S3][s3] backend.
+#### `modules.mod_http_upload.iqdisc`
+* **Syntax:** string
+* **Default:** `"one_queue"`
+* **Example:** `iqdisc = "one_queue"`
+
+#### `modules.mod_http_upload.host`
+* **Syntax:** string
+* **Default:** `"upload.@HOST@"`
+* **Example:** `host = "upload.@HOST@"`
+
+Subdomain for the upload service to reside under. `@HOST@` is replaced with each served domain.
+
+#### `modules.mod_http_upload.backend`
+* **Syntax:** non-empty string
+* **Default:** `"s3"`
+* **Example:** `backend = "s3"`
+
+Backend to use for generating slots. Currently only `"s3"` can be used.
+
+#### `modules.mod_http_upload.expiration_time`
+* **Syntax:** non-negative integer
+* **Default:** `60`
+* **Example:** `expiration_time = 120`
+
+Duration (in seconds) after which the generated `PUT` URL will become invalid.
+
+#### `modules.mod_http_upload.token_bytes`
+* **Syntax:** positive integer
+* **Default:** `32`
+* **Example:** `token_bytes = 32`
+
+Number of random bytes of a token that will be used in a generated URL. 
+The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
+
+#### `modules.mod_http_upload.max_file_size`
+* **Syntax:** non-negative integer or the string `"undefined"`
+* **Default:** `10485760`
+* **Example:** `max_file_size = "undefined"`
+
+Maximum file size (in bytes) accepted by the module. Disabled if set to `"undefined"`.
+
+#### `modules.mod_http_upload.s3`
+* **Syntax:** Array of TOML tables. See description.
+* **Default:** see description
+* **Example:** see description
+
+Options specific to [S3][s3] backend.
 
 #### [S3][s3] backend options
 
-* **bucket_url** (string, default: unset) - A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS it needs to point to a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
-* **add_acl** (boolean, default: `false`) - If `true`, adds `x-amz-acl: public-read` header to the PUT URL.
+##### `s3.bucket_url`
+* **Syntax:** non-empty string
+* **Default:** `""`
+* **Example:** `s3.bucket_url = "https://s3-eu-west-1.amazonaws.com/mybucket"`
+
+A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS it needs to point to a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.
+
+##### `s3.add_acl`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `s3.add_acl = true`
+
+If `true`, adds `x-amz-acl: public-read` header to the PUT URL.
 This allows users to read the uploaded files even if the bucket is private. The same header must be added to the PUT request.
-* **region** (string, default: unset) - The [AWS region][aws-region] to use for requests.
-* **access_key_id** (string, default: unset) - [ID of the access key][aws-keys] to use for authorization.
-* **secret_access_key** (string, default: unset) - [Secret access key][aws-keys] to use for authorization.
+
+##### `s3.region`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `s3.region = "https://s3-eu-west-1.amazonaws.com/mybucket"`
+
+The [AWS region][aws-region] to use for requests.
+
+##### `s3.access_key_id`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `s3.access_key_id = "AKIAIOSFODNN7EXAMPLE"`
+
+[ID of the access key][aws-keys] to use for authorization.
+
+##### `s3.secret_access_key`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`
+
+[Secret access key][aws-keys] to use for authorization.
 
 [s3]: https://aws.amazon.com/s3/
 [aws-virtual-host]: https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html
@@ -32,18 +100,16 @@ This allows users to read the uploaded files even if the bucket is private. The 
 
 ### Example configuration
 
-```Erlang
-{mod_http_upload, [
-        {host, "upload.@HOST@"},
-        {backend, s3},
-        {expiration_time, 120},
-        {s3, [
-              {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-              {region, "eu-west-1"},
-              {access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-              {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}
-             ]}
-       ]}.
+```
+[modules.mod_http_upload]
+  host = "upload.@HOST@"
+  backend = "s3"
+  expiration_time = 120
+  s3.bucket_url = "https://s3-eu-west-1.amazonaws.com/mybucket"
+  s3.region = "eu-west-1"
+  s3.add_acl = true     
+  s3.access_key_id = "AKIAIOSFODNN7EXAMPLE"
+  s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 ```
 
 ### Testing [S3][s3] configuration
