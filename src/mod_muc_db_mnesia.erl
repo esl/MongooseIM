@@ -53,7 +53,7 @@ init(_Host, _Opts) ->
     mnesia:add_table_index(muc_registered, nick),
     ok.
 
--spec store_room(ejabberd:server(), ejabberd:server(), mod_muc:room(), list())
+-spec store_room(jid:server(), jid:server(), mod_muc:room(), list())
             -> ok | {error, term()}.
 store_room(ServerHost, MucHost, RoomName, Opts) ->
     F = fun() ->
@@ -86,7 +86,7 @@ restore_room(ServerHost, MucHost, RoomName) ->
         {error, {Class, Reason}}
     end.
 
--spec forget_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) ->
+-spec forget_room(jid:server(), jid:server(), mod_muc:room()) ->
     ok | {error, term()}.
 forget_room(ServerHost, MucHost, RoomName) ->
     F = fun() ->
@@ -116,7 +116,7 @@ get_rooms(ServerHost, MucHost) ->
         {error, {Class, Reason}}
     end.
 
--spec can_use_nick(ejabberd:server(), ejabberd:server(),
+-spec can_use_nick(jid:server(), jid:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
 can_use_nick(_ServerHost, MucHost, JID, Nick) ->
     LUS = jid:to_lus(JID),
