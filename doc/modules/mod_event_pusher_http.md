@@ -33,48 +33,56 @@ It must be defined in the [`outgoing_pools` settings](../advanced-configuration/
 
 ## Options
 
-* `pool_name`: name of the pool to use (as defined in outgoing_pools)
-* `path`: path part of an URL to which a request should be sent (will be appended to the pool's prefix path).
-* `callback_module`: name of a module which should be used to check whether a notification should be sent.
+#### `modules.mod_event_pusher_http.pool_name`
+* **Syntax:** non-empty string
+* **Default:** `""`
+* **Example:** `pool_name = "http_pool"`
+
+Name of the pool to use (as defined in outgoing_pools).
+
+#### `modules.mod_event_pusher_http.path`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `path = "/notifications"`
+
+Path part of an URL to which a request should be sent (will be appended to the pool's prefix path).
+
+#### `modules.mod_event_pusher_http.callback_module`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `callback_module = "mod_event_pusher_http_notifications"`
+
+Name of a module which should be used to check whether a notification should be sent.
 
 ## Example configuration
 
-```erlang
-{outgoing_pools, [
-  {http, global, http_pool, [{workers, 50}],
-  [{server, "http://localhost:8000"},
-   {path_prefix, "/webservice"}]}
-]}.
 ```
+[outgoing_pools.http.http_pool]
+  scope = "global"
+  workers = 50
 
-```erlang
-{mod_event_pusher, [
-    {backends, [
-        {http, [
-            {pool_name, http_pool},
-            {path, "/notifications"}
-        ]}
-    ]}
-]}
+  [outgoing_pools.http.http_pool.connection]
+    host = "https://localhost:8000"
+    path_prefix = "/webservice"
+    request_timeout = 2000
+
+[modules.mod_event_pusher.backend.http]
+  pool_name = "http_pool"
+  path = "/notifications"
 ```
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
-```erlang
-{mod_event_pusher, [
-    {backends, [
-        {http, [
-            {pool_name, http_pool},
-            {path, "/notifications"},
-            {callback_module, mod_event_pusher_http_notifications}
-        ]},
-        {http, [
-            {pool_name, http_pool},
-            {path, "/alerts"},
-            {callback_module, mod_event_pusher_http_alerts}
-        ]}
-    ]}
-]}
+```
+[[modules.mod_event_pusher.backend.http]]
+  pool_name = "http_pool"
+  path = "/notifications"
+  callback_module = "mod_event_pusher_http_notifications"
+
+[[modules.mod_event_pusher.backend.http]]
+  pool_name = "http_pool"
+  path = "/alerts"
+  callback_module = "mod_event_pusher_http_alerts"
 ```
 
 Here, some notifications will be POSTed to `http://localhost:8000/webservice/notifications` and some to `http://localhost:8000/webservice/alerts`, depending on implementation of `should_make_req/6` in the two callback modules.
