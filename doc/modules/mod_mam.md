@@ -48,7 +48,6 @@ Also note that the default separator for the search query is `AND` (which roughl
 * **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
 * **Default:** `"rdbms"`
 * **Example:** `backend = "riak"`
-* **Note:**
 
 Database backend to use.
 
@@ -60,7 +59,7 @@ Database backend to use.
 Do not add a `<stanza-id/>` element from MAM v0.6.
 
 #### `modules.mod_mam_meta.is_archivable_message`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
 * **Example:** `is_archivable_message = "mod_mam_utils"`
 * **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain
@@ -85,7 +84,7 @@ This functionality is currently implemented only for the `rdbms` backend.
 [Retraction messages](https://xmpp.org/extensions/xep-0424.html#example-4) are always archived regardless of this option.
 
 #### `modules.mod_mam_meta.pm`
-* **Syntax:** boolean with only `false` bing a valid value
+* **Syntax:** boolean with only `false` being a valid value
 * **Default:** when this option is not specified the one-to-one message archive is enabled
 * **Example:** `modules.mod_mam_meta.pm = false`
 
@@ -185,9 +184,10 @@ If the buffer is full, messages are flushed to a database immediately and the fl
 Leaving this option as `false` will prevent users from setting their archiving preferences.
 It will also increase performance.
 The possible values are:
-    * `"rdbms"` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
-    * `"cassandra"` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-    * `"mnesia"` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+
+* `"rdbms"` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
+* `"cassandra"` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+* `"mnesia"` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 
 #### `modules.mod_mam_meta.full_text_search`
 * **Syntax:** boolean
@@ -229,14 +229,14 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 ##### Riak-specific options
 
 #### `modules.mod_mam_meta.riak.bucket_type`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"mam_yz"`
 * **Example:** `modules.mod_mam_meta.riak.bucket_type = "mam_yz"`
 
 Riak bucket type.
 
 #### `modules.mod_mam_meta.riak.search_index`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"mam"`
 * **Example:** `modules.mod_mam_meta.riak.search_index = "mam"`
 
