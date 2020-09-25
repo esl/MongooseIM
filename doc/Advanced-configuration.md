@@ -20,9 +20,9 @@ The file is divided into the following sections:
 * **outgoing_pools** - Outgoing connections to external services, including databases, message queues and HTTP services.
 * **services** - Internal services like an administration API and system metrics.
 * **modules** - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
-* **shaper** - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
-* **acl** - Access control lists, defining access groups to which connecting users are classified.
-* **access** - Access rules, specifying the privileges of the defined access groups.
+* [**shaper**](advanced-configuration/shaper.md) - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
+* [**acl**](advanced-configuration/acl.md) - Access classes to which connecting users are assigned.
+* [**access**](advanced-configuration/access.md) - Access rules, specifying the privileges of the defined access classes.
 * **s2s** - Server-to-server connection options, used for connecting federated XMPP servers.
 * **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**, **s2s**.
 

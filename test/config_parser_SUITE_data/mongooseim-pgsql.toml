@@ -275,8 +275,10 @@
 [shaper.mam_global_shaper]
   max_rate = 1000
 
-[acl.local]
-  user_regexp = ""
+[acl]
+  local = [
+    {user_regexp = ""}
+  ]
 
 [access]
   max_user_sessions = [

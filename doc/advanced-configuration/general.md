@@ -64,27 +64,27 @@ Enabling this option uses an alternative query instead of `SELECT COUNT`, that m
 
 # Access management
 
-User access rules and groups are configured mainly in the `acl`, `shaper` and `access` sections. Here you can find some additional options.
+User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
 
 ## `mongooseimctl_access_commands`
 * **Scope:** local
-* **Syntax:** TOML table, whose **keys** are access groups defined in the `acl` config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
+* **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
     * `commands`: mandatory, a list of strings representing the allowed commands, or the string `"all"`
     * `argument_restrictions`: optional, a table whose keys are the argument names and the values are strings representing the allowed values
 * **Default:** not set
 
-By default all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for specific user access groups.
+By default all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for a specific access rule. When the rule returns the value `"allow"`, the user is permitted to use the specified commands with the optional restrictions.
 
-**Example 1.** Allow users from the `admin` access group to execute all commands without any restrictions:
+**Example 1.** Allow administrators to execute all commands without any restrictions:
 
 ```
   [general.mongooseimctl_access_commands.admin]
     commands = "all"
 ```
 
-Alternative syntax: ```mongooseimctl_access_commands.admin.commands = "all"```
+The `admin` rule needs to be defined in the `access` section.
 
-**Example 2.** Allow users from the `local` access group to execute the `join_cluster` command, but only if the `node` argument is equal to `mongooseim@prime`:
+**Example 2.** Allow local users to execute the `join_cluster` command, but only if the `node` argument is equal to `mongooseim@prime`:
 
 ```
   [general.mongooseimctl_access_commands.local]
@@ -92,7 +92,7 @@ Alternative syntax: ```mongooseimctl_access_commands.admin.commands = "all"```
     argument_restrictions.node = "mongooseim@prime"
 ```
 
-Here the more compact syntax is discouraged as the key names would get too long.
+The `local` rule needs to be defined in the `access` section.
 
 # Security
 

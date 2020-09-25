@@ -125,7 +125,7 @@ Another example is shown below - it matches any account that is neither "disable
 It also shows the usage of TOML dotted keys, which is recommended when the inline table grows too big.
 
 ```toml
-   local_filter.operation = "not_equal"`
+   local_filter.operation = "notequal"
    local_filter.attribute = "accountStatus"
    local_filter.values = ["disabled", "blacklisted"]
 ```

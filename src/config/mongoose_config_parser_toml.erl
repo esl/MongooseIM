@@ -1424,12 +1424,12 @@ process_shaper([Name, _|Path], #{<<"max_rate">> := MaxRate}) ->
 
 %% path: (host_config[].)acl.*
 -spec process_acl(path(), toml_value()) -> [config()].
-process_acl([ACLName, _|Path], Content) ->
+process_acl([item, ACLName, _|Path], Content) ->
     [acl:to_record(host(Path), b2a(ACLName), acl_data(Content))].
 
 -spec acl_data(toml_value()) -> option().
-acl_data(<<"all">>) -> all;
-acl_data(<<"none">>) -> none;
+acl_data(#{<<"match">> := <<"all">>}) -> all;
+acl_data(#{<<"match">> := <<"none">>}) -> none;
 acl_data(M) ->
     {AclName, AclKeys} = find_acl(M, lists:sort(maps:keys(M)), acl_keys()),
     list_to_tuple([AclName | lists:map(fun(K) -> maps:get(K, M) end, AclKeys)]).
@@ -1872,7 +1872,8 @@ handler([_, <<"submods">>, <<"service_admin_extra">>, <<"services">>]) ->
 
 %% shaper, acl, access
 handler([_, <<"shaper">>]) -> fun process_shaper/2;
-handler([_, <<"acl">>]) -> fun process_acl/2;
+handler([_, <<"acl">>]) -> fun parse_list/2;
+handler([_, _, <<"acl">>]) -> fun process_acl/2;
 handler([_, <<"access">>]) -> fun process_access_rule/2;
 handler([_, _, <<"access">>]) -> fun process_access_rule_item/2;
 
