@@ -394,6 +394,14 @@ validate([<<"default_policy">>, <<"s2s">>|Path],
          [#local_config{value = Value}]) ->
     validate_root_or_host_config(Path),
     validate_enum(Value, [allow, deny]);
+validate([<<"host">>, item, <<"host_policy">>, <<"s2s">>|Path],
+         [{host, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_binary(Value);
+validate([<<"policy">>, item, <<"host_policy">>, <<"s2s">>|Path],
+         [{policy, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_enum(Value, [allow, deny]);
 validate([<<"host">>, item, <<"address">>, <<"s2s">>],
          [{host, Value}]) ->
     validate_non_empty_binary(Value);
