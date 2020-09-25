@@ -281,29 +281,19 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Configuring mod_global_distrib
 
-```Erlang
-{mod_global_distrib, [
-        {global_host, "example.com"},
-        {local_host, "datacenter1.example.com"},
-        {connections, [
-              {endpoints, [{"172.16.0.2", 5555}]},
-              {connections_per_endpoint, 22},
-              {tls_opts, [
-                    {certfile, "/home/user/dc1.pem"},
-                    {cafile, "/home/user/ca.pem"}
-                   ]}
-             ]},
-        {cache, [
-              {domain_lifetime_seconds, 60}
-             ]},
-        {bounce, [
-              {resend_after_ms, 300},
-              {max_retries, 3}
-             ]},
-        {redis, [
-              {pool, global_distrib}
-             ]}
-       ]}
+```
+[modules.mod_global_distrib]
+  global_host = "example.com"
+  local_host = "datacenter1.example.com"
+  connections.endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.certfile = "priv/dc1.pem"
+  connections.tls.cacertfile = "priv/ca.pem"
+  connections.connections_per_endpoint = 30
+  cache.domain_lifetime_seconds = 60
+  bounce.resend_after_ms = 300
+  bounce.max_retries = 3
+  redis.pool = "global_distrib"
 ```
 
 #### Overriding endpoints to a remote datacenter
