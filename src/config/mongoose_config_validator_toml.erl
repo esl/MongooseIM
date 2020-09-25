@@ -1123,6 +1123,9 @@ validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
 validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_bosh, V);
+validate([<<"maxpause">>, <<"mod_bosh">>, <<"modules">>|_],
+         [{maxpause, V}]) ->
+    validate_positive_integer(V);
 validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
          [{inactivity, V}]) ->
     validate_positive_integer_or_infinity(V);
