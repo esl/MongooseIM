@@ -451,6 +451,10 @@ validate([<<"name">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{name, V}]) ->
     validate_non_empty_binary(V);
+validate([<<"type">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{type, V}]) ->
+    validate_non_empty_binary(V);
 validate([<<"recv_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{recv_topic, V}]) ->
@@ -462,6 +466,10 @@ validate([<<"sent_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>
 validate([<<"name">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{name, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"type">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{type, V}]) ->
     validate_non_empty_binary(V);
 validate([<<"recv_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
