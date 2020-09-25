@@ -634,22 +634,22 @@ validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules
     validate_non_negative_integer(V);
 validate([<<"ack_freq">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{ack_freq, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer_or_atom(V, never);
 validate([<<"buffer_max">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{buffer_max, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_positive_integer_or_infinity_or_atom(V, no_buffer);
 validate([<<"resume_timeout">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{resume_timeout, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"enabled">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{enabled, V}]) ->
     validate_boolean(V);
 validate([<<"geriatric">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{stale_h_geriatric, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"repeat_after">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{stale_h_repeat_after, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
          [{ldap_auth_check, V}]) ->
     validate_boolean(V);
@@ -1123,15 +1123,12 @@ validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
 validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_bosh, V);
-validate([<<"maxpause">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{maxpause, V}]) ->
-    validate_positive_integer(V);
 validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
          [{inactivity, V}]) ->
-    validate_positive_integer_or_infinity(V);
+    validate_non_negative_integer_or_infinity(V);
 validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>|_],
          [{max_wait, V}]) ->
-    validate_positive_integer_or_infinity(V);
+    validate_non_negative_integer_or_infinity(V);
 validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
          [{server_acks, V}]) ->
     validate_boolean(V);
@@ -1557,6 +1554,13 @@ validate_non_negative_integer_or_infinity(infinity) -> ok.
 validate_positive_integer_or_infinity(Value) when is_integer(Value), Value > 0 -> ok;
 validate_positive_integer_or_infinity(infinity) -> ok.
 
+validate_positive_integer_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok;
+validate_positive_integer_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok.
+
+validate_positive_integer_or_infinity_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok;
+validate_positive_integer_or_infinity_or_atom(infinity, _) -> ok;
+validate_positive_integer_or_infinity_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok.
+
 validate_enum(Value, Values) ->
     case lists:member(Value, Values) of
         true ->
@@ -1752,7 +1756,7 @@ validate_muc_config_schema({Field, Value}) ->
     validate_non_empty_string(Field),
     validate_string(Value);
 validate_muc_config_schema({Field, Value, InternalField, FieldType})
-    when is_binary(Value); is_float(Value); is_integer(Value) ->
+    when is_list(Value); is_float(Value); is_integer(Value) ->
     validate_non_empty_string(Field),
     validate_enum(FieldType, [binary, integer, float]),
     validate_non_empty_atom(InternalField).
