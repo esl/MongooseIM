@@ -706,6 +706,8 @@ module_opt([<<"users_can_see_hidden_services">>, <<"mod_disco">>|_], V) ->
 module_opt([<<"backend">>, <<"mod_event_pusher">>|_] = Path, V) ->
     Backends = parse_section(Path, V),
     [{backends, Backends}];
+module_opt([<<"service">>, <<"mod_extdisco">>|_] = Path, V) ->
+    parse_list(Path, V);
 module_opt([<<"host">>, <<"mod_http_upload">>|_], V) ->
     [{host, b2l(V)}];
 module_opt([<<"backend">>, <<"mod_http_upload">>|_], V) ->
@@ -1047,7 +1049,7 @@ mod_register_ip_access_rule(_, #{<<"address">> := Addr, <<"policy">> := Policy})
     [{b2a(Policy), b2l(Addr)}].
 
 -spec mod_auth_token_validity_periods(path(), toml_section()) -> [option()].
-mod_auth_token_validity_periods(_, 
+mod_auth_token_validity_periods(_,
     #{<<"token">> := Token, <<"value">> := Value, <<"unit">> := Unit}) ->
         [{{validity_period, b2a(Token)}, {Value, b2a(Unit)}}].
 
@@ -1151,6 +1153,22 @@ mod_event_pusher_rabbit_msg_ex([<<"sent_topic">>|_], V) ->
     [{sent_topic, V}];
 mod_event_pusher_rabbit_msg_ex([<<"recv_topic">>|_], V) ->
     [{recv_topic, V}].
+
+-spec mod_extdisco_service(path(), toml_value()) -> [option()].
+mod_extdisco_service([_, <<"service">>|_] = Path, V) ->
+    [parse_section(Path, V)];
+mod_extdisco_service([<<"type">>|_], V) ->
+    [{type, b2a(V)}];
+mod_extdisco_service([<<"host">>|_], V) ->
+    [{host, b2l(V)}];
+mod_extdisco_service([<<"port">>|_], V) ->
+    [{port, V}];
+mod_extdisco_service([<<"transport">>|_], V) ->
+    [{transport, b2l(V)}];
+mod_extdisco_service([<<"username">>|_], V) ->
+    [{username, b2l(V)}];
+mod_extdisco_service([<<"password">>|_], V) ->
+    [{password, b2l(V)}].
 
 -spec mod_http_upload_s3(path(), toml_value()) -> [option()].
 mod_http_upload_s3([<<"bucket_url">>|_], V) ->
@@ -1326,7 +1344,7 @@ mod_muc_default_room([<<"subject_author">>|_], V) ->
     [{subject_author, V}].
 
 -spec mod_muc_default_room_affiliations(path(), toml_section()) -> [option()].
-mod_muc_default_room_affiliations(_, #{<<"user">> := User, <<"server">> := Server, 
+mod_muc_default_room_affiliations(_, #{<<"user">> := User, <<"server">> := Server,
     <<"resource">> := Resource, <<"affiliation">> := Aff}) ->
     [{{User, Server, Resource}, b2a(Aff)}].
 
@@ -1845,6 +1863,10 @@ handler([_,<<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>, <<"mod_event_pu
     fun mod_event_pusher_rabbit_msg_ex/2;
 handler([_,<<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
     fun mod_event_pusher_rabbit_msg_ex/2;
+handler([_, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
+    fun mod_extdisco_service/2;
+handler([_, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
+    fun mod_extdisco_service/2;
 handler([_, <<"s3">>, <<"mod_http_upload">>, <<"modules">>]) ->
     fun mod_http_upload_s3/2;
 handler([_, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>]) ->

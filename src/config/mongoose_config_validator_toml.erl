@@ -1,6 +1,6 @@
 -module(mongoose_config_validator_toml).
 
--export([validate/2]).
+-export([validate/2, validate_port/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -779,6 +779,24 @@ validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
 validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
          [{cache_size, V}]) ->
     validate_non_negative_integer(V);
+validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{type, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"host">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"port">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{port, V}]) ->
+    validate_port(V);
+validate([<<"transport">>,_, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{transport, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"username">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{username, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"password">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{password, V}]) ->
+    validate_non_empty_list(V);
 validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_http_upload, V);
