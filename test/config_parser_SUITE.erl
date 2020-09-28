@@ -1859,9 +1859,12 @@ mod_mam_meta(_Config) ->
     TPM = fun(Map) -> T(#{<<"pm">> => Map}) end,
     TMuc = fun(Map) -> T(#{<<"muc">> => Map}) end,
     TB = fun(Map) -> T(maps:merge(Base, Map)) end,
+    %% by default parser adds pm and muc keys set to false
+    Hook = fun(Mim, Toml) -> {lists:sort([{pm, false}, {muc, false}|Mim]), Toml} end,
     run_multi(
       %% Test configurations with one option only
-      check_one_opts(mod_mam_meta, MBase, Base, T, KeysForOneOpts) ++ [
+      check_one_opts(mod_mam_meta, MBase, Base, T, KeysForOneOpts, Hook) ++ [
+        ?_eqf(modopts(mod_mam_meta, [{muc, false}, {pm, false}]), T(#{})),
         ?_eqf(modopts(mod_mam_meta, MBase), T(Base)),
         %% Second format for user_prefs_store
         ?_eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
@@ -1875,7 +1878,9 @@ mod_mam_meta(_Config) ->
      ).
 
 mam_failing_cases(T) ->
-    [?_errf(T(#{<<"archive_chat_markers">> => 1})),
+    [?_errf(T(#{<<"pm">> => false})), % should be a section
+     ?_errf(T(#{<<"muc">> => false})), % should be a section
+     ?_errf(T(#{<<"archive_chat_markers">> => 1})),
      ?_errf(T(#{<<"archive_groupchats">> => 1})),
      ?_errf(T(#{<<"async_writer">> => 1})),
      ?_errf(T(#{<<"async_writer_rdbms_pool">> => 1})),
@@ -3027,21 +3032,24 @@ check_one_opts_with_same_field_name(M, MBase, Base, T) ->
     KeysT = lists:map(fun b2a/1, maps:keys(Base)),
     Keys = ordsets:intersection(ordsets:from_list(KeysT),
                                 ordsets:from_list(KeysM)),
-    check_one_opts(M, MBase, Base, T, Keys).
+    Hook = fun(A,B) -> {A,B} end,
+    check_one_opts(M, MBase, Base, T, Keys, Hook).
 
 check_one_opts(M, MBase, Base, T) ->
     Keys = maps:keys(maps:from_list(MBase)),
-    check_one_opts(M, MBase, Base, T, Keys).
+    Hook = fun(A,B) -> {A,B} end,
+    check_one_opts(M, MBase, Base, T, Keys, Hook).
 
-check_one_opts(M, MBase, Base, T, Keys) ->
-    [check_one_opts_key(M, K, MBase, Base, T) || K <- Keys].
+check_one_opts(M, MBase, Base, T, Keys, Hook) ->
+    [check_one_opts_key(M, K, MBase, Base, T, Hook) || K <- Keys].
 
-check_one_opts_key(M, K, MBase, Base, T) when is_atom(M), is_atom(K) ->
+check_one_opts_key(M, K, MBase, Base, T, Hook) when is_atom(M), is_atom(K) ->
     BK = atom_to_binary(K, utf8),
     MimValue = maps:get(K, maps:from_list(MBase)),
     TomValue = maps:get(BK, Base),
-    Mim = [{K, MimValue}],
-    Toml = #{BK => TomValue},
+    Mim0 = [{K, MimValue}],
+    Toml0 = #{BK => TomValue},
+    {Mim, Toml} = Hook(Mim0, Toml0),
     ?_eqf(modopts(M, Mim), T(Toml)).
 
 binaries_to_atoms(Bins) ->
