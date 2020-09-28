@@ -8,21 +8,24 @@ while the management of the session tables and configuration is implemented in
 ### Options
 
 #### `modules.mod_stream_management.buffer_max`
-* **Syntax:** positive integer or string "infinity" or string "no_buffer"
+* **Syntax:** positive integer or string `"infinity"` or string `"no_buffer"`
 * **Default:** `100`
 * **Example:** `buffer_max = "no_buffer"`
+
 Buffer size for messages yet to be acknowledged.
 
 #### `modules.mod_stream_management.ack_freq`
-* **Syntax:** positive integer or string "never"
+* **Syntax:** positive integer or string `"never"`
 * **Default:** `1`
 * **Example:** `ack_freq = "never"`
+
 Frequency of ack requests sent from the server to the client, e.g. 1 means a request after each stanza, 3 means a request after each 3 stanzas.
 
 #### `modules.mod_stream_management.resume_timeout`
 * **Syntax:** positive integer, value given in seconds
 * **Default:** `600`
 * **Example:** `resume_timeout = 600`
+
 Timeout for the session resumption. Sessions will be removed after the specified number of seconds.
 
 #### Stale_h options
@@ -32,18 +35,21 @@ Enables keeping old server's `<h>` values after the resumption timed out. Disabl
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `enabled = true`
+
 Enables `stale_h` configuration
 
 #### `modules.mod_stream_management.stale_h.repeat_after`
 * **Syntax:** positive integer, value given in seconds
 * **Default:** `1800` (half an hour)
 * **Example:** `repeat_after = 1800`
+
 How often the garbage collection will run in the background to clean this table.
 
 #### `modules.mod_stream_management.stale_h.geriatric`
 * **Syntax:** positive integer, value given in seconds
 * **Default:** `3600` (one hour)
 * **Example:** `geriatric = 3600`
+
 The maximum lifespan of a record in memory. After this, they will be chased for cleanup.
 
 ### Example Configuration
