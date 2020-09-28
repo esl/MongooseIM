@@ -23,7 +23,7 @@ The file is divided into the following sections:
 * [**shaper**](advanced-configuration/shaper.md) - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
 * [**acl**](advanced-configuration/acl.md) - Access classes to which connecting users are assigned.
 * [**access**](advanced-configuration/access.md) - Access rules, specifying the privileges of the defined access classes.
-* **s2s** - Server-to-server connection options, used for connecting federated XMPP servers.
+* [**s2s**](advanced-configuration/s2s.md) - Server-to-server connection options, used for XMPP federation.
 * **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**, **s2s**.
 
 ## Options
@@ -38,68 +38,6 @@ The file is divided into the following sections:
 
 * Section names below correspond with the ones in the file.
 
-### Listening ports
-
-* **s2s_use_starttls** (global)
-    * **Description:** Controls StartTLS feature for S2S connections.
-    * **Values:**
-        * `false`
-        * `optional`
-        * `required`
-        * `required_trusted` - uses OpenSSL's function [SSL_get_verify_result](http://www.openssl.org/docs/ssl/SSL_get_verify_result.html)
-
-* **s2s_certfile** (global)
-    * **Description:** Path to X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `s2s_use_starttls` is enabled.
-
-* **s2s_ciphers** (global) <a name="s2s-ciphers"></a>
-    * **Description:** Defines a list of accepted SSL ciphers in **outgoing** S2S connection.
-      Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
-    * **Default:** `"TLSv1.2:TLSv1.3"`
-
-* **domain_certfile** (multi, global)
-    * **Description:** Overrides common certificates with new ones specific for chosen XMPP domains.
-                       Applies to S2S and C2S connections.
-    * **Syntax:** `{domain_certfile, "example.com", "/path/to/example.com.pem"}.`
-
-* **s2s_default_policy** (local)
-    * **Description:** Default policy for a new S2S (server-to-server) **both incoming and outgoing** connection to/from an unknown remote server.
-
-* **s2s_host** (multi, local)
-    * **Description:** Allows black/whitelisting S2S destinations.
-    * **Syntax:** `{ {s2s_host, "somehost.com"}, allow|deny }.`
-
-* **outgoing_s2s_port** (local)
-    * **Description:** Defines a port to be used for outgoing S2S connections. Cannot be random.
-    * **Default:** 5269
-
-* **s2s_addr** (multi, global)
-    * **Description:** Override DNS lookup for a specific non-local XMPP domain and use a predefined server IP and port for S2S connection.
-    * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
-
-* **outgoing_s2s_options** (global)
-    * **Description:** Specifies the order of address families to try when establishing S2S connection and the connection timeout (in milliseconds or atom `infinity`).
-    * **Default:** `{outgoing_s2s_options, [ipv4, ipv6], 10000}.`
-    * **Family values:** `inet4`/`ipv4`, `inet6`/`ipv6`
-
-* **s2s_shared** (global)
-    * **Description:** S2S shared secret used in [Server Dialback](https://xmpp.org/extensions/xep-0220.html) extension.
-    * **Syntax:** `{s2s_shared, <<"shared secret">>}`.
-    * **Default:** 10 strong random bytes, hex-encoded.
-
-* **s2s_dns_options** (local)
-    * **Description:** Parameters used in DNS lookups for outgoing S2S connections.
-    * **Syntax:** `{s2s_dns_options, [{Opt, Val}, ...]}.`
-    * **Supported options**
-        * `timeout` (integer, seconds, default: 10) - A timeout for DNS lookup.
-        * `retries` (integer, default: 2) - How many DNS lookups will be attempted.
-    * **Example:** `{s2s_dns_options, [{timeout, 30}, {retries, 1}]}.`
-
-* **s2s_max_retry_delay** (local)
-    * **Description:** How many seconds MIM node should wait until next attempt to connect to remote XMPP cluster.
-    * **Syntax:** `{s2s_max_retry_delay, Delay}.`
-    * **Default:** 300
-    * **Example:** `{s2s_max_retry_delay, 30}.`
-
 ### Outgoing connections setup
 
 * **outgoing_pools** (local)
@@ -111,42 +49,6 @@ The file is divided into the following sections:
         [{riak, global, default, [], [{address, "127.0.0.1"}]},
          {http, host, auth, [], [{server, "127.0.0.1"}]}
 ```
-
-### Traffic shapers
-
-* **shaper** (multi, global)
-    * **Description:** Define a class of a shaper which is a mechanism for limiting traffic to prevent DoS attack or calming down too noisy clients.
-    * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
-
-### Access control lists
-
-* **acl** (multi)
-    * **Description:** Define access control list class.
-    * **Syntax:** `{acl, AtomName, Definition}`
-    * **Regexp format:** Syntax for `_regexp` can be found in [Erlang documentation](http://www.erlang.org/doc/man/re.html) - it's based on AWK syntax. For `_glob` use `sh` regexp syntax.
-    * **Valid definitions:**
-        * `all`
-        * `{user, U}` - check if the username equals `U` and the domain either equals the one specified by the module executing the check or (if the module does a `global` check) is on the served domains list (`hosts` option)
-        * `{user, U, S}` - check if the username equals `U` and the domain equals `S`
-        * `{server, S}` - check if the domain equals `S`
-        * `{resource, R}` - check if the resource equals `R`
-        * `{user_regexp, UR}` - perform a regular expression `UR` check on the username and check the server name like in `user`
-        * `{user_regexp, UR, S}` - perform a regular expression `UR` check on the username and check if the domain equals `S`
-        * `{server_regexp, SR}` - perform a regular expression `SR` check on a domain
-        * `{resource_regexp, RR}` - perform a regular expression `SR` check on a resource
-        * `{node_regexp, UR, SR}` - username must match `UR` and domain must match `SR`
-        * `{user_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{server_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{resource_glob, UR}` - like `_regexp` variant but with `sh` syntax
-        * `{node_glob, UR}` - like `_regexp` variant but with `sh` syntax
-
-### Access rules
-
-* **access** (multi, global)
-    * **Description:** Define an access rule for internal checks. The configuration file contains all built-in ones with proper comments.
-    * **Syntax:** `{access, AtomName, [{Value, AclName}]}`
-
-### Miscellaneous
 
 ### Modules
 

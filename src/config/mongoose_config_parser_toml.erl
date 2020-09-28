@@ -1487,6 +1487,8 @@ process_s2s_option([<<"certfile">>|_], V) ->
     [#local_config{key = s2s_certfile, value = b2l(V)}];
 process_s2s_option([<<"default_policy">>|_], V) ->
     ?HOST_F([#local_config{key = {s2s_default_policy, Host}, value = b2a(V)}]);
+process_s2s_option([<<"host_policy">>|_] = Path, V) ->
+    parse_list(Path, V);
 process_s2s_option([<<"address">>|_] = Path, V) ->
     parse_list(Path, V);
 process_s2s_option([<<"ciphers">>|_], V) ->
@@ -1516,6 +1518,19 @@ outgoing_s2s_opt([<<"connection_timeout">>|_], Value) ->
 -spec s2s_address_family(path(), toml_value()) -> [option()].
 s2s_address_family(_, 4) -> [ipv4];
 s2s_address_family(_, 6) -> [ipv6].
+
+%% path: s2s.host_policy[]
+-spec s2s_host_policy(path(), toml_section()) -> config_list().
+s2s_host_policy(Path, M) ->
+    Opts = parse_section(Path, M),
+    {_, S2SHost} = proplists:lookup(host, Opts),
+    {_, Policy} = proplists:lookup(policy, Opts),
+    ?HOST_F([#local_config{key = {{s2s_host, S2SHost}, Host}, value = Policy}]).
+
+%% path: s2s.host_policy[].*
+-spec s2s_host_policy_opt(path(), toml_value()) -> [option()].
+s2s_host_policy_opt([<<"host">>|_], V) -> [{host, V}];
+s2s_host_policy_opt([<<"policy">>|_], V) -> [{policy, b2a(V)}].
 
 %% path: s2s.address[]
 -spec s2s_address(path(), toml_section()) -> [config()].
@@ -1882,6 +1897,8 @@ handler([_, <<"s2s">>]) -> fun process_s2s_option/2;
 handler([_, <<"dns">>, <<"s2s">>]) -> fun s2s_dns_opt/2;
 handler([_, <<"outgoing">>, <<"s2s">>]) -> fun outgoing_s2s_opt/2;
 handler([_, <<"ip_versions">>, <<"outgoing">>, <<"s2s">>]) -> fun s2s_address_family/2;
+handler([_, <<"host_policy">>, <<"s2s">>]) -> fun s2s_host_policy/2;
+handler([_, _, <<"host_policy">>, <<"s2s">>]) -> fun s2s_host_policy_opt/2;
 handler([_, <<"address">>, <<"s2s">>]) -> fun s2s_address/2;
 handler([_, _, <<"address">>, <<"s2s">>]) -> fun s2s_addr_opt/2;
 handler([_, <<"domain_certfile">>, <<"s2s">>]) -> fun s2s_domain_cert/2;

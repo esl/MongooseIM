@@ -159,6 +159,7 @@ groups() ->
                         s2s_use_starttls,
                         s2s_certfile,
                         s2s_default_policy,
+                        s2s_host_policy,
                         s2s_address,
                         s2s_ciphers,
                         s2s_domain_certfile,
@@ -1251,6 +1252,16 @@ s2s_default_policy(_Config) ->
     eq_host_config([#local_config{key = {s2s_default_policy, ?HOST}, value = deny}],
                   #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
     err_host_config(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}}).
+
+s2s_host_policy(_Config) ->
+    Policy = #{<<"host">> => <<"host1">>,
+               <<"policy">> => <<"allow">>},
+    eq_host_config([#local_config{key = {{s2s_host, <<"host1">>}, ?HOST}, value = allow}],
+                  #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"policy">>], Policy)]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"host">> => <<>>}]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}).
 
 s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
