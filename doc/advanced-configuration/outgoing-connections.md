@@ -208,7 +208,7 @@ Riak also supports all TLS-specific options described in the TLS section.
 * **Default:** `"mongooseim"`
 * **Example:** `keyspace = "big_mongooseim_database"`
 
-To use plain text authentication (utilising cqerl_auth_plain_handler module):
+To use plain text authentication (using cqerl_auth_plain_handler module):
 
 #### `outgoing_pools.cassandra.*.connection.auth.plain.username`
 * **Syntax:** string
