@@ -83,23 +83,28 @@ Enables [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html)
 This functionality is currently implemented only for the `rdbms` backend.
 [Retraction messages](https://xmpp.org/extensions/xep-0424.html#example-4) are always archived regardless of this option.
 
-#### `modules.mod_mam_meta.pm`
-* **Syntax:** boolean with only `false` being a valid value
-* **Default:** when this option is not specified the one-to-one message archive is enabled
-* **Example:** `modules.mod_mam_meta.pm = false`
-
-If the value of this option is `false`, one-to-one message archive is disabled.
-
-#### `modules.mod_mam_meta.muc`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `modules.mod_mam_meta.muc = true`
-
-If the value of this option is `false`, group chat message archive is disabled.
-
 **backend**, **no_stanzaid_element**, **is_archivable_message** and **message_retraction** will be applied to both `pm` and `muc` (if they are enabled), unless overridden explicitly (see example below).
 
-#### PM-specific options
+#### Enable one-to-one message archive
+
+Archive for one-to-one messages can be enabled in one of two ways:
+
+* Specify `[mod_mam_meta.pm]` section
+```toml
+[modules.mod_mam_meta]
+[modules.mod_mam_meta.pm] # defining this section enables PM support
+```
+* Define any PM related option
+```toml
+[modules.mod_mam_meta]
+  pm.backend = "rdbms" # enables PM support and overrides its backend
+```
+
+#### Disable one-to-one message archive
+
+To disable archive for one-to-one messages please remove PM section or any PM related option from the config file.
+
+### PM-specific options
 
 #### `modules.mod_mam_meta.pm.archive_groupchats`
 * **Syntax:** boolean
@@ -109,7 +114,26 @@ If the value of this option is `false`, group chat message archive is disabled.
 When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 MongooseIM will print a warning on startup if `pm` MAM is enabled without `archive_groupchats` being explicitly set to a specific value. In one of the future MongooseIM releases this option will default to `false` (as it's more common use case and less DB-consuming) and the warning message will be removed.
 
-#### MUC-specific options
+#### Enable MUC message archive
+
+Archive for MUC messages can be enabled in one of two ways:
+
+* Specify `[mod_mam_meta.muc]` section
+```toml
+[modules.mod_mam_meta]
+[modules.mod_mam_meta.muc] # defining this section enables MUC support
+```
+* Define any MUC related option
+```toml
+[modules.mod_mam_meta]
+  muc.backend = "rdbms" # enables MUC support and overrides its backend
+```
+
+#### Disable MUC message archive
+
+To disable archive for MUC messages please remove MUC section or any MUC related option from the config file.
+
+### MUC-specific options
 
 #### `modules.mod_mam_meta.muc.host`
 * **Syntax:** string
@@ -123,11 +147,11 @@ The MUC host that will be archived if MUC archiving is enabled.
 The example below presents how to override common option for `muc` module specifically.
 Please note that you can override all common options in similar way.
 
-```
+```toml
 [modules.mod_mam_meta]
   backend = "rdbms"
   async_writer = true # this option enables async writer for RDBMS backend
-  
+
   muc.async_writer = false # disable async writer for MUC archive only
 ```
 
@@ -255,7 +279,7 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
 
 ### Example configuration
 
-```
+```toml
 [modules.mod_mam_meta]
   backend = "rdbms"
   no_stanzaid_element = true
