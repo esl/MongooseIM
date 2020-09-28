@@ -21,28 +21,28 @@ Subdomain for MUC service to reside under. `@HOST@` is replaced with each served
 Storage backend.
 
 ####`modules.mod_muc.access`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access = "muc"`
 
 Access Rule to determine who is allowed to use the MUC service.
 
 #### `modules.mod_muc.access_create` 
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access_create = "muc_create"`
  
 Access Rule to determine who is allowed to create rooms.
 
 #### `modules.mod_muc.access_admin` 
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `access_admin = "muc_create"`
 
 Access Rule to determine who is the administrator in all rooms.
 
 #### `modules.mod_muc.access_persistent`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access_persistent = "none"`
  
@@ -57,7 +57,7 @@ In order to change this parameter, the user must not only match the Access Rule 
 Room message history to be kept in RAM. After node restart, the history is lost.
 
 #### `modules.mod_muc.room_shaper` 
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `room_shaper = "muc_room_shaper"`
 
@@ -114,14 +114,14 @@ When the server checks if a new user can join a room and they are an admin,
  `max_users_admin_threshold` is added to `max_users` during occupant limit check.
  
 #### `modules.mod_muc.user_message_shaper`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `user_message_shaper = "muc_user_msg_shaper"`
 
 Shaper for user messages processed by a room (global for the room).
 
 #### `modules.mod_muc.user_presence_shaper`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `user_presence_shaper = "muc_user_presence_shaper"`
 
@@ -135,7 +135,7 @@ Shaper for user presences processed by a room (global for the room).
 Specifies the number of rooms that a user can occupy simultaneously.
 
 #### `modules.mod_muc.http_auth_pool`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `http_auth_pool = "external_auth"`
 
@@ -199,14 +199,14 @@ or:
     affiliation = "member"
 ```
 
-Available room configuration options to be overridden in the initial state.
+Available room configuration options to be overridden in the initial state:
 
 * `modules.mod_muc.default_room.title`
     * **Syntax:** string
     * **Default:** `""`
     * **Example:** `title = "example_title"` 
    
-   Room title, short free text.
+    Room title, short free text.
    
 * `modules.mod_muc.default_room.description`
     * **Syntax:** string
@@ -284,7 +284,7 @@ Available room configuration options to be overridden in the initial state.
     * **Default:** `true`
     * **Example:** `members_by_default = false`
  
-     All new occupants are members by default, unless they have a different affiliation assigned.
+    All new occupants are members by default, unless they have a different affiliation assigned.
 
 * `modules.mod_muc.default_room.members_only` 
     * **Syntax:** boolean
@@ -345,14 +345,18 @@ Available room configuration options to be overridden in the initial state.
     Uses `mod_muc_log`.
 
 * `modules.mod_muc.default_room.maygetmemberlist` 
-    * **Syntax:** array of strings
+    * **Syntax:** array of non-empty strings
     * **Default:** `[]`
     * **Example:** `maygetmemberlist = ["moderator"]`
     
     An array of roles and/or privileges that enable retrieving the room's member list.
 
 * `modules.mod_muc.default_room.affiliations` 
-    * **Syntax:** array of tables in which each value is a string
+    * **Syntax:** array of tables with keys:
+        * `user` - non-empty string,
+        * `server` - string, a valid domain,
+        * `resource` - string,
+        * `affiliation` - non-empty string
     * **Default:** `[]`
     * **Example:**
     
@@ -369,8 +373,7 @@ Available room configuration options to be overridden in the initial state.
   resource = "resource2"
   affiliation = "owner"
 ```
-   An array of tables with keys: `user` - non-empty string, `server` - a valid domain,
-    `resource` - string, `affiliation` - . 
+
    This is the default list of affiliations set for every new room.
 
 * `modules.mod_muc.default_room.subject` 
