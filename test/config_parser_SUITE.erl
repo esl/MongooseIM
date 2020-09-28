@@ -128,6 +128,7 @@ groups() ->
                          pool_http_host,
                          pool_http_path_prefix,
                          pool_http_request_timeout,
+                         pool_http_tls,
                          pool_redis_host,
                          pool_redis_port,
                          pool_redis_database,
@@ -136,9 +137,12 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
+                         pool_riak_certfile,
+                         pool_riak_keyfile,
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
+                         pool_cassandra_auth,
                          pool_cassandra_tls,
                          pool_ldap_host,
                          pool_ldap_port,
@@ -896,6 +900,7 @@ pool_scope(_Config) ->
     ?eq(pool_config({http, <<"localhost">>, default, [], []}),
         parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
                                                 <<"host">> => <<"localhost">>})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
     ?err(parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
 
 pool_workers(_Config) ->
@@ -999,6 +1004,12 @@ pool_http_request_timeout(_Config) ->
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
+pool_http_tls(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"} ]}]}),
+        parse_pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"tls">> => <<"secure">>})).
+
 pool_redis_host(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
         parse_pool_conn(<<"redis">>, #{<<"host">> => <<"localhost">>})),
@@ -1045,15 +1056,25 @@ pool_riak_credentials(_Config) ->
 
 pool_riak_cacertfile(_Config) ->
     ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"path/to/cacert.pem">>})),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"path/to/cacert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
+
+pool_riak_certfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{certfile, "path/to/cert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"certfile">> => <<"">>})).
+
+pool_riak_keyfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{keyfile, "path/to/key.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"keyfile">> => <<"path/to/key.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"keyfile">> => <<"">>})).
 
 pool_riak_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "cert.pem"}
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{dhfile, "cert.pem"}
         ]}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
@@ -1070,6 +1091,13 @@ pool_cassandra_keyspace(_Config) ->
     ?eq(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
+
+pool_cassandra_auth(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler, [{<<"auser">>, <<"secretpass">>}]}}]}),
+        parse_pool_conn(<<"cassandra">>,
+                        #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
+                                                           <<"password">> => <<"secretpass">>}}})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_cassandra_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests

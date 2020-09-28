@@ -545,6 +545,9 @@ sql_server_option([<<"port">>|_], V) -> [{port, V}];
 sql_server_option([<<"tls">>, {connection, mysql} | _] = Path, Opts) ->
     [{tls, parse_section(Path, Opts)}];
 sql_server_option([<<"tls">>, {connection, pgsql} | _] = Path, Opts) ->
+    % true means try to establish encryption and proceed plain if failed
+    % required means fail if encryption is not possible
+    % false would mean do not even try, but we do not let the user do it
     {SSLMode, Opts1} = case maps:take(<<"required">>, Opts) of
                            {true, M} -> {required, M};
                            {false, M} -> {true, M};
@@ -565,7 +568,8 @@ rdbms_option([<<"driver">>|_], _V) -> [].
 -spec http_option(path(), toml_value()) -> [option()].
 http_option([<<"host">>|_], V) -> [{server, b2l(V)}];
 http_option([<<"path_prefix">>|_], V) -> [{path_prefix, b2l(V)}];
-http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}].
+http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}];
+http_option([<<"tls">>|_] = Path, Options) -> [{http_opts, parse_section(Path, Options)}].
 
 %% path: outgoing_pools.redis.*.connection.*
 -spec redis_option(path(), toml_value()) -> [option()].
@@ -596,7 +600,15 @@ riak_option([<<"credentials">>|_] = Path, V) ->
     {_, Pass} = proplists:lookup(password, Creds),
     [{credentials, User, Pass}];
 riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
-riak_option([<<"tls">>|_] = Path, Options) -> [{ssl_opts, parse_section(Path, Options)}].
+riak_option([<<"certfile">>|_], Path) -> [{certfile, b2l(Path)}];
+riak_option([<<"keyfile">>|_], Path) -> [{keyfile, b2l(Path)}];
+riak_option([<<"tls">>|_] = Path, Options) ->
+    Ssl = parse_section(Path, Options),
+    {RootOpts, SslOpts} = proplists:split(Ssl, [cacertfile, certfile, keyfile]),
+    case SslOpts of
+        [] ->lists:flatten(RootOpts);
+        _ -> [{ssl_opts, SslOpts} | lists:flatten(RootOpts)]
+    end.
 
 %% path: outgoing_pools.riak.*.connection.credentials.*
 -spec riak_credentials(path(), toml_value()) -> [option()].
@@ -607,12 +619,18 @@ riak_credentials([<<"password">>|_], V) -> [{password, b2l(V)}].
 -spec cassandra_option(path(), toml_value()) -> [option()].
 cassandra_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
 cassandra_option([<<"keyspace">>|_], KeySpace) -> [{keyspace, b2l(KeySpace)}];
-cassandra_option([<<"tls">>|_] = Path, Options) -> [{ssl, parse_section(Path, Options)}].
+cassandra_option([<<"tls">>|_] = Path, Options) -> [{ssl, parse_section(Path, Options)}];
+cassandra_option([<<"auth">>|_] = Path, Options) ->
+    [AuthConfig] = parse_section(Path, Options),
+    [{auth, AuthConfig}];
+cassandra_option([<<"plain">>|_], #{<<"username">> := User, <<"password">> := Pass}) ->
+    [{cqerl_auth_plain_handler, [{User, Pass}]}].
 
 %% path: outgoing_pools.cassandra.*.connection.servers[]
 -spec cassandra_server(path(), toml_section()) -> [option()].
 cassandra_server(_, #{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> [{b2l(IPAddr), Port}];
 cassandra_server(_, #{<<"ip_address">> := IPAddr}) -> [b2l(IPAddr)].
+
 
 %% path: outgoing_pools.elastic.*.connection.*
 -spec elastic_option(path(), toml_value()) -> [option()].
@@ -1761,6 +1779,8 @@ handler([_, <<"connection">>, _,
 handler([_, <<"credentials">>, <<"connection">>, _,
          <<"riak">>, <<"outgoing_pools">>]) -> fun riak_credentials/2;
 handler([_, <<"connection">>, _,
+         <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
+handler([_, <<"auth">>, <<"connection">>, _,
          <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
 handler([_, <<"servers">>, <<"connection">>, _,
          <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_server/2;
