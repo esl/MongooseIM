@@ -52,27 +52,53 @@ The `hide_service_name` option is set to `false` only for `domain2.com`.
 
 ## `host_config.auth`
 
-This section completely overrides the top-level [`auth`](auth.md) section. All options are allowed.
+This section overrides the top-level [`auth`](auth.md) section, all options are allowed.
+It is recommended to repeat all top-level options in the domain-specific section as the rule is quite complicated:
+
+- If you specify any of the following options, **all** of the following options will be overridden:
+    - [`sasl_external`](auth.md#authsasl_external)
+    - [`password.*`](auth.md#password-related-options)
+    - [`scram_iterations`](auth.md#authscram_iterations)
+    - [`external.program`](../../authentication-methods/external/#authexternalprogram)
+    - [`ldap.*`](../../authentication-methods/ldap)
+    - [`jwt.*`](../../authentication-methods/jwt)
+    - [`riak.*`](../../authentication-methods/riak)
+    - [`http.*`](../../authentication-methods/http)
+- If you specify any of the following options, only these options will be overridden:
+    - [`methods`](auth.md#authmethods)
+    - [`sasl_mechanisms`](auth.md#authsasl_mechanisms)
+    - [`external.instances`](../../authentication-methods/external/#authexternalinstances)
+    - [`anonymous.*`](../../authentication-methods/anonymous)
 
 #### Example
 
-The intention here is to enable only the `SASL PLAIN` mechanism for `domain2.com`.
-To do this, we need to specify `methods` as well - otherwise there would be no authentication methods
-enabled for `domain2.com` as the entire `auth` section is replaced.
+In the example below the number of `scram_iterations` is increased for `domain2`.
+It is necessary to put the `password.hash` there as well, as otherwise it would be replaced with the default setting.
+However, specifying `methods` is not necessary as this value will not be changed.
 
 ```toml
 [general]
   hosts = ["domain1.com", "domain2.com", "domain3.com"]
 
 [auth]
-  methods = ["internal"]
+  methods = ["rdbms"]
+  password.hash = ["sha256"]
 
 [[host_config]]
   host = "domain2.com"
 
   [host_config.auth]
-    methods = ["internal"]
-    sasl_mechanisms = ["plain"]
+    methods = ["rdbms"]
+    password.hash = ["sha256"]
+    scram_iterations = 40_000
+```
+
+The last section would work the same without `methods`:
+
+```toml
+  [host_config.auth]
+    password.hash = ["sha256"]
+    scram_iterations = 40_000
 ```
 
 ## `host_config.modules`
