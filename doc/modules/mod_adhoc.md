@@ -3,12 +3,12 @@ This module implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xe
 
 ### Options
 
-#### `modules.mod_adhoc.iqdisc`
-* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"{queues, N}"`, `"parallel"`
+#### `modules.mod_adhoc.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"one_queue"`
-* **Example:** `iqdisc = "one_queue"`
 
-Strategy to handle incoming stanzas. For more details, please refer to [IQ processing policies](../../developers-guide/Basic-iq-handler/#iq-processing-policies).
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_adhoc.report_commands_node`
 * **Syntax:** boolean

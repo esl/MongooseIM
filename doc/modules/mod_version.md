@@ -4,10 +4,12 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 
 ### Options
 
-#### `modules.mod_version.iqdisc`
-* **Syntax:** string
+#### `modules.mod_version.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_version.os_info`
 * **Syntax:** boolean

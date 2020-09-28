@@ -3,10 +3,12 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 
 ### Options
 
-#### `modules.mod_register.iqdisc`
-* **Syntax:** string
+#### `modules.mod_register.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_register.access`
 * **Syntax:** string
@@ -101,4 +103,3 @@ Where `X` is initially set to 0 and certain values are added if at least one of 
 * `CamelCase`: ~51.3
 * `lowUP1#:`: ~45.9
 * `lowUP1#❤`: ~78
-

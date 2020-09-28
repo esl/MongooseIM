@@ -32,10 +32,12 @@ Defines if the client connection should be closed if it doesn't reply to a ping 
 
 Defines how long the server waits for the client to reply to the ping request.
 
-#### `modules.mod_ping.iqdisc`
-* **Syntax:** string
+#### `modules.mod_ping.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 ### Example Configuration
 

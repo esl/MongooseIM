@@ -4,10 +4,12 @@ It allows users to store custom XML data in the server's database. Used e.g. for
 
 ### Options
 
-#### `modules.mod_private.iqdisc`
-* **Syntax:** string
+#### `modules.mod_private.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"one_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_private.backend`
 * **Syntax:** string, one of "mnesia", "rdbms", "riak", "mysql".

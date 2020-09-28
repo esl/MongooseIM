@@ -13,10 +13,12 @@ It's all about tailoring PubSub to your needs!
 
 ### Options
 
-#### `modules.mod_pubsub.iqdisc`
-* **Syntax:** string
+#### `modules.mod_pubsub.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_pubsub.host`
 * **Syntax:** string
@@ -262,4 +264,3 @@ Metrics for these actions may be found under `mod_pubsub_db` subkey.
 | `get_subnodes` | Subnodes of a node are fetched. |
 | `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
 | `get_parentnodes_tree` | All parents of a node are fetched. |
-

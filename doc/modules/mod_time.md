@@ -6,10 +6,12 @@ Protocol is described under [XEP-0202: Entity Time](http://www.xmpp.org/extensio
 
 ### Options
 
-#### `modules.mod_time.iqdisc`
-* **Syntax:** string
+#### `modules.mod_time.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"one_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 ### Example Configuration
 

@@ -5,10 +5,12 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 
 ### Options
 
-#### `modules.mod_roster.iqdisc`
-* **Syntax:** string, one of "no_queue", "one_queue", "{queues, N}", "parallel"
+#### `modules.mod_roster.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** "one_queue"
-* **Example:** `iqdisc = "no_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_roster.versioning`
 * **Syntax:** boolean

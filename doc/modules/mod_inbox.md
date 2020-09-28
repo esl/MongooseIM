@@ -46,10 +46,12 @@ Only changes that affect the user directly will be stored in their inbox.
 Use this option when `muclight` is enabled.
 If true, the inbox conversation is removed for a user when they are removed from the groupchat.
 
-#### `modules.mod_inbox.iqdisc`
-* **Syntax:** string
+#### `modules.mod_inbox.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "no_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 ### Note about supported RDBMS
 
@@ -234,4 +236,3 @@ value:
   remove_on_kicked = true
   groupchat = ["muclight"]
 ```
-

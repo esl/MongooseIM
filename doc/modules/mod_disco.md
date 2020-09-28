@@ -2,11 +2,12 @@
 Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.html). The module itself provides only the essential disco interface, the actual capabilities announced by Service Discovery are gathered via executing a fold-type hook.
 
 ### Options
-#### `modules.mod_disco.iqdisc`
-* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"{queues, N}"`, 
-`"parallel"`, where `N` is a positive integer
+#### `modules.mod_disco.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
-* **Example:** `iqdisc = "one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_disco.extra_domains`
 * **Syntax:** array of strings, valid domain names
@@ -47,7 +48,7 @@ will still receive full disco results.
 ### Example Configuration
 ```
 [modules.mod_disco]
-  iqdisc = "one_queue"
+  iqdisc.type = "one_queue"
   extra_domains = ["some_domain", "another_domain"]
   server_info = [
     {module = "all", name = "abuse-address", urls = ["admin@example.com"]},
