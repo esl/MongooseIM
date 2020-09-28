@@ -1,12 +1,10 @@
 For advanced configuration use the following files:
 
-* `mongooseim.cfg` for pure MongooseIM settings,
+* `mongooseim.toml` for pure MongooseIM settings,
 
 * `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 
 * `app.config` to change low-level logging parameters and settings of other Erlang applications.
-
-Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
 # mongooseim.toml
 
@@ -24,19 +22,18 @@ The file is divided into the following sections:
 * [**acl**](advanced-configuration/acl.md) - Access classes to which connecting users are assigned.
 * [**access**](advanced-configuration/access.md) - Access rules, specifying the privileges of the defined access classes.
 * [**s2s**](advanced-configuration/s2s.md) - Server-to-server connection options, used for XMPP federation.
-* **host_config** - Configuration options that need to be different for a specific XMPP domain. May contain the following subsections: **general**, **auth**, **modules**, **shaper**, **acl**, **access**, **s2s**.
+* [**host_config**](advanced-configuration/host_config.md) - Configuration options that need to be different for a specific XMPP domain.
 
-## Options
+The section names above are links to the detailed documentation of each section.
 
-* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` may be used in the `host_config` tuple.
+## Option scope
 
-* There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
+Each configuration option has its **scope**, which is one of the following:
 
-* "global" options are shared by all cluster nodes and all domains.
+* **local** - configured separately for each node in the cluster - each node can have a different value,
+* **global** - configured for the entire cluster - all nodes share the same value.
 
-* Options labeled as "multi" (in this page) can be declared multiple times in a row, e.g. one per domain.
-
-* Section names below correspond with the ones in the file.
+The scope of each option is defined in the documentation above - either at the top of the section page or for each option individually.
 
 ### Outgoing connections setup
 
@@ -63,13 +60,6 @@ For a specific configuration, please refer to [Services](advanced-configuration/
 
 * **services** (local)
     * **Description:** List of enabled services with their options.
-
-### Per-domain configuration
-
-The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `mongooseim.cfg`.
-
-* **host_config** (multi, local)
-    * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
 
 # vm.args
 

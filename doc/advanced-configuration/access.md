@@ -206,28 +206,6 @@ It has the following logic:
 This means that the admin users can have 5000 messages stored offline, while the others can have at most 100.
 The `admin` access class can be defined in the [`acl` section](acl.md).
 
-## Domain-specific access rules
-
-By default, access rules apply to all domains available on the server.
-However, with the `host_config` section it is possible to override selected rules for a particular XMPP domain.
-
-```toml
-[[host_config]]
-  host = "localhost"
-
-  [host_config.access]
-    c2s = [
-      {acl = "admin", value = "allow"},
-      {acl = "all", value = "deny"}
-    ]
-
-    register = [
-      {acl = "all", value = "deny"}
-    ]
-```
-
-The global rule has the highest priority, however if the global rule ends with `{acl = "all", value = "allow"}`, the domain-specific rule is taken into account.
-
 ## For developers
 
 To access the rule functionality, one has to use the `acl:match_rule/3` function.
