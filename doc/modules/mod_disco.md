@@ -3,12 +3,13 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 
 ### Options
 #### `modules.mod_disco.iqdisc`
-* **Syntax:** string
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"{queues, N}"`, 
+`"parallel"`, where `N` is a positive integer
 * **Default:** `"no_queue"`
 * **Example:** `iqdisc = "one_queue"`
 
 #### `modules.mod_disco.extra_domains`
-* **Syntax:** array of strings
+* **Syntax:** array of strings, valid domain names
 * **Default:** `[]`
 * **Example:** `extra_domains = ["custom_domain"]`
  
@@ -30,8 +31,8 @@ New fields will be added in a manner compliant with XEP-0157.
 Required keys and their values for each entry:
 
 * `module` - the string `"all"` or an array of module names for which the additional server information is to be returned
-* `name` - a string with the name of the field
-* `urls` - an array of addresses
+* `name` - a non-empty string with the name of the field
+* `urls` - an array of valid addresses
 
 #### `modules.mod_disco.users_can_see_hidden_services`
 * **Syntax:** boolean

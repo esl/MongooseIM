@@ -6,23 +6,23 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 
 ### Options
 #### `modules.mod_offline.access_max_user_messages`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"max_user_offline_messages"`
  * **Example:** `access_max_user_messages = "custom_max_user_offline_messages"`
  
  Access Rule to use for limiting the storage size per user.
  
 #### `modules.mod_offline.backend`
- * **Syntax:** string
+ * **Syntax:** string, one of `mnesia`, `rdbms`, `riak`
  * **Default:** `"mnesia"`
  * **Example:** `backend = "rdbms"`
 
- Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported. 
+ Storage backend.
 
 ### Riak-specific options
 
 #### `modules.mod_offline.riak.bucket_type`
- * **Syntax:** string
+ * **Syntax:** non-empty string
  * **Default:** `"offline"`
  * **Example:** `bucket_type = "offline_bucket_type"`
 

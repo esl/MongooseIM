@@ -30,14 +30,14 @@ section before enabling the module.
 ### Presence exchange options
 
 #### `modules.mod_event_pusher.backend.rabbit.presence_exchange.name`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"presence"`
 * **Example:** `name = "custom_presence_name"`
 
 Defines RabbitMQ presence exchange name.
 
 #### `modules.mod_event_pusher.backend.rabbit.presence_exchange.type`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_presence_topic"`
 
@@ -46,28 +46,28 @@ Defines RabbitMQ presence exchange type.
 ### Chat message options
 
 #### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.name`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"chat_msg"`
 * **Example:** `name = "custom_msg_name"`
 
 Defines RabbitMQ chat message exchange name.
 
 #### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.type`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_msg_topic"`
 
 Defines RabbitMQ chat message exchange type.
 
 #### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.sent_topic`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"chat_msg_sent"`
 * **Example:** `sent_topic = "custom_sent_topic"`
 
 Defines RabbitMQ chat message sent topic name.
 
 #### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.recv_topic`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"chat_msg_recv"`
 * **Example:** `recv_topic = "custom_recv_topic"`
 
@@ -76,28 +76,28 @@ Defines RabbitMQ chat message received topic name.
 ### Group chat message options
 
 #### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.name`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"groupchat_msg"`
 * **Example:** `name = "custom_group_msg_name"`
 
 Defines RabbitMQ group chat message exchange name
 
 #### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.type`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_group_msg_topic"`
 
 Defines RabbitMQ group chat message exchange type.
 
 #### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.sent_topic`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"groupchat_msg_sent"`
 * **Example:** `sent_topic = "custom_group_sent_topic"`
 
 Defines RabbitMQ group chat message sent topic name.
 
 #### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.recv_topic`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"groupchat_msg_recv"`
 * **Example:** `recv_topic = "custom_group_recv_topic"`
 
