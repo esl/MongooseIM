@@ -1258,6 +1258,10 @@ s2s_host_policy(_Config) ->
                <<"policy">> => <<"allow">>},
     eq_host_config([#local_config{key = {{s2s_host, <<"host1">>}, ?HOST}, value = allow}],
                   #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
+    eq_host_config([#local_config{key = {{s2s_host, <<"host1">>}, ?HOST}, value = allow},
+                    #local_config{key = {{s2s_host, <<"host2">>}, ?HOST}, value = deny}],
+                  #{<<"s2s">> => #{<<"host_policy">> => [Policy, #{<<"host">> => <<"host2">>,
+                                                                   <<"policy">> => <<"deny">>}]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"policy">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"host">> => <<>>}]}}),
@@ -2899,8 +2903,8 @@ rdbms_opts() ->
 %% helpers for 'host_config' tests
 
 eq_host_config(Result, Config) ->
-    [F] = parse(Config), % check for all hosts
-    compare_config(Result, F(?HOST)),
+    ConfigFunctions = parse(Config), % check for all hosts
+    compare_config(Result, lists:flatmap(fun(F) -> F(?HOST) end, ConfigFunctions)),
     compare_config(Result, parse_host_config(Config)). % Check for a single host
 
 eq_host_or_global(ResultF, Config) ->
