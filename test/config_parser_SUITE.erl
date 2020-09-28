@@ -1092,10 +1092,10 @@ pool_cassandra_keyspace(_Config) ->
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
-    ?eq(pool_config({cassandra, global, default, [], [{auth, {a, [{<<"test">>, <<"aaa">>}]}}]}),
+    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler, [{<<"auser">>, <<"secretpass">>}]}}]}),
         parse_pool_conn(<<"cassandra">>,
-                        #{<<"auth">> => #{<<"module">> => <<"a">>,
-                                          <<"options">> => [[<<"test">>, <<"aaa">>]]}})),
+                        #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
+                                                           <<"password">> => <<"secretpass">>}}})),
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_cassandra_tls(_Config) ->

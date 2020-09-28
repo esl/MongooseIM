@@ -620,10 +620,11 @@ riak_credentials([<<"password">>|_], V) -> [{password, b2l(V)}].
 cassandra_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
 cassandra_option([<<"keyspace">>|_], KeySpace) -> [{keyspace, b2l(KeySpace)}];
 cassandra_option([<<"tls">>|_] = Path, Options) -> [{ssl, parse_section(Path, Options)}];
-cassandra_option([<<"auth">>|_], Options) ->
-    Mod = b2a(maps:get(<<"module">>, Options)),
-    Args = lists:map(fun list_to_tuple/1, maps:get(<<"options">>, Options)),
-    [{auth, {Mod, Args}}].
+cassandra_option([<<"auth">>|_] = Path, Options) ->
+    [AuthConfig] = parse_section(Path, Options),
+    [{auth, AuthConfig}];
+cassandra_option([<<"plain">>|_], #{<<"username">> := User, <<"password">> := Pass}) ->
+    [{cqerl_auth_plain_handler, [{User, Pass}]}].
 
 %% path: outgoing_pools.cassandra.*.connection.servers[]
 -spec cassandra_server(path(), toml_section()) -> [option()].
@@ -1763,6 +1764,8 @@ handler([_, <<"connection">>, _,
 handler([_, <<"credentials">>, <<"connection">>, _,
          <<"riak">>, <<"outgoing_pools">>]) -> fun riak_credentials/2;
 handler([_, <<"connection">>, _,
+         <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
+handler([_, <<"auth">>, <<"connection">>, _,
          <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
 handler([_, <<"servers">>, <<"connection">>, _,
          <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_server/2;
