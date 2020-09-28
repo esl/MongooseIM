@@ -89,7 +89,7 @@ Maximum room description length.
  * **Default:** `0`
  * **Example:** `min_message_interval = 1`
 
-Minimal interval (in seconds) between messages processed by the room
+Minimal interval (in seconds) between messages processed by the room.
 
 #### `modules.mod_muc.min_presence_interval` 
  * **Syntax:** non-negative integer

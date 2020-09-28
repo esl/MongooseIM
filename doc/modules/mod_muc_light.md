@@ -15,7 +15,7 @@ Domain for the MUC Light service to reside under.
  `@HOST@` is replaced with each served domain.
  
 #### `modules.mod_muc_light.backend`
-  * **Syntax:** string, either `mnesia` or `rdbms`
+  * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
   * **Default:** `"mnesia"`
   * **Example:** `backend = "rdbms"`
  
@@ -180,4 +180,3 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `set_blocking` | Blocking data is updated in a DB. |
 | `get_aff_users` | An affiliated users list is fetched from a DB. |
 | `modify_aff_users` | Affiliations in a room are updated in a DB. |
-
