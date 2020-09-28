@@ -19,7 +19,7 @@ If set to true, the server will send ping iqs to the client if they are not acti
 Defines the client inactivity timeout after which the server will send a ping request if the above option is set to `true`.
 
 #### `modules.mod_ping.timeout_action`
-* **Syntax:** string, `"none"` or `"kill"`
+* **Syntax:** string, one of `"none"`, `"kill"`
 * **Default:** `"none"`
 * **Example:** `timeout_action = "kill"`
 

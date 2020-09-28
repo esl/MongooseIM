@@ -154,7 +154,7 @@ A user may create a subnode of a node, only if they own it or it was created by 
 #### `"dag"`
 
 Provides experimental support for [XEP-0248 (PubSub Collection Nodes)](http://xmpp.org/extensions/xep-0248.html).
-In this case you should also add the `"dag"` node plugin as default, for example: `plugins = ["dag", "flat", "hometree", "pep"]`
+In this case you should also add the `"dag"` node plugin as default, for example: `plugins = ["dag", "flat", "hometree", "pep"]`.
 
 ### Plugins
 
