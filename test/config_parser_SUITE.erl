@@ -1687,7 +1687,7 @@ mod_http_upload(_Config) ->
       <<"secret_access_key">> => <<"ILOVEU">>
      },
     Base = #{
-           <<"iqdisc">> => <<"one_queue">>,
+           <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
            <<"host">> => <<"upload.@HOST@">>,
            <<"backend">> => <<"s3">>,
            <<"expiration_time">> => 666,
@@ -1775,7 +1775,7 @@ mod_keystore(_Config) ->
 
 mod_last(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    Base = #{<<"iqdisc">> => <<"one_queue">>,
+    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
              <<"backend">> => <<"riak">>,
              <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
     MBase = [{backend, riak},
@@ -2220,7 +2220,7 @@ mod_offline(_Config) ->
 
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
-    Base = #{<<"iqdisc">> => <<"no_queue">>,
+    Base = #{<<"iqdisc">> => #{<<"type">> => <<"no_queue">>},
              <<"ping_req_timeout">> => 32,
              <<"send_pings">> => true,
              <<"timeout_action">> => <<"none">>},
@@ -2507,7 +2507,7 @@ mod_revproxy(_Config) ->
 mod_roster(_Config) ->
     Riak = #{<<"bucket_type">> => <<"rosters">>,
              <<"version_bucket_type">> => <<"roster_versions">>},
-    Base = #{<<"iqdisc">> => <<"one_queue">>,
+    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
              <<"versioning">> => false,
              <<"store_current_id">> => false,
              <<"backend">> => <<"mnesia">>,
@@ -2666,7 +2666,7 @@ mod_vcard(_Config) ->
     Riak = #{<<"bucket_type">> => <<"vcard">>,
              <<"search_index">> => <<"vcard">>},
     Base = #{
-      <<"iqdisc">> => <<"one_queue">>,
+      <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
       <<"host">> => <<"vjud.@HOST@">>,
       <<"search">> => true,
       <<"backend">> => <<"mnesia">>,
@@ -2764,7 +2764,7 @@ service_mongoose_system_metrics(_Config) ->
 %% Helpers for module tests
 
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
-iqdisc(Atom) -> atom_to_binary(Atom, utf8).
+iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
 
 iq_disc_generic(Module, Value) ->
     Opts = #{<<"iqdisc">> => Value},

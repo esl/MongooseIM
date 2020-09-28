@@ -958,11 +958,10 @@ module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
     [{ldap_binary_search_fields, List}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
-module_opt([<<"iqdisc">>|_], #{<<"type">> := <<"queues">>, <<"workers">> := Workers}) ->
-    [{iqdisc, {queues, Workers}}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
-    [{iqdisc, b2a(V)}];
+    {Type, Opts} = maps:take(<<"type">>, V),
+    [{iqdisc, iqdisc_value(b2a(Type), Opts)}];
 module_opt([<<"backend">>|_], V) ->
     [{backend, b2a(V)}];
 %% LDAP-specific options
@@ -1374,6 +1373,14 @@ mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> 
 -spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
 mod_vcard_ldap_binary_search_fields(_, V) ->
     [V].
+
+-spec iqdisc_value(atom(), toml_section()) -> option().
+iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
+    limit_keys([<<"workers">>], V),
+    {queues, Workers};
+iqdisc_value(Type, V) ->
+    limit_keys([], V),
+    Type.
 
 -spec service_admin_extra_submods(path(), toml_value()) -> [option()].
 service_admin_extra_submods(_, V) ->
