@@ -234,14 +234,14 @@ The table below shows the supported SASL mechanisms for each authentication back
 
 ### Modules
 
-For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
+For a specific configuration, please refer to the [Modules](advanced-configuration/Modules.md) page.
 
 * **modules** (local)
     * **Description:** List of enabled modules with their options.
 
 ### Services
 
-For a specific configuration, please refer to [Services](advanced-configuration/Services.md) page.
+For a specific configuration, please refer to the [Services](advanced-configuration/Services.md) page.
 
 * **services** (local)
     * **Description:** List of enabled services with their options.

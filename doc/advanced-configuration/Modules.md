@@ -1,21 +1,47 @@
-MongooseIM provides a wide range of pluggable and configurable modules, that implement various features including XEPs.
-For instance `mod_muc` enables Multi-User Chat (group chat), `mod_mam` gives us Message Archive Management, and `mod_stream_management` is for stanza acknowledgement and stream resumption.
+MongooseIM provides a wide range of pluggable and configurable modules,
+that implement various features including XEPs.
+For instance `mod_muc` enables Multi-User Chat (group chat),
+`mod_mam` gives us Message Archive Management,
+and `mod_stream_management` is for stanza acknowledgement and stream resumption.
 This modular architecture provides great flexibility for everyday operations and feature development.
 
 A module configuration generally looks like this:
 ```
-  {mod_muc, [
-             {host, "muc.@HOST@"},
-             {access, muc},
-             {access_create, muc_create}
-            ]},
+[modules.mod_muc]
+  host = "muc.@HOST@"
+  access = "muc"
+  access_create = "muc_create"
 ```
 
-## Module list
+### IQ processing policies
+
 Some of the modules feature an `iqdisc` parameter.
 It defines the method for handling incoming IQ stanzas.
-Please refer to [[IQ handlers]] for more information.
-Valid values: `no_queue`, `one_queue`, `{queues, N}`, `parallel`. Default: `one_queue`.
+
+The server may use one of the following strategies to handle incoming IQ stanzas:
+
+### `modules.*.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, or `"parallel"`
+* **Example:** `iqdisc.type = "one_queue"`
+
+**Note:** In the `"queues"` case alone, the following key becomes mandatory:
+
+##### `modules.*.iqdisc.workers`
+* **Syntax:** positive integer
+* **Example:** `iqdisc.workers = 50`
+
+Their semantics works as follow:
+
+* `no_queue` registers a new IQ handler, which will be called in the
+  context of the process serving the connection on which the IQ arrives.
+* `one_queue` spawns a new process by which the incoming IQ stanzas will be handled.
+* `queues` spawns **N** worker processes, as provided by the `iqdisc.workers` key.
+  Every incoming stanza will be then handled by one of those processes.
+* `parallel` registers the handler without spawning any process:
+  a new process will be spawned in place, for each incoming stanza.
+
+
+## Module list
 
 ### [mod_adhoc](../modules/mod_adhoc.md)
 Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html) for advertising and executing application-specific commands, such as those related to a configuration workflow, using [XEP-0004: Data Forms](http://xmpp.org/extensions/xep-0004.html) in order to structure the information exchange.
