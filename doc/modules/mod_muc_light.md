@@ -93,23 +93,22 @@ When enabled, rooms the user occupies are included in their roster.
 #### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below
   * **Default:** 
-    ```
-    [[modules.mod_muc_light.config_schema]] 
-      field = "roomname"
-      value = "Untitled"
-    
-    [[modules.mod_muc_light.config_schema]] 
-      field = "subject"
-      value = ""
-    ```
+
+        [[modules.mod_muc_light.config_schema]] 
+          field = "roomname"
+          value = "Untitled"
+        
+        [[modules.mod_muc_light.config_schema]] 
+          field = "subject"
+          value = ""
+
   * **Example:** 
-    ```
-    [[modules.mod_muc_light.config_schema]] 
-      field = "display-lines"
-      value = 30
-      internal_key = "display_lines"
-      type = "integer"
-    ```
+
+        [[modules.mod_muc_light.config_schema]] 
+          field = "display-lines"
+          value = 30
+          internal_key = "display_lines"
+          type = "integer"
 
  Defines fields allowed in the room configuration.
   
