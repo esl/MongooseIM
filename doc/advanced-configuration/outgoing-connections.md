@@ -1,4 +1,4 @@
-MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set the required data.
+MongooseIM can be configured to talk to external services like databases or HTTP servers in order to get or set the required data.
 The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
 
 * `cassandra` - pool of connections to Cassandra cluster
@@ -27,7 +27,7 @@ This allows you to create multiple dedicated pools of the same type.
 * **Example:** `host = "anotherhost.com"`
 
 `scope` can be set to:
-* `global` - meaning the pool will started once no matter how many XMPP hosts are served by MongooseIM
+* `global` - meaning that the pool will started once no matter how many XMPP hosts are served by MongooseIM
 * `host` - the pool will be started for all the XMPP hosts served by MongooseIM
 * `single_host` - the pool will be started for the selected host only (you must provide host name).
 
@@ -68,7 +68,7 @@ For example:
 ## RDBMS options
 
 #### `outgoing_pools.rdbms.*.driver`
-* **Syntax:** a supported driver, currently `"pgsql"`, `"mysql"` or `"odbc"`
+* **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
 * **Example:** `driver = "psgql"`
 
 #### `outgoing_pools.rdbms.*.call_timeout`
@@ -122,7 +122,7 @@ sslrootcert = /path/to/ca/cert
 * **Example:** `password = "mim-password"`
 
 #### `outgoing_pools.rdbms.*.connection.keepalive_interval`
-* **Syntax:** integer
+* **Syntax:** positive integer
 * **Default:** undefined (keep-alive not activated)
 * **Example:** `keepalive_interval = 30`
 * **Description:* When enabled, will send SELECT 1 query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
@@ -142,7 +142,7 @@ sslrootcert = /path/to/ca/cert
 * **Syntax:** positive integer
 * **Default:** `2000` (milliseconds)
 
-HTTP supports also all TLS-specific options described in TLS section.
+HTTP also supports all TLS-specific options described in the TLS section.
 
 ## Redis-specific options
 
@@ -194,7 +194,7 @@ Currently only one Riak connection pool can exist for each supported XMPP host (
 * **Example:** `credentials = {user = "myuser", password = "tisismepasswd"}`
 * **Comment:** optional - setting this option forces connection over TLS
 
-Riak supports also all TLS-specific options described in TLS section.
+Riak also supports all TLS-specific options described in the TLS section.
 
 ## Cassandra options
 
@@ -213,11 +213,11 @@ Riak supports also all TLS-specific options described in TLS section.
 * **Default:** undefined (no auth)
 * **Example:** `auth = {module = "cqerl_auth_plain_handler", options = [["test", "aaa"]]}`
 
-Internally, the list of pairs is transformed into a proplist, so the above would reach Cassandra client driver as:
+The above would reach the Cassandra client driver as:
 
 `{cqerl_auth_plain_handler, [{<<"test">>, "<<aaa">>}]}`
 
-Cassandra supports also all TLS-specific options described in TLS section.
+Cassandra also supports all TLS-specific options described in the TLS section.
 
 ## Elasticsearch options
 
@@ -296,7 +296,7 @@ Any other `Tag` can be used for other purposes.
 * **Description:** Enables/disables one-to-one publishers confirms.
 
 #### `outgoing_pools.rabbit.*.connection.max_worker_queue_len`
-* **Syntax:** integer
+* **Syntax:** non-negative integer or `"infinity"`
 * **Default:** `1000`
 * **Example:** `max_worker_queue_len = "infinity"`
 * **Description:** Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
@@ -333,7 +333,7 @@ Any other `Tag` can be used for other purposes.
 * **Default:** `"none"`
 * **Example:** `encrypt = "tls"`
 
-LDAP  supports also all TLS-specific options described in TLS section (provided `encrypt` is set to `tls`).
+LDAP  also supports all TLS-specific options described in the TLS section (provided `encrypt` is set to `tls`).
 
 ## TLS options
 

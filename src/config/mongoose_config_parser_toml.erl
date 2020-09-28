@@ -603,7 +603,6 @@ riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
 riak_option([<<"certfile">>|_], Path) -> [{certfile, b2l(Path)}];
 riak_option([<<"keyfile">>|_], Path) -> [{keyfile, b2l(Path)}];
 riak_option([<<"tls">>|_] = Path, Options) ->
-%%    [{ssl_opts, parse_section(Path, Options)}].
     Ssl = parse_section(Path, Options),
     {RootOpts, SslOpts} = proplists:split(Ssl, [cacertfile, certfile, keyfile]),
     case SslOpts of
