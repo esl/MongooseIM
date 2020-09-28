@@ -41,7 +41,7 @@ The module public API is hook-based:
 ```erlang
 ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
 ```
-An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://github.com/esl/MongooseIM/blob/26a23a260b14176c103339d745037cf4e3c1c188/apps/ejabberd/src/mod_auth_token.erl#L367)
+An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://github.com/esl/MongooseIM/blob/26a23a260b14176c103339d745037cf4e3c1c188/apps/ejabberd/src/mod_auth_token.erl#L367).
 
 ### Example Configuration
 
