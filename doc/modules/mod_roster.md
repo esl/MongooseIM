@@ -16,18 +16,20 @@ Strategy to handle incoming stanzas. For details, please refer to
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `versioning = true`
+
 Turn on/off support for Roster Versioning.
 
 #### `modules.mod_roster.store_current_id`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `store_current_id = true`
+
 Stores the last roster hash in DB (used in Roster Versioning).
 Improves performance but should be disabled, when shared rosters are used.
 
 #### `modules.mod_roster.backend`
-* **Syntax:** string, one of "mnesia", "rdbms", "riak".
-* **Default:** "mnesia"
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
+* **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
 ### Example configuration
@@ -41,12 +43,12 @@ Improves performance but should be disabled, when shared rosters are used.
 
 #### `modules.mod_roster.riak.bucket_type`
 * **Syntax:** string
-* **Default:** "rosters"
+* **Default:** `"rosters"`
 * **Example:** `riak.bucket_type = "rosters"`
 
 #### `modules.mod_roster.riak.version_bucket_type`
 * **Syntax:** string
-* **Default:** "roster_versions"
+* **Default:** `"roster_versions"`
 * **Example:** `riak.version_bucket_type = "roster_versions"`
 
 ### Metrics
