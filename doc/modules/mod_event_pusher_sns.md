@@ -22,21 +22,21 @@ Defines Amazon SNS Topic for presence change notifications. Remove this option t
 
 #### `modules.mod_event_pusher_sns.pm_messages_topic`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** no default is given
 * **Example:** `pm_messages_topic = "user_message_sent"`
 
 Defines Amazon SNS Topic for private message notifications. Remove this option to disable these notifications.
 
 #### `modules.mod_event_pusher_sns.muc_messages_topic`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** no default is given
 * **Example:** `muc_messages_topic = "user_messagegroup_sent"`
 
 Defines Amazon SNS Topic for group message notifications. Remove this option to disable these notifications.
 
 #### `modules.mod_event_pusher_sns.plugin_module`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** `"mod_event_pusher_sns_defaults"`
 * **Example:** `plugin_module = "mod_event_pusher_sns_defaults"`
 
 Sets a callback module used for creating user's GUID used in notifications (from user's JID) and for defining custom attributes attached to a published SNS message.
@@ -50,7 +50,7 @@ Messages from this MUC host will be sent to the set SNS topic for MUCs.
 
 #### `modules.mod_event_pusher_sns.sns_host`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `sns_host = "sns.eu-west-1.amazonaws.com"`
 
 URL to the Amazon SNS service. The URL may be in [virtual host form][aws-virtual-host], and for AWS needs to point at a specific regional endpoint. The scheme, port and path specified in the URL will be used to publish notifications via HTTP POST method.
@@ -58,28 +58,28 @@ URL to the Amazon SNS service. The URL may be in [virtual host form][aws-virtual
 
 #### `modules.mod_event_pusher_sns.region`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `region = "eu-west-1"`
 
 The [AWS region][aws-region] to use for requests.
 
 #### `modules.mod_event_pusher_sns.access_key_id`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `access_key_id = "AKIAIOSFODNN7EXAMPLE"`
 
 [ID of the access key][aws-keys] to use for authorization.
 
 #### `modules.mod_event_pusher_sns.secret_access_key`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`
 
 [Secret access key][aws-keys] to use for authorization.
 
 #### `modules.mod_event_pusher_sns.account_id`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `account_id = "123456789012"`
 
 12 digit number as defined in [AWS Account Identifiers][aws-acct-identifier] to use for creating TopicArn for publishing notifications.

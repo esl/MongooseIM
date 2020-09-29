@@ -49,7 +49,7 @@ Path part of an URL to which a request should be sent (will be appended to the p
 
 #### `modules.mod_event_pusher_http.callback_module`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** `"mod_event_pusher_http_defaults"`
 * **Example:** `callback_module = "mod_event_pusher_http_notifications"`
 
 Name of a module which should be used to check whether a notification should be sent.
