@@ -2773,6 +2773,8 @@ mod_stream_management(_Config) ->
                         {stale_h_repeat_after, 1800}]}
        ],
     ?eqf(modopts(mod_stream_management, lists:sort(MBase)), T(Base)),
+    ?eqf(modopts(mod_stream_management, [{buffer_max, no_buffer}]),
+         T(#{<<"buffer_max">> => <<"no_buffer">>})),
     ?errf(T(#{<<"buffer_max">> => -1})),
     ?errf(T(#{<<"ack_freq">> => -1})),
     ?errf(T(#{<<"resume_timeout">> => -1})),
