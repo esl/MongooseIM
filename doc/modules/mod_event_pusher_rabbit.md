@@ -80,7 +80,7 @@ Defines RabbitMQ chat message received topic name.
 * **Default:** `"groupchat_msg"`
 * **Example:** `name = "custom_group_msg_name"`
 
-Defines RabbitMQ group chat message exchange name
+Defines RabbitMQ group chat message exchange name.
 
 #### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.type`
 * **Syntax:** non-empty string
