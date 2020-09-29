@@ -34,7 +34,7 @@ Backend to use for storing the registrations.
 
 #### `modules.mod_event_pusher_push.wpool`
 * **Syntax:** Array of TOML tables. See description.
-* **Default:** `[""]`
+* **Default:** `[]`
 * **Example:** `wpool = [workers = 200]`
 
 List of options that will be passed to the `worker_pool` library that handles all the requests.
@@ -50,7 +50,7 @@ See the [relevant section](#plugin-module) for more details.
 
 #### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
-* **Default:** `[""]`
+* **Default:** `["pubsub.@HOSTS@"]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
 
 The list of "simulated" Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name.
@@ -71,7 +71,7 @@ PubSub-less variants.
 This is an example of how you can migrate the existing setup to the new model. PubSub service still
 exists, just for the case of a user attempting to create a node. However, its domain is overridden
 for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
-option. `pubsub.@HOSTS@` is the default domain for `mod_pubsub`.
+option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
 
 ```
 [modules.mod_pubsub]

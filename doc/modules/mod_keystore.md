@@ -29,7 +29,7 @@ Size to use when generating RAM-only keys (designated by type `ram`).
 
 #### `modules.mod_keystore.keys`
 * **Syntax:** Array of TOML tables with the following keys: `"name"`, `"type"`, `"file"`, and following values: {name = `string`, type = `values: "file", "ram"`, file = `string`}.
-* **Default:** `[name = "", type = ""]`
+* **Default:** `[]`
 * **Example:** `modules.mod_keystore.keys = [name = "access_psk", type = "file", path = "priv/access_psk"]`
 
 Names, types, and optional filepaths of the keys.
