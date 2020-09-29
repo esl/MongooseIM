@@ -16,21 +16,21 @@ This extension allows user to block IQs, messages, presences, or all, based on J
 * **Default:** `"privacy_defaults"`
 * **Example:** `riak.defaults_bucket_type = "privacy_defaults"`
 
-- Riak bucket type for information about default list name.
+Riak bucket type for information about default list name.
 
 #### `modules.mod_privacy.riak.names_bucket_type`
 * **Syntax:** string.
 * **Default:** `"privacy_lists_names"`
 * **Example:** `riak.names_bucket_type = "privacy_lists_names"`
 
-- Riak bucket type for information about privacy list names.
+Riak bucket type for information about privacy list names.
 
 #### `modules.mod_privacy.riak.bucket_type`
 * **Syntax:** string.
 * **Default:** `"privacy_lists"`
 * **Example:** `riak.bucket_type = "privacy_lists"`
 
-- Riak bucket type for privacy lists.
+Riak bucket type for privacy lists.
 
 ### Example Configuration
 ```
