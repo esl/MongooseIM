@@ -110,8 +110,13 @@ custom template options configured by default.
 
 Options:
 
-- `map_depth`
-- `term_depth`
+- `map_depth` - the maximum depth to format maps. `map_depth => 3` means that the
+   map `#{one => #{two => #{three => #{four => key}}}}` would be printed as
+  `one_two_three_four=...`. While the map `#{one => #{two => #{three => key}}}`
+  would be still printed as `one_two_three=key`.
+- `term_depth` - the maximum depth to which terms are printed.
+   Anything below this depth is replaced with `...`.
+   `unlimited` by default.
 
 ```erlang
          formatter => {mongoose_flatlog_formatter, #{
@@ -129,9 +134,15 @@ to send messages from the file into ELK.
 
 Options:
 
-- `format_depth`
-- `format_chars_limit`
-- `depth`
+- `format_depth` - the maximum depth to which terms are printed.
+   Anything below this depth is replaced with `...`.
+   `unlimited` by default.
+- `format_chars_limit` - A soft limit on the number of characters when printing
+   terms. When the number of characters is reached, remaining structures are
+   replaced by "...". `format_chars_limit` defaults to `unlimited`, which means
+   no limit on the number of characters returned.
+- `depth` - the maximum depth for json properties. Default is `unlimited`.
+   Options deeper than the depth are replaced with the `...` string.
 
 ```erlang
          formatter => {mongoose_json_formatter, #{
