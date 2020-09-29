@@ -41,13 +41,13 @@ Maximum search results to be returned to the user.
 
 ##### LDAP-specific options
 
+The following options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options):
 
-###### `modules.mod_vcard.ldap_pool_tag`, `modules.mod_vcard.ldap_base`, `modules.mod_vcard.ldap_uids`, `modules.mod_vcard.ldap_filter`, `modules.mod_vcard.ldap_deref`
-* **Syntax:** see description
-* **Default:** see description
-* **Example:** see description
-
-These options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options).
+* `modules.mod_vcard.ldap_pool_tag`
+* `modules.mod_vcard.ldap_base`
+* `modules.mod_vcard.ldap_uids`
+* `modules.mod_vcard.ldap_filter`
+* `modules.mod_vcard.ldap_deref`
 
 ###### `modules.mod_vcard.ldap_vcard_map`
 * **Syntax:** Array of TOML tables with the following keys: `"vcard_field"`, `"ldap_pattern"`, `"ldap_field"` and string values.
