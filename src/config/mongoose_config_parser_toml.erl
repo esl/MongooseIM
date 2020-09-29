@@ -1941,8 +1941,8 @@ handler_for_host(Path) ->
     [<<"host_config">>, {host, Host} | Rest] = lists:reverse(Path),
     Handler = handler(lists:reverse(Rest)),
     fun(PathArg, ValueArg) ->
-            [F] = Handler(PathArg, ValueArg),
-            F(Host)
+            ConfigFunctions = Handler(PathArg, ValueArg),
+            lists:flatmap(fun(F) -> F(Host) end, ConfigFunctions)
     end.
 
 -spec key(toml_key(), path(), toml_value()) -> tuple() | toml_key().
