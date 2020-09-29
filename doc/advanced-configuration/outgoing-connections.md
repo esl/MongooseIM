@@ -4,20 +4,20 @@ The interface for outgoing connections management was unified and is now availab
 * `cassandra` - pool of connections to Cassandra cluster
 * `riak` - pool of connections to Riak cluster
 * `redis` - pool of connections to Redis server
-* `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
+* `http` - pool of connections to an HTTP(S) server MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
 * `generic` - pool of generic workers not associated directly with a particular connection
 
-* **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value.
+* **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value uniquely identifying the pool within its type.
 This allows you to create multiple dedicated pools of the same type.
 
 # General pool options
 
 #### `outgoing_pools.*.*.scope`
-* **Syntax:** string. Allowed values: `"global"`, `"host"`, `"single_host"`
+* **Syntax:** string, one of:`"global"`, `"host"`, `"single_host"`
 * **Default:** `"global"`
 * **Example:** `scope = "host"`
 
@@ -28,28 +28,34 @@ This allows you to create multiple dedicated pools of the same type.
 
 `scope` can be set to:
 * `global` - meaning that the pool will started once no matter how many XMPP hosts are served by MongooseIM
-* `host` - the pool will be started for all the XMPP hosts served by MongooseIM
-* `single_host` - the pool will be started for the selected host only (you must provide host name).
+* `host` - the pool will be started for each XMPP host served by MongooseIM
+* `single_host` - the pool will be started for the selected host only (you must provide a host name).
 
 # Worker pool options
 
-All pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
+All pools are managed by the [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
 
 Available options are:
 #### `outgoing_pools.*.*.strategy`
-* **Syntax:** `"best_worker"`, `"random_worker"`, `"next_worker"`, `"available_worker"` or `"next_available_worker"`
-* **Default:** `"available_worker"`
+* **Syntax:** string, one of:`"best_worker"`, `"random_worker"`, `"next_worker"`, `"available_worker"`, `"next_available_worker"`
+* **Default:** `"best_worker"`
 * **Example:** `strategy = "available_worker"`
+
+Defines worker seletion strategy. Consult worker_pool documentation for details.
 
 #### `outgoing_pools.*.*.workers`
 * **Syntax:** positive integer
 * **Default:** 100
 * **Example:** `workers = 10`
 
+Number of workers to be started by the pool.
+
 #### `outgoing_pools.*.*.call_timeout`
 * **Syntax:** positive integer
 * **Default:** 5000
 * **Example:** `call_timeout = 5000`
+
+Number of milliseconds after which a call to the pool will time out.
 
 # Connection options
 
@@ -71,18 +77,23 @@ For example:
 * **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
 * **Example:** `driver = "psgql"`
 
+Selects driver for RDBMS connection. The choice of driver impacts the set of available options.
+
 #### `outgoing_pools.rdbms.*.call_timeout`
 * **Syntax:** positive integer
 * **Default:** 60000 (msec)
 * **Example:** `call_timeout = 60000`
-* **Comment:** RDBMS pool sets its own default value of this option
+
+RDBMS pool sets its own default value of this option.
 
 ### ODBC options
 
 #### `outgoing_pools.rdbms.*.settings`
 * **Syntax:** string
-* **Default:** no default; required if `"odbc"` driver is specified
+* **Default:** no default; required if the `"odbc"` driver is specified
 * **Example:** `settings = "DSN=mydb"`
+
+ODBC - specific string defining connection parameters.
 
 ##### ODBC SSL connection setup
 
@@ -103,7 +114,7 @@ sslmode     = verify-full
 sslrootcert = /path/to/ca/cert
 ```
 
-### Other rdbms backends
+### Other RDBMS backends
 
 #### `outgoing_pools.rdbms.*.connection.host`
 * **Syntax:** string
@@ -125,7 +136,8 @@ sslrootcert = /path/to/ca/cert
 * **Syntax:** positive integer
 * **Default:** undefined (keep-alive not activated)
 * **Example:** `keepalive_interval = 30`
-* **Description:* When enabled, will send SELECT 1 query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
+
+When enabled, MongooseIM will send SELECT 1 query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network-related error returned from a database driver to a regular query will imply a connection restart.
 
 ## HTTP options
 
@@ -138,9 +150,14 @@ sslrootcert = /path/to/ca/cert
 * **Default:** `"/"`
 * **Example:** `path_prefix = "/api/auth/"`
 
+Initial part of path which will be common to all calls. Prefix will be automatically prepended to path specified by a call to the pool.
+
 #### `outgoing_pools.http.*.connection.request_timeout`
 * **Syntax:** positive integer
 * **Default:** `2000` (milliseconds)
+* **Example:** `request_timeout = 5000`
+
+Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
 HTTP also supports all TLS-specific options described in the TLS section.
 
@@ -164,10 +181,12 @@ There are two important limitations:
 * **Default:** `6379`
 * **Example:** `port = 9876`
 
-#### `outgoing_pools.redis.*.connection.databse`
+#### `outgoing_pools.redis.*.connection.database`
 * **Syntax:** non-negative integer
 * **Default:** `0`
 * **Example:** `database = 2`
+
+Logical database index (zero-based).
 
 #### `outgoing_pools.redis.*.connection.password`
 * **Syntax:** string
@@ -189,17 +208,18 @@ Currently only one Riak connection pool can exist for each supported XMPP host (
 * **Example:** `port = 8087`
 
 #### `outgoing_pools.riak.*.connection.credentials`
-* **Syntax:** `{user = "username", password = "pass}`
+* **Syntax:** `{user = "username", password = "pass"}`
 * **Default:** none
 * **Example:** `credentials = {user = "myuser", password = "tisismepasswd"}`
-* **Comment:** optional - setting this option forces connection over TLS
+
+This is optional - setting this option forces connection over TLS
 
 Riak also supports all TLS-specific options described in the TLS section.
 
 ## Cassandra options
 
 #### `outgoing_pools.cassandra.*.connection.servers`
-* **Syntax:** a list of maps containing keys `"ip_adddress"` and `"port"`
+* **Syntax:** a TOML array of tables containing keys `"ip_adddress"` and `"port"`
 * **Default:** `[{ip_address = "localhost", port = 9042}]`
 * **Example:** `servers = [{ip_address = "host_one", port = 9042}, {ip_address = "host_two", port = 9042}]`
 
@@ -216,13 +236,15 @@ To use plain text authentication (using cqerl_auth_plain_handler module):
 
 #### `outgoing_pools.cassandra.*.connection.auth.plain.password`
 * **Syntax:** string
-* **Example:** `username = "somesecretpassword"`
+* **Example:** `password = "somesecretpassword"`
+
+Support for other authentication modules may be added in the future.
 
 Cassandra also supports all TLS-specific options described in the TLS section.
 
 ## Elasticsearch options
 
-Currently only one pool with tag `default` can be used.
+Currently only one pool tagged `default` can be used.
 
 #### `outgoing_pools.elastic.default.connection.host`
 * **Syntax:** string
@@ -237,7 +259,7 @@ Currently only one pool with tag `default` can be used.
 MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
 This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable:
 
-* `call_timeout` (always set to inifinity)
+* `call_timeout` (infinity)
 * worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
 
 The only pool-related variable you can tweak is thus the number of workers.
@@ -294,18 +316,20 @@ Any other `Tag` can be used for other purposes.
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `confirms_enabled = false`
-* **Description:** Enables/disables one-to-one publishers confirms.
+
+Enables/disables one-to-one publishers confirms.
 
 #### `outgoing_pools.rabbit.*.connection.max_worker_queue_len`
 * **Syntax:** non-negative integer or `"infinity"`
 * **Default:** `1000`
 * **Example:** `max_worker_queue_len = "infinity"`
-* **Description:** Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
+
+Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
 
 ## LDAP options
 
 #### `outgoing_pools.ldap.*.connection.servers`
-* **Syntax:** a list of strings
+* **Syntax:** an array of strings
 * **Default:** `["localhost"]`
 * **Example:** `servers = ["ldap_one", "ldap_two"]`
 
@@ -316,8 +340,10 @@ Any other `Tag` can be used for other purposes.
 
 #### `outgoing_pools.ldap.*.connection.rootdn`
 * **Syntax:** string
-* **Default:** empty string which means `anonymous connection`
+* **Default:** empty string 
 * **Example:** `rootdn = "cn=admin,dc=example,dc=com"`
+
+Leaving out this option makes it an anonymous connection, which most likely is what you want.
 
 #### `outgoing_pools.ldap.*.connection.password`
 * **Syntax:** string
@@ -329,8 +355,10 @@ Any other `Tag` can be used for other purposes.
 * **Default:** `10000`
 * **Example:** `connect_interval = 20000`
 
+Reconnect interval after a failed connection.
+
 #### `outgoing_pools.ldap.*.connection.encrypt`
-* **Syntax:** `"none"` or `"tls"`
+* **Syntax:** string, one of: `"none"` or `"tls"`
 * **Default:** `"none"`
 * **Example:** `encrypt = "tls"`
 
@@ -342,13 +370,17 @@ TLS options for a given pool type/tag pair are defined in a subsection starting 
 
 #### `outgoing_pools.*.*.connection.tls.required`
 * **Syntax:** boolean
-* **Default:** false
-* **Comment:** Postgresql-specific
+* **Default:** `false`
+* **Example:** `tls.required = true`
+
+This option is Postgresql-specific, doesn't apply in other cases.
 
 #### `outgoing_pools.*.*.connection.tls.verify_peer`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `tls.verify_peer = true`
+
+Enforces verification of a client certificate. Requires a valid `cacertfile`.
 
 #### `outgoing_pools.*.*.connection.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -398,7 +430,11 @@ Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation]
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
+Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+
 #### `outgoing_pools.*.*.connection.tls.server_name_indication`
 * **Syntax:** boolean
-* **Default:** true
+* **Default:** `true`
 * **Example:** `tls.server_name_indication = false`
+
+Enables SNI extension to TLS protocol.
