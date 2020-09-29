@@ -1577,7 +1577,7 @@ validate(_Path, _Value) ->
 %% validators
 
 validate_loglevel(Level) ->
-    mongoose_logs:loglevel_number_keyword(Level).
+    mongoose_logs:loglevel_keyword_to_number(Level).
 
 validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
 
