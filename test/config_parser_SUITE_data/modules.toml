@@ -39,7 +39,7 @@
     {module = ["mod_muc", "mod_disco"], name = "friendly-spirits", urls = ["spirit1@localhost", "spirit2@localhost"]}
   ]
   users_can_see_hidden_services = true
-  
+
 [modules.mod_event_pusher]
   backend.sns.access_key_id = "AKIAIOSFODNN7EXAMPLE"
   backend.sns.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -59,7 +59,7 @@
   backend.push.wpool.workers = 200
   backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults"
   backend.push.virtual_pubsub_hosts = ["host1", "host2"]
-  
+
   backend.http.pool_name = "http_pool"
   backend.http.path = "/notifications"
   backend.http.callback_module = "mod_event_pusher_http_defaults"
@@ -73,13 +73,32 @@
   backend.rabbit.groupchat_msg_exchange.sent_topic = "groupchat_msg_sent"
   backend.rabbit.groupchat_msg_exchange.recv_topic = "groupchat_msg_recv"
 
+[modules.mod_extdisco]
+  [[modules.mod_extdisco.service]]
+    type = "stun"
+    host = "stun1"
+    port = 3478
+    transport = "udp"
+    username = "username"
+    password = "password"
+  [[modules.mod_extdisco.service]]
+    type = "stun"
+    host = "stun2"
+    port = 2222
+    transport = "tcp"
+    username = "username"
+    password = "password"
+  [[modules.mod_extdisco.service]]
+    type = "turn"
+    host = "192.168.0.1"
+
 [modules.mod_http_upload]
   host = "upload.@HOST@"
   backend = "s3"
   expiration_time = 120
   s3.bucket_url = "https://s3-eu-west-1.amazonaws.com/mybucket"
   s3.region = "eu-west-1"
-  s3.add_acl = true     
+  s3.add_acl = true
   s3.access_key_id = "AKIAIOSFODNN7EXAMPLE"
   s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
@@ -112,7 +131,7 @@
 
 [modules.mod_keystore]
   ram_key_size = 1000
-  
+
   [[modules.mod_keystore.keys]]
     name = "access_secret"
     type = "ram"
@@ -150,7 +169,7 @@
   access_create = "muc_create"
   http_auth_pool = "my_auth_pool"
   default_room.password_protected = true
-  
+
   [[modules.mod_muc.default_room.affiliations]]
     user = "alice"
     server = "localhost"
@@ -181,12 +200,12 @@
   max_occupants = 50
   rooms_per_page = 5
   rooms_in_rosters = true
-  
-  [[modules.mod_muc_light.config_schema]] 
+
+  [[modules.mod_muc_light.config_schema]]
     field = "roomname"
     value = "The Room"
-  
-  [[modules.mod_muc_light.config_schema]] 
+
+  [[modules.mod_muc_light.config_schema]]
     field = "display-lines"
     value = 30
     internal_key = "display_lines"
@@ -219,7 +238,7 @@
   pool_name = "mongoose_push_http"
   api_version = "v3"
   max_http_connections = 100
-   
+
 [modules.mod_register]
   welcome_message = {subject = "Subject", body = "Body"}
   access = "all"
@@ -228,10 +247,10 @@
 
   [[modules.mod_revproxy.routes]]
     host = "www.erlang-solutions.com"
-    path = "/admin" 
+    path = "/admin"
     method = "_"
     upstream = "https://www.erlang-solutions.com/"
-    
+
   [[modules.mod_revproxy.routes]]
     host = ":var.com"
     path = "/:var"
@@ -265,7 +284,7 @@
   stale_h.repeat_after = 1800
   stale_h.geriatric = 3600
 
-[modules.mod_vcard] 
+[modules.mod_vcard]
   matches = 1
   search = true
   host = "directory.example.com"
@@ -283,7 +302,7 @@
   [[modules.mod_vcard.ldap_search_fields]]
     search_field = "User"
     ldap_field = "%u"
-  
+
   [[modules.mod_vcard.ldap_search_fields]]
     search_field = "Full Name"
     ldap_field = "displayName"

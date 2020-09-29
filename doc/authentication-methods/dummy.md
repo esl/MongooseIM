@@ -1,6 +1,6 @@
 ## Overview
 
-The purpose of this module is to make it possible to authenticate a user without
+The purpose of this method is to make it possible to authenticate a user without
 the need for real authentication. In other words, using this module allows to
 connect any user to the server without providing any password,
 certificate, etc.

@@ -1,7 +1,7 @@
 ## Overview
 
-It is a simple auth backend, meant to be used with SASL EXTERNAL authentication mechanism.
-It simply accepts all usernames as long as they are validated by SASL logic.
+This is a simple authentication method, meant to be used with the `SASL EXTERNAL` mechanism.
+It simply accepts all usernames as long as they are validated by the SASL logic.
 
 ## WARNING
 
@@ -15,5 +15,4 @@ These include:
 
 ## Configuration options
 
-None.
-
+None

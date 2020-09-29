@@ -351,7 +351,9 @@ execute_command(Caller, Command, Args) ->
         Res ->
             {ok, Res}
     catch
-        {type_mismatch, E} ->
+        {badarg, E} ->
+            {error, type_error, E};
+        {type_error, E} ->
             {error, type_error, E};
         permission_denied ->
             {error, denied, <<"Command not available for this user">>};
@@ -397,7 +399,7 @@ check_and_execute(Caller, Command, Args) ->
     ALen = length(Args),
     case SpecLen =/= ALen of
         true ->
-            th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
+            type_error("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
         _ -> ok
     end,
     [check_type(S, A) || {S, A} <- lists:zip(FullSpec, Args)],
@@ -436,7 +438,7 @@ check_type({_Name, integer}, Value) when is_integer(Value) ->
 check_type({_Name, [_] = LSpec}, Value) when is_list(Value) ->
     check_type(LSpec, Value);
 check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
-    th("~p is not a tuple", [Value]);
+    type_error("~p is not a tuple", [Value]);
 check_type(Spec, Value) when is_tuple(Spec) ->
     compare_tuples(Spec, Value);
 check_type([_Spec], []) ->
@@ -449,7 +451,7 @@ check_type([], [_|_]) ->
 check_type([], []) ->
     true;
 check_type(Spec, Value) ->
-    th("Catch-all: ~p vs ~p", [Spec, Value]).
+    type_error("Catch-all: ~p vs ~p", [Spec, Value]).
 
 compare_tuples(Spec, Val) ->
     Ssize = tuple_size(Spec),
@@ -458,7 +460,7 @@ compare_tuples(Spec, Val) ->
         Vsize ->
             compare_lists(tuple_to_list(Spec), tuple_to_list(Val));
         _ ->
-            th("Tuples of different size: ~p and ~p", [Spec, Val])
+            type_error("Tuples of different size: ~p and ~p", [Spec, Val])
     end.
 
 compare_lists([], []) ->
@@ -467,8 +469,8 @@ compare_lists([S|Sp], [V|Val]) ->
     check_type(S, V),
     compare_lists(Sp, Val).
 
-th(Fmt, V) ->
-    throw({type_mismatch, io_lib:format(Fmt, V)}).
+type_error(Fmt, V) ->
+    throw({type_error, io_lib:format(Fmt, V)}).
 
 check_identifiers(update, [], _) ->
     baddef(identifiers, empty);
@@ -610,9 +612,9 @@ mapget(K, Map) ->
         V -> V
     catch
         error:{badkey, K} ->
-            th("Missing argument: ~p", [K]);
+            type_error("Missing argument: ~p", [K]);
         error:bad_key ->
-            th("Missing argument: ~p", [K])
+            type_error("Missing argument: ~p", [K])
     end.
 
 maps_to_list(Map, Args, Optargs) ->
@@ -620,7 +622,7 @@ maps_to_list(Map, Args, Optargs) ->
     ALen = maps:size(Map),
     case SpecLen of
         ALen -> ok;
-        _ -> th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen])
+        _ -> type_error("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen])
     end,
     [mapget(K, Map) || {K, _} <- Args] ++ [mapget(K, Map) || {K, _, _} <- Optargs].
 

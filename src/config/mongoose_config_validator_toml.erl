@@ -179,15 +179,15 @@ validate([<<"scram_iterations">>, <<"auth">>|Path],
          [{scram_iterations, Value}]) ->
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
-validate([item, <<"cyrsasl_external">>, <<"auth">>|Path],
+validate([item, <<"sasl_external">>, <<"auth">>|Path],
          [{mod, Module}]) ->
     validate_root_or_host_config(Path),
     validate_module(Module);
-validate([<<"allow_multiple_connections">>, <<"auth">>|Path],
+validate([<<"allow_multiple_connections">>, <<"anonymous">>, <<"auth">>|Path],
          [{allow_multiple_connections, Value}]) ->
     validate_root_or_host_config(Path),
     validate_boolean(Value);
-validate([<<"anonymous_protocol">>, <<"auth">>|Path],
+validate([<<"protocol">>, <<"anonymous">>, <<"auth">>|Path],
          [{anonymous_protocol, Value}]) ->
     validate_root_or_host_config(Path),
     validate_enum(Value, [sasl_anon, login_anon, both]);
@@ -216,10 +216,35 @@ validate([item, <<"sasl_mechanisms">>, <<"auth">>|Path],
          [Value]) ->
     validate_root_or_host_config(Path),
     validate_module(Value);
-validate([<<"extauth_instances">>, <<"auth">>|Path],
+validate([<<"instances">>, <<"external">>, <<"auth">>|Path],
          [{extauth_instances, Value}]) ->
     validate_root_or_host_config(Path),
     validate_positive_integer(Value);
+validate([<<"program">>, <<"external">>, <<"auth">>|Path],
+         [{extauth_program, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"file">>, <<"secret">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_secret_source, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"env">>, <<"secret">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_secret_source, {env, Value}}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_string(Value);
+validate([<<"algorithm">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_algorithm, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_enum(Value, ["HS256", "RS256", "ES256", "HS386", "RS386", "ES386",
+                          "HS512", "RS512", "ES512"]);
+validate([<<"username_key">>, <<"jwt">>, <<"auth">>|Path],
+         [{jwt_username_key, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_atom(Value);
+validate([<<"bucket_type">>, <<"riak">>, <<"auth">>|Path],
+         [{bucket_type, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_binary(Value);
 
 %% outgoing_pools
 validate([_Tag, _Type, <<"outgoing_pools">>],
@@ -260,12 +285,6 @@ validate([<<"path_prefix">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
 validate([<<"request_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
          [{request_timeout, Value}]) ->
     validate_non_negative_integer(Value);
-validate([<<"retry">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{retry, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"retry_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{retry_timeout, Value}]) ->
-    validate_positive_integer(Value);
 validate([<<"host">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
          [{host, Value}]) ->
     validate_non_empty_string(Value);
@@ -290,6 +309,12 @@ validate([<<"credentials">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
     validate_non_empty_string(Password);
 validate([<<"cacertfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
          [{cacertfile, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"certfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{certfile, Value}]) ->
+    validate_non_empty_string(Value);
+validate([<<"keyfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
+         [{keyfile, Value}]) ->
     validate_non_empty_string(Value);
 validate([<<"servers">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
          [{servers, Value}]) ->
@@ -373,6 +398,14 @@ validate([<<"certfile">>, <<"s2s">>],
     validate_non_empty_string(Value);
 validate([<<"default_policy">>, <<"s2s">>|Path],
          [#local_config{value = Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_enum(Value, [allow, deny]);
+validate([<<"host">>, item, <<"host_policy">>, <<"s2s">>|Path],
+         [{host, Value}]) ->
+    validate_root_or_host_config(Path),
+    validate_non_empty_binary(Value);
+validate([<<"policy">>, item, <<"host_policy">>, <<"s2s">>|Path],
+         [{policy, Value}]) ->
     validate_root_or_host_config(Path),
     validate_enum(Value, [allow, deny]);
 validate([<<"host">>, item, <<"address">>, <<"s2s">>],
@@ -753,7 +786,25 @@ validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
     validate_non_negative_integer_or_infinity(V);
 validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
          [{cache_size, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_non_negative_integer(V);
+validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{type, V}]) ->
+    validate_non_empty_atom(V);
+validate([<<"host">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{host, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"port">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{port, V}]) ->
+    validate_port(V);
+validate([<<"transport">>,_, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{transport, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"username">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{username, V}]) ->
+    validate_non_empty_list(V);
+validate([<<"password">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
+         [{password, V}]) ->
+    validate_non_empty_list(V);
 validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_http_upload, V);
@@ -1709,8 +1760,8 @@ safe_call_validator(F, Value) ->
     try
         F(Value),
         ok
-    catch Class:Reason:Stacktrace ->
-              #{class => Class, reason => Reason, stacktrace => Stacktrace}
+    catch error:Reason:Stacktrace ->
+              #{reason => Reason, stacktrace => Stacktrace}
     end.
 
 validate_network_port(Value) ->

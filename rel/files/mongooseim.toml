@@ -137,7 +137,7 @@
   methods = [{{{auth_method}}}]
   {{{password_format}}}
   {{{scram_iterations}}}
-  cyrsasl_external = [{{{cyrsasl_external}}}]
+  sasl_external = [{{{cyrsasl_external}}}]
   {{{sasl_mechanisms}}}
 
 {{{outgoing_pools}}}
@@ -226,8 +226,10 @@
 [shaper.mam_global_shaper]
   max_rate = 1000
 
-[acl.local]
-  user_regexp = ""
+[acl]
+  local = [
+    {user_regexp = ""}
+  ]
 
 [access]
   max_user_sessions = [
@@ -323,5 +325,5 @@
 #
 #  [host_config.auth]
 #    methods = ["anonymous"]
-#    allow_multiple_connections = true
-#    anonymous_protocol = "both"
+#    anonymous.allow_multiple_connections = true
+#    anonymous.protocol = "both"

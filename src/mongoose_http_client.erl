@@ -14,14 +14,6 @@
 %% limitations under the License.
 %%==============================================================================
 %%%-------------------------------------------------------------------
-%%% @doc
-%% options and defaults:
-%%     * server - (required)
-%%     * path_prefix - "/"
-%%     * request_timeout - 2000,
-%%     * http_opts - a map, passed to Gun
-%%%
-%%% @end
 %%% Created : 26. Jun 2018 13:07
 %%%-------------------------------------------------------------------
 -module(mongoose_http_client).

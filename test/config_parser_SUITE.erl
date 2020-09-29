@@ -15,9 +15,12 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
--define(errf(Config), 
+-define(errf(Config),
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+
+%% Constructs HOF to pass into run_multi/1 function
+%% It's a HOF, so it would always pass if not passed into run_multi/1
+-define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
 -define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
 
 -import(mongoose_config_parser_toml, [parse/1]).
@@ -94,7 +97,7 @@ groups() ->
      {auth, [parallel], [auth_methods,
                          auth_password_format,
                          auth_scram_iterations,
-                         auth_cyrsasl_external,
+                         auth_sasl_external,
                          auth_allow_multiple_connections,
                          auth_anonymous_protocol,
                          auth_sasl_mechanisms,
@@ -106,7 +109,11 @@ groups() ->
                          auth_ldap_dn_filter,
                          auth_ldap_local_filter,
                          auth_ldap_deref,
-                         auth_extauth_instances]},
+                         auth_external_instances,
+                         auth_external_program,
+                         auth_http_basic_auth,
+                         auth_jwt,
+                         auth_riak_bucket_type]},
      {pool, [parallel], [pool_type,
                          pool_tag,
                          pool_scope,
@@ -121,7 +128,7 @@ groups() ->
                          pool_http_host,
                          pool_http_path_prefix,
                          pool_http_request_timeout,
-                         pool_http_opts,
+                         pool_http_tls,
                          pool_redis_host,
                          pool_redis_port,
                          pool_redis_database,
@@ -130,9 +137,12 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
+                         pool_riak_certfile,
+                         pool_riak_keyfile,
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
+                         pool_cassandra_auth,
                          pool_cassandra_tls,
                          pool_ldap_host,
                          pool_ldap_port,
@@ -153,6 +163,7 @@ groups() ->
                         s2s_use_starttls,
                         s2s_certfile,
                         s2s_default_policy,
+                        s2s_host_policy,
                         s2s_address,
                         s2s_ciphers,
                         s2s_domain_certfile,
@@ -168,6 +179,7 @@ groups() ->
                             mod_inbox,
                             mod_global_distrib,
                             mod_event_pusher,
+                            mod_extdisco,
                             mod_http_upload,
                             mod_jingle_sip,
                             mod_keystore,
@@ -697,14 +709,18 @@ auth_password_format(_Config) ->
                                             <<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
     eq_host_config(
       [#local_config{key = {auth_opts, ?HOST},
+                     value = [{password_format, scram}]}],
+      #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>}}}),
+    eq_host_config(
+      [#local_config{key = {auth_opts, ?HOST},
                      value = [{password_format, plain}]}],
       #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
 
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}}),
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                         <<"hash">> => []}}}),
+                                                          <<"hash">> => []}}}),
     err_host_config(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                         <<"hash">> => [<<"sha1234">>]}}}).
+                                                          <<"hash">> => [<<"sha1234">>]}}}).
 
 auth_scram_iterations(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST},
@@ -712,30 +728,18 @@ auth_scram_iterations(_Config) ->
                   #{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
     err_host_config(#{<<"auth">> => #{<<"scram_iterations">> => false}}).
 
-auth_cyrsasl_external(_Config) ->
+auth_sasl_external(_Config) ->
     eq_host_config(
       [#local_config{key = {auth_opts, ?HOST},
                      value = [{cyrsasl_external, [standard,
                                                   common_name,
                                                   {mod, cyrsasl_external_verification}]
                               }]}],
-      #{<<"auth">> => #{<<"cyrsasl_external">> =>
+      #{<<"auth">> => #{<<"sasl_external">> =>
                             [<<"standard">>,
                              <<"common_name">>,
                              <<"cyrsasl_external_verification">>]}}),
-    err_host_config(#{<<"auth">> => #{<<"cyrsasl_external">> => [<<"unknown">>]}}).
-
-auth_allow_multiple_connections(_Config) ->
-    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
-                   #local_config{key = {allow_multiple_connections, ?HOST}, value = true}],
-                  #{<<"auth">> => #{<<"allow_multiple_connections">> => true}}),
-    err_host_config(#{<<"auth">> => #{<<"allow_multiple_connections">> => <<"yes">>}}).
-
-auth_anonymous_protocol(_Config) ->
-    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
-                   #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}],
-                  #{<<"auth">> => #{<<"anonymous_protocol">> => <<"login_anon">>}}),
-    err_host_config(#{<<"auth">> => #{<<"anonymous_protocol">> => <<"none">>}}).
+    err_host_config(#{<<"auth">> => #{<<"sasl_external">> => [<<"unknown">>]}}).
 
 auth_sasl_mechanisms(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
@@ -743,6 +747,18 @@ auth_sasl_mechanisms(_Config) ->
                                  value = [cyrsasl_external, cyrsasl_scram]}],
                   #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     err_host_config(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
+
+auth_allow_multiple_connections(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {allow_multiple_connections, ?HOST}, value = true}],
+                   auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => true})),
+    err_host_config(auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => <<"yes">>})).
+
+auth_anonymous_protocol(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
+                   #local_config{key = {anonymous_protocol, ?HOST}, value = login_anon}],
+                  auth_config(<<"anonymous">>, #{<<"protocol">> => <<"login_anon">>})),
+    err_host_config(auth_config(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
 
 auth_ldap_pool(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST},
@@ -810,11 +826,58 @@ auth_ldap_deref(_Config) ->
                   auth_ldap(#{<<"deref">> => <<"always">>})),
     err_host_config(auth_ldap(#{<<"deref">> => <<"sometimes">>})).
 
-auth_extauth_instances(_Config) ->
+auth_external_instances(_Config) ->
     eq_host_config([#local_config{key = {auth_opts, ?HOST}, value = []},
                    #local_config{key = {extauth_instances, ?HOST}, value = 2}],
-                  #{<<"auth">> => #{<<"extauth_instances">> => 2}}),
-    err_host_config(#{<<"auth">> => #{<<"extauth_instances">> => 0}}).
+                  auth_config(<<"external">>, #{<<"instances">> => 2})),
+    err_host_config(auth_config(<<"external">>, #{<<"instances">> => 0})).
+
+auth_external_program(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{extauth_program, "/usr/bin/auth"}]}],
+                   auth_config(<<"external">>, #{<<"program">> => <<"/usr/bin/auth">>})),
+    err_host_config(auth_config(<<"external">>, #{<<"program">> => <<>>})).
+
+auth_http_basic_auth(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{basic_auth, "admin:admin123"}]}],
+                    auth_config(<<"http">>, #{<<"basic_auth">> => <<"admin:admin123">>})),
+    err_host_config(auth_config(<<"http">>, #{<<"basic_auth">> => true})).
+
+auth_jwt(_Config) ->
+    Opts = #{<<"secret">> => #{<<"value">> => <<"secret123">>},
+             <<"algorithm">> => <<"HS512">>,
+             <<"username_key">> => <<"user">>}, % tested together as all options are required
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret, "secret123"},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, Opts)),
+    FileOpts = Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}},
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret_source, "/home/user/jwt_secret"},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, FileOpts)),
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{jwt_algorithm, "HS512"},
+                                           {jwt_secret_source, {env, "SECRET"}},
+                                           {jwt_username_key, user}]}],
+                   auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<>>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/jwt_secret">>,
+                                                                   <<"env">> => <<"SECRET">>}})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"algorithm">> := <<"bruteforce">>})),
+    err_host_config(auth_config(<<"jwt">>, Opts#{<<"username_key">> := <<>>})),
+    [err_host_config(auth_config(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
+
+auth_riak_bucket_type(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{bucket_type, <<"buckethead">>}]}],
+                   auth_config(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
+    err_host_config(auth_config(<<"riak">>, #{<<"bucket_type">> => <<>>})).
 
 %% tests: outgoing_pools
 
@@ -838,6 +901,7 @@ pool_scope(_Config) ->
     ?eq(pool_config({http, <<"localhost">>, default, [], []}),
         parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
                                                 <<"host">> => <<"localhost">>})),
+    ?err(parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
     ?err(parse_pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
 
 pool_workers(_Config) ->
@@ -941,12 +1005,11 @@ pool_http_request_timeout(_Config) ->
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
     ?err(parse_pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
-pool_http_opts(_Config) ->
-    ?eq(pool_config({http, global, default, [], 
-        [{http_opts, #{retry => 1, retry_timeout => 1000}}]}),
-        parse_pool_conn(<<"http">>, #{<<"retry">> => 1, <<"retry_timeout">> => 1000})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"retry">> => <<"infinity">>})),
-    ?err(parse_pool_conn(<<"http">>, #{<<"retry_timeout">> => 0})).
+pool_http_tls(_Config) ->
+    ?eq(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"} ]}]}),
+        parse_pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+    ?err(parse_pool_conn(<<"http">>, #{<<"tls">> => <<"secure">>})).
 
 pool_redis_host(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{host, "localhost"}]}),
@@ -970,7 +1033,7 @@ pool_redis_password(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{password, ""}]}),
         parse_pool_conn(<<"redis">>, #{<<"password">> => <<"">>})),
     ?eq(pool_config({redis, global, default, [], [{password, "password1"}]}),
-        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),    
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),
     ?err(parse_pool_conn(<<"redis">>, #{<<"password">> => 0})).
 
 pool_riak_address(_Config) ->
@@ -994,31 +1057,48 @@ pool_riak_credentials(_Config) ->
 
 pool_riak_cacertfile(_Config) ->
     ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"path/to/cacert.pem">>})),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"path/to/cacert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
+
+pool_riak_certfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{certfile, "path/to/cert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"certfile">> => <<"">>})).
+
+pool_riak_keyfile(_Config) ->
+    ?eq(pool_config({riak, global, default, [], [{keyfile, "path/to/key.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"keyfile">> => <<"path/to/key.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"keyfile">> => <<"">>})).
 
 pool_riak_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "cert.pem"}
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{dhfile, "cert.pem"}
         ]}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => <<"cert.pem">>}})),
+    ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
-    ?eq(pool_config({cassandra, global, default, [], 
+    ?eq(pool_config({cassandra, global, default, [],
         [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
             #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
             #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
             ]})),
-    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> => 
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> =>
         #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042}})).
 
 pool_cassandra_keyspace(_Config) ->
     ?eq(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
+
+pool_cassandra_auth(_Config) ->
+    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler, [{<<"auser">>, <<"secretpass">>}]}}]}),
+        parse_pool_conn(<<"cassandra">>,
+                        #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
+                                                           <<"password">> => <<"secretpass">>}}})),
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_cassandra_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
@@ -1079,9 +1159,9 @@ pool_ldap_port(_Config) ->
     ?err(parse_pool_conn(<<"ldap">>, #{<<"port">> => <<"airport">>})).
 
 pool_ldap_servers(_Config) ->
-    ?eq(pool_config({ldap, global, default, [], 
+    ?eq(pool_config({ldap, global, default, [],
         [{servers, ["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]}]}),
-        parse_pool_conn(<<"ldap">>, #{<<"servers">> => 
+        parse_pool_conn(<<"ldap">>, #{<<"servers">> =>
             [<<"primary-ldap-server.example.com">>, <<"secondary-ldap-server.example.com">>]})),
     ?err(parse_pool_conn(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
 
@@ -1123,21 +1203,21 @@ shaper(_Config) ->
 acl(_Config) ->
     eq_host_or_global(
       fun(Host) -> [{acl, {local, Host}, all}] end,
-      #{<<"acl">> => #{<<"local">> => <<"all">>}}),
+      #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
     eq_host_or_global(
       fun(Host) -> [{acl, {local, Host}, {user_regexp, <<>>}}] end,
-      #{<<"acl">> => #{<<"local">> => #{<<"user_regexp">> => <<>>}}}),
+      #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
     eq_host_or_global(
       fun(Host) -> [{acl, {alice, Host}, {node_regexp, <<"ali.*">>, <<".*host">>}}] end,
-      #{<<"acl">> => #{<<"alice">> => #{<<"user_regexp">> => <<"ali.*">>,
-                                        <<"server_regexp">> => <<".*host">>}}}),
+      #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
+                                         <<"server_regexp">> => <<".*host">>}]}}),
     eq_host_or_global(
       fun(Host) -> [{acl, {alice, Host}, {user, <<"alice">>, <<"localhost">>}}] end,
-      #{<<"acl">> => #{<<"alice">> => #{<<"user">> => <<"alice">>,
-                                        <<"server">> => <<"localhost">>}}}),
+      #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
+                                         <<"server">> => <<"localhost">>}]}}),
     err_host_config(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
-    err_host_config(#{<<"acl">> => #{<<"alice">> => #{<<"user_glob">> => <<"a*">>,
-                                                     <<"server_blog">> => <<"blog.localhost">>}}}).
+    err_host_config(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
+                                                       <<"server_blog">> => <<"bloghost">>}]}}).
 
 access(_Config) ->
     eq_host_or_global(
@@ -1202,6 +1282,20 @@ s2s_default_policy(_Config) ->
                   #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
     err_host_config(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}}).
 
+s2s_host_policy(_Config) ->
+    Policy = #{<<"host">> => <<"host1">>,
+               <<"policy">> => <<"allow">>},
+    eq_host_config([#local_config{key = {{s2s_host, <<"host1">>}, ?HOST}, value = allow}],
+                  #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
+    eq_host_config([#local_config{key = {{s2s_host, <<"host1">>}, ?HOST}, value = allow},
+                    #local_config{key = {{s2s_host, <<"host2">>}, ?HOST}, value = deny}],
+                  #{<<"s2s">> => #{<<"host_policy">> => [Policy, #{<<"host">> => <<"host2">>,
+                                                                   <<"policy">> => <<"deny">>}]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"policy">>], Policy)]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"host">> => <<>>}]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}).
+
 s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
              <<"ip_address">> => <<"192.168.1.2">>,
@@ -1244,77 +1338,85 @@ s2s_max_retry_delay(_Config) ->
 %% modules
 
 mod_adhoc(_Config) ->
+    check_iqdisc(mod_adhoc),
+    run_multi(mod_adhoc_cases()).
+
+mod_adhoc_cases() ->
+    M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    ?eqf(modopts(mod_adhoc, [{report_commands_node, true}]),
-         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => true}}}),
-    ?eqf(modopts(mod_adhoc, [{report_commands_node, false}]),
-         #{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => false}}}),
-    %% not boolean
-    ?errf(#{<<"modules">> => #{<<"mod_adhoc">> => #{<<"report_commands_node">> => <<"hello">>}}}),
-    check_iqdisc(mod_adhoc).
+    [?_eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
+     ?_eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+     %% not boolean
+     ?_errf(T(<<"report_commands_node">>, <<"hello">>))].
 
 mod_auth_token(_Config) ->
+    check_iqdisc(mod_auth_token),
+    run_multi(mod_auth_token_cases()).
+
+mod_auth_token_cases() ->
     P = fun(X) ->
                      Opts = #{<<"validity_period">> => X},
                      #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
              end,
-    ?eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
-                                  {{validity_period,refresh}, {31,days}}]),
-         P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
-            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-    ?errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
-    ?errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}])),
-    check_iqdisc(mod_auth_token).
+    [?_eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
+                                    {{validity_period,refresh}, {31,days}}]),
+           P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
+              #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+     ?_errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
+     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}]))].
+
 
 mod_bosh(_Config) ->
-    B = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
-    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
-         B(<<"inactivity">>, 10)),
-    ?eqf(modopts(mod_bosh, [{inactivity, infinity}]),
-         B(<<"inactivity">>, <<"infinity">>)),
-    ?eqf(modopts(mod_bosh, [{inactivity, 10}]),
-         B(<<"inactivity">>, 10)),
-    ?eqf(modopts(mod_bosh, [{max_wait, infinity}]),
-         B(<<"max_wait">>, <<"infinity">>)),
-    ?eqf(modopts(mod_bosh, [{server_acks, true}]),
-         B(<<"server_acks">>, true)),
-    ?eqf(modopts(mod_bosh, [{server_acks, false}]),
-         B(<<"server_acks">>, false)),
-    ?eqf(modopts(mod_bosh, [{backend, mnesia}]),
-         B(<<"backend">>, <<"mnesia">>)),
-    ?errf(B(<<"inactivity">>, -1)),
-    ?errf(B(<<"inactivity">>, <<"10">>)),
-    ?errf(B(<<"inactivity">>, <<"inactivity">>)),
-    ?errf(B(<<"max_wait">>, <<"10">>)),
-    ?errf(B(<<"max_wait">>, -1)),
-    ?errf(B(<<"server_acks">>, -1)),
-    ?errf(B(<<"backend">>, <<"devnull">>)).
+    run_multi(mod_bosh_cases()).
+
+mod_bosh_cases() ->
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
+    M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
+    [?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+     ?_eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
+     ?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+     ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
+     ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
+     ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
+     ?_eqf(M(backend, mnesia), T(<<"backend">>, <<"mnesia">>)),
+     ?errf(T(<<"inactivity">>, -1)),
+     ?errf(T(<<"inactivity">>, <<"10">>)),
+     ?errf(T(<<"inactivity">>, <<"inactivity">>)),
+     ?errf(T(<<"max_wait">>, <<"10">>)),
+     ?errf(T(<<"max_wait">>, -1)),
+     ?errf(T(<<"server_acks">>, -1)),
+     ?errf(T(<<"backend">>, <<"devnull">>))].
 
 mod_caps(_Config) ->
+    run_multi(mod_caps_cases()).
+
+mod_caps_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
-    ?eqf(modopts(mod_caps, [{cache_size, 10}]),
-         T(<<"cache_size">>, 10)),
-    ?eqf(modopts(mod_caps, [{cache_life_time, 10}]),
-         T(<<"cache_life_time">>, 10)),
-    ?errf(T(<<"cache_size">>, -1)),
-    ?errf(T(<<"cache_size">>, <<"infinity">>)),
-    ?errf(T(<<"cache_life_time">>, -1)),
-    ?errf(T(<<"cache_life_time">>, <<"cache_life_time">>)).
+    M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
+    [?_eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
+     ?_eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+     ?_errf(T(<<"cache_size">>, -1)),
+     ?_errf(T(<<"cache_size">>, <<"infinity">>)),
+     ?_errf(T(<<"cache_life_time">>, -1)),
+     ?_errf(T(<<"cache_life_time">>, <<"cache_life_time">>))].
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
+    run_multi(mod_csi_cases()).
+
+mod_csi_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
-    ?eqf(modopts(mod_csi, [{buffer_max, 10}]),
-         T(<<"buffer_max">>, 10)),
-    ?eqf(modopts(mod_csi, [{buffer_max, infinity}]),
-         T(<<"buffer_max">>, <<"infinity">>)),
-    ?errf(T(<<"buffer_max">>, -1)).
+    M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
+    [?_eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
+     ?_eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+     ?_errf(T(<<"buffer_max">>, -1))].
 
 mod_disco(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
@@ -1367,6 +1469,42 @@ mod_disco(_Config) ->
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
     ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
+
+mod_extdisco(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
+    Service = #{
+        <<"type">> => <<"stun">>,
+        <<"host">> => <<"stun1">>,
+        <<"port">> => 3478,
+        <<"transport">> => <<"udp">>,
+        <<"username">> => <<"username">>,
+        <<"password">> => <<"password">>},
+    Base = #{<<"service">> => [Service]},
+    MBase = [{host, "stun1"},
+             {password, "password"},
+             {port, 3478},
+             {transport, "udp"},
+             {type, stun},
+             {username, "username"}],
+    ?eqf(modopts(mod_extdisco, [MBase]), T(Base)),
+    %% Invalid service type
+    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => ["stun"]}]})),
+    %% Invalid host
+    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => [1]}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => true}]})),
+    %% Invalid port
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => 9999999}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => "port"}]})),
+    %% Invalid transport
+    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => ""}]})),
+    %% Invalid username
+    ?errf(T(Base#{<<"service">> => [Base#{<<"username">> => -2}]})),
+    %% Invalid password
+    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => 1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => [<<"test">>]}]})).
 
 mod_inbox(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,
@@ -2307,6 +2445,8 @@ mod_pubsub(_Config) ->
     ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
     ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
                  T(#{<<"last_item_cache">> => <<"mnesia">>})),
+    ?eqf(modopts(mod_pubsub, []), %% The option is undefined, i.e. parser just removes it
+                 T(#{<<"max_subscriptions_node">> => <<"infinity">>})),
     run_multi(
         good_default_node_config_opts(T) ++
         bad_default_node_config_opts(T) ++
@@ -2807,7 +2947,10 @@ parse_listener(Type, Opts) ->
 %% helpers for 'auth' tests
 
 auth_ldap(Opts) ->
-    #{<<"auth">> => #{<<"ldap">> => Opts}}.
+    auth_config(<<"ldap">>, Opts).
+
+auth_config(Method, Opts) ->
+    #{<<"auth">> => #{Method => Opts}}.
 
 %% helpers for 'pool' tests
 
@@ -2830,13 +2973,13 @@ rdbms_opts() ->
 %% helpers for 'host_config' tests
 
 eq_host_config(Result, Config) ->
-    [F] = parse(Config), % check for all hosts
-    ?eq(Result, F(?HOST)),
-    ?eq(Result, parse_host_config(Config)). % check for a single host
+    ConfigFunctions = parse(Config), % check for all hosts
+    compare_config(Result, lists:flatmap(fun(F) -> F(?HOST) end, ConfigFunctions)),
+    compare_config(Result, parse_host_config(Config)). % Check for a single host
 
 eq_host_or_global(ResultF, Config) ->
-    ?eq(ResultF(global), parse(Config)), % check for the 'global' host
-    ?eq(ResultF(?HOST), parse_host_config(Config)). % check for a single host
+    compare_config(ResultF(global), parse(Config)), % check for the 'global' host
+    compare_config(ResultF(?HOST), parse_host_config(Config)). % check for a single host
 
 err_host_config(Config) ->
     ?err(parse(Config)), %% XXX Apply me
@@ -2846,6 +2989,9 @@ parse_host_config(Config) ->
     parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
 
 %% helpers for 'equivalence' tests
+
+compare_config(C1, C2) ->
+    compare_unordered_lists(C1, C2, fun handle_config_option/2).
 
 filter_config(#config{key = required_files}) ->
     false; % not supported yet in TOML

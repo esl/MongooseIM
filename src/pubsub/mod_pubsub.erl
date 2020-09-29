@@ -1389,6 +1389,8 @@ iq_pubsub_set_create(Host, Node, From,
             create_node(Host, ServerHost, Node, From, Type, Access, Config)
     end.
 
+iq_pubsub_set_publish(_Host, <<>>, _From, _ExtraArgs) ->
+    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"nodeid-required">>)};
 iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := Access,
                                           action_el := ActionEl, query_el := QueryEl}) ->
     case xml:remove_cdata(ActionEl#xmlel.children) of

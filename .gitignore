@@ -67,6 +67,7 @@ compile_commands.json
 Mnesia.mongooseim@*
 compile.log
 ct.log
+eunit.log
 deps.log
 dialyzer
 configure.out

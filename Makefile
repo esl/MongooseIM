@@ -23,6 +23,9 @@ ct:
 		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
 		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
+eunit:
+	@$(RUN) $(REBAR) eunit
+
 rel: certs configure.out rel/vars.config rel/vars-toml.config
 	. ./configure.out && $(REBAR) as prod release
 

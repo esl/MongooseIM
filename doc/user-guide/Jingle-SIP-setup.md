@@ -107,7 +107,7 @@ Now we need to enable `mod_jingle_sip`, please add the following line in modules
 {mod_jingle_sip, [{proxy_host, "sip.example"}]},
 ```
 
-More details on MongooseIM configuration you can find in [Basic Configuration](../Basic-configuration.md)
+More details on MongooseIM configuration you can find in [Configuration](../Advanced-configuration.md)
 and in [Modules configuration](../advanced-configuration/Modules.md)
 
 Now we are registering both users in MongooseIM by calling the following commands:

@@ -20,6 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -import(rest_helper,
         [assert_inlist/2,
@@ -83,6 +84,7 @@ test_cases() ->
      sessions_are_listed,
      session_can_be_kicked,
      messages_are_sent_and_received,
+     stanzas_are_sent_and_received,
      messages_are_archived,
      messages_can_be_paginated,
      password_can_be_changed
@@ -205,14 +207,15 @@ messages_are_sent_and_received(Config) ->
         escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
     end).
 
-send_messages(Alice, Bob) ->
-        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
-        {?NOCONTENT, _} = post(admin, <<"/messages">>, M),
-        M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
-        {?NOCONTENT, _} = post(admin, <<"/messages">>, M1),
-        {M, M1}.
+stanzas_are_sent_and_received(Config) ->
+%%    this is to test the API for sending arbitrary stanzas, e.g. message with extra elements
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        send_extended_message(Alice, Bob),
+        Res = escalus:wait_for_stanza(Bob),
+        ?assertEqual(<<"attribute">>, exml_query:attr(Res, <<"extra">>)),
+        ?assertEqual(<<"inside the sibling">>, exml_query:path(Res, [{element, <<"sibling">>}, cdata])),
+        ok
+                                                        end).
 
 messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -431,6 +434,30 @@ befriend_and_alienate_auto(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+send_messages(Alice, Bob) ->
+    AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+    BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
+    {?NOCONTENT, _} = post(admin, <<"/messages">>, M),
+    M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
+    {?NOCONTENT, _} = post(admin, <<"/messages">>, M1),
+    {M, M1}.
+
+send_extended_message(From, To) ->
+    M = #xmlel{name = <<"message">>,
+               attrs = [{<<"from">>, escalus_client:full_jid(From)},
+                        {<<"to">>, escalus_client:full_jid(To)},
+                        {<<"extra">>, <<"attribute">>}],
+               children = [#xmlel{name = <<"body">>,
+                                  children = [#xmlcdata{content = <<"the body">>}]},
+                           #xmlel{name = <<"sibling">>,
+                                  children = [#xmlcdata{content = <<"inside the sibling">>}]}
+               ]
+    },
+    M1 = #{stanza => exml:to_binary(M)},
+    {?NOCONTENT, _} = post(admin, <<"/stanzas">>, M1),
+    ok.
 
 check_roster(Path, Jid, Subs, Ask) ->
     {?OK, R} = gett(admin, Path),

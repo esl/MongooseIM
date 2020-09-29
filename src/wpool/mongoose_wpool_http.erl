@@ -1,3 +1,11 @@
+%%% @doc
+%% options and defaults:
+%%     * server - (required)
+%%     * path_prefix - ""
+%%     * request_timeout - 2000,
+%%     * http_opts - [] % passed to fusco
+%%%
+%%% @end
 -module(mongoose_wpool_http).
 -behaviour(mongoose_wpool).
 
@@ -25,7 +33,7 @@ init() ->
 
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(http, Host, Tag),
-    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
+    WpoolOpts = wpool_spec(Host, WpoolOptsIn, ConnOpts),
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
     case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
@@ -54,8 +62,9 @@ get_params(Host, Tag) ->
 %% Internal functions
 %% --------------------------------------------------------------
 
-wpool_spec(WpoolOptsIn, ConnOpts) ->
+wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
     TargetServer = gen_mod:get_opt(server, ConnOpts),
-    HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, #{}),
-    Worker = {mongoose_gun_worker, {TargetServer, HttpOpts}},
+    HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
+    Worker = {fusco, {TargetServer, HttpOpts}},
     [{worker, Worker} | WpoolOptsIn].
+
