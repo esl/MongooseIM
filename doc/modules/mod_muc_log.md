@@ -45,7 +45,7 @@ Specifies directory name created for each room:
 * **Default:** `"html"`
 * **Example:** `file_format = "html"`
 
-Speficies the format of output files:
+Specifies the format of output files:
 
 * `"html"`: The output is a fancy-formatted HTML page.
 * `"plaintext"`: Just a text file, better suited for processing than HTML.
