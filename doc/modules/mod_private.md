@@ -12,10 +12,12 @@ Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_private.backend`
-* **Syntax:** string, one of "mnesia", "rdbms", "riak", "mysql".
-    `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `rdbms`.
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`, `"mysql"`.
 * **Default:** "mnesia"
 * **Example:** `backend = "mnesia"`
+
+Database backend to use.
+`mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `rdbms`.
 
 **CAUTION:**  Riak KV backend doesn't support transactions (rollbacks), so please avoid inserting
 more than one value in a single set request, otherwise you may end up with partially saved data.
@@ -23,7 +25,11 @@ Backend returns the first error.
 
 ##### Riak-specific options
 
-* `modules.mod_privacy.riak.bucket_type` (default `"private"`) - Riak bucket type.
+###### `modules.mod_privacy.riak.bucket_type`
+* **Syntax:** string
+* **Default:** `"private"`
+* **Example:** `bucket_type = "private"`
+Riak bucket type.
 
 ### Example Configuration
 ```

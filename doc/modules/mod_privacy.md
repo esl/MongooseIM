@@ -9,7 +9,7 @@ This extension allows user to block IQs, messages, presences, or all, based on J
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
-##### Riak-specific options
+### Riak-specific options
 
 #### `modules.mod_privacy.riak.defaults_bucket_type`
 * **Syntax:** string.
