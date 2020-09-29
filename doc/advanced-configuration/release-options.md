@@ -47,7 +47,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ## host_config
 
 * **Type:** block
-* **Option:** [`host_config`](../../advanced-configuration/host_config.md)
+* **Option:** [`host_config`](../../advanced-configuration/host_config)
 * **Syntax:** TOML block, one or more `[[host_config]]` sections.
 * **Example:**
 
@@ -64,7 +64,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ## auth_ldap
 
 * **Type:** block
-* **Option:** [`auth.ldap`](../../authentication-methods/ldap.md)
+* **Option:** [`auth.ldap`](../../authentication-methods/ldap)
 * **Syntax:** TOML block, the `[auth.ldap]` subsection
 * **Example:**
 
@@ -111,7 +111,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 * **Type:** parameter
 * **Option:** [`s2s.outgoing.port`](../../advanced-configuration/s2s#s2soutgoingport)
 * **Syntax:** integer
-* **Example:** `{s2s_outgoing_port, "5269"}.`
+* **Example:** `{outgoing_s2s_port, "5269"}.`
 
 ## c2s_port
 
