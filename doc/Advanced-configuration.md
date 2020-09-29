@@ -1,6 +1,6 @@
-For advanced configuration use the following files:
+The following files are used to configure MongooseIM:
 
-* `mongooseim.toml` for pure MongooseIM settings,
+* `mongooseim.toml` for MongooseIM settings,
 
 * `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 

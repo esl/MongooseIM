@@ -39,12 +39,12 @@ If the client certificate does not contain a JID, the client must provide one in
 
 For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
-### Enable compatible authentication backend
+### Enable compatible authentication method
 
-You need to enable one of the following authentication backends by using the [`auth_method` option](../Advanced-configuration.md#authentication) in the MongooseIM configuration file.
+You need to enable one of the following authentication methods by using the [`auth_method` option](../Advanced-configuration.md#authentication) in the MongooseIM configuration file.
 
 * `pki` - accepts user credentials,
-* `http` - accepts user credentials if the provided certificate is [known and valid](../authentication-backends/HTTP-authentication-module.md#method-get_certs)
+* `http` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)
 * `ldap` - accepts user credentials if a corresponding user account exists in LDAP.
 
 ### Self-signed certificates
