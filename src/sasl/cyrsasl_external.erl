@@ -39,7 +39,7 @@
 mechanism() ->
     <<"EXTERNAL">>.
 
--spec mech_new(Host   :: ejabberd:server(),
+-spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
                Socket :: term()) -> {ok, sasl_external_state()}.
 mech_new(_Host, Creds, _Socket) ->

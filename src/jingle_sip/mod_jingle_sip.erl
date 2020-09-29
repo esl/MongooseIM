@@ -49,7 +49,7 @@
 %%--------------------------------------------------------------------
 %%
 
--spec start(ejabberd:server(), list()) -> ok.
+-spec start(jid:server(), list()) -> ok.
 start(Host, Opts) ->
     start_nksip_service_or_error(Opts),
     mod_jingle_sip_backend:init(Host, Opts),
@@ -80,7 +80,7 @@ maybe_add_udp_max_size(NkSipOpts, Opts) ->
             NkSipOpts#{sip_udp_max_size => Size}
     end.
 
--spec stop(ejabberd:server()) -> ok.
+-spec stop(jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     ok.

@@ -61,16 +61,16 @@ unpause() ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{hosts_refresh_interval, default_refresh_interval()} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 

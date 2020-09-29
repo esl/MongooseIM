@@ -41,17 +41,17 @@
 -export([check_password/3,
          check_password/5]).
 
--spec start(Host :: ejabberd:lserver()) -> ok.
+-spec start(Host :: jid:lserver()) -> ok.
 start(_) -> ok.
 
--spec stop(Host :: ejabberd:lserver()) -> ok.
+-spec stop(Host :: jid:lserver()) -> ok.
 stop(_) -> ok.
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_external.
 
--spec set_password( User :: ejabberd:luser(),
-                    Server :: ejabberd:lserver(),
+-spec set_password( User :: jid:luser(),
+                    Server :: jid:lserver(),
                     Password :: binary()
                   ) -> ok | {error, not_allowed | invalid_jid}.
 set_password(_, _, _) -> {error, not_allowed}.
@@ -60,8 +60,8 @@ set_password(_, _, _) -> {error, not_allowed}.
 authorize(Creds) ->
             {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])}.
 
--spec try_register( User :: ejabberd:luser(),
-                    Server :: ejabberd:lserver(),
+-spec try_register( User :: jid:luser(),
+                    Server :: jid:lserver(),
                     Password :: binary()
                   ) -> ok | {error, exists | not_allowed | term()}.
 try_register(_, _, _) -> {error, not_allowed}.
@@ -69,39 +69,39 @@ try_register(_, _, _) -> {error, not_allowed}.
 -spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() -> [].
 
--spec get_vh_registered_users(Server :: ejabberd:lserver()) -> [jid:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(_) -> [].
 
--spec get_vh_registered_users( Server :: ejabberd:lserver(),
+-spec get_vh_registered_users( Server :: jid:lserver(),
                                Opts :: list()
                              ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(_, _) -> [].
 
--spec get_vh_registered_users_number(Server :: ejabberd:lserver()) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:lserver()) -> integer().
 get_vh_registered_users_number(_) -> 0.
 
--spec get_vh_registered_users_number( Server :: ejabberd:lserver(),
+-spec get_vh_registered_users_number( Server :: jid:lserver(),
                                       Opts :: list()
                                     ) -> integer().
 get_vh_registered_users_number(_, _) -> 0.
 
--spec get_password( User :: ejabberd:luser(),
-                    Server :: ejabberd:lserver()
+-spec get_password( User :: jid:luser(),
+                    Server :: jid:lserver()
                   ) -> ejabberd_auth:passterm() | false.
 get_password(_, _) -> false.
 
--spec get_password_s( User :: ejabberd:luser(),
-                      Server :: ejabberd:lserver()
+-spec get_password_s( User :: jid:luser(),
+                      Server :: jid:lserver()
                     ) -> binary().
 get_password_s(_, _) -> <<"">>.
 
--spec does_user_exist( User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver()
+-spec does_user_exist( User :: jid:luser(),
+                       Server :: jid:lserver()
                      ) -> boolean() | {error, atom()}.
 does_user_exist(_, _) -> true.
 
--spec remove_user( User :: ejabberd:luser(),
-                   Server :: ejabberd:lserver()
+-spec remove_user( User :: jid:luser(),
+                   Server :: jid:lserver()
                  ) -> ok | {error, not_allowed}.
 remove_user(_, _) -> {error, not_allowed}.
 

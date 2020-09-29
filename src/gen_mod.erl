@@ -351,7 +351,7 @@ set_module_opt(Host, Module, Opt, Value) ->
 
 
 %% @doc Replaces all module options
--spec set_module_opts(ejabberd:server(), module(), _Opts) -> true.
+-spec set_module_opts(jid:server(), module(), _Opts) -> true.
 set_module_opts(Host, Module, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(ejabberd_modules,
@@ -413,7 +413,7 @@ loaded_modules_with_opts(Host) ->
                  [],
                  [{{'$1', '$2'}}]}]).
 
--spec opts_for_module(ejabberd:server(), module()) -> list().
+-spec opts_for_module(jid:server(), module()) -> list().
 opts_for_module(Host, Module) ->
     case ets:select(ejabberd_modules,
                     [{#ejabberd_module{_ = '_',

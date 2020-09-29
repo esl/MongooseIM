@@ -74,6 +74,7 @@ pages:
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
+      - 'Logging configuration': 'operation-and-maintenance/Logging.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
       - 'System Metrics Privacy Policy': 'operation-and-maintenance/System-Metrics-Privacy-Policy.md'

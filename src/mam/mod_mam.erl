@@ -679,7 +679,7 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) 
                  issue => Issue, server => LServer, user => LUser,
                  reason => Reason, iq => IQ, stacktrace => Stacktrace}).
 
--spec is_archivable_message(Host :: ejabberd:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(Host :: jid:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
 is_archivable_message(Host, Dir, Packet) ->
     {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),

@@ -30,11 +30,11 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Domain :: ejabberd:server()) -> ok.
+-spec start(Domain :: jid:server()) -> ok.
 start(_Domain) ->
     ok.
 
--spec stop(Domain:: ejabberd:server()) -> ok.
+-spec stop(Domain :: jid:server()) -> ok.
 stop(_Domain) ->
     ok.
 
