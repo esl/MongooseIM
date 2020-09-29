@@ -113,7 +113,7 @@ The XMPP domain that will be shared between datacenters.
 *Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 #### `modules.mod_global_distrib.local_host`
-* **Syntax:** string 
+* **Syntax:** string
 * **Default:** none, this option is mandatory
 * **Example:** `local_host = "datacenter1.example.com"`
 
@@ -121,7 +121,7 @@ XMPP domain that maps uniquely to the local datacenter; it will be used for inte
 *Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 #### `modules.mod_global_distrib.message_ttl`
-* **Syntax:** non-negative integer 
+* **Syntax:** non-negative integer
 * **Default:** `4`
 * **Example:** `message_ttl = 5`
 
@@ -129,13 +129,13 @@ Number of times a message can be rerouted between datacenters.
 
 #### `modules.mod_global_distrib.bounce`
 * **Syntax:** boolean with only `false` being a valid option
-* **Default:** not set and `bounce` is enabled. 
+* **Default:** not set and `bounce` is enabled.
 * **Example:** `bounce = false`
 
 If this option is present and set to false, message bouncing will be disabled. Refer [here](#message-bouncing-options) for more details.
 
 #### `modules.mod_global_distrib.hosts_refresh_interval`
-* **Syntax:** non-negative integer, value given in miliseconds
+* **Syntax:** non-negative integer, value given in milliseconds
 * **Default:** `3000`
 * **Example:** `hosts_refresh_interval = 3000`
 
@@ -145,7 +145,7 @@ The interval telling how often Redis should be asked if new hosts appeared.
 
 #### `modules.mod_global_distrib.connections.endpoints`
  * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
- * **Default:** `[{host = "LocalHost", port = 5555}]` 
+ * **Default:** `[{host = "LocalHost", port = 5555}]`
  * **Example:** `endpoints = [{host = "172.16.0.2", port = 5555}]`
 
 A list of endpoints on which the server will listen for connections.
@@ -166,7 +166,7 @@ A list of endpoints which will be advertised in Redis and therefore used to esta
 
 Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
 
-#### `modules.mod_global_distrib.connections.endpoint_refresh_interval` 
+#### `modules.mod_global_distrib.connections.endpoint_refresh_interval`
 * **Syntax:** positive integer, value given in seconds
 * **Default:** `60`
 * **Example:** `endpoint_refresh_interval = 30`
@@ -217,7 +217,7 @@ To enable TLS support at least the `cacertfile` and `certfile` options have to b
 
 Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
 
-#### `modules.mod_global_distrib.connections.tls.cacertfile`
+#### `modules.mod_global_distrib.connections.tls.dhfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `dhfile = "dh.pem"`
@@ -246,9 +246,9 @@ Number of seconds after which a session entry written by this cluster will expir
 Number of seconds after which session's expiration timer will be refreshed.
 
 #### Database cache options
-Options for caching database lookups, by default no options are passed
+Options for caching database lookups, by default no options are passed.
 
-#### `modules.mod_global_distrib.cache.cache_missed` 
+#### `modules.mod_global_distrib.cache.cache_missed`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `cache_missed = true`
@@ -264,7 +264,7 @@ Changing this option has great negative impact on performance.
 
 How long should subdomain mappings be cached (e.g. `muc.example.com -> datacenter1.test`).
 
-#### `modules.mod_global_distrib.cache.jid_lifetime_seconds` 
+#### `modules.mod_global_distrib.cache.jid_lifetime_seconds`
 * **Syntax:** non-negative integer, value given in seconds
 * **Default:** `5`
 * **Example:** `jid_lifetime_seconds = 5`
@@ -279,7 +279,7 @@ How long should full and bare JID mappings be cached (e.g. `user1@example.com/re
 The maximum number of JID entries that can be stored in cache at any point in time.
 
 #### Message bouncing options
-Options for message bouncing. 
+Options for message bouncing.
 
 #### `modules.mod_global_distrib.bounce.resend_after_ms`
 * **Syntax:** non-negative integer
