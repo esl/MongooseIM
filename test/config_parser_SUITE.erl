@@ -15,7 +15,7 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(errf(Config), 
+-define(errf(Config),
         begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
 
 %% Constructs HOF to pass into run_multi/1 function
@@ -179,6 +179,7 @@ groups() ->
                             mod_inbox,
                             mod_global_distrib,
                             mod_event_pusher,
+                            mod_extdisco,
                             mod_http_upload,
                             mod_jingle_sip,
                             mod_keystore,
@@ -1032,7 +1033,7 @@ pool_redis_password(_Config) ->
     ?eq(pool_config({redis, global, default, [], [{password, ""}]}),
         parse_pool_conn(<<"redis">>, #{<<"password">> => <<"">>})),
     ?eq(pool_config({redis, global, default, [], [{password, "password1"}]}),
-        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),    
+        parse_pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),
     ?err(parse_pool_conn(<<"redis">>, #{<<"password">> => 0})).
 
 pool_riak_address(_Config) ->
@@ -1078,13 +1079,13 @@ pool_riak_tls(_Config) ->
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
-    ?eq(pool_config({cassandra, global, default, [], 
+    ?eq(pool_config({cassandra, global, default, [],
         [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
             #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
             #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
             ]})),
-    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> => 
+    ?err(parse_pool_conn(<<"cassandra">>, #{<<"servers">> =>
         #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042}})).
 
 pool_cassandra_keyspace(_Config) ->
@@ -1158,9 +1159,9 @@ pool_ldap_port(_Config) ->
     ?err(parse_pool_conn(<<"ldap">>, #{<<"port">> => <<"airport">>})).
 
 pool_ldap_servers(_Config) ->
-    ?eq(pool_config({ldap, global, default, [], 
+    ?eq(pool_config({ldap, global, default, [],
         [{servers, ["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]}]}),
-        parse_pool_conn(<<"ldap">>, #{<<"servers">> => 
+        parse_pool_conn(<<"ldap">>, #{<<"servers">> =>
             [<<"primary-ldap-server.example.com">>, <<"secondary-ldap-server.example.com">>]})),
     ?err(parse_pool_conn(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
 
@@ -1468,6 +1469,42 @@ mod_disco(_Config) ->
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
     ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
+
+mod_extdisco(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
+    Service = #{
+        <<"type">> => <<"stun">>,
+        <<"host">> => <<"stun1">>,
+        <<"port">> => 3478,
+        <<"transport">> => <<"udp">>,
+        <<"username">> => <<"username">>,
+        <<"password">> => <<"password">>},
+    Base = #{<<"service">> => [Service]},
+    MBase = [{host, "stun1"},
+             {password, "password"},
+             {port, 3478},
+             {transport, "udp"},
+             {type, stun},
+             {username, "username"}],
+    ?eqf(modopts(mod_extdisco, [MBase]), T(Base)),
+    %% Invalid service type
+    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => ["stun"]}]})),
+    %% Invalid host
+    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => [1]}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => true}]})),
+    %% Invalid port
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => 9999999}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => "port"}]})),
+    %% Invalid transport
+    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => -1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => ""}]})),
+    %% Invalid username
+    ?errf(T(Base#{<<"service">> => [Base#{<<"username">> => -2}]})),
+    %% Invalid password
+    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => 1}]})),
+    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => [<<"test">>]}]})).
 
 mod_inbox(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,

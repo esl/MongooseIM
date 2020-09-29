@@ -48,7 +48,7 @@ process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
             {result, create_iq_response(RequestedServices)};
         {credentials, {Type, Host}} ->
             Services = get_external_services(Type),
-            RequestedServices = lists:filter(fun({_, Opts}) ->
+            RequestedServices = lists:filter(fun(Opts) ->
                 gen_mod:get_opt(host, Opts, undefined) == binary_to_list(Host)
                 end, Services),
             {result, create_iq_response_credentials(RequestedServices)};
@@ -104,21 +104,22 @@ get_external_services() ->
     end.
 
 get_external_services(Type) ->
-    [{T, Opts} || {T, Opts} <- get_external_services(), T == Type].
+    [Opts || Opts <- get_external_services(), gen_mod:get_opt(type, Opts) == Type].
 
 prepare_services_element(Services) ->
     lists:reverse(
       lists:foldl(
-        fun({Type, Opts}, Acc) ->
-                RequiredElements = required_elements(Type, Opts),
+        fun(Opts, Acc) ->
+                RequiredElements = required_elements(Opts),
                 OptionalElements = optional_elements(Opts),
                 NewResult = #xmlel{name = <<"service">>,
                                     attrs = RequiredElements ++ OptionalElements},
                 [NewResult | Acc]
         end, [], Services)).
 
-required_elements(Type, Opts) ->
+required_elements(Opts) ->
     Host = gen_mod:get_opt(host, Opts, <<"">>),
+    Type = gen_mod:get_opt(type, Opts),
     [{<<"type">>, atom_to_binary(Type, utf8)}, {<<"host">>, Host}].
 
 optional_elements(Opts) ->
@@ -126,7 +127,7 @@ optional_elements(Opts) ->
     Transport = gen_mod:get_opt(transport, Opts, undefined),
     Password = gen_mod:get_opt(password, Opts, undefined),
     Username = gen_mod:get_opt(username, Opts, undefined),
-    Elements = [{<<"port">>, Port},
+    Elements = [{<<"port">>, i2b(Port)},
                 {<<"transport">>, Transport},
                 {<<"password">>, Password},
                 {<<"username">>, Username}],
@@ -136,3 +137,6 @@ filter_undefined_elements(Elements) ->
     lists:filter(fun({_, undefined}) -> false;
                     (_)              -> true
                  end, Elements).
+
+i2b(X) when is_integer(X) -> integer_to_binary(X);
+i2b(X) -> X.
