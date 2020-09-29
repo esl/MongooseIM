@@ -18,7 +18,7 @@ Typical services are already specified in the example configuration file.
              "last", "private", "stanza", "stats"]
 ```
 
-# service_admin_extra
+### service_admin_extra
 
 #### `services.service_admin_extra.submods`
 * **Syntax:** Array of strings representing function groups added by `service_admin_extra`.
@@ -47,7 +47,7 @@ They are bundled in the following groups:
 * `gdpr`: Adds `retrieve_personal_data`
 * `upload` : Adds `http_upload`
 
-# service_mongoose_system_metrics
+### service_mongoose_system_metrics
 
 MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
 See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
@@ -92,3 +92,17 @@ Removing the `services.service_mongoose_system_metrics` entry will result in the
 Metrics will not be collected and shared.
 It will generate a notification that the feature is not being used.
 The notification can be silenced by setting the `no_report` option explicitly.
+
+### Example configuration
+
+```
+[services.service_admin_extra]
+  submods = ["node", "account", "sessions", "vcard", "gdpr", "upload", "roster",
+             "last", "private", "stanza", "stats"]
+
+[services.service_mongoose_system_metrics]
+  report = true
+  initial_report = 300000
+  periodic_report = 108000000
+  tracking_id = "UA-123456789"
+```
