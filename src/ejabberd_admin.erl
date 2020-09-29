@@ -449,7 +449,7 @@ do_register(List) ->
 
 get_loglevel() ->
     Level = mongoose_logs:get_global_loglevel(),
-    Number = mongoose_logs:loglevel_number(Level),
+    Number = mongoose_logs:loglevel_keyword_to_number(Level),
     String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
     {ok, String}.
 

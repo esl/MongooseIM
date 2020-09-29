@@ -49,7 +49,6 @@ by redirecting mongoose logs to such service with an appropriate [Logger](Logger
 
 Check [Logging](Logging.md) for more information.
 
-
 ## Monitoring
 
 ### WombatOAM

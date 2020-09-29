@@ -26,9 +26,9 @@ Once MongooseIM config is loaded, `loglevel` option is used instead.
 # Primary filters
 
 Functions from the filters section are applied for any message once it passes
-primary log level check.
+the primary log level check.
 
-Keep that block of configuration as it is,
+Keep that configuration block as it is,
 unless you are planning to extend the filtering logic.
 
 ```erlang
@@ -48,7 +48,7 @@ unless you are planning to extend the filtering logic.
 ```
 
 `preserve_acc_filter` filter is disabled by default, but could be enabled,
-if you are iterested in debugging accumulator logic (`mongoose_acc` module).
+if you are iterested in debugging the accumulator logic (`mongoose_acc` module).
 
 
 # Shell log handler
@@ -63,8 +63,7 @@ if you are iterested in debugging accumulator logic (`mongoose_acc` module).
          level => all,
          formatter => {mongoose_flatlog_formatter, #{
            map_depth => 3,
-           term_depth => 50,
-           template_name => mongoose_default_log_template
+           term_depth => 50
          }}
     }},
 ```
@@ -75,7 +74,7 @@ if you are iterested in debugging accumulator logic (`mongoose_acc` module).
 - Controls what and how MongooseIM prints into files.
 - [Erlang OTP docs for logger_disk_log_h](https://erlang.org/doc/man/logger_disk_log_h.html)
 - You can have several file handlers.
-- File handlers should have different handler ids (i.e. `disk_log`, `disk_json_log`)
+- File handlers should have different handler IDs (i.e. `disk_log`, `disk_json_log`)
 - There are two file log handlers defined by default: one that formats in JSON
   and one that formats in Logfmt format (`key=value` pairs).
 - You can disable some log handlers, if you are not interested in them.
@@ -215,8 +214,7 @@ Issues:
          },
          formatter => {mongoose_flatlog_formatter, #{
            map_depth => 3,
-           term_depth => 50,
-           template_name => mongoose_default_log_template
+           term_depth => 50
          }},
          filters => [
            %% That filter matches messages from ejabberd_c2s module
