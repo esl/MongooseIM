@@ -19,7 +19,7 @@ Please note that a long-polling request is not considered to be an inactivity.
 #### `modules.mod_bosh.max_wait` 
  * **Syntax:** positive integer or the string `"infinity"`
  * **Default:** `"infinity"`
- * **Example:** `inactivity = 30`
+ * **Example:** `max_wait = 30`
 
  This is the longest time (in seconds) that the connection manager will wait before responding to any request during the session.
 
