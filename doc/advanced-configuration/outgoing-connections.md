@@ -4,20 +4,20 @@ The interface for outgoing connections management was unified and is now availab
 * `cassandra` - pool of connections to Cassandra cluster
 * `riak` - pool of connections to Riak cluster
 * `redis` - pool of connections to Redis server
-* `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
+* `http` - pool of connections to an HTTP(S) server MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
 * `generic` - pool of generic workers not associated directly with a particular connection
 
-* **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value.
+* **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value uniquely identifying the pool within its type.
 This allows you to create multiple dedicated pools of the same type.
 
 # General pool options
 
 #### `outgoing_pools.*.*.scope`
-* **Syntax:** string. Allowed values: `"global"`, `"host"`, `"single_host"`
+* **Syntax:** string, one of:`"global"`, `"host"`, `"single_host"`
 * **Default:** `"global"`
 * **Example:** `scope = "host"`
 
@@ -28,8 +28,8 @@ This allows you to create multiple dedicated pools of the same type.
 
 `scope` can be set to:
 * `global` - meaning that the pool will started once no matter how many XMPP hosts are served by MongooseIM
-* `host` - the pool will be started for all the XMPP hosts served by MongooseIM
-* `single_host` - the pool will be started for the selected host only (you must provide host name).
+* `host` - the pool will be started for each XMPP host served by MongooseIM
+* `single_host` - the pool will be started for the selected host only (you must provide a host name).
 
 # Worker pool options
 
@@ -398,7 +398,11 @@ Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation]
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
+Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+
 #### `outgoing_pools.*.*.connection.tls.server_name_indication`
 * **Syntax:** boolean
-* **Default:** true
+* **Default:** `true`
 * **Example:** `tls.server_name_indication = false`
+
+Enables SNI extension to TLS protocol.

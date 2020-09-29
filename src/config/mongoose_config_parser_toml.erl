@@ -631,7 +631,6 @@ cassandra_option([<<"plain">>|_], #{<<"username">> := User, <<"password">> := Pa
 cassandra_server(_, #{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> [{b2l(IPAddr), Port}];
 cassandra_server(_, #{<<"ip_address">> := IPAddr}) -> [b2l(IPAddr)].
 
-
 %% path: outgoing_pools.elastic.*.connection.*
 -spec elastic_option(path(), toml_value()) -> [option()].
 elastic_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
