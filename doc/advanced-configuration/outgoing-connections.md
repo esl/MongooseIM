@@ -157,7 +157,7 @@ Initial part of path which will be common to all calls. Prefix will be automatic
 * **Default:** `2000` (milliseconds)
 * **Example:** `request_timeout = 5000`
 
-Number of milliseconds after which http call to the server will time out. Should be lower then call_timeout set at the pool level.
+Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
 HTTP also supports all TLS-specific options described in the TLS section.
 
@@ -259,7 +259,7 @@ Currently only one pool tagged `default` can be used.
 MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
 This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable:
 
-* `call_timeout` (inifinity)
+* `call_timeout` (infinity)
 * worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
 
 The only pool-related variable you can tweak is thus the number of workers.
