@@ -29,6 +29,7 @@ Backend returns the first error.
 * **Syntax:** string
 * **Default:** `"private"`
 * **Example:** `bucket_type = "private"`
+
 Riak bucket type.
 
 ### Example Configuration
