@@ -36,11 +36,11 @@ Subdomain for Pubsub service to reside under.
 Database backend to use.
 
 #### `modules.mod_pubsub.access_createnode`
-* **Syntax:** string
+* **Syntax:** string, rule name, or `"all"`
 * **Default:** `"all"`
 * **Example:** `access_createnode = "all"`
 
-Specifies who is allowed to create pubsub nodes.
+Specifies who is allowed to create pubsub nodes. The access rule referenced here needs to be defined in the [access](../../advanced-configuration/access) section.
 
 #### `modules.mod_pubsub.max_items_node`
 * **Syntax:** non-negative integer
@@ -50,11 +50,11 @@ Specifies who is allowed to create pubsub nodes.
 Defines the maximum number of items that can be stored in a node.
 
 #### `modules.mod_pubsub.max_subscriptions_node`
-* **Syntax:** non-negative integer or the string `"undefined"`
-* **Default:** `"undefined"`
+* **Syntax:** non-negative integer
+* **Default:** not specified (no limit)
 * **Example:** `max_subscriptions_node = 10`
 
-The maximum number of subscriptions managed by a node. The `undefined` value means no limitations.
+The maximum number of subscriptions managed by a node. By default there is no limit.
 
 #### `modules.mod_pubsub.nodetree`
 * **Syntax:** string
@@ -87,8 +87,8 @@ List of enabled pubsub plugins.
 
 #### `modules.mod_pubsub.pep_mapping`
 * **Syntax:** TOML table with the following keys: `"namespace"`, `"node"` and string values.
-* **Default:** ``
-* **Example:** `pep_mapping = {namespace = "urn:xmpp:microblog:0", node = "mb"}`
+* **Default:** `[]`
+* **Example:** `pep_mapping = [{namespace = "urn:xmpp:microblog:0", node = "mb"}]`
 
 This permits creating a Key-Value list to define a custom node plugin on a given PEP namespace.
 E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of `node_pep` when the specified namespace is used.
@@ -96,7 +96,7 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 
 #### `modules.mod_pubsub.default_node_config`
 * **Syntax:** TOML table with the following values: string, boolean or non-negative integer.
-* **Default:** ``
+* **Default:** `[]`
 * **Example:** `default_node_config = {deliver_payloads = true, max_payload_size, 10000, node_type = "leaf"}`
 
 Overrides the default node configuration, regradless of the node plugin.
