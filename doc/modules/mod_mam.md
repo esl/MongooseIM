@@ -287,7 +287,7 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
   pm.user_prefs_store = "rdbms"
 
   muc.host = "muc.example.com"
-  muc.host.rdbms_message_format = "simple",
+  muc.host.rdbms_message_format = "simple"
   muc.host.async_writer = false
   muc.host.user_prefs_store = "mnesia"
 
