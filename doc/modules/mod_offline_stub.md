@@ -12,6 +12,6 @@ None.
 ### Example Configuration
 
 ```
-{mod_offline_stub, []},
+[modules.mod_offline_stub]
 ```
 

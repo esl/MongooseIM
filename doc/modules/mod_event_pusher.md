@@ -12,30 +12,37 @@ handler.
 
 ### Options
 
-* **backends** (required, list) - Specifies backends to register with the frontend,
-along with arguments that will be passed to the backend.
-Currently supported backends include [sns], [push] and [http_notification].
+#### `modules.mod_event_pusher.backend`
+* **Syntax:** Array of TOML tables. See description.
+* **Default:** see description
+* **Example:** see description
+
+Specifies backends to register with the frontend, along with arguments that will be passed to the backend.
+Currently supported backends include [sns], [push], [http_notification] and [rabbit].
 Refer to their specific documentation to learn more about their functions and configuration options.
 
 ### Example configuration
 
-```Erlang
-{mod_event_pusher, [
-    {backends, [
-        {sns, [
-            {access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-            {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-            % ...
-        ]},
-        {push, [
-            {backend, mnesia},
-            {wpool, [{workers, 200}]},
-            {plugin_module, mod_event_pusher_push_plugin_defaults}
-        ]}
-    ]}
-]}
+```
+[modules.mod_event_pusher]
+  backend.sns.access_key_id = "AKIAIOSFODNN7EXAMPLE"
+  backend.sns.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+# ...
+
+  backend.push.backend = "mnesia"
+  backend.push.wpool.workers = 200
+# ...
+  
+  backend.http.pool_name = "http_pool"
+  backend.http.path = "/notifications"
+# ...
+
+  backend.rabbit.presence_exchange.name ="presence"
+  backend.rabbit.presence_exchange.type = "topic"
+# ...
 ```
 
 [sns]: ./mod_event_pusher_sns.md
 [push]: ./mod_event_pusher_push.md
 [http_notification]: ./mod_event_pusher_http.md
+[rabbit]: ./mod_event_pusher_rabbit.md

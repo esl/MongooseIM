@@ -58,9 +58,9 @@ Note that in the edge case of multi-datacenter routing, the messages may be rece
 
 #### Bounce
 
-Consider the following edge case: user **U1** logged into datacenter **DC2** quickly reconnects to datacenter **DC3**.
+Consider the following edge case: user **U1** logged into datacenter **DC2** and then quickly reconnected to datacenter **DC3**.
 Because session table has not yet been replicated, **DC2** does not see **U1** in the session table, while a different datacenter **DC1** still sees **U1** logged into **DC2**.
-When **U2**, logged into **DC1**, sends a message to **U1**, it will now be rerouted to **DC2** even though the user is now available at **DC3**.
+When **U2** logged into **DC1** and sent a message to **U1**, it will now be rerouted to **DC2** even though the user is now available at **DC3**.
 
 ![State after U1's reconnection](mod_global_distrib_bounce_example.svg)
 
@@ -104,53 +104,196 @@ Global distribution modules expose several per-datacenter metrics that can be us
 
 ### Options
 
-* **global_host** (string, required): The XMPP domain that will be shared between datacenters.
-  *Note:* this needs to be one of the domains given in `host` option in `mongooseim.cfg`.
-* **local_host** (string, required): XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
-  *Note:* this needs to be one of the domains given in `host` option in `mongooseim.cfg`.
-* **message_ttl** (integer, default: `4`): Number of times a message can be rerouted between datacenters.
-* **connections** (list, default: `[]`): Options for connections maintained by the module; see *Connections' options* section.
-* **cache** (list, default: `[]`): Options for caching database lookups; see *Database cache options* section.
-* **bounce** (list | `false`, default: `[]`): Options for message bouncing; if `false`, message bouncing is disabled.
-  See *Message bouncing options* section.
-* **redis** (list, default: `[]`): Options for Redis session storage backend.
-* **hosts_refresh_interval** (integer, default: 3000) - The interval (in milliseconds) telling how often Redis should be asked if new hosts appeared.
+#### `modules.mod_global_distrib.global_host`
+* **Syntax:** string
+* **Default:** none, this option is mandatory
+* **Example:** `global_host = "example.com"`
+
+The XMPP domain that will be shared between datacenters.
+*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+
+#### `modules.mod_global_distrib.local_host`
+* **Syntax:** string
+* **Default:** none, this option is mandatory
+* **Example:** `local_host = "datacenter1.example.com"`
+
+XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
+*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+
+#### `modules.mod_global_distrib.message_ttl`
+* **Syntax:** non-negative integer
+* **Default:** `4`
+* **Example:** `message_ttl = 5`
+
+Number of times a message can be rerouted between datacenters.
+
+#### `modules.mod_global_distrib.bounce`
+* **Syntax:** boolean with only `false` being a valid option
+* **Default:** not set and `bounce` is enabled.
+* **Example:** `bounce = false`
+
+If this option is present and set to false, message bouncing will be disabled. Refer [here](#message-bouncing-options) for more details.
+
+#### `modules.mod_global_distrib.hosts_refresh_interval`
+* **Syntax:** non-negative integer, value given in milliseconds
+* **Default:** `3000`
+* **Example:** `hosts_refresh_interval = 3000`
+
+The interval telling how often Redis should be asked if new hosts appeared.
 
 #### Connections' options
 
-* **endpoints** (list, default: `[{LocalHost, 5555}]`): A list of `{Host, Port}` tuples on which the server will listen for connections.
-  `Host` can be given as a hostname, in which case it will be resolved to an IP address before first on module start.
-  The endpoint list will be shared with other datacenters via the replicated backend.
-* **advertised_endpoints** (list | false, default: false): A list of `{Host, Port}` tuples which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
-* **connections_per_endpoint** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
-* **endpoint_refresh_interval** (seconds, default: `60`): An interval between remote endpoint list refresh (and connection rebalancing).
-  A separate timer is maintained for every remote domain.
-* **endpoint_refresh_interval_when_empty** (seconds, default: `3`): Endpoint refresh interval, when list of endpoints is empty.
-* **disabled_gc_interval** (seconds, default: `60`): An interval between disabled endpoints "garbage collection".
-  It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
-* **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.<a name="tls_opts"></a>
-  May be set to `false`, in which case all data will be sent via standard TCP connections.
-  Otherwise, they should at least include `certfile` and `cafile` options.
+#### `modules.mod_global_distrib.connections.endpoints`
+ * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
+ * **Default:** `[{host = "LocalHost", port = 5555}]`
+ * **Example:** `endpoints = [{host = "172.16.0.2", port = 5555}]`
+
+A list of endpoints on which the server will listen for connections.
+`host` can be given as a hostname, in which case it will be resolved to an IP address on module start.
+The endpoint list will be shared with other datacenters via the replicated backend.
+
+#### `modules.mod_global_distrib.connections.advertised_endpoints`
+* **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`} **or** `false`
+* **Default:** `false`
+* **Example:** `advertised_endpoints = [{host = "172.16.0.2", port = 5555}]`
+
+A list of endpoints which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
+
+#### `modules.mod_global_distrib.connections.connections_per_endpoint`
+* **Syntax:** non-negative integer
+* **Default:** `1`
+* **Example:** `connections_per_endpoint = 30`
+
+Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
+
+#### `modules.mod_global_distrib.connections.endpoint_refresh_interval`
+* **Syntax:** positive integer, value given in seconds
+* **Default:** `60`
+* **Example:** `endpoint_refresh_interval = 30`
+
+An interval between remote endpoint list refresh (and connection rebalancing).
+A separate timer is maintained for every remote domain.
+
+#### `modules.mod_global_distrib.connections.endpoint_refresh_interval_when_empty`
+* **Syntax:** positive integer, value given in seconds
+* **Default:** `3`
+* **Example:** `endpoint_refresh_interval_when_empty = 3`
+
+Endpoint refresh interval, when array of endpoints is empty.
+
+#### `modules.mod_global_distrib.connections.disabled_gc_interval`
+* **Syntax:** non-negative integer, value given in seconds
+* **Default:** `60`
+* **Example:** `disabled_gc_interval = 60`
+
+An interval between disabled endpoints "garbage collection".
+It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
+
+#### `modules.mod_global_distrib.connections.tls`
+* **Syntax:** boolean with only `false` being a valid option
+* **Default:** none, this option is mandatory. Details in the description
+* **Example:** `tls = false`
+
+If this option is present, all data will be sent via standard TCP connections.
+To enable TLS support, refer to [TLS](#tls-options) options.
+
+#### TLS options
+To enable TLS support at least the `cacertfile` and `certfile` options have to be present. These options will be passed to the `fast_tls` driver.
+
+#### `modules.mod_global_distrib.connections.tls.certfile`
+* **Syntax:** string, path in the file system
+* **Default:** none, this options is mandatory to enable TLS support
+* **Example:** `certfile = "priv/dc1.pem"`
+
+#### `modules.mod_global_distrib.connections.tls.cacertfile`
+* **Syntax:** string, path in the file system
+* **Default:** none, this options is mandatory to enable TLS support
+* **Example:** `cacertfile = "priv/ca.pem"`
+
+#### `modules.mod_global_distrib.connections.tls.ciphers`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
+
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
+
+#### `modules.mod_global_distrib.connections.tls.dhfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `dhfile = "dh.pem"`
 
 #### Redis session storage options
 
-* **pool** (atom, default: `global_distrib`): Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
-* **expire_after** (integer, default: `120`): Number of seconds after which a session entry written by this cluster will expire.
-* **refresh_after** (integer, default: `60`): Number of seconds after which session's expiration timer will be refreshed.
+#### `modules.mod_global_distrib.redis.pool`
+* **Syntax:** string
+* **Default:** `"global_distrib"`
+* **Example:** `pool = "global_distrib"`
+
+Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
+
+#### `modules.mod_global_distrib.redis.expire_after`
+* **Syntax:** non-negative integer
+* **Default:** `120`
+* **Example:** `expire_after = 120`
+
+Number of seconds after which a session entry written by this cluster will expire.
+
+#### `modules.mod_global_distrib.redis.refresh_after`
+* **Syntax:** non-negative integer
+* **Default:** `60`
+* **Example:** `refresh_after = 60`
+
+Number of seconds after which session's expiration timer will be refreshed.
 
 #### Database cache options
+Options for caching database lookups, by default no options are passed.
 
-* **cache_missed** (boolean, default: `true`): Determines whether an internal session cache should cache lookup failures.
-  When `false`, only successful database lookups will result in the value being cached.
-  Changing this option has great negative impact on performance.
-* **domain_lifetime_seconds** (integer, default: `600`): How long should subdomain mappings be cached (e.g. `muc.example.com -> datacenter1.test`).
-* **jid_lifetime_seconds** (integer, default: `5`): How long should full and bare JID mappings be cached (e.g. `user1@example.com/res1 -> datacenter1.test`).
-* **max_jids** (integer, default: `10000`): The maximum number of JID entries that can be stored in cache at any point in time.
+#### `modules.mod_global_distrib.cache.cache_missed`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `cache_missed = true`
+
+Determines whether an internal session cache should cache lookup failures.
+When `false`, only successful database lookups will result in the value being cached.
+Changing this option has great negative impact on performance.
+
+#### `modules.mod_global_distrib.cache.domain_lifetime_seconds`
+* **Syntax:** non-negative integer, value given in seconds
+* **Default:** `600`
+* **Example:** `domain_lifetime_seconds = 600`
+
+How long should subdomain mappings be cached (e.g. `muc.example.com -> datacenter1.test`).
+
+#### `modules.mod_global_distrib.cache.jid_lifetime_seconds`
+* **Syntax:** non-negative integer, value given in seconds
+* **Default:** `5`
+* **Example:** `jid_lifetime_seconds = 5`
+
+How long should full and bare JID mappings be cached (e.g. `user1@example.com/res1 -> datacenter1.test`).
+
+#### `modules.mod_global_distrib.cache.max_jids`
+* **Syntax:** non-negative integer
+* **Default:** `10000`
+* **Example:** `max_jids = 10000`
+
+The maximum number of JID entries that can be stored in cache at any point in time.
 
 #### Message bouncing options
+Options for message bouncing.
 
-* **resend_after_ms** (integer, default: `200`): Time after which message will be resent in case of delivery error.
-* **max_retries** (integer, default: `4`): Number of times message delivery will be retried in case of errors.
+#### `modules.mod_global_distrib.bounce.resend_after_ms`
+* **Syntax:** non-negative integer
+* **Default:** `200`
+* **Example:** `resend_after_ms = 200`
+
+Time after which message will be resent in case of delivery error.
+
+#### `modules.mod_global_distrib.bounce.max_retries`
+* **Syntax:** non-negative integer
+* **Default:** `4`
+* **Example:** `max_retries = 4`
+
+Number of times message delivery will be retried in case of errors.
 
 #### Global Distribution and Service Discovery
 
@@ -165,29 +308,19 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Configuring mod_global_distrib
 
-```Erlang
-{mod_global_distrib, [
-        {global_host, "example.com"},
-        {local_host, "datacenter1.example.com"},
-        {connections, [
-              {endpoints, [{"172.16.0.2", 5555}]},
-              {connections_per_endpoint, 22},
-              {tls_opts, [
-                    {certfile, "/home/user/dc1.pem"},
-                    {cafile, "/home/user/ca.pem"}
-                   ]}
-             ]},
-        {cache, [
-              {domain_lifetime_seconds, 60}
-             ]},
-        {bounce, [
-              {resend_after_ms, 300},
-              {max_retries, 3}
-             ]},
-        {redis, [
-              {pool, global_distrib}
-             ]}
-       ]}
+```
+[modules.mod_global_distrib]
+  global_host = "example.com"
+  local_host = "datacenter1.example.com"
+  connections.endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.certfile = "priv/dc1.pem"
+  connections.tls.cacertfile = "priv/ca.pem"
+  connections.connections_per_endpoint = 30
+  cache.domain_lifetime_seconds = 60
+  bounce.resend_after_ms = 300
+  bounce.max_retries = 3
+  redis.pool = "global_distrib"
 ```
 
 #### Overriding endpoints to a remote datacenter

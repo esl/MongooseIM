@@ -16,7 +16,7 @@ none
 ### Example Configuration
 
 ```
-  {mod_amp, []},
+[modules.mod_amp]
 ```
 
 ### XEP Support

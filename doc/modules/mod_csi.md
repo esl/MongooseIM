@@ -9,12 +9,18 @@ The implementation in MongooseIM will simply buffer all packets (up to a configu
 
 ### Options
 
-* `buffer_max` (default: 20): Buffer size for messages queued when session was `inactive`
+#### `modules.mod_csi.buffer_max`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `20`
+* **Example:** `buffer_max = 40`
+
+Buffer size for messages queued when session was `inactive`.
 
 ### Example Configuration
 
-```Erlang
-  {mod_csi, [{buffer_max, 40}]},
+```
+[modules.mod_csi]
+  buffer_max = 40
 ```
 
 ### Metrics

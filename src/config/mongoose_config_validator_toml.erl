@@ -484,6 +484,10 @@ validate([<<"name">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{name, V}]) ->
     validate_non_empty_binary(V);
+validate([<<"type">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{type, V}]) ->
+    validate_non_empty_binary(V);
 validate([<<"recv_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{recv_topic, V}]) ->
@@ -495,6 +499,10 @@ validate([<<"sent_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>
 validate([<<"name">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{name, V}]) ->
+    validate_non_empty_binary(V);
+validate([<<"type">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
+          <<"mod_event_pusher">>, <<"modules">>|_],
+         [{type, V}]) ->
     validate_non_empty_binary(V);
 validate([<<"recv_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
@@ -667,22 +675,22 @@ validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules
     validate_non_negative_integer(V);
 validate([<<"ack_freq">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{ack_freq, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer_or_atom(V, never);
 validate([<<"buffer_max">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{buffer_max, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
+    validate_positive_integer_or_infinity_or_atom(V, no_buffer);
 validate([<<"resume_timeout">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{resume_timeout, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"enabled">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{enabled, V}]) ->
     validate_boolean(V);
 validate([<<"geriatric">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{stale_h_geriatric, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"repeat_after">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{stale_h_repeat_after, V}]) ->
-    validate_non_negative_integer(V);
+    validate_positive_integer(V);
 validate([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
          [{ldap_auth_check, V}]) ->
     validate_boolean(V);
@@ -1604,6 +1612,13 @@ validate_non_negative_integer_or_infinity(infinity) -> ok.
 
 validate_positive_integer_or_infinity(Value) when is_integer(Value), Value > 0 -> ok;
 validate_positive_integer_or_infinity(infinity) -> ok.
+
+validate_positive_integer_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok;
+validate_positive_integer_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok.
+
+validate_positive_integer_or_infinity_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok;
+validate_positive_integer_or_infinity_or_atom(infinity, _) -> ok;
+validate_positive_integer_or_infinity_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok.
 
 validate_enum(Value, Values) ->
     case lists:member(Value, Values) of

@@ -5,7 +5,7 @@
   ]
 
 [modules.mod_adhoc]
-  iqdisc = "one_queue"
+  iqdisc.type = "one_queue"
   report_commands_node = true
 
 [modules.mod_auth_token]
@@ -26,13 +26,13 @@
   cache_life_time = 86
 
 [modules.mod_carboncopy]
-  iqdisc = "no_queue"
+  iqdisc.type = "no_queue"
 
 [modules.mod_csi]
   buffer_max = 40
 
 [modules.mod_disco]
-  iqdisc = "one_queue"
+  iqdisc.type = "one_queue"
   extra_domains = ["some_domain", "another_domain"]
   server_info = [
     {module = "all", name = "abuse-address", urls = ["admin@example.com"]},

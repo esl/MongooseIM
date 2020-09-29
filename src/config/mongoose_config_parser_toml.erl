@@ -670,7 +670,13 @@ service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
 -spec process_module(path(), toml_section()) -> [option()].
 process_module([Mod|_] = Path, Opts) ->
     %% Sort option keys to ensure options could be matched in tests
-    [{b2a(Mod), lists:sort(parse_section(Path, Opts))}].
+    post_process_module(b2a(Mod), parse_section(Path, Opts)).
+
+post_process_module(mod_mam_meta, Opts) ->
+    %% Disable the archiving by default
+    [{mod_mam_meta, lists:sort(defined_or_false(muc, defined_or_false(pm, Opts)))}];
+post_process_module(Mod, Opts) ->
+    [{Mod, lists:sort(Opts)}].
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
@@ -769,13 +775,9 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"pm">>, <<"mod_mam_meta">>|_], false) ->
-    [];
 module_opt([<<"pm">>, <<"mod_mam_meta">>|_] = Path, V) ->
     PM = parse_section(Path, V),
     [{pm, PM}];
-module_opt([<<"muc">>, <<"mod_mam_meta">>|_], false) ->
-    [];
 module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     Muc = parse_section(Path, V),
     [{muc, Muc}];
@@ -1010,11 +1012,10 @@ module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
     [{ldap_binary_search_fields, List}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
-module_opt([<<"iqdisc">>|_], #{<<"type">> := <<"queues">>, <<"workers">> := Workers}) ->
-    [{iqdisc, {queues, Workers}}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
-    [{iqdisc, b2a(V)}];
+    {Type, Opts} = maps:take(<<"type">>, V),
+    [{iqdisc, iqdisc_value(b2a(Type), Opts)}];
 module_opt([<<"backend">>|_], V) ->
     [{backend, b2a(V)}];
 %% LDAP-specific options
@@ -1442,6 +1443,14 @@ mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> 
 -spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
 mod_vcard_ldap_binary_search_fields(_, V) ->
     [V].
+
+-spec iqdisc_value(atom(), toml_section()) -> option().
+iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
+    limit_keys([<<"workers">>], V),
+    {queues, Workers};
+iqdisc_value(Type, V) ->
+    limit_keys([], V),
+    Type.
 
 -spec service_admin_extra_submods(path(), toml_value()) -> [option()].
 service_admin_extra_submods(_, V) ->
@@ -1982,3 +1991,11 @@ key(Key, _Path, _) -> Key.
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
+
+defined_or_false(Key, Opts) ->
+    case proplists:is_defined(Key, Opts) of
+        true ->
+            [];
+        false ->
+            [{Key, false}]
+    end ++ Opts.

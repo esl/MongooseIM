@@ -15,9 +15,9 @@ The file is divided into the following sections:
 * [**general**](advanced-configuration/general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
 * [**listen**](advanced-configuration/listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
 * [**auth**](advanced-configuration/auth.md) - Supported client authentication methods and their options.
-* **outgoing_pools** - Outgoing connections to external services, including databases, message queues and HTTP services.
-* **services** - Internal services like an administration API and system metrics.
-* **modules** - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
+* [**outgoing_pools**](advanced-configuration/outgoing-connections.md) - Outgoing connections to external services, including databases, message queues and HTTP services.
+* [**services**](advanced-configuration/Services.md) - Internal services like an administration API and system metrics.
+* [**modules**](advanced-configuration/Modules.md) - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
 * [**shaper**](advanced-configuration/shaper.md) - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
 * [**acl**](advanced-configuration/acl.md) - Access classes to which connecting users are assigned.
 * [**access**](advanced-configuration/access.md) - Access rules, specifying the privileges of the defined access classes.
@@ -49,14 +49,14 @@ The scope of each option is defined in the documentation above - either at the t
 
 ### Modules
 
-For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
+For a specific configuration, please refer to the [Modules](advanced-configuration/Modules.md) page.
 
 * **modules** (local)
     * **Description:** List of enabled modules with their options.
 
 ### Services
 
-For a specific configuration, please refer to [Services](advanced-configuration/Services.md) page.
+For a specific configuration, please refer to the [Services](advanced-configuration/Services.md) page.
 
 * **services** (local)
     * **Description:** List of enabled services with their options.
