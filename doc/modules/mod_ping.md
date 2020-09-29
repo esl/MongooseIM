@@ -28,7 +28,7 @@ Defines if the client connection should be closed if it doesn't reply to a ping 
 #### `modules.mod_ping.ping_req_timeout`
 * **Syntax:** positive integer
 * **Default:** `32`
-* **Example:** `ping_interval = 60`
+* **Example:** `ping_req_timeout = 60`
 
 Defines how long the server waits for the client to reply to the ping request.
 

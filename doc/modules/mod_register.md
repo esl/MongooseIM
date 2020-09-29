@@ -11,16 +11,16 @@ Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
 #### `modules.mod_register.access`
-* **Syntax:** string
+* **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "all"`
 
-Defines which ACL should be used for checking if a chosen username is allowed for registration.
+Defines which [access rule](../../advanced-configuration/access#registration) should be used for checking if a chosen username is allowed for registration.
 
 #### `modules.mod_register.welcome_message`
 * **Syntax:** TOML table with the following keys: `"body"`, `"subject"` and string values.
 * **Default:** `[]`
-* **Example:** `welcome_message = [subject = "Hello from MIM!", body = "Message body."]`
+* **Example:** `welcome_message = {subject = "Hello from MIM!", body = "Message body."}`
 
 Body and subject of a `<message>` stanza sent to new users. Only one of the fields (but non-empty) is mandatory for the message to be sent.
 
@@ -42,7 +42,9 @@ Recommended minimum is 32.
 The entropy calculation algorithm is described in a section below.
 
 #### `modules.mod_register.ip_access`
-* **Syntax:** Array of TOML tables with the following keys: `address`, `policy` and following values: {address = `string`, policy = `values: "allow", "deny"`}.
+* **Syntax:** Array of TOML tables with the following mandatory content:
+  - `address` - string, IP address
+  - `policy` - string, one of: `"allow"`, `"deny"`.
 * **Default:** `[]`
 * **Example:** `ip_access = [{address = "127.0.0.0/8", policy = "allow"}, {address = "0.0.0.0/0", policy = "deny"}]`
 
