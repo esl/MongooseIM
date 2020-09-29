@@ -81,7 +81,7 @@ A default operator used for search query items.
 
 ###### `modules.mod_vcard.ldap_binary_search_fields`
 * **Syntax:** array of strings
-* **Default:** `[""]`
+* **Default:** `[]`
 * **Example:** `ldap_binary_search_fields = ["User", "Full Name"]`
 
 An array of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
