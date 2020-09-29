@@ -44,9 +44,9 @@ Number of random bytes of a token that will be used in a generated URL.
 The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
 
 #### `modules.mod_http_upload.max_file_size`
-* **Syntax:** non-negative integer or the string `"undefined"`
-* **Default:** `10485760`
-* **Example:** `max_file_size = "undefined"`
+* **Syntax:** non-negative integer
+* **Default:** not set - no size limit
+* **Example:** `max_file_size = 10485760`
 
 Maximum file size (in bytes) accepted by the module. Disabled if set to `"undefined"`.
 
@@ -61,7 +61,7 @@ Options specific to [S3][s3] backend.
 
 ##### `s3.bucket_url`
 * **Syntax:** non-empty string
-* **Default:** `""`
+* **Default:** none, this option is mandatory
 * **Example:** `s3.bucket_url = "https://s3-eu-west-1.amazonaws.com/mybucket"`
 
 A complete URL pointing at the used bucket. The URL may be in [virtual host form][aws-virtual-host], and for AWS it needs to point to a specific regional endpoint for the bucket. The scheme, port and path specified in the URL will be used to create `PUT` URLs for slots, e.g. specifying a value of `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix"` will result in `PUT` URLs of form `"https://s3-eu-west-1.amazonaws.com/mybucket/custom/prefix/<RANDOM_TOKEN>/<FILENAME>?<AUTHENTICATION_PARAMETERS>"`.

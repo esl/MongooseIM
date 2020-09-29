@@ -19,7 +19,7 @@ Defines which [access rule](../../advanced-configuration/access#registration) sh
 
 #### `modules.mod_register.welcome_message`
 * **Syntax:** TOML table with the following keys: `"body"`, `"subject"` and string values.
-* **Default:** `[]`
+* **Default:** `{subject = "", body = ""}`
 * **Example:** `welcome_message = {subject = "Hello from MIM!", body = "Message body."}`
 
 Body and subject of a `<message>` stanza sent to new users. Only one of the fields (but non-empty) is mandatory for the message to be sent.
@@ -46,7 +46,10 @@ The entropy calculation algorithm is described in a section below.
   - `address` - string, IP address
   - `policy` - string, one of: `"allow"`, `"deny"`.
 * **Default:** `[]`
-* **Example:** `ip_access = [{address = "127.0.0.0/8", policy = "allow"}, {address = "0.0.0.0/0", policy = "deny"}]`
+* **Example:** `ip_access = [
+  {address = "127.0.0.0/8", policy = "allow"},
+{address = "0.0.0.0/0", policy = "deny"}
+]`
 
 Access list for specified IPs or networks. 
 Default value allows registration from every IP.
@@ -56,7 +59,7 @@ Default value allows registration from every IP.
 Allow registrations from localhost:
 ``` 
 [modules.mod_register]
-  welcome_message = [subject = "", body = ""]
+  welcome_message = {subject = "Hello from MIM!", body = "Message body."}
   ip_access = [
     {address = "127.0.0.1", policy = "allow"}
   ]
@@ -66,7 +69,6 @@ Allow registrations from localhost:
 Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 ```
 [modules.mod_register]
-  welcome_message = [subject = "", body = ""]
   ip_access = [
     {address = "10.20.0.0/16", policy = "deny"}
   ]

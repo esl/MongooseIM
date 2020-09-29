@@ -72,7 +72,7 @@ Name of a module implementing [`is_archivable_message/3` callback](#is_archivabl
 * **Example:** `archive_chat_markers = true`
 
 If set to true, XEP-0333 chat markers will be archived.
-See more details [here](#archiving-chat-markers)
+See more details [here](#archiving-chat-markers).
 
 #### `modules.mod_mam_meta.message_retraction`
 * **Syntax:** boolean

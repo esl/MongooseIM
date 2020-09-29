@@ -22,7 +22,7 @@ for each virtual XMPP domain to avoid sharing keys between domains!**
 
 #### `modules.mod_keystore.ram_key_size`
 * **Syntax:** non-negative integer
-* **Default:** `1000`
+* **Default:** `2048`
 * **Example:** `ram_key_size = 10000`
 
 Size to use when generating RAM-only keys (designated by type `ram`).
