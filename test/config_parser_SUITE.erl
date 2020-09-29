@@ -3082,8 +3082,6 @@ handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
 
 handle_modules({Name, Opts}, {Name2, Opts2}) ->
     ?eq(Name, Name2),
-    ct:log("N1:~p~nN2:~p", [Name, Name2]),
-    ct:log("O1:~p~nO2:~p", [Opts, Opts2]),
     compare_unordered_lists(Opts, Opts2, fun handle_module_options/2).
 
 handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
@@ -3101,13 +3099,11 @@ compare_unordered_lists(L1, L2) ->
 compare_unordered_lists(L1, L2, F) ->
     SL1 = lists:sort(L1),
     SL2 = lists:sort(L2),
-    ct:log("SL1:~p~nSL2:~p", [SL1, SL2]),
     compare_ordered_lists(SL1, SL2, F).
 
 compare_ordered_lists([H1|T1], [H1|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([H1|T1], [H2|T2], F) ->
-    ct:log("H1:~p~nH2:~p", [H1, H2]),
     try F(H1, H2)
     catch C:R:S ->
             ct:fail({C, R, S})
@@ -3127,7 +3123,6 @@ test_equivalence_between_files(Config, File1, File2) ->
     Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
     Opts2 = mongoose_config_parser:state_to_opts(State2),
     ?eq(Hosts1, Hosts2),
-    % ct:log("Opts1:~p~nOpts2:~p", [Opts1, Opts2]),
     compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
                             fun handle_config_option/2).
 

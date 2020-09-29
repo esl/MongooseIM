@@ -1,6 +1,6 @@
 -module(mongoose_config_validator_toml).
 
--export([validate/2, validate_port/1]).
+-export([validate/2]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
