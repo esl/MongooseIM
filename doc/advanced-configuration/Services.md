@@ -6,7 +6,7 @@ Currently, only two modules are categorised as "service providers".
 Eventually the modules which are not host-specific will be refactored to be services.
 
 * **Scope:** global
-* **Syntax:** Both services are specified in own their own sections, either
+* **Syntax:** Both services are specified in their own sections, either
 `[services.service_admin_extra]` or `[services.service_mongoose_system_metrics]`. 
 * **Default:** None - each service needs to be enabled explicitly.
 Typical services are already specified in the example configuration file.
@@ -54,30 +54,26 @@ See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-
 
 #### `services.service_mongoose_system_metrics.report`
 * **Syntax:** boolean
-* **Default:** `false`
+* **Default:** not specified
 * **Example:** `report = true`
 
 Explicit acknowledgement that the metrics are gathered and reported.
+When this option is not specified, the reports are gathered and a notification 
+appears in logs on startup.
 Enabling this option silences the notification reminder that metrics are gathered.
-#### `services.service_mongoose_system_metrics.no_report`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `no_report = true`
-
-When this option is set, System Metrics Service is not started and metrics are not collected.
-Having this option enabled, stops the notification warning that the functionality is not being used.
+When this option is set to `false`, System Metrics Service is not started and metrics are not collected.
 
 #### `services.service_mongoose_system_metrics.intial_report`
 * **Syntax:** non-negative integer
-* **Default:** `300000` (milliseconds - 5 minutes).
-* **Example:** `intial_report = 300000`
+* **Default:** `300_000` (milliseconds - 5 minutes).
+* **Example:** `intial_report = 300_000`
 
 Time delay counted when the service is started after which the first metrics report is created and sent.
 
 #### `services.service_mongoose_system_metrics.periodic_report`
 * **Syntax:** non-negative integer
-* **Default:** `108000000` (milliseconds - 3 hours)
-* **Example:** `periodic_report = 108000000`
+* **Default:** `108_000_000` (milliseconds - 3 hours)
+* **Example:** `periodic_report = 108_000_000`
 
 Time delay for a periodic update report to be created and sent.
 
@@ -102,7 +98,7 @@ The notification can be silenced by setting the `no_report` option explicitly.
 
 [services.service_mongoose_system_metrics]
   report = true
-  initial_report = 300000
-  periodic_report = 108000000
+  initial_report = 300_000
+  periodic_report = 108_000_000
   tracking_id = "UA-123456789"
 ```
