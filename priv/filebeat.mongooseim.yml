@@ -1,0 +1,16 @@
+filebeat.inputs:
+- paths:
+   - /usr/lib/mongooseim/log/mongooseim.json.1
+  input_type: log
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+processors:
+  # Keep the original "when" field too, because of microseconds precision
+  - timestamp:
+      field: when
+      layouts:
+        # Date '2006-01-02T15:04:05.999Z' in mongoose format
+        - '2006-01-02T15:04:05.999+00:00'
+      test:
+        - '2020-09-29T11:25:51.925316+00:00'
