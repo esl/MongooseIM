@@ -223,3 +223,85 @@ Issues:
     }}
 ```
 
+
+# Setting up Kibana
+
+This example setups ElasticSearch and Kibana for development purposes.
+
+Create a network, so filebeat can find ELK:
+
+```bash
+docker network create logging
+```
+
+Run ELK (consult with the container [docs](https://elk-docker.readthedocs.io/) for more options):
+
+```bash
+docker run -d -p 5601:5601 -p 9200:9200 -p 5044:5044 --network logging --name elk sebp/elk:oss-792
+```
+
+Create a volume for logs:
+
+```bash
+docker volume create mongooseim-logs
+```
+
+Run MongooseIM daemon:
+
+```bash
+docker run -d -t -h mongooseim -v mongooseim-logs:/usr/lib/mongooseim/log \
+    --network logging --name mongooseim -p 5222:5222 mongooseim/mongooseim:latest
+```
+
+The next part is based on [Filebeat's docs](https://www.elastic.co/guide/en/beats/filebeat/current/running-on-docker.html).
+
+Setup filebeat (should be called once, that creates indexes in Elasticsearch):
+
+```bash
+docker run --network logging --rm \
+    docker.elastic.co/beats/filebeat-oss:7.9.2 \
+    setup -E setup.kibana.host=elk:5601 \
+          -E output.elasticsearch.hosts='["elk:9200"]'
+```
+
+Create `filebeat.mongooseim.yml` config file:
+
+```yaml
+filebeat.inputs:
+- paths:
+   - /usr/lib/mongooseim/log/mongooseim.json.1
+  input_type: log
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  json.message_key: text
+
+processors:
+  # Keep the original "when" field too, because of microseconds precision
+  - timestamp:
+      field: when
+      layouts:
+        # Date '2006-01-02T15:04:05.999Z' in mongoose format
+        - '2006-01-02T15:04:05.999+00:00'
+      test:
+        - '2020-09-29T11:25:51.925316+00:00'
+```
+
+Create volume for persistent Filebeat data (so, it would not insert log duplicates, if `mongooseim-filebeat` container is recreated):
+
+```
+docker volume create filebeat-data
+```
+
+Actually run Filebeat daemon:
+
+```bash
+docker run -d \
+    --network logging \
+    --name mongooseim-filebeat \
+    -v mongooseim-logs:/usr/lib/mongooseim/log \
+    -v filebeat-data:/usr/share/filebeat/data \
+    -v="$(pwd)/filebeat.mongooseim.yml:/usr/share/filebeat/filebeat.yml:ro" \
+    docker.elastic.co/beats/filebeat-oss:7.9.2 \
+    filebeat -e -E output.elasticsearch.hosts='["elk:9200"]'
+```
