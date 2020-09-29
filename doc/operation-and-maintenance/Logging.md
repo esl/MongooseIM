@@ -77,7 +77,10 @@ if you are interested in debugging the accumulator logic (`mongoose_acc` module)
 - File handlers should have different handler IDs (i.e. `disk_log`, `disk_json_log`)
 - There are two file log handlers defined by default: one that formats in JSON
   and one that formats in Logfmt format (`key=value` pairs).
-- You can disable some log handlers, if you are not interested in them.
+- Both JSON and Logfmt handlers are **enabled by default**.
+  We recommend to disable handlers, that you are not using.
+  **This could improve performance greatly.**
+  To disable them, just remove them from `app.config`.
 - Check information below about log formatters.
 
 ```erlang
