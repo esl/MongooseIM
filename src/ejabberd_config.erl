@@ -494,22 +494,35 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add(#local_config{key = Key} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config add ~p option unhandled", [El]).
+handle_local_config_add(#local_config{key = Key, value = Val}) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?LOG_WARNING(#{what => config_change_unhandled, key => Key,
+                           value => Val, text => <<"local config add unhandled">>})
+    end.
 
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
-handle_local_config_del(#local_config{key = Key} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
+handle_local_config_del(#local_config{key = Key, value = Val}) ->
+    ?LOG_WARNING(#{what => config_change_unhandled, key => Key,
+                   value => Val, text => <<"local config del unhandled">>}).
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
 handle_local_config_change({loglevel, _Old, Loglevel}) ->
     mongoose_logs:set_global_loglevel(Loglevel),
     ok;
-handle_local_config_change({Key, _Old, _New} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
+handle_local_config_change({Key, Old, New}) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?LOG_WARNING(#{what => config_change_unhandled, key => Key,
+                           value => New, old_value => Old, text => <<"local config change unhandled">>})
+    end.
 
 %% ----------------------------------------------------------------
 %% LOCAL HOST CONFIG
@@ -522,8 +535,13 @@ handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     ok;
 handle_local_hosts_config_add({{modules, Host}, Modules}) ->
     gen_mod_deps:start_modules(Host, Modules);
-handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local hosts config add option: ~p unhandled", [El]).
+handle_local_hosts_config_add({{Key, Host}, Val}) ->
+    case can_be_ignored(Key) of
+        true -> ok;
+        false ->
+            ?LOG_WARNING(#{what => config_change_unhandled, host => Host, key => Key,
+                           value => Val, text => <<"local host config add unhandled">>})
+    end.
 
 handle_local_hosts_config_del({{auth, Host}, Opts}) ->
     case lists:keyfind(auth_method, 1, Opts) of
@@ -540,9 +558,13 @@ handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     ok;
 handle_local_hosts_config_del({{modules, Host}, Modules}) ->
     lists:foreach(fun({Mod, _}) -> gen_mod:stop_module(Host, Mod) end, Modules);
-handle_local_hosts_config_del({{Key, _}, _} =El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key),
-                    "local hosts config delete option: ~p unhandled", [El]).
+handle_local_hosts_config_del({{Key, Host}, Val}) ->
+    case can_be_ignored(Key) of
+        true -> ok;
+        false ->
+            ?LOG_WARNING(#{what => config_change_unhandled, host => Host, key => Key,
+                           value => Val, text => <<"local host option deletion unhandled">>})
+    end.
 
 handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     case lists:keyfind(auth_method, 1, OldVals) of
@@ -560,9 +582,13 @@ handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = mongoose_hooks:host_config_update(Host, ok, ldap, NewConfig);
 handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     gen_mod_deps:replace_modules(Host, OldModules, NewModules);
-handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key),
-                    "local hosts config change option: ~p unhandled", [El]).
+handle_local_hosts_config_change({{Key, Host}, Old, New}) ->
+    case can_be_ignored(Key) of
+        true -> ok;
+        false ->
+            ?LOG_WARNING(#{what => config_change_unhandled, host => Host, key => Key,
+                           value => New, old_value => Old, text => <<"local host option change unhandled">>})
+    end.
 
 methods_to_auth_modules(L) when is_list(L) ->
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- L];
