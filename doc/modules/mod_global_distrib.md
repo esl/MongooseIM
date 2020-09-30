@@ -99,7 +99,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 
 ### Notes
 
-* You should only start `mod_global_distrib` by configuring it under `modules` option in `mongooseim.cfg`. Do not add it as host-specific module via `host_config`.
+* You should only start `mod_global_distrib` by configuring it under `modules` option in `mongooseim.toml`. Do not add it as host-specific module via `host_config`.
 * Do not use `mod_offline` on domains given via `global_host` or `local_host` options, as it will decrease messaging robustness; the users logged in other datacenters will not be registered as available by `mod_offline`, and so the messages will not be flushed.
 
 ### Options

@@ -28,17 +28,15 @@ Please be mindful of what is logged and which log level is used for it.
 
 # Logging levels
 
-A system operator can choose the global log level by setting `loglevel` in `mongooseim.cfg`.
+A system operator can choose the global log level by setting `loglevel` in `mongooseim.toml`.
 
-- level 8 – all
-- level 7 – debug
-- level 6 – info
-- level 5 - notice
-- level 4 - warning
-- level 3 - error
-- level 2 - critical
-- level 1 - alert
-- level 0 - emergency
+Possible values are the standard syslog severity levels, plus all or none:
+`"all"`, `"debug"`, `"info"`, `"notice"`, `"warning"`, `"error"`, `"critical"`, `"alert"`, `"emergency"`, and `"none"`.
+
+```toml
+[general]
+  loglevel = "notice"
+ ```
 
 If a user sets the log level to `all`, then they would see all messages in logs.
 

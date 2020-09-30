@@ -58,8 +58,6 @@ A file with Erlang application configuration. To configure it, go to `[MongooseI
 By default only the following applications can be found there:
 
 * `logger` - check [Logger's documentation](https://erlang.org/doc/man/logger.html) for more information.
-* `ejabberd`
-    * `config` (default: `"etc/mongooseim.cfg"`) - path to MongooseIM config file.
 * `ssl`
     * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
