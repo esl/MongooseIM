@@ -89,22 +89,25 @@ Now we need to use this to update `/etc/hosts` file like below:
 
 At this point I assume that MongooseIM was built with `make rel`, that it is running and the current working directory is `_build/prod/rel/mongooseim`.
 Similar to Routr, MongooseIM also needs to know which hosts to server.
-Please replace the default host defined in `etc/mongooseim.cfg`; the line:
+Please replace the default host defined in `etc/mongooseim.toml`; the line:
 
-```erlang
-{hosts, ["localhost"] }.
+```toml
+[general]
+  hosts = ["localhost"]
 ```
 
 should be changed to:
 
-```erlang
-{hosts, ["xmpp.example", "sip.example"] }.
+```toml
+[general]
+  hosts = ["xmpp.example", "sip.example"]
 ```
 
 Now we need to enable `mod_jingle_sip`, please add the following line in modules list (somewhere around line 740 in the same file)
 
-```erlang
-{mod_jingle_sip, [{proxy_host, "sip.example"}]},
+```toml
+[modules.mod_jingle_sip]
+  proxy_host = "sip.example"
 ```
 
 More details on MongooseIM configuration you can find in [Configuration](../Advanced-configuration.md)

@@ -148,7 +148,7 @@ mongooseimctl  unregister dan localhost
 
 For a given user (`localuser` and `localserver`), add a contact (`user` and `server`):
 ```bash
-mongooseimctl add_rosteritem localuser localserver user server nick group subs 
+mongooseimctl add_rosteritem localuser localserver user server nick group subs
 ```
 Examples:
 ```bash
@@ -160,7 +160,7 @@ Note: The `subs`parameter is the "subscription" to a user's presence. Possible v
 
 Verify the contact list:
 ```bash
-mongooseimctl get_roster user host 
+mongooseimctl get_roster user host
 ```
 Examples:
 ```bash
@@ -171,9 +171,9 @@ mongooseimctl get_roster carol localhost
 
 ## Basic MongooseIM configuration
 
-You can edit the `mongooseim.cfg` file:
+You can edit the `mongooseim.toml` file:
 ```bash
-/etc/mongooseim/mongooseim.cfg 
+/etc/mongooseim/mongooseim.toml
 ```
 
 Warning: We recommend you do not touch the advanced settings at this stage.
@@ -184,9 +184,9 @@ Save (and optionally backup, archive, or version) the configuration file and res
 ### Logging
 
 Set your own loglevel in the configuration file:
-```erlang
-% {loglevel, 3}.
-{loglevel, 4}.
+```toml
+[general]
+  loglevel = "notice"
 ```
 
 Save and exit your editor, restart MongooseIM and check your loglevel from the command line:
@@ -208,12 +208,12 @@ Type `Ctrl+C` to exit.
 
 ### MUC (Multi-User Chat) for groupchats
 
-Enable MUC, or Multi-User Chat, for groupchats/channels in the `mongooseim.cfg` file:
-```erlang
-{mod_muc, [{host, "muc.@HOST@"},
-           {access, muc},
-           {access_create, muc_create}
-          ]},
+Enable MUC, or Multi-User Chat, for groupchats/channels in the `mongooseim.toml` file:
+```toml
+[modules.mod_muc]
+  host = "muc.@HOST@"
+  access = "muc"
+  access_create = "muc_create"
 ```
 
 Verify with:
@@ -230,11 +230,10 @@ mongooseimctl print_flat_config | grep muc
 ### Roster versioning
 
 For faster contact list downloads at each client/app (re)connection, edit the configuration file:
-```erlang
-{mod_roster, [
-              {versioning, true},
-              {store_current_id, true}
-             ]},
+```toml
+[modules.mod_roster]
+  versioning = true
+  store_current_id = true
 ```
 Verify with:
 ```bash
@@ -351,8 +350,8 @@ You can even run `mongooseimctl` without arguments for a list of available comma
 
 ### Summary: files
 
-You know basic entries in files:
-`/etc/mongooseim/mongooseim.cfg`
+You know basic entries in the files:
+`/etc/mongooseim/mongooseim.toml`
 `/var/log/mongooseim/mongooseim.log`
 
 ### Summary: client/app
