@@ -8,7 +8,7 @@ This module contains command definitions which are loaded when the module is act
 There are no options to be provided, therefore the following entry in the config file is sufficient:
 
 ```
-{mod_muc_commands, []}
+[modules.mod_muc_commands]
 ```
 
 ## Commands

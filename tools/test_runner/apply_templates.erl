@@ -20,8 +20,8 @@ main([NodeAtom, BuildDirAtom]) ->
 
 
 overlay_vars(Node) ->
-    Vars = consult_map("rel/vars.config"),
-    NodeVars = consult_map("rel/" ++ atom_to_list(Node) ++ ".vars.config"),
+    Vars = consult_map("rel/vars-toml.config"),
+    NodeVars = consult_map("rel/" ++ atom_to_list(Node) ++ ".vars-toml.config"),
     %% NodeVars overrides Vars
     maps:merge(Vars, NodeVars).
 
@@ -43,7 +43,8 @@ simple_templates() ->
      {"rel/files/app.config",       "etc/app.config"},
      {"rel/files/vm.args",          "etc/vm.args"},
      {"rel/files/vm.dist.args",     "etc/vm.dist.args"},
-     {"rel/files/mongooseim.cfg",   "etc/mongooseim.cfg"}
+     {"rel/files/mongooseim.cfg",   "etc/mongooseim.cfg"},
+     {"rel/files/mongooseim.toml",  "etc/mongooseim.toml"}
     ].
 
 erts_templates(RelDir) ->

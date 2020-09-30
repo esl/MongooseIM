@@ -7,7 +7,7 @@ The protocol is much simpler than privacy lists.
 
 ### Example Configuration
 ```
-{mod_blocking, []},
+[modules.mod_blocking]
 ```
 
 The module is not configurable because internally it is an interface to privacy lists, so settings like storage backend apply to it automatically.

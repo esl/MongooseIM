@@ -84,7 +84,7 @@ match_cases() ->
 
 
 flat_state_case(_C) ->
-    State = mongoose_config_parser:parse_terms(cool_mod_mam_config()),
+    State = mongoose_config_parser_cfg:parse_terms(cool_mod_mam_config()),
     ?assertEqual(cool_mod_mam_config_flat(),
                  mongoose_config_reload:state_to_flat_local_opts(State)).
 
@@ -98,10 +98,10 @@ cool_mod_mam_config_flat() ->
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
 flat_module_subopts_case(_C) ->
-    State = mongoose_config_parser:parse_terms(gd_config()),
+    State = mongoose_config_parser_cfg:parse_terms(gd_config()),
     FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     NumConnsKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
-                   connections,num_of_connections],
+                   connections,connections_per_endpoint],
     ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
                 connections],
     RedisServerKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
@@ -112,7 +112,7 @@ flat_module_subopts_case(_C) ->
     ok.
 
 expand_opts_case(_C) ->
-    State = mongoose_config_parser:parse_terms(cool_mod_mam_config()),
+    State = mongoose_config_parser_cfg:parse_terms(cool_mod_mam_config()),
     FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config_reload:state_to_categorized_options(State),
@@ -123,7 +123,7 @@ expand_opts_case(_C) ->
     ok.
 
 expand_module_subopts_case(_C) ->
-    State = mongoose_config_parser:parse_terms(gd_config()),
+    State = mongoose_config_parser_cfg:parse_terms(gd_config()),
     FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config_reload:state_to_categorized_options(State),
@@ -142,7 +142,7 @@ gd_config() ->
              {local_host, "datacenter1.example.com"},
              {connections, [
                    {endpoints, [{"172.16.0.2", 5555}]},
-                   {num_of_connections, 22},
+                   {connections_per_endpoint, 22},
                    {tls_opts, [
                          {certfile, "/home/user/dc1.pem"},
                          {cafile, "/home/user/ca.pem"}
@@ -174,36 +174,36 @@ auth_config_states() ->
     [auth_config_node1_config_v1()].
 
 auth_config_node1_config_v1() ->
-    Terms = auth_config(),
+    State = mongoose_config_parser_cfg:parse_terms(auth_config()),
     #{mongoose_node => mim1,
       config_file => "/etc/mongooseim.cfg",
-      loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms,
+      loaded_categorized_options => mongoose_config_reload:state_to_categorized_options(State),
+      ondisc_config_state => State,
       missing_files => [], required_files => []}.
 
 auth_host_local_config() ->
-    Terms = auth_config(),
-    CatOpts = terms_to_categorized_options(Terms),
+    State = auth_config_state(),
+    CatOpts = mongoose_config_reload:state_to_categorized_options(State),
     maps:get(host_config, CatOpts).
 
 auth_config_state() ->
     Terms = auth_config(),
-    mongoose_config_parser:parse_terms(Terms).
+    mongoose_config_parser_cfg:parse_terms(Terms).
 
 %% Check that underscore is not treated as a config macro by config parser
 parse_config_with_underscore_pattern_case(_C) ->
-    mongoose_config_parser:parse_terms(node_specific_cool_mod_mam_config()).
+    mongoose_config_parser_cfg:parse_terms(node_specific_cool_mod_mam_config()).
 
 %% Check that we can convert state into node_specific_options list
 node_specific_options_presents_case(_C) ->
-    State = mongoose_config_parser:parse_terms(node_specific_cool_mod_mam_config()),
+    State = mongoose_config_parser_cfg:parse_terms(node_specific_cool_mod_mam_config()),
     NodeOpts = mongoose_config_parser:state_to_global_opt(node_specific_options, State, missing),
     ?assertEqual([ [h,'_',module_opt,mod_mam,pool] ],
                  NodeOpts).
 
 %% Check that we would not crash if node_specific_options is not defined
 node_specific_options_missing_case(_C) ->
-    State = mongoose_config_parser:parse_terms(cool_mod_mam_config()),
+    State = mongoose_config_parser_cfg:parse_terms(cool_mod_mam_config()),
     NodeOpts = mongoose_config_parser:state_to_global_opt(node_specific_options, State, missing),
     ?assertEqual(missing, NodeOpts).
 
@@ -211,11 +211,6 @@ node_specific_cool_mod_mam_config() ->
     [{hosts, ["localhost"]},
      {node_specific_options, [ [h,'_',module_opt,mod_mam,pool] ]},
      {modules, [{mod_mam, [{pool, cool_pool}]}]}].
-
-
-terms_to_categorized_options(Terms) ->
-    State = mongoose_config_parser:parse_terms(Terms),
-    mongoose_config_reload:state_to_categorized_options(State).
 
 states_to_reloading_context_case(_C) ->
     Context = mongoose_config_reload:states_to_reloading_context(example_config_states()),
@@ -252,42 +247,42 @@ example_config_states() ->
 
 %% node1_config_v1 configuration both in memory and on disc
 config_node1_config_v1() ->
-    Terms = node1_config_v1(),
+    State = mongoose_config_parser_cfg:parse_terms(node1_config_v1()),
     #{mongoose_node => mim1,
       config_file => "/etc/mongooseim.cfg",
-      loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms,
+      loaded_categorized_options => mongoose_config_reload:state_to_categorized_options(State),
+      ondisc_config_state => State,
       missing_files => [], required_files => []}.
 
 %% node2_config_v1 configuration both in memory and on disc
 config_node2_config_v1() ->
-    Terms = node2_config_v1(),
+    State = mongoose_config_parser_cfg:parse_terms(node2_config_v1()),
     #{mongoose_node => mim2,
       config_file => "/etc/mongooseim.cfg",
-      loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms,
+      loaded_categorized_options => mongoose_config_reload:state_to_categorized_options(State),
+      ondisc_config_state => State,
       missing_files => [], required_files => []}.
 
 %% node1_config_v1 configuration in memory
 %% node1_config_v2 configuration on disc
 config_node1_config_v2() ->
-    Terms_v1 = node1_config_v1(),
-    Terms_v2 = node1_config_v2(),
+    State_v1 = mongoose_config_parser_cfg:parse_terms(node1_config_v1()),
+    State_v2 = mongoose_config_parser_cfg:parse_terms(node1_config_v2()),
     #{mongoose_node => mim1,
       config_file => "/etc/mongooseim.cfg",
-      loaded_categorized_options => terms_to_categorized_options(Terms_v1),
-      ondisc_config_terms => Terms_v2,
+      loaded_categorized_options => mongoose_config_reload:state_to_categorized_options(State_v1),
+      ondisc_config_state => State_v2,
       missing_files => [], required_files => []}.
 
 %% node2_config_v1 configuration in memory
 %% node2_config_v2 configuration on disc
 config_node2_config_v2() ->
-    Terms_v1 = node2_config_v1(),
-    Terms_v2 = node2_config_v2(),
+    State_v1 = mongoose_config_parser_cfg:parse_terms(node2_config_v1()),
+    State_v2 = mongoose_config_parser_cfg:parse_terms(node2_config_v2()),
     #{mongoose_node => mim2,
       config_file => "/etc/mongooseim.cfg",
-      loaded_categorized_options => terms_to_categorized_options(Terms_v1),
-      ondisc_config_terms => Terms_v2,
+      loaded_categorized_options => mongoose_config_reload:state_to_categorized_options(State_v1),
+      ondisc_config_state => State_v2,
       missing_files => [], required_files => []}.
 
 node1_config_v1() ->
@@ -377,11 +372,10 @@ node2_config_v2() ->
 
 get_config_diff_case(_C) ->
     %% Calculate changes to node1 reload_local to transit from v1 to v2
-    Terms_v1 = node1_config_v1(),
-    Terms_v2 = node1_config_v2(),
-    CatOptions = terms_to_categorized_options(Terms_v1),
-    State = mongoose_config_parser:parse_terms(Terms_v2),
-    Diff = mongoose_config_reload:get_config_diff(State, CatOptions),
+    State_v1 = mongoose_config_parser_cfg:parse_terms(node1_config_v1()),
+    State_v2 = mongoose_config_parser_cfg:parse_terms(node1_config_v2()),
+    CatOptions = mongoose_config_reload:state_to_categorized_options(State_v1),
+    Diff = mongoose_config_reload:get_config_diff(State_v2, CatOptions),
     #{local_hosts_changes := #{ to_reload := ToReload }} = Diff,
     [{ {modules,<<"localhost">>}, OldModules, NewModules }] = ToReload,
     ?assertEqual(<<"secret">>, get_module_opt(mod_mam, password, OldModules)),
@@ -401,7 +395,7 @@ config_with_required_files() ->
     ].
 
 parse_config_with_required_files_case(_C) ->
-    State = mongoose_config_parser:parse_terms(config_with_required_files()),
+    State = mongoose_config_parser_cfg:parse_terms(config_with_required_files()),
     ?assertEqual(["priv/ssl/localhost_server.pem",
                   "priv/ssl/fake_server.pem"],
                  mongoose_config_parser:state_to_required_files(State)),

@@ -1,177 +1,103 @@
-# Outgoing connections
-
-MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set the required data.
+MongooseIM can be configured to talk to external services like databases or HTTP servers in order to get or set the required data.
 The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
 
 * `cassandra` - pool of connections to Cassandra cluster
 * `riak` - pool of connections to Riak cluster
 * `redis` - pool of connections to Redis server
-* `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, in example HTTP authentication backend or HTTP notifications
+* `http` - pool of connections to an HTTP(S) server MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
-* `generic` - pool of generic workers not associated directly with a particular connection (SNS, PushNotifications)
+* `generic` - pool of generic workers not associated directly with a particular connection
 
-All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
+* **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value uniquely identifying the pool within its type.
+This allows you to create multiple dedicated pools of the same type.
 
-Every entry in the `outgoing_pools` is a 5-element tuple:
+# General pool options
 
-```erlang
-{Type, Host, Tag, PoolOptions, ConnectionOptions}
+#### `outgoing_pools.*.*.scope`
+* **Syntax:** string, one of:`"global"`, `"host"`, `"single_host"`
+* **Default:** `"global"`
+* **Example:** `scope = "host"`
+
+#### `outgoing_pools.*.*.host`
+* **Syntax:** string
+* **Default:** no default; required if `"single_host"` scope is specified
+* **Example:** `host = "anotherhost.com"`
+
+`scope` can be set to:
+* `global` - meaning that the pool will started once no matter how many XMPP hosts are served by MongooseIM
+* `host` - the pool will be started for each XMPP host served by MongooseIM
+* `single_host` - the pool will be started for the selected host only (you must provide a host name).
+
+# Worker pool options
+
+All pools are managed by the [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
+
+Available options are:
+#### `outgoing_pools.*.*.strategy`
+* **Syntax:** string, one of:`"best_worker"`, `"random_worker"`, `"next_worker"`, `"available_worker"`, `"next_available_worker"`
+* **Default:** `"best_worker"`
+* **Example:** `strategy = "available_worker"`
+
+Defines worker seletion strategy. Consult worker_pool documentation for details.
+
+#### `outgoing_pools.*.*.workers`
+* **Syntax:** positive integer
+* **Default:** 100
+* **Example:** `workers = 10`
+
+Number of workers to be started by the pool.
+
+#### `outgoing_pools.*.*.call_timeout`
+* **Syntax:** positive integer
+* **Default:** 5000
+* **Example:** `call_timeout = 5000`
+
+Number of milliseconds after which a call to the pool will time out.
+
+# Connection options
+
+Options specific to a pool connection are defined in a subsection starting with `[outgoing_pools.*.*.connection]`.
+For example:
+
+```
+[outgoing_pools.rdbms.default]
+  scope = "global"
+  workers = 5
+
+  [outgoing_pools.rdbms.default.connection]
+  ...
 ```
 
-Where:
+## RDBMS options
 
-* `Type` is one of the types listed above
-* `Host` can be set to:
-    * `global` - meaning the pool will started once no matter how many XMPP hosts served by MongooseIM
-    * `host` - the pool will be started for all the XMPP hosts served by MongooseIM
-    * a binary representing a specific XMPP host like `<<"domain1.chat.im">>`
-* `Tag` is a name to distinguish pools with the same `Type` and `Host` parameter.
-* `PoolOptions` is a list of `{key, value}` pairs as defined in [worker_pool doc](https://github.com/inaka/worker_pool#starting-a-pool)
-   with the following exception:
-    * `strategy` - specifies the worker selection strategy for the given pool, default is `best_worker`,
-      more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
-      *WARNING:* `redis` and `riak` backends are not compatible with `available_worker` strategy.
-    * `call_timeout` - specifies the timeout, in milliseconds, for a call operation to the pool
-* `ConnectionOptions` - options list passed to the `start` function of the pool type
+#### `outgoing_pools.rdbms.*.driver`
+* **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
+* **Example:** `driver = "psgql"`
 
+Selects driver for RDBMS connection. The choice of driver impacts the set of available options.
 
-### Examples
+#### `outgoing_pools.rdbms.*.call_timeout`
+* **Syntax:** positive integer
+* **Default:** 60000 (msec)
+* **Example:** `call_timeout = 60000`
 
-Provided MongooseIM serves domains `<<"a.com">>`, `<<"b.com">>`, `<<"c.eu">>` and `<<"d.eu">>`
-the following `outgoing_pools` configuration:
+RDBMS pool sets its own default value of this option.
 
-```erlang
-{redis, <<"a.com">>, default, PoolOpts, ConnOptsForDomain1},
-{redis, host, default, PoolOpts, ConnOpts},
-{redis, <<"c.eu", default, PoolOpts, ConnOptsForDomain2}
-```
+### ODBC options
 
-will be expanded to the following configuration:
+#### `outgoing_pools.rdbms.*.settings`
+* **Syntax:** string
+* **Default:** no default; required if the `"odbc"` driver is specified
+* **Example:** `settings = "DSN=mydb"`
 
-```erlang
-{redis, <<"a.com">>, default, PoolOpts, ConnOptsForDomain1},
-{redis, <<"b.com">>, default, PoolOpts, ConnOpts},
-{redis, <<"c.eu", default, PoolOpts, ConnOptsForDomain2},
-{redis, <<"d.eu">>, default, PoolOpts, ConnOpts}
-```
-
-## RDBMS connection setup
-
-An example RDBMS configuration inside `outgoing_pools` may look like this:
-
-```erlang
-{outgoing_pools, [
- {rdbms, global, default, [{workers, 5}],
-  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]}
-]}.
-```
-
-This configuration will create a default, global pool of 5 connections to a mysql database.
-We might also want to add a dedicated pool for a specific host:
-
-```erlang
-{outgoing_pools, [
- {rdbms, global, default, [{workers, 5}],
-  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]},
- {rdbms, "myhost.com", default, [{workers, 3}],
-  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]}
-]}.
-```
-
-Please remember that SQL databases require creating a schema.
-See [Database backends configuration](./database-backends-configuration.md) for more information.
-Also see [Advanced configuration](../Advanced-configuration.md) for additional options that influence RDBMS connections.
-Currently all pools must use the same RDBMS type (e.g. `mysql`, `pgsql`).
-
-### Connection options
-
-* **server**
-    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{server, "<ODBC connection string>"}`
-    * **Default:** `undefined`
-
-* **keepalive_interval**
-    * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
-    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
-    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
-    * **Syntax:** `{keepalive_interval, IntervalSeconds}.`
-    * **Example:** `{keepalive_interval, 30}.`
-    * **Default:** `undefined`
-
-#### MySQL and PostgreSQL SSL connection setup
-
-In order to establish a secure connection with a database, additional options must be passed in the `server` tuple.
-Here is the proper syntax:
-
-`{server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
-
-##### MySQL
-
-SSL configuration options for MySQL:
-
-* **SSL**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `[Opt]`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-###### Example configuration
-
-An example configuration can look as follows:
-
-```erlang
-{outgoing_pools, [
- {rdbms, global, default, [{workers, 5}],
-  [{server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
-             [{versions, ['tlsv1.2']},
-              {verify, verify_peer},
-              {cacertfile, "path/to/cacert.pem"},
-              {server_name_indication, disable}]}}]}
-]}.
-```
-
-##### PostgreSQL
-
-SSL configuration options for PGSQL:
-
-* **SSL**
-    * **Description:** Specifies general options for SSL connection.
-    * **Syntax:** `[SSLMode, SSLOpts]`
-
-* **SSLMode**
-    * **Description:** Specifies a mode of SSL connection. Mode expresses how much the PostgreSQL driver carries about security of the connections.
-    For more information click [here](https://github.com/epgsql/epgsql).
-    * **Syntax:** `{ssl, Mode}`
-    * **Supported values:** `false`, `true`, `required`
-
-* **SSLOpts**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `{ssl_opts, [Opt]}`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-###### Example configuration
-
-An example configuration can look as follows:
-
-```erlang
-{outgoing_pools, [
- {rdbms, global, default, [{workers, 5}],
-  [{server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
-             [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}]}
-]}.
-```
+ODBC - specific string defining connection parameters.
 
 ##### ODBC SSL connection setup
 
-If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string in the `server` option, e.g.
-
-```erlang
-{server, "DSN=mydb"}.
-```
-
-then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
+If you've configured MongooseIM to use an ODBC driver, then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
 
 To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
 Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
@@ -188,278 +114,155 @@ sslmode     = verify-full
 sslrootcert = /path/to/ca/cert
 ```
 
-## HTTP connections setup
+### Other RDBMS backends
 
-Some MongooseIM modules need an HTTP connection to an external service.
-These pools need to be configured and started before the module that needs them.
-Below is a sample configuration:
+#### `outgoing_pools.rdbms.*.connection.host`
+* **Syntax:** string
+* **Example:** `host = "localhost"`
 
-```erlang
-{outgoing_pools, [
- {http, global, default, PoolOptions, ConnectionOptions}
-]}.
-```
-where `PoolOptions` is as previously described.
-Recommended `PoolOptions` for `HTTP` pools are:
+#### `outgoing_pools.rdbms.*.connection.database`
+* **Syntax:** string
+* **Example:** `database = "mim-db"`
 
-* `strategy` - the recommended value is `available_worker`
-* `call_timeout` - it should be equal or longer than the value set in `request_timeout` below.
+#### `outgoing_pools.rdbms.*.connection.username`
+* **Syntax:** string
+* **Example:** `username = "mim-user"`
 
-`ConnectionOptions` can take the following `{key, value}` pairs:
+#### `outgoing_pools.rdbms.*.connection.password`
+* **Syntax:** string
+* **Example:** `password = "mim-password"`
 
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
-* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
-* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-* `{http_opts, HTTPOptions}` - list, default: `[]` - can be used to pass extra parameters which are passed to [fusco], the library used for making the HTTP calls.
-  More details about the possible `http_opts` can be found in [fusco]'s documentation.
+#### `outgoing_pools.rdbms.*.connection.keepalive_interval`
+* **Syntax:** positive integer
+* **Default:** undefined (keep-alive not activated)
+* **Example:** `keepalive_interval = 30`
 
-[fusco]: https://github.com/esl/fusco
+When enabled, MongooseIM will send SELECT 1 query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network-related error returned from a database driver to a regular query will imply a connection restart.
 
-##### Example configuration
+## HTTP options
 
-```Erlang
-{outgoing_pools, [
-  {http, global, http_auth,
-   [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
-]}.
-```
+#### `outgoing_pools.http.*.connection.host`
+* **Syntax:** `"http[s]://string[:integer]"`
+* **Example:** `host = "https://server.com:879"`
 
-If peer certificate verification is required, the pool can be configured in the following way:
+#### `outgoing_pools.http.*.connection.path_prefix`
+* **Syntax:** string
+* **Default:** `"/"`
+* **Example:** `path_prefix = "/api/auth/"`
 
-```Erlang
-{outgoing_pools, [
-  {http, global, mongoose_push_http,
-   [{workers, 50}],
-   [{server, "https://localhost:8443"},
-    {http_opts, [
-                 {connect_options, [{verify, verify_peer}]}
-                 ]}
-   ]}
-]}.
-```
+Initial part of path which will be common to all calls. Prefix will be automatically prepended to path specified by a call to the pool.
 
-Please note the `connect_options` passed to [fusco] via the pool's `http_opts` parameter.
+#### `outgoing_pools.http.*.connection.request_timeout`
+* **Syntax:** positive integer
+* **Default:** `2000` (milliseconds)
+* **Example:** `request_timeout = 5000`
 
+Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
-## Redis connection setup
+HTTP also supports all TLS-specific options described in the TLS section.
 
-Session manager backend or `mod_global_distrib` requires a redis pool defined in the `outgoing_pools` option.
-They can be defined as follows:
+## Redis-specific options
 
-```erlang
-{ougtoing_pools, [
- {redis, global, Tag, WorkersOptions, ConnectionOptions}
-]}.
-```
+Redis can be used as a session manager backend. 
+Global distribution (implemented in `mod_global_distrib`) requires Redis pool.
 
-*WARNING:* `redis` backend is not compatible with `available_worker` strategy.
+There are two important limitations:
 
-The `Tag` parameter can only be set to `default` for a session backend.
-For `mod_global_distrib` module it can take any value (default is **global_distrib**) but the name needs to be passed as:
+* for a session backend, the `Tag` parameter has to be equal to `default`
+* `redis` backend is not compatible with `available_worker` strategy.
 
-```erlang
-{redis, [{pool, Tag}]}
-```
-in the `mod_global_distrib` options. See [mod_global_distrib doc](../modules/mod_global_distrib.md) for details and examples.
+#### `outgoing_pools.redis.*.connection.host`
+* **Syntax:** string
+* **Default:** `"127.0.0.1"`
+* **Example:** `host = "redis.local"`
 
-The `ConnectionOptions` list can take following parametrs as `{key, value`} pairs:
+#### `outgoing_pools.redis.*.connection.port`
+* **Syntax:** integer, between 0 and 65535, non-inclusive
+* **Default:** `6379`
+* **Example:** `port = 9876`
 
-* **host** (default: **"localhost"**) the hostname or IP address of the Redis server
-* **port** (default: **6379**) the port of the Redis server
-* **database** (default: **0**) number of the database to use by the pool
-* **password** (default: **""**) the password to the database (if set).
+#### `outgoing_pools.redis.*.connection.database`
+* **Syntax:** non-negative integer
+* **Default:** `0`
+* **Example:** `database = 2`
 
-### Example
+Logical database index (zero-based).
 
-```erlang
-{ougtoing_pools, [
- {redis, global, default, [{strategy, random_worker}],
-  [{host, "198.172.15.12"},
-   {port, 9923}]}
-]}.
-```
+#### `outgoing_pools.redis.*.connection.password`
+* **Syntax:** string
+* **Default:** `""`
+* **Example:** `password = "topsecret"`
 
-## Riak connection setup
+## Riak options
 
-Currently only one Riak connection pool can exist for each supported XMPP host.
-It is configured with the following tuple inside the `outgoing_pools` config option.
-
-```erlang
-{outgoing_pools, [
- {riak, global, default, [{workers, 20}], [{address, "127.0.0.1"}, {port, 8087}]}
-]}.
-```
+Currently only one Riak connection pool can exist for each supported XMPP host (the default pool).
 
 *WARNING:* `riak` backend is not compatible with `available_worker` strategy.
 
-#### Riak SSL connection setup
+#### `outgoing_pools.riak.*.connection.address`
+* **Syntax:** string
+* **Example:** `address = "127.0.0.1"`
 
-Using SSL for Riak connection requires passing extra options in `ConnectionOptions` to the
-aforementioned `riak` tuple.
+#### `outgoing_pools.riak.*.connection.port`
+* **Syntax:** integer
+* **Example:** `port = 8087`
 
-Here is the proper syntax:
+#### `outgoing_pools.riak.*.connection.credentials`
+* **Syntax:** `{user = "username", password = "pass"}`
+* **Default:** none
+* **Example:** `credentials = {user = "myuser", password = "tisismepasswd"}`
 
-* **Credentials**
-    * **Description:** Specifies credentials to use to connect to the database.
-    * **Syntax:** `{credentials, User, Password}`
-    * **Supported values** `User` and `Password` are strings with a database username and password respectively.
+This is optional - setting this option forces connection over TLS
 
-* **CACert**
-    * **Description:** Specifies a path to the CA certificate that was used to sign the database certificates.
-    * **Syntax:** `{cacertfile, Path}`
-    * **Supported values** `Path` is a string with a path to the CA certificate file.
+Riak also supports all TLS-specific options described in the TLS section.
 
-* **SSL_Opts**
-    * **Description**: list of SSL options as defined in [Erlang SSL module doc](http://erlang.org/doc/man/ssl.html)
-      They will be passed verbatim to the `ssl:connect` function.
-    * **Syntax** `{ssl_opts, ListOfSSLOpts}`
-    * **Example**:
+## Cassandra options
 
-```erlang
-{ssl_opts, [{ciphers, ["AES256-SHA", "DHE-RSA-AES128-SHA256"]},
-            {server_name_indication, disable}]}
-```
+#### `outgoing_pools.cassandra.*.connection.servers`
+* **Syntax:** a TOML array of tables containing keys `"ip_adddress"` and `"port"`
+* **Default:** `[{ip_address = "localhost", port = 9042}]`
+* **Example:** `servers = [{ip_address = "host_one", port = 9042}, {ip_address = "host_two", port = 9042}]`
 
-##### Example configuration
+#### `outgoing_pools.cassandra.*.connection.keyspace`
+* **Syntax:** string
+* **Default:** `"mongooseim"`
+* **Example:** `keyspace = "big_mongooseim_database"`
 
-An example configuration can look as follows:
+To use plain text authentication (using cqerl_auth_plain_handler module):
 
-```erlang
-{outgoing_pools, [
- {riak, global, default, [{workers, 20}, {strategy, next_worker}],
-   [{address, "127.0.0.1"}, {port, 8087},
-    {credentials, "username", "pass"},
-    {cacertfile, "path/to/cacert.pem"}]}
-]}.
-```
+#### `outgoing_pools.cassandra.*.connection.auth.plain.username`
+* **Syntax:** string
+* **Example:** `username = "auser"`
 
-## Cassandra connection setup
+#### `outgoing_pools.cassandra.*.connection.auth.plain.password`
+* **Syntax:** string
+* **Example:** `password = "somesecretpassword"`
 
-The minimum pool definition for cassandra workers looks as follows:
+Support for other authentication modules may be added in the future.
 
-```erlang
-{outgoing_pools, [
- {cassandra, global, default, [], []}
-]}.
-```
+Cassandra also supports all TLS-specific options described in the TLS section.
 
-In this case MongooseIM will by default try to connect to Cassandra server on "localhost" and port 9042.
-The keyspace used in queries will be `mongooseim`.
+## Elasticsearch options
 
+Currently only one pool tagged `default` can be used.
 
-#### ConnectionOptions
+#### `outgoing_pools.elastic.default.connection.host`
+* **Syntax:** string
+* **Default:** `"localhost"`
+* **Example:** `host = "otherhost"`
 
-The `ConnectionOptions` list can take following parameters as `{key, Value}` pairs:
-
-* **servers** - A list of servers in Cassandra cluster in `{HostnameOrIP, Port}` format.
-* **keyspace** - A name of keyspace to use in queries executed in this pool.
-* You can find a full list in `cqerl` [documentation](https://github.com/matehat/cqerl#all-modes).
-
-#### Example
-
-```
-{cassandra, global, default, [],
-  [
-   {servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}] },
-   {keyspace, "big_mongooseim"}
-  ]
- ]}
-```
-
-#### SSL connection setup
-
-In order to establish a secure connection to Cassandra you must make some changes in the MongooseIM and Cassandra configuration files.
-
-##### Create server keystore
-Follow [this](https://docs.datastax.com/en/cassandra/3.0/cassandra/configuration/secureSSLCertWithCA.html) guide if you need to create certificate files.
-
-##### Change the Cassandra configuration file
-Find `client_encryption_options` in `cassandra.yaml` and make these changes:
-
-```yaml
-client_encryption_options:
-    enabled: true
-    keystore: /your_certificate_directory/server.keystore
-    keystore_password: your_password
-```
-
-Save the changes and restart Cassandra.
-
-##### Enable MongooseIM to connect with SSL
-An SSL connection can be established with both self-signed and CA-signed certificates.
-
-###### Self-signed certificate
-
-Add the following to `ConnectionOptions` list:
-
-```erlang
-{ssl, [{verify, verify_none}]}
-```
-
-Save the changes and restart MongooseIM.
-
-###### CA-signed certificate
-
-Add the following to `ConnectionOptions` list:
-```
-{ssl, [{cacertfile,
-        "/path/to/rootCA.pem"},
-       {verify, verify_peer}]}
-```
-Save the changes and restart MongooseIM.
-
-##### Testing the connection
-
-Make sure Cassandra is running and then run MongooseIM in live mode:
-
-```bash
- $ ./mongooseim live
- $ (mongooseim@localhost)1> cqerl:get_client(default).
- {ok,{<0.474.0>,#Ref<0.160699839.1270874114.234457>}}
- $ (mongooseim@localhost)2> sys:get_state(pid(0,474,0)).
- {live,{client_state,cqerl_auth_plain_handler,undefined,
-                    undefined,
-                    {"localhost",9042},
-                    ssl,
-                    {sslsocket,{gen_tcp,#Port<0.8458>,tls_connection,undefined},
-                               <0.475.0>},
-                    undefined,mongooseim,infinity,<<>>,undefined,
-                    [...],
-                    {[],[]},
-                    [0,1,2,3,4,5,6,7,8,9,10,11|...],
-                    [],hash,
-                    {{"localhost",9042},
-                     [...]}}}
-```
-
-If no errors occurred and your output is similar to the one above then your MongooseIM and Cassandra nodes can communicate over SSL.
-
-## ElasticSearch connection setup
-
-A connection pool to ElasticSearch can be configured as follows:
-
-```erlang
-{outgoing_pools, [
- {elastic, global, default, [], [{host, "localhost"}]}
-]}.
-```
-
-Currently only one pool with tag `default` can be used.
+#### `outgoing_pools.elastic.default.connection.port`
+* **Syntax:** positive integer
+* **Default:** `9200`
+* **Example:** `port = 9211`
 
 MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
-This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable via `WPoolOpts`:
+This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable:
 
-* `call_timeout` (inifinity)
+* `call_timeout` (infinity)
 * worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
-* `overrun_warning` (infinity)
-* `overrun_handler`, ({error_logger, warning_report})
 
-Other `worker_pool` options are possible to set.
-
-In `ConnectionOpts`  you can add (as `{key, value}` pairs):
-
-* `host` (default: `"localhost"`) - hostname or IP address of ElasticSearch node
-* `port` (default: `9200`) - port the ElasticSearch node's HTTP API is listening on
+The only pool-related variable you can tweak is thus the number of workers.
 
 Run the following function in the MongooseIM shell to verify that the connection has been established:
 
@@ -483,113 +286,155 @@ Run the following function in the MongooseIM shell to verify that the connection
 
 Note that the output might differ based on your ElasticSearch cluster configuration.
 
-## RabbitMQ connection setup
-
-RabbitMQ backend for [`mod_event_pusher`](../modules/mod_event_pusher.md)
-requires a `rabbit` pool defined in the `outgoing_pools` option.
-They can be defined as follows:
-
-```erlang
-{ougtoing_pools, [
- {rabbit, host, Tag, WorkersOptions, ConnectionOptions}
-]}.
-```
-
-Notice that `Host` parameter is set to atom `host`. This basically means that
-MongooseIM will start as many `rabbit` pools as XMPP hosts are served by
-the server.
+## RabbitMQ options
 
 The `Tag` parameter must be set to `event_pusher` in order to be able to use
 the pool for [`mod_event_pusher_rabbit`](../modules/mod_event_pusher_rabbit.md).
-Any other `Tag` can be used for any other RabbitMQ connection pool.
+Any other `Tag` can be used for other purposes.
 
-The `ConnectionOptions` list can take following parameters as `{key, value`} pairs:
+#### `outgoing_pools.rabbit.*.connection.amqp_host`
+* **Syntax:** string
+* **Default:** `"localhost"`
+* **Example:** `amqp_host = "anotherhost"`
 
-* **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address; both as a string);
-* **amqp_port** (default: `5672`) - Defines RabbitMQ server AMQP port;
-* **amqp_username** (default: `"guest"`) - Defines RabbitMQ server username;
-* **amqp_password** (default: `"guest"`) - Defines RabbitMQ server password;
-* **confirms_enabled** (default: `false`) - Enables/disables one-to-one publishers confirms;
-* **max_worker_queue_len** (default: `1000`; use `infinity` to disable it) -
-Sets a limit of messages in a worker's mailbox above which the worker starts
-dropping the messages. If a worker message queue length reaches the limit,
-messages from the head of the queue are dropped until the queue length is again
-below the limit.
+#### `outgoing_pools.rabbit.*.connection.amqp_port`
+* **Syntax:** integer
+* **Default:** `5672`
+* **Example:** `amqp_port = 4561`
 
-### Example
+#### `outgoing_pools.rabbit.*.connection.amqp_username`
+* **Syntax:** string
+* **Default:** `"guest"`
+* **Example:** `amqp_username = "corpop"`
 
-```erlang
-{ougtoing_pools, [
- {rabbit, host, event_pusher, [{workers, 20}],
-  [{amqp_host, "localhost"},
-   {amqp_port, 5672},
-   {amqp_username, "guest"},
-   {amqp_password, "guest"},
-   {confirms_enabled, true},
-   {max_worker_queue_len, 100}]}
-]}.
-```
+#### `outgoing_pools.rabbit.*.connection.amqp_password`
+* **Syntax:** string
+* **Default:** `"guest"`
+* **Example:** `amqp_password = "guest"`
 
-## LDAP connection setup
+#### `outgoing_pools.rabbit.*.connection.confirms_enabled`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `confirms_enabled = false`
 
-To configure a pool of connections to an LDAP server, use the following syntax:
+Enables/disables one-to-one publishers confirms.
 
-```erlang
-{ldap, Host, Tag, PoolOptions, ConnectionOptions}
-```
+#### `outgoing_pools.rabbit.*.connection.max_worker_queue_len`
+* **Syntax:** non-negative integer or `"infinity"`
+* **Default:** `1000`
+* **Example:** `max_worker_queue_len = "infinity"`
 
-### Connection options
+Sets a limit of messages in a worker's mailbox above which the worker starts dropping the messages. If a worker message queue length reaches the limit, messages from the head of the queue are dropped until the queue length is again below the limit. Use `infinity` to disable.
 
-The following options can be specified in the `ConnectionOptions` list:
+## LDAP options
 
-* **servers**
-    * **Description:** List of IP addresses or DNS names of your LDAP servers. They are tried sequentially until the connection succeeds.
-    * **Value:** A list of strings
-    * **Default:** `["localhost"]`
-    * **Example:** `["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]`
+#### `outgoing_pools.ldap.*.connection.servers`
+* **Syntax:** an array of strings
+* **Default:** `["localhost"]`
+* **Example:** `servers = ["ldap_one", "ldap_two"]`
 
-* **encrypt**
-    * **Description:** Enable connection encryption with your LDAP server.
-        The value `tls` enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
-    * **Values:** `none`, `tls`
-    * **Default:** `none`
+#### `outgoing_pools.ldap.*.connection.port`
+* **Syntax:** integer
+* **Default:** `389` (or `636` if encryption is enabled)
+* **Example:** `port = 800`
 
-* **tls_options**
-    * **Description:** Specifies TLS connection options. Requires `{encrypt, tls}` (see above).
-    * **Value:** List of `ssl:tls_client_option()`. More details can be found in the [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-    * **Default:** no options
-    * **Example:** `[{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]`
+#### `outgoing_pools.ldap.*.connection.rootdn`
+* **Syntax:** string
+* **Default:** empty string 
+* **Example:** `rootdn = "cn=admin,dc=example,dc=com"`
 
-* **port**
-    * **Description:** Port to connect to your LDAP server.
-    * **Values:** Integer
-    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+Leaving out this option makes it an anonymous connection, which most likely is what you want.
 
-* **rootdn**
-    * **Description:** Bind DN
-    * **Values:** String
-    * **Default:** empty string which is `anonymous connection`
+#### `outgoing_pools.ldap.*.connection.password`
+* **Syntax:** string
+* **Default:** empty string
+* **Example:** `password = "topsecret"`
 
-* **password**
-    * **Description:** Bind password
-    * **Values:** String
-    * **Default:** empty string
+#### `outgoing_pools.ldap.*.connection.connect_interval`
+* **Syntax:** integer
+* **Default:** `10000`
+* **Example:** `connect_interval = 20000`
 
-* **connect_interval**
-    * **Description:** Interval between consecutive connection attempts in case of connection failure
-    * **Value:** Integer (milliseconds)
-    * **Default:** 10000
+Reconnect interval after a failed connection.
 
-### Example
+#### `outgoing_pools.ldap.*.connection.encrypt`
+* **Syntax:** string, one of: `"none"` or `"tls"`
+* **Default:** `"none"`
+* **Example:** `encrypt = "tls"`
 
-A pool started for each host with the `default` tag and 5 workers. The LDAP server is at `ldap-server.example.com:389`. MongooseIM will authenticate as `cn=admin,dc=example,dc=com` with the provided password.
+LDAP  also supports all TLS-specific options described in the TLS section (provided `encrypt` is set to `tls`).
 
-```erlang
-{outgoing_pools, [
- {ldap, host, default, [{workers, 5}],
-  [{servers, ["ldap-server.example.com"]},
-   {rootdn, "cn=admin,dc=example,dc=com"},
-   {password, "ldap-admin-password"}]
- }
-]}.
-```
+## TLS options
+
+TLS options for a given pool type/tag pair are defined in a subsection starting with `[outgoing_pools.[pool_type].[pool_tag].connection.tls]`.
+
+#### `outgoing_pools.*.*.connection.tls.required`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.required = true`
+
+This option is Postgresql-specific, doesn't apply in other cases.
+
+#### `outgoing_pools.*.*.connection.tls.verify_peer`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.verify_peer = true`
+
+Enforces verification of a client certificate. Requires a valid `cacertfile`.
+
+#### `outgoing_pools.*.*.connection.tls.certfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `tls.certfile = "server.pem"`
+
+Path to the X509 PEM file with a certificate and a private key (not protected by a password). 
+If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
+
+#### `outgoing_pools.*.*.connection.tls.cacertfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `tls.cacertfile = "ca.pem"`
+
+Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
+
+#### `outgoing_pools.*.*.connection.tls.dhfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `tls.dhfile = "dh.pem"`
+
+Path to the Diffie-Hellman parameter file.
+
+#### `outgoing_pools.*.*.connection.tls.keyfile`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `tls.keyfile = "key.pem"`
+
+Path to the X509 PEM file with the private key.
+
+#### `outgoing_pools.*.*.connection.tls.password`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `tls.password = "secret"`
+
+Password to the X509 PEM file with the private key.
+
+#### `outgoing_pools.*.*.connection.tls.ciphers`
+* **Syntax:** array of tables with the following keys: `cipher`, `key_exchange`, `mac`, `prf` and string values.
+* **Default:** not set, all supported cipher suites are accepted
+* **Example:** `tls.ciphers = "[{cipher = "aes_25_gcm", key_exchange = "any", mac = "aead", "prf = sha384"}]"`
+
+Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+
+#### `outgoing_pools.*.*.connection.tls.versions`
+* **Syntax:** list of strings
+* **Default:** not set, all supported versions are accepted
+* **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
+
+Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+
+#### `outgoing_pools.*.*.connection.tls.server_name_indication`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `tls.server_name_indication = false`
+
+Enables SNI extension to TLS protocol.

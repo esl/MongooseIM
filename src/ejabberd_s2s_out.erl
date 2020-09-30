@@ -1078,8 +1078,8 @@ outgoing_s2s_port() ->
 
 -spec outgoing_s2s_families() -> ['ipv4' | 'ipv6', ...].
 outgoing_s2s_families() ->
-    case ejabberd_config:get_local_option(outgoing_s2s_options) of
-        {Families, _} when is_list(Families) ->
+    case ejabberd_config:get_local_option(outgoing_s2s_families) of
+        Families when is_list(Families) ->
             Families;
         undefined ->
             %% DISCUSSION: Why prefer IPv4 first?
@@ -1099,10 +1099,10 @@ outgoing_s2s_families() ->
 
 -spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
 outgoing_s2s_timeout() ->
-    case ejabberd_config:get_local_option(outgoing_s2s_options) of
-        {_, Timeout} when is_integer(Timeout) ->
+    case ejabberd_config:get_local_option(outgoing_s2s_timeout) of
+        Timeout when is_integer(Timeout) ->
             Timeout;
-        {_, infinity} ->
+        infinity ->
             infinity;
         undefined ->
             %% 10 seconds

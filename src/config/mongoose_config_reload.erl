@@ -13,6 +13,10 @@
 -export([states_to_reloading_context/1]).
 -export([context_to_failed_checks/1]).
 -export([context_to_changes_to_apply/1]).
+-export([check_hosts/2]).
+-export([can_be_ignored/1]).
+-export([group_host_changes/1]).
+-export([is_not_host_specific/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -40,7 +44,7 @@
         mongoose_node => node(),
         config_file => string(),
         loaded_categorized_options => categorized_options(),
-        ondisc_config_terms => list(),
+        ondisc_config_state => state(),
         missing_files => list(file:filename()),
         required_files => list(file:filename())}.
 
@@ -458,15 +462,14 @@ node_values(Key, NodeStates) ->
 %% mongoose_node => node(),
 %% config_file => string(),
 %% loaded_categorized_options => categorized_options(),
-%% ondisc_config_terms => list()
+%% ondisc_config_state => state()
 
 extend_node_states(NodeStates) ->
     lists:map(fun(NodeState) -> extend_node_state(NodeState) end, NodeStates).
 
 extend_node_state(NodeState=#{
                     loaded_categorized_options := LoadedCatOptions,
-                    ondisc_config_terms := OndiscTerms}) ->
-    OndiscState = mongoose_config_parser:parse_terms(OndiscTerms),
+                    ondisc_config_state := OndiscState}) ->
     OndiscCatOptions = state_to_categorized_options(OndiscState),
     NodeSpecificPatterns = mongoose_config_parser:state_to_global_opt(node_specific_options, OndiscState, []),
     LoadedFlatGlobalOptions = categorize_options_to_flat_global_config_opts(LoadedCatOptions),
@@ -540,3 +543,29 @@ subtract_lists(List, Except) ->
     SetList = ordsets:from_list(List),
     SetExcept = ordsets:from_list(Except),
     ordsets:subtract(SetList, SetExcept).
+
+-spec check_hosts([jid:server()], [jid:server()]) ->
+    {[jid:server()], [jid:server()]}.
+check_hosts(NewHosts, OldHosts) ->
+    Old = sets:from_list(OldHosts),
+    New = sets:from_list(NewHosts),
+    ListToAdd = sets:to_list(sets:subtract(New, Old)),
+    ListToDel = sets:to_list(sets:subtract(Old, New)),
+    {ListToDel, ListToAdd}.
+
+-spec can_be_ignored(Key :: atom() | tuple()) -> boolean().
+can_be_ignored(Key) when is_atom(Key);
+                         is_tuple(Key) ->
+    L = [domain_certfile, s2s, all_metrics_are_global, rdbms],
+    lists:member(Key, L).
+
+-spec is_not_host_specific(atom()
+                           | {atom(), jid:server()}
+                           | {atom(), atom(), atom()}) -> boolean().
+is_not_host_specific(Key) when is_atom(Key) ->
+    true;
+is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
+    false;
+is_not_host_specific({Key, PoolType, PoolName})
+  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
+    true.

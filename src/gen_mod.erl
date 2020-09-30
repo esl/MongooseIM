@@ -60,6 +60,7 @@
          set_module_opt/4,
          set_module_opts/3,
          get_module_opts/2,
+         make_subhost/2,
          make_subhosts/2,
          get_opt_subhost/3,
          get_opt_subhost/4,

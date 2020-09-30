@@ -15,55 +15,17 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 ### Options
 
-#### Validity periods
+#### `modules.mod_auth_token.validity_period`
+* **Syntax:** Array of TOML tables with the following keys: `token`, `value`, `unit` and following values: {token = `values: "access", "refresh", "provision"`, value = `non-negative integer`, unit = `values: "days", "hours", "minutes", "seconds"`}.
+* **Default:** `[{token = "access", value = 1, unit = "hours"}, {token = "refresh", value = 25, unit = "days"}]`
+* **Example:** `[{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}]`
 
 Validity periods of access and refresh tokens can be defined independently.
-
-Allowed units are:
-
-* days
-* hours
-* minutes
-* seconds
-
-The default values for tokens are:
-
-* 1 hour for an access token
-* 25 days for a refresh token
-
-Example configuration from `mongooseim.cfg`, inside `modules` section:
-
-```erlang
-{modules, [
-    {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                      {{validity_period, refresh}, {13, days}}]
-]}.
-```
-
 Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
 
 #### Required keys
 
-Keys are used for signing binary tokens using an HMAC with SHA-2 family function SHA-384.
-Therefore, `mod_auth_token` requires `mod_keystore` to provide some predefined keys.
-
-The required keys are (example from `mongooseim.cfg`):
-
-```erlang
-{mod_keystore, [{keys, [{token_secret, ram},
-                        {provision_pre_shared, {file, "priv/provision_pre_shared.key"}}]}]}
-```
-
-`token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk) key used for signing and verifying access and refresh tokens.
-
-`provision_pre_shared` is a key read from a file.
-As its name suggests, it's shared with a service issuing provision tokens.
-Clients then use these provision tokens to authenticate with MongooseIM.
-
-While it's not enforced by the server and left completely to the operator, `provision_pre_shared` keys probably should not be shared between virtual XMPP domains hosted by the server.
-That is, make sure the module configuration specifying a `provision_pre_shared` key is specific to an XMPP domain.
-
-MongooseIM can't generate provision tokens on its own (neither can it distribute them to clients), so while configuring a `provision_pre_shared` key to be RAM-only is technically possible, it would in practice disable the provision token support (as no external service could generate a valid token with this particular RAM key).
+To read more about the keys MongooseIM makes use of, please refer to [mod_keystore](mod_keystore.md) documentation.
 
 ### Token types
 
@@ -193,9 +155,10 @@ Access token validity can't be sidestepped right now.
 
 ### Example configuration
 
-```erlang
-{modules, [
-    {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                      {{validity_period, refresh}, {13, days}}]
-]}.
+```
+[modules.mod_auth_token]
+  validity_period = [
+    {token = "access", value = 13, unit = "minutes"},
+    {token = "refresh", value = 13, unit = "days"}
+  ]
 ```

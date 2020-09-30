@@ -51,6 +51,7 @@
                   erl_csv_generator,
                   trails,
                   cowboy_swagger,
+                  tomerl,
                   flatlog
                  ]},
   {env, []},

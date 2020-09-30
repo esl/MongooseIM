@@ -1,0 +1,77 @@
+[general]
+  hosts = [
+    "localhost",
+    "anonymous.localhost"
+  ]
+  http_server_name = "Apache"
+  rdbms_server_type = "mssql"
+  override = ["local", "global", "acls"]
+  pgsql_users_number_estimate = true
+  route_subdomains = "s2s"
+  routing_modules = [
+      "mongoose_router_global",
+      "mongoose_router_localdomain"
+  ]
+  replaced_wait_timeout = 2000
+  hide_service_name = true
+
+  [general.mongooseimctl_access_commands.local]
+    commands = ["join_cluster"]
+    argument_restrictions.node = "mongooseim@prime"
+
+[auth]
+  http.basic_auth = "admin:admin"
+  riak.bucket_type = "user_bucket"
+
+  [auth.anonymous]
+    protocol = "sasl_anon"
+    allow_multiple_connections = true
+
+  [auth.external]
+    program = "/usr/bin/authenticator"
+    instances = 1
+
+  [auth.jwt]
+    secret.value = "secret123"
+    algorithm = "RS256"
+    username_key = "user"
+
+  [auth.ldap]
+    pool_tag = "default"
+    bind_pool_tag = "bind"
+    base = "ou=Users,dc=esl,dc=com"
+    filter = "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"
+    dn_filter.filter = "(&(name=%s)(owner=%D)(user=%u@%d))"
+    dn_filter.attributes = ["sn"]
+    local_filter.operation = "equal"
+    local_filter.attribute = "accountStatus"
+    local_filter.values = ["enabled"]
+    deref = "never"
+
+    [[auth.ldap.uids]]
+      attr = "uid"
+
+    [[auth.ldap.uids]]
+      attr = "uid2"
+      format = "%u"
+
+[[listen.http]]
+  port = 5280
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
+
+    [listen.http.handlers.mod_websockets.service]
+      access = "all"
+      shaper_rule = "fast"
+      password = "secret"
+      max_fsm_queue = 1000
+
+[services.service_mongoose_system_metrics]
+  report = true
+  initial_report = 300_000
+  periodic_report = 10_800_000
+  tracking_id = "UA-123456789"

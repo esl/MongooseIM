@@ -24,7 +24,6 @@
 -define(DOMAIN2, <<"localhost2">>).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
--define(CERT_PATH, "../../../../tools/ssl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -95,14 +94,16 @@ end_per_suite(Config) ->
     Config.
 
 init_per_group(cert_auth, Config) ->
+    Root = small_path_helper:repo_dir(Config),
+    SslDir = filename:join(Root, "tools/ssl"),
     try
-        {ok, Cert1} = file:read_file(?CERT_PATH ++ "/mongooseim/cert.pem"),
-        {ok, Cert2} = file:read_file(?CERT_PATH ++ "/ca/cacert.pem"),
+        {ok, Cert1} = file:read_file(filename:join(SslDir, "mongooseim/cert.pem")),
+        {ok, Cert2} = file:read_file(filename:join(SslDir,  "ca/cacert.pem")),
         [{'Certificate', DerBin, not_encrypted} | _] = public_key:pem_decode(Cert2),
         [{der_cert, DerBin}, {pem_cert1, Cert1}, {pem_cert2, Cert2} | Config]
     catch
         _:E ->
-            {skip, {E, ?CERT_PATH, element(2, file:get_cwd())}}
+            {skip, {E, SslDir, element(2, file:get_cwd())}}
     end;
 init_per_group(GroupName, Config) ->
     Config2 = lists:keystore(scram_group, 1, Config,

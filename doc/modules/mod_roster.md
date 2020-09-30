@@ -1,34 +1,60 @@
 ### Module Description
-The module implements roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html). 
-Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html). 
+The module implements roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
+Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
 It can sometimes become quite a heavyweight feature, so there is an option to disable it.
 
 ### Options
 
-* `iqdisc` (default: `one_queue`)
-* `versioning` (boolean, default: `false`): Turn on/off support for Roster Versioning.
-* `store_current_id` (boolean, default: `false`): Stores the last roster hash in DB (used in Roster Versioning). 
- Improves performance but should be disabled, when shared rosters are used.
-* `backend` (atom, default: `mnesia`): Storage backend. 
- Currently `mnesia`, `rdbms` and `riak` are supported.
+#### `modules.mod_roster.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
+* **Default:** "one_queue"
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+
+#### `modules.mod_roster.versioning`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `versioning = true`
+
+Turn on/off support for Roster Versioning.
+
+#### `modules.mod_roster.store_current_id`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `store_current_id = true`
+
+Stores the last roster hash in DB (used in Roster Versioning).
+Improves performance but should be disabled, when shared rosters are used.
+
+#### `modules.mod_roster.backend`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "mnesia"`
 
 ### Example configuration
 ```
-{mod_roster, [
-               {versioning, true},
-               {store_current_id, true}
-             ]}
+[modules.mod_roster]
+  versioning = true
+  store_current_id = true
 ```
 
 ##### Riak-specific options
 
-* `bucket_type` (default `<<"rosters">>`) - Riak bucket type.
+#### `modules.mod_roster.riak.bucket_type`
+* **Syntax:** string
+* **Default:** `"rosters"`
+* **Example:** `riak.bucket_type = "rosters"`
 
-* `version_bucket_type` (default `<<"roster_versions">>`) - Riak bucket type for versions information
+#### `modules.mod_roster.riak.version_bucket_type`
+* **Syntax:** string
+* **Default:** `"roster_versions"`
+* **Example:** `riak.version_bucket_type = "roster_versions"`
 
 ### Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM,
+please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
 | Backend action | Description (when it gets incremented) |
 | ---- | -------------------------------------- |
@@ -41,4 +67,3 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `roster_subscribe_t` | A subscription status between users is updated inside a transaction. |
 | `update_roster_t` | A roster entry is updated in a transaction. |
 | `del_roster_t` | A roster entry is removed inside a transaction. |
-

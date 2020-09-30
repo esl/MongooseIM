@@ -15,7 +15,7 @@ This module contains command definitions loaded when the module is activated.
 There are no more configuration parameters, so the following entry in the config file is sufficient:
 
 ```
-{mod_commands, []]},
+[modules.mod_commands]
 ```
 
 ## Command definition

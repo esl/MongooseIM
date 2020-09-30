@@ -71,7 +71,7 @@ required_modules() ->
     [{mod_register, mod_register_options()}].
 
 mod_register_options() ->
-    [{welcome_message, {""}},
+    [{welcome_message, {"", ""}},
      {ip_access, [{allow, "127.0.0.0/8"},
      {deny, "0.0.0.0/0"}]},
      {access, register},

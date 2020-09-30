@@ -55,7 +55,7 @@
 
 -export([other_cluster_nodes/0]).
 
--import(mongoose_config_parser, [can_be_ignored/1]).
+-import(mongoose_config_reload, [can_be_ignored/1]).
 
 -export([apply_reloading_change/1]).
 
@@ -89,7 +89,7 @@ start() ->
                          {local_content, true},
                          {attributes, record_info(fields, local_config)}]),
     mnesia:add_table_copy(local_config, node(), ram_copies),
-    Config = get_ejabberd_config_path(),
+    Config = get_config_path(),
     ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
     add_local_option(node_start, {node_start, erlang:system_time(second)}),
@@ -97,11 +97,11 @@ start() ->
 
 
 %% @doc Get the filename of the ejabberd configuration file.
-%% The filename can be specified with: erl -config "/path/to/mongooseim.cfg".
+%% The filename can be specified with: erl -config "/path/to/mongooseim.toml".
 %% It can also be specified with the environtment variable EJABBERD_CONFIG_PATH.
-%% If not specified, the default value 'mongooseim.cfg' is assumed.
--spec get_ejabberd_config_path() -> string().
-get_ejabberd_config_path() ->
+%% If not specified, the default value 'mongooseim.toml' is assumed.
+-spec get_config_path() -> string().
+get_config_path() ->
     DefaultPath = case os:getenv("EJABBERD_CONFIG_PATH") of
                       false ->
                           ?CONFIG_PATH;
@@ -116,77 +116,12 @@ get_ejabberd_config_path() ->
 %% This function will crash if finds some error in the configuration file.
 -spec load_file(File :: string()) -> ok.
 load_file(File) ->
-    State = parse_file(File),
+    State = mongoose_config_parser:parse_file(File),
     assert_required_files_exist(State),
     set_opts(State).
 
-
-%% @doc Read an ejabberd configuration file and return the terms.
-%% Input is an absolute or relative path to an ejabberd config file.
-%% Returns a list of plain terms,
-%% in which the options 'include_config_file' were parsed
-%% and the terms in those files were included.
--spec get_plain_terms_file(string()) -> [term()].
-get_plain_terms_file(File1) ->
-    File = mongoose_config_utils:get_absolute_path(File1),
-    case file:consult(File) of
-        {ok, Terms} ->
-            include_config_files(Terms);
-        {error, {LineNumber, erl_parse, _ParseMessage} = Reason} ->
-            ExitText = describe_config_problem(File, Reason, LineNumber),
-            ?LOG_ERROR(#{what => ejabberd_config_file_loading_failed, 
-                         file => File, line => LineNumber, reason => Reason}),
-            mongoose_config_utils:exit_or_halt(ExitText);
-        {error, Reason} ->
-            ExitText = describe_config_problem(File, Reason),
-            ?LOG_ERROR(#{what => mim_config_file_loading_failed,
-                         file => File, reason => Reason}),
-            mongoose_config_utils:exit_or_halt(ExitText)
-    end.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Errors reading the config file
-
--type config_problem() :: atom() | {integer(), atom() | tuple(), _}. % spec me better
-
--spec describe_config_problem(Filename :: string(),
-                              Reason :: config_problem()) -> string().
-describe_config_problem(Filename, Reason) ->
-    Text1 = lists:flatten("Problem loading MongooseIM config file " ++ Filename),
-    Text2 = lists:flatten(" : " ++ file:format_error(Reason)),
-    ExitText = Text1 ++ Text2,
-    ExitText.
-
-
--spec describe_config_problem(Filename :: string(),
-                              Reason :: config_problem(),
-                              Line :: pos_integer()) -> string().
-describe_config_problem(Filename, Reason, LineNumber) ->
-    Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
-    Text2 = lists:flatten(" approximately in the line "
-                          ++ file:format_error(Reason)),
-    ExitText = Text1 ++ Text2,
-    Lines = mongoose_config_utils:get_config_lines(Filename, LineNumber, 10, 3),
-    ?LOG_ERROR(#{what => mim_config_file_loading_failed, lines => Lines,
-                 text => <<"The following lines from your configuration file might be relevant to the error">>}),
-    ExitText.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Support for 'include_config_file'
-
-%% @doc Include additional configuration files in the list of terms.
--spec include_config_files([term()]) -> [term()].
-include_config_files(Terms) ->
-    Filenames = mongoose_config_parser:config_filenames_to_include(Terms),
-    Configs = lists:map(fun(Filename) ->
-            {Filename, get_plain_terms_file(Filename)}
-        end, Filenames),
-    mongoose_config_parser:include_config_files(Terms, Configs).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
-
 
 -spec set_opts(state()) -> 'ok' | none().
 set_opts(State) ->
@@ -296,9 +231,8 @@ get_local_option_or_default(Opt, Default) ->
 
 %% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
-    mnesia:dirty_select(local_config,
-                        [{#local_config{key   = {auth_method, '$1'},
-                                        value = AuthMethod}, [], ['$1']}]).
+    lists:filter(fun(Host) -> lists:member(AuthMethod, ejabberd_auth:auth_methods(Host)) end,
+                 ?MYHOSTS).
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),
@@ -316,11 +250,6 @@ handle_table_does_not_exist_error(Table) ->
 %%--------------------------------------------------------------------
 %% Configuration reload
 %%--------------------------------------------------------------------
--spec parse_file(file:name()) -> state().
-parse_file(ConfigFile) ->
-    Terms = get_plain_terms_file(ConfigFile),
-    mongoose_config_parser:parse_terms(Terms).
-
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
     reload_nodes(reload_local, [node()], false).
@@ -469,7 +398,7 @@ handle_config_del(#config{key = hosts, value = Hosts}) ->
 
 %% handle add/remove new hosts
 handle_config_change({hosts, OldHosts, NewHosts}) ->
-    {ToDel, ToAdd} = mongoose_config_parser:check_hosts(NewHosts, OldHosts),
+    {ToDel, ToAdd} = mongoose_config_reload:check_hosts(NewHosts, OldHosts),
     lists:foreach(fun remove_virtual_host/1, ToDel),
     lists:foreach(fun add_virtual_host/1, ToAdd);
 handle_config_change({language, _Old, _New}) ->
@@ -589,7 +518,7 @@ get_host_local_config() ->
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun mongoose_config_parser:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun mongoose_config_reload:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
                                 mnesia:dirty_read(local_config, Key)
                             end,
@@ -610,17 +539,17 @@ get_categorized_options() ->
 %% This function prepares all state data to pass into pure code part
 %% (i.e. mongoose_config_parser and mongoose_config_reload).
 config_state() ->
-    ConfigFile = get_ejabberd_config_path(),
-    Terms = get_plain_terms_file(ConfigFile),
+    ConfigFile = get_config_path(),
+    State = mongoose_config_parser:parse_file(ConfigFile),
     %% Performance optimization hint:
     %% terms_to_missing_and_required_files/1 actually parses Terms into State.
     #{missing_files := MissingFiles,
       required_files := RequiredFiles} =
-        terms_to_missing_and_required_files(Terms),
+        state_to_missing_and_required_files(State),
     #{mongoose_node => node(),
       config_file => ConfigFile,
       loaded_categorized_options => get_categorized_options(),
-      ondisc_config_terms => Terms,
+      ondisc_config_state => State,
       missing_files => MissingFiles,
       required_files => RequiredFiles}.
 
@@ -641,8 +570,8 @@ config_states(Nodes) ->
     end.
 
 compute_config_file_version() ->
-    ConfigFile = get_ejabberd_config_path(),
-    State = parse_file(ConfigFile),
+    ConfigFile = get_config_path(),
+    State = mongoose_config_parser:parse_file(ConfigFile),
     mongoose_config_reload:compute_config_file_version(State).
 
 compute_loaded_config_version() ->
@@ -677,8 +606,7 @@ assert_required_files_exist(State) ->
                            filenames => MissingFiles})
     end.
 
-terms_to_missing_and_required_files(Terms) ->
-    State = mongoose_config_parser:parse_terms(Terms),
+state_to_missing_and_required_files(State) ->
     RequiredFiles = mongoose_config_parser:state_to_required_files(State),
     MissingFiles = missing_files(RequiredFiles),
     #{missing_files => MissingFiles, required_files => RequiredFiles}.

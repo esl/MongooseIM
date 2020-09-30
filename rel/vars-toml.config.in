@@ -1,0 +1,64 @@
+{node_name, "mongooseim@localhost"}.
+
+{c2s_port, 5222}.
+{outgoing_s2s_port, 5269}.
+{incoming_s2s_port, 5269}.
+{http_port, 5280}.
+{https_port, 5285}.
+
+% vm.args
+{highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.
+
+% TOML config
+{hosts, "\"localhost\""}.
+{host_config, ""}.
+{auth_ldap, ""}.
+{s2s_addr, ""}.
+{s2s_default_policy, "\"deny\""}.
+{mod_amp, ""}.
+{listen_service, "[[listen.service]]
+  port = 8888
+  access = \"all\"
+  shaper_rule = \"fast\"
+  ip_address = \"127.0.0.1\"
+  password = \"secret\""}.
+{mod_last, "[modules.mod_last]"}.
+{mod_offline, "[modules.mod_offline]
+  access_max_user_messages = \"max_user_offline_messages\""}.
+{mod_privacy, "[modules.mod_privacy]"}.
+{mod_blocking, "[modules.mod_blocking]"}.
+{mod_private, "[modules.mod_private]"}.
+{mod_roster, "[modules.mod_roster]"}.
+{mod_vcard, "[modules.mod_vcard]
+  host = \"vjud.@HOST@\""}.
+{sm_backend, "\"mnesia\""}.
+{auth_method, "\"internal\""}.
+{cyrsasl_external, "\"standard\""}.
+{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"
+  tls.mode = \"starttls\""}.
+{tls_module, ""}.
+{https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"
+  tls.keyfile = \"priv/ssl/fake_key.pem\"
+  tls.password =  \"\""}.
+{zlib, ""}.
+{outgoing_pools, ""}.
+{http_api_old_endpoint, "ip_address = \"127.0.0.1\"
+  port = 5288"}.
+{http_api_endpoint, "ip_address = \"127.0.0.1\"
+  port = 8088"}.
+{http_api_client_endpoint, "port = 8089"}.
+{s2s_use_starttls, "use_starttls = \"optional\""}.
+{s2s_certfile, "certfile = \"priv/ssl/fake_server.pem\""}.
+{sasl_mechanisms, ""}.
+{all_metrics_are_global, "false"}.
+
+%% Defined in Makefile by appending configure.vars.config
+%% Uncomment for manual release generation.
+%{mongooseim_runner_user, ""}.
+%{mongooseim_script_dir, "$(cd ${0%/*} && pwd)"}.
+%{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
+%{mongooseim_log_dir, "log"}.
+%{mongooseim_mdb_dir, "$RUNNER_BASE_DIR/Mnesia.$NODE"}.
+%{mongooseim_mdb_dir_toggle, "%"}.
+%{mongooseim_lock_dir, "$EJABBERD_DIR/var/lock"}.
+%{mongooseim_nodetool_etc_dir, "etc"}.
