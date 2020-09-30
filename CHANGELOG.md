@@ -1,3 +1,44 @@
+# [MongooseIM 4.0.0](https://github.com/esl/MongooseIM/releases/tag/4.0.0) - 2020-09-30
+## Overview
+MongooseIM 4.0 is all about putting a friendly face to MongooseIM’s amazing features.
+This includes the addition of an Erlang-agnostic configuration allowing a broader pool of developers to benefit from MongooseIM.
+Logging and Kubernetes improvements to be more DevOps-friendly and Manager-friendly with load testing enabling managers to see the benefits of MongooseIM easily.
+
+## All changes
+
+### Added
+* A new configuration file format: MongooseIM can now be configured with an entirely revamped [TOML](https://github.com/toml-lang/toml) configuration file (#2801)
+  * Pesky bugs have been fixed
+  * Implementation details have been abstracted away
+  * Documentation has been improved
+* Structured logging: the main idea of structured logging is that if we have properties of an event, let’s log them as they are, without losing their structure, and format it in a way that is most appropriate for the system we’re sending them to.
+  * Moved to [OTP logger](https://erlang.org/doc/man/logger.html) from [lager](https://github.com/erlang-lager/lager) (#2810)
+  * Moved away from [lager](https://github.com/erlang-lager/lager), towards [OTP logger](https://erlang.org/doc/man/logger.html) (#2810)
+  * No more logging of man-made strings, we now log structured reports (#2816)
+  * `logfmt` formatter, a log format that's easy to read and write (#2848)
+  * `JSON` formatter, a fully structured format (#2851)
+* [XEP-0215](https://xmpp.org/extensions/xep-0215.html) External Service Discovery (#2870)
+* A REST endpoint for admin users which accepts any stanza, provided it has `from` and `to` attributes (#2858)
+* `erl_crash.dump` dumping directory can be explicitly set (#2793)
+
+### Changed
+* Archiving messages takes input as a map instead of as many parameters (#2749)
+* Base16 encoding uses a faster algorithm (#2839)
+
+### Other
+* OTP-23 compatible (#2840)
+* SCRAM password dumping into RDBMS escapes username correctly (#2842)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A4.0.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2020-05-23..2020-09-30+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-05-23&to=2020-09-30&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-05-23..2020-09-30%22%20sort%3Acreated-asc%20)
+
+## Special thanks to our contributors:
+- [@balgillo](https://github.com/balgillo) For the small but many important fixes.
+
 # [MongooseIM 3.7.1](https://github.com/esl/MongooseIM/releases/tag/3.7.1) - 2020-07-13
 
 ## Highlights
