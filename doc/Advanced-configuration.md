@@ -35,32 +35,6 @@ Each configuration option has its **scope**, which is one of the following:
 
 The scope of each option is defined in the documentation above - either at the top of the section page or for each option individually.
 
-### Outgoing connections setup
-
-* **outgoing_pools** (local)
-    * **Description** Declares pools for outgoing connections.
-      See more in [outgoing connections configuration](./advanced-configuration/outgoing-connections.md)
-    * **Syntax** `[{Type, Host, Tag, PoolOptions, ConnectionOptions}]`
-    * **Example**:
-```erlang
-        [{riak, global, default, [], [{address, "127.0.0.1"}]},
-         {http, host, auth, [], [{server, "127.0.0.1"}]}
-```
-
-### Modules
-
-For a specific configuration, please refer to the [Modules](advanced-configuration/Modules.md) page.
-
-* **modules** (local)
-    * **Description:** List of enabled modules with their options.
-
-### Services
-
-For a specific configuration, please refer to the [Services](advanced-configuration/Services.md) page.
-
-* **services** (local)
-    * **Description:** List of enabled services with their options.
-
 # vm.args
 
 This file contains parameters passed directly to the Erlang VM. To configure it, go to `[MongooseIM root]/rel/files/`.

@@ -103,7 +103,7 @@ The last section would work the same without `methods`:
 
 ## `host_config.modules`
 
-This section completely overrides the top-level [`modules`](modules.md) section. All options are allowed.
+This section completely overrides the top-level [`modules`](../Modules) section. All options are allowed.
 
 #### Example
 
