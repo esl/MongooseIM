@@ -174,7 +174,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec does_stored_user_exist(jid:luser(), jid:lserver()) -> boolean().
 does_stored_user_exist(LUser, LServer) ->
-    ejabberd_auth:is_user_exists(LUser, LServer)
+    ejabberd_auth:does_user_exist(LUser, LServer)
     andalso not is_anonymous_user(LUser, LServer).
 
 

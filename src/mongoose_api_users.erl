@@ -82,7 +82,7 @@ put_user(Data, Bindings) ->
 delete_user(Bindings) ->
     Host = gen_mod:get_opt(host, Bindings),
     Username = gen_mod:get_opt(username, Bindings),
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    case ejabberd_auth:does_user_exist(Username, Host) of
         true ->
             maybe_delete_user(Username, Host);
         false ->

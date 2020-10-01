@@ -46,7 +46,7 @@
          get_password_s/2,
          get_passterm_with_authmodule/2,
          does_user_exist/1,
-         is_user_exists/2,
+         does_user_exist/2,
          is_user_exists_in_other_modules/3,
          remove_user/2,
          supports_sasl_module/2,
@@ -304,7 +304,7 @@ try_register(User, Server, Password) ->
 do_try_register(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
     {error, invalid_jid};
 do_try_register(LUser, LServer, Password) ->
-    Exists = is_user_exists(LUser, LServer),
+    Exists = does_user_exist(LUser, LServer),
     do_try_register_if_does_not_exist(Exists, LUser, LServer, Password).
 
 do_try_register_if_does_not_exist(true, _, _, _) ->
@@ -462,24 +462,17 @@ do_get_passterm_with_authmodule(LUser, LServer) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists(User :: jid:user(),
-                     Server :: jid:server()) -> boolean().
-is_user_exists(<<"">>, _) ->
+-spec does_user_exist(User :: jid:user(), Server :: jid:server()) -> boolean().
+does_user_exist(<<>>, _) ->
     false;
-is_user_exists(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_does_user_exist(LUser, LServer).
+does_user_exist(User, Server) ->
+    does_user_exist(jid:make(User, Server, <<>>)).
 
--spec does_user_exist(JID :: jid:jid()) -> boolean().
-does_user_exist(JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
-    do_does_user_exist(LUser, LServer).
-
-do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    false;
-do_does_user_exist(LUser, LServer) ->
-    timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]).
+-spec does_user_exist(JID :: jid:jid() | error) -> boolean().
+does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
+    timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]);
+does_user_exist(error) ->
+    false.
 
 does_user_exist_timed(LUser, LServer) ->
     lists:any(
