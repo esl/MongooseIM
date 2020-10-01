@@ -36,7 +36,7 @@ Possible values are the standard syslog severity levels, plus all or none:
 ```toml
 [general]
   loglevel = "notice"
- ```
+```
 
 If a user sets the log level to `all`, then they would see all messages in logs.
 
