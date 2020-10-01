@@ -4,32 +4,26 @@
 
 Commands used by the REST API are provided by modules:
 
-`mod_commands` - provides general purpose commands: both user-like (f.e. sending a message and retrieving messages from the archive) and administration-like (f.e. create/delete a user and change the password)
+`mod_commands` - provides general purpose commands: both user-like (e.g. sending a message and retrieving messages from the archive) and administration-like (e.g. create/delete a user and change the password).
 
 `mod_muc_commands` - commands related to Multi-user Chat rooms: create a room, invite users, send a message etc.
 
 `mod_muc_light_commands` - same but for rooms based on the muc-light protocol.
 
-To activate those commands, put modules you need into the mongooseim.cfg file:
+To activate those commands, put modules you need into the `mongooseim.toml` file:
+
+```toml
+  [modules.mod_commands]
+
+  [modules.mod_muc_commands]
+
+  [modules.mod_muc_light_commands]
 
 ```
-  {mod_commands, []},
-  {mod_muc_commands, []},
-  {mod_muc_light_commands, []},
 
-```
-
-You also have to hook `mongoose_api_admin` module to an HTTP endpoint:
-
-```
-  { {8088, "127.0.0.1"} , ejabberd_cowboy, [
-      {num_acceptors, 10},
-      {transport_options, [{max_connections, 1024}]},
-      {modules, [
-          {"localhost", "/api", mongoose_api_admin, []}
-      ]}
-  ]},
-```
+You also have to hook `mongoose_api_admin` module to an HTTP endpoint as described
+in the [admin REST API handlers configuration](../advanced-configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
+section of the [listeners](../advanced-configuration/listen.md) documentation.
 
 ## OpenAPI specifications
 

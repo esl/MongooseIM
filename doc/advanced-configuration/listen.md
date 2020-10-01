@@ -419,7 +419,7 @@ There are the following options for each of the HTTP listeners:
     These types are described below in more detail.
     The double-bracket syntax is used because there can be multiple handlers of a given type, so for each type there is a TOML array of one or more tables (subsections).
 
-* **Default:** there is no default, all handlers need to be specified explicitely.
+* **Default:** there is no default, all handlers need to be specified explicitly.
 * **Example:** two handlers, one for BOSH and one for WebSockets
 ```toml
   [[listen.http.handlers.mod_bosh]]
