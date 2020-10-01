@@ -1,18 +1,17 @@
 # Fields
 
-- reason, class, stacktrace - standard error catching fields.
-- module, function, line, timestamp, node, when, pid - reserved fields (could be used by logger itself).
-When logging IQs, adding `acc` field should be enough. If `acc` not available, `iq` can be used.
-If `iq` is not available, `sub_el` could be logged as last option.
-- what - why we are logging. If something goes wrong, use `_failed` suffix (instead of `unable_to` and `_error`).
-  The common suffixes are `_starting`, `_started`, `_stopping`, `_stopped`, `_result`.
-  We often use function name as `what` field.
-  We sometimes adding prefixes to `what` to signal where we are logging from.
-  Such prefixes should be short. Please, don't prefix with the complete module name.
-  Examples for prefixes: `mam_`, `sm_`, `muc_`, `auth_`, `s2s_`, `pool_`.
-  When checking the final event name, remove duplicates from it.
-  Good event names: `s2s_dns_lookup_failed`
-  Bad event names: `s2s_dns_error`, 
+* `reason`, `class`, `stacktrace`: standard error catching fields.
+* `module`, `function`, `line`, `timestamp`, `node`, `when`, `pid`: reserved fields (could be used by logger itself).
+* When logging IQs, adding the `acc` field should be enough. If `acc` not available, `iq` can be used.
+  If `iq` is not available, `sub_el` could be logged as a last option.
+* `what`: why we are logging. We often use the function name as the `what` field.
+    * *Suffixes*: If something goes wrong, use a `_failed` suffix (instead of `unable_to` and `_error`).
+      The most common suffixes are `_starting`, `_started`, `_stopping`, `_stopped`, and `_result`.
+    * *Prefixes*: We sometimes add prefixes to `what` to signal where we are logging from.
+      Such prefixes should be short. Please, don't prefix with the complete module name.
+      Some examples for prefixes are: `mam_`, `sm_`, `muc_`, `auth_`, `s2s_`, `pool_`.
+
+When checking the final event name, remove duplicates from it.
 
 | Bad event names                    | Good event names         | Why                               |
 |------------------------------------|--------------------------|-----------------------------------|
@@ -21,9 +20,10 @@ If `iq` is not available, `sub_el` could be logged as last option.
 | `mod_mam_starting`                 | `mam_starting`           | Use `mam_` prefix for MAM modules |
 | `mongoose_wpool_mgr_pool_starting` | `pool_starting`          | Too long and repetitive           |
 
-
 ## Logger defaults
+
 Timestamp should be ordered first when possible, so that sorting is automatic.
+
 | Name          | Type    | Description                                         | Examples                  |
 |---------------|---------|-----------------------------------------------------|---------------------------|
 | timestamp     | atom    | The timestamp (with timezone information)           | 2018-07-11T13:41:10+00:00 |
@@ -31,6 +31,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | level         | enum    | log level according to RFC 5424                     | warning                   |
 
 ## Generally required
+
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
 | what          | atom    | Event (or issue) name                               | remove_user_failed                  |                                    |
@@ -39,6 +40,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | tags          | [atom]  | The subcomponent taking action and logging data.    | [c2s, presence], [mam, rdbms]       | This category should be chosen based on filtering needs, and may represent the domain of concern for some operations |
 
 ## HTTP requests
+
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
 | path          | binary  | HTTP path                                           | `<<"/api/add_user">>`               |                                    |
@@ -49,6 +51,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | req           | map     | Cowboy request                                      |                                     | Provide when available             |
 
 ## XMPP
+
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
 | acc           | map     | Accumulator, that would be used by formatter        | `#{...}`                            |                                    |
@@ -66,6 +69,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | exml_packet   | record  | Same as packet, but in `#xmlel{}` format            | `#xmlel{}`                          | Record, formatted in formatter     |
 
 ## Other requests
+
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
 | duration      | integer | Duration of some operation in milliseconds          | 5000                                | Don't use it for microseconds      |
@@ -75,6 +79,7 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 
 ## When logging exceptions
 `what` key should contain en `_exception` suffix. Following keys should be present:
+
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
 | class         | enum    | `catch Class:Reason:Stacktrace`                     | `error`                             |                                    |
