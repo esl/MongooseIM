@@ -14,28 +14,21 @@ To enable integration with MongoosePush, it is as simple as the next two steps.
 First, you need to define a pool of HTTPS connections to MongoosePush in the
 `outgoing_pools` section:
 
-```Erlang
-{outgoing_pools, [
-    (...)
-    {http, global, mongoose_push_http,
-        [{strategy, available_worker}],
-        [{server, "https://localhost:8443"}]},
-    (...)
-    ]
-}.
+```toml
+[outgoing_pools.http.mongoose_push_http]
+  scope = "global"
+  strategy = "available_worker"
+
+  [outgoing_pools.http.mongoose_push_http.connection]
+    host = "https://localhost:8443"
 ```
 
 And second, you need to add `mod_push_service_mongoosepush` to the `modules` section in the config file:
 
-```Erlang
-{modules, [
-    (...)
-    {mod_push_service_mongoosepush, [
-        {pool_name, mongoose_push_http},
-        {api_version, "v3"}]},
-    (...)
-    ]
-}.
+```toml
+[modules.mod_push_service_mongoosepush]
+  pool_name = mongoose_push_http
+  api_version = "v3"
 ```
 
 Here, we assume that [MongoosePush][] will be available on the localhost on port 8443, which is the

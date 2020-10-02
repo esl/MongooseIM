@@ -89,9 +89,7 @@ mongooseimctl bootstrap
 
 It executes scripts inside the `scripts/` directory with a `bootstrap` prefix in alphabetical order. [More information](Bootstrap-Scripts.md)
 
-Execute /Users/mikhailuvarov/erlang/esl/MongooseIM/_build/prod/rel/mongooseim/scripts/bootstrap01-hello.sh
-Hello from /Users/mikhailuvarov/erlang/esl/MongooseIM/_build/prod/rel/mongooseim/scripts/bootstrap01-hello.sh script.
-MongooseIM is installed into /Users/mikhailuvarov/erlang/esl/MongooseIM/_build/prod/rel/mongooseim
+Execute `Hello` from `scripts/bootstrap01-hello.sh` script you can find in the release directory `$REPO_DIR/_build/prod/rel/mongooseim`.
 
 ## Chat users
 

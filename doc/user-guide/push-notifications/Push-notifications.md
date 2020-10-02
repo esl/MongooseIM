@@ -47,17 +47,14 @@ and the IQ stanza is routed internally.
 A direct connection to a push service (e.g. MongoosePush) must be configured on the same MongooseIM
 node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
-```erlang
-{mod_pubsub, [{plugins, [<<"push">>]}]}, % mandatory minimal config
-{mod_event_pusher, [
-    {backends, [
-        {push, [
-            {backend, mnesia}, % optional
-            {wpool, [{workers, 200}]}, % optional
-            {plugin_module, mod_event_pusher_push_plugin_defaults} % optional
-        ]}
-    ]}
-]}
+```toml
+[modules.mod_pubsub]
+  plugins = ["push] # mandatory minimal config
+
+[modules.mod_event_pusher]
+  backend.push.backend = "mnesia" # optional
+  backend.push.wpool.workers = 200 # optional
+  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
 ```
 
 #### Advantages
@@ -82,17 +79,12 @@ must be provided [as a publish option](https://xmpp.org/extensions/xep-0357.html
 A direct connection to a push service (e.g. MongoosePush) must be configured on the same MongooseIM
 node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
-```Erlang
-{mod_event_pusher, [
-    {backends, [
-        {push, [
-            {backend, mnesia}, % optional
-            {wpool, [{workers, 200}]}, % optional
-            {plugin_module, mod_event_pusher_push_plugin_defaults}, % optional
-            {virtual_pubsub_hosts, ["virtual.@HOSTS@"]}
-        ]}
-    ]}
-]}
+```toml
+[modules.mod_event_pusher]
+  backend.push.backend = "mnesia" # optional
+  backend.push.wpool.workers = 200 # optional
+  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
+  backend.push.virtual_pubsub_hosts = ["pubsub.@HOSTS@"]
 ```
 
 #### Advantages

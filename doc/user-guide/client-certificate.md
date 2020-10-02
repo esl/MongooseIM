@@ -5,35 +5,39 @@ This method uses the `SASL EXTERNAL` mechanism.
 
 ## Server-side prerequisites
 
-### Properly configure `ejabberd_c2s` listener
+### Properly configure Client-to-server (C2S) listener
 
 A server must request the certificate from a client, so you'll need to enable `verify_peer` option and provide a path to CA chain that may be used for client's certificate check (`cafile` option).
 
-Please check [Listener modules](../advanced-configuration/Listener-modules.md#client-to-server-c2s-ejabberd_c2s) page for more information or simply follow the examples at the end of this section.
+Please check [Listener modules](../../advanced-configuration/listen/#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
 
-### Properly configure `ejabberd_cowboy` listener
+### Properly configure `http` listener
 
 SASL EXTERNAL authentication is also possible for WebSocketSecure and BOSH connections over HTTPS.
-Similarly as in `ejabberd_c2s` case, the server must request the certificate from the client.
-In this case it's enabled by adding the following options to `ssl` option of `ejabberd_cowboy` :
+Similarly as in `client-to-server` case, the server must request the certificate from the client.
+In this case it's enabled by adding the following options to `tls` option of `listen.http` :
 
-* `{verify, verify_peer}` - this is to tell Erlang's SSL to request the cert from the client
-* `{cacertfile, "/path/to/ca.pem"}` - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
+* [`tls.verify_peer = true`](../../advanced-configuration/listen/#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
+* [`tls.cacertfile = "ca.pem"`](../../advanced-configuration/listen/#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
 
-Please check [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy) for more details regarding `ejabberd_cowboy` configuration.
+Please check [Options: Listen](../advanced_configuration/listen/#http-based-services-listenhttp) for more details regarding `http` listener configuration.
 
-### Enable `SASL EXTERNAL` method
+### Enable `SASL EXTERNAL` mechanism
 
-A `SASL EXTERNAL` authentication method is disabled by default.
-In order to enable it, please add [`sasl_mechanisms` option](../Advanced-configuration.md#authentication) to MongooseIM config file.
-Its value must include a `cyrsasl_external` item.
+A `SASL EXTERNAL` authentication mechanism is disabled by default.
+In order to enable it, please configure [`auth.sasl_mechanisms` option](../advanced-configuration/auth/#authsasl_mechanisms) in the MongooseIM config file.
+```toml
+[auth]
+  sasl_mechanisms = ["external"]
+```
+
 Obviously the list may be longer, if the system should support both the certificate and password based authentication.
 
-The `SASL EXTERNAL` authentication method requires a digital client certificate.
+The `SASL EXTERNAL` authentication mechanism requires a digital client certificate.
 This digital certificate should contain `xmppAddr` field(s), which is always checked first.
 If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
 
-When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#auth-sasl-external) option in the `auth` section.
+When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#authsasl_external) option in the `auth` section.
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
@@ -41,11 +45,11 @@ For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNA
 
 ### Enable compatible authentication method
 
-You need to enable one of the following authentication methods by using the [`auth_method` option](../Advanced-configuration.md#authentication) in the MongooseIM configuration file.
+You need to enable one of the following authentication methods by using the [`auth.method` option](../advanced-configuration/auth.md#authmethods) in the MongooseIM configuration file.
 
-* `pki` - accepts user credentials,
-* `http` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)
-* `ldap` - accepts user credentials if a corresponding user account exists in LDAP.
+* `"pki"` - accepts user credentials,
+* `"http"` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)
+* `"ldap"` - accepts user credentials if a corresponding user account exists in LDAP.
 
 ### Self-signed certificates
 
@@ -54,26 +58,29 @@ For development purposes, it is possible to tell MongooseIM to accept them.
 
 #### Self-signed certificates for regular TCP/TLS connections
 
-In order to tell MongooseIM to accept self-signed certs, the `ssl_options` list needs to be added to `ejabberd_c2s` listener config like below:
+In order to tell MongooseIM to accept self-signed certs, the `listen.c2s.tls.verify_mode` option needs to be configured like below:
 
-```Erlang
-{ssl_options, [{verify_fun, {selfsigned_peer, DisconnectOnVerificationFailure}}]}
+```toml
+[listen.c2s]
+  tls.verify_mode = "selfsigned_peer"
+  tls.disconnect_on_failure = false
 ```
 
-where the `DisconnectOnVerificationFailure` is a boolean with the following meaning only for `just_tls`:
+where the `tls.disconnect_on_failure` is a boolean with the following meaning only for `just_tls`:
 
 * `true` - the connection is closed if a certificate is invalid,
 * `false` - the connection isn't closed, but the certificate is not returned if it's invalid.
   This leads to an authentication failure but allows the client to choose a different auth method if available.
 
-For `fast_tls` backend, the configuration is the same, only the `DisconnectOnVerificationFailure` is ignored.
+For `fast_tls` backend, the configuration is the same, only the `disconnect_on_failure` is ignored.
 
 #### Self-signed certificates for WS or BOSH
 
-In order to accept self-signed certs for WS or BOSH connections, the `ssl` option list of `ejabberd_cowboy` must contain the following pair:
+In order to accept self-signed certs for WS or BOSH connections, the `tls` options for `http` listener must have the following configured:
 
-```Erlang
-{verify_mode, selfsigned_peer}
+```toml
+[listen.http]
+  tls.verify_mode = "selfsigned_peer"
 ```
 
 
@@ -81,55 +88,44 @@ In order to accept self-signed certs for WS or BOSH connections, the `ssl` optio
 
 Certificate authentication only.
 
-```Erlang
-{listen, [
-           (...)
-           {5222, ejabberd_c2s, [
-                                  (...)
-                                  {cafile, "/path/to/ca.pem"},
-                                  verify_peer,
-                                  (...)
-                                ]},
-           (...)
+```toml
+[listen.c2s]
+  port = 5222
+  (...)
+  tls.cacertfile = "ca.pem"
+  tls.verify_peer = true
 
-           {5285, ejabberd_cowboy, [
+[listen.http]
+  port = 5285
+  (...)
+  tls.cacertfile = "ca.pem"
+  tls.verify_peer = true
 
-                                    {ssl, [(...),
-                                           {verify, verify_peer},
-                                           {cacertfile, "/path/to/ca.pem"}
-                                           ]},
-                                    {modules, [{mod_websockets, []},
-                                               {mod_bosh, []}]},
-                                    (...)
+  [[listen.http.handlers.mod_bosh]]
+    host = "_"
+    path = "/http-bind"
 
-           ]},
+  [[listen.http.handlers.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
 
-           (...)
-         ]}.
-
-{auth_method, [pki]}.
-
-{sasl_mechanisms, [cyrsasl_external]}.
+[auth]
+  method = ["pki"]
+  sasl_mechanisms = ["external"]
 ```
 
 Authentication with a client certificate (validated with provided CA chain) or password (validated with data stored in RDBMS).
 
-```
-{listen, [
-           (...)
-           {5222, ejabberd_c2s, [
-                                  (...)
-                                  {cafile, "/path/to/ca.pem"},
-                                  verify_peer,
-                                  (...)
-                                ]},
-           (...)
-         ]}.
+```toml
+[listen.c2s]
+  port = 5222
+  (...)
+  tls.cacertfile = "ca.pem"
+  tls.verify_peer = true
 
-
-{auth_method, [rdbms, pki]}.
-
-{sasl_mechanisms, [cyrsasl_scram_sha1, cyrsasl_external]}.
+[auth]
+  methods = ["rdbms", "pki"]
+  sasl_mechanisms = ["scram_sha1", "external"]
 ```
 
 ## Client certificate prerequisites
@@ -166,7 +162,7 @@ You don't need to pre-create a user account in order to log in with a certificat
 3. Jabber ID is `[Common Name from certificate]@localhost` (domain is different if you've changed it in `hosts` option). Press "Next".
 5. Untick "Connect when I press Finish" and press "Advanced".
 6. Unfold "Client certificate" and choose the `.p12` you've created earlier. Tick "Certificate is encrypted".
-7. Click "Close" and set status to "Available". Tell Gajim to ingnore the unverified server certificate (by default it's self-signed).
+7. Click "Close" and set status to "Available". Tell Gajim to ignore the unverified server certificate (by default it's self-signed).
 
 If Gajim fails to connect, try to restart it.
 Version 0.16.8 sometimes "forgets" to ask for the client certificate password.

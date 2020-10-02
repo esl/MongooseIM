@@ -52,7 +52,7 @@ release, run the following command before `make rel`:
 
     $ ./tools/configure with-mysql with-redis
 
-You only need to run the `./tools/configure` command once (unless changing the release's config is needed to 
+You only need to run the `./tools/configure` command once (unless changing the release's config is needed to
 include some other dependencies).
 
 ### System install
@@ -109,7 +109,7 @@ mim-sandbox-system/
 ├── etc
 │   └── mongooseim
 │       ├── app.config
-│       ├── mongooseim.cfg
+│       ├── mongooseim.toml
 │       └── vm.args
 ├── usr
 │   ├── bin
