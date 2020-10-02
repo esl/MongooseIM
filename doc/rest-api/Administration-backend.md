@@ -10,7 +10,7 @@ Commands used by the REST API are provided by modules:
 
 `mod_muc_light_commands` - same but for rooms based on the muc-light protocol.
 
-To activate those commands, put modules you need into the `mongooseim.toml` file:
+To activate those commands, put the modules you need into the `mongooseim.toml` file:
 
 ```toml
   [modules.mod_commands]
@@ -21,7 +21,7 @@ To activate those commands, put modules you need into the `mongooseim.toml` file
 
 ```
 
-You also have to hook `mongoose_api_admin` module to an HTTP endpoint as described
+You also have to hook the `mongoose_api_admin` module to an HTTP endpoint as described
 in the [admin REST API handlers configuration](../advanced-configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
 section of the [listeners](../advanced-configuration/listen.md) documentation.
 

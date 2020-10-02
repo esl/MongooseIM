@@ -41,7 +41,7 @@ to enable REST API.
 
 In order to get the client REST API up and running simply copy the provided example.
 For more details about possible configuration parameters please see the relevant
- documentation of the [listeners](../advanced-configuration/listen.md),
+documentation of the [listeners](../advanced-configuration/listen.md),
 in particular the [client REST API handlers](../advanced-configuration/listen.md#handler-types-rest-api-client)
 section.
 
