@@ -3,18 +3,23 @@
 **Warning:** This API is considered obsolete.
 Please use WombatOAM for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
 
-To expose MongooseIM metrics, an adequate endpoint must be included in the [Cowboy HTTP listener](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy) section.
+To expose MongooseIM metrics, an adequate endpoint must be included in the [listen](../advanced-configuration/listen.md)
+section of `mongooseim.toml`. The specific configuration options are described in
+the [metrics API handlers](../advanced-configuration/listen.md#handler-types-metrics-api-obsolete-mongoose_api)
+section. 
 
-Here's an example:
-```
-...
-{ {5288, "127.0.0.1"}, ejabberd_cowboy, [
-    ...
-    {modules, [
-        {"localhost", "/api", [{handlers, [mongoose_api_metrics]}]}
-    ]}
-]}
-...
+An example configuration:
+
+```toml
+[[listen.http]]
+  port = 5288
+  transport.num_acceptors = 5
+  transport.max_connections = 10  
+
+  [[listen.http.handlers.mongoose_api]]
+    host = "localhost"
+    path = "/api"
+    handlers = ["mongoose_api_metrics"]
 ```
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
