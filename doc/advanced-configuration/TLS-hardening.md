@@ -62,12 +62,11 @@ By default, MongooseIM sets this option to `TLSv1.2:TLSv1.3` for each component.
 
 The list below enumerates all components that use Fast TLS and describes how to change this string.
 
-* `ejabberd_c2s` - main user session abstraction + XMPP over TCP listener
-    * Please consult the respective section in [Listener modules](Listener-modules.md#c2s-ciphers).
-* `ejabberd_s2s_in` - incoming S2S connections (XMPP Federation)
-    * Please consult the respective section in [Listener modules](Listener-modules.md#s2s-ciphers).
-* `ejabberd_s2s_out` - outgoing S2S connections (XMPP Federation)
-    * Please check [the documentation](../Advanced-configuration.md#s2s-ciphers) for `s2s_ciphers` option.
+* `listen.c2s` - main user session abstraction + XMPP over TCP listener
+    * Please consult the respective section in [Listener modules](../listen/#listenc2stlsciphers-for-fast_tls).
+* `listen.s2s` - incoming S2S connections (XMPP Federation)
+    * Please consult the respective section in [Listener modules](../listen/#listens2stlsciphers).
+* `s2s` - outgoing S2S connections (XMPP Federation)
+    * Please check [the documentation](../s2s/#s2sciphers) for `s2s_ciphers` option.
 * `mod_global_distrib` - Global Distribution module
-    * Please add `{ciphers, "string"}` to `tls_opts` parameter of `mod_global_distrib`, as [described in the documentation](../modules/mod_global_distrib.md#tls_opts).
-
+    * Please add `connections.tls.ciphers = "string"` to `modules.mod_global_distrib` module, as [described in the documentation](../modules/mod_global_distrib.md#tls-options).

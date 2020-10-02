@@ -13,20 +13,20 @@ Strategy to handle incoming stanzas. For details, please refer to
 * **Syntax:** array of strings, valid domain names
 * **Default:** no extra domains
 * **Example:** `extra_domains = ["custom_domain"]`
- 
-Adds domains that are not registered with other means to a local item announcement (response to `http://jabber.org/protocol/disco#items` IQ get). 
+
+Adds domains that are not registered with other means to a local item announcement (response to `http://jabber.org/protocol/disco#items` IQ get).
 Please note that `mod_disco` doesn't verify these domains, so if no handlers are registered later for them, a client will receive a `service-unavailable` error for every stanza sent to one of these hosts.
 
 #### `modules.mod_disco.server_info`
 * **Syntax:** array of tables described below
 * **Default:** no additional server info
-* **Example:** 
+* **Example:**
 ```
 server_info = [
                 {module = "all", name = "abuse-address", urls = ["admin@example.com"]}
               ]
 ```
-Adds extra disco information to all or chosen modules. 
+Adds extra disco information to all or chosen modules.
 New fields will be added in a manner compliant with [XEP-0157](https://xmpp.org/extensions/xep-0157.html).
 
 Required keys and their values for each entry:
@@ -40,7 +40,7 @@ Required keys and their values for each entry:
 * **Default:** `true`
 * **Example:** `users_can_see_hidden_services = false`
 
-MongooseIM node with this option set to `false` will exclude ["hidden services"](../advanced-configuration/Listener-modules.md#xmpp-components-ejabberd_service)
+MongooseIM node with this option set to `false` will exclude ["hidden components"](../../advanced-configuration/listen/#listenservicehidden_components)
 from disco results sent to clients (identified by bare or full JID).
 Other entities, with empty username part in their JIDs (e.g. `component.example.com`),
 will still receive full disco results.
