@@ -115,10 +115,10 @@ When enabled, rooms the user occupies are included in their roster.
  Allowed `config_schema` items are (may be mixed):
 
 * Field name and a default value. The value has to be a string. An example:
-    ```
-    field = "field_name"
-    value = "default_value"
-    ```
+    
+        field = "field_name"
+        value = "default_value"
+    
 * Field name, a default value, an internal key representation string and a type.
 Valid config field types are:
 
@@ -127,18 +127,18 @@ Valid config field types are:
     * `float`
 
     Useful only for debugging or custom applications. An example:
-    ```
-    field = "display-lines"
-    value = 30
-    internal_key = "display_lines"
-    type = "integer"
-    ```
+    
+        field = "display-lines"
+        value = 30
+        internal_key = "display_lines"
+        type = "integer"
+    
 **WARNING!** Lack of the `roomname` field will cause room names in Disco results and Roster items be set to the room username.
 
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_muc_light]
   host = "muclight.example.com"
   equal_occupants = true
