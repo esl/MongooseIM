@@ -26,10 +26,11 @@ Useful for debugging.
 ### Non-reloadable options
 Some options require restarting the server in order to be reloaded.
 The following options' changes will be ignored when using `mongooseimctl` tool:
+
 * domain_certfile
-* s2s_*
+* s2s_\*
 * all_metrics_are_global
-* rdbms_*
+* rdbms_\*
 
 
 ### Node-specific options

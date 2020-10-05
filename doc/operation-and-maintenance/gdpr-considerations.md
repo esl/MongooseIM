@@ -16,7 +16,7 @@ This page describes what GDPR implies in terms of server management.
 
 ## GDPR CLI commands
 
-All CLI commands are accessible via `mongooseimctl` command, located in `bin/` inside MIM release.
+All CLI commands are accessible via the `mongooseimctl` command, located in the `bin/` directory inside the MIM release.
 
 Personal data retrieval requires `service_admin_extra` with `gdpr` group enabled.
 

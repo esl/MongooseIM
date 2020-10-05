@@ -11,7 +11,7 @@ To activate it you have to add `syslogger` to the applications section in `src/m
 
     %% syslogger, % uncomment to enable a logger handler for syslog
 
-You also need to edit `rel/files/app.config` and uncomment the line:
+You also need to edit `rel/files/app.config` and uncomment the lines:
 
      % Uncomment these lines to enable logging to syslog.
      % Remember to add syslogger as a dependency in mongooseim.app.src.
@@ -30,7 +30,7 @@ in the `syslogger's` [GitHub page](https://github.com/NelsonVides/syslogger/):
 * `facility` -  the facility to log to (see the syslog documentation).
 * `log_opts` - see the syslog documentation for the description.
 
-Depending on the system platform you use, remember also to add the appropriate line in the syslog config file.
+Depending on the system you use, remember also to add the appropriate line in the syslog config file.
 For example, if the facility `local0` is set:
 
     local0.info                     /var/log/mongooseim.log
@@ -45,7 +45,7 @@ Example log (e.g `tail -f /var/log/mongooseim.log`):
 
 For more advanced processing and analysis of logs, including gathering logs from multiple machines,
 you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk),
-by redirecting mongoose logs to such service with an appropriate [Logger](Logger)'s handler.
+by redirecting mongoose logs to such service with an appropriate [Logger][Logger]'s handler.
 
 Check [Logging](Logging.md) for more information.
 
@@ -71,8 +71,8 @@ To monitor MongooseIM during load testing, we recommend the following open sourc
 
 MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
 Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
-It is possible to enable them in MoongooseIM via the `app.config` file.
-The file sits next to the `mongooseim.cfg` file in the `rel/files` and `_REL_DIR_/etc` directories.
+It is possible to enable them in MongooseIM via the `app.config` file.
+The file sits next to the `mongooseim.toml` file in the `rel/files` and `_REL_DIR_/etc` directories.
 
 Below you can find a sample configuration.
 It shows setting up a reporter connecting to graphite running on localhost.
@@ -101,16 +101,16 @@ By default, the resolution is set to 60 seconds.
 
 ### Run Graphite & Grafana in Docker - quick start
 
-The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting local directory `./docker-grafana-graphite-master/data` for metrics persistance:
+The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting local directory `./docker-grafana-graphite-master/data` for metrics persistence:
 
     $ curl -SL https://github.com/kamon-io/docker-grafana-graphite/archive/master.tar.gz | tar -xzf -
     $ make -C docker-grafana-graphite-master up
 
-Go to http://localhost to view Grafana dashboard that's already set up to use metrics from Graphite.
+Go to http://localhost:80 to view Grafana dashboard that's already set up to use metrics from Graphite.
 
 ### Add metrics to Grafana dashboard
 
-We recommend the following metrics as a baseling for tracking your MongooseIM installation.
+We recommend the following metrics as a baseline for tracking your MongooseIM installation.
 For time-based metrics, you can choose to display multiple calculated values for a reporting period - we recommend tracking at least `max`, `median` and `mean`.
 
 ```

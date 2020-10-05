@@ -23,18 +23,20 @@ If you are using **Ubuntu**, all `/etc/pam.d/common-session*` files should inclu
 
 ### `vm.args` file
 
-This file contains erlang options used when starting the VM.
-It is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path to a MonoogseIM release
+This file contains Erlang options used when starting the VM.
+It is located in `REL_ROOT/etc/vm.args` where `REL_ROOT` is the path to a MongooseIM release
 (ie. `_build/prod/rel/mongooseim` if you build MongooseIM from source).
 
 When using an SSL/TLS connection we advise to increase `ERL_MAX_PORTS` to `350000`.
-This value specifies how many ports (files, drivers, sockets etc) can be used by Erlang VM.
+This value specifies how many ports (files, drivers, sockets etc) can be used by the Erlang VM.
 Be cautious - it preallocates some structures inside the VM and will have impact on the memory usage.
 We suggest 350000 for 100 k users when using an SSL/TLS connection or 250000 in other cases.
 
 To check how memory consumption changes depending on `ERL_MAX_PORTS`, use the following command:
 
-`env ERL_MAX_PORTS=[given value] erl -noinput -eval 'io:format("~p~n",[erlang:memory(system)]).' -s erlang halt`
+```bash
+env ERL_MAX_PORTS=[given value] erl -noinput -eval 'io:format("~p~n",[erlang:memory(system)]).' -s erlang halt
+```
 
 Another change you need to make when building a MongooseIM cluster is setting the `-sname`.
 To do it, just set the `-sname` option in `vm.args` with node's hostname,
@@ -46,12 +48,14 @@ To connect to other nodes, a freshly started node uses a port from the range `in
 
 To enable this, add the following line to the `vm.args` file:
 
-`-kernel inet_dist_listen_min 50000 inet_dist_listen_max 50010`
+```
+-kernel inet_dist_listen_min 50000 inet_dist_listen_max 50010
+```
 
 Make sure that the range you set provides enough ports for all the nodes in the cluster.
 
 Remember to keep an epmd port open (port 4369) if any firewall restrictions are required.
-Epmd keeps track of which erlang node is using which ports on the local machine.
+Epmd keeps track of which Erlang node is using which ports on the local machine.
 
 ## Connecting nodes
 
@@ -80,16 +84,16 @@ mongooseimctl join_cluster ClusterMember
 `ClusterMember` is the name of a running node set in `vm.args` file, for example `mongooseim@localhost`.
 This node has to be part of the cluster we'd like to join.
 
-First MongooseIM will display a warning and a question if the operation should proceed:
+First, MongooseIM will display a warning and a question if the operation should proceed:
 
-```
+```text
 Warning. This will drop all current connections and will discard all persistent data from Mnesia. Do you want to continue? (yes/no)
 ```
 
 If you type `yes` MongooseIM will start joining the cluster.
 Successful output may look like the following:
 
-```
+```text
 You have successfully joined the node mongooseim2@localhost to the cluster with node member mongooseim@localhost
 ```
 
@@ -110,7 +114,9 @@ Similarly to `join_cluster` a warning and a question will be displayed unless th
 
 The successful output from the above command may look like the following:
 
-`You have successfully left the node mongooseim2@localhost from the cluster`.
+```text
+You have successfully left the node mongooseim2@localhost from the cluster
+```
 
 ### Removing a node from the cluster
 
@@ -124,7 +130,9 @@ where `RemoteNodeName` is a name of the node that we'd like to remove from our c
 This command could be useful when the node is dead and not responding and we'd like to remove it remotely.
 The successful output from the above command may look like the following:
 
-`The node mongooseim2@localhost has been removed from the cluster`
+```text
+The node mongooseim2@localhost has been removed from the cluster
+```
 
 ### Cluster status
 
@@ -167,11 +175,8 @@ Load balancing can be performed on a DNS level.
 A DNS response can have a number of IP addresses that can be returned to the client side in a random order.
 
 On the AWS stack this type of balancing is provided by Route53.
-The description of their service can be found at:
-
-http://docs.aws.amazon.com/Route53/latest/DeveloperGuide/WeightedResourceRecordSets.html
+The description of their service can be found [here](http://docs.aws.amazon.com/Route53/latest/DeveloperGuide/WeightedResourceRecordSets.html).
 
 ### Other
 
 The approaches described above can be mixed - we can use DNS load balancing to pick a software load balancer which will select one of the nodes.
-

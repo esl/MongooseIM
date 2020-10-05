@@ -1,5 +1,5 @@
 This document provides a list of all known issues with MongooseIM operation and configuration.
-You may also find proposed workarounds if any is available.
+You may also find proposed workarounds if any are available.
 
 ## Missing MUC Light room config fields with RDBMS backend
 
@@ -8,12 +8,14 @@ These options couldn't be re-added later by changing the room config via request
 
 It happened when the default config was a subset of the schema and the client hasn't provided these values when a room was created.
 
+Please note that this issue was resolved from MIM 3.6.0 onwards as the `default_config` option was deleted.
+
 ### How to fix this?
 
 You have to iterate over all rooms in the DB (`muc_light_rooms` table) and add missing entries to the `muc_light_config` table.
 Every option is inserted as a separate row and is stored as plain text, so it should be straightforward.
 
-Let's say you were using the following config:
+Let's say you were using the following config in `mongooseim.cfg`:
 
 ```
 {config_schema, [

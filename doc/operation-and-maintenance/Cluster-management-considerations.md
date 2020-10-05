@@ -1,10 +1,10 @@
-This applies to bare metal, virtualization, hypervisor, containers and other technologies.
+These apply to bare metal, virtualization, hypervisor, containers and other technologies.
 
 ## Single-node MongooseIM
 
 With a single-node MongooseIM, one can set up a vertically scalable system, that is a function of the server resources. MongooseIM can scale from hundreds to tens of thousands of concurrent users.
 
-Note that in a single-node MongooseIM, there is no load distribution, and no fallback or failover in case of failure.
+Note that in a single-node MongooseIM, there is no load distribution, and no fallback or failover in case of a failure.
 
 This architecture is suitable for low-scale deployments, such as testing and development environments on embedded devices, personal computers, or servers.
 
@@ -38,14 +38,14 @@ With a multi-datacenter MongooseIM, one can set up a system that is highly scala
 
 This applies to large and very large-scale deployments.
 
-Contact us.
+We advise [contacting us](https://www.erlang-solutions.com/contact.html) in case of such a big deployment.
 
 ## Summary table
 
 **Setup**: reflects the number of nodes in your cluster. <br/>
 **Purpose**: is the goal and use of this cluster. <br/>
-**Low-end**: number of concurent users on low-power machines, such as laptops, embedded devides, entry-level cloud or bare metal.<br/>
-**High-end**: number of concurent users on powerful machines, with lots of memory, multi-core CPU, whether they or cloud or bare metal.
+**Low-end**: number of concurrent users on low-power machines, such as laptops, embedded devices, entry-level cloud or bare metal.<br/>
+**High-end**: number of concurrent users on powerful machines, with lots of memory, multi-core CPU, whether in cloud or bare metal.
 
 Setup | Purpose | Low-end  | High-end
 ------|---------|---------:|---------:
@@ -70,7 +70,7 @@ Scalability highly depends on variables such as:
     * MUC light
     * PubSub
     * Presences
-    * HTTP notifications (with queuing systems such as RabbitMQ or Kafka)
+    * HTTP notifications (with may include queuing systems such as RabbitMQ or Kafka)
 * latency of messaging, both real-time and archived messages
 
 #### OS configuration
