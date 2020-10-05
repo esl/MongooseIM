@@ -32,7 +32,7 @@ MongooseIM can be deployed for a number of scenarios fitting customer needs. The
 
 A more scalable solution would be deploying MongooseIM with an external database for persistent data. Such a setup requires a cluster of MongooseIM nodes, an external database, and a load balancer to manage the traffic from the client applications.
 
-A single MongooseIM node can handle 2.5 million online users.
+A single MongooseIM node can handle as many as 2.5 million online users.
 Based on our load tests, for deployments with multiple nodes, we are confident that 10 million online users is well within reach.
 Please note that such scalability numbers depend on the selected feature set that your MongooseIM installation is running.
 

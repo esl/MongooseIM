@@ -59,8 +59,7 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 #### Configuration
 
 You can find MongooseIM installation instructions on [this page](Getting-started.md).
-Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.cfg`, where `$REPO` is a top-level directory of the cloned repo).
-You can use [this](ICE_tutorial/mongooseim.cfg) configuration file and modify the relevant part:
+Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.toml` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.toml`, where `$REPO` is a top-level directory of the cloned repo).
 ```toml
 [general]
   hosts = ["localhost", "myxmpp.com"]

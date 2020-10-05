@@ -89,7 +89,7 @@ mongooseimctl bootstrap
 
 It executes scripts inside the `scripts/` directory with a `bootstrap` prefix in alphabetical order. [More information](Bootstrap-Scripts.md)
 
-Execute `Hello` from `scripts/bootstrap01-hello.sh` script you can find in the release directory `$REPO_DIR/_build/prod/rel/mongooseim`.
+Execute `Hello` from the `scripts/bootstrap01-hello.sh` script that you can find in the release directory `$REPO_DIR/_build/prod/rel/mongooseim`.
 
 ## Chat users
 

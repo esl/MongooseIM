@@ -9,13 +9,13 @@ This method uses the `SASL EXTERNAL` mechanism.
 
 A server must request the certificate from a client, so you'll need to enable `verify_peer` option and provide a path to CA chain that may be used for client's certificate check (`cafile` option).
 
-Please check [Listener modules](../../advanced-configuration/listen/#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
+Please check the [Listener modules](../../advanced-configuration/listen/#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
 
 ### Properly configure `http` listener
 
 SASL EXTERNAL authentication is also possible for WebSocketSecure and BOSH connections over HTTPS.
-Similarly as in `client-to-server` case, the server must request the certificate from the client.
-In this case it's enabled by adding the following options to `tls` option of `listen.http` :
+Similarly as in the `client-to-server` case, the server must request the certificate from the client.
+In this case it's enabled by adding the following options to the `tls` option of `listen.http` :
 
 * [`tls.verify_peer = true`](../../advanced-configuration/listen/#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
 * [`tls.cacertfile = "ca.pem"`](../../advanced-configuration/listen/#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
@@ -37,7 +37,7 @@ The `SASL EXTERNAL` authentication mechanism requires a digital client certifica
 This digital certificate should contain `xmppAddr` field(s), which is always checked first.
 If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
 
-When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#authsasl_external) option in the `auth` section.
+When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide the client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#authsasl_external) option in the `auth` section.
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
