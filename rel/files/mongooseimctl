@@ -177,7 +177,7 @@ help ()
     echo "  foreground      Start MongooseIM node in foreground (non-interactive) mode"
     echo "MongooseIM cluster management commands:"
     echo "  join_cluster other_node_name                Add current node to cluster"
-    echo "  leave_cluster                               Leave current node from the cluster"
+    echo "  leave_cluster                               Make the current node leave the cluster"
     echo "  remove_from_cluster other_node_name         Remove dead node from the cluster"
     echo "Extra Commands:"
     echo "  bootstrap           Executes MongooseIM init scripts (used for initial configuration)"

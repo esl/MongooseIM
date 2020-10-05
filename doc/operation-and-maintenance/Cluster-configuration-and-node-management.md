@@ -115,7 +115,7 @@ Similarly to `join_cluster` a warning and a question will be displayed unless th
 The successful output from the above command may look like the following:
 
 ```text
-You have successfully left the node mongooseim2@localhost from the cluster
+The node mongooseim2@localhost has successfully left the cluster
 ```
 
 ### Removing a node from the cluster
