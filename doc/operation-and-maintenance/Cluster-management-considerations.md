@@ -70,7 +70,7 @@ Scalability highly depends on variables such as:
     * MUC light
     * PubSub
     * Presences
-    * HTTP notifications (with may include queuing systems such as RabbitMQ or Kafka)
+    * HTTP notifications (may include queuing systems such as RabbitMQ or Kafka)
 * latency of messaging, both real-time and archived messages
 
 #### OS configuration

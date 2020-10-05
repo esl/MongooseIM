@@ -19,7 +19,7 @@ Primary log level, that is used before MongooseIM config is loaded:
 ].
 ```
 
-Once MongooseIM config is loaded, [`loglevel`](../advanced-configuration/general.md#generalloglevel) option from `mongooseim.toml` is used instead.
+Once MongooseIM config is loaded, the [`loglevel`](../advanced-configuration/general.md#generalloglevel) option from `mongooseim.toml` is used instead.
 
 # Primary filters
 

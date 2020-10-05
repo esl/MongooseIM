@@ -81,7 +81,7 @@ For more details regarding service configuration, please see [Services](../advan
 For more information on how Google Analytics collects and processes data, please see [Google Privacy & Terms](https://policies.google.com/technologies/partner-sites).
 Google Analytics is being used due to the ease of host and display reporting information.
 We will not share any user specific information with further third parties not mentioned in this document.
-Insight of statistical significance regarding our findings from bulk data collected has been shared as a [blog post](https://www.erlang-solutions.com/blog/how-data-drives-mongooseim.html) on our website.
+Some insight into the statistical significance regarding our findings from the bulk data collected, has been shared as a [blog post](https://www.erlang-solutions.com/blog/how-data-drives-mongooseim.html) on our website.
 
 [system_metrics_report]: system_metrics_report.png
 [how-to-configure-tracking-id]: #how-to-configure-additional-and-private-tracking-id-in-google-analytics

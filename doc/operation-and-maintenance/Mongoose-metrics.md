@@ -195,7 +195,7 @@ These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
 In such case, these metrics will be updated with combined time of 2 failed and 1 successful request.
 
-Additionally, RDBMS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
+Additionally, the RDBMS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
 
 * `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple"" (not prepared) query by a DB driver.
 * `[global, backends, mongoose_rdbms, execute]` - Execution time of a prepared query by a DB driver.

@@ -101,12 +101,12 @@ By default, the resolution is set to 60 seconds.
 
 ### Run Graphite & Grafana in Docker - quick start
 
-The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting local directory `./docker-grafana-graphite-master/data` for metrics persistence:
+The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting the local directory `./docker-grafana-graphite-master/data` for metric persistence:
 
     $ curl -SL https://github.com/kamon-io/docker-grafana-graphite/archive/master.tar.gz | tar -xzf -
     $ make -C docker-grafana-graphite-master up
 
-Go to http://localhost:80 to view Grafana dashboard that's already set up to use metrics from Graphite.
+Go to http://localhost:80 to view the Grafana dashboard that's already set up to use metrics from Graphite.
 
 ### Add metrics to Grafana dashboard
 
