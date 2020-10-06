@@ -9,7 +9,7 @@ info:
     The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl`.
 
     Please note that many of the fields such as **username** or **caller** expect a **JID** (jabber identifier, f.e. **alice@wonderland.com**). There are two types of **JIDs**:
-      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `mongooseim.cfg` file).
+      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `mongooseim.toml` file).
       * **full JID** - is a **bare JID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
 schemes:
   - http
