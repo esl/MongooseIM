@@ -17,10 +17,10 @@ If a module requires certain services which are not started, the module refuses 
 ### Services
 
 Services provide certain functionalities not specific to virtual hosts but rather applied to the whole instance or to modules started for various hosts.
-They are configured globally and launched on startup, before modules, so that dependencies are satisfied.
+They are configured globally and launched on startup, before modules, so that needed dependencies are satisfied.
 A service can require other services to be operational; required services are started automatically.
 The required service must also be present in the server's configuration file.
-They were introduced in MongooseIM 2.2; modules which are not host-specific are gradually being refactored as services.
+Modules which are not host-specific are gradually being refactored to services.
 
 ### Databases
 
@@ -88,4 +88,4 @@ Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 The MongooseIM platform enables a service to scale worldwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 
-Contact us.
+We advise [contacting us](https://www.erlang-solutions.com/contact.html) in case of such a big deployment.
