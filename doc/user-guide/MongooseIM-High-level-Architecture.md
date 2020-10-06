@@ -9,7 +9,7 @@ You can choose and enable behaviours and functionalities by configuring any of t
 A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations.
 See '[Extension Modules](../advanced-configuration/Modules.md)' for a full list.
 
-Modules can be configured and started either for all virutal hosts served by the instance or with individual configuration for only some of them.
+Modules can be configured and started either for all virtual hosts served by the instance or with individual configuration for only some of them.
 Modules may include dependencies on services and on other modules.
 If a module depends on other modules, required modules are started automatically with configuration provided by the dependent module.
 If a module requires certain services which are not started, the module refuses to start.
@@ -17,10 +17,10 @@ If a module requires certain services which are not started, the module refuses 
 ### Services
 
 Services provide certain functionalities not specific to virtual hosts but rather applied to the whole instance or to modules started for various hosts.
-They are configured globally and launched on startup, before modules, so that dependencies are satisfied.
+They are configured globally and launched on startup, before modules, so that needed dependencies are satisfied.
 A service can require other services to be operational; required services are started automatically.
 The required service must also be present in the server's configuration file.
-They were introduced in MongooseIM 2.2; modules which are not host-specific are gradually being refactored as services.
+Modules which are not host-specific are gradually being refactored to services.
 
 ### Databases
 
@@ -30,13 +30,13 @@ Please refer to '[Database Backends](../advanced-configuration/database-backends
 
 #### Transient databases
 
-In the MongooseIM architecture each MongooseIM node host has an accompanying Mnesia node. 
+In the MongooseIM architecture each MongooseIM node host has an accompanying Mnesia node.
 
-Redis on the other hand forms a separate cluster and does not utilise MongooseIM nodes. 
+Redis on the other hand forms a separate cluster and does not utilise MongooseIM nodes.
 
 There is no need to set up any backups for transient data since it naturally rebuilds as clients reconnect massively.
 
-#### Persistant databases
+#### Persistent databases
 
 Both RDBMS/SQL (MySQL/PostgreSQL) and NOSQL (Riak KV) databases are supported.
 
@@ -54,9 +54,9 @@ Backups should be regular, and tested.
 
 ### Frontend
 
-Native clients on platforms such as Android, iOS, Windows, Linux, macOS, will preferrably use a plain XMPP over TCP connections.
+Native clients on platforms such as Android, iOS, Windows, Linux, macOS, will preferably use a plain XMPP over TCP connections.
 
-Since web clients cannot use TCP connections, they will preferrably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback).
+Since web clients cannot use TCP connections, they will preferably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback).
 
 Any client could use the client REST API, which is using HTTP request/responses.
 
@@ -76,7 +76,7 @@ WombatOAM enables the monitoring and management of MongooseIM clusters, as well 
 
 ### MongooseICE (STUN/TURN)
 
-Contact us.
+Available on: [MongooseICE](https://github.com/esl/MongooseICE/)
 
 ### MongoosePush (APNS, GCM)
 
@@ -84,8 +84,8 @@ Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
-![MongooseIM worlwide architecture](MongooseIM_worlwide_architecture.png)
+![MongooseIM worldwide architecture](MongooseIM_worldwide_architecture.png)
 
-The MongooseIM platform enables a service to scale worlwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
+The MongooseIM platform enables a service to scale worldwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 
-Contact us.
+We advise [contacting us](https://www.erlang-solutions.com/contact.html) in case of such a big deployment.

@@ -23,7 +23,7 @@ The options listed here are used to configure the authentication methods.
 ### `auth.methods`
 * **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
 * **Default:** not set
-* **Example:** `["internal", "anonymous"]`
+* **Example:** `methods = ["internal", "anonymous"]`
 
 Specifies the methods used to authenticate connecting users. Methods from the list are queried one after another until one of them replies positively. By default there are no methods, so nobody can authenticate.
 
@@ -32,7 +32,7 @@ Specifies the methods used to authenticate connecting users. Methods from the li
 ### `auth.sasl_mechanisms`
 * **Syntax:** array of strings. Allowed values: `"scram_sha512_plus"`, `"scram_sha512"`, `"scram_sha384_plus"`, `"scram_sha384"`, `"scram_sha256_plus"`, `"scram_sha256"`, `"scram_sha224_plus"`, `"scram_sha224"`, `"scram_sha1_plus"`, `"scram_sha1"`, `"plain"`, `"anonymous"`, `"oauth"`, `"external"`, `"digest"`
 * **Default:** `["scram_sha512_plus", "scram_sha512", "scram_sha384_plus", "scram_sha384", "scram_sha256_plus", "scram_sha256", "scram_sha224_plus", "scram_sha224", "scram_sha1_plus", "scram_sha1", "plain", "anonymous", "oauth"]`
-* **Example:** `["external", "plain"]`
+* **Example:** `sasl_mechanisms = ["external", "plain"]`
 
 Specifies the list of allowed SASL mechanisms, which are announced during stream negotiation and eventually enforced (users can't pick a mechanism not listed here).
 

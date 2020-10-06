@@ -18,7 +18,7 @@ MongooseIM brings configurability, scalability and fault-tolerance to the core f
 -   Privacy settings
 -   vCards: user profiles
 
-This modular architecture allows high customisability and easy access to the required features.  
+This modular architecture allows high customisability and easy access to the required features.
 
 MongooseIM enables authenticating users using external or internal databases (Mnesia, RDBMS, NOSQL), LDAP or external scripts. It also allows connecting anonymous users, when required.
 
@@ -32,15 +32,19 @@ MongooseIM can be deployed for a number of scenarios fitting customer needs. The
 
 A more scalable solution would be deploying MongooseIM with an external database for persistent data. Such a setup requires a cluster of MongooseIM nodes, an external database, and a load balancer to manage the traffic from the client applications.
 
-If deployed on a 16 GB RAM machine with at least 4 cores, a single MongooseIM node can handle 200-300 thousands of online users. This setup is suitable for systems with up to 10 nodes.
+A single MongooseIM node can handle as many as 2.5 million online users.
+Based on our load tests, for deployments with multiple nodes, we are confident that 10 million online users is well within reach.
+Please note that such scalability numbers depend on the selected feature set that your MongooseIM installation is running.
 
-If the service requires a cluster of more than 10 nodes, we recommend using Redis instead of Mnesia for session storage. To avoid a single point of failure, a master-slave Redis setup is advisable. 
+For more details please see our blogpost: [Scaling a Mongoose: How scalable is the MongooseIM XMPP server? ](https://www.erlang-solutions.com/blog/scaling-a-mongoose-how-scalable-is-the-mongooseim-xmpp-server.html)
+
+If the service requires a cluster of more than 10 nodes, we recommend using Redis instead of Mnesia for session storage. To avoid a single point of failure, a master-slave Redis setup is advisable.
 
 MongooseIM allows connecting different clusters as parts of larger systems. This feature is used in geo-localised services handling massive traffic from all over the world.
 
-MongooseIM gathers over 40 different XMPP-related metrics, allowing close monitoring of what happens inside the nodes. To manage the users, rosters, messages and general settings, we provide a command-line tool, `mongooseimctl`.
+MongooseIM gathers over 50 different XMPP-related metrics, allowing close monitoring of what happens inside the nodes. To manage the users, rosters, messages and general settings, we provide a command-line tool, `mongooseimctl`.
 
-Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html), an erlang VM monitoring solution, that enbales ops and devs to better understand what going on in a MongooseIM cluster.
+Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html), an erlang VM monitoring solution, that enables ops and devs to better understand what going on in a MongooseIM cluster.
 
 For load testing consider [Tide](http://tide.erlang-solutions.com/), another Erlang Solutions' tool that enables devs and ops to validate their scalability, given the clients scenarios.
 

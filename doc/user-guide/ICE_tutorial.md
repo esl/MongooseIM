@@ -59,11 +59,10 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 #### Configuration
 
 You can find MongooseIM installation instructions on [this page](Getting-started.md).
-Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.cfg`, where `$REPO` is a top-level directory of the cloned repo).
-You can use [this](ICE_tutorial/mongooseim.cfg) configuration file and modify the relevant part:
-```erlang
-%%%% ICE DEMO %%%%
-{hosts, ["localhost", "myxmpp.com"] }.
+Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.toml` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.toml`, where `$REPO` is a top-level directory of the cloned repo).
+```toml
+[general]
+  hosts = ["localhost", "myxmpp.com"]
 ```
 This sets the virtual hostname of the XMPP server, so that you can register users in this domain.
 After that, you can start MongooseIM with
@@ -210,4 +209,3 @@ Hopefully, now you can see the video on your own mobile device.
 [mangosta_login]: ICE_tutorial/mangosta_login.png
 [mangosta_ice_settings]: ICE_tutorial/mangosta_ice_settings.png
 [mangosta_streaming]: ICE_tutorial/mangosta_start_stream.png
-
