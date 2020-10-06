@@ -22,7 +22,7 @@ Subsequent sections go into more depth on each database: what they are suitable 
 Transient data:
 
 * Mnesia - we highly recommend Mnesia (a highly available and distributed database) over Redis for storing **transient** data.
- Being an Erlang-based database, it's the default persistance option for most modules in MongooseIM.
+ Being an Erlang-based database, it's the default persistence option for most modules in MongooseIM.
  **Warning**: we **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
  Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
  Sooner or later a migration will be needed which may be painful.
@@ -42,7 +42,7 @@ Persistent Data:
  Use MySQL, MariaDB, PostgreSQL, or MS SQL Server.
 
 * Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
- It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
+ It offers high availability and fault tolerance which is exactly what you need for your distributed MongooseIM architecture.
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Erlang Solutions commercially supports Riak KV.
 
@@ -83,8 +83,8 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
-You should also configure MySQL database in the `mongooseim.cfg` file.
-Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+You should also configure MySQL database in the `mongooseim.toml` file.
+Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options) for more information.
 
 **Version notice**
 
@@ -120,8 +120,8 @@ You can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
-You should also configure Postgres database in `mongooseim.cfg` file.
-Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+You should also configure Postgres database in `mongooseim.toml` file.
+Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options) for more information.
 
 ## Microsoft SQL Server
 
@@ -206,15 +206,16 @@ cat azuresql.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
 isql mongoose-mssql username password -b
 ```
 
-The final step is to configure ``mongooseim.cfg`` appropriately.
-Configure the database section as follows:
+The final step is to configure ``mongooseim.toml`` appropriately.
+Configure the `outgoing_pools.rdbms` section as follows:
 
-```erlang
-{rdbms_server_type, mssql}.
-{outgoing_pools, [
- {rdbms, global, default, [{workers, 5}],
-  [{server, "DSN=mongoose-mssql;UID=username;PWD=password"}]}
-]}.
+```toml
+[outgoing_pools.rdbms.default]
+  workers = 5  
+  
+  [outgoing_pools.rdbms.default.connection]
+    driver = "odbc"
+    settings = "DSN=mongoose-mssql;UID=username;PWD=password"
 ```
 
 # NOSQL
@@ -304,8 +305,9 @@ riak-admin bucket-type activate privacy_lists
 
 This will create bucket types, search schemas and indexes required for storing the above persitent data and it will activate them.
 
-You should also configure Riak in the `mongooseim.cfg` file.
-Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+You should also configure Riak in the `mongooseim.toml` file.
+Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options)
+and [Riak options](../advanced-configuration/outgoing-connections.md#riak-options) for more information.
 
 ## Cassandra
 
@@ -337,7 +339,7 @@ curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
 
 where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
 
-Please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page to check how to configure MongooseIM to connect to ElasticSearch node.
+Please refer to [advanced configuration](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
 
 ## Redis
 
@@ -347,7 +349,7 @@ Please refer to [advanced configuration](../Advanced-configuration.md#elasticsea
 
 **Setup**
 
-No additional steps required.
+Please refer to the [Redis options](../advanced-configuration/outgoing-connections.md#redis-specific-options) for more information.
 
 # LDAP
 
@@ -359,4 +361,4 @@ No additional steps required.
 
 **Setup**
 
-No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.d
+Please refer to the [LDAP options](../advanced-configuration/outgoing-connections.md#ldap-options) for more information.
