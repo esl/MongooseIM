@@ -30,7 +30,7 @@ in the `syslogger's` [GitHub page](https://github.com/NelsonVides/syslogger/):
 * `facility` -  the facility to log to (see the syslog documentation).
 * `log_opts` - see the syslog documentation for the description.
 
-Depending on the system you use, remember also to add the appropriate line in the syslog config file.
+Depending on the system you use, remember to also add the appropriate line in the syslog config file.
 For example, if the facility `local0` is set:
 
     local0.info                     /var/log/mongooseim.log
