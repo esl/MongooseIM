@@ -38,7 +38,7 @@ cp %{SOURCE0} .
 %install
 ./tools/configure with-all user=root prefix=/ system=yes
 sed -i 's#PREFIX=\"/\"#PREFIX=\"%{buildroot}\"#' configure.out
-make install
+make clean install
 sed -i 's#RUNNER_USER=\"root\"#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/bin/mongooseimctl
 sed -i 's#RUNNER_USER=\"root\"#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/lib/mongooseim/bin/mongooseimctl
 sed -i 's#RUNNER_USER=root#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/lib/mongooseim/bin/mongooseim

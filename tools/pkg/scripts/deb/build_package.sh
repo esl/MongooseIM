@@ -20,7 +20,7 @@ sed -i '1 s/^.*$/\#\!\/bin\/bash/' tools/install
 sed -i 's#PREFIX=""#PREFIX="mongooseim"#' configure.out
 source configure.out
 export GIT_SSL_NO_VERIFY=1
-make install
+make clean install
 cp -r ../deb/debian mongooseim/DEBIAN
 mkdir -p mongooseim/etc/systemd/system/
 cp -r ../deb/mongooseim.service mongooseim/etc/systemd/system/
