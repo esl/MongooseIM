@@ -62,6 +62,7 @@ mongoose_fips:status().
 ```
 
 The function returns:
+
 * not_enabled - fips_mode is not set to true in etc/app.config
 * enabled - fips_mode is set to true in etc/app.config
 * not_supported - erlang compiled without fips support

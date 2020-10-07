@@ -25,7 +25,7 @@ mod_offline:store_packet(From, To, Packet)
 
 Note that in this example `ejabberd_sm` is coupled with `mod_offline`.
 I.e. if `mod_offline` was not available, the code would simply crash; if it was misconfigured or turned off, the behaviour would be undefined.
-To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` instead calls:
+To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-code-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` would instead call:
 
 ```erlang
 Acc1 = ejabberd_hooks:run_fold(offline_message_hook,

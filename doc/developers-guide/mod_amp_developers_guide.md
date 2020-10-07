@@ -43,7 +43,7 @@ Hooks for Other Modules
 -----------------------
 
 If your module would like to have some say in the amp decision making process, please refer to the hooks: `amp_determine_strategy` and `amp_check_condition`.
-Remeber that the hook for check_condition is a fold on a boolean(), and should behave like a variadic `or`. 
+Remember that the hook for check_condition is a fold on a boolean(), and should behave like a variadic `or`. 
 I.e: once a rule is deemed to apply, other hooks SHOULD NOT revert this value to false.
 
 Cf. this code from `amp_resolver`:

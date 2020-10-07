@@ -22,7 +22,7 @@ In order to learn more about the meaning of the Stored Key, Server Key, Salt and
 
 * *Password:* `padthai`
 * *Erlang map:*
-```
+```erlang
 #{iteration_count => 4096,
   sha =>
       #{salt => <<"QClQsw/sfPEnwj4AEp6E1w==">>,
