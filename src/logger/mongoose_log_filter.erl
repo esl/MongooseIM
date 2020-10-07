@@ -4,6 +4,7 @@
 -export([format_acc_filter/2]).
 -export([format_packet_filter/2]).
 -export([format_stacktrace_filter/2]).
+-export([format_term_filter/2]).
 -export([preserve_acc_filter/2]).
 -export([filter_module/2]).
 
@@ -50,6 +51,18 @@ format_stacktrace_filter(Event=#{msg := {report, Msg=#{stacktrace := S}}}, _) ->
     Event#{msg => {report, Msg#{stacktrace => format_stacktrace(S)} }};
 format_stacktrace_filter(Event, _) ->
     Event.
+
+format_term_filter(Event = #{msg := {report, Msg}}, Keys) ->
+    FormattedMsg = lists:foldl(fun format_value/2, Msg, Keys),
+    Event#{msg => {report, FormattedMsg}};
+format_term_filter(Event, _) ->
+    Event.
+
+format_value(Key, Msg) ->
+    case maps:find(Key, Msg) of
+        {ok, Value} -> Msg#{Key := format_term(Value)};
+        error -> Msg
+    end.
 
 format_acc(#{origin_pid := OriginPid, timestamp := TS, stanza := StanzaMap}) ->
     Map = format_stanza_map(StanzaMap),
