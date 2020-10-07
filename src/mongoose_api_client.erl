@@ -168,6 +168,6 @@ make_unauthorized_response(Req, State) ->
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
 handler_path(Base, Command) ->
-    {[Base, mongoose_api_common:create_user_url_path(Command)],
+    {[Base, mongoose_api_common:create_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.
 

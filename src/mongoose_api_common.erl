@@ -65,13 +65,13 @@
 -include("mongoose.hrl").
 
 %% API
--export([create_admin_url_path/1,
-         create_user_url_path/1,
+-export([create_url_path/1,
          action_to_method/1,
          method_to_action/1,
          parse_request_body/1,
          get_allowed_methods/1,
-         process_request/4,
+         to_json/4,
+         from_json/4,
          reload_dispatches/1,
          get_auth_details/1,
          is_known_auth_method/1,
@@ -91,42 +91,66 @@ reload_dispatches(_Command) ->
     [ejabberd_cowboy:reload_dispatch(Child) || Child <- CowboyListeners],
     drop.
 
-
--spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
-create_admin_url_path(Command) ->
+-spec create_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
+create_url_path(Command) ->
     ["/", mongoose_commands:category(Command),
-          maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
+          maybe_add_bindings(Command), maybe_add_subcategory(Command)].
 
--spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
-create_user_url_path(Command) ->
-    ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
+%% @doc Called for a method of type "GET"
+to_json(Req, Caller, AllArgs, #http_api_state{command_category = Category,
+                                              command_subcategory = SubCategory} = State) ->
+    % we list all cmds here and check permissions later to return 403
+    %% TODO cleanup
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
+    Arity = length(AllArgs),
+    case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+        [Command] -> process_request(Caller, <<"GET">>, Command, AllArgs, Req, State);
+        [] -> error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+    end.
 
--spec process_request(Method :: method(),
+%% @doc Called for a method of type "POST" and "PUT"
+from_json(Req, Caller, AllArgs, #http_api_state{command_category = Category,
+                                                command_subcategory = SubCategory} = State) ->
+    Method = cowboy_req:method(Req),
+    % we list all cmds here and check permissions later to return 403
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
+    Arity = length(AllArgs),
+    case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+        [Command] ->
+            process_request(Caller, Method, Command, AllArgs, Req, State);
+        [] ->
+            error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+    end.
+
+-spec process_request(Entity :: mongoose_commands:caller(),
+                      Method :: method(),
                       Command :: mongoose_commands:t(),
-                      Req :: cowboy_req:req() | {list(), cowboy_req:req()},
+                      Args :: [{atom, term()}],
+                      Req :: cowboy_req:req(),
                       State :: http_api_state()) ->
                       {any(), cowboy_req:req(), http_api_state()}.
-process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
+process_request(Entity, Method, Command, Args, Req, State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
-    {Params, Req2} = Req,
-    QVals = cowboy_req:parse_qs(Req2),
-    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
-    Params2 = Binds ++ Params ++ QV ++ maybe_add_caller(Entity),
-    handle_request(Method, Command, Params2, Req2, State);
-process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
+%%    {Params, Req2} = Req,
+%%    QVals = cowboy_req:parse_qs(Req2),
+%%    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+%%    Params2 = Binds ++ Params ++ QV,
+    handle_request(Entity, Method, Command, Args, Req, State);
+process_request(Entity, Method, Command, Args, Req, State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
-    QVals = cowboy_req:parse_qs(Req),
-    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
-    BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
-    handle_request(Method, Command, BindsAndVars, Req, State).
+%%    QVals = cowboy_req:parse_qs(Req),
+%%    QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
+%%    BindsAndVars = Binds ++ QV,
+    handle_request(Entity, Method, Command, Args, Req, State).
 
--spec handle_request(Method :: method(),
+-spec handle_request(Entity :: mongoose_commands:caller(),
+                     Method :: method(),
                      Command :: mongoose_commands:t(),
                      Args :: args_applied(),
                      Req :: cowboy_req:req(),
                      State :: http_api_state()) ->
     {any(), cowboy_req:req(), http_api_state()}.
-handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
+handle_request(Entity, Method, Command, Args, Req, #http_api_state{} = State) ->
     case check_and_extract_args(mongoose_commands:args(Command),
                                 mongoose_commands:optargs(Command), Args) of
         {error, Type, Reason} ->
@@ -213,12 +237,6 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
 execute_command(ArgMap, Command, Entity) ->
     mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
--spec maybe_add_caller(admin | binary()) -> list() | list({caller, binary()}).
-maybe_add_caller(admin) ->
-    [];
-maybe_add_caller(JID) ->
-    [{caller, JID}].
-
 -spec maybe_add_location_header(binary() | list(), list(), any())
     -> cowboy_req:req().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
@@ -261,8 +279,8 @@ get_allowed_methods(Entity) ->
     Commands = mongoose_commands:list(Entity),
     [action_to_method(mongoose_commands:action(Command)) || Command <- Commands].
 
--spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> iolist().
-maybe_add_bindings(Command, Entity) ->
+-spec maybe_add_bindings(mongoose_commands:t()) -> iolist().
+maybe_add_bindings(Command) ->
     Action = mongoose_commands:action(Command),
     Args = mongoose_commands:args(Command),
     BindAndBody = both_bind_and_body(Action),
@@ -270,9 +288,9 @@ maybe_add_bindings(Command, Entity) ->
         true ->
             Ids = mongoose_commands:identifiers(Command),
             Bindings = [El || {Key, _Value} = El <- Args, true =:= proplists:is_defined(Key, Ids)],
-            add_bindings(Bindings, Entity);
+            add_bindings(Bindings);
         false ->
-            add_bindings(Args, Entity)
+            add_bindings(Args)
     end.
 
 maybe_add_subcategory(Command) ->
@@ -294,15 +312,12 @@ both_bind_and_body(read) ->
 both_bind_and_body(delete) ->
     false.
 
-add_bindings(Args, Entity) ->
-    [add_bind(A, Entity) || A <- Args].
+add_bindings(Args) ->
+    [add_bind(A) || A <- Args].
 
-%% skip "caller" arg for frontend command
-add_bind({caller, _}, user) ->
-    "";
-add_bind({ArgName, _}, _Entity) ->
+add_bind({ArgName, _}) ->
     lists:flatten(["/:", atom_to_list(ArgName)]);
-add_bind(Other, _) ->
+add_bind(Other) ->
     throw({error, bad_arg_spec, Other}).
 
 -spec to_atom(binary() | atom()) -> atom().

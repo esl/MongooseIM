@@ -34,7 +34,7 @@
                               action_to_method/1,
                               method_to_action/1,
                               error_code/1,
-                              process_request/4,
+                              process_request/6,
                               parse_request_body/1]).
 
 -type credentials() :: {Username :: binary(), Password :: binary()} | any.
@@ -45,20 +45,29 @@
 
 %% @doc This is implementation of ejabberd_cowboy callback.
 %% Returns list of all available http paths.
--spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result().
+%%-spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
+%%    ejabberd_cowboy:implemented_result().
+%%cowboy_router_paths(Base, Opts) ->
+%%    mongoose_api_common:cowboy_router_paths(admin, Base, Opts).
+
+%% @doc This is implementation of ejabberd_cowboy callback.
+%% Returns list of all available http paths.
+-spec cowboy_router_paths(
+                          ejabberd_cowboy:path(),
+                          ejabberd_cowboy:options()) ->
+                             ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
-        try
-            Commands = mongoose_commands:list(admin),
-            [handler_path(Base, Command, Opts) || Command <- Commands]
-        catch
-            Class:Err:StackTrace ->
-                ?LOG_ERROR(#{what => getting_command_list_error,
-                             class => Class, reason => Err, stacktrace => StackTrace}),
-                []
-        end.
+    try
+        Commands = mongoose_commands:list(admin),
+        [handler_path(Base, Command, Opts) || Command <- Commands]
+    catch
+        Class:Err:StackTrace ->
+            ?LOG_ERROR(#{what => getting_command_list_error,
+                         class => Class, reason => Err, stacktrace => StackTrace}),
+            []
+    end.
 
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
@@ -112,7 +121,7 @@ delete_resource(Req, #http_api_state{command_category = Category,
     Arity = length(B),
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
-    process_request(<<"DELETE">>, Command, Req, State).
+    process_request(whatever, <<"DELETE">>, [], Command, Req, State).
 
 
 %%--------------------------------------------------------------------
@@ -149,43 +158,47 @@ get_control_creds(#http_api_state{auth = Creds}) ->
     Creds.
 
 %%--------------------------------------------------------------------
-%% Internal funs
+%% Cowboy
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category,
-                             command_subcategory = SubCategory,
+to_json(Req, #http_api_state{entity = Caller0,
                              bindings = B} = State) ->
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
-    Arity = length(B),
-    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
-    process_request(<<"GET">>, Command, Req, State).
+    {Caller, QVals} = check_caller(Caller0, Req),
+    AllArgs = B ++ QVals,
+    mongoose_api_common:to_json(Req, Caller, AllArgs, State).
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{command_category = Category,
-                               command_subcategory = SubCategory,
+from_json(Req, #http_api_state{entity = Caller0,
                                bindings = B} = State) ->
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
-            Method = cowboy_req:method(Req),
-            Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-            QVals = cowboy_req:parse_qs(Req),
-            Arity = length(B) + length(Params) + length(QVals),
-            case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
-                [Command] ->
-                    process_request(Method, Command, {Params, Req}, State);
-                [] ->
-                    error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
-            end
+            {Caller, QVals} = check_caller(Caller0, Req),
+            AllArgs = B ++ Params ++ QVals,
+            mongoose_api_common:from_json(Req, Caller, AllArgs, State)
+    end.
+
+%%--------------------------------------------------------------------
+%% Internal
+%%--------------------------------------------------------------------
+
+check_caller(admin, Req) ->
+    QVals0 = cowboy_req:parse_qs(Req),
+    QVals1 = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals0],
+    case proplists:get_value(caller, QVals1) of
+        undefined ->
+            {admin, QVals1};
+        BinJid ->
+            {jid:from_binary(BinJid), proplists:delete(caller, QVals1)}
     end.
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) ->
     ejabberd_cowboy:route().
 handler_path(Base, Command, ExtraOpts) ->
-    {[Base, mongoose_api_common:create_admin_url_path(Command)],
-        ?MODULE, [{command_category, mongoose_commands:category(Command)},
-                  {command_subcategory, mongoose_commands:subcategory(Command)} | ExtraOpts]}.
+    {[Base, mongoose_api_common:create_url_path(Command)],
+     ?MODULE, [{command_category, mongoose_commands:category(Command)},
+               {command_subcategory, mongoose_commands:subcategory(Command)} | ExtraOpts]}.
 
 

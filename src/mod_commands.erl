@@ -115,7 +115,7 @@ commands() ->
       {function, list_contacts},
       {action, read},
       {security_policy, [user]},
-      {args, [{caller, binary}]},
+      {args, []},
       {result, []}
      ],
      [
@@ -137,9 +137,7 @@ commands() ->
       {function, subscription},
       {action, update},
       {security_policy, [user]},
-      {identifiers, [caller, jid]},
-      % caller has to be in identifiers, otherwise it breaks admin rest api
-      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
+      {args, [{jid, binary}, {action, binary}]},
       {result, ok}
      ],
      [
@@ -150,8 +148,7 @@ commands() ->
       {module, ?MODULE},
       {function, set_subscription},
       {action, update},
-      {identifiers, [caller, jid]},
-      {args, [{caller, binary}, {jid, binary}, {action, binary}]},
+      {args, [{user, binary}, {jid, binary}, {action, binary}]},
       {result, ok}
      ],
      [
@@ -185,7 +182,7 @@ commands() ->
       {function, send_message},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {to, binary}, {body, binary}]},
+      {args, [{to, binary}, {body, binary}]},
       {result, ok}
      ],
      [
@@ -230,7 +227,6 @@ commands() ->
       {function, change_user_password},
       {action, update},
       {security_policy, [user]},
-      {identifiers, [host, user]},
       {args, [{newpass, binary}]},
       {result, ok}
      ]
@@ -425,8 +421,8 @@ build_message(From, To, Body) ->
     #xmlel{name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>},
                     {<<"id">>, mongoose_bin:gen_from_crypto()},
-                    {<<"from">>, From},
-                    {<<"to">>, To}],
+                    {<<"from">>, jid:to_binary(From)},
+                    {<<"to">>, jid:to_binary(To)}],
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]
           }.
@@ -533,7 +529,8 @@ parse_jid(Sender, Recipient) ->
         {S, R} -> {ok, S, R}
     end.
 
-parse_jid(Jid) ->
+parse_jid(#jid{} = Jid) -> Jid;
+parse_jid(Jid) when is_binary(Jid) ->
     case jid:from_binary(Jid) of
         error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
         B -> B

@@ -71,7 +71,8 @@ groups() ->
                                befriend_and_alienate_auto,
                                invalid_roster_operations]},
          {dynamic_module, [], [stop_start_command_module]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    G.
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 auth_test_cases() ->
     [auth_passes_correct_creds,
@@ -206,7 +207,7 @@ auth_always_passes_blank_creds(_Config) ->
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(admin, <<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"list_methods">>}, DecCmds).
+    assert_inlist(#{name => <<"list_commands">>}, DecCmds).
 
 non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/isitthereornot">>).
@@ -578,10 +579,10 @@ types_are_checked_separately_for_args_and_return(Config) ->
 send_messages(Alice, Bob) ->
     AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
     BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-    M = #{caller => BobJID, to => AliceJID, body => <<"hello from Bob">>},
-    {?NOCONTENT, _} = post(admin, <<"/messages">>, M),
-    M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
-    {?NOCONTENT, _} = post(admin, <<"/messages">>, M1),
+    M = #{to => AliceJID, body => <<"hello from Bob">>},
+    {?NOCONTENT, _} = post(admin, <<"/messages/?caller=", BobJID/binary>>, M),
+    M1 = #{to => BobJID, body => <<"hello from Alice">>},
+    {?NOCONTENT, _} = post(admin, <<"/messages?caller=", AliceJID/binary>>, M1),
     {M, M1}.
 
 send_message_bin(BFrom, BTo) ->

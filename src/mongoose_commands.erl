@@ -475,8 +475,8 @@ type_error(argument, Fmt, V) ->
 type_error(return, Fmt, V) ->
     throw({internal, io_lib:format(Fmt, V)}).
 
-check_identifiers(update, [], _) ->
-    baddef(identifiers, empty);
+%%check_identifiers(update, [], _) ->
+%%    baddef(identifiers, empty);
 check_identifiers(update, Ids, Args) ->
     check_identifiers(Ids, Args);
 check_identifiers(_, _, _) ->

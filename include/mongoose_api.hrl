@@ -8,7 +8,7 @@
                          auth = any,
                          opts = []}).
 %% Error messages
--define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).
+-define(ARGS_LEN_ERROR, <<"Command not found - doesn't exist or bad parameters length.">>).
 -define(ARGS_SPEC_ERROR, <<"Bad name of the parameter.">>).
 -define(BODY_MALFORMED, <<"The request body is malformed.">>).
 -define(COMMANDS_ENGINE, mongoose_commands).
