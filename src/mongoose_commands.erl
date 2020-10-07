@@ -39,10 +39,17 @@
 %% You can ignore return value of the target func by specifying return value as {result, ok}. The
 %% execute/3 will then always return just 'ok' (or error).
 %%
-%% If action is 'update' then it MUST specify which args are to be used as identifiers of object
-%% to update. It has no effect on how the engine does its job, but may be used by client code
-%% to enforce proper structure of request. (this is bad programming practice but we didn't have
-%% a better idea, we had to solve it for REST API)
+%% If, for a given action, values may be placed in body or in url, then by default they are all
+%% expected in the body, unless you specify identifiers, then they go to the path.
+%%
+%% Every command expects the caller as the first argument; it can be a #jid{}, a valid
+%% binary jid, or just an atom 'admin'.
+%%
+%% A regular user has to authenticate, then the caller is his jid. Admin can impersonate
+%% any user by adding `?caller=name@host` to url.
+%%
+%% TODO All the above should go to documentation of rest api, not here.
+%%
 %%
 %% Commands are registered here upon the module's initialisation
 %% (the module has to explicitly call mongoose_commands:register_commands/1

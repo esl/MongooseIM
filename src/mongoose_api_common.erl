@@ -72,6 +72,7 @@
          get_allowed_methods/1,
          to_json/4,
          from_json/4,
+         delete_resource/4,
          reload_dispatches/1,
          get_auth_details/1,
          is_known_auth_method/1,
@@ -121,6 +122,19 @@ from_json(Req, Caller, AllArgs, #http_api_state{command_category = Category,
         [] ->
             error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
     end.
+
+%% @doc Called for a method of type "DELETE"
+delete_resource(Req, Caller, AllArgs, #http_api_state{command_category = Category,
+                                                      command_subcategory = SubCategory} = State) ->
+    Arity = length(AllArgs),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
+    case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+        [Command] ->
+            process_request(Caller, <<"DELETE">>, Command, AllArgs, Req, State);
+        [] ->
+            error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+    end.
+
 
 -spec process_request(Entity :: mongoose_commands:caller(),
                       Method :: method(),

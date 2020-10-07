@@ -34,7 +34,6 @@
                               action_to_method/1,
                               method_to_action/1,
                               error_code/1,
-                              process_request/6,
                               parse_request_body/1]).
 
 -type credentials() :: {Username :: binary(), Password :: binary()} | any.
@@ -115,14 +114,14 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category,
-                                     command_subcategory = SubCategory,
-                                     bindings = B} = State) ->
-    Arity = length(B),
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
-    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
-    process_request(whatever, <<"DELETE">>, [], Command, Req, State).
-
+delete_resource(Req, #http_api_state{bindings = B} = State) ->
+    case check_caller(Req) of
+        {Caller, QVals} ->
+            AllArgs = B ++ QVals,
+            mongoose_api_common:delete_resource(Req, Caller, AllArgs, State);
+        error ->
+            mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
+    end.
 
 %%--------------------------------------------------------------------
 %% Authorization
@@ -162,36 +161,47 @@ get_control_creds(#http_api_state{auth = Creds}) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{entity = Caller0,
-                             bindings = B} = State) ->
-    {Caller, QVals} = check_caller(Caller0, Req),
-    AllArgs = B ++ QVals,
-    mongoose_api_common:to_json(Req, Caller, AllArgs, State).
+to_json(Req, #http_api_state{bindings = B} = State) ->
+    case check_caller(Req) of
+        {Caller, QVals} ->
+            AllArgs = B ++ QVals,
+            mongoose_api_common:to_json(Req, Caller, AllArgs, State);
+        error ->
+            mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
+    end.
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{entity = Caller0,
-                               bindings = B} = State) ->
+from_json(Req, #http_api_state{bindings = B} = State) ->
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
-            {Caller, QVals} = check_caller(Caller0, Req),
-            AllArgs = B ++ Params ++ QVals,
-            mongoose_api_common:from_json(Req, Caller, AllArgs, State)
+            case check_caller(Req) of
+                {Caller, QVals} ->
+                    AllArgs = B ++ Params ++ QVals,
+                    mongoose_api_common:from_json(Req, Caller, AllArgs, State);
+                error ->
+                    mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
+            end
     end.
 
 %%--------------------------------------------------------------------
 %% Internal
 %%--------------------------------------------------------------------
 
-check_caller(admin, Req) ->
+check_caller(Req) ->
     QVals0 = cowboy_req:parse_qs(Req),
     QVals1 = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals0],
     case proplists:get_value(caller, QVals1) of
         undefined ->
             {admin, QVals1};
         BinJid ->
-            {jid:from_binary(BinJid), proplists:delete(caller, QVals1)}
+            case jid:from_binary(BinJid) of
+                error ->
+                    error;
+                Jid ->
+                    {Jid, proplists:delete(caller, QVals1)}
+            end
     end.
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) ->

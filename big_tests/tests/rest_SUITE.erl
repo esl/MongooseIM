@@ -274,7 +274,7 @@ messages_error_handling(Config) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(AliceJID, <<"@noway">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(<<"@noway">>, BobJID),
+        {{<<"400">>, _}, <<"Invalid caller">>} = send_message_bin(<<"@noway">>, BobJID),
         ok
     end).
 
@@ -362,7 +362,7 @@ password_can_be_changed(Config) ->
     end),
     % we change password
     NewPass = <<"niemakrolika">>,
-    {?NOCONTENT, _} = putt(admin, "/users/localhost/bob",
+    {?NOCONTENT, _} = putt(admin, "/users/?caller=bob@localhost",
                            #{newpass => NewPass}),
     % he logs with his alternative password
     ConfigWithBobsAltPass = escalus_users:update_userspec(Config, bob, password, NewPass),
@@ -376,19 +376,25 @@ password_can_be_changed(Config) ->
         ok
     end,
     % we change it back
-    {?NOCONTENT, _} = putt(admin, "/users/localhost/bob",
+    {?NOCONTENT, _} = putt(admin, "/users/?caller=bob@localhost",
                            #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(#client{} = _Bob) ->
         just_dont_do_anything
     end),
     % test invalid calls
-    Res1 = putt(admin, "/users/localhost/bob",
+    Res1 = putt(admin, "/users/?caller=bob@localhost",
                            #{newpass => <<>>}),
     {?BAD_REQUEST, <<"empty password">>} = Res1,
-    Res2 = putt(admin, "/users/localhost/b@b",
+    Res2 = putt(admin, "/users/?caller=b@",
                 #{newpass => NewPass}),
-    {?BAD_REQUEST, <<"invalid jid">>} = Res2,
+    {?BAD_REQUEST, <<"Invalid caller">>} = Res2,
+    Res3 = putt(admin, "/users/?caller=user@thisdomaindoesnotexist",
+                #{newpass => NewPass}),
+    {?FORBIDDEN, <<"password change not allowed">>} = Res3,
+    Res4 = putt(admin, "/users/?caller=idonotexist@localhost",
+                #{newpass => NewPass}),
+    {?NOCONTENT, _} = Res4, % perhaps it should fail, but ejabberd_auth returns ok, what can we do
     ok.
 
 list_contacts(Config) ->
@@ -587,8 +593,8 @@ send_messages(Alice, Bob) ->
 
 send_message_bin(BFrom, BTo) ->
     % this is to trigger invalid jid errors
-    M = #{caller => BFrom, to => BTo, body => <<"whatever">>},
-    post(admin, <<"/messages">>, M).
+    M = #{to => BTo, body => <<"whatever">>},
+    post(admin, <<"/messages?caller=", BFrom/binary>>, M).
 
 send_extended_message(From, To) ->
     M = #xmlel{name = <<"message">>,
