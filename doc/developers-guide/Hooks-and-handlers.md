@@ -39,6 +39,9 @@ The extra level of indirection introduced by this call gives the flexibility to 
 `From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
 `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
+**Notice:** For the clarity of the explanation of the hooks mechanism, the provided code snippets are not exactly taken from the current code.
+The reasons for it will be described [later](#creating-your-own-hooks).
+
 ### Getting results from handlers
 
 Hook handlers are called by "folding".
@@ -253,10 +256,13 @@ $0 ~ /ejabberd_hooks:run/ {
 ## Creating your own hooks
 
 There's no special function or any setup necessary to create a new hook.
-The only thing that needs to be done is calling `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
-If you want static code analysis though, you should put the new hook inside `mongoose_hooks` with a correct type specification.
+The only thing that needs to be done is calling `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
 
-Of course, as long as no module registers handlers for this hook just running, it won't have any effects.
+However, if you want static code analysis, you should put the new hook inside `mongoose_hooks` with a correct type specification.
+We've added this module to provide some security and type checking in places where the hooks are run.
+This is the way all hooks are called in MongooseIM (see the examples in the [hooks description](hooks_description.md)).gen_iq_handler
+
+Of course, as long as no module registers handlers for a hook, running a `run_fold` won't have any effects.
 
 Similar is the case when a module registers handlers for some hook, but that hook is never run in the code.
 That won't have an effect either.
