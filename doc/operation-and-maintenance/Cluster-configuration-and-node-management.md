@@ -175,7 +175,7 @@ Load balancing can be performed on a DNS level.
 A DNS response can have a number of IP addresses that can be returned to the client side in a random order.
 
 On the AWS stack this type of balancing is provided by Route53.
-The description of their service can be found [here](http://docs.aws.amazon.com/Route53/latest/DeveloperGuide/WeightedResourceRecordSets.html).
+The description of their service can be found in the [Route53 Developer's Guide](http://docs.aws.amazon.com/Route53/latest/DeveloperGuide/WeightedResourceRecordSets.html).
 
 ### Other
 
