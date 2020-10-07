@@ -6,7 +6,8 @@
 -export([parse_file/1]).
 
 -ifdef(TEST).
--export([parse/1]).
+-export([parse/1,
+         extract_errors/1]).
 -endif.
 
 -include("mongoose.hrl").
@@ -21,8 +22,11 @@
 -type toml_section() :: tomerl:section().
 
 %% Output: list of config records, containing key-value pairs
--type option() :: term(). % any part of a config value, which can be a complex term
--type config() :: #config{} | #local_config{} | acl:acl() | {override, atom()}.
+-type option() :: term(). % a part of a config value OR a list of them, may contain config errors
+-type top_level_option() :: #config{} | #local_config{} | acl:acl().
+-type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
+-type override() :: {override, atom()}.
+-type config() :: top_level_option() | config_error() | override().
 -type config_list() :: [config() | fun((ejabberd:server()) -> [config()])]. % see HOST_F
 
 %% Path from the currently processed config node to the root
@@ -33,24 +37,33 @@
 
 -spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
 parse_file(FileName) ->
-    {ok, Content} = tomerl:read_file(FileName),
+    case tomerl:read_file(FileName) of
+        {ok, Content} ->
+            process(Content);
+        {error, Error} ->
+            Text = tomerl:format_error(Error),
+            ?LOG_ERROR(#{what => toml_parsing_failed,
+                         text => Text}),
+            mongoose_config_utils:exit_or_halt("Could not load the TOML configuration file")
+    end.
+
+-spec process(toml_section()) -> mongoose_config_parser:state().
+process(Content) ->
     Config = parse(Content),
-    [Hosts] = lists:filtermap(fun(#config{key = hosts, value = Hosts}) ->
-                                      {true, Hosts};
-                                 (_) -> false
-                              end, Config),
+    Hosts = get_hosts(Config),
     {FOpts, Config1} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
     {Overrides, Opts} = lists:partition(fun({override, _}) -> true;
                                            (_) -> false
                                         end, Config1),
     HOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
-    lists:foldl(fun(F, StateIn) -> F(StateIn) end,
-                mongoose_config_parser:new_state(),
-                [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
-                 fun(S) -> mongoose_config_parser:set_opts(Opts ++ HOpts, S) end,
-                 fun mongoose_config_parser:dedup_state_opts/1,
-                 fun mongoose_config_parser:add_dep_modules/1,
-                 fun(S) -> set_overrides(Overrides, S) end]).
+    AllOpts = Opts ++ HOpts,
+    case extract_errors(AllOpts) of
+        [] ->
+            build_state(Hosts, AllOpts, Overrides);
+        [#{text := Text}|_] = Errors ->
+            [?LOG_ERROR(Error) || Error <- Errors],
+            mongoose_config_utils:exit_or_halt(Text)
+    end.
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
@@ -72,16 +85,25 @@ parse_file(FileName) ->
 %% root path
 -spec parse(toml_section()) -> config_list().
 parse(Content) ->
-    parse_section([], Content).
+    handle([], Content).
+
+-spec parse_root(path(), toml_section()) -> config_list().
+parse_root(Path, Content) ->
+    ensure_keys([<<"general">>], Content),
+    parse_section(Path, Content).
 
 %% path: *
 -spec process_section(path(), toml_section() | [toml_section()]) -> config_list().
+process_section([<<"general">>] = Path, Content) ->
+    ensure_keys([<<"hosts">>], Content),
+    parse_section(Path, Content);
 process_section([<<"listen">>] = Path, Content) ->
     Listeners = parse_section(Path, Content),
     [#local_config{key = listen, value = Listeners}];
 process_section([<<"auth">>|_] = Path, Content) ->
-    AuthOpts = parse_section(Path, Content),
-    ?HOST_F(partition_auth_opts(AuthOpts, Host));
+    parse_section(Path, Content, fun(AuthOpts) ->
+                                         ?HOST_F(partition_auth_opts(AuthOpts, Host))
+                                 end);
 process_section([<<"outgoing_pools">>] = Path, Content) ->
     Pools = parse_section(Path, Content),
     [#local_config{key = outgoing_pools, value = Pools}];
@@ -159,10 +181,12 @@ ctl_access_arg_restriction([Key|_], Value) ->
 process_listener([_, Type|_] = Path, Content) ->
     Options = maps:without([<<"port">>, <<"ip_address">>], Content),
     PortIP = listener_portip(Content),
-    Opts = parse_section(Path, Options),
-    {Port, IPT, _, _, Proto, OptsClean} =
-        ejabberd_listener:parse_listener_portip(PortIP, Opts),
-    [{{Port, IPT, Proto}, listener_module(Type), OptsClean}].
+    parse_section(Path, Options,
+                  fun(Opts) ->
+                          {Port, IPT, _, _, Proto, OptsClean} =
+                              ejabberd_listener:parse_listener_portip(PortIP, Opts),
+                          [{{Port, IPT, Proto}, listener_module(Type), OptsClean}]
+                  end).
 
 -spec listener_portip(toml_section()) -> option().
 listener_portip(#{<<"port">> := Port, <<"ip_address">> := Addr}) -> {Port, b2l(Addr)};
@@ -382,18 +406,22 @@ auth_ldap_option([<<"uids">>|_] = Path, V) ->
 auth_ldap_option([<<"filter">>|_], V) ->
     [{ldap_filter, b2l(V)}];
 auth_ldap_option([<<"dn_filter">>|_] = Path, V) ->
-    Opts = parse_section(Path, V),
+    parse_section(Path, V, fun process_dn_filter/1);
+auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
+    parse_section(Path, V, fun process_local_filter/1);
+auth_ldap_option([<<"deref">>|_], V) ->
+    [{ldap_deref, b2a(V)}].
+
+process_dn_filter(Opts) ->
     {_, Filter} = proplists:lookup(filter, Opts),
     {_, Attrs} = proplists:lookup(attributes, Opts),
-    [{ldap_dn_filter, {Filter, Attrs}}];
-auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
-    Opts = parse_section(Path, V),
+    [{ldap_dn_filter, {Filter, Attrs}}].
+
+process_local_filter(Opts) ->
     {_, Op} = proplists:lookup(operation, Opts),
     {_, Attribute} = proplists:lookup(attribute, Opts),
     {_, Values} = proplists:lookup(values, Opts),
-    [{ldap_local_filter, {Op, {Attribute, Values}}}];
-auth_ldap_option([<<"deref">>|_], V) ->
-    [{ldap_deref, b2a(V)}].
+    [{ldap_local_filter, {Op, {Attribute, Values}}}].
 
 -spec auth_ldap_uids(path(), toml_section()) -> [option()].
 auth_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
@@ -595,10 +623,7 @@ ldap_option([<<"tls">>|_] = Path, Options) -> [{tls_options, parse_section(Path,
 riak_option([<<"address">>|_], Addr) -> [{address, b2l(Addr)}];
 riak_option([<<"port">>|_], Port) -> [{port, Port}];
 riak_option([<<"credentials">>|_] = Path, V) ->
-    Creds = parse_section(Path, V),
-    {_, User} = proplists:lookup(user, Creds),
-    {_, Pass} = proplists:lookup(password, Creds),
-    [{credentials, User, Pass}];
+    parse_section(Path, V, fun process_riak_credentials/1);
 riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
 riak_option([<<"certfile">>|_], Path) -> [{certfile, b2l(Path)}];
 riak_option([<<"keyfile">>|_], Path) -> [{keyfile, b2l(Path)}];
@@ -609,6 +634,11 @@ riak_option([<<"tls">>|_] = Path, Options) ->
         [] ->lists:flatten(RootOpts);
         _ -> [{ssl_opts, SslOpts} | lists:flatten(RootOpts)]
     end.
+
+process_riak_credentials(Creds) ->
+    {_, User} = proplists:lookup(user, Creds),
+    {_, Pass} = proplists:lookup(password, Creds),
+    [{credentials, User, Pass}].
 
 %% path: outgoing_pools.riak.*.connection.credentials.*
 -spec riak_credentials(path(), toml_value()) -> [option()].
@@ -931,10 +961,7 @@ module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
     Rules = parse_list(Path, V),
     [{ip_access, Rules}];
 module_opt([<<"welcome_message">>, <<"mod_register">>|_] = Path, V) ->
-    Props = parse_section(Path, V),
-    Subject = proplists:get_value(subject, Props, ""),
-    Body = proplists:get_value(body, Props, ""),
-    [{welcome_message, {Subject, Body}}];
+    parse_section(Path, V, fun process_welcome_message/1);
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
@@ -1030,6 +1057,11 @@ module_opt([<<"ldap_deref">>|_], V) ->
 %% Backend-specific options
 module_opt([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
+
+process_welcome_message(Props) ->
+    Subject = proplists:get_value(subject, Props, ""),
+    Body = proplists:get_value(body, Props, ""),
+    [{welcome_message, {Subject, Body}}].
 
 %% path: (host_config[].)modules.*.riak.*
 -spec riak_opts(path(), toml_section()) -> [option()].
@@ -1356,10 +1388,10 @@ mod_muc_log_top_link([<<"text">>|_], V) ->
 
 -spec mod_muc_light_config_schema(path(), toml_section()) -> [option()].
 mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val,
-    <<"internal_key">> := Key, <<"type">> := Type}) ->
-        [{b2l(Field), Val, b2a(Key), b2a(Type)}];
-    mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val}) ->
-        [{b2l(Field), b2l(Val)}].
+                                 <<"internal_key">> := Key, <<"type">> := Type}) ->
+    [{b2l(Field), Val, b2a(Key), b2a(Type)}];
+mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val}) ->
+    [{b2l(Field), b2l(Val)}].
 
 -spec mod_pubsub_pep_mapping(path(), toml_section()) -> [option()].
 mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
@@ -1566,7 +1598,9 @@ s2s_address_family(_, 6) -> [ipv6].
 %% path: s2s.host_policy[]
 -spec s2s_host_policy(path(), toml_section()) -> config_list().
 s2s_host_policy(Path, M) ->
-    Opts = parse_section(Path, M),
+    parse_section(Path, M, fun process_host_policy/1).
+
+process_host_policy(Opts) ->
     {_, S2SHost} = proplists:lookup(host, Opts),
     {_, Policy} = proplists:lookup(policy, Opts),
     ?HOST_F([#local_config{key = {{s2s_host, S2SHost}, Host}, value = Policy}]).
@@ -1579,7 +1613,9 @@ s2s_host_policy_opt([<<"policy">>|_], V) -> [{policy, b2a(V)}].
 %% path: s2s.address[]
 -spec s2s_address(path(), toml_section()) -> [config()].
 s2s_address(Path, M) ->
-    Opts = parse_section(Path, M),
+    parse_section(Path, M, fun process_s2s_address/1).
+
+process_s2s_address(Opts) ->
     {_, Host} = proplists:lookup(host, Opts),
     {_, IPAddress} = proplists:lookup(ip_address, Opts),
     Addr = case proplists:lookup(port, Opts) of
@@ -1658,11 +1694,17 @@ int_or_infinity(<<"infinity">>) -> infinity.
 
 -spec limit_keys([toml_key()], toml_section()) -> any().
 limit_keys(Keys, Section) ->
-    Section = maps:with(Keys, Section).
+    case maps:keys(maps:without(Keys, Section)) of
+        [] -> ok;
+        ExtraKeys -> error(#{what => unexpected_keys, unexpected_keys => ExtraKeys})
+    end.
 
 -spec ensure_keys([toml_key()], toml_section()) -> any().
 ensure_keys(Keys, Section) ->
-    true = lists:all(fun(Key) -> maps:is_key(Key, Section) end, Keys).
+    case lists:filter(fun(Key) -> not maps:is_key(Key, Section) end, Keys) of
+        [] -> ok;
+        MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
+    end.
 
 -spec parse_kv(path(), toml_key(), toml_section(), option()) -> option().
 parse_kv(Path, K, Section, Default) ->
@@ -1675,6 +1717,15 @@ parse_kv(Path, K, Section) ->
     #{K := Value} = Section,
     Key = key(K, Path, Value),
     handle([Key|Path], Value).
+
+%% Parse with post-processing, this needs to be eliminated by fixing the internal config structure
+-spec parse_section(path(), toml_section(), fun(([option()]) -> option())) -> option().
+parse_section(Path, V, PostProcessF) ->
+    L = parse_section(Path, V),
+    case extract_errors(L) of
+        [] -> PostProcessF(L);
+        Errors -> Errors
+    end.
 
 -spec parse_section(path(), toml_section()) -> [option()].
 parse_section(Path, M) ->
@@ -1692,27 +1743,58 @@ parse_list(Path, L) ->
 
 -spec handle(path(), toml_value()) -> option().
 handle(Path, Value) ->
-    Handler = handler(Path),
-    Option = try Handler(Path, Value)
-             catch error:Error:Stacktrace
-                  when not is_map(Error); not is_map_key(path, Error) ->
-                      E = #{what => toml_parse_failed,
-                            path => Path, reason => Error},
-                      erlang:raise(error, E, Stacktrace)
-             end,
-    validate(Path, Option),
-    Option.
+    lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
+                        Error;
+                   (StepName, AccIn) ->
+                        try_call(handle_step(StepName, AccIn), StepName, Path, Value)
+                end, Path, [handle, parse, validate]).
 
-validate(Path, Option) ->
-    try mongoose_config_validator_toml:validate(Path, Option)
-    catch error:Error:Stacktrace
-         when not is_map(Error); not is_map_key(path, Error) ->
-              E = #{what => toml_validate_failed,
-                    path => Path, reason => Error},
-              erlang:raise(error, E, Stacktrace)
+handle_step(handle, _) ->
+    fun(Path, _Value) -> handler(Path) end;
+handle_step(parse, Handler) ->
+    Handler;
+handle_step(validate, ParsedValue) ->
+    fun(Path, _Value) ->
+            mongoose_config_validator_toml:validate(Path, ParsedValue),
+            ParsedValue
     end.
 
+-spec try_call(fun((path(), any()) -> option()), atom(), path(), toml_value()) -> option().
+try_call(F, StepName, Path, Value) ->
+    try
+        F(Path, Value)
+    catch error:Reason:Stacktrace ->
+            BasicFields = #{what => toml_processing_failed,
+                            class => error,
+                            stacktrace => Stacktrace,
+                            text => error_text(StepName),
+                            toml_path => path_to_string(Path),
+                            toml_value => Value},
+            ErrorFields = error_fields(Reason),
+            [maps:merge(BasicFields, ErrorFields)]
+    end.
+
+-spec error_text(atom()) -> string().
+error_text(handle) -> "Unexpected option in the TOML configuration file";
+error_text(parse) -> "Malformed option in the TOML configuration file";
+error_text(validate) -> "Incorrect option value in the TOML configuration file".
+
+-spec error_fields(any()) -> map().
+error_fields(#{what := Reason} = M) -> maps:remove(what, M#{reason => Reason});
+error_fields(Reason) -> #{reason => Reason}.
+
+-spec path_to_string(path()) -> string().
+path_to_string(Path) ->
+    Items = lists:flatmap(fun node_to_string/1, lists:reverse(Path)),
+    string:join(Items, ".").
+
+node_to_string(item) -> [];
+node_to_string({host, _}) -> [];
+node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
+node_to_string(Node) -> [binary_to_list(Node)].
+
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
+handler([]) -> fun parse_root/2;
 handler([_]) -> fun process_section/2;
 
 %% general
@@ -1999,3 +2081,45 @@ defined_or_false(Key, Opts) ->
         false ->
             [{Key, false}]
     end ++ Opts.
+
+%% Processing of the parsed options
+
+-spec get_hosts(config_list()) -> [ejabberd:server()].
+get_hosts(Config) ->
+    case lists:filter(fun(#config{key = hosts}) -> true;
+                         (_) -> false
+                      end, Config) of
+        [] -> [];
+        [#config{value = Hosts}] -> Hosts
+    end.
+
+-spec build_state([ejabberd:server()], [top_level_option()], [override()]) ->
+          mongoose_config_parser:state().
+build_state(Hosts, Opts, Overrides) ->
+    lists:foldl(fun(F, StateIn) -> F(StateIn) end,
+                mongoose_config_parser:new_state(),
+                [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
+                 fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
+                 fun mongoose_config_parser:dedup_state_opts/1,
+                 fun mongoose_config_parser:add_dep_modules/1,
+                 fun(S) -> set_overrides(Overrides, S) end]).
+
+%% Any nested option() may be a config_error() - this function extracts them all recursively
+-spec extract_errors([config()]) -> [config_error()].
+extract_errors(Config) ->
+    extract(fun(#{what := _, class := error}) -> true;
+               (_) -> false
+            end, Config).
+
+-spec extract(fun((option()) -> boolean()), option()) -> [option()].
+extract(Pred, Data) ->
+    case Pred(Data) of
+        true -> [Data];
+        false -> extract_items(Pred, Data)
+    end.
+
+-spec extract_items(fun((option()) -> boolean()), option()) -> [option()].
+extract_items(Pred, L) when is_list(L) -> lists:flatmap(fun(El) -> extract(Pred, El) end, L);
+extract_items(Pred, T) when is_tuple(T) -> extract_items(Pred, tuple_to_list(T));
+extract_items(Pred, M) when is_map(M) -> extract_items(Pred, maps:to_list(M));
+extract_items(_, _) -> [].
