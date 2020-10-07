@@ -33,14 +33,14 @@ It must be defined in the [`outgoing_pools` settings](../advanced-configuration/
 
 ## Options
 
-#### `modules.mod_event_pusher_http.pool_name`
+#### `modules.mod_event_pusher.backend.http.pool_name`
 * **Syntax:** non-empty string
 * **Default:** `"http_pool"`
 * **Example:** `pool_name = "http_pool"`
 
 Name of the pool to use (as defined in outgoing_pools).
 
-#### `modules.mod_event_pusher_http.path`
+#### `modules.mod_event_pusher.backend.http.path`
 * **Syntax:** string
 * **Default:** `""`
 * **Example:** `path = "/notifications"`
