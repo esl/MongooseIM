@@ -39,17 +39,17 @@ groups() ->
      }
     ].
 
-glo({auth_method, _}) ->
+get_local_opt({auth_method, _}) ->
     dummy;
-glo(Any) ->
+get_local_opt(Any) ->
     ?PRT("what do you want", Any),
     none.
 
-ggo({access, experts_only, _}) ->
+get_global_opt({access, experts_only, _}) ->
     [{allow, coder}, {allow, manager}, {deny, all}];
-ggo({access, _, _}) ->
+get_global_opt({access, _, _}) ->
     [];
-ggo(Any) ->
+get_global_opt(Any) ->
     ?PRT("global what do you want", Any),
     none.
 
@@ -87,8 +87,8 @@ stop_helper_proc(C) ->
 
 init_per_testcase(_, C) ->
     meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun glo/1),
-    meck:expect(ejabberd_config, get_global_option, fun ggo/1),
+    meck:expect(ejabberd_config, get_local_option, fun get_local_opt/1),
+    meck:expect(ejabberd_config, get_global_option, fun get_global_opt/1),
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     C.
@@ -254,26 +254,18 @@ new_execute(_C) ->
     %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
     %% backend func returns error
-    ExpError = term_to_binary({func_returned_error, byleco}),
-    {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
+    {error, badarg, "byleco"} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     % user executes his command
     {ok, <<"bzzzz">>} = mongoose_commands:execute(ujid(), command_foruser, #{msg => <<"bzzzz">>}),
-    % a caller arg
+    % commands using caller
     % called by admin
-    {ok, <<"admin@localhost/zbzzzz">>} = mongoose_commands:execute(admin,
-                                                                   command_withcaller,
-                                                                   #{caller => <<"admin@localhost/z">>,
-                                                                     msg => <<"bzzzz">>}),
+    {ok, <<"admin/bzzzz">>} = mongoose_commands:execute(admin,
+                                                         command_withcaller,
+                                                         #{msg => <<"bzzzz">>}),
     % called by user
-    {ok, <<"zenek@localhost/zbzzzz">>} = mongoose_commands:execute(<<"zenek@localhost">>,
-                                                                   command_withcaller,
-                                                                   #{caller => <<"zenek@localhost/z">>,
-                                                                     msg => <<"bzzzz">>}),
-    % call by user but jids do not match
-    {error, denied, _} = mongoose_commands:execute(<<"wacek@localhost">>,
-                                                   command_withcaller,
-                                                   #{caller => <<"zenek@localhost/z">>,
-                                                     msg => <<"bzzzz">>}),
+    {ok, <<"zenek/bzzzz">>} = mongoose_commands:execute(<<"zenek@localhost">>,
+                                                         command_withcaller,
+                                                         #{msg => <<"bzzzz">>}),
     {ok, 30} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>}),
     {ok, 18} = mongoose_commands:execute(admin, command_withoptargs, #{msg => <<"a">>, value => 6}),
     ok.
@@ -337,12 +329,12 @@ commands_new() ->
         [
             {name, command_withcaller},
             {category, <<"another">>},
-            {desc, <<"this has a 'caller' argument, returns caller ++ msg">>},
+            {desc, <<"this returns caller ++ msg">>},
             {module, ?MODULE},
             {function, cmd_concat},
             {action, create},
             {security_policy, [user]},
-            {args, [{caller, binary}, {msg, binary}]},
+            {args, [{msg, binary}]},
             {result, {msg, binary}}
         ]
     ].
@@ -542,6 +534,7 @@ commands_old() ->
                            result = {res, restuple}}
     ].
 
+% this is to test ejabberd_commands
 cmd_one(<<"throw">>) ->
     C = 12,
     <<"A", C/binary>>;
@@ -550,24 +543,38 @@ cmd_one(<<"error">>) ->
 cmd_one(M) ->
     M.
 
-cmd_one_withvalue(_Msg, Value) ->
-    Value * 3.
-
-cmd_two(M) ->
+cmd_two( M) ->
     M.
 
-the_same_types(10, 15) ->
+% and this is for mongooseim_commands which take caller as the first arg
+cmd_one(_, <<"throw">>) ->
+    C = 12,
+    <<"A", C/binary>>;
+cmd_one(_, <<"error">>) ->
+    {error, badarg, "byleco"};
+cmd_one(_, M) ->
+    M.
+
+cmd_one_withvalue(_, _Msg, Value) ->
+    Value * 3.
+
+cmd_two(_, M) ->
+    M.
+
+the_same_types(_, 10, 15) ->
     <<"response1">>;
-the_same_types(_, _) ->
+the_same_types(_, _, _) ->
     <<"wrong response">>.
 
-different_types(10, <<"binary">>) ->
+different_types(_, 10, <<"binary">>) ->
     <<"response2">>;
-different_types(_, _) ->
+different_types(_, _, _) ->
     <<"wrong content">>.
 
-cmd_concat(A, B) ->
-    <<A/binary, B/binary>>.
+cmd_concat(admin, B) ->
+    <<"admin/", B/binary>>;
+cmd_concat(Caller, B) ->
+    <<(Caller#jid.luser)/binary, "/", B/binary>>.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities

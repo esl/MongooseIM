@@ -6,12 +6,12 @@
 
 -export([start/0, stop/0,
          start/2, stop/1,
-         register/3,
-         unregister/2,
-         registered_commands/0,
-         registered_users/1,
-         change_user_password/3,
-         list_sessions/1,
+         register/4,
+         unregister/3,
+         registered_commands/1,
+         registered_users/2,
+         change_user_password/2,
+         list_sessions/2,
          list_contacts/1,
          add_contact/2,
          add_contact/3,
@@ -20,11 +20,11 @@
          delete_contact/2,
          subscription/3,
          set_subscription/3,
-         kick_session/3,
+         kick_session/4,
          get_recent_messages/3,
          get_recent_messages/4,
          send_message/3,
-         send_stanza/1
+         send_stanza/2
         ]).
 
 -include("mongoose.hrl").
@@ -47,10 +47,11 @@ stop(_) -> stop().
 commands() ->
     [
      [
-      {name, list_methods},
+      {name, list_commands},
       {category, <<"commands">>},
       {desc, <<"List commands">>},
       {module, ?MODULE},
+      {security_policy, [user]},
       {function, registered_commands},
       {action, read},
       {args, []},
@@ -125,7 +126,7 @@ commands() ->
       {function, add_contact},
       {action, create},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jid, binary}]},
+      {args, [{jid, binary}]},
       {result, ok}
      ],
      [
@@ -161,7 +162,7 @@ commands() ->
       {function, delete_contact},
       {action, delete},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jid, binary}]},
+      {args, [{jid, binary}]},
       {result, ok}
      ],
      [
@@ -173,7 +174,7 @@ commands() ->
       {function, delete_contacts},
       {action, delete},
       {security_policy, [user]},
-      {args, [{caller, binary}, {jids, [binary]}]},
+      {args, [{jids, [binary]}]},
       {result,  []}
      ],
      [
@@ -205,7 +206,7 @@ commands() ->
       {function, get_recent_messages},
       {action, read},
       {security_policy, [user]},
-      {args, [{caller, binary}]},
+      {args, []},
       {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
      ],
@@ -217,7 +218,7 @@ commands() ->
       {function, get_recent_messages},
       {action, read},
       {security_policy, [user]},
-      {args, [{caller, binary}, {with, binary}]},
+      {args, [{with, binary}]},
       {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
      ],
@@ -230,28 +231,28 @@ commands() ->
       {action, update},
       {security_policy, [user]},
       {identifiers, [host, user]},
-      {args, [{host, binary}, {user, binary}, {newpass, binary}]},
+      {args, [{newpass, binary}]},
       {result, ok}
      ]
     ].
 
-kick_session(Host, User, Resource) ->
+kick_session(admin, Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
     case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
         no_session -> {error, denied, <<"no active session">> };
         {exit, <<"kicked">>} -> <<"kicked">>
     end.
 
-list_sessions(Host) ->
+list_sessions(admin, Host) ->
     Lst = ejabberd_sm:get_vh_session_list(Host),
     [jid:to_binary(JID) || {JID, _, _, _} <- Lst].
 
-registered_users(Host) ->
+registered_users(admin, Host) ->
     Users = ejabberd_auth:get_vh_registered_users(Host),
     SUsers = lists:sort(Users),
     [jid:to_binary(US) || US <- SUsers].
 
-register(Host, User, Password) ->
+register(admin, Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
@@ -270,7 +271,7 @@ register(Host, User, Password) ->
                                          [User, Host]))
     end.
 
-unregister(Host, User) ->
+unregister(admin, Host, User) ->
     case ejabberd_auth:remove_user(User, Host) of
         ok -> <<"ok">>;
         error -> {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
@@ -296,7 +297,7 @@ send_message(From, To, Body) ->
             E
     end.
 
-send_stanza(BinStanza) ->
+send_stanza(admin, BinStanza) ->
     case exml:parse(BinStanza) of
         {ok, Packet} ->
             F = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
@@ -375,12 +376,14 @@ jid_exists(CJid, Jid) ->
     Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
     Res =/= does_not_exist.
 
-registered_commands() ->
+registered_commands(#jid{}) ->
+    registered_commands(user);
+registered_commands(Who) ->
     [#{name => mongoose_commands:name(C),
        category => mongoose_commands:category(C),
        action => mongoose_commands:action(C),
        desc => mongoose_commands:desc(C)
-      } || C <- mongoose_commands:list(admin)].
+      } || C <- mongoose_commands:list(Who)].
 
 
 get_recent_messages(Caller, Before, Limit) ->
@@ -395,8 +398,8 @@ get_recent_messages(Caller, With, Before, Limit) ->
     Res = lookup_recent_messages(Caller, With, Before, Limit),
     lists:map(fun record_to_map/1, Res).
 
-change_user_password(Host, User, Password) ->
-    case ejabberd_auth:set_password(User, Host, Password) of
+change_user_password(Caller, Password) ->
+    case ejabberd_auth:set_password(Caller#jid.luser, Caller#jid.lserver, Password) of
         ok -> ok;
         {error, empty_password} ->
             {error, bad_request, "empty password"};

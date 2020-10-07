@@ -132,8 +132,6 @@
          args = [] :: [argspec()],
          %% arg which has a default value and is optional
          optargs = [] :: [optargspec()],
-         %% internal use
-         caller_pos :: integer(),
          %% resource identifiers, a subset of args
          identifiers = [] :: [atom()],
          %% permissions required to run this command
@@ -143,7 +141,7 @@
         }).
 
 -opaque t() :: #mongoose_command{}.
--type caller() :: admin | binary() | user.
+-type caller() :: admin | binary() | jid:jid().
 -type action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
 -type typedef() :: [typedef_basic()] | typedef_basic().
@@ -217,7 +215,7 @@ new(Props) ->
                       Cmd#mongoose_command.identifiers,
                       Cmd#mongoose_command.args),
     % store position of caller in args (if present)
-    Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
+    Cmd.
 
 
 %% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
@@ -394,9 +392,7 @@ check_and_execute(Caller, Command, Args) ->
         false ->
             throw({denied, "Command not available for this user"})
         end,
-    % check caller (if it is given in args, and the engine is called by a 'real' user, then it
-    % must match
-    check_caller(Caller, Command, Args),
+    Caller1 = check_caller(Caller),
     % check args
     % this is the 'real' spec of command - optional args included
     FullSpec = Command#mongoose_command.args
@@ -410,7 +406,7 @@ check_and_execute(Caller, Command, Args) ->
     end,
     [check_type(argument, S, A) || {S, A} <- lists:zip(FullSpec, Args)],
     % run command
-    Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
+    Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, [Caller1 | Args]),
     case Res of
         {error, Type, Reason} ->
             {error, Type, Reason};
@@ -551,8 +547,6 @@ check_value(optargs, undefined) ->
     [];
 check_value(optargs, V) ->
     V;
-check_value(caller_pos, _) ->
-    0;
 check_value(K, V) ->
     baddef(K, V).
 
@@ -658,33 +652,14 @@ apply_policy(user, _) ->
 apply_policy(_, _) ->
     false.
 
-locate_caller(L) ->
-    locate_caller(1, L).
-
-locate_caller(_I, []) ->
-    0;
-locate_caller(I, [{caller, _}|_]) ->
-    I;
-locate_caller(I, [_|T]) ->
-    locate_caller(I + 1, T).
-
-check_caller(admin, _Command, _Args) ->
-    ok;
-check_caller(_Caller, #mongoose_command{caller_pos = 0}, _Args) ->
-    % no caller in args
-    ok;
-check_caller(Caller, #mongoose_command{caller_pos = CallerPos}, Args) ->
-    % check that server and user match (we don't care about resource)
-    ACaller = lists:nth(CallerPos, Args),
-    CallerJid = jid:from_binary(Caller),
-    ACallerJid = jid:from_binary(ACaller),
-    ACal = {ACallerJid#jid.user, ACallerJid#jid.server},
-    case {CallerJid#jid.user, CallerJid#jid.server} of
-        ACal ->
-            ok;
-        _ ->
-            throw({denied, "Caller ids do not match"})
-    end.
+check_caller(admin) -> admin;
+check_caller(#jid{} = J) -> J;
+check_caller(B) when is_binary(B) ->
+    case jid:from_binary(B) of
+        error -> throw({badarg, "invalid caller"});
+        J -> J
+    end;
+check_caller(_) -> throw({badarg, "invalid caller"}).
 
 sizeof(#{} = M) -> maps:size(M);
 sizeof([_|_] = L) -> length(L).
