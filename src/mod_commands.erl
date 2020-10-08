@@ -19,7 +19,7 @@
          delete_contacts/2,
          delete_contact/2,
          subscription/3,
-         set_subscription/3,
+         set_subscription/4,
          kick_session/4,
          get_recent_messages/3,
          get_recent_messages/4,
@@ -137,6 +137,7 @@ commands() ->
       {function, subscription},
       {action, update},
       {security_policy, [user]},
+      {identifiers, [jid]},
       {args, [{jid, binary}, {action, binary}]},
       {result, ok}
      ],
@@ -144,10 +145,11 @@ commands() ->
       {name, set_subscription},
       {category, <<"contacts">>},
       {subcategory, <<"manage">>},
-      {desc, <<"Set / unset mutual subscription">>},
+      {desc, <<"Set / unset mutual subscription (admin only)">>},
       {module, ?MODULE},
       {function, set_subscription},
       {action, update},
+      {identifiers, [user, jid]},
       {args, [{user, binary}, {jid, binary}, {action, binary}]},
       {result, ok}
      ],
@@ -316,7 +318,7 @@ send_stanza(admin, BinStanza) ->
     end.
 
 list_contacts(Caller) ->
-    CallerJID = jid:from_binary(Caller),
+    CallerJID = parse_jid(Caller),
     Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
                                lserver => CallerJID#jid.lserver,
                                element => undefined }),
@@ -338,10 +340,9 @@ add_contact(Caller, JabberID, Name) ->
     add_contact(Caller, JabberID, Name, []).
 
 add_contact(Caller, JabberID, Name, Groups) ->
-    CJid = jid:from_binary(Caller),
-    case check_jids(Caller, JabberID) of
-        ok ->
-            mod_roster:set_roster_entry(CJid, JabberID, Name, Groups);
+    case parse_jid(Caller, JabberID) of
+        {ok, Owner, _Peer} ->
+            mod_roster:set_roster_entry(Owner, JabberID, Name, Groups);
         E ->
             E
     end.
@@ -359,7 +360,7 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
     end.
 
 delete_contact(Caller, JabberID) ->
-    CJid = jid:from_binary(Caller),
+    CJid = parse_jid(Caller),
     case jid_exists(Caller, JabberID) of
         false -> error;
         true ->
@@ -368,7 +369,7 @@ delete_contact(Caller, JabberID) ->
 
 -spec jid_exists(binary(), binary()) -> boolean().
 jid_exists(CJid, Jid) ->
-    FJid = jid:from_binary(CJid),
+    FJid = parse_jid(CJid),
     Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
     Res =/= does_not_exist.
 
@@ -432,9 +433,9 @@ lookup_recent_messages(admin, _, _, _) ->
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
 lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), With, Before, Limit);
+    lookup_recent_messages(parse_jid(ArcJID), With, Before, Limit);
 lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
+    lookup_recent_messages(ArcJID, parse_jid(With), Before, Limit);
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     Host = ArcJID#jid.server,
     Params = #{archive_id => mod_mam:archive_id(Host, ArcJID#jid.user),
@@ -459,9 +460,9 @@ subscription(Caller, Other, Action) ->
         error ->
             {error, bad_request, <<"invalid action">>};
         Act ->
-            case check_jids(Caller, Other) of
-                ok ->
-                    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other));
+            case parse_jid(Caller, Other) of
+                {ok, CallerJid, OtherJid} ->
+                    run_subscription(Act, CallerJid, OtherJid);
                 E ->
                     E
             end
@@ -490,12 +491,12 @@ run_subscription(Type, CallerJid, OtherJid) ->
     ok.
 
 
-set_subscription(Caller, Other, Action) ->
-    case check_jids(Caller, Other) of
+set_subscription(admin, Owner, Other, Action) ->
+    case check_jids(Owner, Other) of
         ok ->
             case Action of
                 A when A == <<"connect">>; A == <<"disconnect">> ->
-                    do_set_subscription(Caller, Other, Action);
+                    do_set_subscription(Owner, Other, Action);
                 _ ->
                     {error, bad_request, <<"invalid action">>}
             end;
@@ -517,11 +518,12 @@ do_set_subscription(Caller, Other, <<"disconnect">>) ->
     ok.
 
 check_jids(CallerJid, OtherJid) ->
-    case {jid:from_binary(CallerJid), jid:from_binary(OtherJid)} of
-        {C, J} when C == error; J == error ->
-            {error, bad_request, <<"invalid jid">>};
-        _ ->
-            ok
+    Res = [parse_jid(CallerJid), parse_jid(OtherJid)],
+    case [Msg || {error, Msg} <- Res] of
+        [] ->
+            ok;
+        List ->
+            {error, bad_request, lists:flatten(lists:join("; ", List))}
     end.
 
 parse_jid(Sender, Recipient) ->
@@ -534,7 +536,7 @@ parse_jid(Sender, Recipient) ->
 parse_jid(#jid{} = Jid) -> Jid;
 parse_jid(Jid) when is_binary(Jid) ->
     case jid:from_binary(Jid) of
-        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
-        B -> B
+        error -> {error, io_lib:format("Invalid jid: ~p", [binary_to_list(Jid)])};
+        J -> J
     end.
 

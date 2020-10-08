@@ -117,8 +117,7 @@ terminate(_Reason, _Req, _State) ->
 delete_resource(Req, #http_api_state{bindings = B} = State) ->
     case check_caller(Req) of
         {Caller, QVals} ->
-            AllArgs = B ++ QVals,
-            mongoose_api_common:delete_resource(Req, Caller, AllArgs, State);
+            mongoose_api_common:delete_resource(Req, Caller, B, QVals, State);
         error ->
             mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
     end.

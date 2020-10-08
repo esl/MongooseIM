@@ -72,7 +72,7 @@
          get_allowed_methods/1,
          to_json/5,
          from_json/5,
-         delete_resource/4,
+         delete_resource/5,
          reload_dispatches/1,
          get_auth_details/1,
          is_known_auth_method/1,
@@ -124,13 +124,13 @@ from_json(Req, Caller, Args, OptArgs, #http_api_state{command_category = Categor
     end.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, Caller, AllArgs, #http_api_state{command_category = Category,
-                                                      command_subcategory = SubCategory} = State) ->
-    Arity = length(AllArgs),
+delete_resource(Req, Caller, Args, OptArgs, #http_api_state{command_category = Category,
+                                                            command_subcategory = SubCategory} = State) ->
+    Arity = length(Args),
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
     case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
         [Command] ->
-            process_request(Caller, <<"DELETE">>, Command, AllArgs, Req, State);
+            process_request(Caller, <<"DELETE">>, Command, Args ++ OptArgs, Req, State);
         [] ->
             error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
     end.
@@ -268,6 +268,8 @@ add_location_header(Result, ResourcePath, Req) ->
 -spec convert_arg(atom(), any()) -> boolean() | integer() | float() | binary() | string() | {error, bad_type}.
 convert_arg(binary, Binary) when is_binary(Binary) ->
     Binary;
+convert_arg(binary, List) when is_list(List) ->
+    list_to_binary(List);
 convert_arg(boolean, Value) when is_boolean(Value) ->
     Value;
 convert_arg(integer, Binary) when is_binary(Binary) ->
@@ -280,8 +282,8 @@ convert_arg(float, Float) when is_float(Float) ->
     Float;
 convert_arg([Type], List) when is_list(List) ->
     [ convert_arg(Type, Item) || Item <- List ];
-convert_arg(_, _Binary) ->
-    throw({error, bad_type}).
+convert_arg(Exp, Got) ->
+    throw(io_lib:format("Can not convert ~p to ~p", [Got, Exp])).
 
 -spec create_params_proplist(list({binary(), binary()})) -> args_applied().
 create_params_proplist(ArgList) ->
