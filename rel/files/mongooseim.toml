@@ -93,7 +93,7 @@
   [[listen.http.handlers.cowboy_swagger_json_handler]]
     host = "_"
     path = "/api-docs/swagger.json"
-
+# do we need this? it doesn't even work
   [[listen.http.handlers.cowboy_static]]
     host = "_"
     path = "/api-docs/[...]"

@@ -164,8 +164,7 @@ get_control_creds(#http_api_state{auth = Creds}) ->
 to_json(Req, #http_api_state{bindings = B} = State) ->
     case check_caller(Req) of
         {Caller, QVals} ->
-            AllArgs = B ++ QVals,
-            mongoose_api_common:to_json(Req, Caller, AllArgs, State);
+            mongoose_api_common:to_json(Req, Caller, B, QVals, State);
         error ->
             mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
     end.
@@ -178,8 +177,8 @@ from_json(Req, #http_api_state{bindings = B} = State) ->
         {Params, _} ->
             case check_caller(Req) of
                 {Caller, QVals} ->
-                    AllArgs = B ++ Params ++ QVals,
-                    mongoose_api_common:from_json(Req, Caller, AllArgs, State);
+                    AllArgs = B ++ Params,
+                    mongoose_api_common:from_json(Req, Caller, AllArgs, QVals, State);
                 error ->
                     mongoose_api_common:error_response(type_error, <<"Invalid caller">>, Req, State)
             end

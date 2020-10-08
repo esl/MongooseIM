@@ -427,6 +427,8 @@ build_message(From, To, Body) ->
                               children = [#xmlcdata{content = Body}]}]
           }.
 
+lookup_recent_messages(admin, _, _, _) ->
+    throw({bad_request, "caller is required as the archive owner"});
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
 lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->

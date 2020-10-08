@@ -70,8 +70,8 @@
          method_to_action/1,
          parse_request_body/1,
          get_allowed_methods/1,
-         to_json/4,
-         from_json/4,
+         to_json/5,
+         from_json/5,
          delete_resource/4,
          reload_dispatches/1,
          get_auth_details/1,
@@ -98,27 +98,27 @@ create_url_path(Command) ->
           maybe_add_bindings(Command), maybe_add_subcategory(Command)].
 
 %% @doc Called for a method of type "GET"
-to_json(Req, Caller, AllArgs, #http_api_state{command_category = Category,
+to_json(Req, Caller, Args, OptArgs, #http_api_state{command_category = Category,
                                               command_subcategory = SubCategory} = State) ->
     % we list all cmds here and check permissions later to return 403
     %% TODO cleanup
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
-    Arity = length(AllArgs),
+    Arity = length(Args),
     case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
-        [Command] -> process_request(Caller, <<"GET">>, Command, AllArgs, Req, State);
+        [Command] -> process_request(Caller, <<"GET">>, Command, Args ++ OptArgs, Req, State);
         [] -> error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
     end.
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, Caller, AllArgs, #http_api_state{command_category = Category,
+from_json(Req, Caller, Args, OptArgs, #http_api_state{command_category = Category,
                                                 command_subcategory = SubCategory} = State) ->
     Method = cowboy_req:method(Req),
     % we list all cmds here and check permissions later to return 403
     Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-    Arity = length(AllArgs),
+    Arity = length(Args),
     case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
         [Command] ->
-            process_request(Caller, Method, Command, AllArgs, Req, State);
+            process_request(Caller, Method, Command, Args ++ OptArgs, Req, State);
         [] ->
             error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
     end.

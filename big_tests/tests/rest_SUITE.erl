@@ -294,13 +294,13 @@ stanzas_are_sent_and_received(Config) ->
 
 messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {M1, _M2} = send_messages(Alice, Bob),
-        AliceJID = maps:get(to, M1),
-        BobJID = maps:get(caller, M1),
+        {_M1, _M2} = send_messages(Alice, Bob),
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         GetPath = lists:flatten(["/messages",
-                                 "/", binary_to_list(AliceJID),
                                  "/", binary_to_list(BobJID),
-                                 "?limit=10"]),
+                                 "?limit=10",
+                                 "&caller=", binary_to_list(AliceJID)]),
         mam_helper:maybe_wait_for_archive(Config),
         {?OK, Msgs} = gett(admin, GetPath),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
@@ -310,8 +310,8 @@ messages_are_archived(Config) ->
         BobJID = maps:get(sender, Previous),
         % now if we leave limit out we should get the same result
         GetPath1 = lists:flatten(["/messages",
-                                  "/", binary_to_list(AliceJID),
-                                  "/", binary_to_list(BobJID)]),
+                                  "/", binary_to_list(BobJID),
+                                  "?caller=", binary_to_list(AliceJID)]),
         mam_helper:maybe_wait_for_archive(Config),
         {?OK, Msgs1} = gett(admin, GetPath1),
         [Last1, Previous1|_] = lists:reverse(decode_maplist(Msgs1)),
@@ -320,7 +320,8 @@ messages_are_archived(Config) ->
         <<"hello from Bob">> = maps:get(body, Previous1),
         BobJID = maps:get(sender, Previous1),
         % and we can do the same without specifying contact
-        GetPath2 = lists:flatten(["/messages/", binary_to_list(AliceJID)]),
+        GetPath2 = lists:flatten(["/messages?caller=",
+                                  binary_to_list(AliceJID)]),
         mam_helper:maybe_wait_for_archive(Config),
         {?OK, Msgs2} = gett(admin, GetPath2),
         [Last2, Previous2|_] = lists:reverse(decode_maplist(Msgs2)),
@@ -642,19 +643,19 @@ check_roster_empty(Path) ->
     [] = decode_maplist(R).
 
 get_messages(Me, Other, Count) ->
-    GetPath = lists:flatten(["/messages/",
-                             binary_to_list(Me),
+    GetPath = lists:flatten(["/messages",
                              "/", binary_to_list(Other),
-                             "?limit=", integer_to_list(Count)]),
+                             "?limit=", integer_to_list(Count),
+                             "&caller=", binary_to_list(Me)]),
     {?OK, Msgs} = gett(admin, GetPath),
     Msgs.
 
 get_messages(Me, Other, Before, Count) ->
-    GetPath = lists:flatten(["/messages/",
-                             binary_to_list(Me),
+    GetPath = lists:flatten(["/messages",
                              "/", binary_to_list(Other),
                              "?before=", integer_to_list(Before),
-                             "&limit=", integer_to_list(Count)]),
+                             "&limit=", integer_to_list(Count),
+                             "&caller=", binary_to_list(Me)]),
     {?OK, Msgs} = gett(admin, GetPath),
     Msgs.
 

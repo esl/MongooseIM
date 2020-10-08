@@ -32,6 +32,7 @@
 %% Type spec of return value of the function to call; execute/3 eventually returns {ok, result}
 %%      identifiers :: [atom()] (optional, required in 'update' commands)
 %%      optargs :: [{atom(), type(), term()] (optional args with type and default value.
+%% optargs must be in query
 %% Then a command is called, it fills missing arguments with values from here.
 %% We have then two arities: arity of a command, which is only its required arguments,
 %% and arity of the function to be called, which is required args + optional args.
