@@ -25,7 +25,7 @@ mod_offline:store_packet(From, To, Packet)
 
 Note that in this example `ejabberd_sm` is coupled with `mod_offline`.
 I.e. if `mod_offline` was not available, the code would simply crash; if it was misconfigured or turned off, the behaviour would be undefined.
-To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` instead calls:
+To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-code-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` would instead call:
 
 ```erlang
 Acc1 = ejabberd_hooks:run_fold(offline_message_hook,
@@ -38,6 +38,9 @@ The extra level of indirection introduced by this call gives the flexibility to 
 `offline_message_hook` is just the name of the hook (in other words of the event that is being signalled);
 `From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
 `LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
+
+**Notice:** For the clarity of the explanation of the hooks mechanism, the provided code snippets are not exactly taken from the current code.
+The reasons for it will be described [later](#creating-your-own-hooks).
 
 ### Getting results from handlers
 
@@ -253,10 +256,13 @@ $0 ~ /ejabberd_hooks:run/ {
 ## Creating your own hooks
 
 There's no special function or any setup necessary to create a new hook.
-The only thing that needs to be done is calling `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
-If you want static code analysis though, you should put the new hook inside `mongoose_hooks` with a correct type specification.
+The only thing that needs to be done is calling `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
 
-Of course, as long as no module registers handlers for this hook just running, it won't have any effects.
+However, if you want static code analysis, you should put the new hook inside `mongoose_hooks` with a correct type specification.
+We've added this module to provide some security and type checking in places where the hooks are run.
+This is the way all hooks are called in MongooseIM (see the examples in the [hooks description](hooks_description.md)).gen_iq_handler
+
+Of course, as long as no module registers handlers for a hook, running a `run_fold` won't have any effects.
 
 Similar is the case when a module registers handlers for some hook, but that hook is never run in the code.
 That won't have an effect either.
