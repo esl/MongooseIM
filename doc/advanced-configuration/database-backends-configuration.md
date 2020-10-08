@@ -83,7 +83,7 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
-You should also configure MySQL database in the `mongooseim.toml` file.
+You should also configure the MySQL database in the `mongooseim.toml` file.
 Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options) for more information.
 
 **Version notice**
@@ -120,8 +120,10 @@ You can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
-You should also configure Postgres database in `mongooseim.toml` file.
-Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options) for more information.
+You should also configure the Postgres database in the `mongooseim.toml` file.
+Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options)
+and [general database options](general.md#database-settings)
+for more information.
 
 ## Microsoft SQL Server
 
@@ -185,7 +187,7 @@ MongooseIM is built with ODBC support by default.
 
 **Deadlocks notice**
 
-If muc_light's backend is set to ODBC and in your system there is many rooms created in parallel,
+If muc_light's backend is set to ODBC and there are many rooms created in parallel in your system,
 there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
 In this case we recommend to set this database property to `ON`, this will enable row level locking which significantly reduces
 deadlock chances around muc_light operations.
@@ -207,6 +209,13 @@ isql mongoose-mssql username password -b
 ```
 
 The final step is to configure ``mongooseim.toml`` appropriately.
+Set the following option in the `general` section:
+
+```toml
+[general]
+  rdbms_server_type = "mssql"
+```
+
 Configure the `outgoing_pools.rdbms` section as follows:
 
 ```toml
@@ -339,7 +348,7 @@ curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
 
 where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
 
-Please refer to [advanced configuration](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
+Please refer to the [advanced configuration](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
 
 ## Redis
 
