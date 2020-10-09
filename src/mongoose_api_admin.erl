@@ -1,15 +1,8 @@
-%%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
-%%% @copyright (C) 2016, Erlang Solutions Ltd.
-%%% Created : 05. Jul 2016 12:59
-%%%-------------------------------------------------------------------
-
 %% @doc MongooseIM REST HTTP API for administration.
 %% This module implements cowboy REST callbacks and
 %% passes the requests on to the http api backend module.
 %% @end
 -module(mongoose_api_admin).
--author("ludwikbukowski").
 -behaviour(cowboy_rest).
 
 %% ejabberd_cowboy exports
@@ -28,13 +21,6 @@
 -export([to_json/2, from_json/2]).
 -include("mongoose_api.hrl").
 -include("mongoose.hrl").
-
--import(mongoose_api_common, [error_response/3,
-                              error_response/4,
-                              action_to_method/1,
-                              method_to_action/1,
-                              error_code/1,
-                              parse_request_body/1]).
 
 -type credentials() :: {Username :: binary(), Password :: binary()} | any.
 
@@ -98,7 +84,7 @@ set_cors_headers(Req) ->
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
-    AllowedMethods = [action_to_method(mongoose_commands:action(Command))
+    AllowedMethods = [mongoose_api_common:action_to_method(mongoose_commands:action(Command))
                       || Command <- CommandList],
     {[<<"OPTIONS">> | AllowedMethods], Req, State}.
 
@@ -128,6 +114,8 @@ delete_resource(Req, #http_api_state{bindings = B} = State) ->
 
 % @doc Cowboy callback
 is_authorized(Req, State) ->
+    % TODO so you can protect admin interface with a password given in config file, in plain text
+    % does it make any sense at all?
     ControlCreds = get_control_creds(State),
     AuthDetails = mongoose_api_common:get_auth_details(Req),
     case authorize(ControlCreds, AuthDetails) of
@@ -170,9 +158,9 @@ to_json(Req, #http_api_state{bindings = B} = State) ->
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{bindings = B} = State) ->
-    case parse_request_body(Req) of
+    case mongoose_api_common:parse_request_body(Req) of
         {error, _R}->
-            error_response(bad_request, ?BODY_MALFORMED, Req, State);
+            mongoose_api_common:error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
             case check_caller(Req) of
                 {Caller, QVals} ->

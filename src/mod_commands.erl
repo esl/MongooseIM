@@ -185,7 +185,7 @@ commands() ->
       {action, create},
       {security_policy, [user]},
       {args, [{to, binary}, {body, binary}]},
-      {result, ok}
+      {result, {msgid, binary}}
      ],
      [
       {name, send_stanza},
@@ -279,7 +279,7 @@ unregister(admin, Host, User) ->
 send_message(From, To, Body) ->
     case parse_jid(From, To) of
         {ok, F, T} ->
-            Packet = build_message(From, To, Body),
+            {Id, Packet} = build_message(From, To, Body),
             Acc0 = mongoose_acc:new(#{location => ?LOCATION,
                                       lserver => F#jid.lserver,
                                       element => Packet}),
@@ -290,7 +290,7 @@ send_message(From, To, Body) ->
 
             %% privacy check is missing, but is it needed?
             ejabberd_router:route(F, T, Packet),
-            ok;
+            Id;
         E ->
             E
     end.
@@ -406,27 +406,30 @@ change_user_password(Caller, Password) ->
             {error, bad_request, "invalid jid"}
     end.
 
-record_to_map({Id, From, Msg}) ->
-    Jbin = jid:to_binary(From),
+record_to_map({Id, _From, Msg}) ->
     {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
-    MsgId = case xml:get_tag_attr(<<"id">>, Msg) of
-                {value, MId} -> MId;
-                false -> <<"">>
-            end,
+    MsgId = exml_query:attr(Msg, <<"id">>, <<"">>),
+    From = exml_query:attr(Msg, <<"from">>, <<"">>), % we want resource too
+    To = exml_query:attr(Msg, <<"to">>, <<"">>),
     Body = exml_query:path(Msg, [{element, <<"body">>}, cdata]),
-    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
+    #{from => jid:to_binary(From),
+      to => jid:to_binary(To),
+      timestamp => round(Msec / 1000000),
+      id => MsgId,
       body => Body}.
 
 -spec build_message(From :: binary(), To :: binary(), Body :: binary()) -> exml:element().
 build_message(From, To, Body) ->
-    #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"chat">>},
-                    {<<"id">>, mongoose_bin:gen_from_crypto()},
-                    {<<"from">>, jid:to_binary(From)},
-                    {<<"to">>, jid:to_binary(To)}],
-           children = [#xmlel{name = <<"body">>,
-                              children = [#xmlcdata{content = Body}]}]
-          }.
+    Id = mongoose_bin:gen_from_crypto(),
+    Message = #xmlel{name = <<"message">>,
+                     attrs = [{<<"type">>, <<"chat">>},
+                              {<<"id">>, Id},
+                              {<<"from">>, jid:to_binary(From)},
+                              {<<"to">>, jid:to_binary(To)}],
+                     children = [#xmlel{name = <<"body">>,
+                                        children = [#xmlcdata{content = Body}]}]
+                    },
+    {Id, Message}.
 
 lookup_recent_messages(admin, _, _, _) ->
     throw({bad_request, "caller is required as the archive owner"});

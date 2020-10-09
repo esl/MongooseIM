@@ -52,7 +52,7 @@ groups() ->
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
-     msg_is_sent_and_delivered_over_sse,
+%%     msg_is_sent_and_delivered_over_sse,
      all_messages_are_archived,
      messages_with_user_are_archived,
      messages_can_be_paginated].
@@ -756,9 +756,8 @@ send_message(User, From, To) ->
     BobJID = user_jid(To),
     M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
     Cred = credentials({User, From}),
-    {{<<"200">>, <<"OK">>}, {Result}} = post(client, <<"/messages">>, M, Cred),
-    ID = proplists:get_value(<<"id">>, Result),
-    M#{id => ID, from => AliceJID}.
+    {?CREATED, Id} = post(client, <<"/messages">>, M, Cred),
+    M#{id => Id, from => AliceJID}.
 
 get_messages(MeCreds, Other, Count) ->
     GetPath = lists:flatten(["/messages/",
