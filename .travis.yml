@@ -44,6 +44,7 @@ before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
         - if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+        - tools/travis-setup-humio.sh
 script:
     - SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS -e $RUN_SMALL_TESTS
 
@@ -54,6 +55,7 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
 
 after_script:
+        - docker logs mongooseim-filebeat || echo "ok"
         - cat travis-pull-db.log
         # Upload logs to s3 for debugging
         - test 1 = "$SKIP_REPORT_UPLOAD" ||
