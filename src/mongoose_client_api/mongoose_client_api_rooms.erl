@@ -1,14 +1,6 @@
 -module(mongoose_client_api_rooms).
 -behaviour(cowboy_rest).
 
-%% TODO: looks like this family of modules is really needed anymore - mod_muc_commands and
-%% mod_muc_light_commands define their own prefixes and tests use these
-%% New prefixes ("/mucs" and "/muc-lights") are not documented in Swagger.
-%% They are tested by muc_http_api_SUITE and muc_light_http_api_SUITE.
-%% The rest_SUITE tests this module, but it calls the tests 'muc', while
-%% this module calls muc_light.
-%% Review and decision needed.
-
 -export([trails/0]).
 
 -export([init/2]).
