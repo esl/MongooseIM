@@ -4,7 +4,7 @@ It's possible to use TLS for communication between MongooseIM cluster nodes.
 To enable it, find the directory of your release, below it look for `etc/vm.dist.args` and, inside the file, the section about
 the distribution protocol:
 
-```
+```bash
 ## Use TLS for connections between Erlang cluster members.
 ## Don't forget to override the paths to point to your certificate(s) and key(s)!
 ## Once a connection is established, Erlang doesn't differentiate between

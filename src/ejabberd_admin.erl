@@ -177,7 +177,7 @@ commands() ->
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
-                        desc = "Leave a node from the cluster. Call it from the node that is going to leave.
+                        desc = "Leave a cluster. Call it from the node that is going to leave.
                                 Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
                         module = ?MODULE, function = leave_cluster,
                         args = [],
@@ -279,7 +279,7 @@ leave_cluster() ->
 do_leave_cluster() ->
     try mongoose_cluster:leave() of
         ok ->
-            String = io_lib:format("You have successfully left the node ~p from the cluster~n", [node()]),
+            String = io_lib:format("The node ~p has successfully left the cluster~n", [node()]),
             {ok, String}
     catch
         E:R ->
