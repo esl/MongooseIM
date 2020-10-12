@@ -7,4 +7,4 @@ docker run -d \
     -v "$(pwd)/_build/mim1/rel/mongooseim/log:/usr/lib/mongooseim/log" \
     -v="$(pwd)/priv/filebeat.mongooseim.humio.yml:/usr/share/filebeat/filebeat.yml:ro" \
     docker.elastic.co/beats/filebeat-oss:7.9.2 \
-    filebeat -e -E output.elasticsearch.password="$HUMIO_PASSWORD"
+    filebeat -e -strict.perms=false -E output.elasticsearch.password="$HUMIO_PASSWORD"
