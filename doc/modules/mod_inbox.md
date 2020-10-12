@@ -228,7 +228,7 @@ value:
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_inbox]
   backend = "rdbms"
   reset_markers = ["displayed"]

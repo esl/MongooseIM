@@ -11,7 +11,7 @@ None.
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_offline_stub]
 ```
 

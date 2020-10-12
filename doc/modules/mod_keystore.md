@@ -48,7 +48,7 @@ An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://
 
 Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 
-```
+```toml
 [modules.mod_keystore]
   
   [[modules.mod_keystore.keys]]
@@ -69,7 +69,7 @@ Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 Multi-tenant setup (`mod_keystore` configured differently
 for each virtual XMPP domain):
 
-```
+```toml
 [[host_config]]
   host = "first.com"
   

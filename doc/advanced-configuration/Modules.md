@@ -6,7 +6,7 @@ and `mod_stream_management` is for stanza acknowledgement and stream resumption.
 This modular architecture provides great flexibility for everyday operations and feature development.
 
 A module configuration generally looks like this:
-```
+```toml
 [modules.mod_muc]
   host = "muc.@HOST@"
   access = "muc"

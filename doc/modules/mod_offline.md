@@ -29,7 +29,7 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 Riak bucket type.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_offline]
   access_max_user_messages = "max_user_offline_messages"
   backend = "riak"

@@ -33,7 +33,7 @@ Backend returns the first error.
 Riak bucket type.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_private]
   backend = "mnesia"
 ```

@@ -102,7 +102,7 @@ The [AWS region][aws-region] to use for requests.
 
 ### Example configuration
 
-```
+```toml
 [modules.mod_http_upload]
   host = "upload.@HOST@"
   backend = "s3"

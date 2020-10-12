@@ -125,7 +125,7 @@ It is not coupled with the main DB backend, so it is possible to store the cache
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_pubsub]
   access_createnode = "pubsub_createnode"
   ignore_pep_from_offline = false

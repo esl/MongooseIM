@@ -49,7 +49,7 @@ For example, for the shown example configuration, requests for:
 * `Host: domain.com /domain/index.html` will be rewritten to `http://localhost:8080/index.html` (rule 2, since binding `:var` matches in both host and path)
 * `Host: abc.com /def` will be rewritten to `http://localhost:8080/abc/def` (rule 3)
 
-```
+```toml
 [[modules.mod_revproxy.routes]]
   host = "www.erlang-solutions.com"
   path = "/admin"

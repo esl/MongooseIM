@@ -54,7 +54,7 @@ The maximum lifespan of a record in memory. After this, they will be chased for 
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_stream_management]
   buffer_max = 30
   ack_freq = 1

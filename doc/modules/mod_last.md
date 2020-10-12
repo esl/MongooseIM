@@ -31,7 +31,7 @@ Riak bucket type.
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_last]
   backend = "rdbms"
 ```

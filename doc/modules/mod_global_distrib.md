@@ -308,7 +308,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Configuring mod_global_distrib
 
-```
+```toml
 [modules.mod_global_distrib]
   global_host = "example.com"
   local_host = "datacenter1.example.com"
@@ -325,7 +325,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Overriding endpoints to a remote datacenter
 
-``` Erlang
+```Erlang
 { {global_distrib_addr, "datacenter2.example.com"}, [{"124.12.4.3", 5556}, {"182.172.23.55", 5555}] }.
 ```
 
@@ -333,7 +333,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 For more information about Dynomite configuration, consult [Dynomite wiki](https://github.com/Netflix/dynomite/wiki).
 
-``` yaml
+```yaml
 dyn_o_mite:
   datacenter: dc1
   rack: rack1
@@ -350,7 +350,7 @@ dyn_o_mite:
   stats_listen: 0.0.0.0:22221
 ```
 
-``` yaml
+```yaml
 dyn_o_mite:
   datacenter: dc2
   rack: rack1

@@ -46,7 +46,7 @@ Maximum allowed pause in seconds (e.g. to switch between pages and then resume c
 ### Example Configuration
 
 In the listener section:
-```
+```toml
 [[listen.http]]
   port = 5280
   transport.num_acceptors = 10
@@ -57,7 +57,7 @@ In the listener section:
     path = "/http-bind"
 ```
 In the module section:  
-```  
+```toml
 [modules.mod_bosh]
   inactivity = 20
   max_wait = "infinity"

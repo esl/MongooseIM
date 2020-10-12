@@ -8,7 +8,7 @@ These commands are used by REST API modules.
 This module contains command definitions which are loaded when the module is activated.
 There are no options to be provided, therefore the following entry in the config file is sufficient:
 
-```
+```toml
 [modules.mod_muc_light_commands]
 ```
 

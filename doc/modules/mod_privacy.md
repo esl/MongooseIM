@@ -33,7 +33,7 @@ Riak bucket type for information about privacy list names.
 Riak bucket type for privacy lists.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_privacy]
   backend = "riak"
   riak.defaults_bucket_type = "privacy_defaults"
