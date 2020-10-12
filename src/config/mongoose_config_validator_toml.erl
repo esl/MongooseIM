@@ -1179,9 +1179,6 @@ validate([<<"iqdisc">>, <<"mod_private">>, <<"modules">>|_],
 validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
          [{bucket_type, V}]) ->
     validate_non_empty_binary(V);
-validate([<<"backend">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_bosh, V);
 validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
          [{inactivity, V}]) ->
     validate_non_negative_integer_or_infinity(V);

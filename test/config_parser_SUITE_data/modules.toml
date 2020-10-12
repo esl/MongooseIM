@@ -18,7 +18,6 @@
   inactivity = 20
   max_wait = "infinity"
   server_acks = true
-  backend = "mnesia"
   maxpause = 120
 
 [modules.mod_caps]

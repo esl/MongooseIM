@@ -1387,14 +1387,12 @@ mod_bosh_cases() ->
      ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
      ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
      ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?_eqf(M(backend, mnesia), T(<<"backend">>, <<"mnesia">>)),
      ?errf(T(<<"inactivity">>, -1)),
      ?errf(T(<<"inactivity">>, <<"10">>)),
      ?errf(T(<<"inactivity">>, <<"inactivity">>)),
      ?errf(T(<<"max_wait">>, <<"10">>)),
      ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1)),
-     ?errf(T(<<"backend">>, <<"devnull">>))].
+     ?errf(T(<<"server_acks">>, -1))].
 
 mod_caps(_Config) ->
     run_multi(mod_caps_cases()).

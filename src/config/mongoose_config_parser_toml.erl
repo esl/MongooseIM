@@ -720,8 +720,6 @@ module_opt([<<"max_wait">>, <<"mod_bosh">>|_], V) ->
     [{max_wait, int_or_infinity(V)}];
 module_opt([<<"server_acks">>, <<"mod_bosh">>|_], V) ->
     [{server_acks, V}];
-module_opt([<<"backend">>, <<"mod_bosh">>|_], V) ->
-    [{backend, b2a(V)}];
 module_opt([<<"maxpause">>, <<"mod_bosh">>|_], V) ->
     [{maxpause, V}];
 module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
