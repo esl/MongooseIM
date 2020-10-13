@@ -27,10 +27,15 @@ format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
     Formatted = format_item(NewReport, NewConfig),
     B = jiffy:encode(Formatted),
     <<B/binary, "\n">>;
+format(Map = #{msg := {report, Rep = #{format := Format, args := Terms}}}, FConfig) ->
+    format_unstructured(Map, maps:without([format, args], Rep), Format, Terms, FConfig);
 format(Map = #{msg := {Format, Terms}}, FConfig) ->
+    format_unstructured(Map, #{}, Format, Terms, FConfig).
+
+format_unstructured(Map, Rep, Format, Terms, FConfig) ->
     format(Map#{msg := {report,
-                        #{unstructured_log =>
-                          unicode:characters_to_binary(io_lib:format(Format, Terms))}}},
+                        Rep#{unstructured_log =>
+                             unicode:characters_to_binary(io_lib:format(Format, Terms))}}},
            FConfig).
 
 format_item(_Item, _FConfig = #{depth := 0}) ->
