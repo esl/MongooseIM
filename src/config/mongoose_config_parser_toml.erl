@@ -754,8 +754,6 @@ module_opt([<<"max_file_size">>, <<"mod_http_upload">>|_], V) ->
 module_opt([<<"s3">>, <<"mod_http_upload">>|_] = Path, V) ->
     S3Opts = parse_section(Path, V),
     [{s3, S3Opts}];
-module_opt([<<"backend">>, <<"mod_inbox">>|_], V) ->
-    [{backend, b2a(V)}];
 module_opt([<<"reset_markers">>, <<"mod_inbox">>|_] = Path, V) ->
     Markers = parse_list(Path, V),
     [{reset_markers, Markers}];

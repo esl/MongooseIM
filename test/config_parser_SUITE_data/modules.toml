@@ -102,7 +102,6 @@
   s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 [modules.mod_inbox]
-  backend = "rdbms"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true

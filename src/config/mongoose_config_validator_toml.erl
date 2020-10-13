@@ -1191,9 +1191,6 @@ validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
          [{aff_changes, V}]) ->
     validate_boolean(V);
-validate([<<"backend">>, <<"mod_inbox">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_inbox, V);
 validate([item, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_groupchat_type(V);

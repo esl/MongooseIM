@@ -1526,8 +1526,6 @@ mod_inbox(_Config) ->
          T(<<"remove_on_kicked">>, true)),
     ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
          T(<<"remove_on_kicked">>, false)),
-    ?eqf(modopts(mod_inbox, [{backend, rdbms}]),
-         T(<<"backend">>, <<"rdbms">>)),
     ?errf(T(<<"reset_markers">>, 1)),
     ?errf(T(<<"reset_markers">>, <<"test">>)),
     ?errf(T(<<"reset_markers">>, [<<"test">>])),
@@ -1538,7 +1536,6 @@ mod_inbox(_Config) ->
     ?errf(T(<<"aff_changes">>, <<"true">>)),
     ?errf(T(<<"remove_on_kicked">>, 1)),
     ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
-    ?errf(T(<<"backend">>, <<"devnull">>)),
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
