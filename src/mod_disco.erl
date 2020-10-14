@@ -50,6 +50,8 @@
          register_subhost/2,
          unregister_subhost/2]).
 
+-export([handler/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -76,6 +78,176 @@ stop(Host) ->
     unregister_host(Host),
     ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
 
+%%--
+%% module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
+%%     Domains = parse_list(Path, V),
+%%     [{extra_domains, Domains}];
+%% module_opt([<<"server_info">>, <<"mod_disco">>|_] = Path, V) ->
+%%     Info = parse_list(Path, V),
+%%     [{server_info, Info}];
+%% module_opt([<<"users_can_see_hidden_services">>, <<"mod_disco">>|_], V) ->
+%%     [{users_can_see_hidden_services, V}];
+
+%% -spec mod_disco_server_info(path(), toml_section()) -> [option()].
+%% mod_disco_server_info(Path, #{<<"module">> := <<"all">>, <<"name">> := Name, <<"urls">> := Urls}) ->
+%%     URLList = parse_list([<<"urls">> | Path], Urls),
+%%     [{all, b2l(Name), URLList}];
+%% mod_disco_server_info(Path, #{<<"module">> := Modules, <<"name">> := Name, <<"urls">> := Urls}) ->
+%%     Mods = parse_list([<<"module">> | Path], Modules),
+%%     URLList = parse_list([<<"urls">> | Path], Urls),
+%%     [{Mods, b2l(Name), URLList}].
+
+%% handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [V] end;
+%% handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun mod_disco_server_info/2;
+%% handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [b2l(V)] end;
+%% handler([_, <<"module">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [b2a(V)]  end;
+
+%% validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [V]) ->
+%%     validate_binary_domain(V);
+%% validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [V]) ->
+%%     validate_module(V);
+%% %% NEVER CALLED!
+%% validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [V]) ->
+%%     validate_non_empty_binary(V); %% it's a list!
+%% validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [V]) ->
+%%     validate_url(V);
+%% validate([item, <<"urls">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [V]) ->
+%%     validate_url(V);
+%% validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>|_],
+%%          [{users_can_see_hidden_services, V}]) ->
+%%     validate_boolean(V);
+%%--
+
+handle_opt([<<"extra_domains">>|_], V) ->
+    [{extra_domains, V}];
+handle_opt([<<"server_info">>|_], V) ->
+    [{server_info, V}];
+handle_opt([<<"users_can_see_hidden_services">>|_], V) ->
+    mongoose_config_validator_toml:validate_boolean(V),
+    [{users_can_see_hidden_services, V}];
+handle_opt([<<"iqdisc">>|_], V) ->
+    IQDisc = case proplists:lookup(type, V) of
+                 {_, queues} ->
+                     {_, N} = proplists:lookup(workers, V),
+                     {queues, N};
+                 {_, Type} ->
+                     none = proplists:lookup(workers, V),
+                     Type
+             end,
+    [{iqdisc, IQDisc}].
+
+handle_extra_domain(_Path, V) ->
+    mongoose_config_validator_toml:validate_binary_domain(V),
+    [V].
+
+handle_server_info(_Path, KVs) ->
+    {_, Name} = proplists:lookup(name, KVs),
+    {_, URLs} = proplists:lookup(urls, KVs),
+    Mods = proplists:get_value(module, KVs, all),
+    [{Mods, Name, URLs}].
+
+handle_server_info_opt([<<"urls">>|_], V) ->
+    [{urls, V}];
+handle_server_info_opt([<<"module">>|_], V) ->
+    [{module, V}];
+handle_server_info_opt([<<"name">>|_], V) ->
+    Name = binary_to_list(V),
+    mongoose_config_validator_toml:validate_non_empty_string(Name),
+    [{name, Name}].
+
+handle_url(_Path, V) ->
+    URL = binary_to_list(V),
+    mongoose_config_validator_toml:validate_url(URL),
+    [URL].
+
+handle_module(_Path, V) ->
+    Module = binary_to_atom(V),
+    mongoose_config_validator_toml:validate_module(Module),
+    [Module].
+
+handle_iq_disc_opt([<<"type">>|_], V) ->
+    Type = binary_to_atom(V),
+    mongoose_config_validator_toml:validate_enum(Type, [no_queue, one_queue, parallel, queues]),
+    [{type, Type}];
+handle_iq_disc_opt([<<"workers">>|_], V) ->
+    mongoose_config_validator_toml:validate_positive_integer(V),
+    [{workers, V}].
+
+-record(section, {child_handler, children = #{}}).
+-record(list, {item_handler, items}).
+
+-define(HANDLER, handler1).
+
+handler(Path) ->
+    ?HANDLER(Path).
+
+handler1(Path) ->
+    handler(lists:reverse(Path), top_section()).
+
+handler2(Path) ->
+    y(Path).
+
+handler3(Path) ->
+    z(lists:reverse(Path)).
+
+handler([Node], #section{child_handler = F, children = Children}) ->
+    case maps:find(Node, Children) of
+        {ok, #section{}} -> {section, F};
+        {ok, #list{}} -> {list, F};
+        error -> {option, F}
+    end;
+handler([item], #list{item_handler = F, items = Items}) ->
+    case Items of
+        #section{} -> {section, F};
+        #list{} -> {list, F};
+        undefined -> {option, F}
+    end;
+handler([Node|Rest], #section{children = Children}) ->
+    Child = maps:get(Node, Children),
+    handler(Rest, Child);
+handler([item|Rest], #list{items = Items}) ->
+    handler(Rest, Items).
+
+top_section() ->
+    #section{child_handler = fun handle_opt/2,
+             children = #{<<"extra_domains">> => #list{item_handler = fun handle_extra_domain/2},
+                          <<"server_info">> => #list{item_handler = fun handle_server_info/2,
+                                                     items = server_info_section()},
+                          <<"iqdisc">> => #section{child_handler = fun handle_iq_disc_opt/2}
+                         }
+            }.
+
+server_info_section() ->
+    #section{child_handler = fun handle_server_info_opt/2,
+             children = #{<<"urls">> => #list{item_handler = fun handle_url/2},
+                          <<"module">> => #list{item_handler = fun handle_module/2}
+                         }
+            }.
+
+y([_]) -> fun handle_opt/2;
+y([item, <<"extra_domains">>]) -> fun handle_extra_domain/2;
+y([item, <<"server_info">>]) -> fun handle_server_info/2;
+y([_, item, <<"server_info">>]) -> fun handle_server_info_opt/2;
+y([item, <<"urls">>, item, <<"server_info">>]) -> fun handle_url/2;
+y([item, <<"module">>, item, <<"server_info">>]) -> fun handle_module/2;
+y([_, <<"iqdisc">>]) -> fun handle_iq_disc_opt/2.
+
+z([_]) -> fun handle_opt/2;
+z([<<"extra_domains">>, item]) -> fun handle_extra_domain/2;
+z([<<"server_info">>, item]) -> fun handle_server_info/2;
+z([<<"server_info">>, item, _]) -> fun handle_server_info_opt/2;
+z([<<"server_info">>, item, <<"urls">>, item]) -> fun handle_url/2;
+z([<<"server_info">>, item, <<"module">>, item]) -> fun handle_module/2;
+z([<<"iqdisc">>, _]) -> fun handle_iq_disc_opt/2.
 
 register_subhost(Host, Subhost) ->
     case gen_mod:is_loaded(Host, ?MODULE) of

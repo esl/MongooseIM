@@ -62,7 +62,8 @@ process(Content) ->
             build_state(Hosts, AllOpts, Overrides);
         [#{text := Text}|_] = Errors ->
             [?LOG_ERROR(Error) || Error <- Errors],
-            mongoose_config_utils:exit_or_halt(Text)
+            error(Text)
+            %%mongoose_config_utils:exit_or_halt(Text)
     end.
 
 %% Config processing functions are annotated with TOML paths
@@ -1079,14 +1080,14 @@ mod_auth_token_validity_periods(_,
     #{<<"token">> := Token, <<"value">> := Value, <<"unit">> := Unit}) ->
         [{{validity_period, b2a(Token)}, {Value, b2a(Unit)}}].
 
--spec mod_disco_server_info(path(), toml_section()) -> [option()].
-mod_disco_server_info(Path, #{<<"module">> := <<"all">>, <<"name">> := Name, <<"urls">> := Urls}) ->
-    URLList = parse_list([<<"urls">> | Path], Urls),
-    [{all, b2l(Name), URLList}];
-mod_disco_server_info(Path, #{<<"module">> := Modules, <<"name">> := Name, <<"urls">> := Urls}) ->
-    Mods = parse_list([<<"module">> | Path], Modules),
-    URLList = parse_list([<<"urls">> | Path], Urls),
-    [{Mods, b2l(Name), URLList}].
+%% -spec mod_disco_server_info(path(), toml_section()) -> [option()].
+%% mod_disco_server_info(Path, #{<<"module">> := <<"all">>, <<"name">> := Name, <<"urls">> := Urls}) ->
+%%     URLList = parse_list([<<"urls">> | Path], Urls),
+%%     [{all, b2l(Name), URLList}];
+%% mod_disco_server_info(Path, #{<<"module">> := Modules, <<"name">> := Name, <<"urls">> := Urls}) ->
+%%     Mods = parse_list([<<"module">> | Path], Modules),
+%%     URLList = parse_list([<<"urls">> | Path], Urls),
+%%     [{Mods, b2l(Name), URLList}].
 
 -spec mod_event_pusher_backend_sns(path(), toml_section()) -> [option()].
 mod_event_pusher_backend_sns(Path, Opts) ->
@@ -1764,6 +1765,24 @@ handle(Path, Value) ->
 
 handle_step(handle, _) ->
     fun(Path, _Value) -> handler(Path) end;
+handle_step(parse, {Type, Handler}) ->
+    fun(Path, Value) ->
+            ParsedValue = case Value of
+                              Section when is_map(Section) ->
+                                  section = Type,
+                                  parse_section(Path, Value);
+                              List when is_list(List) ->
+                                  list = Type,
+                                  parse_list(Path, Value);
+                              Option ->
+                                  option = Type,
+                                  Option
+                          end,
+            case extract_errors(ParsedValue) of
+                [] -> Handler(Path, ParsedValue);
+                Errors -> Errors
+            end
+    end;
 handle_step(parse, Handler) ->
     Handler;
 handle_step(validate, ParsedValue) ->
@@ -1805,6 +1824,13 @@ node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
 node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
+
+process_host(parse, Path, Value) ->
+    ok;
+process_host(validate, Path, Value) ->
+    ok;
+process_host(post_process, Path, Value) ->
+    ok.
 
 -spec handler(path()) -> fun((path(), toml_value()) -> option()).
 handler([]) -> fun parse_root/2;
@@ -1920,8 +1946,8 @@ handler([_, <<"services">>]) -> fun process_service/2;
 handler([_, _, <<"services">>]) -> fun service_opt/2;
 
 %% modules
-handler([_, <<"modules">>]) -> fun process_module/2;
-handler([_, _, <<"modules">>]) -> fun module_opt/2;
+handler([_, <<"modules">>])-> fun process_module/2;
+handler([_, Mod, <<"modules">>]) when Mod =/= <<"mod_disco">>  -> fun module_opt/2;
 handler([_, <<"riak">>, _, <<"modules">>]) ->
     fun riak_opts/2;
 handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
@@ -1932,14 +1958,14 @@ handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
     fun welcome_message/2;
 handler([_, <<"validity_period">>, <<"mod_auth_token">>, <<"modules">>]) ->
     fun mod_auth_token_validity_periods/2;
-handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun mod_disco_server_info/2;
-handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2l(V)] end;
-handler([_, <<"module">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
+%% handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [V] end;
+%% handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun mod_disco_server_info/2;
+%% handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [b2l(V)] end;
+%% handler([_, <<"module">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
+%%     fun(_, V) -> [b2a(V)] end;
 handler([<<"sns">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
     fun mod_event_pusher_backend_sns/2;
 handler([<<"push">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
@@ -2056,8 +2082,15 @@ handler([_, _, <<"host_config">>]) -> fun process_section/2;
 handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
-    [<<"host_config">>, {host, _} | Rest] = lists:reverse(Path),
-    handler(lists:reverse(Rest)).
+    subtree_handler(initial, lists:reverse(Path)).
+
+subtree_handler(initial, [<<"host_config">>, {host, _} | Subtree]) ->
+    subtree_handler(subtree, Subtree);
+subtree_handler(_, [<<"modules">>, <<"mod_disco">> = Module | Subtree = [_|_]]) ->
+    Mod = b2a(Module),
+    Mod:handler(lists:reverse(Subtree));
+subtree_handler(subtree, Subtree) ->
+    handler(lists:reverse(Subtree)).
 
 %% 1. Strip host_config, choose the handler for the remaining path
 %% 2. Wrap the handler in a fun that calls the resulting function F for the current host
