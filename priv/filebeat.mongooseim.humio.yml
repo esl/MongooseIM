@@ -16,3 +16,4 @@ output:
     compression_level: 5
     bulk_max_size: 200
     worker: 5
+#   password: "abc12345-xxxx-yyyy-zzzz-123456789abc"
