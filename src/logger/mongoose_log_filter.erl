@@ -7,6 +7,7 @@
 -export([format_term_filter/2]).
 -export([preserve_acc_filter/2]).
 -export([filter_module/2]).
+-export([format_otp_message/2]).
 
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
@@ -83,6 +84,34 @@ preserve_acc_filter(Event=#{msg := {report, Msg=#{acc := Acc}}}, _) ->
 preserve_acc_filter(Event, _) ->
     Event.
 
+format_otp_message(Event=#{msg := {report, RepMap = #{report := [_|_] = Report}}}, _) ->
+    Event2 = maps:remove(report_cb, Event),
+    RepMap2 = maps:remove(report, RepMap),
+    Report2 = format_proplists_as_maps(Report),
+    case is_map(Report2) of
+        true ->
+            Event2#{msg => {report, maps:merge(Report2, RepMap2)}};
+        false ->
+            Event2
+    end;
+format_otp_message(Event, _) ->
+    Event.
+
+format_proplists_as_maps(X) ->
+    case is_proplist(X) of
+        false ->
+            X;
+        true ->
+            List = [{K,format_proplists_as_maps(V)} || {K,V} <- X],
+            maps:from_list(List)
+    end.
+
+is_proplist([{K,_}|PLs]) when is_atom(K) ->
+    is_proplist(PLs);
+is_proplist([]) ->
+    true;
+is_proplist(_) ->
+    false.
 
 c2s_state_to_map(#state{socket = Socket, streamid = StreamId,
                         jid = Jid, sid = Sid}) ->

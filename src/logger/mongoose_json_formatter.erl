@@ -11,15 +11,12 @@
 -export([format/2]).
 
 -spec format(logger:log_event(), logger:formatter_config()) -> unicode:chardata().
-format(E = #{msg := {report, #{label := {error_logger, _}, format := Format, args := Terms}}}, FConfig) ->
-    format(E#{msg := {report,
-                      #{unstructured_log =>
-                        unicode:characters_to_binary(io_lib:format(Format, Terms))}}},
-           FConfig);
 format(E = #{msg := {string, String}}, FConfig) ->
     format(E#{msg := {report,
                       #{unstructured_log =>
                         unicode:characters_to_binary(io_lib:format(String, []))}}}, FConfig);
+format(E = #{msg := {report, Proplist}}, FConfig) when is_list(Proplist) ->
+    format(E#{msg := {report, maps:from_list(Proplist)}}, FConfig);
 format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
     NewMap = process_metadata(E),
     NewReport = maps:merge(Report, NewMap),
