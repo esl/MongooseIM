@@ -1,11 +1,11 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_http_notification_SUITE
+%%% File    : mod_event_pusher_http_SUITE
 %%% Author  : Baibossynv Valery <baibossynov.valery@gmail.com>
 %%% Purpose : Testing passing via http
 %%% Created : 16 Dec 2015 by Baibossynv Valery <baibossynov.valery@gmail.com>
 %%%----------------------------------------------------------------------
 
--module(mod_http_notification_SUITE).
+-module(mod_event_pusher_http_SUITE).
 -author("baibossynov.valery@gmail.com").
 
 -compile(export_all).
@@ -14,7 +14,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(ETS_TABLE, mod_http_notification).
+-define(ETS_TABLE, mod_event_pusher_http).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -176,8 +176,11 @@ stop_pool() ->
 
 set_modules(Config0, Opts) ->
     Config = dynamic_modules:save_modules(host(), Config0),
-    ModOpts = [{worker_timeout, 500}, {host, http_notifications_host()}] ++ Opts,
-    dynamic_modules:ensure_modules(host(), [{mod_http_notification, ModOpts}]),
+    ModOpts = [{backends,
+                    [{http,
+                        [{worker_timeout, 500},
+                         {host, http_notifications_host()}] ++ Opts}]}],
+    dynamic_modules:ensure_modules(host(), [{mod_event_pusher, ModOpts}]),
     Config.
 
 start_http_listener(simple_message, Prefix) ->
