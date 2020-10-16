@@ -233,7 +233,7 @@ delete_room(DomainName, RoomName, Owner) ->
     case muc_light_room_name_to_jid_and_aff(OwnerJID, RoomName, DomainName) of
         {ok, RoomJID, owner} -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
         {ok, _, _} -> {error, denied, "you can not delete this room"};
-        {error, given_user_does_not_occupy_any_room} -> {error, denied, "given user does not occupy any room"};
+        {error, given_user_does_not_occupy_any_room} -> {error, denied, "given user does not occupy this room"};
         {error, not_found} -> {error, not_found, "room does not exist"}
     end.
 

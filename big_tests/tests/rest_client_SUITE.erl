@@ -47,8 +47,7 @@ groups() ->
          {muc_config, [], muc_config_cases()},
          {roster, [parallel], roster_test_cases()},
          {security, [], security_test_cases()}],
-    G.
-%%    ct_helper:repeat_all_until_all_ok(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,

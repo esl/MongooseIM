@@ -27,6 +27,8 @@
          send_stanza/1
         ]).
 
+-export([parse_jid_list/1, parse_jid/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
@@ -238,7 +240,7 @@ commands() ->
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
     case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
-        no_session -> {error, denied, <<"no active session">> };
+        no_session -> {error, not_found, <<"no active session">> };
         {exit, <<"kicked">>} -> <<"kicked">>
     end.
 
@@ -278,8 +280,8 @@ unregister(Host, User) ->
     end.
 
 send_message(From, To, Body) ->
-    case parse_jid(From, To) of
-        {ok, F, T} ->
+    case parse_jid_list([From, To]) of
+        {ok, [F, T]} ->
             Packet = build_message(From, To, Body),
             Acc0 = mongoose_acc:new(#{location => ?LOCATION,
                                       lserver => F#jid.lserver,
@@ -299,9 +301,9 @@ send_message(From, To, Body) ->
 send_stanza(BinStanza) ->
     case exml:parse(BinStanza) of
         {ok, Packet} ->
-            F = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
-            T = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-            case {F, T} of
+            F = exml_query:attr(Packet, <<"from">>),
+            T = exml_query:attr(Packet, <<"to">>),
+            case parse_from_to(F, T) of
                 {#jid{}, #jid{}} ->
                     Acc0 = mongoose_acc:new(#{location => ?LOCATION,
                                               lserver => F#jid.lserver,
@@ -311,11 +313,21 @@ send_stanza(BinStanza) ->
                                                     F, T, Packet),
                     ejabberd_router:route(F, T, Packet),
                     ok;
-                _ ->
-                    {error, bad_request, "both from and to are required"}
+                {error, missing} ->
+                    {error, bad_request, "both from and to are required"};
+                {error, type_error, E} ->
+                    {error, type_error, E}
             end;
         {error, Reason} ->
             {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
+    end.
+
+parse_from_to(F, T) when F == undefined; T == undefined ->
+    {error, missing};
+parse_from_to(F, T) ->
+    case parse_jid_list([F, T]) of
+        {ok, Fjid, Tjid} -> {Fjid, Tjid};
+        E -> E
     end.
 
 list_contacts(Caller) ->
@@ -523,13 +535,15 @@ check_jids(CallerJid, OtherJid) ->
             ok
     end.
 
-parse_jid(Sender, Recipient) ->
-    case {parse_jid(Sender), parse_jid(Recipient)} of
-        {{error, Msg}, _} -> {error, type_error, Msg};
-        {_, {error, Msg}} -> {error, type_error, Msg};
-        {S, R} -> {ok, S, R}
+-spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
+parse_jid_list([_ | _] = BinJids) ->
+    Jids = lists:map(fun parse_jid/1, BinJids),
+    case [Msg || {error, Msg} <- Jids] of
+        [] -> {ok, Jids};
+        Errors -> {error, type_error, lists:join("; ", Errors)}
     end.
 
+-spec parse_jid(binary()) -> jid:jid() | {error, string()}.
 parse_jid(Jid) ->
     case jid:from_binary(Jid) of
         error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};

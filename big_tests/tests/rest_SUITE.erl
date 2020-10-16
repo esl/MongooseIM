@@ -255,7 +255,7 @@ session_can_be_kicked(Config) ->
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett(admin, "/sessions/localhost"),
         assert_notinlist(AliceJid, Sessions2),
-        {?FORBIDDEN, <<"no active session">>} = delete(admin, AliceSessionPath),
+        {?NOT_FOUND, <<"no active session">>} = delete(admin, AliceSessionPath),
         ok
     end).
 

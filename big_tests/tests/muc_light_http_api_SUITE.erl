@@ -221,7 +221,7 @@ delete_room_without_having_a_membership(Config) ->
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
-                                {{<<"403">>, _}, <<"given user does not occupy any room">>} =
+                                {{<<"403">>, _}, <<"given user does not occupy this room">>} =
                                     check_delete_room(Config, RoomName, RoomName,
                                                       Alice, [Bob], Kate)
                         end).

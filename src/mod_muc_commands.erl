@@ -130,8 +130,8 @@ create_instant_room(Host, Name, Owner, Nick) ->
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
-    case prep_jid(Sender, Recipient) of
-        {ok, S, R} ->
+    case mod_commands:parse_jid_list(Sender, Recipient) of
+        {ok, [S, R]} ->
             case verify_room(Host, Name, Sender) of
                 ok ->
                     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
@@ -150,8 +150,8 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     end.
 
 send_message_to_room(Host, Name, Sender, Message) ->
-    case prep_jid(Sender, room_address(Name, Host)) of
-        {ok, S, Room} ->
+    case mod_commands:parse_jid_list(Sender, room_address(Name, Host)) of
+        {ok, [S, Room]} ->
             B = #xmlel{name = <<"body">>,
                        children = [ #xmlcdata{ content = Message } ]
             },
@@ -200,19 +200,6 @@ verify_room(BareRoomJID, OwnerJID) ->
             {error, internal, "room is locked"};
         {error, not_found} ->
             {error, not_found, "room does not exist"}
-    end.
-
-prep_jid(Sender, Recipient) ->
-    case {prep_jid(Sender), prep_jid(Recipient)} of
-        {{error, Msg}, _} -> {error, type_error, Msg};
-        {_, {error, Msg}} -> {error, type_error, Msg};
-        {S, R} -> {ok, S, R}
-    end.
-
-prep_jid(Jid) ->
-    case jid:binary_to_bare(Jid) of
-        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
-        B -> B
     end.
 
 room_address(Name, Host) ->

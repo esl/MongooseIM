@@ -286,8 +286,8 @@ failed_invites(Config) ->
         % non-existing room
         {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
         % invite with bad jid
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, BAlice, <<"@badjid">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, <<"@badjid">>, BBob),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
         ok
     end).
 
@@ -299,10 +299,10 @@ failed_messages(Config) ->
         BBob = escalus_client:short_jid(Bob),
         {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
         % invite with bad jid
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, BAlice, <<"@badjid">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>}= send_invite(Name, <<"@badjid">>, BBob),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
         ok
-                                                        end).
+    end).
 
 
 %%--------------------------------------------------------------------
