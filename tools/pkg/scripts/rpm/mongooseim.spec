@@ -36,6 +36,7 @@ scale in need of more capacity (by just adding a box/VM).
 cp %{SOURCE0} .
 
 %install
+make clean
 ./tools/configure with-all user=root prefix=/ system=yes
 sed -i 's#PREFIX=\"/\"#PREFIX=\"%{buildroot}\"#' configure.out
 make install
