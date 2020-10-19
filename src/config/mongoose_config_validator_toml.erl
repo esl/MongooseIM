@@ -572,6 +572,13 @@ validate([<<"sns_host">>, <<"sns">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
          [{sns_host, V}]) ->
     validate_string(V);
+validate([<<"enabled">>, <<"bounce">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{enabled, true}]) ->
+    ok;
+validate([<<"bounce">>, <<"mod_global_distrib">>, <<"modules">>|_],
+         [{bounce, false}]) ->
+    ok;
 validate([<<"max_retries">>, <<"bounce">>,
           <<"mod_global_distrib">>, <<"modules">>|_],
          [{max_retries, V}]) ->

@@ -776,10 +776,8 @@ module_opt([<<"connections">>, <<"mod_global_distrib">>|_] = Path, V) ->
 module_opt([<<"cache">>, <<"mod_global_distrib">>|_] = Path, V) ->
     Cache = parse_section(Path, V),
     [{cache, Cache}];
-module_opt([<<"bounce">>, <<"mod_global_distrib">>|_], false) ->
-    [{bounce, false}];
 module_opt([<<"bounce">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Bounce = parse_section(Path, V),
+    Bounce = parse_section(Path, V, fun format_global_distrib_bounce/1),
     [{bounce, Bounce}];
 module_opt([<<"redis">>, <<"mod_global_distrib">>|_] = Path, V) ->
     Redis = parse_section(Path, V),
@@ -1255,7 +1253,16 @@ mod_global_distrib_redis([<<"refresh_after">>|_], V) ->
 mod_global_distrib_bounce([<<"resend_after_ms">>|_], V) ->
     [{resend_after_ms, V}];
 mod_global_distrib_bounce([<<"max_retries">>|_], V) ->
-    [{max_retries, V}].
+    [{max_retries, V}];
+mod_global_distrib_bounce([<<"enabled">>|_], V) ->
+    [{enabled, V}].
+
+-spec format_global_distrib_bounce([option()]) -> option().
+format_global_distrib_bounce(Opts) ->
+    case proplists:lookup(enabled, Opts) of
+        {enabled, false} -> false;
+        _ -> Opts
+    end.
 
 -spec mod_global_distrib_connections_endpoints(path(), toml_section()) -> [option()].
 mod_global_distrib_connections_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
