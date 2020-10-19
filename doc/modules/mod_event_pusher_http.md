@@ -108,12 +108,11 @@ Below is an example of what the body of an HTTP POST request can look like:
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-> **Warning:** the metrics' names may change once the deprecated `mod_http_notification` is removed from MongooseIM.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, mod_http_notifications, sent]` | spiral | An HTTP notification is sent successfully. |
-| `[Host, mod_http_notifications, failed]` | spiral | An HTTP notification failed. |
-| `[Host, mod_http_notifications, response_time]` | histogram | Does not include timings of failed requests. |
+| `[Host, mod_event_pusher_http, sent]` | spiral | An HTTP notification is sent successfully. |
+| `[Host, mod_event_pusher_http, failed]` | spiral | An HTTP notification failed. |
+| `[Host, mod_event_pusher_http, response_time]` | histogram | Does not include timings of failed requests. |
 
 [mod_event_pusher]: ./mod_event_pusher.md
