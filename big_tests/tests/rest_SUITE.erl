@@ -523,15 +523,15 @@ invalid_roster_operations(Config) ->
             BobS = binary_to_list(BobJID),
             AlicePath = lists:flatten(["/contacts/", AliceS]),
             % adds them to rosters
-            {?BAD_REQUEST, <<"invalid jid">>} = post(admin, AlicePath, #{jid => <<"@invalidjid">>}),
-            {?BAD_REQUEST, <<"invalid jid">>} = post(admin, "/contacts/@invalid_jid", #{jid => BobJID}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, AlicePath, #{jid => <<"@invalidjid">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, "/contacts/@invalid_jid", #{jid => BobJID}),
             % it is idempotent
             {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
             {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
             PutPathA = lists:flatten([AlicePath, "/@invalid_jid"]),
-            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, PutPathA, #{action => <<"subscribe">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathA, #{action => <<"subscribe">>}),
             PutPathB = lists:flatten(["/contacts/@invalid_jid/", BobS]),
-            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
             PutPathC = lists:flatten([AlicePath, "/", BobS]),
             {?BAD_REQUEST, <<"invalid action">>} = putt(admin, PutPathC, #{action => <<"something stupid">>}),
             ManagePath = lists:flatten(["/contacts/",
@@ -547,14 +547,14 @@ invalid_roster_operations(Config) ->
                                         BobS,
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, MangePathA, #{action => <<"connect">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathA, #{action => <<"connect">>}),
             MangePathB = lists:flatten(["/contacts/",
                                         AliceS,
                                         "/",
                                         "@bzzz",
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"invalid jid">>} = putt(admin, MangePathB, #{action => <<"connect">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathB, #{action => <<"connect">>}),
             ok
         end
     ).

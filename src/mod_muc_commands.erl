@@ -130,7 +130,7 @@ create_instant_room(Host, Name, Owner, Nick) ->
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
-    case mod_commands:parse_jid_list(Sender, Recipient) of
+    case mod_commands:parse_jid_list([Sender, Recipient]) of
         {ok, [S, R]} ->
             case verify_room(Host, Name, Sender) of
                 ok ->
@@ -150,7 +150,7 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     end.
 
 send_message_to_room(Host, Name, Sender, Message) ->
-    case mod_commands:parse_jid_list(Sender, room_address(Name, Host)) of
+    case mod_commands:parse_jid_list([Sender, room_address(Name, Host)]) of
         {ok, [S, Room]} ->
             B = #xmlel{name = <<"body">>,
                        children = [ #xmlcdata{ content = Message } ]

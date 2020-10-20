@@ -304,14 +304,14 @@ send_stanza(BinStanza) ->
             F = exml_query:attr(Packet, <<"from">>),
             T = exml_query:attr(Packet, <<"to">>),
             case parse_from_to(F, T) of
-                {#jid{}, #jid{}} ->
+                {ok, From, To} ->
                     Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                                              lserver => F#jid.lserver,
+                                              lserver => From#jid.lserver,
                                               element => Packet}),
-                    mongoose_hooks:user_send_packet(F#jid.lserver,
+                    mongoose_hooks:user_send_packet(From#jid.lserver,
                                                     Acc0,
-                                                    F, T, Packet),
-                    ejabberd_router:route(F, T, Packet),
+                                                    From, To, Packet),
+                    ejabberd_router:route(From, To, Packet),
                     ok;
                 {error, missing} ->
                     {error, bad_request, "both from and to are required"};
@@ -322,11 +322,13 @@ send_stanza(BinStanza) ->
             {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
     end.
 
+-spec parse_from_to(jid:jid() | undefined, jid:jid() | undefined) ->
+    {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
 parse_from_to(F, T) when F == undefined; T == undefined ->
     {error, missing};
 parse_from_to(F, T) ->
     case parse_jid_list([F, T]) of
-        {ok, Fjid, Tjid} -> {Fjid, Tjid};
+        {ok, [Fjid, Tjid]} -> {ok, Fjid, Tjid};
         E -> E
     end.
 
@@ -352,11 +354,13 @@ add_contact(Caller, JabberID) ->
 add_contact(Caller, JabberID, Name) ->
     add_contact(Caller, JabberID, Name, []).
 
-add_contact(Caller, JabberID, Name, Groups) ->
-    CJid = jid:from_binary(Caller),
-    case check_jids(Caller, JabberID) of
-        ok ->
-            mod_roster:set_roster_entry(CJid, JabberID, Name, Groups);
+add_contact(Caller, Other, Name, Groups) ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, _OtherJid} ->
+            case mod_roster:set_roster_entry(CallerJid, jid_to_binary(Other), Name, Groups) of
+                ok -> ok;
+                error -> {error, internal, "set roster entry failed"}
+            end;
         E ->
             E
     end.
@@ -373,18 +377,19 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
             maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
-delete_contact(Caller, JabberID) ->
-    CJid = jid:from_binary(Caller),
-    case jid_exists(Caller, JabberID) of
-        false -> error;
-        true ->
-            mod_roster:remove_from_roster(CJid, JabberID)
+delete_contact(Caller, Other) ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, _OtherJid} ->
+            case jid_exists(CallerJid, jid_to_binary(Other)) of
+                false -> error;
+                true ->
+                    mod_roster:remove_from_roster(CallerJid, jid_to_binary(Other))
+            end
     end.
 
--spec jid_exists(binary(), binary()) -> boolean().
-jid_exists(CJid, Jid) ->
-    FJid = jid:from_binary(CJid),
-    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+-spec jid_exists(jid:jid(), binary()) -> boolean().
+jid_exists(UserJid, Contact) ->
+    Res = mod_roster:get_roster_entry(UserJid#jid.luser, UserJid#jid.lserver, Contact),
     Res =/= does_not_exist.
 
 registered_commands() ->
@@ -470,9 +475,9 @@ subscription(Caller, Other, Action) ->
         error ->
             {error, bad_request, <<"invalid action">>};
         Act ->
-            case check_jids(Caller, Other) of
-                ok ->
-                    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other));
+            case parse_from_to(Caller, Other) of
+                {ok, CallerJid, OtherJid} ->
+                    run_subscription(Act, CallerJid, OtherJid);
                 E ->
                     E
             end
@@ -502,11 +507,11 @@ run_subscription(Type, CallerJid, OtherJid) ->
 
 
 set_subscription(Caller, Other, Action) ->
-    case check_jids(Caller, Other) of
-        ok ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, OtherJid} ->
             case Action of
                 A when A == <<"connect">>; A == <<"disconnect">> ->
-                    do_set_subscription(Caller, Other, Action);
+                    do_set_subscription(CallerJid, OtherJid, Action);
                 _ ->
                     {error, bad_request, <<"invalid action">>}
             end;
@@ -527,14 +532,6 @@ do_set_subscription(Caller, Other, <<"disconnect">>) ->
     delete_contact(Other, Caller),
     ok.
 
-check_jids(CallerJid, OtherJid) ->
-    case {jid:from_binary(CallerJid), jid:from_binary(OtherJid)} of
-        {C, J} when C == error; J == error ->
-            {error, bad_request, <<"invalid jid">>};
-        _ ->
-            ok
-    end.
-
 -spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
 parse_jid_list([_ | _] = BinJids) ->
     Jids = lists:map(fun parse_jid/1, BinJids),
@@ -543,10 +540,15 @@ parse_jid_list([_ | _] = BinJids) ->
         Errors -> {error, type_error, lists:join("; ", Errors)}
     end.
 
--spec parse_jid(binary()) -> jid:jid() | {error, string()}.
-parse_jid(Jid) ->
+-spec parse_jid(binary() | jid:jid()) -> jid:jid() | {error, string()}.
+parse_jid(#jid{} = Jid) ->
+    Jid;
+parse_jid(Jid) when is_binary(Jid) ->
     case jid:from_binary(Jid) of
         error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
         B -> B
     end.
+
+jid_to_binary(#jid{} = Jid) -> jid:to_binary(Jid);
+jid_to_binary(B) when is_binary(B) -> B.
 
