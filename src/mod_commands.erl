@@ -322,7 +322,7 @@ send_stanza(BinStanza) ->
             {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
     end.
 
--spec parse_from_to(jid:jid() | undefined, jid:jid() | undefined) ->
+-spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
     {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
 parse_from_to(F, T) when F == undefined; T == undefined ->
     {error, missing};
@@ -550,5 +550,6 @@ parse_jid(Jid) when is_binary(Jid) ->
     end.
 
 jid_to_binary(#jid{} = Jid) -> jid:to_binary(Jid);
-jid_to_binary(B) when is_binary(B) -> B.
+jid_to_binary(B) when is_binary(B) -> B;
+jid_to_binary(undefined) -> undefined.
 
