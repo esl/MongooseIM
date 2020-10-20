@@ -182,16 +182,17 @@ Endpoint refresh interval, when array of endpoints is empty.
 An interval between disabled endpoints "garbage collection".
 It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 
-#### `modules.mod_global_distrib.connections.tls`
-* **Syntax:** boolean with only `false` being a valid option
-* **Default:** none, this option is mandatory. Details in the description
-* **Example:** `tls = false`
-
-If this option is present, all data will be sent via standard TCP connections.
-To enable TLS support, refer to [TLS](#tls-options) options.
-
 #### TLS options
-To enable TLS support at least the `cacertfile` and `certfile` options have to be present. These options will be passed to the `fast_tls` driver.
+
+#### `modules.mod_global_distrib.connections.tls.enabled`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `enabled = true`
+
+To enable TLS support the `cacertfile` and `certfile` options have to be present.
+These options will be passed to the `fast_tls` driver.
+
+If `tls` is disabled, all data will be sent via standard TCP connections.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system

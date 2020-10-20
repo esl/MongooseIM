@@ -1225,11 +1225,16 @@ mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V
     [{endpoint_refresh_interval_when_empty, V}];
 mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
     [{disabled_gc_interval, V}];
-mod_global_distrib_connections([<<"tls">>|_] = _Path, false) ->
-    [{tls_opts, false}];
 mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
-    TLSOpts = parse_section(Path, V),
+    TLSOpts = parse_section(Path, V, fun format_global_distrib_tls/1),
     [{tls_opts, TLSOpts}].
+
+-spec format_global_distrib_tls([option()]) -> option().
+format_global_distrib_tls(Opts) ->
+    case proplists:lookup(enabled, Opts) of
+        {enabled, false} -> false;
+        _ -> Opts
+    end.
 
 -spec mod_global_distrib_cache(path(), toml_value()) -> [option()].
 mod_global_distrib_cache([<<"cache_missed">>|_], V) ->
@@ -1670,6 +1675,11 @@ fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
 fast_tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
 fast_tls_option([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}].
 
+mod_global_distrib_tls_option([<<"enabled">>|_], V) ->
+    [{enabled, V}];
+mod_global_distrib_tls_option(P, V) ->
+    fast_tls_option(P, V).
+
 -spec verify_peer(boolean()) -> option().
 verify_peer(false) -> verify_none;
 verify_peer(true) -> verify_peer.
@@ -1979,7 +1989,7 @@ handler([_,<<"endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modu
 handler([_,<<"advertised_endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_connections_advertised_endpoints/2;
 handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun fast_tls_option/2;
+    fun mod_global_distrib_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->

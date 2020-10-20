@@ -1626,12 +1626,12 @@ mod_global_distrib(_Config) ->
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> =>false}}})),
     ?eqf(modopts(mod_global_distrib,
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> =>false}}})),
     %% Connection opts
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
             <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),

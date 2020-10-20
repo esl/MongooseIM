@@ -641,7 +641,11 @@ validate([<<"port">>, item, <<"endpoints">>, <<"connections">>,
     validate_network_port(V);
 validate([<<"tls">>, <<"connections">>,
           <<"mod_global_distrib">>, <<"modules">>|_],
-         [false]) ->
+         [{tls_opts, false}]) ->
+    ok;
+validate([<<"enabled">>, <<"tls">>, <<"connections">>,
+          <<"mod_global_distrib">>, <<"modules">>|_],
+         [{enabled, true}]) ->
     ok;
 validate([<<"cacertfile">>, <<"tls">>, <<"connections">>,
           <<"mod_global_distrib">>, <<"modules">>|_],
