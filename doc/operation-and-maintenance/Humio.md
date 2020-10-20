@@ -2,7 +2,7 @@
 
 ## Getting Humio's ingest token
 
-Visit this [url](https://cloud.humio.com/sandbox/settings/ingest-tokens) for create a new sandbox's ingest token.
+Visit this [url](https://cloud.humio.com/sandbox/settings/ingest-tokens) to create a new sandbox's ingest token.
 
 The URL is:
 
@@ -48,4 +48,3 @@ A list of log messages:
 Structured log message:
 
 ![Structured log message](humio_message.png)
-
