@@ -456,7 +456,7 @@ do_get_passterm_with_authmodule(LUser, LServer) ->
     lists:foldl(
         fun(M, {false, _}) ->
             {M:get_password(LUser, LServer), M};
-            (_M, {Password, AuthModule}) ->
+           (_M, {Password, AuthModule}) ->
                 {Password, AuthModule}
         end, {false, none}, auth_modules(LServer)).
 
@@ -475,56 +475,38 @@ does_user_exist(error) ->
     false.
 
 does_user_exist_timed(LUser, LServer) ->
-    lists:any(
-        fun(M) ->
-            case M:does_user_exist(LUser, LServer) of
-                {error, Error} ->
-                    ?LOG_ERROR(#{what => does_user_exist_failed,
-                                 text => <<"The authentication module returned an error">>,
-                                 auth_module => M, reason => Error,
-                                 user => LUser, server => LServer}),
-                    false;
-                Else ->
-                    Else
-            end
-        end, auth_modules(LServer)).
+    Modules = auth_modules(LServer),
+    does_user_exist_in_given_modules(Modules, LUser, LServer, false).
 
-%% Check if the user exists in all authentications module except the module
-%% passed as parameter
+%% Check if the user exists in all authentications module
+%% except the module passed as parameter
 -spec is_user_exists_in_other_modules(Module :: authmodule(),
                                       User :: jid:user(),
                                       Server :: jid:server()
-                                      ) -> boolean() | 'maybe'.
+                                     ) -> boolean() | maybe.
 is_user_exists_in_other_modules(Module, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    do_does_user_exist_in_other_modules(Module, LUser, LServer).
+    Modules = auth_modules(LServer) -- [Module],
+    does_user_exist_in_given_modules(Modules, LUser, LServer, maybe).
 
-do_does_user_exist_in_other_modules(_, LUser, LServer)
-    when LUser =:= error; LServer =:= error ->
+does_user_exist_in_given_modules([], _, _, _) ->
     false;
-do_does_user_exist_in_other_modules(Module, LUser, LServer) ->
-    does_user_exist_in_other_modules_loop(
-        auth_modules(LServer)--[Module],
-        LUser, LServer).
-
-
-does_user_exist_in_other_modules_loop([], _User, _Server) ->
-    false;
-does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
-    case AuthModule:does_user_exist(User, Server) of
+does_user_exist_in_given_modules(_, LUser, LServer, Default)
+  when LUser =:= error; LServer =:= error -> Default;
+does_user_exist_in_given_modules([Mod | Modules], LUser, LServer, Default) ->
+    case Mod:does_user_exist(LUser, LServer) of
         true ->
             true;
         false ->
-            does_user_exist_in_other_modules_loop(AuthModules, User, Server);
+            does_user_exist_in_given_modules(Modules, LUser, LServer, Default);
         {error, Error} ->
-            ?LOG_DEBUG(#{what => does_user_exist_failed,
+            ?LOG_ERROR(#{what => does_user_exist_failed,
                          text => <<"The authentication module returned an error">>,
-                         auth_module => AuthModule, reason => Error,
-                         user => User, server => Server}),
-            maybe
+                         auth_module => Mod, reason => Error,
+                         user => LUser, server => LServer}),
+            Default
     end.
-
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
