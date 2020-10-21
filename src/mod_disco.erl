@@ -430,8 +430,8 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                       To :: jid:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [exml:element()].
-get_sm_identity(Acc, _From, #jid{luser = LUser, lserver = LServer}, _Node, _Lang) ->
-    Acc ++ case ejabberd_auth:is_user_exists(LUser, LServer) of
+get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
+    Acc ++ case ejabberd_auth:does_user_exist(JID) of
                true ->
                    [#xmlel{name = <<"identity">>,
                            attrs = [{<<"category">>, <<"account">>},

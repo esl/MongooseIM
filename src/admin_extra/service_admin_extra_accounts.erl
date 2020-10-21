@@ -111,7 +111,7 @@ set_password(User, Host, Password) ->
 -spec check_password(jid:user(), jid:server(), binary()) ->  {Res, string()} when
     Res :: ok | incorrect | user_does_not_exist.
 check_password(User, Host, Password) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             case ejabberd_auth:check_password(User, Host, Password) of
                 true ->
@@ -130,7 +130,7 @@ check_password(User, Host, Password) ->
 -spec check_account(jid:user(), jid:server()) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 check_account(User, Host) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             {ok, io_lib:format("User ~s@~s exists", [User, Host])};
         false ->

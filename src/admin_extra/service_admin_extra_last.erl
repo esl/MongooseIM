@@ -61,7 +61,7 @@ commands() ->
 -spec set_last(jid:user(), jid:server(), _, _) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 set_last(User, Server, Timestamp, Status) ->
-    case ejabberd_auth:is_user_exists(User, Server) of
+    case ejabberd_auth:does_user_exist(User, Server) of
         true ->
             mod_last:store_last_info(jid:nodeprep(User), jid:nameprep(Server), Timestamp, Status),
             {ok, io_lib:format("Last activity for user ~s@~s is set as ~B with status ~s",

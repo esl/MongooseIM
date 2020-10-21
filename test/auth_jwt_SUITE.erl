@@ -29,7 +29,7 @@ generic_tests() ->
      set_password,
      try_register,
      get_password,
-     is_user_exists,
+     does_user_exist,
      remove_user,
      get_vh_registered_users_number,
      get_vh_registered_users,
@@ -122,7 +122,7 @@ get_password(_Config) ->
     false = ejabberd_auth_jwt:get_password(<<"anaking">>, ?DOMAIN1),
     <<>> = ejabberd_auth_jwt:get_password_s(<<"anakin">>, ?DOMAIN1).
 
-is_user_exists(_Config) ->
+does_user_exist(_Config) ->
     true = ejabberd_auth_jwt:does_user_exist(<<"madhatter">>, ?DOMAIN1).
 
 % remove_user/2,3

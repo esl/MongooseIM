@@ -68,7 +68,7 @@ commands() ->
 -spec private_get(jid:user(), jid:server(), binary(), binary()) ->
     {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    case ejabberd_auth:does_user_exist(Username, Host) of
         true ->
             do_private_get(Username, Host, Element, Ns);
         false ->
@@ -108,7 +108,7 @@ private_set(Username, Host, ElementString) ->
 
 
 private_set2(Username, Host, Xml) ->
-    case ejabberd_auth:is_user_exists(Username, Host) of
+    case ejabberd_auth:does_user_exist(Username, Host) of
         true ->
             do_private_set2(Username, Host, Xml);
         false ->

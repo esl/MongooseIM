@@ -164,7 +164,7 @@ commands() ->
                      Subs :: subs()) -> {Res, string()} when
     Res :: user_doest_not_exist | error | bad_subs | ok.
 add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
-    case ejabberd_auth:is_user_exists(LocalUser, LocalServer) of
+    case ejabberd_auth:does_user_exist(LocalUser, LocalServer) of
         true ->
             case subscribe(LocalUser, LocalServer, User, Server, Nick, Group, Subs, []) of
                 {atomic, _} ->
@@ -213,7 +213,7 @@ subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
                         Server :: jid:server()) -> {Res, string()} when
     Res :: ok | error | user_does_not_exist.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
-    case ejabberd_auth:is_user_exists(LocalUser, LocalServer) of
+    case ejabberd_auth:does_user_exist(LocalUser, LocalServer) of
         true ->
             case unsubscribe(LocalUser, LocalServer, User, Server) of
                 {atomic, ok} ->

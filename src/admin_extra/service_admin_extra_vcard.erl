@@ -123,7 +123,7 @@ commands() ->
 -spec get_vcard(jid:user(), jid:server(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             get_vcard_content(User, Host, [Name]);
         false ->
@@ -133,7 +133,7 @@ get_vcard(User, Host, Name) ->
 -spec get_vcard(jid:user(), jid:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             get_vcard_content(User, Host, [Name, Subname]);
         false ->
@@ -143,7 +143,7 @@ get_vcard(User, Host, Name, Subname) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             set_vcard_content(User, Host, [Name], SomeContent);
         false ->
@@ -153,7 +153,7 @@ set_vcard(User, Host, Name, SomeContent) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()], [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
-    case ejabberd_auth:is_user_exists(User, Host) of
+    case ejabberd_auth:does_user_exist(User, Host) of
         true ->
             set_vcard_content(User, Host, [Name, Subname], SomeContent);
         false ->

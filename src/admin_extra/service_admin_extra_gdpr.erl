@@ -72,7 +72,7 @@ to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->
 
 -spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().
 user_exists(Username, Domain) ->
-    ejabberd_auth:is_user_exists(Username, Domain).
+    ejabberd_auth:does_user_exist(Username, Domain).
 
 -spec make_tmp_dir() -> file:name().
 make_tmp_dir() ->

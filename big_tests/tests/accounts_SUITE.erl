@@ -198,12 +198,12 @@ null_password(Config) ->
     {username, Name} = lists:keyfind(username, 1, Details),
     {server, Server} = lists:keyfind(server, 1, Details),
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    false = rpc(mim(), ejabberd_auth, is_user_exists, [Name, Server]).
+    false = rpc(mim(), ejabberd_auth, does_user_exist, [Name, Server]).
 
 check_unregistered(Config) ->
     [{_, UserSpec}] = escalus_users:get_users([bob]),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    false = rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
+    false = rpc(mim(), ejabberd_auth, does_user_exist, [Username, Server]).
 
 bad_request_registration_cancelation(Config) ->
 
@@ -373,7 +373,7 @@ bad_cancelation_stanza() ->
 user_exists(Name, Config) ->
     {Name, Client} = escalus_users:get_user_by_name(Name),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
-    rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
+    rpc(mim(), ejabberd_auth, does_user_exist, [Username, Server]).
 
 reload_mod_register_option(Config, Key, Value) ->
     Host = domain(),
