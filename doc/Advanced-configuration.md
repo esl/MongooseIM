@@ -71,4 +71,4 @@ TLS is configured in one of two ways: some modules need a private key and certif
 
 In order to create private key & certificate bundle, you may simply concatenate them.
 
-More information about configuring TLS for these endpoints is available in [Listener modules](advanced-configuration/Listener-modules.md) page.
+More information about configuring TLS for these endpoints is available in the [listen section configuration](advanced-configuration/listen.md) page.
