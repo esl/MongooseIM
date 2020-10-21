@@ -315,6 +315,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.enabled = true
   connections.tls.certfile = "priv/dc1.pem"
   connections.tls.cacertfile = "priv/ca.pem"
   connections.connections_per_endpoint = 30

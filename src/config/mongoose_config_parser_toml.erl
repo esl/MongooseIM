@@ -1232,8 +1232,8 @@ mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
 -spec format_global_distrib_tls([option()]) -> option().
 format_global_distrib_tls(Opts) ->
     case proplists:lookup(enabled, Opts) of
-        {enabled, false} -> false;
-        _ -> Opts
+        {enabled, true} -> proplists:delete(enabled, Opts);
+        _ -> false
     end.
 
 -spec mod_global_distrib_cache(path(), toml_value()) -> [option()].
@@ -1266,7 +1266,7 @@ mod_global_distrib_bounce([<<"enabled">>|_], V) ->
 format_global_distrib_bounce(Opts) ->
     case proplists:lookup(enabled, Opts) of
         {enabled, false} -> false;
-        _ -> Opts
+        _ -> proplists:delete(enabled, Opts)
     end.
 
 -spec mod_global_distrib_connections_endpoints(path(), toml_section()) -> [option()].
