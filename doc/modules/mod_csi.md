@@ -18,7 +18,7 @@ Buffer size for messages queued when session was `inactive`.
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_csi]
   buffer_max = 40
 ```

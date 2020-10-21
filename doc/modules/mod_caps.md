@@ -23,7 +23,7 @@ Time (in seconds) after which entries will be removed.
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_caps]
   cache_size = 2000
   cache_life_time = 86

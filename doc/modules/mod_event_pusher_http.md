@@ -56,7 +56,7 @@ Name of a module which should be used to check whether a notification should be 
 
 ## Example configuration
 
-```
+```toml
 [outgoing_pools.http.http_pool]
   scope = "global"
   workers = 50
@@ -73,7 +73,7 @@ Name of a module which should be used to check whether a notification should be 
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
-```
+```toml
 [[modules.mod_event_pusher.backend.http]]
   pool_name = "http_pool"
   path = "/notifications"

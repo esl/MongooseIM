@@ -105,7 +105,7 @@ Defines RabbitMQ group chat message received topic name.
 
 ### Example configuration
 
-```
+```toml
 [modules.mod_event_pusher]
   backend.rabbit.presence_exchange.name ="presence"
   backend.rabbit.presence_exchange.type = "topic"

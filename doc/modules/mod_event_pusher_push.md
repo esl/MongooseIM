@@ -14,7 +14,7 @@ attempts to enable them again.
 
 This module is very easy to enable, just paste the following to your MongooseIM configuration file:
 
-```
+```toml
 [modules.mod_event_pusher]
   backend.push.wpool.workers = 100
 ```
@@ -73,7 +73,7 @@ exists, just for the case of a user attempting to create a node. However, its do
 for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
 option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
 
-```
+```toml
 [modules.mod_pubsub]
   plugins = ["push"] # mandatory minimal config
 

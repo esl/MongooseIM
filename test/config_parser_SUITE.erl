@@ -1387,14 +1387,12 @@ mod_bosh_cases() ->
      ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
      ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
      ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?_eqf(M(backend, mnesia), T(<<"backend">>, <<"mnesia">>)),
      ?errf(T(<<"inactivity">>, -1)),
      ?errf(T(<<"inactivity">>, <<"10">>)),
      ?errf(T(<<"inactivity">>, <<"inactivity">>)),
      ?errf(T(<<"max_wait">>, <<"10">>)),
      ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1)),
-     ?errf(T(<<"backend">>, <<"devnull">>))].
+     ?errf(T(<<"server_acks">>, -1))].
 
 mod_caps(_Config) ->
     run_multi(mod_caps_cases()).
@@ -1528,8 +1526,6 @@ mod_inbox(_Config) ->
          T(<<"remove_on_kicked">>, true)),
     ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
          T(<<"remove_on_kicked">>, false)),
-    ?eqf(modopts(mod_inbox, [{backend, rdbms}]),
-         T(<<"backend">>, <<"rdbms">>)),
     ?errf(T(<<"reset_markers">>, 1)),
     ?errf(T(<<"reset_markers">>, <<"test">>)),
     ?errf(T(<<"reset_markers">>, [<<"test">>])),
@@ -1540,7 +1536,6 @@ mod_inbox(_Config) ->
     ?errf(T(<<"aff_changes">>, <<"true">>)),
     ?errf(T(<<"remove_on_kicked">>, 1)),
     ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
-    ?errf(T(<<"backend">>, <<"devnull">>)),
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
@@ -1563,6 +1558,7 @@ mod_global_distrib(_Config) ->
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
     TTOpts = #{
+          <<"enabled">> => true,
           <<"certfile">> => <<"/dev/null">>,
           <<"cacertfile">> => <<"/dev/null">>,
           <<"dhfile">> => <<"/dev/null">>,
@@ -1631,12 +1627,12 @@ mod_global_distrib(_Config) ->
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
     ?eqf(modopts(mod_global_distrib,
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
     %% Connection opts
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
             <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),

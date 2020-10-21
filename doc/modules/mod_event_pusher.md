@@ -23,7 +23,7 @@ Refer to their specific documentation to learn more about their functions and co
 
 ### Example configuration
 
-```
+```toml
 [modules.mod_event_pusher]
   backend.sns.access_key_id = "AKIAIOSFODNN7EXAMPLE"
   backend.sns.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"

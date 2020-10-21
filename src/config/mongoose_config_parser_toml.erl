@@ -720,8 +720,6 @@ module_opt([<<"max_wait">>, <<"mod_bosh">>|_], V) ->
     [{max_wait, int_or_infinity(V)}];
 module_opt([<<"server_acks">>, <<"mod_bosh">>|_], V) ->
     [{server_acks, V}];
-module_opt([<<"backend">>, <<"mod_bosh">>|_], V) ->
-    [{backend, b2a(V)}];
 module_opt([<<"maxpause">>, <<"mod_bosh">>|_], V) ->
     [{maxpause, V}];
 module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
@@ -756,8 +754,6 @@ module_opt([<<"max_file_size">>, <<"mod_http_upload">>|_], V) ->
 module_opt([<<"s3">>, <<"mod_http_upload">>|_] = Path, V) ->
     S3Opts = parse_section(Path, V),
     [{s3, S3Opts}];
-module_opt([<<"backend">>, <<"mod_inbox">>|_], V) ->
-    [{backend, b2a(V)}];
 module_opt([<<"reset_markers">>, <<"mod_inbox">>|_] = Path, V) ->
     Markers = parse_list(Path, V),
     [{reset_markers, Markers}];
@@ -780,10 +776,8 @@ module_opt([<<"connections">>, <<"mod_global_distrib">>|_] = Path, V) ->
 module_opt([<<"cache">>, <<"mod_global_distrib">>|_] = Path, V) ->
     Cache = parse_section(Path, V),
     [{cache, Cache}];
-module_opt([<<"bounce">>, <<"mod_global_distrib">>|_], false) ->
-    [{bounce, false}];
 module_opt([<<"bounce">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Bounce = parse_section(Path, V),
+    Bounce = parse_section(Path, V, fun format_global_distrib_bounce/1),
     [{bounce, Bounce}];
 module_opt([<<"redis">>, <<"mod_global_distrib">>|_] = Path, V) ->
     Redis = parse_section(Path, V),
@@ -1231,11 +1225,16 @@ mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V
     [{endpoint_refresh_interval_when_empty, V}];
 mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
     [{disabled_gc_interval, V}];
-mod_global_distrib_connections([<<"tls">>|_] = _Path, false) ->
-    [{tls_opts, false}];
 mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
-    TLSOpts = parse_section(Path, V),
+    TLSOpts = parse_section(Path, V, fun format_global_distrib_tls/1),
     [{tls_opts, TLSOpts}].
+
+-spec format_global_distrib_tls([option()]) -> option().
+format_global_distrib_tls(Opts) ->
+    case proplists:lookup(enabled, Opts) of
+        {enabled, true} -> proplists:delete(enabled, Opts);
+        _ -> false
+    end.
 
 -spec mod_global_distrib_cache(path(), toml_value()) -> [option()].
 mod_global_distrib_cache([<<"cache_missed">>|_], V) ->
@@ -1259,7 +1258,16 @@ mod_global_distrib_redis([<<"refresh_after">>|_], V) ->
 mod_global_distrib_bounce([<<"resend_after_ms">>|_], V) ->
     [{resend_after_ms, V}];
 mod_global_distrib_bounce([<<"max_retries">>|_], V) ->
-    [{max_retries, V}].
+    [{max_retries, V}];
+mod_global_distrib_bounce([<<"enabled">>|_], V) ->
+    [{enabled, V}].
+
+-spec format_global_distrib_bounce([option()]) -> option().
+format_global_distrib_bounce(Opts) ->
+    case proplists:lookup(enabled, Opts) of
+        {enabled, false} -> false;
+        _ -> proplists:delete(enabled, Opts)
+    end.
 
 -spec mod_global_distrib_connections_endpoints(path(), toml_section()) -> [option()].
 mod_global_distrib_connections_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
@@ -1667,6 +1675,11 @@ fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
 fast_tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
 fast_tls_option([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}].
 
+mod_global_distrib_tls_option([<<"enabled">>|_], V) ->
+    [{enabled, V}];
+mod_global_distrib_tls_option(P, V) ->
+    fast_tls_option(P, V).
+
 -spec verify_peer(boolean()) -> option().
 verify_peer(false) -> verify_none;
 verify_peer(true) -> verify_peer.
@@ -1976,7 +1989,7 @@ handler([_,<<"endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modu
 handler([_,<<"advertised_endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_connections_advertised_endpoints/2;
 handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun fast_tls_option/2;
+    fun mod_global_distrib_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->

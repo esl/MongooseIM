@@ -6,7 +6,7 @@ and `mod_stream_management` is for stanza acknowledgement and stream resumption.
 This modular architecture provides great flexibility for everyday operations and feature development.
 
 A module configuration generally looks like this:
-```
+```toml
 [modules.mod_muc]
   host = "muc.@HOST@"
   access = "muc"
@@ -163,6 +163,8 @@ This does not provide a solution to the forgotten password use case via SMS or e
 
 ### [mod_revproxy](../modules/mod_revproxy.md)
 With this extension, MongooseIM may serve as a reverse proxy.
+
+**Warning:** This module is deprecated and can only be configured with the older, `.cfg` configuration file. 
 
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).

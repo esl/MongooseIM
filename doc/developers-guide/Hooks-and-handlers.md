@@ -260,7 +260,7 @@ The only thing that needs to be done is calling `ejabberd_hooks:run_fold/4` with
 
 However, if you want static code analysis, you should put the new hook inside `mongoose_hooks` with a correct type specification.
 We've added this module to provide some security and type checking in places where the hooks are run.
-This is the way all hooks are called in MongooseIM (see the examples in the [hooks description](hooks_description.md)).gen_iq_handler
+This is the way all hooks are called in MongooseIM (see the examples in the [hooks description](hooks_description.md)).
 
 Of course, as long as no module registers handlers for a hook, running a `run_fold` won't have any effects.
 
