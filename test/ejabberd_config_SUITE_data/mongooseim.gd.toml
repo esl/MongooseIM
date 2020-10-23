@@ -1,0 +1,7 @@
+[general]
+  hosts = ["localhost"]
+  loglevel = "error"
+
+[modules.mod_global_distrib]
+  global_host = "mim.localhost"
+  local_host = "c1-mim.localhost"

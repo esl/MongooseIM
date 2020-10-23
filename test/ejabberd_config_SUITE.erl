@@ -17,8 +17,7 @@
 all() ->
     [smoke,
      {group, reload_local},
-     {group, reload_cluster},
-     split_config].
+     {group, reload_cluster}].
 
 groups() ->
     [{reload_local, [], [coalesce_multiple_local_config_options,
@@ -26,8 +25,6 @@ groups() ->
                          delete_a_module,
                          reload_a_module]},
      {reload_cluster, [], [cluster_smoke,
-                           change_module_option_with_node_param_opts,
-                           change_module_option_with_node_specific_mods,
                            module_deps_work_correctly_with_reload_cluster,
                            try_to_reload_with_different_options_on_nodes]}
     ].
@@ -68,7 +65,7 @@ end_per_group(_GroupName, _Config) ->
 
 smoke(Config) ->
     % when
-    start_ejabberd_with_config(Config, "mongooseim.default.cfg"),
+    start_ejabberd_with_config(Config, "mongooseim.minimal.toml"),
     % then
     ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
     % cleanup
@@ -80,11 +77,11 @@ coalesce_multiple_local_config_options(_Config) ->
 
 add_a_module(C) ->
     % given a running server with a specific module off
-    copy(data(C, "mongooseim.default.cfg"), data(C, "mongooseim.cfg")),
-    start_ejabberd_with_config(C, "mongooseim.cfg"),
+    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim.toml")),
+    start_ejabberd_with_config(C, "mongooseim.toml"),
     ?eq(false, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % when adding the module to the configuration
-    copy(data(C, "mongooseim.with_mod_offline.cfg"), data(C, "mongooseim.cfg")),
+    copy(data(C, "mongooseim.with_mod_offline.toml"), data(C, "mongooseim.toml")),
     ejabberd_config:reload_local(),
     % then the new module gets started
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
@@ -93,11 +90,11 @@ add_a_module(C) ->
 
 delete_a_module(C) ->
     % given a running server with a specific module on
-    copy(data(C, "mongooseim.with_mod_offline.cfg"), data(C, "mongooseim.cfg")),
-    start_ejabberd_with_config(C, "mongooseim.cfg"),
+    copy(data(C, "mongooseim.with_mod_offline.toml"), data(C, "mongooseim.toml")),
+    start_ejabberd_with_config(C, "mongooseim.toml"),
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % when deleting the module from the configuration
-    copy(data(C, "mongooseim.default.cfg"), data(C, "mongooseim.cfg")),
+    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim.toml")),
     ejabberd_config:reload_local(),
     % then the module is stopped
     ?eq(false, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
@@ -106,13 +103,13 @@ delete_a_module(C) ->
 
 reload_a_module(C) ->
     % given a running server with a specific module on
-    copy(data(C, "mongooseim.with_mod_offline.cfg"), data(C, "mongooseim.cfg")),
-    start_ejabberd_with_config(C, "mongooseim.cfg"),
+    copy(data(C, "mongooseim.with_mod_offline.toml"), data(C, "mongooseim.toml")),
+    start_ejabberd_with_config(C, "mongooseim.toml"),
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     OfflineProcBefore = get_module_pid(mod_offline_localhost),
     % when changing the module configuration
-    copy(data(C, "mongooseim.with_mod_offline.different_opts.cfg"),
-         data(C, "mongooseim.cfg")),
+    copy(data(C, "mongooseim.with_mod_offline.different_opts.toml"),
+         data(C, "mongooseim.toml")),
     ejabberd_config:reload_local(),
     % then the module is reloaded
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
@@ -121,54 +118,13 @@ reload_a_module(C) ->
     % cleanup
     ok = stop_ejabberd().
 
-split_config(Config) ->
-    % given
-    given_vhost_config_split_into_multiple_files(Config),
-    % when
-    application:load(mongooseim),
-    application:set_env(mongooseim, config, suite_priv(Config, "etc/mongooseim.cfg")),
-    {ok, _} = start_ejabberd(Config),
-    % then
-    then_vhost_config_works(Config),
-    % cleanup
-    ok = stop_ejabberd().
-
-given_vhost_config_split_into_multiple_files(C) ->
-    [ ok = filelib:ensure_dir(D) || D <- [suite_priv(C, "etc/"),
-                                          suite_priv(C, "etc/fake.domain.one/"),
-                                          suite_priv(C, "etc/fake.domain.two/")] ],
-    copy(data(C, "mongooseim.split.cfg"), suite_priv(C, "etc/mongooseim.cfg")),
-    copy(data(C, "mongooseim.hosts.cfg"), suite_priv(C, "etc/mongooseim.hosts.cfg")),
-    copy(data(C, "fake.domain.one/host.cfg"),
-         suite_priv(C, "etc/fake.domain.one/host.cfg")),
-    copy(data(C, "fake.domain.one/host.cfg"),
-         suite_priv(C, "etc/fake.domain.one/certfile.pem")),
-    copy(data(C, "fake.domain.two/host.cfg"),
-         suite_priv(C, "etc/fake.domain.two/host.cfg")),
-    copy(data(C, "fake.domain.two/host.cfg"),
-         suite_priv(C, "etc/fake.domain.two/certfile.pem")).
-
-then_vhost_config_works(_C) ->
-    ?eq([{config, hosts, [<<"fake.domain.one">>, <<"fake.domain.two">>]}],
-        ets:lookup(config, hosts)),
-    ?eq(false, is_empty(ets:lookup(local_config,
-                                   {domain_certfile, <<"fake.domain.one">>}))),
-    ?eq(false, is_empty(ets:lookup(local_config,
-                                   {domain_certfile, <<"fake.domain.two">>}))),
-    ?eq(true, gen_mod:is_loaded(<<"fake.domain.one">>, mod_ping)),
-    ?eq(true, gen_mod:is_loaded(<<"fake.domain.two">>, mod_roster)),
-    ?eq(true, gen_mod:is_loaded(<<"fake.domain.two">>, mod_offline)),
-    ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_roster)),
-    ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_offline)),
-    ?eq(false, gen_mod:is_loaded(<<"fake.domain.two">>, mod_ping)).
-
 cluster_smoke(C) ->
     SlaveNode = slave_node(C),
-    copy(data(C, "mongooseim.no_listeners.cfg"), data(C, "mongooseim.cfg")),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim.cfg"),
-    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim.cfg"),
+    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim.toml")),
+    {ok, _} = start_ejabberd_with_config(C, "mongooseim.toml"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim.toml"),
     maybe_join_cluster(SlaveNode),
-    [_,_] = ejabberd_config:config_states(),
+    [_, _] = ejabberd_config:config_states(),
     % cleanup
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),
@@ -176,43 +132,13 @@ cluster_smoke(C) ->
 
 try_to_reload_with_different_options_on_nodes(C) ->
     SlaveNode = slave_node(C),
-    copy(data(C, "mongooseim.no_listeners.cfg"), data(C, "mongooseim_n1.cfg")),
-    copy(data(C, "mongooseim.no_listeners.cfg"), data(C, "mongooseim_n2.cfg")),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim_n1.cfg"),
-    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim_n2.cfg"),
+    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim_n1.toml")),
+    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim_n2.toml")),
+    {ok, _} = start_ejabberd_with_config(C, "mongooseim_n1.toml"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim_n2.toml"),
     maybe_join_cluster(SlaveNode),
-    copy(data(C, "mongooseim.no_listeners.loglevel_err.cfg"), data(C, "mongooseim_n2.cfg")),
+    copy(data(C, "mongooseim.loglevel_err.toml"), data(C, "mongooseim_n2.toml")),
     ?assertError(#{failed_checks := [inconsistent_ondisc_local_versions]}, ejabberd_config:reload_cluster()),
-    ok = stop_ejabberd(),
-    stop_remote_ejabberd(SlaveNode),
-    ok.
-
-change_module_option_with_node_param_opts(C) ->
-    SlaveNode = slave_node(C),
-    copy(data(C, "mongooseim.no_listeners.node_specific_node1_v1.cfg"), data(C, "mongooseim_n1.cfg")),
-    copy(data(C, "mongooseim.no_listeners.node_specific_node2_v1.cfg"), data(C, "mongooseim_n2.cfg")),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim_n1.cfg"),
-    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim_n2.cfg"),
-    maybe_join_cluster(SlaveNode),
-    copy(data(C, "mongooseim.no_listeners.node_specific_node1_v2.cfg"), data(C, "mongooseim_n1.cfg")),
-    copy(data(C, "mongooseim.no_listeners.node_specific_node2_v2.cfg"), data(C, "mongooseim_n2.cfg")),
-    {ok,_} = ejabberd_config:reload_cluster(),
-    % cleanup
-    ok = stop_ejabberd(),
-    stop_remote_ejabberd(SlaveNode),
-    ok.
-
-change_module_option_with_node_specific_mods(C) ->
-    SlaveNode = slave_node(C),
-    copy(data(C, "mongooseim.no_listeners.node_specific_module_node1_v1.cfg"), data(C, "mongooseim_n1.cfg")),
-    copy(data(C, "mongooseim.no_listeners.node_specific_module_node2_v1.cfg"), data(C, "mongooseim_n2.cfg")),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim_n1.cfg"),
-    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim_n2.cfg"),
-    maybe_join_cluster(SlaveNode),
-%   copy(data(C, "mongooseim.no_listeners.node_specific_module_node1_v2.cfg"), data(C, "mongooseim_n1.cfg")),
-%   copy(data(C, "mongooseim.no_listeners.node_specific_module_node2_v2.cfg"), data(C, "mongooseim_n2.cfg")),
-    {ok,_} = ejabberd_config:reload_cluster(),
-    % cleanup
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),
     ok.
@@ -221,9 +147,8 @@ module_deps_work_correctly_with_reload_cluster(C) ->
     %% Just to ensure
     mnesia:clear_table(config),
     stop_ejabberd(),
-    copy(data(C, "mongooseim.no_listeners.gd.node1_v1.cfg"), data(C, "mongooseim_n1.cfg")),
     mock_gd_modules(),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim_n1.cfg"),
+    {ok, _} = start_ejabberd_with_config(C, "mongooseim.gd.toml"),
     ejabberd_config:assert_local_config_reloaded(),
     %% Cleaning in end_per_testcase
     ok.
@@ -254,10 +179,6 @@ mock_module(M) ->
 
 is_empty([]) -> true;
 is_empty(_) -> false.
-
-get_mongooseim_cfg(Config, Name) ->
-    DataDir = proplists:get_value(data_dir, Config),
-    filename:join([DataDir, Name]).
 
 start_ejabberd_with_config(Config, ConfigFile) ->
     use_config_file(Config, ConfigFile),
