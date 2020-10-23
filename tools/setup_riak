@@ -122,7 +122,7 @@ if [ "$RIAK_SECURITY" == "enabled" ]; then
 # "no function clause matching tls_v1:enum_to_oid(28)" error
 # on Riak's side running with Erlang R16.
 # https://github.com/basho/riak-erlang-client/issues/232#issuecomment-178612129
-# We also set ciphers in mongooseim.cfg
+# We also set ciphers in mongooseim.toml
 # (see test.config presets in the big test directory).
     $RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
 

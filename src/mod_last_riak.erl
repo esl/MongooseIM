@@ -12,7 +12,7 @@
 %%% @doc Riak backend for last activity XEP
 %%%
 %%% The backend uses the existing riak connection pool, which is "globally" defined in
-%%% the ejebberd.cfg file. Therefore, we don't need to start anything in the init
+%%% the mongooseim.toml file. Therefore, we don't need to start anything in the init
 %%% function.
 %%%
 %%% The module follows the approach taken by the other riak backends - it creates

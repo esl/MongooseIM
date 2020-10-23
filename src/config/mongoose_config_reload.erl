@@ -269,7 +269,7 @@ calculate_inconsistent_opts(Data=#{extended_node_states := ExtNodeStates}) ->
     Data#{inconsistent_loaded_local_common_options => Inconsistent}.
 
 %% Return a list with inconsistent options for each node.
-%% Useful for inconsistent mongooseim.cfg debugging (when just hash is not enough).
+%% Useful for inconsistent mongooseim.toml debugging (when just hash is not enough).
 inconsistent_node_opts(NodeOpts) ->
     {Nodes, OptLists} = lists:unzip(NodeOpts),
     OptSets = lists:map(fun sets:from_list/1, OptLists),
@@ -352,7 +352,7 @@ cluster_reload_version_checks(Data) ->
            "Global configs should be the same for all nodes in cluster. "
            "ondisc_global_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
-           "How to fix: ensure that mongooseim.cfg-s are the same for all nodes.",
+           "How to fix: ensure that mongooseim.toml-s are the same for all nodes.",
            %% To pass the check it should be ...
            all_same(loaded_global_versions, Data)),
 
@@ -373,7 +373,7 @@ cluster_reload_version_checks(Data) ->
            "Local configs should be the same for all nodes in cluster. "
            "ondisc_local_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
-           "How to fix: ensure that mongooseim.cfg-s are the same for all nodes.",
+           "How to fix: ensure that mongooseim.toml-s are the same for all nodes.",
            %% To pass the check it should be ...
            all_same(ondisc_local_versions, Data)),
 
