@@ -27,6 +27,8 @@
          send_stanza/1
         ]).
 
+-export([parse_from_to/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
@@ -238,7 +240,7 @@ commands() ->
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
     case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
-        no_session -> <<"no active session">>;
+        no_session -> {error, not_found, <<"no active session">> };
         {exit, <<"kicked">>} -> <<"kicked">>
     end.
 
@@ -256,41 +258,31 @@ register(Host, User, Password) ->
         {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
-            throw({exists, String});
+            {error, denied, String};
+        {error, invalid_jid} ->
+            String = io_lib:format("Invalid jid: ~p@~p",
+                                   [User, Host]),
+            {error, bad_request, String};
         {error, Reason} ->
             String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
                                    [User, Host, node(), Reason]),
-            throw({error, String});
+            {error, internal, String};
         _ ->
             list_to_binary(io_lib:format("User ~s@~s successfully registered",
                                          [User, Host]))
     end.
 
 unregister(Host, User) ->
-    ejabberd_auth:remove_user(User, Host),
-    <<"">>.
+    case ejabberd_auth:remove_user(User, Host) of
+        ok -> <<"ok">>;
+        error -> {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
+        {error, not_allowed} -> {error, forbidden, "User does not exist or you are not authorised properly"}
+    end.
 
 send_message(From, To, Body) ->
-    F = jid:from_binary(From),
-    T = jid:from_binary(To),
-    Packet = build_message(From, To, Body),
-    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                              lserver => F#jid.lserver,
-                              element => Packet}),
-
-    mongoose_hooks:user_send_packet(F#jid.lserver,
-                                    Acc0,
-                                    F, T, Packet),
-
-    %% privacy check is missing, but is it needed?
-    ejabberd_router:route(F, T, Packet),
-    ok.
-
-send_stanza(BinStanza) ->
-    case exml:parse(BinStanza) of
-        {ok, Packet} ->
-            F = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
-            T = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
+    case parse_from_to(From, To) of
+        {ok, F, T} ->
+            Packet = build_message(From, To, Body),
             Acc0 = mongoose_acc:new(#{location => ?LOCATION,
                                       lserver => F#jid.lserver,
                                       element => Packet}),
@@ -299,10 +291,45 @@ send_stanza(BinStanza) ->
                                             Acc0,
                                             F, T, Packet),
 
+            %% privacy check is missing, but is it needed?
             ejabberd_router:route(F, T, Packet),
             ok;
+        E ->
+            E
+    end.
+
+send_stanza(BinStanza) ->
+    case exml:parse(BinStanza) of
+        {ok, Packet} ->
+            F = exml_query:attr(Packet, <<"from">>),
+            T = exml_query:attr(Packet, <<"to">>),
+            case parse_from_to(F, T) of
+                {ok, From, To} ->
+                    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                              lserver => From#jid.lserver,
+                                              element => Packet}),
+                    mongoose_hooks:user_send_packet(From#jid.lserver,
+                                                    Acc0,
+                                                    From, To, Packet),
+                    ejabberd_router:route(From, To, Packet),
+                    ok;
+                {error, missing} ->
+                    {error, bad_request, "both from and to are required"};
+                {error, type_error, E} ->
+                    {error, type_error, E}
+            end;
         {error, Reason} ->
-            throw({badarg, io_lib:format("Malformed stanza: ~p", [Reason])})
+            {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
+    end.
+
+-spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
+    {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
+parse_from_to(F, T) when F == undefined; T == undefined ->
+    {error, missing};
+parse_from_to(F, T) ->
+    case parse_jid_list([F, T]) of
+        {ok, [Fjid, Tjid]} -> {ok, Fjid, Tjid};
+        E -> E
     end.
 
 list_contacts(Caller) ->
@@ -327,9 +354,16 @@ add_contact(Caller, JabberID) ->
 add_contact(Caller, JabberID, Name) ->
     add_contact(Caller, JabberID, Name, []).
 
-add_contact(Caller, JabberID, Name, Groups) ->
-    CJid = jid:from_binary(Caller),
-    mod_roster:set_roster_entry(CJid, JabberID, Name, Groups).
+add_contact(Caller, Other, Name, Groups) ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, _OtherJid} ->
+            case mod_roster:set_roster_entry(CallerJid, jid_to_binary(Other), Name, Groups) of
+                ok -> ok;
+                error -> {error, internal, "set roster entry failed"}
+            end;
+        E ->
+            E
+    end.
 
 delete_contacts(Caller, ToDelete) ->
     maybe_delete_contacts(Caller, ToDelete, []).
@@ -343,18 +377,19 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
             maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
-delete_contact(Caller, JabberID) ->
-    CJid = jid:from_binary(Caller),
-    case jid_exists(Caller, JabberID) of
-        false -> error;
-        true ->
-            mod_roster:remove_from_roster(CJid, JabberID)
+delete_contact(Caller, Other) ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, _OtherJid} ->
+            case jid_exists(CallerJid, jid_to_binary(Other)) of
+                false -> error;
+                true ->
+                    mod_roster:remove_from_roster(CallerJid, jid_to_binary(Other))
+            end
     end.
 
--spec jid_exists(binary(), binary()) -> boolean().
-jid_exists(CJid, Jid) ->
-    FJid = jid:from_binary(CJid),
-    Res = mod_roster:get_roster_entry(FJid#jid.luser, FJid#jid.lserver, Jid),
+-spec jid_exists(jid:jid(), binary()) -> boolean().
+jid_exists(UserJid, Contact) ->
+    Res = mod_roster:get_roster_entry(UserJid#jid.luser, UserJid#jid.lserver, Contact),
     Res =/= does_not_exist.
 
 registered_commands() ->
@@ -378,8 +413,15 @@ get_recent_messages(Caller, With, Before, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    ejabberd_auth:set_password(User, Host, Password),
-    ok.
+    case ejabberd_auth:set_password(User, Host, Password) of
+        ok -> ok;
+        {error, empty_password} ->
+            {error, bad_request, "empty password"};
+        {error, not_allowed} ->
+            {error, denied, "password change not allowed"};
+        {error, invalid_jid} ->
+            {error, bad_request, "invalid jid"}
+    end.
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),
@@ -429,11 +471,21 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     L.
 
 subscription(Caller, Other, Action) ->
-    Act = decode_action(Action),
-    run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+    case decode_action(Action) of
+        error ->
+            {error, bad_request, <<"invalid action">>};
+        Act ->
+            case parse_from_to(Caller, Other) of
+                {ok, CallerJid, OtherJid} ->
+                    run_subscription(Act, CallerJid, OtherJid);
+                E ->
+                    E
+            end
+    end.
 
 decode_action(<<"subscribe">>) -> subscribe;
-decode_action(<<"subscribed">>) -> subscribed.
+decode_action(<<"subscribed">>) -> subscribed;
+decode_action(_) -> error.
 
 -spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->
@@ -453,7 +505,21 @@ run_subscription(Type, CallerJid, OtherJid) ->
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 
-set_subscription(Caller, Other, <<"connect">>) ->
+
+set_subscription(Caller, Other, Action) ->
+    case parse_from_to(Caller, Other) of
+        {ok, CallerJid, OtherJid} ->
+            case Action of
+                A when A == <<"connect">>; A == <<"disconnect">> ->
+                    do_set_subscription(CallerJid, OtherJid, Action);
+                _ ->
+                    {error, bad_request, <<"invalid action">>}
+            end;
+        E ->
+            E
+    end.
+
+do_set_subscription(Caller, Other, <<"connect">>) ->
     add_contact(Caller, Other),
     add_contact(Other, Caller),
     subscription(Caller, Other, <<"subscribe">>),
@@ -461,7 +527,29 @@ set_subscription(Caller, Other, <<"connect">>) ->
     subscription(Other, Caller, <<"subscribed">>),
     subscription(Caller, Other, <<"subscribed">>),
     ok;
-set_subscription(Caller, Other, <<"disconnect">>) ->
+do_set_subscription(Caller, Other, <<"disconnect">>) ->
     delete_contact(Caller, Other),
     delete_contact(Other, Caller),
     ok.
+
+-spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
+parse_jid_list([_ | _] = BinJids) ->
+    Jids = lists:map(fun parse_jid/1, BinJids),
+    case [Msg || {error, Msg} <- Jids] of
+        [] -> {ok, Jids};
+        Errors -> {error, type_error, lists:join("; ", Errors)}
+    end.
+
+-spec parse_jid(binary() | jid:jid()) -> jid:jid() | {error, string()}.
+parse_jid(#jid{} = Jid) ->
+    Jid;
+parse_jid(Jid) when is_binary(Jid) ->
+    case jid:from_binary(Jid) of
+        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
+        B -> B
+    end.
+
+jid_to_binary(#jid{} = Jid) -> jid:to_binary(Jid);
+jid_to_binary(B) when is_binary(B) -> B;
+jid_to_binary(undefined) -> undefined.
+

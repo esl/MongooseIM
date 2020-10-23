@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2012 Erlang Solutions Ltd.
+%% Copyright 2012-2020 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_AUTHORIZED, {<<"401">>, _}).
+-define(FORBIDDEN, {<<"403">>, _}).
+-define(BAD_REQUEST, {<<"400">>, _}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -66,7 +68,8 @@ groups() ->
          {blank_auth, [parallel], blank_auth_testcases()},
          {roster, [parallel], [list_contacts,
                                befriend_and_alienate,
-                               befriend_and_alienate_auto]},
+                               befriend_and_alienate_auto,
+                               invalid_roster_operations]},
          {dynamic_module, [], [stop_start_command_module]}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -84,10 +87,12 @@ test_cases() ->
      sessions_are_listed,
      session_can_be_kicked,
      messages_are_sent_and_received,
+     messages_error_handling,
      stanzas_are_sent_and_received,
      messages_are_archived,
      messages_can_be_paginated,
-     password_can_be_changed
+     password_can_be_changed,
+     types_are_checked_separately_for_args_and_return
     ].
 
 suite() ->
@@ -124,13 +129,58 @@ end_per_group(auth, _Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
+init_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
+    {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
+    rpc(code, load_binary, [Mod, "mod_commands_test.erl", Code]),
+    rpc(gen_mod, start_module, [<<"localhost">>, mod_commands_test, []]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
+end_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
+    rpc(gen_mod, stop_module, [<<"localhost">>, mod_commands_test]),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+rpc(M, F, A) ->
+    distributed_helper:rpc(distributed_helper:mim(), M, F, A).
+
+custom_module_code() ->
+    "-module(mod_commands_test).
+     -export([start/0, stop/0, start/2, stop/1, test_arg/1, test_return/1]).
+     start() -> mongoose_commands:register(commands()).
+     stop() -> mongoose_commands:unregister(commands()).
+     start(_,_) -> start().
+     stop(_) -> stop().
+     commands() ->
+         [
+          [
+           {name, test_arg},
+           {category, <<\"test_arg\">>},
+           {desc, <<\"List test_arg\">>},
+           {module, mod_commands_test},
+           {function, test_arg},
+           {action, create},
+           {args, [{arg, boolean}]},
+           {result, [{msg, binary}]}
+          ],
+          [
+           {name, test_return},
+           {category, <<\"test_return\">>},
+           {desc, <<\"List test_return\">>},
+           {module, mod_commands_test},
+           {function, test_return},
+           {action, create},
+           {args, [{arg, boolean}]},
+           {result, {msg, binary}}
+          ]
+         ].
+     test_arg(_) -> <<\"bleble\">>.
+     test_return(_) -> ok.
+     "
+.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -172,11 +222,17 @@ user_can_be_registered_and_removed(_Config) ->
     {?OK, Lusers1} = gett(admin, <<"/users/localhost">>),
     assert_inlist(<<"mike@", Domain/binary>>, Lusers1),
     % try to create the same user
-    {?ERROR, _} = post(admin, <<"/users/localhost">>, CrUser),
+    {?FORBIDDEN, _} = post(admin, <<"/users/localhost">>, CrUser),
     % delete user
     {?NOCONTENT, _} = delete(admin, <<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(admin, <<"/users/localhost">>),
     assert_notinlist(<<"mike@", Domain/binary>>, Lusers2),
+    % invalid jid
+    CrBadUser = #{username => <<"m@ke">>, password => <<"nicniema">>},
+    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, <<"/users/localhost">>, CrBadUser),
+    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = delete(admin, <<"/users/localhost/@mike">>),
+%%    {?FORBIDDEN, _} = delete(admin, <<"/users/localhost/mike">>), % he's already gone, but we
+%%    can't test it because ejabberd_auth_internal:remove_user/2 always returns ok, grrrr
     ok.
 
 sessions_are_listed(_) ->
@@ -185,17 +241,22 @@ sessions_are_listed(_) ->
     true = is_list(Sessions).
 
 session_can_be_kicked(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         % Alice is connected
-        Domain = domain(),
+        AliceJid = jid:nameprep(escalus_client:full_jid(Alice)),
+        AliceSessionPath = <<"/sessions/", (escalus_client:server(Alice))/binary,
+                             "/", (escalus_client:username(Alice))/binary,
+                             "/", (escalus_client:resource(Alice))/binary>>,
         {?OK, Sessions1} = gett(admin, "/sessions/localhost"),
-        assert_inlist(<<"alice@", Domain/binary, "/res1">>, Sessions1),
+        assert_inlist(AliceJid, Sessions1),
         % kick alice
-        {?NOCONTENT, _} = delete(admin, "/sessions/localhost/alice/res1"),
+        {?NOCONTENT, _} = delete(admin, AliceSessionPath),
         escalus:wait_for_stanza(Alice),
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett(admin, "/sessions/localhost"),
-        assert_notinlist(<<"alice@", Domain/binary, "/res1">>, Sessions2)
+        assert_notinlist(AliceJid, Sessions2),
+        {?NOT_FOUND, <<"no active session">>} = delete(admin, AliceSessionPath),
+        ok
     end).
 
 messages_are_sent_and_received(Config) ->
@@ -207,6 +268,15 @@ messages_are_sent_and_received(Config) ->
         escalus:assert(is_chat_message, [maps:get(body, M2)], Res1)
     end).
 
+messages_error_handling(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(AliceJID, <<"@noway">>),
+        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(<<"@noway">>, BobJID),
+        ok
+    end).
+
 stanzas_are_sent_and_received(Config) ->
 %%    this is to test the API for sending arbitrary stanzas, e.g. message with extra elements
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -214,8 +284,12 @@ stanzas_are_sent_and_received(Config) ->
         Res = escalus:wait_for_stanza(Bob),
         ?assertEqual(<<"attribute">>, exml_query:attr(Res, <<"extra">>)),
         ?assertEqual(<<"inside the sibling">>, exml_query:path(Res, [{element, <<"sibling">>}, cdata])),
+        Res1 = send_flawed_stanza(missing_attribute, Alice, Bob),
+        {?BAD_REQUEST, <<"both from and to are required">>} = Res1,
+        Res2 = send_flawed_stanza(malformed_xml, Alice, Bob),
+        {?BAD_REQUEST, <<"Malformed stanza: \"expected >\"">>} = Res2,
         ok
-                                                        end).
+    end).
 
 messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -307,6 +381,13 @@ password_can_be_changed(Config) ->
     escalus:story(Config, [{bob, 1}], fun(#client{} = _Bob) ->
         just_dont_do_anything
     end),
+    % test invalid calls
+    Res1 = putt(admin, "/users/localhost/bob",
+                           #{newpass => <<>>}),
+    {?BAD_REQUEST, <<"empty password">>} = Res1,
+    Res2 = putt(admin, "/users/localhost/b@b",
+                #{newpass => NewPass}),
+    {?BAD_REQUEST, <<"invalid jid">>} = Res2,
     ok.
 
 list_contacts(Config) ->
@@ -431,6 +512,65 @@ befriend_and_alienate_auto(Config) ->
     ),
     ok.
 
+invalid_roster_operations(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            AliceJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Alice)),
+            BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+            AliceS = binary_to_list(AliceJID),
+            BobS = binary_to_list(BobJID),
+            AlicePath = lists:flatten(["/contacts/", AliceS]),
+            % adds them to rosters
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, AlicePath, #{jid => <<"@invalidjid">>}),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, "/contacts/@invalid_jid", #{jid => BobJID}),
+            % it is idempotent
+            {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
+            {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
+            PutPathA = lists:flatten([AlicePath, "/@invalid_jid"]),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathA, #{action => <<"subscribe">>}),
+            PutPathB = lists:flatten(["/contacts/@invalid_jid/", BobS]),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
+            PutPathC = lists:flatten([AlicePath, "/", BobS]),
+            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, PutPathC, #{action => <<"something stupid">>}),
+            ManagePath = lists:flatten(["/contacts/",
+                                        AliceS,
+                                        "/",
+                                        BobS,
+                                        "/manage"
+                                       ]),
+            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, ManagePath, #{action => <<"off with his head">>}),
+            MangePathA = lists:flatten(["/contacts/",
+                                        "@invalid",
+                                        "/",
+                                        BobS,
+                                        "/manage"
+                                       ]),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathA, #{action => <<"connect">>}),
+            MangePathB = lists:flatten(["/contacts/",
+                                        AliceS,
+                                        "/",
+                                        "@bzzz",
+                                        "/manage"
+                                       ]),
+            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathB, #{action => <<"connect">>}),
+            ok
+        end
+    ).
+
+types_are_checked_separately_for_args_and_return(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(_Alice) ->
+            % argument doesn't pass typecheck
+            {?BAD_REQUEST, _} = post(admin, "/test_arg", #{arg => 1}),
+            % return value doesn't pass typecheck
+            {?ERROR, _} = post(admin, "/test_return", #{arg => true}),
+            ok
+        end
+    ).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -443,6 +583,11 @@ send_messages(Alice, Bob) ->
     M1 = #{caller => AliceJID, to => BobJID, body => <<"hello from Alice">>},
     {?NOCONTENT, _} = post(admin, <<"/messages">>, M1),
     {M, M1}.
+
+send_message_bin(BFrom, BTo) ->
+    % this is to trigger invalid jid errors
+    M = #{caller => BFrom, to => BTo, body => <<"whatever">>},
+    post(admin, <<"/messages">>, M).
 
 send_extended_message(From, To) ->
     M = #xmlel{name = <<"message">>,
@@ -458,6 +603,25 @@ send_extended_message(From, To) ->
     M1 = #{stanza => exml:to_binary(M)},
     {?NOCONTENT, _} = post(admin, <<"/stanzas">>, M1),
     ok.
+
+send_flawed_stanza(missing_attribute, From, _To) ->
+    M = #xmlel{name = <<"message">>,
+               attrs = [{<<"from">>, escalus_client:full_jid(From)},
+                        {<<"extra">>, <<"attribute">>}],
+               children = [#xmlel{name = <<"body">>,
+                                  children = [#xmlcdata{content = <<"the body">>}]},
+                           #xmlel{name = <<"sibling">>,
+                                  children = [#xmlcdata{content = <<"inside the sibling">>}]}
+               ]
+    },
+    ct:pal("M: ~p", [M]),
+    M1 = #{stanza => exml:to_binary(M)},
+    post(admin, <<"/stanzas">>, M1);
+send_flawed_stanza(malformed_xml, _From, _To) ->
+    % closing > is missing
+    BadStanza = <<"<message from='alicE@localhost/res1' to='bOb@localhost/res1'><body>the body</body></message">>,
+    post(admin, <<"/stanzas">>, #{stanza => BadStanza}).
+
 
 check_roster(Path, Jid, Subs, Ask) ->
     {?OK, R} = gett(admin, Path),

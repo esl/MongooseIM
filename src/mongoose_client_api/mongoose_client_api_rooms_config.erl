@@ -54,9 +54,9 @@ handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
         ok ->
             {true, Req, State};
-        {error,not_allowed} ->
+        {error, internal, not_allowed} ->
             mongoose_client_api:forbidden_request(Req, State);
-        {error, _} ->
+        {error, internal, _} ->
             {false, Req, State}
     end.
 
