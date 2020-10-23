@@ -45,8 +45,7 @@ config_vars_path(File, Config) ->
 ctl_path(Node, Config) ->
     filename:join([cwd(Node, Config), "bin", "mongooseimctl"]).
 
-config_file_name(toml) -> "mongooseim.toml";
-config_file_name(cfg) -> "mongooseim.cfg".
+config_file_name(toml) -> "mongooseim.toml".
 
 -type ct_config() :: list({Key :: term(), Value :: term()}).
 
@@ -133,12 +132,12 @@ file_exists(Filename) ->
 file_exists(Node, Filename) ->
     call_fun(Node, filelib, is_file, [Filename]).
 
-%% @doc Modifies default ejabberd config file: `etc/mongooseim.cfg'.
+%% @doc Modifies default ejabberd config file: `etc/mongooseim.toml'.
 %%
 %% This function assumes that the config file was generated from template
-%% file in `rel/files/mongooseim.cfg' using variables from `rel/vars.config'.
+%% file in `rel/files/mongooseim.toml' using variables from `rel/vars-toml.config'.
 %% The modification procedure overrides given variables provided in
-%% `rel/vars.config'.
+%% `rel/vars-toml.config'.
 %%
 %% For example to change `hosts' value in the configuration file one
 %% has to call the function as follows:
@@ -150,7 +149,7 @@ file_exists(Node, Filename) ->
 modify_config_file(CfgVarsToChange, Config) ->
     modify_config_file(mim, CfgVarsToChange, Config, toml).
 
--spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml | cfg) -> ok when
+-spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml) -> ok when
       Host :: atom(),
       ConfigVariable :: atom(),
       Value :: string().
@@ -203,8 +202,7 @@ get_config_path(RPCSpec) ->
 set_config_path(RPCSpec, Path) ->
     ejabberd_node_utils:call_fun(RPCSpec, os, putenv, ["EJABBERD_CONFIG_PATH", Path]).
 
-vars_file(toml) -> "vars-toml.config";
-vars_file(cfg) -> "vars.config".
+vars_file(toml) -> "vars-toml.config".
 
 preset_vars(Config, Format) ->
     case proplists:get_value(preset, Config) of
