@@ -130,8 +130,8 @@ create_instant_room(Host, Name, Owner, Nick) ->
     end.
 
 invite_to_room(Host, Name, Sender, Recipient, Reason) ->
-    case mod_commands:parse_jid_list([Sender, Recipient]) of
-        {ok, [S, R]} ->
+    case mod_commands:parse_from_to(Sender, Recipient) of
+        {ok, S, R} ->
             case verify_room(Host, Name, Sender) of
                 ok ->
                     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
@@ -150,8 +150,8 @@ invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     end.
 
 send_message_to_room(Host, Name, Sender, Message) ->
-    case mod_commands:parse_jid_list([Sender, room_address(Name, Host)]) of
-        {ok, [S, Room]} ->
+    case mod_commands:parse_from_to(Sender, room_address(Name, Host)) of
+        {ok, S, Room} ->
             B = #xmlel{name = <<"body">>,
                        children = [ #xmlcdata{ content = Message } ]
             },

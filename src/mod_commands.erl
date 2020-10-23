@@ -27,7 +27,7 @@
          send_stanza/1
         ]).
 
--export([parse_jid_list/1, parse_jid/1]).
+-export([parse_from_to/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -280,8 +280,8 @@ unregister(Host, User) ->
     end.
 
 send_message(From, To, Body) ->
-    case parse_jid_list([From, To]) of
-        {ok, [F, T]} ->
+    case parse_from_to(From, To) of
+        {ok, F, T} ->
             Packet = build_message(From, To, Body),
             Acc0 = mongoose_acc:new(#{location => ?LOCATION,
                                       lserver => F#jid.lserver,
