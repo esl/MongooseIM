@@ -78,8 +78,8 @@ publish_notification(Acc, _, Payload, Services) ->
 %%--------------------------------------------------------------------
 
 -spec should_publish(To :: jid:jid()) -> boolean().
-should_publish(#jid{luser = LUser, lserver = LServer} = To) ->
-    try ejabberd_users:does_user_exist(LUser, LServer) of
+should_publish(#jid{} = To) ->
+    try ejabberd_users:does_user_exist(To) of
         false ->
             false;
         true ->
@@ -146,10 +146,10 @@ publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
                               to_jid => PubsubJID }),
 
     ResponseHandler =
-    fun(_From, _To, Acc, Response) ->
+    fun(_From, _To, FAcc, Response) ->
             mod_event_pusher_push:cast(Host, fun handle_publish_response/4,
                                        [To, PubsubJID, Node, Response]),
-            Acc
+            FAcc
     end,
     %% The IQ is routed from the recipient's server JID to pubsub JID
     %% This is recommended in the XEP and also helps process replies to this IQ

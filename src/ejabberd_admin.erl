@@ -331,17 +331,18 @@ register(Host, Password) ->
                                       | {'exists', io_lib:chars()}
                                       | {'ok', io_lib:chars()}.
 register(User, Host, Password) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:try_register(JID, Password) of
         {error, exists} ->
-            String = io_lib:format("User ~s@~s already registered at node ~p",
-                                   [User, Host, node()]),
+            String = io_lib:format("User ~s already registered at node ~p",
+                                   [jid:to_binary(JID), node()]),
             {exists, String};
         {error, Reason} ->
-            String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
-                                   [User, Host, node(), Reason]),
+            String = io_lib:format("Can't register user ~s at node ~p: ~p",
+                                   [jid:to_binary(JID), node(), Reason]),
             {cannot_register, String};
         _ ->
-            {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])}
+            {ok, io_lib:format("User ~s successfully registered", [jid:to_binary(JID)])}
     end.
 
 generate_user() ->
@@ -353,7 +354,7 @@ generate_user() ->
 -spec unregister(User :: jid:user(),
                  Host :: jid:server()) -> {'ok', []}.
 unregister(User, Host) ->
-    ejabberd_auth:remove_user(User, Host),
+    ejabberd_auth:remove_user(jid:make(User, Host, <<>>)),
     {ok, ""}.
 
 -spec registered_users(Host :: jid:server()) -> [jid:user()].
@@ -435,7 +436,7 @@ registrator_proc(Manager, Result) ->
                                  {null_password, jid:user()} |
                                  {bad_csv, binary()}.
 do_register([User, Host, Password]) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    case ejabberd_auth:try_register(jid:make(User, Host, <<>>), Password) of
         {error, Reason} -> {Reason, User};
         _ -> {ok, User}
     end;

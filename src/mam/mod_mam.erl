@@ -300,10 +300,10 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
+filter_packet({From, To = #jid{lserver = LServer}, Acc, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc}),
     {AmpEvent, PacketAfterArchive} =
-        case ejabberd_users:does_user_exist(LUser, LServer) of
+        case ejabberd_users:does_user_exist(To) of
             false ->
                 {mam_failed, Packet};
             true ->
