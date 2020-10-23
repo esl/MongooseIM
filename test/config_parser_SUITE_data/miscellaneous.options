@@ -1,0 +1,68 @@
+{config,hosts,[<<"localhost">>,<<"anonymous.localhost">>]}.
+{local_config,cowboy_server_name,"Apache"}.
+{local_config,listen,
+    [{{5280,{0,0,0,0},tcp},
+      ejabberd_cowboy,
+      [{transport_options,[{num_acceptors,10},{max_connections,1024}]},
+       {modules,
+           [{"_","/ws-xmpp",mod_websockets,
+             [{ejabberd_service,
+                  [{access,all},
+                   {shaper_rule,fast},
+                   {password,"secret"},
+                   {max_fsm_queue,1000}]}]}]}]}]}.
+{local_config,mongooseimctl_access_commands,
+              [{local,["join_cluster"],[{node,"mongooseim@prime"}]}]}.
+{local_config,rdbms_server_type,mssql}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain]}.
+{local_config,services,
+    [{service_mongoose_system_metrics,
+         [report,
+          {initial_report,300000},
+          {periodic_report,10800000},
+          {tracking_id,"UA-123456789"}]}]}.
+{local_config,{allow_multiple_connections,<<"anonymous.localhost">>},true}.
+{local_config,{allow_multiple_connections,<<"localhost">>},true}.
+{local_config,{anonymous_protocol,<<"anonymous.localhost">>},sasl_anon}.
+{local_config,{anonymous_protocol,<<"localhost">>},sasl_anon}.
+{local_config,{auth_opts,<<"anonymous.localhost">>},
+              [{ldap_pool_tag,default},
+               {ldap_bind_pool_tag,bind},
+               {ldap_base,"ou=Users,dc=esl,dc=com"},
+               {ldap_uids,["uid",{"uid2","%u"}]},
+               {ldap_filter,"(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
+               {ldap_dn_filter,{"(&(name=%s)(owner=%D)(user=%u@%d))",["sn"]}},
+               {ldap_local_filter,{equal,{"accountStatus",["enabled"]}}},
+               {ldap_deref,never},
+               {extauth_program,"/usr/bin/authenticator"},
+               {basic_auth,"admin:admin"},
+               {jwt_secret,"secret123"},
+               {jwt_algorithm,"RS256"},
+               {jwt_username_key,user},
+               {bucket_type,<<"user_bucket">>}]}.
+{local_config,{auth_opts,<<"localhost">>},
+              [{ldap_pool_tag,default},
+               {ldap_bind_pool_tag,bind},
+               {ldap_base,"ou=Users,dc=esl,dc=com"},
+               {ldap_uids,["uid",{"uid2","%u"}]},
+               {ldap_filter,"(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
+               {ldap_dn_filter,{"(&(name=%s)(owner=%D)(user=%u@%d))",["sn"]}},
+               {ldap_local_filter,{equal,{"accountStatus",["enabled"]}}},
+               {ldap_deref,never},
+               {extauth_program,"/usr/bin/authenticator"},
+               {basic_auth,"admin:admin"},
+               {jwt_secret,"secret123"},
+               {jwt_algorithm,"RS256"},
+               {jwt_username_key,user},
+               {bucket_type,<<"user_bucket">>}]}.
+{local_config,{extauth_instances,<<"anonymous.localhost">>},1}.
+{local_config,{extauth_instances,<<"localhost">>},1}.
+{local_config,{hide_service_name,<<"anonymous.localhost">>},true}.
+{local_config,{hide_service_name,<<"localhost">>},true}.
+{local_config,{pgsql_users_number_estimate,<<"anonymous.localhost">>},true}.
+{local_config,{pgsql_users_number_estimate,<<"localhost">>},true}.
+{local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
+{local_config,{route_subdomains,<<"anonymous.localhost">>},s2s}.
+{local_config,{route_subdomains,<<"localhost">>},s2s}.
