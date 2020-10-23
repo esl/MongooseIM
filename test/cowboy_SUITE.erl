@@ -32,8 +32,7 @@
 
 all() ->
     [{group, routing},
-     start_cowboy_returns_error_eaddrinuse,
-     conf_reload].
+     start_cowboy_returns_error_eaddrinuse].
 
 groups() ->
     [{routing, [sequence], [http_requests,
@@ -222,38 +221,6 @@ start_cowboy_returns_error_eaddrinuse(_C) ->
     {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts),
     Result = ejabberd_cowboy:start_cowboy(a_ref_2, Opts),
     {error, eaddrinuse} = Result.
-
-conf_reload(Config) ->
-    %% Given initial configuration
-    HTTPHost = "http://localhost:5280",
-    Path = <<"/">>,
-    Method = "GET",
-    Headers1 = [],
-    Headers2 = ws_headers(<<"xmpp">>),
-    Body = [],
-
-    copy(data(Config, "mongooseim.onlyhttp.cfg"), data(Config, "mongooseim.cfg")),
-    start_ejabberd_with_config(Config, "mongooseim.cfg"),
-
-    %% When making requests for http and ws
-    Response1 = execute_request(HTTPHost, Path, Method, Headers1, Body),
-    Response2 = execute_request(HTTPHost, Path, Method, Headers2, Body),
-
-    %% Then http returns 200 and ws returns 404
-    assert_status_code(Response1, 200),
-    assert_status_code(Response2, 404),
-
-    %% Given new configuration
-    copy(data(Config, "mongooseim.onlyws.cfg"), data(Config, "mongooseim.cfg")),
-    ejabberd_config:reload_local(),
-
-    %% When making requests for http and ws
-    Response3 = execute_request(HTTPHost, Path, Method, Headers1, Body),
-
-    %% Then http returns 404 and ws works fine
-    assert_status_code(Response3, 404),
-
-    ok = stop_ejabberd().
 
 %%--------------------------------------------------------------------
 %% Helpers
