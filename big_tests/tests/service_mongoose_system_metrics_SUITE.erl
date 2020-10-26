@@ -47,7 +47,8 @@
          api_are_reported/1,
          transport_mechanisms_are_reported/1,
          outgoing_pools_are_reported/1,
-         xmpp_stanzas_counts_are_reported/1
+         xmpp_stanzas_counts_are_reported/1,
+         config_type_is_reported/1
         ]).
 
 -export([
@@ -87,6 +88,7 @@ all() ->
      transport_mechanisms_are_reported,
      outgoing_pools_are_reported,
      xmpp_stanzas_counts_are_reported,
+     config_type_is_reported,
      {group, log_transparency}
     ].
 
@@ -139,14 +141,6 @@ end_per_group(log_transparency, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(periodic_report_available, Config) ->
-    create_events_collection(),
-    enable_system_metrics(mim()),
-    Config;
-init_per_testcase(system_metrics_are_reported_to_google_analytics_when_mim_starts, Config) ->
-    create_events_collection(),
-    enable_system_metrics(mim()),
-    Config;
 init_per_testcase(system_metrics_are_not_reported_when_not_allowed, Config) ->
     create_events_collection(),
     disable_system_metrics(mim()),
@@ -187,17 +181,6 @@ init_per_testcase(_TestcaseName, Config) ->
     enable_system_metrics(mim()),
     Config.
 
-
-end_per_testcase(periodic_report_available, Config) ->
-    clear_events_collection(),
-    disable_system_metrics(mim()),
-    delete_prev_client_id(mim()),
-    Config;
-end_per_testcase(system_metrics_are_reported_to_google_analytics_when_mim_starts, Config) ->
-    clear_events_collection(),
-    delete_prev_client_id(mim()),
-    disable_system_metrics(mim()),
-    Config;
 end_per_testcase(system_metrics_are_not_reported_when_not_allowed, Config) ->
     clear_events_collection(),
     delete_prev_client_id(mim()),
@@ -222,6 +205,7 @@ end_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
 end_per_testcase(_TestcaseName, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
+    delete_prev_client_id(mim()),
     Config.
 
 
@@ -243,7 +227,6 @@ periodic_report_available(_Config) ->
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     all_event_have_the_same_client_id().
-
 
 system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
@@ -312,6 +295,9 @@ xmpp_stanzas_counts_are_reported(Config) ->
     end),
     mongoose_helper:wait_until(fun xmpp_messages_count_is_reported/0, true),
     mongoose_helper:wait_until(fun xmpp_stanzas_counts_are_reported/0, true).
+
+config_type_is_reported(_Config) ->
+    mongoose_helper:wait_until(fun config_type_is_reported/0, true).
 
 just_removed_from_config_logs_question(_Config) ->
     disable_system_metrics(mim3()),
@@ -483,6 +469,13 @@ feature_is_reported(EventCategory, EventAction) ->
             EC == EventCategory andalso EA == EventAction
         end, Tab).
 
+feature_is_reported(EventCategory, EventAction, EventLabel) ->
+    Tab = ets:tab2list(?ETS_TABLE),
+    lists:any(
+        fun(#event{ec = EC, ea = EA, el = EL}) ->
+            EC == EventCategory andalso EA == EventAction andalso EL == EventLabel
+        end, Tab).
+
 mod_vcard_backend_is_reported() ->
     feature_is_reported(<<"mod_vcard">>, <<"backend">>).
 
@@ -494,6 +487,11 @@ cluster_uptime_is_reported() ->
 
 xmpp_components_are_reported() ->
     feature_is_reported(<<"cluster">>, <<"number_of_components">>).
+
+config_type_is_reported() ->
+    IsToml = feature_is_reported(<<"cluster">>, <<"config_type">>, <<"toml">>),
+    IsCfg = feature_is_reported(<<"cluster">>, <<"config_type">>, <<"cfg">>),
+    IsToml orelse IsCfg.
 
 api_are_reported() ->
     is_in_table(<<"http_api">>).

@@ -46,7 +46,8 @@
 -export([print_flat_config/0]).
 
 -export([get_local_config/0,
-         get_host_local_config/0]).
+         get_host_local_config/0,
+         get_config_path/0]).
 
 %% Introspection
 -export([config_info/0]).
