@@ -34,8 +34,7 @@ all() ->
     [{group, compile_routes},
      {group, match_routes},
      {group, generate_upstream},
-     {group, requests_http},
-     conf_reload].
+     {group, requests_http}].
 
 groups() ->
     [{compile_routes, [sequence], [compile_example_routes,
@@ -144,38 +143,6 @@ example_dynamic_compile(_Config) ->
 
     %% Then
     Expected = mod_revproxy_dynamic:rules().
-
-%%--------------------------------------------------------------------
-%% Configuration reload test
-%%--------------------------------------------------------------------
-conf_reload(Config) ->
-    %% Given initial configuration
-    Host = "http://localhost:5280",
-    Path = <<"/">>,
-    Method = "GET",
-    Headers = [],
-    Body = [],
-
-    copy(data("mongooseim.onerule.cfg", Config), data("mongooseim.cfg", Config)),
-    start_ejabberd_with_config(Config, "mongooseim.cfg"),
-
-    %% When making request for http
-    Response1 = execute_request(Host, Path, Method, Headers, Body),
-
-    %% Then it returns 200
-    true = is_status_code(Response1, 200),
-
-    %% Given new configuration
-    copy(data("mongooseim.norules.cfg", Config), data("mongooseim.cfg", Config)),
-    ejabberd_config:reload_local(),
-
-    %% When request is replayed
-    Response2 = execute_request(Host, Path, Method, Headers, Body),
-
-    %% Then it returns 404
-    true = is_status_code(Response2, 404),
-
-    ok = stop_ejabberd().
 
 %%--------------------------------------------------------------------
 %% HTTP requests tests

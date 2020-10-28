@@ -145,8 +145,8 @@ tcp_port_ip() ->
 
 tcp_start_stop_reload(C) ->
     %% start server
-    copy(data(C, "mongooseim.basic.cfg"), data(C, "mongooseim.cfg")),
-    ejabberd_helper:start_ejabberd_with_config(C, "mongooseim.cfg"),
+    copy(data(C, "mongooseim.basic.toml"), data(C, "mongooseim.toml")),
+    ejabberd_helper:start_ejabberd_with_config(C, "mongooseim.toml"),
     ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
     %% make sure all ports are open
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
@@ -157,7 +157,7 @@ tcp_start_stop_reload(C) ->
     ejabberd_listener:start_listeners(),
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
     %% alternative configuration differs only in that s2s listens on 5296 instea of 5269
-    copy(data(C, "mongooseim.alt.cfg"), data(C, "mongooseim.cfg")),
+    copy(data(C, "mongooseim.alt.toml"), data(C, "mongooseim.toml")),
     %% we want to make sure that connection to an unchanged port survives reload
     UnchPort = 5222,
     {ok, Sock} = gen_tcp:connect("localhost", UnchPort,[{active, false}, {packet, 2}]),

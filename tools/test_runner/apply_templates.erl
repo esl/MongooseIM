@@ -43,7 +43,6 @@ simple_templates() ->
      {"rel/files/app.config",       "etc/app.config"},
      {"rel/files/vm.args",          "etc/vm.args"},
      {"rel/files/vm.dist.args",     "etc/vm.dist.args"},
-     {"rel/files/mongooseim.cfg",   "etc/mongooseim.cfg"},
      {"rel/files/mongooseim.toml",  "etc/mongooseim.toml"}
     ].
 

@@ -1,0 +1,5 @@
+[general]
+  hosts = ["localhost"]
+
+[modules.mod_offline]
+  access_max_user_messages = "max_user_offline_messages"

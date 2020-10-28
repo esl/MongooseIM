@@ -25,7 +25,7 @@
 -define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
 
 all() ->
-    [{group, equivalence},
+    [{group, file},
      {group, general},
      {group, listen},
      {group, auth},
@@ -36,11 +36,11 @@ all() ->
      {group, services}].
 
 groups() ->
-    [{equivalence, [parallel], [sample_pgsql,
-                                miscellaneous,
-                                s2s,
-                                modules,
-                                outgoing_pools]},
+    [{file, [parallel], [sample_pgsql,
+                         miscellaneous,
+                         s2s,
+                         modules,
+                         outgoing_pools]},
      {general, [parallel], [loglevel,
                             hosts,
                             registration_timeout,
@@ -215,19 +215,19 @@ end_per_suite(_Config) ->
     ok.
 
 sample_pgsql(Config) ->
-    test_equivalence_between_files(Config,  "mongooseim-pgsql.cfg",  "mongooseim-pgsql.toml").
+    test_config_file(Config,  "mongooseim-pgsql").
 
 miscellaneous(Config) ->
-    test_equivalence_between_files(Config,  "miscellaneous.cfg",  "miscellaneous.toml").
+    test_config_file(Config,  "miscellaneous").
 
 s2s(Config) ->
-    test_equivalence_between_files(Config,  "s2s_only.cfg",  "s2s_only.toml").
+    test_config_file(Config,  "s2s_only").
 
 modules(Config) ->
-    test_equivalence_between_files(Config,  "modules.cfg",  "modules.toml").
+    test_config_file(Config,  "modules").
 
 outgoing_pools(Config) ->
-    test_equivalence_between_files(Config,  "outgoing_pools.cfg",  "outgoing_pools.toml").
+    test_config_file(Config,  "outgoing_pools").
 
 %% tests: general
 loglevel(_Config) ->
@@ -3016,14 +3016,26 @@ parse(M) ->
                     (_) -> true
                  end, Config).
 
-%% helpers for 'equivalence' tests
+%% helpers for file tests
+
+test_config_file(Config, File) ->
+    OptionsPath = ejabberd_helper:data(Config, File ++ ".options"),
+    {ok, ExpectedOpts} = file:consult(OptionsPath),
+
+    TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
+    State = mongoose_config_parser_toml:parse_file(TOMLPath),
+    TOMLOpts = mongoose_config_parser:state_to_opts(State),
+
+    %% Save the parsed TOML options
+    %% - for debugging
+    %% - to update tests after a config change - always check the diff!
+    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- TOMLOpts],
+    file:write_file(OptionsPath ++ "-parsed", lists:sort(FormattedOpts)),
+
+    compare_config(ExpectedOpts, TOMLOpts).
 
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
-
-filter_config(#config{key = required_files}) ->
-    false; % not supported yet in TOML
-filter_config(_) -> true.
 
 handle_config_option(#config{key = K1, value = V1},
                      #config{key = K2, value = V2}) ->
@@ -3148,20 +3160,6 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
-
-test_equivalence_between_files(Config, File1, File2) ->
-    CfgPath = ejabberd_helper:data(Config, File1),
-    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
-    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
-
-    TOMLPath = ejabberd_helper:data(Config, File2),
-    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
-    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-    ?eq(Hosts1, Hosts2),
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                            fun handle_config_option/2).
 
 parse_with_host(Config) ->
     [F] = parse(Config),

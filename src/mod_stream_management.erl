@@ -12,7 +12,7 @@
          remove_smid/5,
          session_cleanup/5]).
 
-%% `mongooseim.cfg' options (don't use outside of tests)
+%% `mongooseim.toml' options (don't use outside of tests)
 -export([get_buffer_max/1,
          set_buffer_max/1,
          get_ack_freq/1,
@@ -118,7 +118,7 @@ do_remove_smid(Acc, SID) ->
     mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
 %%
-%% `mongooseim.cfg' options (don't use outside of tests)
+%% `mongooseim.toml' options (don't use outside of tests)
 %%
 
 -spec get_buffer_max(pos_integer() | infinity | no_buffer)
