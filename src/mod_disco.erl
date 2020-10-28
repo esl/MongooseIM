@@ -380,19 +380,19 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
-is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
-                       #jid{luser=LUser, lserver=LServer} = _To) ->
+is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = _From,
+                       #jid{luser = LToUser, lserver = LToServer} = _To) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
-                            lserver => From#jid.lserver,
+                            lserver => LFromServer,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(Server, A, User, Server),
+    A2 = mongoose_hooks:roster_get(LFromServer, A, LFromUser, LFromServer),
     Roster = mongoose_acc:get(roster, items, [], A2),
     lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
                       {TUser, TServer} = jid:to_lus(JID),
-                      LUser == TUser andalso LServer == TServer andalso S /= none
+                      LToUser == TUser andalso LToServer == TServer andalso S /= none
               end,
               Roster)
-    orelse User == LUser andalso Server == LServer.
+    orelse LFromUser == LToUser andalso LFromServer == LToServer.
 
 
 -spec process_sm_iq_info(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->

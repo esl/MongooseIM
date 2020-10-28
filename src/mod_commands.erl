@@ -254,13 +254,14 @@ registered_users(Host) ->
     [jid:to_binary(US) || US <- SUsers].
 
 register(Host, User, Password) ->
-    case ejabberd_auth:try_register(User, Host, Password) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:try_register(JID, Password) of
         {error, exists} ->
-            String = io_lib:format("User ~s@~s already registered at node ~p",
-                                   [User, Host, node()]),
+            String = io_lib:format("User ~s already registered at node ~p",
+                                   [jid:to_binary(JID), node()]),
             {error, denied, String};
         {error, invalid_jid} ->
-            String = io_lib:format("Invalid jid: ~p@~p",
+            String = io_lib:format("Invalid jid: ~s@~s",
                                    [User, Host]),
             {error, bad_request, String};
         {error, Reason} ->
@@ -268,15 +269,18 @@ register(Host, User, Password) ->
                                    [User, Host, node(), Reason]),
             {error, internal, String};
         _ ->
-            list_to_binary(io_lib:format("User ~s@~s successfully registered",
-                                         [User, Host]))
+            <<"User ", (jid:to_binary(JID))/binary, "successfully registered">>
     end.
 
 unregister(Host, User) ->
-    case ejabberd_auth:remove_user(User, Host) of
-        ok -> <<"ok">>;
-        error -> {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
-        {error, not_allowed} -> {error, forbidden, "User does not exist or you are not authorised properly"}
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:remove_user(JID) of
+        ok ->
+            <<"ok">>;
+        error ->
+            {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
+        {error, not_allowed} ->
+            {error, forbidden, "User does not exist or you are not authorised properly"}
     end.
 
 send_message(From, To, Body) ->
@@ -413,7 +417,8 @@ get_recent_messages(Caller, With, Before, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
-    case ejabberd_auth:set_password(User, Host, Password) of
+    JID = jid:make(User, Host, <<>>),
+    case ejabberd_auth:set_password(JID, Password) of
         ok -> ok;
         {error, empty_password} ->
             {error, bad_request, "empty password"};

@@ -275,9 +275,9 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
                          To :: jid:jid(),
                          Dir :: outgoing | incoming) -> boolean().
 inbox_owner_exists(From, _To, outgoing) ->
-    ejabberd_users:does_user_exist(From#jid.luser, From#jid.lserver);
+    ejabberd_users:does_user_exist(From);
 inbox_owner_exists(_From, To, incoming) ->
-    ejabberd_users:does_user_exist(To#jid.luser, To#jid.lserver).
+    ejabberd_users:does_user_exist(To).
 
 maybe_process_acceptable_message(Host, From, To, Msg, Dir, one2one) ->
             process_message(Host, From, To, Msg, Dir, one2one);
