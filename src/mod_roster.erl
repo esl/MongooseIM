@@ -643,7 +643,7 @@ transaction(LServer, F) ->
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID ::jid:jid(),
+                      JID :: jid:jid(),
                       Type :: sub_presence(),
                       Reason :: any()) ->
     mongoose_acc:t().
@@ -654,19 +654,21 @@ in_subscription(Acc, User, Server, JID, Type, Reason) ->
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
                        Server :: binary(),
-                       JID ::jid:jid(),
+                       JID :: jid:jid(),
                        Type :: sub_presence()) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, Type) ->
-    Res = process_subscription(out, User, Server, JID, Type, <<"">>),
+    Res = process_subscription(out, User, Server, JID, Type, <<>>),
     mongoose_acc:set(hook, result, Res, Acc).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     JID = jid:make(User, Server, <<>>),
-    LServer = case JID of #jid{lserver = LS} -> LS; error -> error end,
-    LJID = jid:to_lower(JID1),
+    LServer = case JID of
+                  #jid{lserver = LS} -> LS;
+                  error -> error
+              end,
     TransactionFun =
-        fun() -> process_subscription_transaction(Direction, JID, LJID, Type, Reason) end,
+        fun() -> process_subscription_transaction(Direction, JID, JID1, Type, Reason) end,
     case transaction(LServer, TransactionFun) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
@@ -691,9 +693,10 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
 autoreply_to_type(subscribed) -> <<"subscribed">>;
 autoreply_to_type(unsubscribed) -> <<"unsubscribed">>.
 
-process_subscription_transaction(Direction, JID, LJID, Type, Reason) ->
+process_subscription_transaction(Direction, JID, JID1, Type, Reason) ->
     #jid{luser = LUser, lserver = LServer} = JID,
-    Item = case get_roster_entry_t(JID, LJID, full) of
+    LJID = jid:to_lower(JID1),
+    Item = case get_roster_entry_t(JID, JID1, full) of
                does_not_exist ->
                    #roster{usj = {LUser, LServer, LJID},
                            us = {LUser, LServer},

@@ -123,10 +123,10 @@ assert_state(Rentry, Subscription, Ask, Groups) ->
     ?assertEqual(Groups, Rentry#roster.groups).
 
 subscription(Direction, Type) ->
-    LBob = jid:to_lower(jid:from_binary(bob())),
+    BobJID = jid:from_binary(bob()),
     TFun = fun() -> mod_roster:process_subscription_transaction(Direction,
                                                                 alice_jid(),
-                                                                LBob,
+                                                                BobJID,
                                                                 Type,
                                                                 <<"">>)
            end,

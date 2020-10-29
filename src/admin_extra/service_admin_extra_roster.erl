@@ -164,9 +164,9 @@ commands() ->
     Res :: user_doest_not_exist | error | bad_subs | ok.
 add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
     LocalJID = jid:make(LocalUser, LocalServer, <<>>),
-    RemoteJID = jid:make(User, Server, <<>>),
     case ejabberd_auth:does_user_exist(LocalJID) of
         true ->
+            RemoteJID = jid:make(User, Server, <<>>),
             case subscribe(LocalJID, RemoteJID, Nick, Group, Subs, []) of
                 {atomic, _} ->
                     do_add_rosteritem(LocalJID, RemoteJID, Nick, Group, Subs);
@@ -213,9 +213,9 @@ subscribe(LocalJID, RemoteJID, Nick, Group, SubscriptionS, _Xattrs) ->
     Res :: ok | error | user_does_not_exist.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
     LocalJID = jid:make(LocalUser, LocalServer, <<>>),
-    RemoteJID = jid:make(User, Server, <<>>),
     case ejabberd_auth:does_user_exist(LocalJID) of
         true ->
+            RemoteJID = jid:make(User, Server, <<>>),
             case unsubscribe(LocalJID, RemoteJID) of
                 {atomic, ok} ->
                     push_roster_item(LocalJID, RemoteJID, remove),
