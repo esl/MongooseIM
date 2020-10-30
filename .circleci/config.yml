@@ -33,7 +33,7 @@ orbs:
       build:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         parameters:
           otp_package:
             type: string
@@ -96,7 +96,7 @@ orbs:
       dialyzer:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -115,7 +115,7 @@ orbs:
       small_tests:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -161,7 +161,7 @@ orbs:
       package:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           platform:
@@ -184,7 +184,7 @@ orbs:
       big_tests:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -266,7 +266,7 @@ orbs:
       docker_image:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -301,24 +301,24 @@ workflows:
       - mim/package:
           name: centos_7
           platform: centos_7
-          otp_package: 22.1.8-2
+          otp_package: 22.3.4.9-1
           context: mongooseim-org
           filters: *all_tags
       - mim/package:
           name: debian_stretch
           platform: debian_stretch
-          otp_package: 22.1.8-1
+          otp_package: 22.3.4.9-1
           context: mongooseim-org
           filters: *all_tags
       # ============= BASE BUILDS =============
       - mim/build:
           name: otp_21_3
-          otp_package: 21.3.8.6-1
+          otp_package: 21.3.8.17-1
           context: mongooseim-org
           filters: *all_tags
       - mim/build:
           name: otp_22
-          otp_package: 22.1.8-1
+          otp_package: 22.3.4.9-1
           build_prod: true
           context: mongooseim-org
           filters: *all_tags
@@ -331,14 +331,14 @@ workflows:
       # ============= SMALL TESTS =============
       - mim/small_tests:
           name: small_tests_21_3
-          otp_package: 21.3.8.6-1
+          otp_package: 21.3.8.17-1
           context: mongooseim-org
           requires:
             - otp_21_3
           filters: *all_tags
       - mim/small_tests:
           name: small_tests_22
-          otp_package: 22.1.8-1
+          otp_package: 22.3.4.9-1
           context: mongooseim-org
           requires:
             - otp_22
@@ -424,7 +424,7 @@ workflows:
       # ============= 1 VERSION OLDER TESTS =============
       - mim/big_tests:
           name: ldap_mnesia_22
-          otp_package: 22.1.8-1
+          otp_package: 22.3.4.9-1
           preset: ldap_mnesia
           db: mnesia
           context: mongooseim-org
@@ -434,7 +434,7 @@ workflows:
       # ============= 2 VERSIONS OLDER TESTS =============
       - mim/big_tests:
           name: ldap_mnesia_21
-          otp_package: 21.3.8.6-1
+          otp_package: 21.3.8.17-1
           preset: ldap_mnesia
           db: mnesia
           context: mongooseim-org
