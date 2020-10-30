@@ -26,9 +26,7 @@ orbs:
               sudo apt-get update && \
               sudo apt-get install unixodbc-dev -y && \
               sudo apt-get install unixodbc -y && \
-              sudo apt-get install tdsodbc -y && \
-              sudo apt-get install python-pip -y && \
-              sudo pip install --upgrade pip
+              sudo apt-get install tdsodbc -y
     jobs:
       build:
         parallelism: 1
@@ -147,7 +145,7 @@ orbs:
               when: on_success
               command: |
                 echo "Success!"
-                sudo pip install codecov && codecov
+                pip3 install codecov && codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
           - run:
@@ -245,7 +243,7 @@ orbs:
               when: on_success
               command: |
                 echo "Success!"
-                sudo pip install codecov && codecov
+                pip3 install codecov && codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
           - run:
