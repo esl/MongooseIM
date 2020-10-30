@@ -33,7 +33,7 @@ orbs:
       build:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         parameters:
           otp_package:
             type: string
@@ -96,7 +96,7 @@ orbs:
       dialyzer:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -115,7 +115,7 @@ orbs:
       small_tests:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -161,7 +161,7 @@ orbs:
       package:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           platform:
@@ -184,7 +184,7 @@ orbs:
       big_tests:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
@@ -266,7 +266,7 @@ orbs:
       docker_image:
         parallelism: 1
         machine:
-          image: ubuntu-1604:201903-01
+          image: ubuntu-2004:202010-01
         working_directory: ~/app
         parameters:
           otp_package:
