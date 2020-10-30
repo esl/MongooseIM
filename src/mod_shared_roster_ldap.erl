@@ -107,7 +107,8 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 %% Hooks
 %%--------------------------------------------------------------------
-get_user_roster(Acc, {U, S} = US) ->
+get_user_roster(Acc, #jid{luser = U, lserver = S} = JID) ->
+    US = jid:to_lus(JID),
     Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =

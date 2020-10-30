@@ -156,9 +156,9 @@ xmpp_send_element(Acc, _El) ->
 
 %% Roster
 
--spec roster_get(list(), {_, jid:server()}) -> list().
-roster_get(Acc, {_, Server}) ->
-    mongoose_metrics:update(Server, modRosterGets, 1),
+-spec roster_get(list(), jid:jid()) -> list().
+roster_get(Acc, #jid{lserver = LServer}) ->
+    mongoose_metrics:update(LServer, modRosterGets, 1),
     Acc.
 
 -spec roster_set(Acc :: map(), JID :: jid:jid(), tuple(), tuple()) ->

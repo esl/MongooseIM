@@ -81,7 +81,7 @@
 -export([remove_test_user/2,
          transaction/2,
          process_subscription_transaction/5,
-         get_user_rosters_length/2]). % for testing
+         get_user_rosters_length/1]). % for testing
 
 -export([config_metrics/1]).
 
@@ -339,7 +339,7 @@ roster_version(LServer, LUser) ->
                 V -> V
             end;
         false ->
-            R = get_roster_old(LUser, LServer),
+            R = get_roster_old(jid:make(LUser, LServer, <<>>)),
             roster_hash(R)
     end.
 
@@ -401,19 +401,19 @@ get_user_roster_db_versioning(RequestedVersion, From, To)
         error ->
             RosterVersion = write_roster_version(LUser, LServer),
             {lists:map(fun item_to_xml/1,
-                       get_roster_old(To#jid.server, LUser, LServer)),
+                       get_roster_old(To#jid.server, From)),
              RosterVersion};
         RequestedVersion ->
             {false, false};
         NewVersion ->
             {lists:map(fun item_to_xml/1,
-                       get_roster_old(To#jid.server, LUser, LServer)),
+                       get_roster_old(To#jid.server, From)),
              NewVersion}
     end.
 
 get_user_roster_hash_versioning(RequestedVersion, From, To)
     when is_binary(RequestedVersion) ->
-    RosterItems = get_roster_old(To#jid.lserver, From#jid.luser, From#jid.lserver),
+    RosterItems = get_roster_old(To#jid.lserver, From),
     case roster_hash(RosterItems) of
         RequestedVersion ->
             {false, false};
@@ -423,8 +423,7 @@ get_user_roster_hash_versioning(RequestedVersion, From, To)
 
 get_user_roster_no_versioning(From, To) ->
     {lists:map(fun item_to_xml/1,
-               get_roster_old(To#jid.lserver,
-                              From#jid.luser, From#jid.lserver)),
+               get_roster_old(To#jid.lserver, From)),
      false}.
 
 create_sub_el(false, false) ->
@@ -891,8 +890,8 @@ in_auto_reply(_, _, _) -> none.
 remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
 
-get_user_rosters_length(User, Server) ->
-    length(get_roster_old(User, Server)).
+get_user_rosters_length(JID) ->
+    length(get_roster_old(JID)).
 
 %% Used only by tests
 remove_user(User, Server) ->
@@ -1069,14 +1068,14 @@ get_jid_info(_, ToJID, JID) ->
         Re -> {Re#roster.subscription, Re#roster.groups}
     end.
 
-get_roster_old(LUser, LServer) ->
-    get_roster_old(LServer, LUser, LServer).
+get_roster_old(#jid{lserver = LServer} = JID) ->
+    get_roster_old(LServer, JID).
 
-get_roster_old(DestServer, LUser, LServer) ->
+get_roster_old(DestServer, JID) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => DestServer,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(DestServer, A, LUser, LServer),
+    A2 = mongoose_hooks:roster_get(DestServer, A, JID),
     mongoose_acc:get(roster, items, [], A2).
 
 -spec item_to_map(roster()) -> map().
