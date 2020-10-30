@@ -40,47 +40,63 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-init(_Host, _Opts) ->
+init(Host, _Opts) ->
+    mongoose_rdbms:prepare(private_select_data, private_storage,
+                           [username, namespace],
+                           <<"SELECT data FROM private_storage WHERE username=? AND namespace=?">>),
+    mongoose_rdbms:prepare(private_select_namespaces, private_storage,
+                           [username],
+                           <<"SELECT namespace FROM private_storage WHERE username=?">>),
+    mongoose_rdbms:prepare(private_remove_user, private_storage,
+                           [username],
+                           <<"DELETE FROM private_storage WHERE username=?">>),
+    rdbms_queries:prepare_upsert(Host, private_upsert, private_storage,
+                                 [<<"username">>, <<"namespace">>, <<"data">>],
+                                 [<<"data">>],
+                                 [<<"username">>, <<"namespace">>]),
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
-    F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
+    NS2BinXML = make_xml_binary(NS2XML),
+    F = fun() -> multi_set_data_t(LUser, LServer, NS2BinXML) end,
     case rdbms_queries:sql_transaction(LServer, F) of
         {atomic, ok} -> ok;
         {aborted, Reason} -> {aborted, Reason};
         {error, Reason} -> {error, Reason}
     end.
 
+
 multi_set_data_t(LUser, LServer, NS2XML) ->
-    SLUser = mongoose_rdbms:escape_string(LUser),
-    [set_data_t(SLUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
+    [upsert_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     ok.
 
-set_data_t(SLUser, LServer, NS, XML) ->
-    SNS = mongoose_rdbms:escape_string(NS),
-    SData = mongoose_rdbms:escape_string(exml:to_binary(XML)),
-    rdbms_queries:set_private_data(LServer, SLUser, SNS, SData).
+upsert_data_t(LUser, Host, NS, XML) ->
+    InsertParams = [LUser, NS, XML],
+    UpdateParams = [XML],
+    UniqueKeyValues = [LUser, NS],
+    rdbms_queries:execute_upsert(Host, private_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+
+
+make_xml_binary(NS2XML) ->
+    [{NS, exml:to_binary(XML)} || {NS, XML} <- NS2XML].
 
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->
-    SLUser = mongoose_rdbms:escape_string(LUser),
-    SNS = mongoose_rdbms:escape_string(NS),
-    case catch rdbms_queries:get_private_data(LServer, SLUser, SNS) of
-        {selected, [{SData}]} ->
-            {ok, Elem} = exml:parse(SData),
+    Res = mongoose_rdbms:execute(LServer, private_select_data, [LUser, NS]),
+    case Res of
+        {selected, [{BinData}]} ->
+            {ok, Elem} = exml:parse(BinData),
             Elem;
         _ ->
             Default
     end.
 
 get_all_nss(LUser, LServer) ->
-    EscLUser = mongoose_rdbms:escape_string(LUser),
-    {selected, Res} = rdbms_queries:get_all_private_namespaces(LServer, EscLUser),
+    {selected, Res} = mongoose_rdbms:execute(LServer, private_select_namespaces, [LUser]),
     lists:map(fun({R}) -> R end, Res).
 
 remove_user(LUser, LServer) ->
-    SLUser = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:del_user_private_storage(LServer, SLUser).
+    mongoose_rdbms:execute(LServer, private_remove_user, [LUser]).

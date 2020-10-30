@@ -64,13 +64,6 @@
          roster_subscribe/4,
          get_subscription/3,
          get_subscription_t/3,
-         set_private_data/4,
-         set_private_data_sql/3,
-         get_all_private_namespaces/2,
-         get_private_data/3,
-         multi_get_private_data/3,
-         multi_set_private_data/3,
-         del_user_private_storage/2,
          get_default_privacy_list/2,
          get_default_privacy_list_t/1,
          count_privacy_lists/1,
@@ -625,61 +618,6 @@ get_subscription(LServer, Username, SJID) ->
 
 get_subscription_t(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
-
-set_private_data(_LServer, Username, LXMLNS, SData) ->
-    update_t(<<"private_storage">>,
-             [<<"username">>, <<"namespace">>, <<"data">>],
-             [Username, LXMLNS, SData],
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
-
-set_private_data_sql(Username, LXMLNS, SData) ->
-    [[<<"delete from private_storage "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-        "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS), ";"],
-     [<<"insert into private_storage(username, namespace, data) "
-        "values (">>, mongoose_rdbms:use_escaped_string(Username), ", ",
-                      mongoose_rdbms:use_escaped_string(LXMLNS), ", ",
-                      mongoose_rdbms:use_escaped_string(SData), ");"]].
-
-get_all_private_namespaces(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select namespace from private_storage where username=">>,
-       mongoose_rdbms:use_escaped_string(Username), " ;"]).
-
-get_private_data(LServer, Username, LXMLNS) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select data from private_storage "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-         "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
-
-multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select namespace, data from private_storage "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-         "namespace IN (">>, join_escaped(LXMLNSs), ");"]).
-
-%% set_private_data for multiple queries using MySQL's specific syntax.
-multi_set_private_data(LServer, Username, SNS2XML) when length(SNS2XML) > 0 ->
-    Rows = [private_data_row(Username, NS, Data) || {NS, Data} <- SNS2XML],
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"replace into private_storage (username, namespace, data) "
-         "values ">>, join(Rows, ", ")]).
-
-private_data_row(Username, NS, Data) ->
-    [<<"(">>, mongoose_rdbms:use_escaped_string(Username),
-     <<", ">>, mongoose_rdbms:use_escaped_string(NS),
-     <<", ">>, mongoose_rdbms:use_escaped_string(Data), <<")">>].
-
-del_user_private_storage(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from private_storage where username=">>,
-           mongoose_rdbms:use_escaped_string(Username)]).
 
 set_vcard(LServer,
           SLServer, SLUsername,
