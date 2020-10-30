@@ -27,7 +27,10 @@ orbs:
               sudo apt-get install unixodbc-dev -y && \
               sudo apt-get install unixodbc -y && \
               sudo apt-get install tdsodbc -y && \
-              sudo apt-get install python-pip -y && \
+              sudo apt-get install python2 -y && \
+              sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1 && \
+              sudo curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+              sudo python get-pip.py && \
               sudo pip install --upgrade pip
     jobs:
       build:
