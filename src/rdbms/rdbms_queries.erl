@@ -80,9 +80,6 @@
          add_privacy_list/2,
          set_privacy_list/2,
          del_privacy_lists/3,
-         set_vcard/27,
-         get_vcard/3,
-         search_vcard/3,
          count_records_where/3,
          get_roster_version/2,
          set_roster_version/2,
@@ -618,82 +615,6 @@ get_subscription(LServer, Username, SJID) ->
 
 get_subscription_t(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
-
-set_vcard(LServer,
-          SLServer, SLUsername,
-          SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
-          SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
-          SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
-          SNickname, SOrgName, SOrgUnit, SVCARD, SUsername) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-        update_t(<<"vcard">>,
-          [<<"username">>, <<"server">>, <<"vcard">>],
-          [SLUsername, SLServer, SVCARD],
-          [<<"username=">>, mongoose_rdbms:use_escaped_string(SLUsername),
-           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]),
-        update_set_t(<<"vcard_search">>,
-          [<<"username">>, SUsername,
-           <<"lusername">>, SLUsername,
-           <<"server">>, SLServer,
-           <<"fn">>, SFN,
-           <<"lfn">>, SLFN,
-           <<"family">>, SFamily,
-           <<"lfamily">>, SLFamily,
-           <<"given">>, SGiven,
-           <<"lgiven">>, SLGiven,
-           <<"middle">>, SMiddle,
-           <<"lmiddle">>, SLMiddle,
-           <<"nickname">>, SNickname,
-           <<"lnickname">>, SLNickname,
-           <<"bday">>, SBDay,
-           <<"lbday">>, SLBDay,
-           <<"ctry">>, SCTRY,
-           <<"lctry">>, SLCTRY,
-           <<"locality">>, SLocality,
-           <<"llocality">>, SLLocality,
-           <<"email">>, SEMail,
-           <<"lemail">>, SLEMail,
-           <<"orgname">>, SOrgName,
-           <<"lorgname">>, SLOrgName,
-           <<"orgunit">>, SOrgUnit,
-           <<"lorgunit">>, SLOrgUnit],
-          [<<"lusername=">>, mongoose_rdbms:use_escaped_string(SLUsername),
-           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)])
-      end).
-
-get_vcard(LServer, Username, SLServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select vcard from vcard "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
-       <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]).
-
-
-search_vcard(LServer, RestrictionSQL, Limit) ->
-    Type = ?RDBMS_TYPE,
-    search_vcard(Type, LServer, RestrictionSQL, Limit).
-
-search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
-    rdbms_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
-search_vcard(_, LServer, RestrictionSQL, Limit) ->
-    do_search_vcard(LServer, RestrictionSQL, Limit).
-
-
-do_search_vcard(LServer, RestrictionSQL, infinity) ->
-    do_search_vcard2(LServer, RestrictionSQL, <<"">>);
-do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
-    BinLimit = integer_to_binary(Limit),
-    do_search_vcard2(LServer, RestrictionSQL, <<"LIMIT ", BinLimit/binary>>).
-
-do_search_vcard2(LServer, RestrictionSQL, Limit) ->
-    mongoose_rdbms:sql_query(
-        LServer,
-        [<<"select username, server, fn, family, given, middle, "
-        "nickname, bday, ctry, locality, "
-        "email, orgname, orgunit from vcard_search ">>,
-            RestrictionSQL, Limit, ";"]).
 
 get_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(

@@ -40,20 +40,43 @@
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
-init(_VHost, _Options) ->
+-type filter_type() :: equal | like.
+-type limit_type() :: infinity | top | limit.
+-type sql_column() :: binary().
+-type sql_value() :: binary().
+-type sql_filter() :: {filter_type(), sql_column(), sql_value()}.
+
+init(VHost, _Options) ->
+    mongoose_rdbms:prepare(vcard_remove, vcard, [username, server],
+                           <<"DELETE FROM vcard WHERE username=? AND server=?">>),
+    mongoose_rdbms:prepare(vcard_search_remove, vcard_search, [lusername, server],
+                           <<"DELETE FROM vcard_search WHERE lusername=? AND server=?">>),
+    mongoose_rdbms:prepare(vcard_select, vcard,
+                           [username, server],
+                           <<"SELECT vcard FROM vcard WHERE username=? AND server=?">>),
+    rdbms_queries:prepare_upsert(VHost, vcard_upsert, vcard,
+                                 [<<"username">>, <<"server">>, <<"vcard">>],
+                                 [<<"vcard">>],
+                                 [<<"username">>, <<"server">>]),
+    SearchColumns = search_columns(),
+    rdbms_queries:prepare_upsert(VHost, vcard_search_upsert, vcard_search,
+                                 [<<"lusername">>, <<"server">>|SearchColumns],
+                                 SearchColumns,
+                                 [<<"lusername">>, <<"server">>]),
     ok.
 
+%% Remove user callback
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      [["delete from vcard where username=", mongoose_rdbms:use_escaped_string(Username), ";"],
-       ["delete from vcard_search where lusername=", mongoose_rdbms:use_escaped_string(Username), ";"]]).
+    mongoose_rdbms:sql_transaction(LServer, fun() -> remove_user_t(LUser, LServer) end).
 
+remove_user_t(LUser, LServer) ->
+    mongoose_rdbms:execute(LServer, vcard_remove, [LUser, LServer]),
+    mongoose_rdbms:execute(LServer, vcard_search_remove, [LUser, LServer]).
+
+%% Get a single vCard callback
 get_vcard(LUser, LServer) ->
-    U = mongoose_rdbms:escape_string(LUser),
-    S = mongoose_rdbms:escape_string(LServer),
-    case rdbms_queries:get_vcard(LServer, U, S) of
+    Res = mongoose_rdbms:execute(LServer, vcard_select, [LUser, LServer]),
+    case Res of
         {selected, [{SVCARD}]} ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
@@ -69,130 +92,262 @@ get_vcard(LUser, LServer) ->
             {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-set_vcard(User, VHost, VCard, VCardSearch) ->
+%% Set a vCard callback
+set_vcard(User, LServer, VCard, Search) ->
     LUser = jid:nodeprep(User),
-    SUsername = mongoose_rdbms:escape_string(User),
-    SLUsername = mongoose_rdbms:escape_string(LUser),
-    SLServer = mongoose_rdbms:escape_string(VHost),
-    SVCARD = mongoose_rdbms:escape_string(exml:to_binary(VCard)),
+    SearchArgs = search_args(User, Search),
+    XML = exml:to_binary(VCard),
+    F = fun() ->
+            update_vcard_t(LUser, LServer, XML),
+            update_vcard_search_t(LUser, LServer, SearchArgs),
+            ok
+        end,
+    Result = handle_result(rdbms_queries:sql_transaction(LServer, F)),
+    log_upsert_result(LServer, LUser, VCard, XML, Result),
+    Result.
 
-    SFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.fn),
-    SLFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lfn),
-    SFamily = mongoose_rdbms:escape_string(VCardSearch#vcard_search.family),
-    SLFamily = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lfamily),
-    SGiven = mongoose_rdbms:escape_string(VCardSearch#vcard_search.given),
-    SLGiven = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lgiven),
-    SMiddle = mongoose_rdbms:escape_string(VCardSearch#vcard_search.middle),
-    SLMiddle = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lmiddle),
-    SNickname = mongoose_rdbms:escape_string(VCardSearch#vcard_search.nickname),
-    SLNickname = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lnickname),
-    SBDay = mongoose_rdbms:escape_string(VCardSearch#vcard_search.bday),
-    SLBDay = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lbday),
-    SCTRY = mongoose_rdbms:escape_string(VCardSearch#vcard_search.ctry),
-    SLCTRY = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lctry),
-    SLocality = mongoose_rdbms:escape_string(VCardSearch#vcard_search.locality),
-    SLLocality = mongoose_rdbms:escape_string(VCardSearch#vcard_search.llocality),
-    SEMail = mongoose_rdbms:escape_string(VCardSearch#vcard_search.email),
-    SLEMail = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lemail),
-    SOrgName = mongoose_rdbms:escape_string(VCardSearch#vcard_search.orgname),
-    SLOrgName = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lorgname),
-    SOrgUnit = mongoose_rdbms:escape_string(VCardSearch#vcard_search.orgunit),
-    SLOrgUnit = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lorgunit),
+log_upsert_result(LServer, LUser, VCard, _XML, ok) ->
+    mongoose_hooks:vcard_set(LServer, ok, LUser, VCard);
+log_upsert_result(LServer, LUser, _VCard, XML, {error, Reason}) ->
+    ?LOG_WARNING(#{what => vcard_update_failed, reason => Reason,
+                   user => LUser, host => LServer, vcard_xml => XML}).
 
-    rdbms_queries:set_vcard(VHost,
-                           SLServer, SLUsername, SBDay, SCTRY, SEMail,
-                           SFN, SFamily, SGiven, SLBDay, SLCTRY,
-                           SLEMail, SLFN, SLFamily, SLGiven,
-                           SLLocality, SLMiddle, SLNickname,
-                           SLOrgName, SLOrgUnit, SLocality,
-                           SMiddle, SNickname, SOrgName,
-                           SOrgUnit, SVCARD, SUsername),
+handle_result({atomic, ok})      -> ok;
+handle_result({aborted, Reason}) -> {error, {aborted, Reason}};
+handle_result({error, Reason})   -> {error, Reason}.
 
-    mongoose_hooks:vcard_set(VHost, ok, LUser, VCard),
-    ok.
+update_vcard_t(LUser, LServer, XML) ->
+    InsertParams = [LUser, LServer, XML],
+    UpdateParams = [XML],
+    UniqueKeyValues = [LUser, LServer],
+    rdbms_queries:execute_upsert(LServer, vcard_upsert, InsertParams, UpdateParams, UniqueKeyValues).
 
-search(LServer, Data) ->
-    RestrictionSQL = make_restriction_sql(LServer, Data),
-    R = do_search(LServer, RestrictionSQL),
-    lists:map(fun(I) -> record_to_item(LServer, I) end, R).
+update_vcard_search_t(LUser, LServer, SearchArgs) ->
+    InsertParams = [LUser, LServer|SearchArgs],
+    UpdateParams = SearchArgs,
+    UniqueKeyValues = [LUser, LServer],
+    rdbms_queries:execute_upsert(LServer, vcard_search_upsert, InsertParams, UpdateParams, UniqueKeyValues).
 
-do_search(_LServer, "") ->
-    [];
-do_search(LServer, RestrictionSQL) ->
-    Limit = mod_vcard:get_results_limit(LServer),
-    case catch rdbms_queries:search_vcard(LServer, RestrictionSQL, Limit) of
-        {selected, Rs} when is_list(Rs) ->
-            Rs;
-        Error ->
-            ?LOG_ERROR(#{what => vcard_db_search_failed,
-                         reason => Error, host => LServer}),
-            []
-    end.
-
+%% Search vCards fields callback
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
 
+%% Search vCards reported fields callback
 search_reported_fields(_VHost, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
-%%--------------------------------------------------------------------
-%% internal
-%%--------------------------------------------------------------------
-make_restriction_sql(LServer, Data) ->
-    filter_fields(Data, "", LServer).
-
-filter_fields([], "", _LServer) ->
-    "";
-filter_fields([], RestrictionSQLIn, LServer) ->
-    [" where ", RestrictionSQLIn, " and ",
-     "server = ", mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(LServer))];
-filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
-  when is_binary(Val) and (Val /= <<"">>) ->
-    LVal = jid:str_tolower(Val),
-    NewRestrictionSQL =
-        case SVar of
-            <<"user">>     -> make_val(RestrictionSQL, "lusername", LVal);
-            <<"fn">>       -> make_val(RestrictionSQL, "lfn",       LVal);
-            <<"last">>     -> make_val(RestrictionSQL, "lfamily",   LVal);
-            <<"first">>    -> make_val(RestrictionSQL, "lgiven",    LVal);
-            <<"middle">>   -> make_val(RestrictionSQL, "lmiddle",   LVal);
-            <<"nick">>     -> make_val(RestrictionSQL, "lnickname", LVal);
-            <<"bday">>     -> make_val(RestrictionSQL, "lbday",     LVal);
-            <<"ctry">>     -> make_val(RestrictionSQL, "lctry",     LVal);
-            <<"locality">> -> make_val(RestrictionSQL, "llocality", LVal);
-            <<"email">>    -> make_val(RestrictionSQL, "lemail",    LVal);
-            <<"orgname">>  -> make_val(RestrictionSQL, "lorgname",  LVal);
-            <<"orgunit">>  -> make_val(RestrictionSQL, "lorgunit",  LVal);
-            _              -> RestrictionSQL
-        end,
-    filter_fields(Ds, NewRestrictionSQL, LServer);
-filter_fields([_ | Ds], RestrictionSQL, LServer) ->
-    filter_fields(Ds, RestrictionSQL, LServer).
-
--spec make_val(RestrictionSQL, Field, Val) -> Result when
-    RestrictionSQL :: iolist(),
-    Field :: string(),
-    Val :: binary(),
-    Result :: iolist().
-make_val(RestrictionSQL, Field, Val) ->
-    Condition =
-        case binary:last(Val) of
-            $* ->
-                Val1 = binary:part(Val, 0, byte_size(Val)-1),
-                SVal = mongoose_rdbms:escape_like_prefix(Val1),
-                [Field, " LIKE ", mongoose_rdbms:use_escaped_like(SVal)];
-            _ ->
-                SVal = mongoose_rdbms:escape_string(Val),
-                [Field, " = ", mongoose_rdbms:use_escaped_string(SVal)]
-        end,
-    case RestrictionSQL of
-        "" ->
-            Condition;
+%% Search vCards callback
+search(LServer, Data) ->
+    Filters = make_filters(LServer, Data),
+    case Filters of
+        [] ->
+            [];
         _ ->
-            [RestrictionSQL, " and ", Condition]
+            Limit = mod_vcard:get_results_limit(LServer),
+            LimitType = limit_type(Limit),
+            StmtName = filters_to_statement_name(Filters, LimitType),
+            case mongoose_rdbms:prepared(StmtName) of
+                false ->
+                    %% Create a new type of a query
+                    SQL = search_sql_binary(Filters, LimitType),
+                    Columns = filters_to_columns(Filters, LimitType),
+                    mongoose_rdbms:prepare(StmtName, vcard_search, Columns, SQL);
+                true ->
+                    ok
+            end,
+            Args = filters_to_args(Filters, LimitType, Limit),
+            try mongoose_rdbms:execute(LServer, StmtName, Args) of
+                {selected, Rs} when is_list(Rs) ->
+                    record_to_items(Rs);
+                Error ->
+                    ?LOG_ERROR(#{what => vcard_db_search_failed, statement => StmtName,
+                                 sql_query => search_sql_binary(Filters, LimitType),
+                                 reason => Error, host => LServer}),
+                    []
+            catch Class:Error:Stacktrace ->
+                    ?LOG_ERROR(#{what => vcard_db_search_failed, statement => StmtName,
+                                 sql_query => search_sql_binary(Filters, LimitType),
+                                 class => Class, stacktrace => Stacktrace,
+                                 reason => Error, host => LServer}),
+                    []
+            end
     end.
 
-record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
+-spec limit_type(infinity | non_neg_integer()) -> limit_type().
+limit_type(infinity) ->
+    infinity;
+limit_type(_Limit) ->
+    case mongoose_rdbms_type:get() of
+        mssql -> top;
+        _ -> limit
+    end.
+
+%% Encodes filter column names using short format
+filters_to_statement_name(Filters, LimitType) ->
+   Ids = [type_to_id(Type) ++ column_to_id(Col) || {Type, Col, _Val} <- Filters],
+   LimitId = limit_type_to_id(LimitType),
+   list_to_atom("vcard_search_" ++ LimitId ++ "_" ++ lists:append(Ids)).
+
+filters_to_columns(Filters, LimitType) ->
+   Columns = [Col || {_Type, Col, _Val} <- Filters],
+   %% <<"limit">> is a pseudocolumn: does not exist in the schema,
+   %% but mssql's driver code needs to know which type to use for the placeholder.
+   case LimitType of
+       infinity -> Columns;
+       top      -> [<<"limit">>|Columns];
+       limit    -> Columns ++ [<<"limit">>]
+   end.
+
+filters_to_args(Filters, LimitType, Limit) ->
+   Args = [Val || {_Type, _Col, Val} <- Filters],
+   case LimitType of
+       infinity -> Args;
+       top      -> [Limit|Args];
+       limit    -> Args ++ [Limit]
+   end.
+
+search_sql_binary(Filters, LimitType) ->
+    iolist_to_binary(search_sql(Filters, LimitType)).
+
+search_sql(Filters, LimitType) ->
+    {TopSQL, LimitSQL} = limit_type_to_sql(LimitType),
+    RestrictionSQL = filters_to_sql(Filters),
+    [<<"SELECT ">>, TopSQL,
+     <<" username, server, fn, family, given, middle, "
+       "nickname, bday, ctry, locality, "
+       "email, orgname, orgunit "
+       "FROM vcard_search ">>,
+        RestrictionSQL, LimitSQL].
+
+-spec limit_type_to_sql(limit_type()) -> {binary(), binary()}.
+limit_type_to_sql(infinity) ->
+    {<<>>, <<>>};
+limit_type_to_sql(top) ->
+    {<<" TOP ? ">>, <<>>};
+limit_type_to_sql(limit) ->
+    {<<>>, <<" LIMIT ? ">>}.
+
+filters_to_sql([Filter|Filters]) ->
+    [" WHERE ", filter_to_sql(Filter)|
+     [[" AND ", filter_to_sql(F)] || F <- Filters]].
+
+filter_to_sql({equal, Col, _}) ->
+     [Col, "=?"];
+filter_to_sql({like, Col, _}) ->
+     [Col, " LIKE ?"].
+
+%% Prepare data for SQL-domain.
+%% The result defines everything needed to prepare SQL query.
+-spec make_filters(jid:lserver(), list()) -> [sql_filter()].
+make_filters(LServer, Data) ->
+    Filters = only_tuples([filter_field(Var, Val) || {Var, [Val]} <- Data]),
+    case Filters of
+        [] ->
+            [];
+        _ ->
+            HostFilter = {equal, <<"server">>, LServer},
+            lists:sort([HostFilter|Filters])
+    end.
+
+only_tuples(List) ->
+    [X || X <- List, is_tuple(X)].
+
+filter_field(Var, Val) when is_binary(Val) and (Val /= <<"">>) ->
+    case xmpp_field_to_column(Var) of
+        false ->
+            false;
+        Field ->
+            Type = value_type(Val),
+            LVal = prepare_value(Val, Type),
+            {Type, Field, LVal}
+    end;
+filter_field(_, _) ->
+    false.
+
+prepare_value(Val, like) ->
+    LVal = without_last_byte(jid:str_tolower(Val)),
+    <<LVal/binary, "%">>;
+prepare_value(Val, equal) ->
+    jid:str_tolower(Val).
+
+value_type(Val) ->
+    case binary:last(Val) of
+        $* ->
+            like;
+        _ ->
+            equal
+    end.
+
+limit_type_to_id(infinity) -> "inf";
+limit_type_to_id(limit)    -> "lim";
+limit_type_to_id(top)      -> "top".
+
+type_to_id(like)  -> "l";
+type_to_id(equal) -> "e".
+
+xmpp_field_to_column(<<"user">>)     -> <<"lusername">>;
+xmpp_field_to_column(<<"fn">>)       -> <<"lfn">>;
+xmpp_field_to_column(<<"last">>)     -> <<"lfamily">>;
+xmpp_field_to_column(<<"first">>)    -> <<"lgiven">>;
+xmpp_field_to_column(<<"middle">>)   -> <<"lmiddle">>;
+xmpp_field_to_column(<<"nick">>)     -> <<"lnickname">>;
+xmpp_field_to_column(<<"bday">>)     -> <<"lbday">>;
+xmpp_field_to_column(<<"ctry">>)     -> <<"lctry">>;
+xmpp_field_to_column(<<"locality">>) -> <<"llocality">>;
+xmpp_field_to_column(<<"email">>)    -> <<"lemail">>;
+xmpp_field_to_column(<<"orgname">>)  -> <<"lorgname">>;
+xmpp_field_to_column(<<"orgunit">>)  -> <<"lorgunit">>;
+xmpp_field_to_column(_)              -> false.
+
+column_to_id(<<"server">>)    -> "s";
+column_to_id(<<"lusername">>) -> "u";
+column_to_id(<<"lfn">>)       -> "f";
+column_to_id(<<"lfamily">>)   -> "l";
+column_to_id(<<"lgiven">>)    -> "f";
+column_to_id(<<"lmiddle">>)   -> "m";
+column_to_id(<<"lnickname">>) -> "n";
+column_to_id(<<"lbday">>)     -> "b";
+column_to_id(<<"lctry">>)     -> "c";
+column_to_id(<<"llocality">>) -> "L";
+column_to_id(<<"lemail">>)    -> "e";
+column_to_id(<<"lorgname">>)  -> "N";
+column_to_id(<<"lorgunit">>)  -> "U".
+
+search_columns() ->
+    [<<"username">>,
+     <<"fn">>,       <<"lfn">>,
+     <<"family">>,   <<"lfamily">>,
+     <<"given">>,    <<"lgiven">>,
+     <<"middle">>,   <<"lmiddle">>,
+     <<"nickname">>, <<"lnickname">>,
+     <<"bday">>,     <<"lbday">>,
+     <<"ctry">>,     <<"lctry">>,
+     <<"locality">>, <<"llocality">>,
+     <<"email">>,    <<"lemail">>,
+     <<"orgname">>,  <<"lorgname">>,
+     <<"orgunit">>,  <<"lorgunit">>].
+
+search_args(User, Search) ->
+    [User,
+     Search#vcard_search.fn,       Search#vcard_search.lfn,
+     Search#vcard_search.family,   Search#vcard_search.lfamily,
+     Search#vcard_search.given,    Search#vcard_search.lgiven,
+     Search#vcard_search.middle,   Search#vcard_search.lmiddle,
+     Search#vcard_search.nickname, Search#vcard_search.lnickname,
+     Search#vcard_search.bday,     Search#vcard_search.lbday,
+     Search#vcard_search.ctry,     Search#vcard_search.lctry,
+     Search#vcard_search.locality, Search#vcard_search.llocality,
+     Search#vcard_search.email,    Search#vcard_search.lemail,
+     Search#vcard_search.orgname,  Search#vcard_search.lorgname,
+     Search#vcard_search.orgunit,  Search#vcard_search.lorgunit].
+
+without_last_byte(Bin) ->
+    binary:part(Bin, 0, byte_size(Bin)-1).
+
+record_to_items(Records) ->
+    [record_to_item(Record) || Record <- Records].
+
+record_to_item({Username, VCardVHost, FN, Family, Given, Middle,
              Nickname, BDay, CTRY, Locality,
              EMail, OrgName, OrgUnit}) ->
     #xmlel{name = <<"item">>,
