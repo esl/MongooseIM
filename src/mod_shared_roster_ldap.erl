@@ -41,7 +41,7 @@
 
 -export([get_user_roster/2, get_subscription_lists/3,
          get_jid_info/4, process_item/2, in_subscription/5,
-         out_subscription/5]).
+         out_subscription/4]).
 
 -export([config_change/4]).
 
@@ -196,13 +196,12 @@ in_subscription(Acc, ToJID, FromJID, Type, _Reason) ->
     end.
 
 -spec out_subscription(Acc:: mongoose_acc:t(),
-                      User :: binary(),
-                      Server :: binary(),
-                      JID ::jid:jid(),
-                      Type :: mod_roster:sub_presence()) ->
+                       FromJID :: jid:jid(),
+                       ToJID ::jid:jid(),
+                       Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
-out_subscription(Acc, User, Server, JID, Type) ->
-    case process_subscription(out, jid:make(User, Server, <<>>), JID, Type) of
+out_subscription(Acc, FromJID, ToJID, Type) ->
+    case process_subscription(out, FromJID, ToJID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->

@@ -494,17 +494,15 @@ decode_action(_) -> error.
 run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
     El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
+    LServer = CallerJid#jid.lserver,
     Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
                                from_jid => CallerJid,
                                to_jid => OtherJid,
-                               lserver => CallerJid#jid.lserver,
+                               lserver => LServer,
                                element => El }),
     % set subscription to
-    Server = CallerJid#jid.server,
-    LUser = CallerJid#jid.luser,
-    Acc2 = mongoose_hooks:roster_out_subscription(Server,
-                                                  Acc1,
-                                                  LUser, OtherJid, Type),
+    Acc2 = mongoose_hooks:roster_out_subscription(
+             LServer, Acc1, CallerJid, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

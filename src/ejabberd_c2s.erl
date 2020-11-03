@@ -2054,12 +2054,10 @@ presence_track(Acc, StateData) ->
                                               StateData :: state()) -> mongoose_acc:t().
 process_presence_subscription_and_route(Acc, Type, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    User = StateData#state.user,
     Server = StateData#state.server,
     To = mongoose_acc:to_jid(Acc),
-    Acc1 = mongoose_hooks:roster_out_subscription(Server,
-                                                  Acc,
-                                                  User, To, Type),
+    Acc1 = mongoose_hooks:roster_out_subscription(
+             Server, Acc, From, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),

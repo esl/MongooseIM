@@ -65,7 +65,7 @@
 
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
-         in_subscription/5, out_subscription/5,
+         in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_sm_identity/5,
@@ -799,22 +799,20 @@ notify_send_loop(ServerHost, Action) ->
 %% subscription hooks handling functions
 %%
 
--spec out_subscription(Acc:: mongoose_acc:t(),
-                       User :: binary(),
-                       Server :: binary(),
-                       JID ::jid:jid(),
+-spec out_subscription(Acc :: mongoose_acc:t(),
+                       FromJID :: jid:jid(),
+                       ToJID :: jid:jid(),
                        Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t().
-out_subscription(Acc, User, Server, JID, subscribed) ->
-    Owner = jid:make(User, Server, <<>>),
-    {PUser, PServer, PResource} = jid:to_lower(JID),
+out_subscription(Acc, #jid{lserver = LServer} = FromJID, ToJID, subscribed) ->
+    {PUser, PServer, PResource} = jid:to_lower(ToJID),
     PResources = case PResource of
                      <<>> -> user_resources(PUser, PServer);
                      _ -> [PResource]
                  end,
-    notify_send_loop(Server, {send_last_items_from_owner, Owner, {PUser, PServer, PResources}}),
+    notify_send_loop(LServer, {send_last_items_from_owner, FromJID, {PUser, PServer, PResources}}),
     Acc;
-out_subscription(Acc, _, _, _, _) ->
+out_subscription(Acc, _, _, _) ->
     Acc.
 
 -spec in_subscription(Acc:: mongoose_acc:t(),

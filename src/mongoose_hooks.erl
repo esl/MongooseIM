@@ -850,18 +850,18 @@ roster_in_subscription(LServer, Acc, To, From, Type, Reason) ->
         [To, From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called when a user sends out subscription.
--spec roster_out_subscription(Server, Acc, User, To, Type) -> Result when
+-spec roster_out_subscription(Server, Acc, From, To, Type) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
-    User :: jid:user(),
+    From :: jid:jid(),
     To :: jid:jid(),
     Type :: mod_roster:sub_presence(),
     Result :: mongoose_acc:t().
-roster_out_subscription(Server, Acc, User, To, Type) ->
+roster_out_subscription(Server, Acc, From, To, Type) ->
     ejabberd_hooks:run_fold(roster_out_subscription,
                             Server,
                             Acc,
-                            [User, Server, To, Type]).
+                            [From, To, Type]).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
 -spec roster_process_item(LServer, Item) -> Result when
