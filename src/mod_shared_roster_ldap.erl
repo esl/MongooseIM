@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--export([get_user_roster/2, get_subscription_lists/3,
+-export([get_user_roster/2, get_subscription_lists/2,
          get_jid_info/4, process_item/2, in_subscription/5,
          out_subscription/4]).
 
@@ -149,11 +149,9 @@ process_item(RosterItem, _Host) ->
         _ -> RosterItem#roster{subscription = both, ask = none}
     end.
 
-get_subscription_lists(Acc, User, Server) ->
+get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
     {F, T, P} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc),
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    US = {LUser, LServer},
+    US = jid:to_lus(JID),
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(fun (Group) ->
                                                 get_group_users(LServer, Group)

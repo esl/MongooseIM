@@ -816,13 +816,13 @@ roster_get_jid_info(LServer, InitialValue, LUser, RemBareJID) ->
                             [LUser, LServer, RemBareJID]).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract user's subscription list.
--spec roster_get_subscription_lists(Server, Acc, User) -> Result when
+-spec roster_get_subscription_lists(Server, Acc, JID) -> Result when
     Server :: jid:server(),
     Acc ::mongoose_acc:t(),
-    User :: jid:user(),
+    JID :: jid:jid(),
     Result :: mongoose_acc:t().
-roster_get_subscription_lists(Server, Acc, User) ->
-    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [User, Server]).
+roster_get_subscription_lists(Server, Acc, JID) ->
+    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [JID]).
 
 %%% @doc The `roster_get_versioning_feature' hook is called to determine if roster versioning is enabled.
 -spec roster_get_versioning_feature(Server, Acc) -> Result when
