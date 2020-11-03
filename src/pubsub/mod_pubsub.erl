@@ -3242,9 +3242,10 @@ get_roster_info(_, _, {<<>>, <<>>, _}, _) ->
     {false, false};
 get_roster_info(OwnerUser, OwnerServer, {SubscriberUser, SubscriberServer, _}, AllowedGroups) ->
     LJID = {SubscriberUser, SubscriberServer, <<>>},
-    {Subscription, Groups} = mongoose_hooks:roster_get_jid_info(OwnerServer,
-                                                                {none, []},
-                                                                OwnerUser, LJID),
+    {Subscription, Groups} = mongoose_hooks:roster_get_jid_info(
+                               OwnerServer,
+                               {none, []},
+                               jid:make(OwnerUser, OwnerServer, <<>>), LJID),
     PresenceSubscription = Subscription == both orelse
         Subscription == from orelse
         {OwnerUser, OwnerServer} == {SubscriberUser, SubscriberServer},

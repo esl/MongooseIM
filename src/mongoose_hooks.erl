@@ -805,15 +805,15 @@ roster_groups(LServer, Acc) ->
 %%% * RemoteBareJID, a bare JID of the other user.
 %%%
 %%% The arguments and the return value types correspond to the following spec.
--spec roster_get_jid_info(LServer, InitialValue, LUser, RemoteJID) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_get_jid_info(LServer, InitialValue, ToJID, RemoteJID) -> Result when
+      LServer :: jid:lserver(),
       InitialValue :: {mod_roster:subscription_state(), []},
-      LUser :: jid:luser(),
+      ToJID :: jid:jid(),
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
-roster_get_jid_info(LServer, InitialValue, LUser, RemBareJID) ->
+roster_get_jid_info(LServer, InitialValue, ToJID, RemBareJID) ->
     ejabberd_hooks:run_fold(roster_get_jid_info, LServer, InitialValue,
-                            [LUser, LServer, RemBareJID]).
+                            [ToJID, RemBareJID]).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract user's subscription list.
 -spec roster_get_subscription_lists(Server, Acc, JID) -> Result when
