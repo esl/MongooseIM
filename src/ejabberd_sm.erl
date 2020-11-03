@@ -38,7 +38,7 @@
          store_info/2,
          get_info/2,
          remove_info/2,
-         check_in_subscription/6,
+         check_in_subscription/5,
          bounce_offline_message/4,
          disconnect_removed_user/3,
          get_user_resources/1,
@@ -315,16 +315,14 @@ remove_info(JID, Key) ->
             end
     end.
 
--spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
+-spec check_in_subscription(Acc, ToJID, FromJID, Type, Reason) -> any() | {stop, false} when
       Acc :: any(),
-      User :: jid:user(),
-      Server :: jid:server(),
-      JID :: jid:jid(),
+      ToJID :: jid:jid(),
+      FromJID :: jid:jid(),
       Type :: any(),
       Reason :: any().
-check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
-    JID = jid:make(User, Server, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
+check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
+    case ejabberd_auth:does_user_exist(ToJID) of
         true ->
             Acc;
         false ->
@@ -714,8 +712,7 @@ do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
             Res = mongoose_hooks:roster_in_subscription(To#jid.lserver,
-                                         Acc,
-                                         To#jid.user, To#jid.server, From, Type, Reason),
+                                         Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false

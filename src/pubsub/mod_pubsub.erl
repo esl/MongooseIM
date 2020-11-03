@@ -65,7 +65,7 @@
 
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
-         in_subscription/6, out_subscription/5,
+         in_subscription/5, out_subscription/5,
          on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_sm_identity/5,
@@ -818,16 +818,15 @@ out_subscription(Acc, _, _, _, _) ->
     Acc.
 
 -spec in_subscription(Acc:: mongoose_acc:t(),
-                      User :: binary(),
-                      Server :: binary(),
-                      JID ::jid:jid(),
+                      ToJID :: jid:jid(),
+                      OwnerJID ::jid:jid(),
                       Type :: mod_roster:sub_presence(),
                       _:: any()) ->
     mongoose_acc:t().
-in_subscription(Acc, User, Server, Owner, unsubscribed, _) ->
-    unsubscribe_user(jid:make(User, Server, <<>>), Owner),
+in_subscription(Acc, ToJID, OwnerJID, unsubscribed, _) ->
+    unsubscribe_user(ToJID, OwnerJID),
     Acc;
-in_subscription(Acc, _, _, _, _, _) ->
+in_subscription(Acc, _, _, _, _) ->
     Acc.
 
 unsubscribe_user(Entity, Owner) ->

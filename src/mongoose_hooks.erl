@@ -73,7 +73,7 @@
          roster_get_subscription_lists/3,
          roster_get_versioning_feature/2,
          roster_groups/2,
-         roster_in_subscription/7,
+         roster_in_subscription/6,
          roster_out_subscription/5,
          roster_process_item/2,
          roster_push/4,
@@ -834,21 +834,20 @@ roster_get_versioning_feature(Server, Acc) ->
                             Server, Acc, [Server]).
 
 %%% @doc The `roster_in_subscription' hook is called to determine if a subscription presence is routed to a user.
--spec roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) -> Result when
+-spec roster_in_subscription(LServer, Acc, To, From, Type, Reason) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
-    User :: jid:user(),
-    Server :: jid:server(),
+    To :: jid:jid(),
     From :: jid:jid(),
     Type :: mod_roster:sub_presence(),
     Reason :: any(),
     Result :: mongoose_acc:t().
-roster_in_subscription(LServer, Acc, User, Server, From, Type, Reason) ->
+roster_in_subscription(LServer, Acc, To, From, Type, Reason) ->
     ejabberd_hooks:run_fold(
         roster_in_subscription,
         LServer,
         Acc,
-        [User, Server, From, Type, Reason]).
+        [To, From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called when a user sends out subscription.
 -spec roster_out_subscription(Server, Acc, User, To, Type) -> Result when
