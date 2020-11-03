@@ -375,7 +375,6 @@ get_passterm_with_authmodule(#jid{luser = LUser, lserver = LServer}) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
-
 -spec does_user_exist(JID :: jid:jid() | error) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
     timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]);
