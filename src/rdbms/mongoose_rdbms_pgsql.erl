@@ -65,7 +65,7 @@ prepare(Connection, Name, _Table, _Fields, Statement) ->
     BinName = [atom_to_binary(Name, latin1)],
     ReplacedStatement = replace_question_marks(Statement),
     case epgsql:parse(Connection, BinName, ReplacedStatement, []) of
-        {ok, _} -> {ok, BinName};
+        {ok, _} -> epgsql:describe(Connection, statement, BinName);
         Error   -> Error
     end.
 
