@@ -44,31 +44,44 @@
          stop/1,
          process_iq/4,
          process_local_iq/4,
-         get_user_roster/2,
-         get_subscription_lists/3,
          get_roster_entry/2,
          get_roster_entry/3,
          get_roster/2,
          item_to_map/1,
-         in_subscription/6,
-         out_subscription/5,
          set_items/2,
          set_roster_entry/4,
+         remove_from_roster/2,
+         item_to_xml/1,
+         roster_version/2
+        ]).
+
+% Main hooks
+-export([
+         get_user_roster/2,
+         in_subscription/5,
+         out_subscription/4,
+         get_subscription_lists/2,
+         get_jid_info/3,
          remove_user/2, % for tests
          remove_user/3,
-         remove_from_roster/2,
-         get_jid_info/4,
-         item_to_xml/1,
          get_versioning_feature/2,
-         roster_version/2
+         get_personal_data/2
+        ]).
+
+% Deprecated Hooks
+-export([
+         % get_user_roster/2,
+         in_subscription/6,
+         out_subscription/5,
+         get_subscription_lists/3,
+         get_jid_info/4,
+         remove_user/3
         ]).
 
 -export([remove_test_user/2,
          transaction/2,
          process_subscription_transaction/5,
          get_user_rosters_length/2]). % for testing
-
--export([get_personal_data/2]).
 
 -export([config_metrics/1]).
 
@@ -159,6 +172,39 @@
     LServer :: jid:lserver(),
     Item :: term(),
     Result :: error | roster().
+
+%====================================================================
+% Deprecated API
+%====================================================================
+ -define(FUNCTION_STRING,
+            ?MODULE_STRING ++ ":" ++
+               atom_to_list(?FUNCTION_NAME) ++ "/" ++
+                  integer_to_list(?FUNCTION_ARITY)).
+ -define(DEPRECATE_FUNCTION,
+         mongoose_deprecations:log(
+           {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
+           #{what => roster_function_deprecated,
+             text => <<"The function ", (list_to_binary(?FUNCTION_STRING))/binary,
+                       " is deprecated, please use the #jid{} equivalent instead">>},
+           [{log_level, warning}])).
+ in_subscription(Acc, U, S, JID, Type, Reason) ->
+     ?DEPRECATE_FUNCTION,
+     in_subscription(Acc, jid:make(U, S, <<>>), JID, Type, Reason).
+ out_subscription(Acc, U, S, JID, Type) ->
+     ?DEPRECATE_FUNCTION,
+     out_subscription(Acc, jid:make(U, S, <<>>), JID, Type).
+ get_subscription_lists(Acc, U, S) ->
+     ?DEPRECATE_FUNCTION,
+     get_subscription_lists(Acc, jid:make(U, S, <<>>)).
+ get_jid_info(Acc, U, S, JID) ->
+     ?DEPRECATE_FUNCTION,
+     get_jid_info(Acc, jid:make(U, S, <<>>), JID).
+ remove_user(Acc, U, S) ->
+     ?DEPRECATE_FUNCTION,
+     remove_user(Acc, jid:make(U, S, <<>>)).
+%====================================================================
+% Deprecated API
+%====================================================================
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -393,8 +439,10 @@ create_sub_el(Items, Version) ->
                      {<<"ver">>, Version}],
             children = Items}].
 
--spec get_user_roster(mongoose_acc:t(), {jid:luser(), jid:lserver()}) -> mongoose_acc:t().
-get_user_roster(Acc, {LUser, LServer}) ->
+-spec get_user_roster(mongoose_acc:t(),
+                      jid:jid() | {jid:luser(), jid:lserver()}) ->
+    mongoose_acc:t().
+get_user_roster(Acc, #jid{luser = LUser, lserver = LServer}) ->
     case mongoose_acc:get(roster, show_full_roster, false, Acc) of
         true ->
             Roster = get_roster(LUser, LServer),
@@ -406,10 +454,14 @@ get_user_roster(Acc, {LUser, LServer}) ->
                                           true
                                   end, get_roster(LUser, LServer)),
             mongoose_acc:append(roster, items, Roster, Acc)
-    end.
+    end;
+get_user_roster(Acc, {U, S}) when is_binary(U), is_binary(S) ->
+    ?DEPRECATE_FUNCTION,
+    get_user_roster(Acc, jid:make(U, S, <<>>)).
 
+-spec get_roster(jid:luser(), jid:lserver()) -> [roster()].
 get_roster(LUser, LServer) ->
-    mod_roster_backend:get_roster(jid:nameprep(LUser), LServer).
+    mod_roster_backend:get_roster(LUser, LServer).
 
 item_to_xml(Item) ->
     Attrs1 = [{<<"jid">>,
@@ -578,11 +630,9 @@ push_item_final(JID, From, Item, RosterVersion) ->
                         children = [item_to_xml(Item)]}]},
     ejabberd_router:route(From, JID, jlib:iq_to_xml(ResIQ)).
 
--spec get_subscription_lists(Acc :: mongoose_acc:t(),
-                             User :: binary(),
-                             Server :: binary()) -> mongoose_acc:t().
-get_subscription_lists(Acc, User, Server) ->
-    #jid{luser = LUser, lserver = LServer} = JID = jid:make(User, Server, <<>>),
+-spec get_subscription_lists(Acc :: mongoose_acc:t(), JID :: jid:jid()) ->
+    mongoose_acc:t().
+get_subscription_lists(Acc, #jid{luser = LUser, lserver = LServer} = JID) ->
     Items = mod_roster_backend:get_subscription_lists(Acc, LUser, LServer),
     SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
     mongoose_acc:set(roster, subscription_lists, SubLists, Acc).
@@ -590,9 +640,7 @@ get_subscription_lists(Acc, User, Server) ->
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
-
     NewP = build_pending(I, JID, P),
-
     case I#roster.subscription of
         both ->
             fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
@@ -641,34 +689,31 @@ transaction(LServer, F) ->
     mod_roster_backend:transaction(LServer, F).
 
 -spec in_subscription(Acc:: mongoose_acc:t(),
-                      User :: binary(),
-                      Server :: binary(),
-                      JID :: jid:jid(),
+                      ToJID :: jid:jid(),
+                      FromJID :: jid:jid(),
                       Type :: sub_presence(),
                       Reason :: any()) ->
     mongoose_acc:t().
-in_subscription(Acc, User, Server, JID, Type, Reason) ->
-    Res = process_subscription(in, User, Server, JID, Type, Reason),
+in_subscription(Acc, ToJID, FromJID, Type, Reason) ->
+    Res = process_subscription(in, ToJID, FromJID, Type, Reason),
     mongoose_acc:set(hook, result, Res, Acc).
 
 -spec out_subscription(Acc:: mongoose_acc:t(),
-                       User :: binary(),
-                       Server :: binary(),
-                       JID :: jid:jid(),
+                       FromJID :: jid:jid(),
+                       ToJID :: jid:jid(),
                        Type :: sub_presence()) ->
     mongoose_acc:t().
-out_subscription(Acc, User, Server, JID, Type) ->
-    Res = process_subscription(out, User, Server, JID, Type, <<>>),
+out_subscription(Acc, FromJID, ToJID, Type) ->
+    Res = process_subscription(out, FromJID, ToJID, Type, <<>>),
     mongoose_acc:set(hook, result, Res, Acc).
 
-process_subscription(Direction, User, Server, JID1, Type, Reason) ->
-    JID = jid:make(User, Server, <<>>),
-    LServer = case JID of
+process_subscription(Direction, FromJID, ToJID, Type, Reason) ->
+    LServer = case FromJID of
                   #jid{lserver = LS} -> LS;
                   error -> error
               end,
     TransactionFun =
-        fun() -> process_subscription_transaction(Direction, JID, JID1, Type, Reason) end,
+        fun() -> process_subscription_transaction(Direction, FromJID, ToJID, Type, Reason) end,
     case transaction(LServer, TransactionFun) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
@@ -677,13 +722,13 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                     PresenceStanza = #xmlel{name = <<"presence">>,
                                             attrs = [{<<"type">>, autoreply_to_type(AutoReply)}],
                                             children = []},
-                    ejabberd_router:route(JID, JID1, PresenceStanza)
+                    ejabberd_router:route(FromJID, ToJID, PresenceStanza)
             end,
             case Push of
-                {push, #roster{ subscription = none, ask = in }} ->
+                {push, #roster{subscription = none, ask = in}} ->
                     true;
                 {push, Item} ->
-                    push_item(JID, JID, Item),
+                    push_item(FromJID, FromJID, Item),
                     true;
                 none -> false
             end;
@@ -880,8 +925,7 @@ try_send_unsubscription_to_rosteritems(Acc, JID) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(Acc, JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
-    Acc1 = get_user_roster(Acc, {LUser, LServer}),
+    Acc1 = get_user_roster(Acc, JID),
     RosterItems = mongoose_acc:get(roster, items, [], Acc1),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(JID, RosterItem)
@@ -1010,11 +1054,9 @@ process_item_attrs_ws(Item, []) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec get_jid_info(_ :: term(),
-                   User :: jid:luser(),
-                   Server :: jid:lserver(),
+                   ToJID :: jid:jid(),
                    JID ::jid:jid() | jid:ljid()) -> {subscription_state(), [binary()]}.
-get_jid_info(_, User, Server, JID) ->
-    ToJID = jid:make(User, Server, <<>>),
+get_jid_info(_, ToJID, JID) ->
     case get_roster_entry(ToJID, JID, full) of
         error -> {none, []};
         does_not_exist ->
