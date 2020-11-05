@@ -3025,10 +3025,12 @@ test_config_file(Config, File) ->
     %% Save the parsed TOML options
     %% - for debugging
     %% - to update tests after a config change - always check the diff!
-    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- TOMLOpts],
-    file:write_file(OptionsPath ++ "-parsed", lists:sort(FormattedOpts)),
-
+    save_opts(OptionsPath ++ ".parsed", TOMLOpts),
     compare_config(ExpectedOpts, TOMLOpts).
+
+save_opts(Path, Opts) ->
+    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- lists:sort(Opts)],
+    file:write_file(Path, FormattedOpts).
 
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
