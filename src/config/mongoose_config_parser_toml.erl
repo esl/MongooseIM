@@ -1763,23 +1763,24 @@ handle(Path, Value) ->
                         try_call(handle_step(StepName, AccIn), StepName, Path, Value)
                 end, Path, [handle, parse, validate]).
 
+-record(section, {children, process}).
+-record(option, {type, validate}).
+-record(list, {items, process}).
+
 handle_step(handle, _) ->
     fun(Path, _Value) -> handler(Path) end;
-handle_step(parse, {Type, Handler}) ->
+handle_step(parse, H) when is_tuple(H) ->
     fun(Path, Value) ->
-            ParsedValue = case Value of
-                              Section when is_map(Section) ->
-                                  section = Type,
+            ParsedValue = case H of
+                              #section{} when is_map(Value) ->
                                   parse_section(Path, Value);
-                              List when is_list(List) ->
-                                  list = Type,
+                              #list{} when is_list(Value) ->
                                   parse_list(Path, Value);
-                              Option ->
-                                  option = Type,
-                                  Option
+                              #option{} when not is_list(Value), not is_map(Value) ->
+                                  Value
                           end,
             case extract_errors(ParsedValue) of
-                [] -> Handler(Path, ParsedValue);
+                [] -> wrap(Path, process_value(ParsedValue, H));
                 Errors -> Errors
             end
     end;
@@ -1790,6 +1791,31 @@ handle_step(validate, ParsedValue) ->
             mongoose_config_validator_toml:validate(Path, ParsedValue),
             ParsedValue
     end.
+
+process_value(V, #section{process = Process}) -> Process(V);
+process_value(V, #list{process = Process}) -> Process(V);
+process_value(V, #option{type = Type, validate = Validator}) ->
+    Result = convert(V, Type),
+    validate(Result, Type, Validator),
+    Result.
+
+convert(V, boolean) -> V;
+convert(V, binary) -> V;
+convert(V, string) -> binary_to_list(V);
+convert(V, atom) -> binary_to_atom(V).
+
+%% the prefixes are temporary, do not focus on them
+validate(V, boolean, undefined) -> mongoose_config_validator_toml:validate_boolean(V);
+validate(V, binary, domain) -> mongoose_config_validator_toml:validate_binary_domain(V);
+validate(V, integer, positive) -> mongoose_config_validator_toml:validate_positive_integer(V);
+validate(V, string, url) -> mongoose_config_validator_toml:validate_url(V);
+validate(V, string, non_empty) -> mongoose_config_validator_toml:validate_non_empty_string(V);
+validate(V, atom, module) -> mongoose_config_validator_toml:validate_module(V);
+validate(V, _, {enum, Values}) -> mongoose_config_validator_toml:validate_enum(V, Values);
+validate(_V, _, undefined) -> ok.
+
+wrap([item|_], V) -> [V];
+wrap([Key|_], V) when is_binary(Key) -> [{binary_to_atom(Key), V}].
 
 -spec try_call(fun((path(), any()) -> option()), atom(), path(), toml_value()) -> option().
 try_call(F, StepName, Path, Value) ->
