@@ -31,6 +31,7 @@
 
     num_resources/2,
     resource_num/3,
+    kick_session/2,
     kick_session/4,
     prepare_reason/1,
     status_num/2, status_num/1,
@@ -187,12 +188,14 @@ resource_num(User, Host, Num) ->
     end.
 
 
--spec kick_session(jid:user(), jid:server(), jid:resource(),
-        ReasonText :: binary() | list()) -> 'ok'.
-kick_session(User, Server, Resource, ReasonText) ->
-    ejabberd_c2s:terminate_session(jid:make(User, Server, Resource),
-                                   prepare_reason(ReasonText)),
+-spec kick_session(jid:jid(), binary() | list()) -> ok.
+kick_session(JID, ReasonText) ->
+    ejabberd_c2s:terminate_session(JID, prepare_reason(ReasonText)),
     ok.
+
+-spec kick_session(jid:user(), jid:server(), jid:resource(), list() | binary()) -> ok.
+kick_session(User, Server, Resource, ReasonText) ->
+    kick_session(jid:make(User, Server, Resource), prepare_reason(ReasonText)).
 
 
 -spec prepare_reason(binary() | string()) -> binary().

@@ -61,7 +61,7 @@ The stanza has reason `general-error` with the SIP error code in the `sip-error`
 
 ##### Non-standard Jingle stanzas used by jingle.js
 
-The following non-standard Jingle stanzas were integrated with https://github.com/softwarehutpl/jingle.js
+The following non-standard Jingle stanzas were integrated with [Jingle.js](https://github.com/softwarehutpl/jingle.js):
 
 * `source-remove`
 * `source-add`
@@ -75,7 +75,7 @@ Similarly when MongooseIM gets a SIP in-dialog `INVITE` request,
 it will check if there is a custom attribute and use it as the `action` attribute of the Jingle stanza sent to the user.
 If there is no such attribute, the action will be set to regular Jingle `transport-info`.
 
-##### Non-stadard Jingle existing-session-initiate stanza
+##### Non-standard Jingle existing-session-initiate stanza
 
 MongooseIM allows a user to ask for an unanswered `session-initiate` request.
 This may be useful in web applications when there is a need to handle the call in a new browser window.
@@ -137,7 +137,7 @@ The value of the `c=` SDP attribute.
 
 The simplest configuration is the following:
 
-```
+```toml
 [modules.mod_jingle_sip]
 ```
 

@@ -133,7 +133,7 @@ Used for retrieving the human-readable name of the roster entries.
 Filter AND-ed with previous filters.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_shared_roster_ldap]
   ldap_base = "ou=Users,dc=ejd,dc=com"
   ldap_groupattr = "ou"

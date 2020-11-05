@@ -33,7 +33,7 @@
          set_password/3,
          try_register/3,
          remove_user/2,
-         is_user_exists/2]).
+         does_user_exist/2]).
 
 -include("mongoose.hrl").
 
@@ -90,8 +90,8 @@ check_password(User, Server, Password) ->
     call_port(Server, [<<"auth">>, User, Server, Password]).
 
 
--spec is_user_exists(jid:user(), jid:server()) -> boolean().
-is_user_exists(User, Server) ->
+-spec does_user_exist(jid:user(), jid:server()) -> boolean().
+does_user_exist(User, Server) ->
     call_port(Server, [<<"isuser">>, User, Server]).
 
 

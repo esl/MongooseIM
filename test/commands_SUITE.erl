@@ -177,7 +177,7 @@ new_type_checker(_C) ->
     ok.
 
 t_check_type(Spec, Value) ->
-    R = try mongoose_commands:check_type(Spec, Value) of
+    R = try mongoose_commands:check_type(argument, Spec, Value) of
             true -> true
         catch
             E ->
@@ -254,8 +254,7 @@ new_execute(_C) ->
     %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
     %% backend func returns error
-    ExpError = term_to_binary({func_returned_error, byleco}),
-    {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
+    {error, internal, <<"byleco">>} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     % user executes his command
     {ok, <<"bzzzz">>} = mongoose_commands:execute(ujid(), command_foruser, #{msg => <<"bzzzz">>}),
     % a caller arg
@@ -546,7 +545,7 @@ cmd_one(<<"throw">>) ->
     C = 12,
     <<"A", C/binary>>;
 cmd_one(<<"error">>) ->
-    {error, byleco};
+    {error, internal, <<"byleco">>};
 cmd_one(M) ->
     M.
 

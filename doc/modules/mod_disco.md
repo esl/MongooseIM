@@ -21,7 +21,7 @@ Please note that `mod_disco` doesn't verify these domains, so if no handlers are
 * **Syntax:** array of tables described below
 * **Default:** no additional server info
 * **Example:**
-```
+```toml
 server_info = [
                 {module = "all", name = "abuse-address", urls = ["admin@example.com"]}
               ]
@@ -46,7 +46,7 @@ Other entities, with empty username part in their JIDs (e.g. `component.example.
 will still receive full disco results.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_disco]
   iqdisc.type = "one_queue"
   extra_domains = ["some_domain", "another_domain"]

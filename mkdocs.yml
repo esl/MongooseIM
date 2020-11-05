@@ -30,6 +30,7 @@ pages:
       - '3.5.0 to 3.6.0': 'migrations/3.5.0_3.6.0.md'
       - '3.6.0 to 3.7.0': 'migrations/3.6.0_3.7.0.md'
       - '3.7.0 to 4.0.0': 'migrations/3.7.0_4.0.0.md'
+      - '4.0.0 to 4.X.X': 'migrations/4.0.0_4.X.X.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - Platform:
       - 'Contributions to ecosystem': 'Contributions.md'
@@ -135,7 +136,6 @@ pages:
       - 'mod_pubsub': 'modules/mod_pubsub.md'
       - 'mod_push_service_mongoosepush': 'modules/mod_push_service_mongoosepush.md'
       - 'mod_register': 'modules/mod_register.md'
-      - 'mod_revproxy': 'modules/mod_revproxy.md'
       - 'mod_roster': 'modules/mod_roster.md'
       - 'mod_shared_roster_ldap': 'modules/mod_shared_roster_ldap.md'
       - 'mod_sic': 'modules/mod_sic.md'

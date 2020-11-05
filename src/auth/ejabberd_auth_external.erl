@@ -193,7 +193,7 @@ get_password_s(LUser, LServer) ->
 -spec does_user_exist(LUser :: jid:luser(),
                      LServer :: jid:lserver()) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
-    try extauth:is_user_exists(LUser, LServer) of
+    try extauth:does_user_exist(LUser, LServer) of
         Res -> Res
     catch
         _:Error -> {error, Error}

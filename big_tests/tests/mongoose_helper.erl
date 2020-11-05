@@ -26,6 +26,7 @@
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
+-export([make_jid/2]).
 -export([make_jid/3]).
 -export([make_jid_noprep/3]).
 -export([get_session_pid/2]).
@@ -372,6 +373,9 @@ inject_module(Node, Module, reload) ->
 
 make_jid_noprep(User, Server, Resource) ->
     jid:make_noprep(User, Server, Resource).
+
+make_jid(User, Server) ->
+    jid:make(User, Server, <<>>).
 
 make_jid(User, Server, Resource) ->
     jid:make(User, Server, Resource).

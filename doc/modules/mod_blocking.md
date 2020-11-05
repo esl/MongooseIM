@@ -6,7 +6,7 @@ The protocol is much simpler than privacy lists.
 ### Options
 
 ### Example Configuration
-```
+```toml
 [modules.mod_blocking]
 ```
 

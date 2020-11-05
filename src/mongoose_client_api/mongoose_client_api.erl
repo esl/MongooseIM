@@ -88,35 +88,37 @@ is_authorized(Req, State) ->
     case AuthDetails of
         undefined ->
             mongoose_api_common:make_unauthorized_response(Req, State);
-        _ ->
-            authorize(AuthDetails, HTTPMethod, Req, State)
+        {AuthMethod, User, Password} ->
+            authorize(AuthMethod, User, Password, HTTPMethod, Req, State)
     end.
 
-authorize({_AuthMethod, User, _Pass} = AuthDetails, HTTPMethod, Req, State) ->
-    case do_authorize(AuthDetails, HTTPMethod) of
+authorize(AuthMethod, User, Password, HTTPMethod, Req, State) ->
+    MaybeJID = jid:from_binary(User),
+    case do_authorize(AuthMethod, MaybeJID, Password, HTTPMethod) of
         noauth ->
             {true, Req, State};
         true ->
-            {true, Req, State#{user => User, jid => jid:from_binary(User)}};
+            {true, Req, State#{user => User, jid => MaybeJID}};
         false ->
             mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
-do_authorize({AuthMethod, User, Password}, HTTPMethod) ->
+do_authorize(AuthMethod, MaybeJID, Password, HTTPMethod) ->
     case is_noauth_http_method(HTTPMethod) of
         true ->
             noauth;
         false ->
-            check_password(User, Password) andalso
+            check_password(MaybeJID, Password) andalso
             mongoose_api_common:is_known_auth_method(AuthMethod)
     end.
 
-check_password(<<>>, _) ->
+-spec check_password(jid:jid() | error, binary()) -> boolean().
+check_password(error, _) ->
     false;
-check_password(User, Password) ->
-    #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
-    Creds0 = mongoose_credentials:new(Server),
-    Creds1 = mongoose_credentials:set(Creds0, username, RawUser),
+check_password(JID, Password) ->
+    {LUser, LServer} = jid:to_lus(JID),
+    Creds0 = mongoose_credentials:new(LServer),
+    Creds1 = mongoose_credentials:set(Creds0, username, LUser),
     Creds2 = mongoose_credentials:set(Creds1, password, Password),
     case ejabberd_auth:authorize(Creds2) of
         {ok, _} -> true;

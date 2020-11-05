@@ -67,8 +67,6 @@
 %% API
 -export([create_admin_url_path/1,
          create_user_url_path/1,
-         error_response/3,
-         error_response/4,
          action_to_method/1,
          method_to_action/1,
          parse_request_body/1,
@@ -77,6 +75,7 @@
          reload_dispatches/1,
          get_auth_details/1,
          is_known_auth_method/1,
+         error_response/4,
          make_unauthorized_response/2]).
 
 
@@ -102,8 +101,11 @@ create_admin_url_path(Command) ->
 create_user_url_path(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_commands:t(), any(), http_api_state()) ->
-                      {any(), any(), http_api_state()}.
+-spec process_request(Method :: method(),
+                      Command :: mongoose_commands:t(),
+                      Req :: cowboy_req:req() | {list(), cowboy_req:req()},
+                      State :: http_api_state()) ->
+                      {any(), cowboy_req:req(), http_api_state()}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     {Params, Req2} = Req,
@@ -118,22 +120,29 @@ process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity =
     BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, BindsAndVars, Req, State).
 
--spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), http_api_state()) ->
-                     {any(), any(), http_api_state()}.
+-spec handle_request(Method :: method(),
+                     Command :: mongoose_commands:t(),
+                     Args :: args_applied(),
+                     Req :: cowboy_req:req(),
+                     State :: http_api_state()) ->
+    {any(), cowboy_req:req(), http_api_state()}.
 handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command),
-                                           mongoose_commands:optargs(Command), Args),
-    Result = execute_command(ConvertedArgs, Command, Entity),
-    handle_result(Method, Result, Req, State).
+    case check_and_extract_args(mongoose_commands:args(Command),
+                                mongoose_commands:optargs(Command), Args) of
+        {error, Type, Reason} ->
+            handle_result(Method, {error, Type, Reason}, Req, State);
+        ConvertedArgs ->
+            handle_result(Method,
+                          execute_command(ConvertedArgs, Command, Entity),
+                          Req, State)
+    end.
 
--type correct_result() :: ok | {ok, any()}.
--type error_result() ::  mongoose_commands:failure() |
-                         {error, bad_request, any()}.
--type expected_result() :: correct_result() | error_result().
+-type correct_result() :: mongoose_commands:success().
+-type error_result() ::  mongoose_commands:failure().
 
 -spec handle_result(Method, Result, Req, State) -> Return when
-      Method :: method(),
-      Result :: expected_result(),
+      Method :: method() | no_call,
+      Result :: correct_result() | error_result(),
       Req :: cowboy_req:req(),
       State :: http_api_state(),
       Return :: {any(), cowboy_req:req(), http_api_state()}.
@@ -142,8 +151,7 @@ handle_result(Verb, ok, Req, State) ->
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, nocontent}, Req, State) ->
-    Path = iolist_to_binary(cowboy_req:uri(Req)),
-    Req2 = maybe_add_location_header(nocontent, binary_to_list(Path), Req),
+    Req2 = cowboy_req:reply(204, Req),
     {stop, Req2, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     Path = iolist_to_binary(cowboy_req:uri(Req)),
@@ -161,16 +169,10 @@ handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Res, Req),
     Req3 = cowboy_req:reply(201, Req2),
     {stop, Req3, State};
-handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
+handle_result(_, {error, Error, Reason}, Req, State) ->
     error_response(Error, Reason, Req, State);
-handle_result(_, {error, Error, Reason}, Req, State) when is_list(Reason) ->
-    error_response(Error, list_to_binary(Reason), Req, State);
-handle_result(_, {error, Error, _R}, Req, State) ->
-    error_response(Error, Req, State);
-% handle_result(_, {error, Error}, Req, State) ->
-%     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
-    error_response(not_implemented, Req, State).
+    error_response(not_implemented, <<>>, Req, State).
 
 
 -spec parse_request_body(any()) -> {args_applied(), cowboy_req:req()} | {error, any()}.
@@ -204,24 +206,11 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
             {error, bad_request, Reason}
     end.
 
-
--spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
-                      mongoose_commands:t(), admin | binary()) ->
-                      correct_result() | error_result().
-execute_command({error, _Type, _Reason} = Err, _, _) ->
-    Err;
+-spec execute_command(mongoose_commands:args(),
+                      mongoose_commands:t(),
+                      mongoose_commands:caller()) ->
+    correct_result() | error_result().
 execute_command(ArgMap, Command, Entity) ->
-    try
-        do_execute_command(ArgMap, Command, Entity)
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => execute_command_failed, class => Class,
-                         reason => Reason, stacktrace => StackTrace}),
-            {error, bad_request, Reason}
-    end.
-
--spec do_execute_command(map(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
-do_execute_command(ArgMap, Command, Entity) ->
     mongoose_commands:execute(Entity, mongoose_commands:name(Command), ArgMap).
 
 -spec maybe_add_caller(admin | binary()) -> list() | list({caller, binary()}).
@@ -230,7 +219,7 @@ maybe_add_caller(admin) ->
 maybe_add_caller(JID) ->
     [{caller, JID}].
 
--spec maybe_add_location_header(binary() | list() | nocontent, list(), any())
+-spec maybe_add_location_header(binary() | list(), list(), any())
     -> cowboy_req:req().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
     add_location_header(binary_to_list(Result), ResourcePath, Req);
@@ -325,22 +314,21 @@ to_atom(Atom) when is_atom(Atom) ->
 %%--------------------------------------------------------------------
 %% HTTP utils
 %%--------------------------------------------------------------------
--spec error_response(integer() | atom(), any(), http_api_state()) ->
-                     {stop, any(), http_api_state()}.
-error_response(Code, Req, State) when is_integer(Code) ->
-    Req1 = cowboy_req:reply(Code, Req),
-    {stop, Req1, State};
-error_response(ErrorType, Req, State) ->
-    error_response(error_code(ErrorType), Req, State).
+%%-spec error_response(mongoose_commands:errortype(), any(), http_api_state()) ->
+%%                     {stop, any(), http_api_state()}.
+%%error_response(ErrorType, Req, State) ->
+%%    error_response(ErrorType, <<>>, Req, State).
 
--spec error_response(any(), any(), any(), http_api_state()) ->
-    {stop, any(), http_api_state()}.
-error_response(Code, Reason, Req, State) when is_integer(Code) ->
-    Req1 = cowboy_req:reply(Code, #{}, Reason, Req),
-    {stop, Req1, State};
+-spec error_response(mongoose_commands:errortype(), mongoose_commands:errorreason(), cowboy_req:req(), http_api_state()) ->
+    {stop, cowboy_req:req(), http_api_state()}.
 error_response(ErrorType, Reason, Req, State) ->
-    error_response(error_code(ErrorType), Reason, Req, State).
-
+    BinReason = case Reason of
+                    B when is_binary(B) -> B;
+                    L when is_list(L) -> list_to_binary(L);
+                    Other -> list_to_binary(io_lib:format("~p", [Other]))
+                end,
+    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, BinReason, Req),
+    {stop, Req1, State}.
 
 %% HTTP status codes
 error_code(denied) -> 403;
@@ -348,7 +336,10 @@ error_code(not_implemented) -> 501;
 error_code(bad_request) -> 400;
 error_code(type_error) -> 400;
 error_code(not_found) -> 404;
-error_code(internal) -> 500.
+error_code(internal) -> 500;
+error_code(Other) ->
+    ?WARNING_MSG("Unknown error identifier \"~p\". See mongoose_commands:errortype() for allowed values.", [Other]),
+    500.
 
 action_to_method(read) -> <<"GET">>;
 action_to_method(update) -> <<"PUT">>;

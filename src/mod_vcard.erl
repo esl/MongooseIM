@@ -129,7 +129,7 @@
 %%--------------------------------------------------------------------
 
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+get_personal_data(Acc, #jid{luser = LUser, lserver = LServer}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
     Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of

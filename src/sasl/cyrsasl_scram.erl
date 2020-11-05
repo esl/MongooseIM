@@ -91,7 +91,8 @@ mech_step(#state{step = 2} = State, ClientIn) ->
             Creds = State#state.creds,
             LServer = mongoose_credentials:lserver(Creds),
             Sha = State#state.sha,
-            case get_scram_attributes(UserName, LServer, Sha) of
+            JID = jid:make(UserName, LServer, <<>>),
+            case get_scram_attributes(JID, Sha) of
                 {AuthModule, {StoredKey, ServerKey, Salt, IterationCount}} ->
                      {NStart, _} = binary:match(ClientIn, <<"n=">>),
                      ClientFirstMessageBare =
@@ -186,10 +187,11 @@ unescape_username_attribute({EscapedUserName, ClientNonce}) ->
         UserName -> {ok, {UserName, ClientNonce}}
     end.
 
--spec get_scram_attributes(jid:username(), jid:lserver(), sha()) -> scram_att() | error().
-get_scram_attributes(UserName, LServer, Sha) ->
-    case ejabberd_auth:get_passterm_with_authmodule(UserName, LServer) of
+-spec get_scram_attributes(jid:jid(), sha()) -> scram_att() | error().
+get_scram_attributes(JID, Sha) ->
+    case ejabberd_auth:get_passterm_with_authmodule(JID) of
         {false, _} ->
+            {UserName, _} = jid:to_lus(JID),
             {error, <<"not-authorized">>, UserName};
         {Params, AuthModule} ->
             {AuthModule, do_get_scram_attributes(Params, Sha)}

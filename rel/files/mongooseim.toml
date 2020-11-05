@@ -212,8 +212,6 @@
 
 [modules.mod_carboncopy]
 
-{{{mod_http_notification}}}
-
 [shaper.normal]
   max_rate = 1000
 

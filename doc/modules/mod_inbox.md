@@ -5,13 +5,6 @@ To use it, enable mod\_inbox in the config file.
 
 ### Options
 
-#### `modules.mod_inbox.backend`
-* **Syntax:** string
-* **Default:** `"rdbms"`
-* **Example:** `backend = "rdbms"`
-
-Database backend to use. For now, only `rdbms` is supported.
-
 #### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
@@ -228,7 +221,7 @@ value:
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_inbox]
   backend = "rdbms"
   reset_markers = ["displayed"]

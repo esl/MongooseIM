@@ -30,12 +30,6 @@ Please note that a long-polling request is not considered to be an inactivity.
  
 Enables/disables [acks](http://xmpp.org/extensions/xep-0124.html#ack-request) sent by server.
 
-#### `modules.mod_bosh.backend`
- * **Syntax:** `"mnesia"` 
- * **Default:** `"mnesia"`
- * **Example:** `backend = "mnesia"`
- 
-Backend used for storing BOSH session data. `"mnesia"` is the only supported value.
 #### `modules.mod_bosh.maxpause`
  * **Syntax:** positive integer
  * **Default:** `120`
@@ -46,7 +40,7 @@ Maximum allowed pause in seconds (e.g. to switch between pages and then resume c
 ### Example Configuration
 
 In the listener section:
-```
+```toml
 [[listen.http]]
   port = 5280
   transport.num_acceptors = 10
@@ -57,11 +51,10 @@ In the listener section:
     path = "/http-bind"
 ```
 In the module section:  
-```  
+```toml
 [modules.mod_bosh]
   inactivity = 20
   max_wait = "infinity"
   server_acks = true
-  backend = "mnesia"
   maxpause = 120 
 ```

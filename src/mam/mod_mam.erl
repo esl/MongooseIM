@@ -300,10 +300,10 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
+filter_packet({From, To = #jid{lserver = LServer}, Acc, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc}),
     {AmpEvent, PacketAfterArchive} =
-        case ejabberd_users:does_user_exist(LUser, LServer) of
+        case ejabberd_users:does_user_exist(To) of
             false ->
                 {mam_failed, Packet};
             true ->
@@ -465,10 +465,10 @@ handle_get_message_form(_From=#jid{lserver = Host}, _ArcJID=#jid{}, IQ=#iq{}) ->
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = Deliver},
                        FromJID, ToJID, Packet, initial_check) ->
-    #jid{luser = LUser, lserver = LServer} = ToJID,
+    #jid{lserver = LServer} = ToJID,
     ShouldBeStored = is_archivable_message(LServer, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
-        andalso ejabberd_auth:is_user_exists(LUser, LServer),
+        andalso ejabberd_auth:does_user_exist(ToJID),
     case ShouldBeStored of
         true -> Strategy#amp_strategy{deliver = amp_deliver_strategy(Deliver)};
         false -> Strategy

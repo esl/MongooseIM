@@ -176,7 +176,7 @@ A time after which a hibernated room is stopped (deeply hibernated).
  * **Syntax:** A TOML table of options described below
  * **Default:** Default room options
  * **Example:**  
-```  
+```toml
   [modules.mod_muc.default_room]
     password_protected = true
     description = "An example description."
@@ -188,7 +188,7 @@ A time after which a hibernated room is stopped (deeply hibernated).
         affiliation = "member"
 ```
 or:
-```
+```toml
   default_room.password_protected = true
   default_room.description = "An example description."
 
@@ -360,7 +360,7 @@ Available room configuration options to be overridden in the initial state:
     * **Default:** `[]`
     * **Example:**
     
-```
+```toml
 [[modules.mod_muc.default_room.affiliations]]
   user = "alice"
   server = "localhost"
@@ -391,7 +391,7 @@ Available room configuration options to be overridden in the initial state:
     A nick name of the default subject's author.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_muc]
   host = "muc.example.com"
   access = "muc"
@@ -455,7 +455,7 @@ If the server returns something else, an error presence will be sent back to the
 
 **Example:**
 
-```
+```toml
 [outgoing_pools.http.my_auth_pool]
   strategy = "available_worker"
   connection.host = "http://my_server:8000"

@@ -45,9 +45,9 @@
 -define(DEFAULT_POOL_NAME, http_pool).
 -define(DEFAULT_PATH, "").
 
--define(SENT_METRIC, [mod_http_notifications, sent]).
--define(FAILED_METRIC, [mod_http_notifications, failed]).
--define(RESPONSE_METRIC, [mod_http_notifications, response_time]).
+-define(SENT_METRIC, [mod_event_pusher_http, sent]).
+-define(FAILED_METRIC, [mod_event_pusher_http, failed]).
+-define(RESPONSE_METRIC, [mod_event_pusher_http, response_time]).
 
 start(Host, _Opts) ->
     ensure_metrics(Host),

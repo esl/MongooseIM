@@ -18,7 +18,6 @@
   inactivity = 20
   max_wait = "infinity"
   server_acks = true
-  backend = "mnesia"
   maxpause = 120
 
 [modules.mod_caps]
@@ -103,7 +102,6 @@
   s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 [modules.mod_inbox]
-  backend = "rdbms"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true
@@ -114,6 +112,7 @@
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.enabled = true
   connections.tls.certfile = "priv/dc1.pem"
   connections.tls.cacertfile = "priv/ca.pem"
   connections.connections_per_endpoint = 30

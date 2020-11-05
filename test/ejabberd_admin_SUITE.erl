@@ -3,6 +3,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("jlib.hrl").
 
 -import(ejabberd_helper, [data/2]).
 
@@ -24,21 +25,17 @@ end_per_suite(_Config) ->
 init_per_group(_, Config) ->
     meck:new(ejabberd_auth, [no_link]),
     meck:expect(ejabberd_auth, try_register,
-                fun(<<"existing_user">>, _, _) -> {error, exists};
-                   (<<"null_password_user">>, _, _) -> {error, null_password};
-                   (_, <<"not_allowed_domain">>, _) -> {error, not_allowed};
-                   (<<"invalid_jid_user">>, _, _) -> {error, invalid_jid};
-                   (_, _, _) -> ok
+                fun(#jid{user = <<"existing_user">>}, _) -> {error, exists};
+                   (#jid{user = <<"null_password_user">>}, _) -> {error, null_password};
+                   (#jid{server = <<"not_allowed_domain">>}, _) -> {error, not_allowed};
+                   (#jid{user = <<"invalid_jid_user">>}, _) -> {error, invalid_jid};
+                   (_, _) -> ok
                 end),
-    Config;
-
-init_per_group(_, Config) -> Config.
+    Config.
 
 end_per_group(_, _Config) ->
     meck:unload(ejabberd_auth),
-    ok;
-
-end_per_group(_, _) -> ok.
+    ok.
 
 init_per_testcase(_TestCase, Config) ->
     Config.
@@ -73,7 +70,7 @@ import_users_from_valid_csv_with_quoted_fields(Config) ->
     ?assertEqual([{ok, <<"username,with,commas">>}],
                  Result).
 
-import_from_invalid_csv(Config) ->
+import_from_invalid_csv(_Config) ->
     % given
     NonExistingPath = "",
     % then

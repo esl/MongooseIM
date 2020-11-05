@@ -28,7 +28,7 @@ Following structures are stored in Redis:
 Example: `"user1@example.com/res" -> "dc2.example.com"`.
 * Domains of components and services registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{domains}" -> {"muc1.example.com", "muc2.example.com"}`.
-* Domains of non-hidden components and services (see [`XMPP Components`](../../advanced-configuration/listen/#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
+* Domains of non-hidden components and services (see the [`XMPP Components`](../../advanced-configuration/listen/#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
 * Declared endpoints available on a node are similarly stored in a per-node set structure where the key is `<local_host>#<node_name>#{endpoints}` and the values represent the TCP endpoints of the node.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{endpoints}" -> {"172.16.2.14#8231", "2001:0db8:85a3:0000:0000:8a2e:0370:7334#8882"}`.
 * Nodes that comprise a host are stored in a set structure with key `<local_host>#{nodes}` and values being the names of the nodes.
@@ -127,13 +127,6 @@ XMPP domain that maps uniquely to the local datacenter; it will be used for inte
 
 Number of times a message can be rerouted between datacenters.
 
-#### `modules.mod_global_distrib.bounce`
-* **Syntax:** boolean with only `false` being a valid option
-* **Default:** not set and `bounce` is enabled.
-* **Example:** `bounce = false`
-
-If this option is present and set to false, message bouncing will be disabled. Refer [here](#message-bouncing-options) for more details.
-
 #### `modules.mod_global_distrib.hosts_refresh_interval`
 * **Syntax:** non-negative integer, value given in milliseconds
 * **Default:** `3000`
@@ -189,16 +182,17 @@ Endpoint refresh interval, when array of endpoints is empty.
 An interval between disabled endpoints "garbage collection".
 It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 
-#### `modules.mod_global_distrib.connections.tls`
-* **Syntax:** boolean with only `false` being a valid option
-* **Default:** none, this option is mandatory. Details in the description
-* **Example:** `tls = false`
-
-If this option is present, all data will be sent via standard TCP connections.
-To enable TLS support, refer to [TLS](#tls-options) options.
-
 #### TLS options
-To enable TLS support at least the `cacertfile` and `certfile` options have to be present. These options will be passed to the `fast_tls` driver.
+
+#### `modules.mod_global_distrib.connections.tls.enabled`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `enabled = true`
+
+To enable TLS support the `cacertfile` and `certfile` options have to be present.
+These options will be passed to the `fast_tls` driver.
+
+If `tls` is disabled, all data will be sent via standard TCP connections.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -279,7 +273,14 @@ How long should full and bare JID mappings be cached (e.g. `user1@example.com/re
 The maximum number of JID entries that can be stored in cache at any point in time.
 
 #### Message bouncing options
-Options for message bouncing.
+
+#### `modules.mod_global_distrib.bounce.enabled`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `enabled = false`
+
+Whether message bouncing should be enabled or not.
+Setting this option to `false` makes other `bounce` options have no effect.
 
 #### `modules.mod_global_distrib.bounce.resend_after_ms`
 * **Syntax:** non-negative integer
@@ -308,12 +309,13 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Configuring mod_global_distrib
 
-```
+```toml
 [modules.mod_global_distrib]
   global_host = "example.com"
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
+  connections.tls.enabled = true
   connections.tls.certfile = "priv/dc1.pem"
   connections.tls.cacertfile = "priv/ca.pem"
   connections.connections_per_endpoint = 30
@@ -325,7 +327,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 #### Overriding endpoints to a remote datacenter
 
-``` Erlang
+```Erlang
 { {global_distrib_addr, "datacenter2.example.com"}, [{"124.12.4.3", 5556}, {"182.172.23.55", 5555}] }.
 ```
 
@@ -333,7 +335,7 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
 
 For more information about Dynomite configuration, consult [Dynomite wiki](https://github.com/Netflix/dynomite/wiki).
 
-``` yaml
+```yaml
 dyn_o_mite:
   datacenter: dc1
   rack: rack1
@@ -350,7 +352,7 @@ dyn_o_mite:
   stats_listen: 0.0.0.0:22221
 ```
 
-``` yaml
+```yaml
 dyn_o_mite:
   datacenter: dc2
   rack: rack1
