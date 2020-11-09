@@ -755,7 +755,7 @@ ciphers_working_with_ssl_clients(Config) ->
 openssl_client_can_use_cipher(Cipher, Port) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
-          " -cipher " "\"" ++ Cipher ++ "\" 2>&1",
+          " -cipher " "\"" ++ Cipher ++ "\" -tls1_2 2>&1",
     {done, ReturnCode, _Result} = erlsh:oneliner(Cmd),
     0 == ReturnCode.
 
