@@ -142,6 +142,8 @@ parse_row([], []) ->
 -spec field_name_to_mapper(ServerType :: atom(),
                            TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
+field_name_to_mapper(ServerType, TableDesc, <<"limit">>) ->
+    fun(P) -> {integer_to_binary(P), []} end;
 field_name_to_mapper(ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
@@ -218,11 +220,15 @@ escape_text_or_integer(_ServerType, P) when is_integer(P) ->
 escape_text_or_integer(ServerType, P) ->
     escape_text(ServerType, P).
 
--spec escape_text(ServerType :: atom(), binary()) -> iodata().
+-spec escape_text(ServerType :: atom(), iolist()) -> iodata().
 escape_text(pgsql, Bin) ->
     escape_pgsql_string(Bin);
 escape_text(mssql, Bin) ->
-    Utf16 = unicode_characters_to_binary(Bin, utf8, {utf16, little}),
+    %% Some code passes strings as iolists (i.e. lists of bytes).
+    %% If we just pass integers to unicode module, it would treat them as
+    %% codepoints (i.e. with values above 255).
+    %% We need to first cast our utf8 iolist into a binary.
+    Utf16 = unicode_characters_to_binary(iolist_to_binary(Bin), utf8, {utf16, little}),
     [<<"CAST(0x">>, base16:encode(Utf16), <<" AS NVARCHAR(max))">>];
 escape_text(ServerType, Bin) ->
     escape_binary(ServerType, Bin).

@@ -75,7 +75,8 @@ rw_tests() ->
     [
      update_own_card,
      cant_update_own_card_with_invalid_field,
-     can_update_own_card_with_emoji_in_nickname
+     can_update_own_card_with_emoji_in_nickname,
+     can_update_own_card_with_unicode_in_address
     ].
 
 ro_full_search_tests() ->
@@ -230,6 +231,22 @@ can_update_own_card_with_emoji_in_nickname(Config) ->
                 Client1GetResultStanza
                     = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
                 NickWithEmoji = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"NICKNAME">>)
+        end).
+
+can_update_own_card_with_unicode_in_address(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Client1) ->
+                Locality = get_utf8_city(),
+                Client1Fields = [{<<"ADDR">>, [{<<"LOCALITY">>, get_utf8_city()}]}],
+                Client1SetResultStanza
+                    = escalus:send_and_wait(Client1,
+                                            escalus_stanza:vcard_update(Client1Fields)),
+                escalus:assert(is_iq_result, Client1SetResultStanza),
+                Client1GetResultStanza
+                    = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
+                Addr = stanza_get_vcard_field(Client1GetResultStanza, <<"ADDR">>),
+                Locality = ?EL_CD(Addr, <<"LOCALITY">>)
         end).
 
 retrieve_own_card(Config) ->
@@ -415,8 +432,11 @@ search_some(Config) ->
               Domain = ct:get_config({hosts, mim, domain}),
               AliceJID = <<"alice@", Domain/binary>>,
 
-              [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
+              %% Extra check
+              Result = escalus:send_and_wait(Client, escalus_stanza:vcard_request(AliceJID)),
+              ct:pal("Result ~p", [Result]),
 
+              [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
               {_, _, <<"City">>, MoscowRUBin} = lists:keyfind(<<"City">>, 3, ItemTups)
       end).
 
@@ -970,12 +990,7 @@ expected_search_results(Key, Config) ->
 
 prepare_vcards(Config) ->
     AllVCards = ?config(all_vcards, Config),
-    ModVcardBackend = case lists:keyfind(backend, 1, ?config(mod_vcard, Config)) of
-                          {backend, Backend} ->
-                              Backend;
-                          _ ->
-                              mnesia
-                      end,
+    ModVcardBackend = get_backend(Config),
     lists:foreach(
         fun({JID, Fields}) ->
                 case binary:match(JID, <<"@">>) of
@@ -987,6 +1002,14 @@ prepare_vcards(Config) ->
         end, AllVCards),
     timer:sleep(timer:seconds(3)), %give some time to Yokozuna to index vcards
     Config.
+
+get_backend(Config) ->
+    case lists:keyfind(backend, 1, ?config(mod_vcard, Config)) of
+        {backend, Backend} ->
+            Backend;
+        _ ->
+            mnesia
+    end.
 
 prepare_vcard(ldap, JID, Fields) ->
     [User, Server] = binary:split(JID, <<"@">>),

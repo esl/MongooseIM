@@ -41,6 +41,7 @@ rdbms_queries_cases() ->
      read_int32_case,
      read_int64_case,
      read_unicode_case,
+     read_unicode250_case,
      read_ascii_char_case,
      read_ascii_string_case,
      read_binary_8k_case,
@@ -52,6 +53,7 @@ rdbms_queries_cases() ->
      read_prep_int32_case,
      read_prep_int64_case,
      read_prep_unicode_case,
+     read_prep_unicode250_case,
      read_prep_ascii_char_case,
      read_prep_ascii_string_case,
      read_prep_binary_8k_case,
@@ -60,7 +62,8 @@ rdbms_queries_cases() ->
      read_prep_enum_char_case,
      read_prep_boolean_case,
 
-     select_like_case].
+     select_like_case,
+     select_like_prep_case].
 
 suite() ->
     escalus:suite().
@@ -177,7 +180,10 @@ enum_char_values() ->
 like_texts() ->
     [#{text => <<"hello user!">>,
        not_matching => [<<"hi">>, <<"help">>],
-       matching => [<<"hello">>, <<"user">>, <<"hell">>]}
+       matching => [<<"hello">>, <<"user">>, <<"hell">>]},
+     #{text => <<60,79,67,32,59,48,63,58,48>>,
+       not_matching => [<<62,66,64,48,65,66,53,66>>],
+       matching => [<<60,79,67>>]}
     ].
 
 %%--------------------------------------------------------------------
@@ -208,6 +214,9 @@ read_int64_case(Config) ->
 
 read_unicode_case(Config) ->
     [check_unicode(Config, Value) || Value <- unicode_values()].
+
+read_unicode250_case(Config) ->
+    [check_unicode250(Config, Value) || Value <- unicode_values(), byte_size(Value) < 250].
 
 read_ascii_char_case(Config) ->
     [check_ascii_char(Config, Value) || Value <- ascii_char_values()].
@@ -245,6 +254,9 @@ read_prep_int64_case(Config) ->
 
 read_prep_unicode_case(Config) ->
     [check_prep_unicode(Config, Value) || Value <- unicode_values()].
+
+read_prep_unicode250_case(Config) ->
+    [check_prep_unicode250(Config, Value) || Value <- unicode_values(), byte_size(Value) < 250].
 
 read_prep_ascii_char_case(Config) ->
     [check_prep_ascii_char(Config, Value) || Value <- ascii_char_values()].
@@ -290,6 +302,9 @@ safe_binary(Len, Bin) when is_binary(Bin), is_integer(Len) ->
 
 select_like_case(Config) ->
     [check_like(Config, TextMap) || TextMap <- like_texts()].
+
+select_like_prep_case(Config) ->
+    [check_like_prep(Config, TextMap) || TextMap <- like_texts()].
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -371,18 +386,25 @@ value_to_binary(Value) when is_integer(Value) ->
 value_to_binary(Value) ->
     Value.
 
-check_unicode(Config, Value) when is_binary(Value) ->
+check_unicode250(Config, Value) ->
+    check_unicode_generic(Config, Value, <<"unicode250">>).
+
+check_unicode(Config, Value) ->
+    check_unicode_generic(Config, Value, <<"unicode">>).
+
+check_unicode_generic(Config, Value, Column) when is_binary(Value) ->
     SValue = escape_string(Config, Value),
     EraseResult = erase_table(Config),
-    InsertQuery = ["INSERT INTO test_types (unicode) "
+    InsertQuery = ["INSERT INTO test_types (", Column, ") "
                         "VALUES (", use_escaped(Config, SValue), ")"],
-    SelectQuery = <<"SELECT unicode FROM test_types">>,
+    SelectQuery = <<"SELECT ", Column/binary, " FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
     SelectResult = sql_query(Config, SelectQuery),
     %% Compare as binaries
     ?assert_equal_extra({selected, [{Value}]},
                         SelectResult,
-                        #{erase_result => EraseResult,
+                        #{column => Column,
+                          erase_result => EraseResult,
                           expected_length => byte_size(Value),
                           selected_length => maybe_selected_length(Config, SelectResult),
                           compare_selected => compare_selected(Config, SelectResult, Value),
@@ -544,6 +566,9 @@ check_prep_int64(Config, Value) ->
 check_prep_unicode(Config, Value) ->
     check_generic_prep(Config, Value, <<"unicode">>).
 
+check_prep_unicode250(Config, Value) ->
+    check_generic_prep(Config, Value, <<"unicode250">>).
+
 %% Char is ascii string of length one
 check_prep_ascii_char(Config, Value) ->
     check_generic_prep(Config, Value, <<"unicode">>).
@@ -588,6 +613,7 @@ check_generic_prep(Config, Value, Column) ->
     check_generic_prep(Config, Value, Column, to_binary).
 
 check_generic_prep(Config, Value, Column, TransformResult) ->
+    ct:log("Check value=~p", [Value]),
     EraseResult = erase_table(Config),
 
     InsertQuery = <<"INSERT INTO test_types (", Column/binary, ") "
@@ -611,7 +637,14 @@ check_generic_prep(Config, Value, Column, TransformResult) ->
                           select_query => SelectQuery,
                           select_result => SelectResult,
                           insert_result => InsertResult}),
-    check_generic_filtered_prep(Config, Value, Column, TransformResult).
+    check_generic_filtered_prep(Config, Value, Column, TransformResult),
+    case is_odbc() of
+        true ->
+            %% TOP is mssql feature, all other databases use LIMIT.
+            check_generic_filtered_top_prep(Config, Value, Column, TransformResult);
+        false ->
+            ok
+    end.
 
 %% We want to ensure that variable substitution works in SELECTS too.
 %% We also want to check the result value is encoded correctly.
@@ -632,6 +665,26 @@ check_generic_filtered_prep(Config, Value, Column, TransformResult) ->
                           prepare_result => PrepareResult,
                           select_query => SelectQuery,
                           select_result => SelectResult}).
+
+check_generic_filtered_top_prep(Config, Value, Column, TransformResult) ->
+    SelectQuery = <<"SELECT TOP ? ", Column/binary,
+            " FROM test_types WHERE ", Column/binary, " = ?">>,
+    Name = list_to_atom("select_filtered_top_" ++ binary_to_list(Column)),
+    Table = test_types,
+    Fields = [limit, binary_to_atom(Column, utf8)],
+    PrepareResult = sql_prepare(Config, Name, Table, Fields, SelectQuery),
+    Parameters = [30, Value],
+    SelectResult = sql_execute(Config, Name, Parameters),
+    %% Compare as binaries
+    ?assert_equal_extra({selected, [{value_to_binary(Value)}]},
+                        transform_selected(TransformResult, Config, SelectResult),
+                        #{column => Column,
+                          test_value => Value,
+                          prepare_result => PrepareResult,
+                          select_query => SelectQuery,
+                          select_result => SelectResult}).
+
+
 
 transform_selected(to_binary, _Config, SelectResult) ->
     selected_to_binary(SelectResult);
@@ -712,3 +765,48 @@ slow_rpc(M, F, A) ->
         _ ->
             Res
     end.
+
+
+
+check_like_prep(Config, TextMap = #{text := TextValue,
+                               matching := MatchingList,
+                               not_matching := NotMatchingList}) ->
+    EraseResult = erase_table(Config),
+    Name = insert_unicode_prep,
+    SelName = select_unicode_prep,
+    Table = test_types,
+    Fields = [<<"unicode">>],
+    InsertQuery = <<"INSERT INTO test_types (unicode) VALUES (?)">>,
+    SelectQuery = <<"SELECT unicode FROM test_types WHERE unicode LIKE ?">>,
+    PrepareResult = sql_prepare(Config, Name, Table, Fields, InsertQuery),
+    PrepareSelResult = sql_prepare(Config, SelName, Table, Fields, SelectQuery),
+    Parameters = [TextValue],
+    InsertResult = sql_execute(Config, Name, Parameters),
+    Info = #{erase_result => EraseResult,
+             insert_query => InsertQuery,
+             prepare_result => PrepareResult,
+             insert_result => InsertResult,
+             prepare_select_result => PrepareSelResult,
+             text_map => TextMap},
+    [check_like_matching_prep(SelName, Config, TextValue, Matching, Info)
+     || Matching <- MatchingList],
+    [check_like_not_matching_prep(SelName, Config, TextValue, NotMatching, Info)
+     || NotMatching <- NotMatchingList].
+
+check_like_matching_prep(SelName, Config, TextValue, Matching, Info) ->
+    Parameters = [<<"%", Matching/binary, "%">>],
+    SelectResult = sql_execute(Config, SelName, Parameters),
+    %% Compare as binaries
+    ?assert_equal_extra({selected, [{TextValue}]},
+                        SelectResult,
+                        Info#{pattern => Matching,
+                              select_result => SelectResult}).
+
+check_like_not_matching_prep(SelName, Config, TextValue, NotMatching, Info) ->
+    Parameters = [<<"%", NotMatching/binary, "%">>],
+    SelectResult = sql_execute(Config, SelName, Parameters),
+    %% Compare as binaries
+    ?assert_equal_extra({selected, []},
+                        SelectResult,
+                        Info#{pattern => NotMatching,
+                              select_result => SelectResult}).
