@@ -46,13 +46,21 @@ app_opts() ->
      {"odbc",          ["eodbc"],           "include alternative version of ODBC driver"},
      {"pgsql",         ["epgsql"],          include_driver("pgsql")},
      {"redis",         ["eredis"],            include_driver("redis")},
-     {"riak",          ["riakc"],           include_driver("riak")},
-     {"jingle-sip",    ["nksip"],           include_driver("nksip")},
+     {"riak",          ["riakc"],           riakc_apps()},
+     {"jingle-sip",    ["nksip"],           nksip_apps()},
      {"cassandra",     ["cqerl"],           include_driver("cassandra")},
      {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
      {"aws",           ["erlcloud"],        "include support for AWS services"},
-     {"amqp_client",   ["amqp_client"],     "include AMQP client"},
+     {"amqp_client",   ["amqp_client"],     amqp_apps()},
      {"templates",     ["eini", "bbmustache"], "include applications for templating"}].
+
+%% All deps should be specified, so {optional_app, load} is set for all of them,
+%% not just main application.
+%% If not specified here, MIM would still work, just an optional application,
+%% not specified here, would be started.
+riakc_apps() -> ["riakc", "riak_pb"].
+nksip_apps() -> ["nksip", "nklib", "nkservice", "nkpacket"].
+amqp_apps()  -> ["amqp_client", "rabbit_common"].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
