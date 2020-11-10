@@ -69,8 +69,8 @@ User access rules are configured mainly in the [`acl`](acl.md) and [`access`](ac
 ## `general.mongooseimctl_access_commands`
 * **Scope:** local
 * **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
-    * `commands`: mandatory, a list of strings representing the allowed commands, or the string `"all"`
-    * `argument_restrictions`: optional, a table whose keys are the argument names and the values are strings representing the allowed values
+    * `commands`: optional, a list of strings representing the allowed commands. When not specified, all commands are allowed.
+    * `argument_restrictions`: optional, a table whose keys are the argument names and the values are strings representing the allowed values. When not specified, there are no restrictions.
 * **Default:** not set
 
 By default all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for a specific access rule. When the rule returns the value `"allow"`, the user is permitted to use the specified commands with the optional restrictions.
@@ -79,7 +79,6 @@ By default all admin operations are permitted with the `mongooseimctl` command w
 
 ```
   [general.mongooseimctl_access_commands.admin]
-    commands = "all"
 ```
 
 The `admin` rule needs to be defined in the `access` section.
