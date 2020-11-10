@@ -38,7 +38,7 @@ all: mongooseim/cert.pem mongooseim/key.pem \
 # So, let's remove the option for now.
 # https://bugs.launchpad.net/ubuntu/+source/openldap/+bug/1724285
 %/dh_server.pem:
-	openssl dhparam -outform PEM -out $@ 1024
+	openssl dhparam -outform PEM -out $@ 2048
 
 %/index.txt:
 	mkdir -p $(@D)
