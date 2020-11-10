@@ -1,6 +1,8 @@
 -module(mongoose_config_validator_toml).
 
--export([validate/2]).
+-export([validate/2,
+         validate/3]).
+-compile(export_all).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -13,59 +15,6 @@
           any().
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
-
-%% general
-validate([<<"loglevel">>, <<"general">>],
-         [#local_config{value = Val}]) -> validate_loglevel(Val);
-validate([item, <<"hosts">>, <<"general">>],
-         [Value]) ->
-    validate_non_empty_binary(Value);
-validate([<<"hosts">>, <<"general">>],
-         [#config{value = Val}]) ->
-    validate_hosts(Val);
-validate([<<"registration_timeout">>, <<"general">>],
-         [#local_config{value = Val}]) ->
-    validate_timeout(Val);
-validate([<<"language">>, <<"general">>],
-         [#config{value = Value}]) ->
-    validate_non_empty_binary(Value);
-validate([<<"all_metrics_are_global">>, <<"general">>],
-         [#local_config{value = Val}]) ->
-    validate_boolean(Val);
-validate([<<"sm_backend">>, <<"general">>],
-         [#config{value = {Backend, []}}]) ->
-    validate_module(list_to_atom("ejabberd_sm_" ++ atom_to_list(Backend)));
-validate([<<"max_fsm_queue">>, <<"general">>],
-         [#local_config{value = Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"rdbms_server_type">>, <<"general">>],
-         [#local_config{value = Value}]) ->
-    validate_enum(Value, [mssql, pgsql]);
-validate([item, <<"override">>, <<"general">>],
-         [{override, Value}]) ->
-    validate_enum(Value, [local, global, acls]);
-validate([<<"override">>, <<"general">>],
-         Items) ->
-    validate_unique_items(Items);
-validate([<<"pgsql_users_number_estimate">>, <<"general">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_boolean(Value);
-validate([<<"route_subdomains">>, <<"general">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_enum(Value, [s2s]);
-validate([item, <<"routing_modules">>, <<"general">>],
-         [Value]) ->
-    validate_module(Value);
-validate([<<"replaced_wait_timeout">>, <<"general">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_positive_integer(Value);
-validate([<<"hide_service_name">>, <<"general">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_boolean(Value);
 
 %% listen
 validate([item, _Type, <<"listen">>],
@@ -1578,6 +1527,27 @@ validate([<<"timeout_action">>, <<"mod_ping">>, <<"modules">>|_],
 validate(_Path, _Value) ->
     ok.
 
+validate(V, boolean, any) -> validate_boolean(V);
+validate(V, binary, domain) -> validate_binary_domain(V);
+validate(V, binary, non_empty) -> validate_non_empty_binary(V);
+validate(V, integer, positive) -> validate_positive_integer(V);
+validate(V, int_or_infinity, timeout) -> validate_timeout(V);
+validate(V, string, url) -> validate_url(V);
+validate(V, string, non_empty) -> validate_non_empty_string(V);
+validate(V, atom, module) -> validate_module(V);
+validate(V, atom, {module, Prefix}) ->
+    validate_module(list_to_atom(atom_to_list(Prefix) ++ atom_to_list(V)));
+validate(V, atom, loglevel) -> validate_loglevel(V);
+validate(V, _, {enum, Values}) -> validate_enum(V, Values);
+validate(_V, _, any) -> ok.
+
+validate_list([_|_], non_empty) -> ok;
+validate_list(L = [_|_], unique_non_empty) ->
+    validate_unique_items(L);
+validate_list(L, any) when is_list(L) -> ok.
+
+validate_section([_|_], non_empty) -> ok;
+validate_section(L, any) when is_list(L) -> ok.
 
 %% validators
 

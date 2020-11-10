@@ -118,64 +118,6 @@ process_section([<<"host_config">>] = Path, Content) ->
 process_section(Path, Content) ->
     parse_section(Path, Content).
 
-%% path: (host_config[].)general.*
--spec process_general(path(), toml_value()) -> [config()].
-process_general([<<"loglevel">>|_], V) ->
-    [#local_config{key = loglevel, value = b2a(V)}];
-process_general([<<"hosts">>|_] = Path, Hosts) ->
-    [#config{key = hosts, value = parse_list(Path, Hosts)}];
-process_general([<<"registration_timeout">>|_], V) ->
-    [#local_config{key = registration_timeout, value = int_or_infinity(V)}];
-process_general([<<"language">>|_], V) ->
-    [#config{key = language, value = V}];
-process_general([<<"all_metrics_are_global">>|_], V) ->
-    [#local_config{key = all_metrics_are_global, value = V}];
-process_general([<<"sm_backend">>|_], V) ->
-    [#config{key = sm_backend, value = {b2a(V), []}}];
-process_general([<<"max_fsm_queue">>|_], V) ->
-    [#local_config{key = max_fsm_queue, value = V}];
-process_general([<<"http_server_name">>|_], V) ->
-    [#local_config{key = cowboy_server_name, value = b2l(V)}];
-process_general([<<"rdbms_server_type">>|_], V) ->
-    [#local_config{key = rdbms_server_type, value = b2a(V)}];
-process_general([<<"override">>|_] = Path, Value) ->
-    parse_list(Path, Value);
-process_general([<<"pgsql_users_number_estimate">>|_], V) ->
-    ?HOST_F([#local_config{key = {pgsql_users_number_estimate, Host}, value = V}]);
-process_general([<<"route_subdomains">>|_], V) ->
-    ?HOST_F([#local_config{key = {route_subdomains, Host}, value = b2a(V)}]);
-process_general([<<"mongooseimctl_access_commands">>|_] = Path, Rules) ->
-    [#local_config{key = mongooseimctl_access_commands, value = parse_section(Path, Rules)}];
-process_general([<<"routing_modules">>|_] = Path, Mods) ->
-    [#local_config{key = routing_modules, value = parse_list(Path, Mods)}];
-process_general([<<"replaced_wait_timeout">>|_], V) ->
-    ?HOST_F([#local_config{key = {replaced_wait_timeout, Host}, value = V}]);
-process_general([<<"hide_service_name">>|_], V) ->
-    ?HOST_F([#local_config{key = {hide_service_name, Host}, value = V}]).
-
--spec process_host(path(), toml_value()) -> [option()].
-process_host(_Path, Val) ->
-    [jid:nodeprep(Val)].
-
--spec process_override(path(), toml_value()) -> [option()].
-process_override(_Path, Override) ->
-    [{override, b2a(Override)}].
-
--spec ctl_access_rule(path(), toml_section()) -> [option()].
-ctl_access_rule([Rule|_] = Path, Section) ->
-    limit_keys([<<"commands">>, <<"argument_restrictions">>], Section),
-    [{b2a(Rule),
-      parse_kv(Path, <<"commands">>, Section),
-      parse_kv(Path, <<"argument_restrictions">>, Section, #{})}].
-
--spec ctl_access_commands(path(), toml_value()) -> option().
-ctl_access_commands(_Path, <<"all">>) -> all;
-ctl_access_commands(Path, Commands) -> parse_list(Path, Commands).
-
--spec ctl_access_arg_restriction(path(), toml_value()) -> [option()].
-ctl_access_arg_restriction([Key|_], Value) ->
-    [{b2a(Key), b2l(Value)}].
-
 %% path: listen.*[]
 -spec process_listener(path(), toml_section()) -> [option()].
 process_listener([_, Type|_] = Path, Content) ->
@@ -1760,16 +1702,110 @@ handle(Path, Value) ->
                         Error;
                    (StepName, AccIn) ->
                         try_call(handle_step(StepName, AccIn), StepName, Path, Value)
-                end, Path, [handle, parse, validate]).
+                end, Path, [handle, parse, validate, process, format]).
 
 handle_step(handle, _) ->
     fun(Path, _Value) -> handler(Path) end;
+handle_step(parse, Spec) when is_tuple(Spec) ->
+    fun(Path, Value) ->
+            ParsedValue = case Spec of
+                              #section{} when is_map(Value) ->
+                                  parse_section(Path, Value);
+                              #list{} when is_list(Value) ->
+                                  parse_list(Path, Value);
+                              #option{type = Type} when not is_list(Value), not is_map(Value) ->
+                                  convert(Value, Type)
+                          end,
+            case extract_errors(ParsedValue) of
+                [] -> {ParsedValue, Spec};
+                Errors -> Errors
+            end
+    end;
 handle_step(parse, Handler) ->
     Handler;
+handle_step(validate, {ParsedValue, Spec}) ->
+    fun(_Path, _Value) ->
+            validate(ParsedValue, Spec),
+            {ParsedValue, Spec}
+    end;
 handle_step(validate, ParsedValue) ->
     fun(Path, _Value) ->
             mongoose_config_validator_toml:validate(Path, ParsedValue),
             ParsedValue
+    end;
+handle_step(process, {ParsedValue, Spec}) ->
+    fun(_Path, _Value) ->
+            {process_value(ParsedValue, Spec), Spec}
+    end;
+handle_step(process, V) ->
+    fun(_, _) -> V end;
+handle_step(format, {ParsedValue, Spec}) ->
+    fun(Path, _Value) ->
+            format(Path, ParsedValue, format_spec(Spec))
+    end;
+handle_step(format, V) ->
+    fun(_, _) -> V end.
+
+validate(Value, #section{validate = Validator}) ->
+    mongoose_config_validator_toml:validate_section(Value, Validator);
+validate(Value, #list{validate = Validator}) ->
+    mongoose_config_validator_toml:validate_list(Value, Validator);
+validate(Value, #option{type = Type, validate = Validator}) ->
+    mongoose_config_validator_toml:validate(Value, Type, Validator).
+
+process_value(V, #section{process = undefined}) -> V;
+process_value(V, #list{process = undefined}) -> V;
+process_value(V, #option{process = undefined}) -> V;
+process_value(V, #section{process = Process}) -> Process(V);
+process_value(V, #list{process = Process}) -> Process(V);
+process_value(V, #option{process = Process}) -> Process(V).
+
+convert(V, boolean) -> V;
+convert(V, binary) -> V;
+convert(V, string) -> binary_to_list(V);
+convert(V, atom) -> b2a(V);
+convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
+convert(V, int_or_infinity) -> V;
+convert(V, integer) -> V.
+
+format_spec(#section{format = Format}) -> Format;
+format_spec(#list{format = Format}) -> Format;
+format_spec(#option{format = Format}) -> Format.
+
+format([Key|_] = Path, V, host_local_config) ->
+    format(Path, V, {host_local_config, b2a(Key)});
+format([Key|_] = Path, V, local_config) ->
+    format(Path, V, {local_config, b2a(Key)});
+format([Key|_] = Path, V, config) ->
+    format(Path, V, {config, b2a(Key)});
+format(Path, V, {host_local_config, Key}) ->
+    case get_host(Path) of
+        global -> ?HOST_F([#local_config{key = {Key, Host}, value = V}]);
+        Host -> [#local_config{key = {Key, Host}, value = V}]
+    end;
+format(Path, V, {local_config, Key}) ->
+    global = get_host(Path),
+    [#local_config{key = Key, value = V}];
+format(Path, V, {config, Key}) ->
+    global = get_host(Path),
+    [#config{key = Key, value = V}];
+format(Path, V, override) ->
+    global = get_host(Path),
+    [{override, V}];
+format([item|_], V, default) ->
+    [V];
+format([Key|_], V, default) ->
+    [{b2a(Key), V}];
+format([Key|_], V, prepend_key) ->
+    L = [b2a(Key) | tuple_to_list(V)],
+    [list_to_tuple(L)];
+format(_Path, V, none) ->
+    V.
+
+get_host(Path) ->
+    case lists:reverse(Path) of
+        [<<"host_config">>, {host, Host} | _] -> Host;
+        _ -> global
     end.
 
 -spec try_call(fun((path(), any()) -> option()), atom(), path(), toml_value()) -> option().
@@ -1790,7 +1826,9 @@ try_call(F, StepName, Path, Value) ->
 -spec error_text(atom()) -> string().
 error_text(handle) -> "Unexpected option in the TOML configuration file";
 error_text(parse) -> "Malformed option in the TOML configuration file";
-error_text(validate) -> "Incorrect option value in the TOML configuration file".
+error_text(validate) -> "Incorrect option value in the TOML configuration file";
+error_text(process) -> "Unable to process a value the TOML configuration file";
+error_text(format) -> "Unable to format an option in the TOML configuration file".
 
 -spec error_fields(any()) -> map().
 error_fields(#{what := Reason} = M) -> maps:remove(what, M#{reason => Reason});
@@ -1806,25 +1844,10 @@ node_to_string({host, _}) -> [];
 node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
 
--spec handler(path()) -> fun((path(), toml_value()) -> option()).
+-spec handler(path()) ->
+          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
 handler([_]) -> fun process_section/2;
-
-%% general
-handler([_, <<"general">>]) -> fun process_general/2;
-handler([_, <<"hosts">>, <<"general">>]) -> fun process_host/2;
-handler([_, <<"override">>, <<"general">>]) -> fun process_override/2;
-handler([_, <<"mongooseimctl_access_commands">>, <<"general">>]) -> fun ctl_access_rule/2;
-handler([<<"commands">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
-    fun ctl_access_commands/2;
-handler([_, <<"commands">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
-    fun(_, Val) -> [b2l(Val)] end;
-handler([<<"argument_restrictions">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
-    fun parse_section/2;
-handler([_, <<"argument_restrictions">>, _, <<"mongooseimctl_access_commands">>, <<"general">>]) ->
-    fun ctl_access_arg_restriction/2;
-handler([_, <<"routing_modules">>, <<"general">>]) ->
-    fun(_, Val) -> [b2a(Val)] end;
 
 %% listen
 handler([_, <<"listen">>]) -> fun parse_list/2;
@@ -2056,18 +2079,29 @@ handler([_, _, <<"host_config">>]) -> fun process_section/2;
 handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
-    [<<"host_config">>, {host, _} | Rest] = lists:reverse(Path),
-    handler(lists:reverse(Rest)).
+    subtree_handler(initial, lists:reverse(Path)).
+
+subtree_handler(initial, [<<"host_config">>, {host, _} | Subtree]) ->
+    subtree_handler(subtree, Subtree);
+subtree_handler(_, [<<"general">>|_] = Path) ->
+    mongoose_config_spec:handler(Path);
+subtree_handler(subtree, Subtree) ->
+    handler(lists:reverse(Subtree)).
 
 %% 1. Strip host_config, choose the handler for the remaining path
 %% 2. Wrap the handler in a fun that calls the resulting function F for the current host
--spec handler_for_host(path()) -> fun((path(), toml_value()) -> option()).
+-spec handler_for_host(path()) ->
+          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler_for_host(Path) ->
     [<<"host_config">>, {host, Host} | Rest] = lists:reverse(Path),
-    Handler = handler(lists:reverse(Rest)),
-    fun(PathArg, ValueArg) ->
-            ConfigFunctions = Handler(PathArg, ValueArg),
-            lists:flatmap(fun(F) -> F(Host) end, ConfigFunctions)
+    case handler(lists:reverse(Rest)) of
+        Handler when is_function(Handler) ->
+            fun(PathArg, ValueArg) ->
+                    ConfigFunctions = Handler(PathArg, ValueArg),
+                    lists:flatmap(fun(F) -> F(Host) end, ConfigFunctions)
+            end;
+        Spec ->
+            Spec
     end.
 
 -spec key(toml_key(), path(), toml_value()) -> tuple() | toml_key().

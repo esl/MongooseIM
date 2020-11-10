@@ -312,18 +312,26 @@ mongooseimctl_access_commands(_Config) ->
         parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
                                        #{<<"local">> => AccessRule}}})),
     ?eq([#local_config{key = mongooseimctl_access_commands,
-                       value = [{local, all, []}]
+                       value = [{local, all, [{node, "mim1@host1"}]}]
                       }],
         parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                       #{<<"local">> => #{<<"commands">> => <<"all">>}}}})),
-    ?err(parse(#{<<"general">> =>
-                     #{<<"mongooseimctl_access_commands">> =>
-                           #{<<"local">> => #{<<"argument_restrictions">> =>
-                                                  #{<<"node">> => <<"mim1@host1">>}}}
-                      }})),
+                                       #{<<"local">> => maps:remove(<<"commands">>,
+                                                                    AccessRule)}}})),
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, ["join_cluster"], []}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                       #{<<"local">> => maps:remove(<<"argument_restrictions">>,
+                                                                    AccessRule)}}})),
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, all, []}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> => #{<<"local">> => #{}}}})),
     ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                        #{<<"local">> => #{<<"commands">> => <<"none">>}}
-                                   }})).
+                                        #{<<"local">> => #{<<"commands">> => <<"all">>}}}})),
+    ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                        #{<<"local">> => #{<<"argument_restrictions">> =>
+                                                               [<<"none">>]}}}})).
 
 routing_modules(_Config) ->
     ?eq([#local_config{key = routing_modules, value = [mongoose_router_global,
@@ -3025,10 +3033,12 @@ test_config_file(Config, File) ->
     %% Save the parsed TOML options
     %% - for debugging
     %% - to update tests after a config change - always check the diff!
-    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- TOMLOpts],
-    file:write_file(OptionsPath ++ "-parsed", lists:sort(FormattedOpts)),
-
+    save_opts(OptionsPath ++ ".parsed", TOMLOpts),
     compare_config(ExpectedOpts, TOMLOpts).
+
+save_opts(Path, Opts) ->
+    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- lists:sort(Opts)],
+    file:write_file(Path, FormattedOpts).
 
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
