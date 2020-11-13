@@ -42,9 +42,7 @@ parse_file(FileName) ->
             process(Content);
         {error, Error} ->
             Text = tomerl:format_error(Error),
-            ?LOG_ERROR(#{what => toml_parsing_failed,
-                         text => Text}),
-            mongoose_config_utils:exit_or_halt("Could not load the TOML configuration file")
+            error(config_error([#{what => toml_parsing_failed, text => Text}]))
     end.
 
 -spec process(toml_section()) -> mongoose_config_parser:state().
@@ -60,10 +58,12 @@ process(Content) ->
     case extract_errors(AllOpts) of
         [] ->
             build_state(Hosts, AllOpts, Overrides);
-        [#{text := Text}|_] = Errors ->
-            [?LOG_ERROR(Error) || Error <- Errors],
-            mongoose_config_utils:exit_or_halt(Text)
+        Errors ->
+            error(config_error(Errors))
     end.
+
+config_error(Errors) ->
+    {config_error, "Could not read the TOML configuration file", Errors}.
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
