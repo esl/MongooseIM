@@ -77,16 +77,15 @@ query(Connection, Query, Timeout) ->
                      {ok, {[binary()], [fun((term()) -> tuple())]}}.
 prepare(Connection, _Name, Table, Fields, Statement) ->
     {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
-    SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
     ServerType = server_type(),
     ParamMappers = [field_name_to_mapper(ServerType, TableDesc, Field) || Field <- Fields],
-    {ok, {SplitQuery, ParamMappers}}.
+    {ok, {iolist_to_binary(Statement), ParamMappers}}.
 
--spec execute(Connection :: term(), Statement :: {[binary()], [fun((term()) -> tuple())]},
+-spec execute(Connection :: term(), Statement :: {binary(), [fun((term()) -> tuple())]},
               Params :: [term()], Timeout :: infinity | non_neg_integer()) ->
                      mongoose_rdbms:query_result().
-execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
-    {Query, ODBCParams} = unsplit_query(SplitQuery, ParamMapper, Params),
+execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
+    ODBCParams = map_params(Params, ParamMapper),
     ?LOG_ERROR(#{
        what => odbc_execute,
        odbc_query => Query,
@@ -161,22 +160,22 @@ field_name_to_mapper(ServerType, TableDesc, FieldName) ->
         bigint ->
             fun(P) -> bigint_mapper(P) end;
         _ ->
-            fun(P) -> {<<"?">>, [{ODBCType, [P]}]} end
+            fun(P) -> [{ODBCType, [P]}] end
     end.
 
 unicode_mapper(P) ->
     Utf16 = unicode_characters_to_binary(iolist_to_binary(P), utf8, {utf16, little}),
     Len = byte_size(Utf16) div 2,
-    {<<"?">>, [{{sql_wlongvarchar, Len}, [Utf16]}]}.
+    [{{sql_wlongvarchar, Len}, [Utf16]}].
 
 bigint_mapper(P) ->
     B = integer_to_binary(P),
     Type = {'sql_varchar', byte_size(B)},
-    {<<"?">>, [{Type, [B]}]}.
+    [{Type, [B]}].
 
 binary_mapper(P) ->
     Type = {'sql_longvarbinary', byte_size(P)},
-    {<<"?">>, [{Type, [P]}]}.
+    [{Type, [P]}].
 
 
 simple_type('SQL_BINARY')           -> binary;
@@ -194,29 +193,13 @@ just_type({Type, _Len}) ->
 just_type(Type) ->
     Type.
 
--spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: [fun((term()) -> tuple())],
-                    Params :: [term()]) -> {Query :: string(), ODBCParams :: [tuple()]}.
-unsplit_query(SplitQuery, ParamMappers, Params) ->
-    unsplit_query(SplitQuery, queue:from_list(ParamMappers), Params, [], []).
+map_params([Param|Params], [Mapper|Mappers]) ->
+    [maybe_null(Param, Mapper)|map_params(Params, Mappers)];
+map_params([], []) ->
+    [].
 
--spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: queue:queue(fun((term()) -> tuple())),
-                    Params :: [term()], QueryAcc :: [binary()], ParamsAcc :: [tuple()]) ->
-                           {Query :: string(), ODBCParams :: [tuple()]}.
-unsplit_query([QueryHead], _ParamMappers, [], QueryAcc, ParamsAcc) ->
-    %% Make a list of bytes
-    Query = binary_to_list(iolist_to_binary(lists:reverse([QueryHead | QueryAcc]))),
-    Params = lists:reverse(ParamsAcc),
-    {Query, Params};
-unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc, ParamsAcc) ->
-    {{value, Mapper}, ParamMappersTail} = queue:out(ParamMappers),
-    NextParamMappers = queue:in(Mapper, ParamMappersTail),
-    {InlineQuery, ODBCParam} = maybe_null(Param, Mapper),
-    NewQueryAcc = [InlineQuery, QueryHead | QueryAcc],
-    NewParamsAcc = ODBCParam ++ ParamsAcc,
-    unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).
-
-maybe_null(null, _) ->
-    {"null", []};
+maybe_null(null, Mapper) ->
+    {sql_integer, [null]}; %% Yeah, just random type for null
 maybe_null(Param, Mapper) ->
     Mapper(Param).
 
