@@ -9,16 +9,18 @@
 handler(Path) ->
     handler(Path, root()).
 
-handler([Node], #section{items = Items}) when is_map(Items) ->
-    maps:get(Node, Items);
-handler([_Node], #section{items = Item}) ->
-    Item;
+handler([Node], #section{items = Items}) when is_binary(Node) ->
+    case maps:is_key(Node, Items) of
+        true -> maps:get(Node, Items);
+        false -> maps:get(default, Items)
+    end;
 handler([item], #list{items = Item}) ->
     Item;
-handler([Node|Rest], #section{items = Items}) when is_map(Items) ->
-    Item = maps:get(Node, Items),
-    handler(Rest, Item);
-handler([_Node|Rest], #section{items = Item}) ->
+handler([Node|Rest], #section{items = Items}) when is_binary(Node) ->
+    Item = case maps:is_key(Node, Items) of
+               true -> maps:get(Node, Items);
+               false -> maps:get(default, Items)
+           end,
     handler(Rest, Item);
 handler([item|Rest], #list{items = Items}) ->
     handler(Rest, Items).
@@ -69,8 +71,9 @@ general() ->
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    format = host_local_config},
-                 <<"mongooseimctl_access_commands">> => #section{items = ctl_access_rule(),
-                                                                 format = local_config},
+                 <<"mongooseimctl_access_commands">> => #section{
+                                                           items = #{default => ctl_access_rule()},
+                                                           format = local_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
                                                 format = local_config},
@@ -85,7 +88,9 @@ general() ->
 ctl_access_rule() ->
     #section{
        items = #{<<"commands">> => #list{items = #option{type = string}},
-                 <<"argument_restrictions">> => #section{items = #option{type = string}}
+                 <<"argument_restrictions">> => #section{
+                                                   items = #{default => #option{type = string}}
+                                                  }
                 },
        process = fun ?MODULE:process_ctl_access_rule/1,
        format = prepend_key
