@@ -55,7 +55,7 @@
     host = "_"
     path = "/ws-xmpp"
     timeout = "infinity"
-    ping_rate = "none"
+    ping_rate = 120_000
     max_stanza_size = 100
 
 [[listen.http]]
