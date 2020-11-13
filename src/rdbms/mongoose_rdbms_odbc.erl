@@ -17,6 +17,7 @@
 -module(mongoose_rdbms_odbc).
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
+-include("mongoose_logger.hrl").
 
 -export([escape_binary/1, escape_string/1,
          unescape_binary/1, connect/2, disconnect/1,
@@ -86,6 +87,12 @@ prepare(Connection, _Name, Table, Fields, Statement) ->
                      mongoose_rdbms:query_result().
 execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
     {Query, ODBCParams} = unsplit_query(SplitQuery, ParamMapper, Params),
+    ?LOG_ERROR(#{
+       what => odbc_execute,
+       odbc_query => Query,
+       odbc_params => ODBCParams,
+       params => Params
+      }),
     case eodbc:param_query(Connection, Query, ODBCParams, Timeout) of
         {error, Reason} ->
             Map = #{reason => Reason,
@@ -148,14 +155,29 @@ field_name_to_mapper(ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
-            fun(P) -> {[escape_binary(ServerType, P)], []} end;
+            fun(P) -> binary_mapper(P) end;
         unicode ->
-            fun(P) -> {[escape_text_or_integer(ServerType, P)], []} end;
+            fun(P) -> unicode_mapper(P) end;
         bigint ->
-            fun(P) -> {[<<"'">>, integer_to_binary(P), <<"'">>], []} end;
+            fun(P) -> bigint_mapper(P) end;
         _ ->
             fun(P) -> {<<"?">>, [{ODBCType, [P]}]} end
     end.
+
+unicode_mapper(P) ->
+    Utf16 = unicode_characters_to_binary(iolist_to_binary(P), utf8, {utf16, little}),
+    Len = byte_size(Utf16) div 2,
+    {<<"?">>, [{{sql_wlongvarchar, Len}, [Utf16]}]}.
+
+bigint_mapper(P) ->
+    B = integer_to_binary(P),
+    Type = {'sql_varchar', byte_size(B)},
+    {<<"?">>, [{Type, [B]}]}.
+
+binary_mapper(P) ->
+    Type = {'sql_longvarbinary', byte_size(P)},
+    {<<"?">>, [{Type, [P]}]}.
+
 
 simple_type('SQL_BINARY')           -> binary;
 simple_type('SQL_VARBINARY')        -> binary;
