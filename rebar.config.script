@@ -43,17 +43,38 @@ fun() ->
         end
 end,
 
-RequiredApps = fun() -> [mongooseim, inets, tools, compiler] end,
+FirstApps = [kernel, lager],
+RequiredApps = [mongooseim, inets, tools, compiler],
+AlwaysOptional = [nksip, nkservice, nkpacket, nklib],
+
 EnvApps = GetEnvApps(),
+
+LoadAndStartApps =
+fun(Apps) ->
+        AlwaysStopped = ordsets:from_list(AlwaysOptional),
+        StartedApps = ordsets:subtract(Apps, AlwaysStopped),
+        ordsets:to_list(StartedApps)
+end,
+
+OnlyLoadApps =
+fun(Apps) ->
+        AlwaysStopped = ordsets:from_list(AlwaysOptional),
+        StoppedApps = ordsets:intersection(Apps, AlwaysStopped),
+        OptionalApps = ordsets:to_list(StoppedApps),
+        %% If Type = load, the application is only loaded.
+        LoadApps = [{App, load} || App <- OptionalApps]
+end,
 
 SetupIncludedApps =
 fun(Config, EnvApps) ->
         RelxCfg = proplists:get_value(relx, Config),
         {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
         EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
-        AppsToIncludeIn = RequiredApps() ++ DevAppsToInclude() ++ EnvAppsToInclude,
-        AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
-        NewReleaseCfg = {release, Desc, AppsToInclude},
+        AppsToIncludeIn = ordsets:from_list(RequiredApps ++ DevAppsToInclude() ++ EnvAppsToInclude),
+        Apps = ordsets:subtract(AppsToIncludeIn, ordsets:from_list(FirstApps)),
+        StartApps = LoadAndStartApps(Apps),
+        LoadApps = OnlyLoadApps(Apps),
+        NewReleaseCfg = {release, Desc, FirstApps ++ lists:sort(StartApps ++ LoadApps)},
         NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
         lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
 end,
