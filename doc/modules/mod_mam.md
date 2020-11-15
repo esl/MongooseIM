@@ -109,7 +109,7 @@ To disable archive for one-to-one messages please remove PM section or any PM re
 #### `modules.mod_mam_meta.pm.archive_groupchats`
 * **Syntax:** boolean
 * **Default:** `false`
-* **Example:** `modules.mod_mam_meta.muc = true`
+* **Example:** `modules.mod_mam_meta.pm.archive_groupchats = true`
 
 When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 MongooseIM will print a warning on startup if `pm` MAM is enabled without `archive_groupchats` being explicitly set to a specific value. In one of the future MongooseIM releases this option will default to `false` (as it's more common use case and less DB-consuming) and the warning message will be removed.
@@ -287,9 +287,9 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
   pm.user_prefs_store = "rdbms"
 
   muc.host = "muc.example.com"
-  muc.host.rdbms_message_format = "simple"
-  muc.host.async_writer = false
-  muc.host.user_prefs_store = "mnesia"
+  muc.rdbms_message_format = "simple"
+  muc.async_writer = false
+  muc.user_prefs_store = "mnesia"
 
 ```
 
