@@ -223,7 +223,7 @@ search_sql(Filters, LimitType) ->
 limit_type_to_sql(infinity) ->
     {<<>>, <<>>};
 limit_type_to_sql(top) ->
-    {<<" TOP ? ">>, <<>>};
+    {<<" TOP (?) ">>, <<>>};
 limit_type_to_sql(limit) ->
     {<<>>, <<" LIMIT ? ">>}.
 

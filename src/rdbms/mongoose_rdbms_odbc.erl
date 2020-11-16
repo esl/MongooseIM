@@ -86,12 +86,6 @@ prepare(Connection, _Name, Table, Fields, Statement) ->
                      mongoose_rdbms:query_result().
 execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
     ODBCParams = map_params(Params, ParamMapper),
-    ?LOG_ERROR(#{
-       what => odbc_execute,
-       odbc_query => Query,
-       odbc_params => ODBCParams,
-       params => Params
-      }),
     case eodbc:param_query(Connection, Query, ODBCParams, Timeout) of
         {error, Reason} ->
             Map = #{reason => Reason,
@@ -149,7 +143,7 @@ parse_row([], []) ->
                            TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
 field_name_to_mapper(ServerType, TableDesc, <<"limit">>) ->
-    fun(P) -> {integer_to_binary(P), []} end;
+    fun(P) -> {sql_integer, [P]} end;
 field_name_to_mapper(ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
@@ -160,22 +154,22 @@ field_name_to_mapper(ServerType, TableDesc, FieldName) ->
         bigint ->
             fun(P) -> bigint_mapper(P) end;
         _ ->
-            fun(P) -> [{ODBCType, [P]}] end
+            fun(P) -> {ODBCType, [P]} end
     end.
 
 unicode_mapper(P) ->
     Utf16 = unicode_characters_to_binary(iolist_to_binary(P), utf8, {utf16, little}),
     Len = byte_size(Utf16) div 2,
-    [{{sql_wlongvarchar, Len}, [Utf16]}].
+    {{sql_wlongvarchar, Len}, [Utf16]}.
 
 bigint_mapper(P) ->
     B = integer_to_binary(P),
     Type = {'sql_varchar', byte_size(B)},
-    [{Type, [B]}].
+    {Type, [B]}.
 
 binary_mapper(P) ->
     Type = {'sql_longvarbinary', byte_size(P)},
-    [{Type, [P]}].
+    {Type, [P]}.
 
 
 simple_type('SQL_BINARY')           -> binary;

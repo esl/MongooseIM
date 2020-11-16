@@ -668,7 +668,9 @@ check_generic_filtered_prep(Config, Value, Column, TransformResult) ->
                           select_result => SelectResult}).
 
 check_generic_filtered_top_prep(Config, Value, Column, TransformResult) ->
-    SelectQuery = <<"SELECT TOP ? ", Column/binary,
+    %% SQL Server requires you to place parenthesis around the argument to top if you pass in a variable:
+    %% https://stackoverflow.com/questions/7038818/ms-sql-exception-incorrect-syntax-near-p0
+    SelectQuery = <<"SELECT TOP (?) ", Column/binary,
             " FROM test_types WHERE ", Column/binary, " = ?">>,
     Name = list_to_atom("select_filtered_top_" ++ binary_to_list(Column)),
     Table = test_types,
