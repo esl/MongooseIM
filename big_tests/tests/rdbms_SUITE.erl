@@ -32,7 +32,7 @@ all() ->
     [{group, rdbms_queries}].
 
 groups() ->
-    G = [{rdbms_queries, [sequence], rdbms_queries_cases()}],
+    G = [{rdbms_queries, [], rdbms_queries_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 rdbms_queries_cases() ->
@@ -91,10 +91,11 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 int32_values() ->
-    [1, -1, 0, 42, 2147483647].
+    [1, -1, 0, 42, 2147483647, null].
 
 int64_values() ->
-    [9223372036854775807].
+    [9223372036854775807,
+     null].
 
 ascii_string_values() ->
     [<<>>, <<"1">>, <<"test">>,
@@ -102,7 +103,7 @@ ascii_string_values() ->
      <<"'">>, <<"''">>, <<"'''">>,
      <<"\"">>, <<"\"\"">>,
      <<"\r\n">>, <<"\r">>, <<"\n">>,
-     binary:copy(<<"a">>, 250)].
+     binary:copy(<<"a">>, 250), null].
 
 unicode_values() ->
     ascii_string_values() ++
@@ -132,7 +133,7 @@ unicode_values() ->
     %% There is a bug with 8001 chars limit in upstream odbc
     %% We use a fork arcusfelis/eodbc, that has the bug fixed
     %% https://bugs.erlang.org/browse/ERL-421
-     binary:copy(<<10>>, 10000)].
+     binary:copy(<<10>>, 10000), null].
 
 binary_values() ->
     [<<0>>, <<"255">>,
@@ -148,7 +149,8 @@ binary_values() ->
     %% We use a fork arcusfelis/eodbc, that has the bug fixed
     %% https://bugs.erlang.org/browse/ERL-421
     binary:copy(<<8>>, 8002),
-    binary:copy(<<0>>, 100000)
+    binary:copy(<<0>>, 100000),
+    null
     ] ++
     case is_odbc() orelse is_pgsql() of
         true ->
@@ -285,7 +287,7 @@ truncate_binaries(Len, List) ->
 
 truncate_binary(Len, Bin) when byte_size(Bin) > Len ->
     binary:part(Bin, {0,Len});
-truncate_binary(Len, Bin) when is_binary(Bin), is_integer(Len) ->
+truncate_binary(_Len, Bin) ->
     Bin.
 
 safe_binary(Len, Bin) when byte_size(Bin) > Len ->
@@ -293,7 +295,7 @@ safe_binary(Len, Bin) when byte_size(Bin) > Len ->
       truncated_length => Len,
       total_length => byte_size(Bin),
       truncated_binary => binary:part(Bin, {0,Len})};
-safe_binary(Len, Bin) when is_binary(Bin), is_integer(Len) ->
+safe_binary(_Len, Bin) ->
     Bin.
 
 %%--------------------------------------------------------------------
@@ -322,6 +324,9 @@ sql_prepare(_Config, Name, Table, Fields, Query) ->
 sql_execute(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
 
+escape_null(_Config) ->
+    escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
+
 escape_string(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
 
@@ -343,6 +348,16 @@ use_escaped(_Config, Value) ->
 use_escaped_like(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, use_escaped_like, [Value]).
 
+escape_string_or_null(Config, null) ->
+    escape_null(Config);
+escape_string_or_null(Config, TextValue) ->
+    escape_string(Config, TextValue).
+
+escape_binary_or_null(Config, null) ->
+    escape_null(Config);
+escape_binary_or_null(Config, Value) ->
+    escape_binary(Config, Value).
+
 decode_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, to_bool, [Value]).
 
@@ -358,12 +373,12 @@ check_int64(Config, Value) ->
 check_generic_integer(Config, Value, Column) ->
     EraseResult = erase_table(Config),
     InsertQuery = <<"INSERT INTO test_types (", Column/binary, ") "
-                        "VALUES (", (integer_to_binary(Value))/binary, ")">>,
+                        "VALUES (", (integer_or_null_to_binary(Value))/binary, ")">>,
     SelectQuery = <<"SELECT ", Column/binary, " FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
     SelectResult = sql_query(Config, SelectQuery),
     %% Compare as binaries
-    ?assert_equal_extra({selected, [{integer_to_binary(Value)}]},
+    ?assert_equal_extra({selected, [{integer_to_binary_or_null(Value)}]},
                         selected_to_binary(SelectResult),
                         #{column => Column,
                           erase_result => EraseResult,
@@ -372,6 +387,12 @@ check_generic_integer(Config, Value, Column) ->
                           select_query => SelectQuery,
                           select_result => SelectResult,
                           insert_result => InsertResult}).
+
+integer_or_null_to_binary(null) -> <<"NULL">>;
+integer_or_null_to_binary(X) -> integer_to_binary(X).
+
+integer_to_binary_or_null(null) -> null;
+integer_to_binary_or_null(X) -> integer_to_binary(X).
 
 %% Helper function to transform values to an uniform format.
 %% Single tuple, single element case.
@@ -392,8 +413,8 @@ check_unicode250(Config, Value) ->
 check_unicode(Config, Value) ->
     check_unicode_generic(Config, Value, <<"unicode">>).
 
-check_unicode_generic(Config, Value, Column) when is_binary(Value) ->
-    SValue = escape_string(Config, Value),
+check_unicode_generic(Config, Value, Column) ->
+    SValue = escape_string_or_null(Config, Value),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (", Column, ") "
                         "VALUES (", use_escaped(Config, SValue), ")"],
@@ -405,7 +426,7 @@ check_unicode_generic(Config, Value, Column) when is_binary(Value) ->
                         SelectResult,
                         #{column => Column,
                           erase_result => EraseResult,
-                          expected_length => byte_size(Value),
+                          expected_length => byte_size_or_null(Value),
                           selected_length => maybe_selected_length(Config, SelectResult),
                           compare_selected => compare_selected(Config, SelectResult, Value),
                           test_value => Value,
@@ -415,8 +436,8 @@ check_unicode_generic(Config, Value, Column) when is_binary(Value) ->
                           select_result => SelectResult,
                           insert_result => InsertResult}).
 
-check_ascii_char(Config, Value) when is_binary(Value) ->
-    SValue = escape_string(Config, Value),
+check_ascii_char(Config, Value) ->
+    SValue = escape_string_or_null(Config, Value),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (ascii_char) "
                         "VALUES (", use_escaped(Config, SValue), ")"],
@@ -434,8 +455,8 @@ check_ascii_char(Config, Value) when is_binary(Value) ->
                           select_result => SelectResult,
                           insert_result => InsertResult}).
 
-check_ascii_string(Config, Value) when is_binary(Value) ->
-    SValue = escape_string(Config, Value),
+check_ascii_string(Config, Value) ->
+    SValue = escape_string_or_null(Config, Value),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (ascii_string) "
                         "VALUES (", use_escaped(Config, SValue), ")"],
@@ -462,8 +483,8 @@ check_binary_65k(Config, Value) ->
 check_binary_16m(Config, Value) ->
     check_binary(Config, Value, <<"binary_data_16m">>).
 
-check_binary(Config, Value, Column) when is_binary(Value) ->
-    SValue = escape_binary(Config, Value),
+check_binary(Config, Value, Column) ->
+    SValue = escape_binary_or_null(Config, Value),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (", Column, ") "
                         "VALUES (", use_escaped(Config, SValue), ")"],
@@ -474,7 +495,7 @@ check_binary(Config, Value, Column) when is_binary(Value) ->
     ?assert_equal_extra({selected, [{Value}]},
                         selected_unescape(Config, SelectResult),
                         #{erase_result => EraseResult,
-                          inserted_length => byte_size(Value),
+                          inserted_length => byte_size_or_null(Value),
                           %% pgsql+odbc can truncate binaries
                           maybe_selected_length => maybe_selected_length(Config, SelectResult),
                           maybe_selected_tail => maybe_selected_tail(Config, SelectResult),
@@ -485,8 +506,13 @@ check_binary(Config, Value, Column) when is_binary(Value) ->
                           select_result => SelectResult,
                           insert_result => InsertResult}).
 
+byte_size_or_null(null) ->
+    null;
+byte_size_or_null(Value) ->
+    byte_size(Value).
+
 check_enum_char(Config, Value) when is_binary(Value) ->
-    SValue = escape_string(Config, Value),
+    SValue = escape_string_or_null(Config, Value),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (enum_char) "
                         "VALUES (", use_escaped(Config, SValue), ")"],
@@ -523,6 +549,8 @@ check_boolean(Config, Value) when is_boolean(Value) ->
                           select_result => SelectResult,
                           insert_result => InsertResult}).
 
+selected_unescape(_Config, {selected, [{null}]}) ->
+    {selected, [{null}]};
 selected_unescape(Config, {selected, [{Value}]}) ->
     {selected, [{unescape_binary(Config, Value)}]};
 selected_unescape(_Config, Other) ->
@@ -649,6 +677,8 @@ check_generic_prep(Config, Value, Column, TransformResult) ->
 
 %% We want to ensure that variable substitution works in SELECTS too.
 %% We also want to check the result value is encoded correctly.
+check_generic_filtered_prep(_Config, null, _Column, _TransformResult) ->
+    skip_null_test;
 check_generic_filtered_prep(Config, Value, Column, TransformResult) ->
     SelectQuery = <<"SELECT ", Column/binary,
             " FROM test_types WHERE ", Column/binary, " = ?">>,
@@ -667,6 +697,8 @@ check_generic_filtered_prep(Config, Value, Column, TransformResult) ->
                           select_query => SelectQuery,
                           select_result => SelectResult}).
 
+check_generic_filtered_top_prep(_Config, null, _Column, _TransformResult) ->
+    skip_null_test;
 check_generic_filtered_top_prep(Config, Value, Column, TransformResult) ->
     %% SQL Server requires you to place parenthesis around the argument to top if you pass in a variable:
     %% https://stackoverflow.com/questions/7038818/ms-sql-exception-incorrect-syntax-near-p0
@@ -696,12 +728,11 @@ transform_selected(unescape_binary, Config, SelectResult) ->
 transform_selected(boolean_to_binary_int, Config, SelectResult) ->
     selected_boolean_to_binary_int(Config, SelectResult).
 
-
 %% To KISS, we just test on a table with one row.
 check_like(Config, TextMap = #{text := TextValue,
                                matching := MatchingList,
                                not_matching := NotMatchingList}) ->
-    SValue = escape_string(Config, TextValue),
+    SValue = escape_string_or_null(Config, TextValue),
     EraseResult = erase_table(Config),
     InsertQuery = ["INSERT INTO test_types (unicode) "
                         "VALUES (", use_escaped(Config, SValue), ")"],
