@@ -236,8 +236,7 @@ filter_to_sql({equal, Col, _}) ->
 filter_to_sql({like, Col, _}) ->
      [Col, " LIKE ?"].
 
-%% Prepare data for SQL-domain.
-%% The result defines everything needed to prepare SQL query.
+%% The result defines everything that is needed to prepare an SQL query.
 -spec make_filters(jid:lserver(), list()) -> [sql_filter()].
 make_filters(LServer, Data) ->
     Filters = only_tuples([filter_field(Var, Val) || {Var, [Val]} <- Data]),
