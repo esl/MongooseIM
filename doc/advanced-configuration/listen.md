@@ -182,26 +182,19 @@ Path to the X509 PEM file with a CA chain that will be used to verify clients. I
 
 Path to the Diffie-Hellman parameter file.
 
+#### `listen.c2s.tls.ciphers`
+* **Syntax:** string with the OpenSSL cipher suite specification
+* **Default:** for `fast_tls` the default is`"TLSv1.2:TLSv1.3"`. For `just_tls` this option is not set by default - all supported suites are accepted.
+* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
+
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
+
 #### `listen.c2s.tls.protocol_options` - only for `fast_tls`
 * **Syntax:** array of strings
 * **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
 * **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
 
 A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
-
-#### `listen.c2s.tls.ciphers` - for `fast_tls`
-* **Syntax:** string with the OpenSSL cipher suite specification
-* **Default:** `"TLSv1.2:TLSv1.3"`
-* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
-
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
-
-#### `listen.c2s.tls.ciphers` - for `just_tls`
-* **Syntax:** array of tables with the following keys: `cipher`, `key_exchange`, `mac`, `prf` and string values.
-* **Default:** not set, all supported cipher suites are accepted
-* **Example:** `tls.ciphers = "[{cipher = "aes_25_gcm", key_exchange = "any", mac = "aead", "prf = sha384"}]"`
-
-Cipher suites to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
 
 #### `listen.c2s.tls.verify_mode` - only for `just_tls`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
@@ -464,8 +457,8 @@ You can pass the following optional parameters:
 The time (in milliseconds) after which an inactive user is disconnected.
 
 #### `listen.http.handlers.mod_websockets.ping_rate`
-* **Syntax:** positive integer or the string `"none"`
-* **Default:** `"none"`
+* **Syntax:** positive integer
+* **Default:** not set - pings disabled
 * **Example:** `ping_rate = 10_000`
 
 The time between pings sent by server. By setting this option you enable server-side pinging.
@@ -600,11 +593,11 @@ Path to the X509 PEM file with a CA chain that will be used to verify clients. I
 Path to the Diffie-Hellman parameter file.
 
 #### `listen.http.tls.ciphers`
-* **Syntax:** array of tables with the following keys: `cipher`, `key_exchange`, `mac`, `prf` and string values.
+* **Syntax:** string with the OpenSSL cipher suite specification
 * **Default:** not set, all supported cipher suites are accepted
-* **Example:** `tls.ciphers = "[{cipher = "aes_25_gcm", key_exchange = "any", mac = "aead", "prf = sha384"}]"`
+* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For allowed values, see the [Erlang/OTP OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html).
 
 #### `listen.http.tls.versions`
 * **Syntax:** array of strings
