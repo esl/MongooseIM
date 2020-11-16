@@ -74,7 +74,7 @@ query(Connection, Query, Timeout) ->
 
 -spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
-                     {ok, {[binary()], [fun((term()) -> tuple())]}}.
+                     {ok, {binary(), [fun((term()) -> tuple())]}}.
 prepare(Connection, _Name, Table, Fields, Statement) ->
     {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
     ServerType = server_type(),
@@ -142,9 +142,9 @@ parse_row([], []) ->
 -spec field_name_to_mapper(ServerType :: atom(),
                            TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
-field_name_to_mapper(ServerType, TableDesc, <<"limit">>) ->
+field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
     fun(P) -> {sql_integer, [P]} end;
-field_name_to_mapper(ServerType, TableDesc, FieldName) ->
+field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
@@ -192,7 +192,7 @@ map_params([Param|Params], [Mapper|Mappers]) ->
 map_params([], []) ->
     [].
 
-maybe_null(null, Mapper) ->
+maybe_null(null, _Mapper) ->
     {sql_integer, [null]}; %% Yeah, just random type for null
 maybe_null(Param, Mapper) ->
     Mapper(Param).
@@ -211,23 +211,11 @@ escape_binary(mssql, Bin) ->
 escape_binary(_ServerType, Bin) ->
     [$', base16:encode(Bin), $'].
 
-%% boolean are of type {sql_varchar,5} in pgsql.
-%% So, we need to handle integers.
-%% But converting to integer would cause type check failure.
-escape_text_or_integer(_ServerType, P) when is_integer(P) ->
-    [$', integer_to_list(P), $'];
-escape_text_or_integer(ServerType, P) ->
-    escape_text(ServerType, P).
-
--spec escape_text(ServerType :: atom(), iolist()) -> iodata().
+-spec escape_text(ServerType :: atom(), binary()) -> iodata().
 escape_text(pgsql, Bin) ->
     escape_pgsql_string(Bin);
 escape_text(mssql, Bin) ->
-    %% Some code passes strings as iolists (i.e. lists of bytes).
-    %% If we just pass integers to unicode module, it would treat them as
-    %% codepoints (i.e. with values above 255).
-    %% We need to first cast our utf8 iolist into a binary.
-    Utf16 = unicode_characters_to_binary(iolist_to_binary(Bin), utf8, {utf16, little}),
+    Utf16 = unicode_characters_to_binary(Bin, utf8, {utf16, little}),
     [<<"CAST(0x">>, base16:encode(Utf16), <<" AS NVARCHAR(max))">>];
 escape_text(ServerType, Bin) ->
     escape_binary(ServerType, Bin).

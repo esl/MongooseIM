@@ -149,42 +149,6 @@ update_t(Table, Fields, Vals, Where) ->
 join_escaped(Vals) ->
     join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
 
-%% Safe atomic update.
-%% Fields and their values are passed as a list where
-%% odd elements are fieldnames and
-%% even elements are their values.
-%% This function is useful, when there are a lot of fields to update.
-update_set_t(Table, FieldsVals, Where) ->
-    case mongoose_rdbms:sql_query_t(
-           [<<"update ">>, Table, <<" set ">>,
-        join_field_and_values(FieldsVals),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-        Fields = odds(FieldsVals),
-        Vals = evens(FieldsVals),
-            mongoose_rdbms:sql_query_t(
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
-
-odds([X, _|T]) -> [X|odds(T)];
-odds([])      -> [].
-
-evens([_, X|T]) -> [X|evens(T)];
-evens([])      -> [].
-
-join_field_and_values([Field, Val|FieldsVals]) ->
-    %% Append a field-value pair
-    [Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)].
-
-join_field_and_values_1([Field, Val|FieldsVals]) ->
-    %% Append a separater and a field-value pair
-    [$,, $ , Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)];
-join_field_and_values_1([]) ->
-    [].
-
 
 update(LServer, Table, Fields, Vals, Where) ->
     UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
