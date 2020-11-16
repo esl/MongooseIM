@@ -45,24 +45,18 @@ end,
 
 FirstApps = [kernel, lager],
 RequiredApps = [mongooseim, inets, tools, compiler],
-AlwaysOptional = [nksip, nkservice, nkpacket, nklib],
+OptionalApps = [{nksip, [nkservice, nkpacket, nklib]}],
 
 EnvApps = GetEnvApps(),
 
-LoadAndStartApps =
-fun(Apps) ->
-        AlwaysStopped = ordsets:from_list(AlwaysOptional),
-        StartedApps = ordsets:subtract(Apps, AlwaysStopped),
-        ordsets:to_list(StartedApps)
-end,
-
-OnlyLoadApps =
-fun(Apps) ->
-        AlwaysStopped = ordsets:from_list(AlwaysOptional),
-        StoppedApps = ordsets:intersection(Apps, AlwaysStopped),
-        OptionalApps = ordsets:to_list(StoppedApps),
-        %% If Type = load, the application is only loaded.
-        LoadApps = [{App, load} || App <- OptionalApps]
+PrepareApp =
+fun(App) ->
+        case lists:keyfind(App, 1, OptionalApps) of
+            false ->
+                [App];
+            {App, DepsOfApp} ->
+                lists:map(fun(V) -> {V, load} end, [App | DepsOfApp])
+        end
 end,
 
 SetupIncludedApps =
@@ -70,11 +64,9 @@ fun(Config, EnvApps) ->
         RelxCfg = proplists:get_value(relx, Config),
         {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
         EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
-        AppsToIncludeIn = ordsets:from_list(RequiredApps ++ DevAppsToInclude() ++ EnvAppsToInclude),
-        Apps = ordsets:subtract(AppsToIncludeIn, ordsets:from_list(FirstApps)),
-        StartApps = LoadAndStartApps(Apps),
-        LoadApps = OnlyLoadApps(Apps),
-        NewReleaseCfg = {release, Desc, FirstApps ++ lists:sort(StartApps ++ LoadApps)},
+        AppsToIncludeIn = lists:usort(RequiredApps ++ DevAppsToInclude() ++ EnvAppsToInclude),
+        Apps = lists:subtract(AppsToIncludeIn, FirstApps),
+        NewReleaseCfg = {release, Desc, FirstApps ++ lists:flatmap(PrepareApp, Apps)},
         NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
         lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
 end,
