@@ -814,8 +814,10 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
     PlaceholderSet = [<<"(">>, join(Placeholders, <<", ">>), <<")">>],
     PlaceholderSets = lists:duplicate(RowsNum, PlaceholderSet),
     JoinedPlaceholderSets = join(PlaceholderSets, <<", ">>),
-    [<<"INSERT INTO ">>, Table, <<" (">>, JoinedFields, <<") "
-       "VALUES ">>, JoinedPlaceholderSets, <<";">>].
+    Sql = [<<"INSERT INTO ">>, Table, <<" (">>, JoinedFields, <<") "
+       "VALUES ">>, JoinedPlaceholderSets, <<";">>],
+    Fields2 = lists:append(lists:duplicate(RowsNum, Fields)),
+    {Sql, Fields2}.
 
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.

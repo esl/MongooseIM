@@ -746,7 +746,15 @@ sql_to_sub_opts(SqlOpts) ->
     {Opts} = jiffy:decode(SqlOpts),
     lists:map(fun key_to_existing_atom/1, Opts).
 
-item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
+item_to_record(Item) ->
+    try item_to_record_unsafe(Item)
+    catch Class:Error:Stacktrace ->
+              Error2 = #{what => item_to_record_failed,
+                         pubsub_item => Item, reason => Error},
+              erlang:raise(Class, Error2, Stacktrace)
+    end.
+
+item_to_record_unsafe({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
                 ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
                 PublisherIn, PayloadDB}) ->
     PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
@@ -766,7 +774,16 @@ item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
 decode_publisher(null) ->
     undefined;
 decode_publisher(Binary) ->
-    jid:from_binary(Binary).
+    jid_from_binary(Binary).
+
+jid_from_binary(Binary) ->
+    Jid = jid:from_binary(Binary),
+    case Jid of
+        #jid{} ->
+            Jid;
+        _ ->
+            error(#{what => jid_from_binary_failed, encoded_jid => Binary})
+    end.
 
 encode_key(Key) when is_binary(Key) ->
     Key;

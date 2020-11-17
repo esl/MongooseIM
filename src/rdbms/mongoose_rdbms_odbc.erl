@@ -17,6 +17,7 @@
 -module(mongoose_rdbms_odbc).
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
+-include("mongoose_logger.hrl").
 
 -export([escape_binary/1, escape_string/1,
          unescape_binary/1, connect/2, disconnect/1,
@@ -83,7 +84,8 @@ prepare(Connection, _Name, Table, Fields, Statement) ->
 -spec execute(Connection :: term(), Statement :: {binary(), [fun((term()) -> tuple())]},
               Params :: [term()], Timeout :: infinity | non_neg_integer()) ->
                      mongoose_rdbms:query_result().
-execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
+execute(Connection, {Query, ParamMapper}, Params, Timeout)
+    when length(ParamMapper) =:= length(Params) ->
     ODBCParams = map_params(Params, ParamMapper),
     case eodbc:param_query(Connection, Query, ODBCParams, Timeout) of
         {error, Reason} ->
@@ -93,8 +95,16 @@ execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
             {error, Map};
         Result ->
             parse(Result)
-    end.
-
+    end;
+execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
+    ?LOG_ERROR(#{what => odbc_execute_failed,
+                 params_length => length(Params),
+                 mapped_length => length(ParamMapper),
+                 connection => Connection,
+                 sql_query => Query,
+                 query_params => Params,
+                 param_mapper => ParamMapper}),
+    erlang:error({badarg, [Connection, {Query, ParamMapper}, Params, Timeout]}).
 
 %% Helpers
 
@@ -161,7 +171,7 @@ unicode_mapper(P) ->
     Len = byte_size(Utf16) div 2,
     {{sql_wlongvarchar, Len}, [Utf16]}.
 
-bigint_mapper(P) ->
+bigint_mapper(P) when is_integer(P) ->
     B = integer_to_binary(P),
     Type = {'sql_varchar', byte_size(B)},
     {Type, [B]}.
@@ -191,6 +201,8 @@ map_params([Param|Params], [Mapper|Mappers]) ->
 map_params([], []) ->
     [].
 
+maybe_null(undefined, Mapper) ->
+    {sql_integer, [null]}; %% some code uses "undefined" instead of "null"
 maybe_null(null, _Mapper) ->
     {sql_integer, [null]}; %% Yeah, just random type for null
 maybe_null(Param, Mapper) ->
