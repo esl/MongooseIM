@@ -95,7 +95,7 @@ get_vcard(LUser, LServer) ->
 %% Set a vCard callback
 set_vcard(User, LServer, VCard, Search) ->
     LUser = jid:nodeprep(User),
-    SearchArgs = search_args(User, Search),
+    SearchArgs = assert_binaries(search_args(User, Search)),
     XML = exml:to_binary(VCard),
     F = fun() ->
             update_vcard_t(LUser, LServer, XML),
@@ -105,6 +105,16 @@ set_vcard(User, LServer, VCard, Search) ->
     Result = handle_result(rdbms_queries:sql_transaction(LServer, F)),
     log_upsert_result(LServer, LUser, VCard, XML, Result),
     Result.
+
+%% Horrible things happen to unicode list of bytes in MySQL driver, when
+%% making prepared queries.
+assert_binaries(Bins) ->
+    case lists:all(fun is_binary/1, Bins) of
+        true ->
+            Bins;
+        false ->
+            error(#{what => assert_binaries_failed, binaries => Bins})
+    end.
 
 log_upsert_result(LServer, LUser, VCard, _XML, ok) ->
     mongoose_hooks:vcard_set(LServer, ok, LUser, VCard);

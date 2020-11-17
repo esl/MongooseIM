@@ -50,7 +50,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
     F = fun() ->
                 mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
-                mnesia:write(VCardSearch)
+                mnesia:write(stringify_search_fields(VCardSearch))
         end,
     {atomic, _} = mnesia:transaction(F),
     mongoose_hooks:vcard_set(VHost, ok, LUser, VCard),
@@ -149,6 +149,22 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
     filter_fields(Ds, NewMatch, VHost);
 filter_fields([_ | Ds], Match, VHost) ->
     filter_fields(Ds, Match, VHost).
+
+%% Fulltext search is mnesia is something that is really-really wrong
+stringify_search_fields(#vcard_search{} = S) ->
+    S#vcard_search{
+      lfn = binary_to_list(S#vcard_search.lfn),
+      luser = binary_to_list(S#vcard_search.luser),
+      lgiven = binary_to_list(S#vcard_search.lgiven),
+      lmiddle = binary_to_list(S#vcard_search.lmiddle),
+      lnickname = binary_to_list(S#vcard_search.lnickname),
+      lbday = binary_to_list(S#vcard_search.lbday),
+      lctry = binary_to_list(S#vcard_search.lctry),
+      llocality = binary_to_list(S#vcard_search.llocality),
+      lemail = binary_to_list(S#vcard_search.lemail),
+      lorgname = binary_to_list(S#vcard_search.lorgname),
+      lorgunit = binary_to_list(S#vcard_search.lorgunit)
+     }.
 
 %% returns value as list to match substrings using match spec.
 %% See vcard_search definition.
