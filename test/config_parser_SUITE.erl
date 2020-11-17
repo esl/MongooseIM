@@ -371,9 +371,7 @@ listen_proto(_Config) ->
     ?eq([#local_config{key = listen,
                        value = [{{5222, {0, 0, 0, 0}, udp}, ejabberd_c2s, [{proto, udp}]}]}],
         parse_listener(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
-    %% 'ejabberd_listener:normalize_proto/1' shows a warning message and falls back to 'tcp'
-    ?eq(listener_config(ejabberd_c2s, [{proto, pigeon}]),
-        parse_listener(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
+    ?err(parse_listener(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
 
 listen_ip_version(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [inet]),
@@ -553,35 +551,23 @@ listen_tls_dhfile(_Config) ->
         parse_listener(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
     ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<>>}})).
 
-
 listen_tls_ciphers(_Config) ->
-    %% fast_tls ciphers may contain versions as well
-    ?eq(listener_config(ejabberd_c2s, [{ciphers, "TLSv1.2:TLSv1.3"}]),
+    ?eq(listener_config(ejabberd_c2s, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
         parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}})),
-    ?eq(listener_config(ejabberd_s2s_in, [{ciphers, "TLSv1.2:TLSv1.3"}]),
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
+                                       {ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+        parse_listener(<<"c2s">>,
+                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                        <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_s2s_in, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
         parse_listener(<<"s2s">>,
-                       #{<<"tls">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}})),
-    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                       {ssl_options, [{ciphers, ["TLS_AES_256_GCM_SHA384"]}]}]),
-        parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                        <<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})),
-    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                       {ssl_options, [{ciphers, [#{cipher => aes_256_gcm,
-                                                                   key_exchange => any,
-                                                                   mac => aead,
-                                                                   prf => sha384}]}]}]),
-        parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                        <<"ciphers">> => [#{<<"cipher">> => <<"aes_256_gcm">>,
-                                                            <<"key_exchange">> => <<"any">>,
-                                                            <<"mac">> => <<"aead">>,
-                                                            <<"prf">> => <<"sha384">>}]}})),
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_cowboy, [{ssl, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+        parse_listener(<<"http">>,
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?err(parse_listener(<<"c2s">>,
-                        #{<<"tls">> =>
-                              #{<<"module">> => <<"just_tls">>,
-                                <<"ciphers">> => [#{<<"cipher">> => <<"aes_256_gcm">>}]}})).
+                        #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
 
 listen_tls_versions(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},

@@ -16,101 +16,6 @@
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
-%% listen
-validate([item, _Type, <<"listen">>],
-         [{{Port, _IPT, _Proto}, _Module, _Opts}]) ->
-    validate_port(Port);
-validate([<<"backlog">>, item, _Type, <<"listen">>],
-         [{backlog, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"proxy_protocol">>, item, _Type, <<"listen">>],
-         [{proxy_protocol, Value}]) ->
-    validate_boolean(Value);
-validate([<<"num_acceptors">>, item, _Type, <<"listen">>],
-         [{acceptors_num, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"access">>, item, _Type, <<"listen">>],
-         [{access, Value}]) ->
-    validate_non_empty_atom(Value);
-validate([<<"shaper">>, item, _Type, <<"listen">>],
-         [{shaper, Value}]) ->
-    validate_non_empty_atom(Value);
-validate([<<"shaper_rule">>, item, <<"service">>, <<"listen">>],
-         [{shaper_rule, Value}]) ->
-    validate_non_empty_atom(Value);
-validate([<<"xml_socket">>, item, <<"c2s">>, <<"listen">>],
-         [{xml_socket, Value}]) ->
-    validate_boolean(Value);
-validate([<<"zlib">>, item, <<"c2s">>, <<"listen">>],
-         [{zlib, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"hibernate_after">>, item, _, <<"listen">>],
-         [{hibernate_after, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"mode">>, {tls, _}, item, <<"c2s">>, <<"listen">>],
-         [Value]) ->
-    validate_enum(Value, [tls, starttls, starttls_required]);
-validate([<<"verify_mode">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
-         Value) ->
-    validate_enum(Value, [peer, selfsigned_peer, none]);
-validate([<<"disconnect_on_failure">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
-         Value) ->
-    validate_boolean(Value);
-validate([item, <<"crl_files">>, {tls, just_tls}, item, <<"c2s">>, <<"listen">>],
-         [Value]) ->
-    validate_non_empty_string(Value);
-validate([item, <<"protocol_options">>, _TLS, item, _Type, <<"listen">>],
-         [Value]) ->
-    validate_non_empty_string(Value);
-validate([FileType, _TLS, item, _Type, <<"listen">>],
-         [{_, Value}]) when FileType =:= <<"certfile">>;
-                            FileType =:= <<"cacertfile">>;
-                            FileType =:= <<"dhfile">> ->
-    validate_non_empty_string(Value);
-validate([<<"max_stanza_size">>, item, _Type, <<"listen">>],
-         [{max_stanza_size, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"max_fsm_queue">>, item, _Type, <<"listen">>],
-         [{max_fsm_queue, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"check_from">>, item, <<"service">>, <<"listen">>],
-         [{service_check_from, Value}]) ->
-    validate_boolean(Value);
-validate([<<"hidden_components">>, item, <<"service">>, <<"listen">>],
-         [{hidden_components, Value}]) ->
-    validate_boolean(Value);
-validate([<<"conflict_behaviour">>, item, <<"service">>, <<"listen">>],
-         [{conflict_behaviour, Value}]) ->
-    validate_enum(Value, [kick_old, disconnect]);
-validate([<<"password">>, item, <<"service">>, <<"listen">>],
-         [{password, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"verify_mode">>, <<"tls">>, item, <<"http">>, <<"listen">>],
-         [{verify_mode, Value}]) ->
-    validate_enum(Value, [peer, selfsigned_peer, none]);
-validate([<<"num_acceptors">>, <<"transport">>, item, <<"http">>, <<"listen">>],
-         [{num_acceptors, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"max_connections">>, <<"transport">>, item, <<"http">>, <<"listen">>],
-         [{max_connections, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-validate([<<"compress">>, <<"protocol">>, item, <<"http">>, <<"listen">>],
-         [{compress, Value}]) ->
-    validate_boolean(Value);
-validate([item, <<"lasse_handler">>, <<"handlers">>, item, <<"http">>, <<"listen">>],
-         [{Host, _Path, lasse_handler, Opts}]) ->
-    validate_non_empty_string(Host),
-    [Module] = Opts,
-    validate_module(Module);
-validate([item, <<"handlers">>,
-          item, <<"mongoose_api">>, <<"handlers">>, item, <<"http">>, <<"listen">>],
-         [Value]) ->
-    validate_module(Value);
-validate([item, _TypeBin, <<"handlers">>, item, <<"http">>, <<"listen">>],
-         [{Host, _Path, Type, _Opts}]) ->
-    validate_non_empty_string(Host),
-    validate_module(Type);
-
 %% auth
 validate([item, <<"methods">>, <<"auth">>|Path],
          [Value]) ->
@@ -338,7 +243,7 @@ validate([<<"ip_versions">>, <<"outgoing">>, <<"s2s">>],
     validate_non_empty_list(Value);
 validate([<<"connection_timeout">>, <<"outgoing">>, <<"s2s">>],
          [#local_config{value = Value}]) ->
-    validate_timeout(Value);
+    validate_positive_integer_or_infinity(Value);
 validate([<<"use_starttls">>, <<"s2s">>],
          [#local_config{value = Value}]) ->
     validate_enum(Value, [false, optional, required, required_trusted]);
@@ -1530,14 +1435,19 @@ validate(_Path, _Value) ->
 validate(V, boolean, any) -> validate_boolean(V);
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
+validate(V, integer, non_negative) -> validate_non_negative_integer(V);
 validate(V, integer, positive) -> validate_positive_integer(V);
-validate(V, int_or_infinity, timeout) -> validate_timeout(V);
+validate(V, integer, port) -> validate_port(V);
+validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_infinity(V);
+validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
 validate(V, string, url) -> validate_url(V);
+validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ atom_to_list(V)));
 validate(V, atom, loglevel) -> validate_loglevel(V);
+validate(V, atom, non_empty) -> validate_non_empty_atom(V);
 validate(V, _, {enum, Values}) -> validate_enum(V, Values);
 validate(_V, _, any) -> ok.
 
@@ -1564,9 +1474,6 @@ validate_hosts(Hosts = [_|_]) ->
 validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
     L = length(Items).
-
-validate_timeout(infinity) -> ok;
-validate_timeout(Timeout) when is_integer(Timeout), Timeout > 0 -> ok.
 
 validate_boolean(Value) when is_boolean(Value) -> ok.
 

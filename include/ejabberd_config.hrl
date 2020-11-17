@@ -28,6 +28,8 @@
                       }).
 
 -record(section, {items,
+                  validate_keys = any,
+                  required = [],
                   validate = any,
                   process,
                   format = default}).

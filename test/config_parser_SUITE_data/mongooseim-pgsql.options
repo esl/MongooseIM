@@ -53,7 +53,7 @@
       [{modules,
            [{"_","/http-bind",mod_bosh,[]},
             {"_","/ws-xmpp",mod_websockets,
-             [{max_stanza_size,100},{ping_rate,none},{timeout,infinity}]},
+             [{max_stanza_size,100},{ping_rate,120000},{timeout,infinity}]},
             {"localhost","/api",mongoose_api_admin,
              [{auth,{<<"ala">>,<<"makotaipsa">>}}]},
             {"localhost","/api/contacts/{:jid}",mongoose_api_client,[]}]},
