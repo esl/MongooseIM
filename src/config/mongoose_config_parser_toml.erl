@@ -94,16 +94,6 @@ parse_root(Path, Content) ->
 
 %% path: *
 -spec process_section(path(), toml_section() | [toml_section()]) -> config_list().
-process_section([<<"general">>] = Path, Content) ->
-    ensure_keys([<<"hosts">>], Content),
-    parse_section(Path, Content);
-process_section([<<"listen">>] = Path, Content) ->
-    Listeners = parse_section(Path, Content),
-    [#local_config{key = listen, value = Listeners}];
-process_section([<<"auth">>|_] = Path, Content) ->
-    parse_section(Path, Content, fun(AuthOpts) ->
-                                         ?HOST_F(partition_auth_opts(AuthOpts, Host))
-                                 end);
 process_section([<<"outgoing_pools">>] = Path, Content) ->
     Pools = parse_section(Path, Content),
     [#local_config{key = outgoing_pools, value = Pools}];
@@ -117,147 +107,6 @@ process_section([<<"host_config">>] = Path, Content) ->
     parse_list(Path, Content);
 process_section(Path, Content) ->
     parse_section(Path, Content).
-
-%% path: (host_config[].)auth.*
--spec auth_option(path(), toml_value()) -> [option()].
-auth_option([<<"methods">>|_] = Path, Methods) ->
-    [{auth_method, parse_list(Path, Methods)}];
-auth_option([<<"password">>|_] = Path, #{<<"hash">> := Hashes}) ->
-    [{password_format, {scram, parse_list([<<"hash">> | Path], Hashes)}}];
-auth_option([<<"password">>|_], #{<<"format">> := V}) ->
-    [{password_format, b2a(V)}];
-auth_option([<<"scram_iterations">>|_], V) ->
-    [{scram_iterations, V}];
-auth_option([<<"sasl_external">>|_] = Path, V) ->
-    [{cyrsasl_external, parse_list(Path, V)}];
-auth_option([<<"sasl_mechanisms">>|_] = Path, V) ->
-    [{sasl_mechanisms, parse_list(Path, V)}];
-auth_option([<<"jwt">>|_] = Path, V) ->
-    ensure_keys([<<"secret">>, <<"algorithm">>, <<"username_key">>], V),
-    parse_section(Path, V);
-auth_option(Path, V) ->
-    parse_section(Path, V).
-
-%% path: (host_config[].)auth.anonymous.*
-auth_anonymous_option([<<"allow_multiple_connections">>|_], V) ->
-    [{allow_multiple_connections, V}];
-auth_anonymous_option([<<"protocol">>|_], V) ->
-    [{anonymous_protocol, b2a(V)}].
-
-%% path: (host_config[].)auth.ldap.*
--spec auth_ldap_option(path(), toml_section()) -> [option()].
-auth_ldap_option([<<"pool_tag">>|_], V) ->
-    [{ldap_pool_tag, b2a(V)}];
-auth_ldap_option([<<"bind_pool_tag">>|_], V) ->
-    [{ldap_bind_pool_tag, b2a(V)}];
-auth_ldap_option([<<"base">>|_], V) ->
-    [{ldap_base, b2l(V)}];
-auth_ldap_option([<<"uids">>|_] = Path, V) ->
-    [{ldap_uids, parse_list(Path, V)}];
-auth_ldap_option([<<"filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}];
-auth_ldap_option([<<"dn_filter">>|_] = Path, V) ->
-    parse_section(Path, V, fun process_dn_filter/1);
-auth_ldap_option([<<"local_filter">>|_] = Path, V) ->
-    parse_section(Path, V, fun process_local_filter/1);
-auth_ldap_option([<<"deref">>|_], V) ->
-    [{ldap_deref, b2a(V)}].
-
-process_dn_filter(Opts) ->
-    {_, Filter} = proplists:lookup(filter, Opts),
-    {_, Attrs} = proplists:lookup(attributes, Opts),
-    [{ldap_dn_filter, {Filter, Attrs}}].
-
-process_local_filter(Opts) ->
-    {_, Op} = proplists:lookup(operation, Opts),
-    {_, Attribute} = proplists:lookup(attribute, Opts),
-    {_, Values} = proplists:lookup(values, Opts),
-    [{ldap_local_filter, {Op, {Attribute, Values}}}].
-
--spec auth_ldap_uids(path(), toml_section()) -> [option()].
-auth_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
-    [{b2l(Attr), b2l(Format)}];
-auth_ldap_uids(_, #{<<"attr">> := Attr}) ->
-    [b2l(Attr)].
-
--spec auth_ldap_dn_filter(path(), toml_value()) -> [option()].
-auth_ldap_dn_filter([<<"filter">>|_], V) ->
-    [{filter, b2l(V)}];
-auth_ldap_dn_filter([<<"attributes">>|_] = Path, V) ->
-    Attrs = parse_list(Path, V),
-    [{attributes, Attrs}].
-
--spec auth_ldap_local_filter(path(), toml_value()) -> [option()].
-auth_ldap_local_filter([<<"operation">>|_], V) ->
-    [{operation, b2a(V)}];
-auth_ldap_local_filter([<<"attribute">>|_], V) ->
-    [{attribute, b2l(V)}];
-auth_ldap_local_filter([<<"values">>|_] = Path, V) ->
-    Attrs = parse_list(Path, V),
-    [{values, Attrs}].
-
-%% path: (host_config[].)auth.external.*
--spec auth_external_option(path(), toml_value()) -> [option()].
-auth_external_option([<<"instances">>|_], V) ->
-    [{extauth_instances, V}];
-auth_external_option([<<"program">>|_], V) ->
-    [{extauth_program, b2l(V)}].
-
-%% path: (host_config[].)auth.http.*
--spec auth_http_option(path(), toml_value()) -> [option()].
-auth_http_option([<<"basic_auth">>|_], V) ->
-    [{basic_auth, b2l(V)}].
-
-%% path: (host_config[].)auth.jwt.*
--spec auth_jwt_option(path(), toml_value()) -> [option()].
-auth_jwt_option([<<"secret">>|_] = Path, V) ->
-    [Item] = parse_section(Path, V), % expect exactly one option
-    [Item];
-auth_jwt_option([<<"algorithm">>|_], V) ->
-    [{jwt_algorithm, b2l(V)}];
-auth_jwt_option([<<"username_key">>|_], V) ->
-    [{jwt_username_key, b2a(V)}].
-
-%% path: (host_config[].)auth.jwt.secret.*
--spec auth_jwt_secret(path(), toml_value()) -> [option()].
-auth_jwt_secret([<<"file">>|_], V) ->
-    [{jwt_secret_source, b2l(V)}];
-auth_jwt_secret([<<"env">>|_], V) ->
-    [{jwt_secret_source, {env, b2l(V)}}];
-auth_jwt_secret([<<"value">>|_], V) ->
-    [{jwt_secret, b2l(V)}].
-
-%% path: (host_config[].)auth.riak.*
--spec auth_riak_option(path(), toml_value()) -> [option()].
-auth_riak_option([<<"bucket_type">>|_], V) ->
-    [{bucket_type, V}].
-
-%% path: (host_config[].)auth.sasl_external[]
--spec sasl_external(path(), toml_value()) -> [option()].
-sasl_external(_, <<"standard">>) -> [standard];
-sasl_external(_, <<"common_name">>) -> [common_name];
-sasl_external(_, <<"auth_id">>) -> [auth_id];
-sasl_external(_, M) -> [{mod, b2a(M)}].
-
-%% path: (host_config[].)auth.sasl_mechanism[]
-%%       auth.sasl_mechanisms.*
--spec sasl_mechanism(path(), toml_value()) -> [option()].
-sasl_mechanism(_, V) ->
-    [b2a(<<"cyrsasl_", V/binary>>)].
-
--spec partition_auth_opts([{atom(), any()}], ejabberd:server()) -> [config()].
-partition_auth_opts(AuthOpts, Host) ->
-    {InnerOpts, OuterOpts} = lists:partition(fun({K, _}) -> is_inner_auth_opt(K) end, AuthOpts),
-    [#local_config{key = {auth_opts, Host}, value = InnerOpts} |
-     [#local_config{key = {K, Host}, value = V} || {K, V} <- OuterOpts]].
-
--spec is_inner_auth_opt(atom()) -> boolean().
-is_inner_auth_opt(auth_method) -> false;
-is_inner_auth_opt(allow_multiple_connections) -> false;
-is_inner_auth_opt(anonymous_protocol) -> false;
-is_inner_auth_opt(sasl_mechanisms) -> false;
-is_inner_auth_opt(extauth_instances) -> false;
-is_inner_auth_opt(_) -> true.
 
 %% path: outgoing_pools.*.*
 -spec process_pool(path(), toml_section()) -> [option()].
@@ -1590,6 +1439,8 @@ format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
 format_spec(#option{format = Format}) -> Format.
 
+format(Path, L, {foreach, Format}) when is_atom(Format) ->
+    lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, L);
 format([Key|_] = Path, V, host_local_config) ->
     format(Path, V, {host_local_config, b2a(Key)});
 format([Key|_] = Path, V, local_config) ->
@@ -1669,26 +1520,9 @@ node_to_string(Node) -> [binary_to_list(Node)].
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
-handler([_]) -> fun process_section/2;
-
-%% auth
-handler([_, <<"auth">>]) -> fun auth_option/2;
-handler([_, <<"anonymous">>, <<"auth">>]) -> fun auth_anonymous_option/2;
-handler([_, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_option/2;
-handler([_, <<"external">>, <<"auth">>]) -> fun auth_external_option/2;
-handler([_, <<"http">>, <<"auth">>]) -> fun auth_http_option/2;
-handler([_, <<"jwt">>, <<"auth">>]) -> fun auth_jwt_option/2;
-handler([_, <<"secret">>, <<"jwt">>, <<"auth">>]) -> fun auth_jwt_secret/2;
-handler([_, <<"riak">>, <<"auth">>]) -> fun auth_riak_option/2;
-handler([_, <<"uids">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_uids/2;
-handler([_, <<"dn_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_dn_filter/2;
-handler([_, <<"local_filter">>, <<"ldap">>, <<"auth">>]) -> fun auth_ldap_local_filter/2;
-handler([_, <<"attributes">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
-handler([_, <<"values">>, _, <<"ldap">>, <<"auth">>]) -> fun(_, V) -> [b2l(V)] end;
-handler([_, <<"methods">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
-handler([_, <<"hash">>, <<"password">>, <<"auth">>]) -> fun(_, Val) -> [b2a(Val)] end;
-handler([_, <<"sasl_external">>, <<"auth">>]) -> fun sasl_external/2;
-handler([_, <<"sasl_mechanisms">>, <<"auth">>]) -> fun sasl_mechanism/2;
+handler([Section]) when Section =/= <<"general">>,
+                        Section =/= <<"listen">>,
+                        Section =/= <<"auth">> -> fun process_section/2;
 
 %% outgoing_pools
 handler([_, <<"outgoing_pools">>]) -> fun parse_section/2;
@@ -1870,15 +1704,12 @@ handler([_, _, <<"host_config">>]) -> fun process_section/2;
 handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
-    subtree_handler(initial, lists:reverse(Path)).
+    reverse_handler(lists:reverse(Path)).
 
-subtree_handler(initial, [<<"host_config">>, {host, _} | Subtree]) ->
-    subtree_handler(subtree, Subtree);
-subtree_handler(_, [Section|_] = Path) when Section =:= <<"general">>;
-                                            Section =:= <<"listen">> ->
-    mongoose_config_spec:handler(Path);
-subtree_handler(subtree, Subtree) ->
-    handler(lists:reverse(Subtree)).
+reverse_handler([<<"host_config">>, {host, _} | Subtree]) ->
+    handler(lists:reverse(Subtree));
+reverse_handler(Path) ->
+    mongoose_config_spec:handler(Path).
 
 %% 1. Strip host_config, choose the handler for the remaining path
 %% 2. Wrap the handler in a fun that calls the resulting function F for the current host
