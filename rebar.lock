@@ -171,7 +171,11 @@
   {git,"https://github.com/esl/usec.git",
        {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
   0},
- {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},0}]}.
+ {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},0},
+ {<<"worker_pool">>,
+  {git,"https://github.com/arcusfelis/worker_pool.git",
+       {ref,"266cf7ec0ccdf9f1719b541379ab47c1863c92ad"}},
+  0}]}.
 [
 {pkg_hash,[
  {<<"amqp_client">>, <<"31F1DF5495D452F321C0275C7263A18C3BA38E1DA486CFC7271BE84F4A84AF01">>},

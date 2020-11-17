@@ -641,7 +641,6 @@ check_generic_prep(Config, Value, Column) ->
     check_generic_prep(Config, Value, Column, to_binary).
 
 check_generic_prep(Config, Value, Column, TransformResult) ->
-    ct:log("Check value=~p", [Value]),
     EraseResult = erase_table(Config),
 
     InsertQuery = <<"INSERT INTO test_types (", Column/binary, ") "
@@ -654,7 +653,6 @@ check_generic_prep(Config, Value, Column, TransformResult) ->
     Parameters = [Value],
     InsertResult = sql_execute(Config, Name, Parameters),
     SelectResult = sql_query(Config, SelectQuery),
-    ct:log("Got value=~p", [SelectResult]),
     %% Compare as binaries
     ?assert_equal_extra({selected, [{value_to_binary(Value)}]},
                         transform_selected(TransformResult, Config, SelectResult),

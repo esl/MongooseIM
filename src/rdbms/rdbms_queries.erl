@@ -803,7 +803,7 @@ count_offline_messages(_, LServer, SUser, SServer, Limit) ->
 
 -spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],
                                RowsNum :: pos_integer()) ->
-    iodata().
+    {iodata(), [binary()]}.
 create_bulk_insert_query(Table, Fields, RowsNum) when is_atom(Table) ->
     create_bulk_insert_query(atom_to_binary(Table, utf8), Fields, RowsNum);
 create_bulk_insert_query(Table, [Field | _] = Fields, RowsNum) when is_atom(Field) ->
