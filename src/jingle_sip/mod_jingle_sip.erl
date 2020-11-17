@@ -57,7 +57,7 @@ start(Host, Opts) ->
     ok.
 
 start_nksip_service_or_error(Opts) ->
-    application:ensure_all_started(nksip),
+    {ok, _} = application:ensure_all_started(nksip),
     ListenPort = gen_mod:get_opt(listen_port, Opts, 5600),
     NkSipBasicOpts = #{sip_listen => "sip:all:" ++ integer_to_list(ListenPort),
                        callback => jingle_sip_callbacks,

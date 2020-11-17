@@ -67,7 +67,7 @@ start(#{node := Node}, Domain, Mod, Args) ->
     start(Node, Domain, Mod, Args);
 start(Node, Domain, Mod, Args) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
+    case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 15000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
         R -> R
