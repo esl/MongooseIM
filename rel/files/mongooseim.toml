@@ -6,8 +6,12 @@
   all_metrics_are_global = {{{all_metrics_are_global}}}
   sm_backend = {{{sm_backend}}}
   max_fsm_queue = 1000
+  {{#http_server_name}}
   {{{http_server_name}}}
+  {{/http_server_name}}
+  {{#rdbms_server_type}}
   {{{rdbms_server_type}}}
+  {{/rdbms_server_type}}
 
 [[listen.http]]
   port = {{{http_port}}}
@@ -31,7 +35,9 @@
   port = {{{https_port}}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
+  {{#https_config}}
   {{{https_config}}}
+  {{/https_config}}
 
   [[listen.http.handlers.mod_bosh]]
     host = "_"
@@ -42,7 +48,9 @@
     path = "/ws-xmpp"
 
 [[listen.http]]
+  {{#http_api_endpoint}}
   {{{http_api_endpoint}}}
+  {{/http_api_endpoint}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -51,11 +59,15 @@
     path = "/api"
 
 [[listen.http]]
+  {{#http_api_client_endpoint}}
   {{{http_api_client_endpoint}}}
+  {{/http_api_client_endpoint}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
   protocol.compress = true
+  {{#https_config}}
   {{{https_config}}}
+  {{/https_config}}
 
   [[listen.http.handlers.lasse_handler]]
     host = "_"
@@ -102,7 +114,9 @@
     content_path = "swagger"
 
 [[listen.http]]
+  {{#http_api_old_endpoint}}
   {{{http_api_old_endpoint}}}
+  {{/http_api_old_endpoint}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -113,34 +127,60 @@
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
+  {{#tls_config}}
   {{{tls_config}}}
+  {{/tls_config}}
+  {{#tls_module}}
   {{{tls_module}}}
+  {{/tls_module}}
+  {{#proxy_protocol}}
   {{{proxy_protocol}}}
+  {{/proxy_protocol}}
+  {{#zlib}}
   {{{zlib}}}
+  {{/zlib}}
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
+  {{#c2s_dhfile}}
   {{{c2s_dhfile}}}
+  {{/c2s_dhfile}}
 
+{{#secondary_c2s}}
 {{{secondary_c2s}}}
+{{/secondary_c2s}}
 
 [[listen.s2s]]
   port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
   max_stanza_size = 131072
+  {{#s2s_dhfile}}
   {{{s2s_dhfile}}}
+  {{/s2s_dhfile}}
 
+{{#listen_service}}
 {{{listen_service}}}
+{{/listen_service}}
 
 [auth]
+  {{#auth_ldap}}
   {{{auth_ldap}}}
+  {{/auth_ldap}}
   methods = [{{{auth_method}}}]
+  {{#password_format}}
   {{{password_format}}}
+  {{/password_format}}
+  {{#scram_iterations}}
   {{{scram_iterations}}}
+  {{/scram_iterations}}
   sasl_external = [{{{cyrsasl_external}}}]
+  {{#sasl_mechanisms}}
   {{{sasl_mechanisms}}}
+  {{/sasl_mechanisms}}
 
+{{#outgoing_pools}}
 {{{outgoing_pools}}}
+{{/outgoing_pools}}
 #[outgoing_pools.redis.global_distrib]
 #  scope = "single_host"
 #  host = "localhost"
@@ -171,7 +211,9 @@
 
 [modules.mod_adhoc]
 
+{{#mod_amp}}
 {{{mod_amp}}}
+{{/mod_amp}}
 
 [modules.mod_disco]
   users_can_see_hidden_services = false
@@ -182,17 +224,27 @@
 
 [modules.mod_muc_light_commands]
 
+{{#mod_last}}
 {{{mod_last}}}
+{{/mod_last}}
 
 [modules.mod_stream_management]
 
+{{#mod_offline}}
 {{{mod_offline}}}
+{{/mod_offline}}
 
+{{#mod_privacy}}
 {{{mod_privacy}}}
+{{/mod_privacy}}
 
+{{#mod_blocking}}
 {{{mod_blocking}}}
+{{/mod_blocking}}
 
+{{#mod_private}}
 {{{mod_private}}}
+{{/mod_private}}
 
 [modules.mod_register]
   welcome_message = {body = "", subject = ""}
@@ -202,11 +254,15 @@
   ]
   access = "register"
 
+{{#mod_roster}}
 {{{mod_roster}}}
+{{/mod_roster}}
 
 [modules.mod_sic]
 
+{{#mod_vcard}}
 {{{mod_vcard}}}
+{{/mod_vcard}}
 
 [modules.mod_bosh]
 
@@ -310,14 +366,22 @@
   ]
 
 [s2s]
+  {{#s2s_use_starttls}}
   {{{s2s_use_starttls}}}
+  {{/s2s_use_starttls}}
+  {{#s2s_certfile}}
   {{{s2s_certfile}}}
+  {{/s2s_certfile}}
   default_policy = {{{s2s_default_policy}}}
   outgoing.port = {{{outgoing_s2s_port}}}
 
+  {{#s2s_addr}}
   {{{s2s_addr}}}
+  {{/s2s_addr}}
 
+{{#host_config}}
 {{{host_config}}}
+{{/host_config}}
 #[[host_config]]
 #  host = "anonymous.localhost"
 #
