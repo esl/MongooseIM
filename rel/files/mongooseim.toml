@@ -148,8 +148,8 @@
 
 {{#secondary_c2s}}
 {{{secondary_c2s}}}
-{{/secondary_c2s}}
 
+{{/secondary_c2s}}
 [[listen.s2s]]
   port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
@@ -160,8 +160,8 @@
 
 {{#listen_service}}
 {{{listen_service}}}
-{{/listen_service}}
 
+{{/listen_service}}
 [auth]
   {{#auth_ldap}}
   {{{auth_ldap}}}
@@ -181,6 +181,7 @@
 {{#outgoing_pools}}
 {{{outgoing_pools}}}
 {{/outgoing_pools}}
+{{^outgoing_pools}}
 #[outgoing_pools.redis.global_distrib]
 #  scope = "single_host"
 #  host = "localhost"
@@ -200,6 +201,7 @@
 #    tls.verify_peer = true
 #    tls.cacertfile = "priv/ssl/cacert.pem"
 #    tls.server_name_indication = false
+{{/outgoing_pools}}
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
@@ -213,8 +215,8 @@
 
 {{#mod_amp}}
 {{{mod_amp}}}
-{{/mod_amp}}
 
+{{/mod_amp}}
 [modules.mod_disco]
   users_can_see_hidden_services = false
 
@@ -226,26 +228,26 @@
 
 {{#mod_last}}
 {{{mod_last}}}
-{{/mod_last}}
 
+{{/mod_last}}
 [modules.mod_stream_management]
 
 {{#mod_offline}}
 {{{mod_offline}}}
-{{/mod_offline}}
 
+{{/mod_offline}}
 {{#mod_privacy}}
 {{{mod_privacy}}}
-{{/mod_privacy}}
 
+{{/mod_privacy}}
 {{#mod_blocking}}
 {{{mod_blocking}}}
-{{/mod_blocking}}
 
+{{/mod_blocking}}
 {{#mod_private}}
 {{{mod_private}}}
-{{/mod_private}}
 
+{{/mod_private}}
 [modules.mod_register]
   welcome_message = {body = "", subject = ""}
   ip_access = [
@@ -256,14 +258,14 @@
 
 {{#mod_roster}}
 {{{mod_roster}}}
-{{/mod_roster}}
 
+{{/mod_roster}}
 [modules.mod_sic]
 
 {{#mod_vcard}}
 {{{mod_vcard}}}
-{{/mod_vcard}}
 
+{{/mod_vcard}}
 [modules.mod_bosh]
 
 [modules.mod_carboncopy]
@@ -374,7 +376,6 @@
   {{/s2s_certfile}}
   default_policy = {{{s2s_default_policy}}}
   outgoing.port = {{{outgoing_s2s_port}}}
-
   {{#s2s_addr}}
   {{{s2s_addr}}}
   {{/s2s_addr}}
@@ -382,6 +383,7 @@
 {{#host_config}}
 {{{host_config}}}
 {{/host_config}}
+{{^host_config}}
 #[[host_config]]
 #  host = "anonymous.localhost"
 #
@@ -389,3 +391,4 @@
 #    methods = ["anonymous"]
 #    anonymous.allow_multiple_connections = true
 #    anonymous.protocol = "both"
+{{/host_config}}
