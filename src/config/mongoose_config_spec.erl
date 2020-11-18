@@ -6,6 +6,8 @@
 
 -type config_node() :: #section{} | #option{} | #list{}.
 
+-export_type([config_node/0]).
+
 handler(Path) ->
     handler(Path, root()).
 
@@ -28,9 +30,11 @@ handler([item|Rest], #list{items = Items}) ->
 root() ->
     #section{
        items = #{<<"general">> => general(),
-                 <<"listen">> => listen()
+                 <<"listen">> => listen(),
+                 <<"auth">> => auth()
                 },
-       required = [<<"general">>]
+       required = [<<"general">>],
+       format = none
       }.
 
 %% path: general
@@ -86,7 +90,8 @@ general() ->
                  <<"hide_service_name">> => #option{type = boolean,
                                                     format = host_local_config}
                 },
-       required = [<<"hosts">>]
+       required = [<<"hosts">>],
+       format = none
       }.
 
 ctl_access_rule() ->
@@ -335,6 +340,175 @@ http_handler_required(<<"cowboy_static">>) -> all;
 http_handler_required(<<"mongoose_api">>) -> all;
 http_handler_required(_) -> [].
 
+%% path: (host_config[].)auth
+auth() ->
+    #section{
+       items = #{<<"methods">> => #list{items = #option{type = atom,
+                                                        validate = {module, ejabberd_auth_}},
+                                        format = {kv, auth_method}},
+                 <<"password">> => auth_password(),
+                 <<"scram_iterations">> => #option{type = integer,
+                                                   validate = positive},
+                 <<"sasl_external">> =>
+                     #list{items = #option{type = atom,
+                                           process = fun ?MODULE:process_sasl_external/1},
+                           format = {kv, cyrsasl_external}},
+                 <<"sasl_mechanisms">> =>
+                     #list{items = #option{type = atom,
+                                           validate = {module, cyrsasl_},
+                                           process = fun ?MODULE:process_sasl_mechanism/1}},
+                 <<"anonymous">> => auth_anonymous(),
+                 <<"external">> => auth_external(),
+                 <<"http">> => auth_http(),
+                 <<"jwt">> => auth_jwt(),
+                 <<"ldap">> => auth_ldap(),
+                 <<"riak">> => auth_riak()},
+       process = fun ?MODULE:process_auth/1,
+       format = {foreach, host_local_config}
+      }.
+
+%% path: (host_config[].)auth.password
+auth_password() ->
+    #section{
+       items = #{<<"format">> => #option{type = atom,
+                                         validate = {enum, [scram, plain]}},
+                 <<"hash">> => #list{items = #option{type = atom,
+                                                     validate = {enum, [sha, sha224, sha256,
+                                                                        sha384, sha512]}},
+                                     validate = unique_non_empty
+                                    }
+                },
+       process = fun ?MODULE:process_auth_password/1,
+       format = {kv, password_format}
+      }.
+
+%% path: (host_config[].)auth.anonymous
+auth_anonymous() ->
+    #section{
+       items = #{<<"allow_multiple_connections">> => #option{type = boolean},
+                 <<"protocol">> => #option{type = atom,
+                                           validate = {enum, [sasl_anon, login_anon, both]},
+                                           format = {kv, anonymous_protocol}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)auth.external
+auth_external() ->
+    #section{
+       items = #{<<"instances">> => #option{type = integer,
+                                            validate = positive,
+                                            format = {kv, extauth_instances}},
+                 <<"program">> => #option{type = string,
+                                          validate = non_empty,
+                                          format = {kv, extauth_program}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)auth.http
+auth_http() ->
+    #section{
+       items = #{<<"basic_auth">> => #option{type = string}},
+       format = none
+      }.
+
+%% path: (host_config[].)auth.jwt
+auth_jwt() ->
+    #section{
+       items = #{<<"secret">> => auth_jwt_secret(),
+                 <<"algorithm">> => #option{type = string,
+                                            validate = {enum, ["HS256", "RS256", "ES256",
+                                                               "HS386", "RS386", "ES386",
+                                                               "HS512", "RS512", "ES512"]},
+                                            format = {kv, jwt_algorithm}},
+                 <<"username_key">> => #option{type = atom,
+                                               validate = non_empty,
+                                               format = {kv, jwt_username_key}}
+                },
+       required = all,
+       format = none
+      }.
+
+%% path: (host_config[].)auth.jwt.secret
+auth_jwt_secret() ->
+    #section{
+       items = #{<<"file">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"env">> => #option{type = string,
+                                      validate = non_empty},
+                 <<"value">> => #option{type = string}},
+       process = fun ?MODULE:process_jwt_secret/1,
+       format = item
+      }.
+
+%% path: (host_config[].)auth.ldap
+auth_ldap() ->
+    #section{
+       items = #{<<"pool_tag">> => #option{type = atom,
+                                           validate = non_empty,
+                                           format = {kv, ldap_pool_tag}},
+                 <<"bind_pool_tag">> => #option{type = atom,
+                                                validate = non_empty,
+                                                format = {kv, ldap_bind_pool_tag}},
+                 <<"base">> => #option{type = string,
+                                       format = {kv, ldap_base}},
+                 <<"uids">> => #list{items = ldap_uids(),
+                                     format = {kv, ldap_uids}},
+                 <<"filter">> => #option{type = string,
+                                         format = {kv, ldap_filter}},
+                 <<"dn_filter">> => ldap_dn_filter(),
+                 <<"local_filter">> => ldap_local_filter(),
+                 <<"deref">> => #option{type = atom,
+                                        validate = {enum, [never, always, finding, searching]},
+                                        format = {kv, ldap_deref}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)auth.ldap.uids
+ldap_uids() ->
+    #section{
+       items = #{<<"attr">> => #option{type = string},
+                 <<"format">> => #option{type = string}},
+       process = fun ?MODULE:process_ldap_uids/1,
+       required = [<<"attr">>]
+      }.
+
+%% path: (host_config[].)auth.ldap.dn_filter
+ldap_dn_filter() ->
+    #section{
+       items = #{<<"filter">> => #option{type = string},
+                 <<"attributes">> => #list{items = #option{type = string}}
+                },
+       required = all,
+       process = fun ?MODULE:process_ldap_dn_filter/1,
+       format = {kv, ldap_dn_filter}
+      }.
+
+%% path: (host_config[].)auth.ldap.local_filter
+ldap_local_filter() ->
+    #section{
+       items = #{<<"operation">> => #option{type = atom,
+                                            validate = {enum, [equal, notequal]}},
+                 <<"attribute">> => #option{type = string,
+                                            validate = non_empty},
+                 <<"values">> => #list{items = #option{type = string},
+                                       validate = non_empty}
+                },
+       required = all,
+       process = fun ?MODULE:process_ldap_local_filter/1,
+       format = {kv, ldap_local_filter}
+      }.
+
+%% path: (host_config[].)auth.riak
+auth_riak() ->
+    #section{
+       items = #{<<"bucket_type">> => #option{type = binary,
+                                              validate = non_empty}},
+       format = none
+      }.
+
 %% Callbacks for 'process'
 
 process_ctl_access_rule(KVs) ->
@@ -442,3 +616,51 @@ process_http_handler_opts(<<"mongoose_api_admin">>, Opts) ->
 process_http_handler_opts(<<"cowboy_swagger_redirect_handler">>, []) -> #{};
 process_http_handler_opts(<<"cowboy_swagger_json_handler">>, []) -> #{};
 process_http_handler_opts(_, Opts) -> Opts.
+
+process_auth(Opts) ->
+    %% some options need to be wrapped in 'auth_opts' - this needs simplifying in the future
+    OuterKeys = [auth_method, allow_multiple_connections, anonymous_protocol, sasl_mechanisms,
+                 extauth_instances],
+    {OuterOpts, InnerOpts} = lists:partition(fun({K, _}) -> lists:member(K, OuterKeys) end, Opts),
+    [{auth_opts, InnerOpts} | OuterOpts].
+
+process_sasl_external(V) when V =:= standard;
+                              V =:= common_name;
+                              V =:= auth_id ->
+    V;
+process_sasl_external(M) ->
+    mongoose_config_validator_toml:validate(M, atom, module),
+    {mod, M}.
+
+process_sasl_mechanism(V) ->
+    list_to_atom("cyrsasl_" ++ atom_to_list(V)).
+
+process_jwt_secret([{file, V}]) -> {jwt_secret_source, V};
+process_jwt_secret([{env, V}]) -> {jwt_secret_source, {env, V}};
+process_jwt_secret([{value, V}]) -> {jwt_secret, V}.
+
+process_auth_password(KVs) ->
+    {[FormatOpts, HashOpts], []} = proplists:split(KVs, [format, hash]),
+    case {FormatOpts, HashOpts} of
+        {[{format, Format}], []} -> Format;
+        {[{format, scram}], [{hash, Hashes}]} -> {scram, Hashes};
+        {[], [{hash, Hashes}]} -> {scram, Hashes}
+    end.
+
+process_ldap_dn_filter(KVs) ->
+    {_, Filter} = proplists:lookup(filter, KVs),
+    {_, Attrs} = proplists:lookup(attributes, KVs),
+    {Filter, Attrs}.
+
+process_ldap_local_filter(KVs) ->
+    {_, Op} = proplists:lookup(operation, KVs),
+    {_, Attribute} = proplists:lookup(attribute, KVs),
+    {_, Values} = proplists:lookup(values, KVs),
+    {Op, {Attribute, Values}}.
+
+process_ldap_uids(KVs) ->
+    {[AttrOpts, FormatOpts], []} = proplists:split(KVs, [attr, format]),
+    case {AttrOpts, FormatOpts} of
+        {[{attr, Attr}], []} -> Attr;
+        {[{attr, Attr}], [{format, Format}]} -> {Attr, Format}
+    end.
