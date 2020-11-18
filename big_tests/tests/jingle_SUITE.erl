@@ -56,17 +56,8 @@ suite() ->
 init_per_suite(Config) ->
     case rpc(mim(), application, get_application, [nksip]) of
         {ok, nksip} ->
-            Port = 12345,
-            Host = ct:get_config({hosts, mim, domain}),
             distributed_helper:add_node_to_cluster(mim2(), Config),
-            dynamic_modules:start(mim(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                                {proxy_port, Port},
-                                                                {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-            dynamic_modules:start(mim2(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                                 {proxy_port, Port},
-                                                                 {listen_port, 12346},
-                                                                 {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-
+            start_nksip_in_mim_nodes(),
             application:ensure_all_started(esip),
             spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
                            ets:new(jingle_sip_translator_bindings, [public, named_table]),
@@ -76,6 +67,46 @@ init_per_suite(Config) ->
             escalus:init_per_suite(Config);
         undefined ->
             {skip, build_was_not_configured_with_jingle_sip}
+    end.
+
+start_nksip_in_mim_nodes() ->
+    Port = 12345,
+    Host = ct:get_config({hosts, mim, domain}),
+    RPCSpec1 = mim(),
+    RPCSpec2 = mim2(),
+    Timeout = timer:seconds(60),
+
+    Pid1 = proc_lib:spawn_link(
+             fun() ->
+                     {ok, _} = rpc(RPCSpec1#{timeout => Timeout}, gen_mod, start_module,
+                                   [
+                                    Host, mod_jingle_sip,
+                                    [{proxy_host, "localhost"},
+                                     {proxy_port, Port},
+                                     {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]
+                                   ])
+             end),
+    Pid2 = proc_lib:spawn_link(
+             fun() ->
+                     {ok, _} = rpc(RPCSpec2#{timeout => Timeout}, gen_mod, start_module,
+                                   [
+                                    Host, mod_jingle_sip,
+                                    [{proxy_host, "localhost"},
+                                     {proxy_port, Port},
+                                     {listen_port, 12346},
+                                     {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]
+                                   ])
+             end),
+    %% then
+    wait_for_process_to_stop(Pid1, Timeout),
+    wait_for_process_to_stop(Pid2, Timeout).
+
+wait_for_process_to_stop(Pid, Timeout) ->
+    erlang:monitor(process, Pid),
+    receive
+        {'DOWN', _, process, Pid, _} -> ok
+    after Timeout ->
+              ct:fail(wait_for_process_to_stop_timeout)
     end.
 
 end_per_suite(Config) ->
