@@ -150,12 +150,12 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
     AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "\"pki\""}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
-    NewConfigValues = [{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"\n"
+    NewConfigValues = [{tls_config, "tls.module = \"" ++ TLSModule ++ "\"\n"
+                                    "  tls.certfile = \"priv/ssl/fake_server.pem\"\n"
                                     "  tls.mode = \"starttls\"\n"
                                     "  tls.verify_peer = true\n"
                                     "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                     ++ SSLOpts},
-		       {tls_module, "tls.module = \"" ++ TLSModule ++ "\""},
 		       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
                                       "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
                                       "  tls.password = \"\"\n"
@@ -163,7 +163,7 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
                                       "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                       ++ VerifyMode},
                        {cyrsasl_external, CyrsaslExternalConfig},
-		       {sasl_mechanisms, "sasl_mechanisms = [\"external\"]"} | AuthMethods],
+		       {sasl_mechanisms, "\"external\""} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim).
 

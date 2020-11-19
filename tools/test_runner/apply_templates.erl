@@ -23,7 +23,13 @@ overlay_vars(Node) ->
     Vars = consult_map("rel/vars-toml.config"),
     NodeVars = consult_map("rel/" ++ atom_to_list(Node) ++ ".vars-toml.config"),
     %% NodeVars overrides Vars
-    maps:merge(Vars, NodeVars).
+    ensure_binary_strings(maps:merge(Vars, NodeVars)).
+
+%% bbmustache tries to iterate over lists, so we need to make them binaries
+ensure_binary_strings(Vars) ->
+    maps:map(fun(_K, V) when is_list(V) -> list_to_binary(V);
+                (_K, V) -> V
+             end, Vars).
 
 consult_map(File) ->
     {ok, Vars} = file:consult(File),
