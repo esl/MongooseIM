@@ -40,8 +40,8 @@
 {http_api_endpoint, "ip_address = \"127.0.0.1\"
   port = 8088"}.
 {http_api_client_endpoint, "port = 8089"}.
-{s2s_use_starttls, "use_starttls = \"optional\""}.
-{s2s_certfile, "certfile = \"priv/ssl/fake_server.pem\""}.
+{s2s_use_starttls, "\"optional\""}.
+{s2s_certfile, "\"priv/ssl/fake_server.pem\""}.
 {all_metrics_are_global, "false"}.
 
 %% Defined in Makefile by appending configure.vars.config

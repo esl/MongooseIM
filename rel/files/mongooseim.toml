@@ -7,10 +7,10 @@
   sm_backend = {{{sm_backend}}}
   max_fsm_queue = 1000
   {{#http_server_name}}
-  {{{http_server_name}}}
+  http_server_name = {{{http_server_name}}}
   {{/http_server_name}}
   {{#rdbms_server_type}}
-  {{{rdbms_server_type}}}
+  rdbms_server_type = {{{rdbms_server_type}}}
   {{/rdbms_server_type}}
 
 [[listen.http]]
@@ -127,41 +127,35 @@
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
-  {{#tls_config}}
-  {{{tls_config}}}
-  {{/tls_config}}
-  {{#tls_module}}
-  {{{tls_module}}}
-  {{/tls_module}}
-  {{#proxy_protocol}}
-  {{{proxy_protocol}}}
-  {{/proxy_protocol}}
   {{#zlib}}
-  {{{zlib}}}
+  zlib = {{{zlib}}}
   {{/zlib}}
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
+  {{#tls_config}}
+  {{{tls_config}}}
+  {{/tls_config}}
   {{#c2s_dhfile}}
-  {{{c2s_dhfile}}}
+  tls.dhfile = {{{c2s_dhfile}}}
   {{/c2s_dhfile}}
-
 {{#secondary_c2s}}
-{{{secondary_c2s}}}
 
+{{{secondary_c2s}}}
 {{/secondary_c2s}}
+
 [[listen.s2s]]
   port = {{{incoming_s2s_port}}}
   shaper = "s2s_shaper"
   max_stanza_size = 131072
   {{#s2s_dhfile}}
-  {{{s2s_dhfile}}}
+  tls.dhfile = {{{s2s_dhfile}}}
   {{/s2s_dhfile}}
-
 {{#listen_service}}
-{{{listen_service}}}
 
+{{{listen_service}}}
 {{/listen_service}}
+
 [auth]
   {{#auth_ldap}}
   {{{auth_ldap}}}
@@ -171,11 +165,11 @@
   {{{password_format}}}
   {{/password_format}}
   {{#scram_iterations}}
-  {{{scram_iterations}}}
+  scram_iterations = {{{scram_iterations}}}
   {{/scram_iterations}}
   sasl_external = [{{{cyrsasl_external}}}]
   {{#sasl_mechanisms}}
-  {{{sasl_mechanisms}}}
+  sasl_mechanisms = [{{{sasl_mechanisms}}}]
   {{/sasl_mechanisms}}
 
 {{#outgoing_pools}}
@@ -212,11 +206,11 @@
   periodic_report = 10_800_000
 
 [modules.mod_adhoc]
-
 {{#mod_amp}}
-{{{mod_amp}}}
 
+{{{mod_amp}}}
 {{/mod_amp}}
+
 [modules.mod_disco]
   users_can_see_hidden_services = false
 
@@ -225,29 +219,29 @@
 [modules.mod_muc_commands]
 
 [modules.mod_muc_light_commands]
-
 {{#mod_last}}
+
 {{{mod_last}}}
-
 {{/mod_last}}
+
 [modules.mod_stream_management]
-
 {{#mod_offline}}
-{{{mod_offline}}}
 
+{{{mod_offline}}}
 {{/mod_offline}}
 {{#mod_privacy}}
-{{{mod_privacy}}}
 
+{{{mod_privacy}}}
 {{/mod_privacy}}
 {{#mod_blocking}}
-{{{mod_blocking}}}
 
+{{{mod_blocking}}}
 {{/mod_blocking}}
 {{#mod_private}}
-{{{mod_private}}}
 
+{{{mod_private}}}
 {{/mod_private}}
+
 [modules.mod_register]
   welcome_message = {body = "", subject = ""}
   ip_access = [
@@ -255,17 +249,17 @@
     {address = "0.0.0.0/0", policy = "deny"}
   ]
   access = "register"
-
 {{#mod_roster}}
+
 {{{mod_roster}}}
-
 {{/mod_roster}}
+
 [modules.mod_sic]
-
 {{#mod_vcard}}
-{{{mod_vcard}}}
 
+{{{mod_vcard}}}
 {{/mod_vcard}}
+
 [modules.mod_bosh]
 
 [modules.mod_carboncopy]
@@ -369,14 +363,15 @@
 
 [s2s]
   {{#s2s_use_starttls}}
-  {{{s2s_use_starttls}}}
+  use_starttls = {{{s2s_use_starttls}}}
   {{/s2s_use_starttls}}
   {{#s2s_certfile}}
-  {{{s2s_certfile}}}
+  certfile = {{{s2s_certfile}}}
   {{/s2s_certfile}}
   default_policy = {{{s2s_default_policy}}}
   outgoing.port = {{{outgoing_s2s_port}}}
   {{#s2s_addr}}
+
   {{{s2s_addr}}}
   {{/s2s_addr}}
 
