@@ -172,7 +172,7 @@ modify_config_file(Host, VarsToChange, Config, Format) ->
     ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [NewCfgPath, TemplatedConfig]).
 
 template_config(Template, Vars) ->
-    MergedVars = merge_vars(Vars),
+    MergedVars = ensure_binary_strings(merge_vars(Vars)),
     %% Render twice to replace variables in variables
     Tmp = bbmustache:render(Template, MergedVars, [{key_type, atom}]),
     bbmustache:render(Tmp, MergedVars, [{key_type, atom}]).
@@ -183,6 +183,13 @@ merge_vars([Vars1, Vars2|Rest]) ->
                        end, Vars1, Vars2),
     merge_vars([Vars|Rest]);
 merge_vars([Vars]) -> Vars.
+
+%% bbmustache tries to iterate over lists, so we need to make them binaries
+ensure_binary_strings(Vars) ->
+    lists:map(fun({dbs, V}) -> {dbs, V};
+                 ({K, V}) when is_list(V) -> {K, list_to_binary(V)};
+                 ({K, V}) -> {K, V}
+              end, Vars).
 
 update_config_path(RPCSpec, Format) ->
     CurrentCfgPath = get_config_path(RPCSpec),

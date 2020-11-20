@@ -11,11 +11,7 @@
 
 % TOML config
 {hosts, "\"localhost\""}.
-{host_config, ""}.
-{auth_ldap, ""}.
-{s2s_addr, ""}.
 {s2s_default_policy, "\"deny\""}.
-{mod_amp, ""}.
 {listen_service, "[[listen.service]]
   port = 8888
   access = \"all\"
@@ -36,20 +32,16 @@
 {cyrsasl_external, "\"standard\""}.
 {tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"
   tls.mode = \"starttls\""}.
-{tls_module, ""}.
 {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"
   tls.keyfile = \"priv/ssl/fake_key.pem\"
   tls.password =  \"\""}.
-{zlib, ""}.
-{outgoing_pools, ""}.
 {http_api_old_endpoint, "ip_address = \"127.0.0.1\"
   port = 5288"}.
 {http_api_endpoint, "ip_address = \"127.0.0.1\"
   port = 8088"}.
 {http_api_client_endpoint, "port = 8089"}.
-{s2s_use_starttls, "use_starttls = \"optional\""}.
-{s2s_certfile, "certfile = \"priv/ssl/fake_server.pem\""}.
-{sasl_mechanisms, ""}.
+{s2s_use_starttls, "\"optional\""}.
+{s2s_certfile, "\"priv/ssl/fake_server.pem\""}.
 {all_metrics_are_global, "false"}.
 
 %% Defined in Makefile by appending configure.vars.config
