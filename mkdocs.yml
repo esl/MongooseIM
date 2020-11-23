@@ -75,6 +75,7 @@ pages:
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
       - 'Logging configuration': 'operation-and-maintenance/Logging.md'
+      - 'Logging with Humio': 'operation-and-maintenance/Humio.md'
       - 'Logging fields': 'operation-and-maintenance/Logging-fields.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'

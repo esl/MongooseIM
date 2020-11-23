@@ -1,0 +1,19 @@
+# https://docs.humio.com/integrations/ingest-logs-with-a-data-shipper/beats/filebeat/
+filebeat.inputs:
+- paths:
+   - /usr/lib/mongooseim/log/mongooseim.json.1
+  encoding: utf-8
+
+queue.mem:
+  events: 8000
+  flush.min_events: 1000
+  flush.timeout: 1s
+
+output:
+  elasticsearch:
+    hosts: ["https://cloud.humio.com:443/api/v1/ingest/elastic-bulk"]
+    username: anything
+    compression_level: 5
+    bulk_max_size: 200
+    worker: 5
+#   password: "abc12345-xxxx-yyyy-zzzz-123456789abc"
