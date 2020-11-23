@@ -36,13 +36,18 @@
     request_timeout = 2000
 
 [outgoing_pools.riak.default]
-    scope = "global"
-    workers = 20
-    strategy = "next_worker"
-    connection.address = "127.0.0.1"
-    connection.port = 8087
-    connection.credentials = {user = "username", password = "pass"}
-    connection.cacertfile = "path/to/cacert.pem"
+  scope = "global"
+  workers = 20
+  strategy = "next_worker"
+
+  [outgoing_pools.riak.default.connection]
+    address = "127.0.0.1"
+    port = 8087
+    credentials = {user = "username", password = "pass"}
+    tls.certfile = "path/to/cert.pem"
+    tls.keyfile = "path/to/key.pem"
+    tls.cacertfile = "path/to/cacert.pem"
+    tls.verify_peer = true
 
 [outgoing_pools.cassandra.default]
     scope = "global"

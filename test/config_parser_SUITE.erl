@@ -136,8 +136,6 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
-                         pool_riak_certfile,
-                         pool_riak_keyfile,
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
@@ -1054,21 +1052,15 @@ pool_riak_cacertfile(_Config) ->
         parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"path/to/cacert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
-pool_riak_certfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{certfile, "path/to/cert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"certfile">> => <<"">>})).
-
-pool_riak_keyfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{keyfile, "path/to/key.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"keyfile">> => <<"path/to/key.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"keyfile">> => <<"">>})).
-
 pool_riak_tls(_Config) ->
-    %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{dhfile, "cert.pem"}
-        ]}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => <<"cert.pem">>}})),
+    %% make sure these options are not extracted out of 'ssl_opts'
+    %% all the TLS options are checked by 'listen_tls_*' tests
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "path/to/cert.pem"},
+                                                             {dhfile, "cert.pem"},
+                                                             {keyfile, "path/to/key.pem"}]}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
+                                                     <<"dhfile">> => <<"cert.pem">>,
+                                                     <<"keyfile">> => <<"path/to/key.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
