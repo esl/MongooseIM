@@ -122,7 +122,11 @@ Options:
 
 # JSON file log handler
 
-JSON formatted file. It could be used to store messages in ELK or in Splunk.
+JSON formatted file. It could be used to store messages in ELK, in Humio or in Splunk.
+
+Check this [tutorial](Humio.md) to configure MongooseIM with Humio.
+Check below information to configure MongooseIM with ELK.
+
 You can use [Filebeat](https://www.elastic.co/guide/en/beats/filebeat/current/filebeat-input-log.html#filebeat-input-log-config-json)
 to send messages from the file into ELK.
 
