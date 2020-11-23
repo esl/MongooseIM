@@ -9,7 +9,6 @@ The interface for outgoing connections management was unified and is now availab
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
-* `generic` - pool of generic workers not associated directly with a particular connection
 
 * **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value uniquely identifying the pool within its type.
 This allows you to create multiple dedicated pools of the same type.
@@ -419,11 +418,11 @@ Path to the X509 PEM file with the private key.
 Password to the X509 PEM file with the private key.
 
 #### `outgoing_pools.*.*.connection.tls.ciphers`
-* **Syntax:** array of tables with the following keys: `cipher`, `key_exchange`, `mac`, `prf` and string values.
+* **Syntax:** string with the OpenSSL cipher suite specification
 * **Default:** not set, all supported cipher suites are accepted
-* **Example:** `tls.ciphers = "[{cipher = "aes_25_gcm", key_exchange = "any", mac = "aead", "prf = sha384"}]"`
+* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers).
 
 #### `outgoing_pools.*.*.connection.tls.versions`
 * **Syntax:** list of strings
