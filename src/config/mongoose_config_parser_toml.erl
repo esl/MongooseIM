@@ -94,9 +94,6 @@ parse_root(Path, Content) ->
 
 %% path: *
 -spec process_section(path(), toml_section() | [toml_section()]) -> config_list().
-process_section([<<"outgoing_pools">>] = Path, Content) ->
-    Pools = parse_section(Path, Content),
-    [#local_config{key = outgoing_pools, value = Pools}];
 process_section([<<"services">>] = Path, Content) ->
     Services = parse_section(Path, Content),
     [#local_config{key = services, value = Services}];
@@ -108,172 +105,11 @@ process_section([<<"host_config">>] = Path, Content) ->
 process_section(Path, Content) ->
     parse_section(Path, Content).
 
-%% path: outgoing_pools.*.*
--spec process_pool(path(), toml_section()) -> [option()].
-process_pool([Tag, Type|_] = Path, M) ->
-    Scope = pool_scope(M),
-    Options = parse_section(Path, maps:without([<<"scope">>, <<"host">>, <<"connection">>], M)),
-    ConnectionOptions = parse_kv(Path, <<"connection">>, M, #{}),
-    [{b2a(Type), Scope, b2a(Tag), Options, ConnectionOptions}].
-
--spec pool_scope(toml_section()) -> option().
-pool_scope(#{<<"scope">> := <<"single_host">>, <<"host">> := Host}) -> Host;
-pool_scope(#{<<"scope">> := Scope}) -> b2a(Scope);
-pool_scope(#{}) -> global.
-
-%% path: outgoing_pools.*.*.*,
-%%       (host_config[].)modules.mod_event_pusher.backend.push.wpool.*
+%% path: (host_config[].)modules.mod_event_pusher.backend.push.wpool.*
 -spec pool_option(path(), toml_value()) -> [option()].
 pool_option([<<"workers">>|_], V) -> [{workers, V}];
 pool_option([<<"strategy">>|_], V) -> [{strategy, b2a(V)}];
 pool_option([<<"call_timeout">>|_], V) -> [{call_timeout, V}].
-
-%% path: outgoing_pools.*.connection
--spec connection_options(path(), toml_section()) -> [option()].
-connection_options([{connection, Driver}, _, <<"rdbms">>|_] = Path, M) ->
-    Options = parse_section(Path, maps:with([<<"keepalive_interval">>], M)),
-    ServerOptions = parse_section(Path, maps:without([<<"keepalive_interval">>], M)),
-    Server = rdbms_server(Driver, ServerOptions),
-    [{server, Server} | Options];
-connection_options([_, _, <<"riak">>|_] = Path, Options = #{<<"username">> := UserName,
-                                                            <<"password">> := Password}) ->
-    M = maps:without([<<"username">>, <<"password">>], Options),
-    [{credentials, b2l(UserName), b2l(Password)} | parse_section(Path, M)];
-connection_options(Path, Options) ->
-    parse_section(Path, Options).
-
--spec rdbms_server(atom(), [option()]) -> option().
-rdbms_server(odbc, Opts) ->
-    [{settings, Settings}] = Opts,
-    Settings;
-rdbms_server(Driver, Opts) ->
-    {_, Host} = proplists:lookup(host, Opts),
-    {_, Database} = proplists:lookup(database, Opts),
-    {_, UserName} = proplists:lookup(username, Opts),
-    {_, Password} = proplists:lookup(password, Opts),
-    case {proplists:get_value(port, Opts, no_port),
-          proplists:get_value(tls, Opts, no_tls)} of
-        {no_port, no_tls} -> {Driver, Host, Database, UserName, Password};
-        {Port, no_tls} -> {Driver, Host, Port, Database, UserName, Password};
-        {no_port, TLS} -> {Driver, Host, Database, UserName, Password, TLS};
-        {Port, TLS} -> {Driver, Host, Port, Database, UserName, Password, TLS}
-    end.
-
-%% path: outgoing_pools.rdbms.*.connection.*
--spec odbc_option(path(), toml_value()) -> [option()].
-odbc_option([<<"settings">>|_], V) -> [{settings, b2l(V)}];
-odbc_option(Path, V) -> rdbms_option(Path, V).
-
--spec sql_server_option(path(), toml_value()) -> [option()].
-sql_server_option([<<"host">>|_], V) -> [{host, b2l(V)}];
-sql_server_option([<<"database">>|_], V) -> [{database, b2l(V)}];
-sql_server_option([<<"username">>|_], V) -> [{username, b2l(V)}];
-sql_server_option([<<"password">>|_], V) -> [{password, b2l(V)}];
-sql_server_option([<<"port">>|_], V) -> [{port, V}];
-sql_server_option([<<"tls">>, {connection, mysql} | _] = Path, Opts) ->
-    [{tls, parse_section(Path, Opts)}];
-sql_server_option([<<"tls">>, {connection, pgsql} | _] = Path, Opts) ->
-    % true means try to establish encryption and proceed plain if failed
-    % required means fail if encryption is not possible
-    % false would mean do not even try, but we do not let the user do it
-    {SSLMode, Opts1} = case maps:take(<<"required">>, Opts) of
-                           {true, M} -> {required, M};
-                           {false, M} -> {true, M};
-                           error -> {true, Opts}
-                       end,
-    SSLOpts = case parse_section(Path, Opts1) of
-                  [] -> [];
-                  SSLOptList -> [{ssl_opts, SSLOptList}]
-              end,
-    [{tls, [{ssl, SSLMode} | SSLOpts]}];
-sql_server_option(Path, V) -> rdbms_option(Path, V).
-
--spec rdbms_option(path(), toml_value()) -> [option()].
-rdbms_option([<<"keepalive_interval">>|_], V) -> [{keepalive_interval, V}];
-rdbms_option([<<"driver">>|_], _V) -> [].
-
-%% path: outgoing_pools.http.*.connection.*
--spec http_option(path(), toml_value()) -> [option()].
-http_option([<<"host">>|_], V) -> [{server, b2l(V)}];
-http_option([<<"path_prefix">>|_], V) -> [{path_prefix, b2l(V)}];
-http_option([<<"request_timeout">>|_], V) -> [{request_timeout, V}];
-http_option([<<"tls">>|_] = Path, Options) -> [{http_opts, parse_section(Path, Options)}].
-
-%% path: outgoing_pools.redis.*.connection.*
--spec redis_option(path(), toml_value()) -> [option()].
-redis_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
-redis_option([<<"port">>|_], Port) -> [{port, Port}];
-redis_option([<<"database">>|_], Database) -> [{database, Database}];
-redis_option([<<"password">>|_], Password) -> [{password, b2l(Password)}].
-
-%% path: outgoing_pools.ldap.*.connection.*
--spec ldap_option(path(), toml_value()) -> [option()].
-ldap_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
-ldap_option([<<"port">>|_], Port) -> [{port, Port}];
-ldap_option([<<"rootdn">>|_], RootDN) -> [{rootdn, b2l(RootDN)}];
-ldap_option([<<"password">>|_], Password) -> [{password, b2l(Password)}];
-ldap_option([<<"encrypt">>|_], <<"tls">>) -> [{encrypt, tls}];
-ldap_option([<<"encrypt">>|_], <<"none">>) -> [{encrypt, none}];
-ldap_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
-ldap_option([<<"connect_interval">>|_], V) -> [{connect_interval, V}];
-ldap_option([<<"tls">>|_] = Path, Options) -> [{tls_options, parse_section(Path, Options)}].
-
-%% path: outgoing_pools.riak.*.connection.*
--spec riak_option(path(), toml_value()) -> [option()].
-riak_option([<<"address">>|_], Addr) -> [{address, b2l(Addr)}];
-riak_option([<<"port">>|_], Port) -> [{port, Port}];
-riak_option([<<"credentials">>|_] = Path, V) ->
-    parse_section(Path, V, fun process_riak_credentials/1);
-riak_option([<<"cacertfile">>|_], Path) -> [{cacertfile, b2l(Path)}];
-riak_option([<<"certfile">>|_], Path) -> [{certfile, b2l(Path)}];
-riak_option([<<"keyfile">>|_], Path) -> [{keyfile, b2l(Path)}];
-riak_option([<<"tls">>|_] = Path, Options) ->
-    Ssl = parse_section(Path, Options),
-    {RootOpts, SslOpts} = proplists:split(Ssl, [cacertfile, certfile, keyfile]),
-    case SslOpts of
-        [] ->lists:flatten(RootOpts);
-        _ -> [{ssl_opts, SslOpts} | lists:flatten(RootOpts)]
-    end.
-
-process_riak_credentials(Creds) ->
-    {_, User} = proplists:lookup(user, Creds),
-    {_, Pass} = proplists:lookup(password, Creds),
-    [{credentials, User, Pass}].
-
-%% path: outgoing_pools.riak.*.connection.credentials.*
--spec riak_credentials(path(), toml_value()) -> [option()].
-riak_credentials([<<"user">>|_], V) -> [{user, b2l(V)}];
-riak_credentials([<<"password">>|_], V) -> [{password, b2l(V)}].
-
-%% path: outgoing_pools.cassandra.*.connnection.*
--spec cassandra_option(path(), toml_value()) -> [option()].
-cassandra_option([<<"servers">>|_] = Path, V) -> [{servers, parse_list(Path, V)}];
-cassandra_option([<<"keyspace">>|_], KeySpace) -> [{keyspace, b2l(KeySpace)}];
-cassandra_option([<<"tls">>|_] = Path, Options) -> [{ssl, parse_section(Path, Options)}];
-cassandra_option([<<"auth">>|_] = Path, Options) ->
-    [AuthConfig] = parse_section(Path, Options),
-    [{auth, AuthConfig}];
-cassandra_option([<<"plain">>|_], #{<<"username">> := User, <<"password">> := Pass}) ->
-    [{cqerl_auth_plain_handler, [{User, Pass}]}].
-
-%% path: outgoing_pools.cassandra.*.connection.servers[]
--spec cassandra_server(path(), toml_section()) -> [option()].
-cassandra_server(_, #{<<"ip_address">> := IPAddr, <<"port">> := Port}) -> [{b2l(IPAddr), Port}];
-cassandra_server(_, #{<<"ip_address">> := IPAddr}) -> [b2l(IPAddr)].
-
-%% path: outgoing_pools.elastic.*.connection.*
--spec elastic_option(path(), toml_value()) -> [option()].
-elastic_option([<<"host">>|_], Host) -> [{host, b2l(Host)}];
-elastic_option([<<"port">>|_], Port) -> [{port, Port}].
-
-%% path: outgoing_pools.rabbit.*.connection.*
--spec rabbit_option(path(), toml_value()) -> [option()].
-rabbit_option([<<"amqp_host">>|_], V) -> [{amqp_host, b2l(V)}];
-rabbit_option([<<"amqp_port">>|_], V) -> [{amqp_port, V}];
-rabbit_option([<<"amqp_username">>|_], V) -> [{amqp_username, b2l(V)}];
-rabbit_option([<<"amqp_password">>|_], V) -> [{amqp_password, b2l(V)}];
-rabbit_option([<<"confirms_enabled">>|_], V) -> [{confirms_enabled, V}];
-rabbit_option([<<"max_worker_queue_len">>|_], V) -> [{max_worker_queue_len, int_or_infinity(V)}].
 
 %% path: services.*
 -spec process_service(path(), toml_section()) -> [option()].
@@ -1249,26 +1085,7 @@ process_host_item(Path, M) ->
     {_Host, Sections} = maps:take(<<"host">>, M),
     parse_section(Path, Sections).
 
-%% path: listen.http[].tls.*,
-%%       listen.c2s[].tls.*,
-%%       outgoing_pools.rdbms.connection.tls.*,
-%%       outgoing_pools.ldap.connection.tls.*,
-%%       outgoing_pools.riak.connection.tls.*,
-%%       outgoing_pools.cassandra.connection.tls.*
--spec tls_option(path(), toml_value()) -> [option()].
-tls_option([<<"verify_peer">>|_], V) -> [{verify, verify_peer(V)}];
-tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
-tls_option([<<"cacertfile">>|_], V) -> [{cacertfile, b2l(V)}];
-tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
-tls_option([<<"keyfile">>|_], V) -> [{keyfile, b2l(V)}];
-tls_option([<<"password">>|_], V) -> [{password, b2l(V)}];
-tls_option([<<"server_name_indication">>|_], false) -> [{server_name_indication, disable}];
-tls_option([<<"ciphers">>|_] = Path, L) -> [{ciphers, parse_list(Path, L)}];
-tls_option([<<"versions">>|_] = Path, L) -> [{versions, parse_list(Path, L)}].
-
-%% path: listen.http[].tls.*,
-%%       listen.c2s[].tls.*,,
-%%       (host_config[].)modules.mod_global_distrib.connections.tls.*
+%% path: (host_config[].)modules.mod_global_distrib.connections.tls.*
 -spec fast_tls_option(path(), toml_value()) -> [option()].
 fast_tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
 fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
@@ -1279,18 +1096,6 @@ mod_global_distrib_tls_option([<<"enabled">>|_], V) ->
     [{enabled, V}];
 mod_global_distrib_tls_option(P, V) ->
     fast_tls_option(P, V).
-
--spec verify_peer(boolean()) -> option().
-verify_peer(false) -> verify_none;
-verify_peer(true) -> verify_peer.
-
--spec tls_cipher(path(), toml_value()) -> [option()].
-tls_cipher(_, #{<<"key_exchange">> := KEx,
-                <<"cipher">> := Cipher,
-                <<"mac">> := MAC,
-                <<"prf">> := PRF}) ->
-    [#{key_exchange => b2a(KEx), cipher => b2a(Cipher), mac => b2a(MAC), prf => b2a(PRF)}];
-tls_cipher(_, Cipher) -> [b2l(Cipher)].
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -1319,12 +1124,6 @@ ensure_keys(Keys, Section) ->
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
     end.
 
--spec parse_kv(path(), toml_key(), toml_section(), option()) -> option().
-parse_kv(Path, K, Section, Default) ->
-    Value = maps:get(K, Section, Default),
-    Key = key(K, Path, Value),
-    handle([Key|Path], Value).
-
 %% Parse with post-processing, this needs to be eliminated by fixing the internal config structure
 -spec parse_section(path(), toml_section(), fun(([option()]) -> option())) -> option().
 parse_section(Path, V, PostProcessF) ->
@@ -1337,8 +1136,7 @@ parse_section(Path, V, PostProcessF) ->
 -spec parse_section(path(), toml_section()) -> [option()].
 parse_section(Path, M) ->
     lists:flatmap(fun({K, V}) ->
-                          Key = key(K, Path, V),
-                          handle([Key|Path], V)
+                          handle([K|Path], V)
                   end, lists:sort(maps:to_list(M))).
 
 -spec parse_list(path(), [toml_value()]) -> [option()].
@@ -1522,46 +1320,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
 handler([]) -> fun parse_root/2;
 handler([Section]) when Section =/= <<"general">>,
                         Section =/= <<"listen">>,
-                        Section =/= <<"auth">> -> fun process_section/2;
-
-%% outgoing_pools
-handler([_, <<"outgoing_pools">>]) -> fun parse_section/2;
-handler([_, _, <<"outgoing_pools">>]) -> fun process_pool/2;
-handler([<<"connection">>, _, _, <<"outgoing_pools">>]) -> fun connection_options/2;
-handler([{connection, _}, _,
-         <<"rdbms">>, <<"outgoing_pools">>]) -> fun connection_options/2;
-handler([_, _, _, <<"outgoing_pools">>]) -> fun pool_option/2;
-handler([_, {connection, odbc}, _,
-         <<"rdbms">>, <<"outgoing_pools">>]) -> fun odbc_option/2;
-handler([_, {connection, _}, _,
-         <<"rdbms">>, <<"outgoing_pools">>]) -> fun sql_server_option/2;
-handler([_, <<"connection">>, _,
-         <<"http">>, <<"outgoing_pools">>]) -> fun http_option/2;
-handler([_, <<"connection">>, _,
-         <<"redis">>, <<"outgoing_pools">>]) -> fun redis_option/2;
-handler([_, <<"connection">>, _,
-         <<"ldap">>, <<"outgoing_pools">>]) -> fun ldap_option/2;
-handler([_, <<"servers">>, <<"connection">>, _,
-         <<"ldap">>, <<"outgoing_pools">>]) -> fun(_, V) -> [b2l(V)] end;
-handler([_, <<"connection">>, _,
-         <<"riak">>, <<"outgoing_pools">>]) -> fun riak_option/2;
-handler([_, <<"credentials">>, <<"connection">>, _,
-         <<"riak">>, <<"outgoing_pools">>]) -> fun riak_credentials/2;
-handler([_, <<"connection">>, _,
-         <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
-handler([_, <<"auth">>, <<"connection">>, _,
-         <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_option/2;
-handler([_, <<"servers">>, <<"connection">>, _,
-         <<"cassandra">>, <<"outgoing_pools">>]) -> fun cassandra_server/2;
-handler([_, <<"connection">>, _,
-         <<"elastic">>, <<"outgoing_pools">>]) -> fun elastic_option/2;
-handler([_, <<"connection">>, _,
-         <<"rabbit">>, <<"outgoing_pools">>]) -> fun rabbit_option/2;
-handler([_, <<"tls">>, _, _, _, <<"outgoing_pools">>]) -> fun tls_option/2;
-handler([_, <<"versions">>, <<"tls">>, _, _, _, <<"outgoing_pools">>]) ->
-    fun(_, Val) -> [b2a(Val)] end;
-handler([_, <<"ciphers">>, <<"tls">>, _, _, _, <<"outgoing_pools">>]) ->
-    fun tls_cipher/2;
+                        Section =/= <<"auth">>,
+                        Section =/= <<"outgoing_pools">> -> fun process_section/2;
 
 %% services
 handler([_, <<"services">>]) -> fun process_service/2;
@@ -1726,13 +1486,6 @@ handler_for_host(Path) ->
         Spec ->
             Spec
     end.
-
--spec key(toml_key(), path(), toml_value()) -> tuple() | toml_key().
-key(<<"connection">>, [_, <<"rdbms">>, <<"outgoing_pools">>], M) ->
-    %% store the db driver in path as 'odbc' and 'mysql'/'pgsql' need different options
-    Driver = maps:get(<<"driver">>, M),
-    {connection, b2a(Driver)};
-key(Key, _Path, _) -> Key.
 
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
