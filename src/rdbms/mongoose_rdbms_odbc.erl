@@ -201,7 +201,7 @@ map_params([Param|Params], [Mapper|Mappers]) ->
 map_params([], []) ->
     [].
 
-maybe_null(undefined, Mapper) ->
+maybe_null(undefined, _Mapper) ->
     {sql_integer, [null]}; %% some code uses "undefined" instead of "null"
 maybe_null(null, _Mapper) ->
     {sql_integer, [null]}; %% Yeah, just random type for null

@@ -434,7 +434,6 @@ search_some(Config) ->
 
               %% Extra check
               Result = escalus:send_and_wait(Client, escalus_stanza:vcard_request(AliceJID)),
-              ct:pal("Result ~p", [Result]),
 
               [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
               {_, _, <<"City">>, MoscowRUBin} = lists:keyfind(<<"City">>, 3, ItemTups)

@@ -798,8 +798,6 @@ slow_rpc(M, F, A) ->
             Res
     end.
 
-
-
 check_like_prep(Config, TextMap = #{text := TextValue,
                                matching := MatchingList,
                                not_matching := NotMatchingList}) ->

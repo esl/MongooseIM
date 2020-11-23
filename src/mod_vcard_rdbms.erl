@@ -106,8 +106,10 @@ set_vcard(User, LServer, VCard, Search) ->
     log_upsert_result(LServer, LUser, VCard, XML, Result),
     Result.
 
-%% Horrible things happen to unicode list of bytes in MySQL driver, when
-%% making prepared queries.
+%% Do not pass unicode strings as a list of bytes into MySQL driver.
+%% MySQL driver treats lists of integers as lists of codepoints.
+%% So, it wouldn't be encoded properly.
+%% Only binaries should be used to avoid confusion.
 assert_binaries(Bins) ->
     case lists:all(fun is_binary/1, Bins) of
         true ->
