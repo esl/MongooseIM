@@ -238,8 +238,8 @@ prepare_insert(Name, NumRows) ->
     Table = mam_message,
     Fields = [id, user_id, remote_bare_jid, remote_resource,
               direction, from_jid, origin_id, message, search_body],
-    Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
-    mongoose_rdbms:prepare(Name, Table, Fields, Query),
+    {Query, Fields2} = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
+    mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
