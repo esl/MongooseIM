@@ -136,8 +136,6 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
-                         pool_riak_certfile,
-                         pool_riak_keyfile,
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
@@ -1047,34 +1045,30 @@ pool_riak_credentials(_Config) ->
         parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
             #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"">>, <<"password">> => 011001}})).
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
+                                           #{<<"user">> => <<"">>, <<"password">> => 011001}})).
 
 pool_riak_cacertfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"path/to/cacert.pem">>}})),
+    ?eq(pool_config({riak, global, default, [], [{cacertfile, "cacert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
-pool_riak_certfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{certfile, "path/to/cert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"certfile">> => <<"">>})).
-
-pool_riak_keyfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{keyfile, "path/to/key.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"keyfile">> => <<"path/to/key.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"keyfile">> => <<"">>})).
-
 pool_riak_tls(_Config) ->
-    %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{dhfile, "cert.pem"}
-        ]}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => <<"cert.pem">>}})),
+    %% make sure these options are not extracted out of 'ssl_opts'
+    %% all the TLS options are checked by 'listen_tls_*' tests
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "path/to/cert.pem"},
+                                                             {dhfile, "cert.pem"},
+                                                             {keyfile, "path/to/key.pem"}]}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
+                                                     <<"dhfile">> => <<"cert.pem">>,
+                                                     <<"keyfile">> => <<"path/to/key.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
     ?eq(pool_config({cassandra, global, default, [],
-        [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
+        [{servers, [{"cassandra_server1.example.com", 9042},
+                    {"cassandra_server2.example.com", 9042}]}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
             #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
             #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
@@ -1088,7 +1082,9 @@ pool_cassandra_keyspace(_Config) ->
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
-    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler, [{<<"auser">>, <<"secretpass">>}]}}]}),
+    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler,
+                                                              [{<<"auser">>, <<"secretpass">>}]
+                                                             }}]}),
         parse_pool_conn(<<"cassandra">>,
                         #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
                                                            <<"password">> => <<"secretpass">>}}})),

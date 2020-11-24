@@ -38,6 +38,10 @@
      {riak,global,default,
          [{strategy,next_worker},{workers,20}],
          [{address,"127.0.0.1"},
-          {cacertfile,"path/to/cacert.pem"},
           {credentials,"username","pass"},
-          {port,8087}]}]}.
+          {port,8087},
+          {ssl_opts,
+              [{certfile,"path/to/cert.pem"},
+               {keyfile,"path/to/key.pem"},
+               {verify,verify_peer}]},
+          {cacertfile,"path/to/cacert.pem"}]}]}.

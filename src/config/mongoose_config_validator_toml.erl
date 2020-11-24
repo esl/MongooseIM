@@ -16,128 +16,6 @@
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
-%% outgoing_pools
-validate([_Tag, _Type, <<"outgoing_pools">>],
-         [{TypeAtom, Scope, TagAtom, _Options, _ConnectionOptions}]) ->
-    validate_enum(TypeAtom, [redis, riak, http, rdbms, cassandra, elastic, generic, rabbit, ldap]),
-    validate_pool_scope(Scope),
-    validate_non_empty_atom(TagAtom);
-validate([<<"workers">>, _Tag, _Type, <<"outgoing_pools">>],
-         [{workers, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"strategy">>, _Tag, _Type, <<"outgoing_pools">>],
-         [{strategy, Value}]) ->
-    validate_wpool_strategy(Value);
-validate([<<"call_timeout">>, _Tag, _Type, <<"outgoing_pools">>],
-         [{call_timeout, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"keepalive_interval">>, _Conn, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
-         [{keepalive_interval, Value}]) ->
-    validate_positive_integer(Value);
-validate([{connection, Driver}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
-         [_Value]) ->
-    validate_enum(Driver, [odbc, pgsql, mysql]);
-validate([Key, {connection, _}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
-         [{_, Value}]) when Key =:= <<"host">>;
-                            Key =:= <<"database">>;
-                            Key =:= <<"username">>;
-                            Key =:= <<"password">> ->
-    validate_non_empty_string(Value);
-validate([<<"port">>, {connection, _}, _Tag, <<"rdbms">>, <<"outgoing_pools">>],
-         [{port, Value}]) ->
-    validate_port(Value);
-validate([<<"host">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{server, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"path_prefix">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{path_prefix, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"request_timeout">>, _Conn, _Tag, <<"http">>, <<"outgoing_pools">>],
-         [{request_timeout, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"host">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
-         [{host, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"port">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
-         [{port, Value}]) ->
-    validate_port(Value);
-validate([<<"database">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
-         [{database, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"password">>, _Conn, _Tag, <<"redis">>, <<"outgoing_pools">>],
-         [{host, Value}]) ->
-    validate_string(Value);
-validate([<<"address">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{address, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"port">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{port, Value}]) ->
-    validate_port(Value);
-validate([<<"credentials">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{credentials, User, Password}]) ->
-    validate_non_empty_string(User),
-    validate_non_empty_string(Password);
-validate([<<"cacertfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{cacertfile, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"certfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{certfile, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"keyfile">>, _Conn, _Tag, <<"riak">>, <<"outgoing_pools">>],
-         [{keyfile, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"servers">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
-         [{servers, Value}]) ->
-    [{validate_non_empty_string(Host), validate_port(Port)} || {Host, Port} <- Value];
-validate([<<"keyspace">>, _Conn, _Tag, <<"cassandra">>, <<"outgoing_pools">>],
-         [{keyspace, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"host">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
-         [{host, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"port">>, _Conn, _Tag, <<"elastic">>, <<"outgoing_pools">>],
-         [{host, Value}]) ->
-    validate_port(Value);
-validate([<<"amqp_host">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{amqp_host, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"amqp_port">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{amqp_port, Value}]) ->
-    validate_port(Value);
-validate([<<"amqp_username">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{amqp_username, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"amqp_password">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{amqp_password, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"confirms_enabled">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{confirms_enabled, Value}]) ->
-    validate_boolean(Value);
-validate([<<"max_worker_queue_len">>, _Conn, _Tag, <<"rabbit">>, <<"outgoing_pools">>],
-         [{max_worker_queue_len, Value}]) ->
-    validate_non_negative_integer_or_infinity(Value);
-validate([<<"host">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{host, Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"port">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{port, Value}]) ->
-    validate_port(Value);
-validate([<<"servers">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{servers, Value}]) ->
-    [validate_non_empty_string(Server) || Server <- Value];
-validate([<<"encrypt">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{encrypt, Value}]) ->
-    validate_enum(Value, [tls, none]);
-validate([<<"rootdn">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{rootdn, Value}]) ->
-    validate_string(Value);
-validate([<<"password">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{password, Value}]) ->
-    validate_string(Value);
-validate([<<"connect_interval">>, _Conn, _Tag, <<"ldap">>, <<"outgoing_pools">>],
-         [{connect_interval, Value}]) ->
-    validate_positive_integer(Value);
-
 %% shaper
 validate([_, <<"shaper">>|Path],
          [#config{value = {maxrate, Value}}]) ->
@@ -1438,9 +1316,6 @@ validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
 
 validate_non_empty_list(Value) when is_list(Value), Value =/= [] -> ok.
-
-validate_pool_scope(Value) when is_binary(Value) -> validate_non_empty_binary(Value);
-validate_pool_scope(Value) -> validate_enum(Value, [host, global]).
 
 validate_root_or_host_config([]) -> ok;
 validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.

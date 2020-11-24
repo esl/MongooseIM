@@ -31,7 +31,8 @@ root() ->
     #section{
        items = #{<<"general">> => general(),
                  <<"listen">> => listen(),
-                 <<"auth">> => auth()
+                 <<"auth">> => auth(),
+                 <<"outgoing_pools">> => outgoing_pools()
                 },
        required = [<<"general">>],
        format = none
@@ -238,26 +239,11 @@ s2s_tls() ->
 
 %% path: listen.http[].tls
 http_listener_tls() ->
+    Items = tls_items(),
     #section{
-       items = #{<<"verify_peer">> => #option{type = boolean,
-                                              process = fun ?MODULE:process_verify_peer/1,
-                                              format = {kv, verify}},
-                 <<"certfile">> => #option{type = string,
-                                           validate = non_empty},
-                 <<"cacertfile">> => #option{type = string,
-                                             validate = non_empty},
-                 <<"dhfile">> => #option{type = string,
-                                         validate = non_empty},
-                 <<"keyfile">> => #option{type = string,
-                                          validate = non_empty},
-                 <<"password">> => #option{type = string},
-                 <<"server_name_indication">> => #option{type = boolean,
-                                                         process = fun ?MODULE:process_sni/1},
-                 <<"ciphers">> => #option{type = string},
-                 <<"versions">> => #list{items = #option{type = atom}},
-                 <<"verify_mode">> => #option{type = atom,
-                                              validate = {enum, [peer, selfsigned_peer, none]}}
-                },
+       items = Items#{<<"verify_mode">> => #option{type = atom,
+                                                   validate = {enum, [peer, selfsigned_peer, none]}}
+                     },
        format = {kv, ssl}
       }.
 
@@ -509,6 +495,206 @@ auth_riak() ->
        format = none
       }.
 
+%% path: outgoing_pools
+outgoing_pools() ->
+    PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
+                 <<"rabbit">>, <<"rdbms">>, <<"redis">>, <<"riak">>],
+    Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
+                             validate_keys = non_empty,
+                             format = none}} || Type <- PoolTypes],
+    #section{
+       items = maps:from_list(Items),
+       format = local_config
+      }.
+
+%% path: outgoing_pools.*.*
+outgoing_pool(Type) ->
+    #section{
+       items = #{<<"scope">> => #option{type = atom,
+                                        validate = {enum, [global, host, single_host]}},
+                 <<"host">> => #option{type = binary,
+                                       validate = non_empty},
+                 <<"connection">> => outgoing_pool_connection(Type),
+                 <<"workers">> => #option{type = integer,
+                                          validate = positive},
+                 <<"strategy">> => #option{type = atom,
+                                           validate = {enum, wpool_strategy_values()}},
+                 <<"call_timeout">> => #option{type = integer,
+                                               validate = positive}
+                },
+       process = fun ?MODULE:process_pool/2,
+       format = item
+      }.
+
+%% path: outgoing_pools.*.*.connection
+outgoing_pool_connection(<<"cassandra">>) ->
+    #section{
+       items = #{<<"servers">> => #list{items = cassandra_server()},
+                 <<"keyspace">> => #option{type = string,
+                                           validate = non_empty},
+                 <<"auth">> => #section{items = #{<<"plain">> => cassandra_auth_plain()},
+                                        required = all,
+                                        process = fun ?MODULE:process_cassandra_auth/1},
+                 <<"tls">> => #section{items = tls_items(),
+                                       format = {kv, ssl}}
+                }
+      };
+outgoing_pool_connection(<<"elastic">>) ->
+    #section{
+       items = #{<<"host">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port}
+                }
+      };
+outgoing_pool_connection(<<"http">>) ->
+    #section{
+       items = #{<<"host">> => #option{type = string,
+                                       validate = non_empty,
+                                       format = {kv, server}},
+                 <<"path_prefix">> => #option{type = string,
+                                              validate = non_empty},
+                 <<"request_timeout">> => #option{type = integer,
+                                                  validate = non_negative},
+                 <<"tls">> => #section{items = tls_items(),
+                                       format = {kv, http_opts}}
+                }
+      };
+outgoing_pool_connection(<<"ldap">>) ->
+    #section{
+       items = #{<<"host">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port},
+                 <<"rootdn">> => #option{type = string},
+                 <<"password">> => #option{type = string},
+                 <<"encrypt">> => #option{type = atom,
+                                          validate = {enum, [none, tls]}},
+                 <<"servers">> => #list{items = #option{type = string}},
+                 <<"connect_interval">> => #option{type = integer,
+                                                   validate = positive},
+                 <<"tls">> => #section{items = tls_items(),
+                                       format = {kv, tls_options}}
+                }
+      };
+outgoing_pool_connection(<<"rabbit">>) ->
+    #section{
+       items = #{<<"amqp_host">> => #option{type = string,
+                                            validate = non_empty},
+                 <<"amqp_port">> => #option{type = integer,
+                                            validate = port},
+                 <<"amqp_username">> => #option{type = string,
+                                                validate = non_empty},
+                 <<"amqp_password">> => #option{type = string,
+                                                validate = non_empty},
+                 <<"confirms_enabled">> => #option{type = boolean},
+                 <<"max_worker_queue_len">> => #option{type = int_or_infinity,
+                                                       validate = non_negative}
+                }
+      };
+outgoing_pool_connection(<<"rdbms">>) ->
+    #section{
+       items = #{<<"driver">> => #option{type = atom,
+                                         validate = {enum, [odbc, pgsql, mysql]}},
+                 <<"keepalive_interval">> => #option{type = integer,
+                                                     validate = positive},
+
+                 % odbc
+                 <<"settings">> => #option{type = string},
+
+                 % mysql, pgsql
+                 <<"host">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"database">> => #option{type = string,
+                                           validate = non_empty},
+                 <<"username">> => #option{type = string,
+                                           validate = non_empty},
+                 <<"password">> => #option{type = string,
+                                           validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port},
+                 <<"tls">> => sql_tls()
+                },
+       process = fun ?MODULE:process_rdbms_connection/1
+      };
+outgoing_pool_connection(<<"redis">>) ->
+    #section{
+       items = #{<<"host">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port},
+                 <<"database">> => #option{type = integer,
+                                           validate = non_negative},
+                 <<"password">> => #option{type = string}
+                }
+      };
+outgoing_pool_connection(<<"riak">>) ->
+    #section{
+       items = #{<<"address">> => #option{type = string,
+                                          validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port},
+                 <<"credentials">> => riak_credentials(),
+                 <<"tls">> => #section{items = tls_items(),
+                                       process = fun ?MODULE:process_riak_tls/1,
+                                       format = none}}
+      }.
+
+cassandra_server() ->
+    #section{
+       items = #{<<"ip_address">> => #option{type = string,
+                                             validate = non_empty},
+                 <<"port">> => #option{type = integer,
+                                       validate = port}},
+       required = [<<"ip_address">>],
+       process = fun ?MODULE:process_cassandra_server/1
+      }.
+
+%% path: outgoing_pools.cassandra.*.connection.auth.plain
+cassandra_auth_plain() ->
+    #section{
+       items = #{<<"username">> => #option{type = binary},
+                 <<"password">> => #option{type = binary}},
+       required = all
+      }.
+
+%% path: outgoing_pools.riak.*.connection.credentials
+riak_credentials() ->
+    #section{
+       items = #{<<"user">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"password">> => #option{type = string,
+                                           validate = non_empty}},
+       required = all,
+       process = fun ?MODULE:process_riak_credentials/1,
+       format = prepend_key
+      }.
+
+sql_tls() ->
+    Items = tls_items(),
+    #section{
+       items = Items#{<<"required">> => #option{type = boolean}}
+      }.
+
+tls_items() ->
+    #{<<"verify_peer">> => #option{type = boolean,
+                                   process = fun ?MODULE:process_verify_peer/1,
+                                   format = {kv, verify}},
+      <<"certfile">> => #option{type = string,
+                                validate = non_empty},
+      <<"cacertfile">> => #option{type = string,
+                                  validate = non_empty},
+      <<"dhfile">> => #option{type = string,
+                              validate = non_empty},
+      <<"keyfile">> => #option{type = string,
+                               validate = non_empty},
+      <<"password">> => #option{type = string},
+      <<"server_name_indication">> => #option{type = boolean,
+                                              process = fun ?MODULE:process_sni/1},
+      <<"ciphers">> => #option{type = string},
+      <<"versions">> => #list{items = #option{type = atom}}
+     }.
+
 %% Callbacks for 'process'
 
 process_ctl_access_rule(KVs) ->
@@ -664,3 +850,76 @@ process_ldap_uids(KVs) ->
         {[{attr, Attr}], []} -> Attr;
         {[{attr, Attr}], [{format, Format}]} -> {Attr, Format}
     end.
+
+process_pool([Tag, Type|_], KVs) ->
+    {[ScopeOpts, HostOpts, ConnOpts], Opts} = proplists:split(KVs, [scope, host, connection]),
+    Scope = pool_scope(ScopeOpts, HostOpts),
+    Connection = pool_connection(ConnOpts),
+    {b2a(Type), Scope, b2a(Tag), Opts, Connection}.
+
+pool_scope([{scope, single_host}], [{host, Host}]) -> Host;
+pool_scope([{scope, host}], []) -> host;
+pool_scope([{scope, global}], []) -> global;
+pool_scope([], []) -> global.
+
+pool_connection([{connection, Opts}]) -> Opts;
+pool_connection([]) -> [].
+
+process_cassandra_server(KVs) ->
+    {[[{ip_address, IPAddr}]], Opts} = proplists:split(KVs, [ip_address]),
+    case Opts of
+        [] -> IPAddr;
+        [{port, Port}] -> {IPAddr, Port}
+    end.
+
+process_cassandra_auth([{plain, KVs}]) ->
+    {[[{username, User}], [{password, Pass}]], []} = proplists:split(KVs, [username, password]),
+    {cqerl_auth_plain_handler, [{User, Pass}]}.
+
+process_rdbms_connection(KVs) ->
+    {[[{driver, Driver}], KeepaliveIntervalOpts], Opts} =
+        proplists:split(KVs, [driver, keepalive_interval]),
+    [{server, rdbms_server(Driver, Opts)} | KeepaliveIntervalOpts].
+
+rdbms_server(odbc, Opts) ->
+    [{settings, Settings}] = Opts,
+    Settings;
+rdbms_server(Driver, Opts) ->
+    {[[{host, Host}], [{database, DB}], [{username, User}], [{password, Pass}],
+      PortOpts, TLSOpts], []} =
+        proplists:split(Opts, [host, database, username, password, port, tls]),
+    list_to_tuple([Driver, Host] ++ db_port(PortOpts) ++
+                      [DB, User, Pass] ++ db_tls(Driver, TLSOpts)).
+
+db_port([{port, Port}]) -> [Port];
+db_port([]) -> [].
+
+db_tls(Driver, [{tls, KVs}]) ->
+    {[ModeOpts], Opts} = proplists:split(KVs, [required]),
+    [ssl_mode(Driver, ModeOpts) ++ ssl_opts(Driver, Opts)];
+db_tls(_, []) -> [].
+
+ssl_mode(pgsql, [{required, true}]) -> [{ssl, required}];
+ssl_mode(pgsql, [{required, false}]) -> [{ssl, true}];
+ssl_mode(pgsql, []) -> [{ssl, true}];
+ssl_mode(mysql, []) -> [].
+
+ssl_opts(pgsql, []) -> [];
+ssl_opts(pgsql, Opts) -> [{ssl_opts, Opts}];
+ssl_opts(mysql, Opts) -> Opts.
+
+process_riak_tls(KVs) ->
+    {[CACertFileOpts], SSLOpts} = proplists:split(KVs, [cacertfile]),
+    riak_ssl(SSLOpts) ++ CACertFileOpts.
+
+riak_ssl([]) -> [];
+riak_ssl(Opts) -> [{ssl_opts, Opts}].
+
+process_riak_credentials(KVs) ->
+    {[[{user, User}], [{password, Pass}]], []} = proplists:split(KVs, [user, password]),
+    {User, Pass}.
+
+b2a(B) -> binary_to_atom(B, utf8).
+
+wpool_strategy_values() ->
+    [best_worker, random_worker, next_worker, available_worker, next_available_worker].
