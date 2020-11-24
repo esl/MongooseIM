@@ -1097,8 +1097,10 @@ format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
 format_spec(#option{format = Format}) -> Format.
 
-format(Path, L, {foreach, Format}) when is_atom(Format) ->
-    lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, L);
+format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
+    Keys = lists:map(fun({K, _}) -> K end, KVs),
+    mongoose_config_validator_toml:validate_list(Keys, unique),
+    lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, KVs);
 format([Key|_] = Path, V, host_local_config) ->
     format(Path, V, {host_local_config, b2a(Key)});
 format([Key|_] = Path, V, local_config) ->
