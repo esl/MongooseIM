@@ -16,12 +16,6 @@
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
-%% shaper
-validate([_, <<"shaper">>|Path],
-         [#config{value = {maxrate, Value}}]) ->
-    validate_root_or_host_config(Path),
-    validate_positive_integer(Value);
-
 %% s2s
 validate([<<"timeout">>, <<"dns">>, <<"s2s">>],
          [{timeout, Value}]) ->

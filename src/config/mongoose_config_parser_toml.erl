@@ -937,64 +937,6 @@ welcome_message([<<"subject">>|_], Value) ->
 welcome_message([<<"body">>|_], Value) ->
     [{body, b2l(Value)}].
 
-%% path: (host_config[].)shaper.*
--spec process_shaper(path(), toml_section()) -> [config()].
-process_shaper([Name, _|Path], #{<<"max_rate">> := MaxRate}) ->
-    [#config{key = {shaper, b2a(Name), host(Path)}, value = {maxrate, MaxRate}}].
-
-%% path: (host_config[].)acl.*
--spec process_acl(path(), toml_value()) -> [config()].
-process_acl([item, ACLName, _|Path], Content) ->
-    [acl:to_record(host(Path), b2a(ACLName), acl_data(Content))].
-
--spec acl_data(toml_value()) -> option().
-acl_data(#{<<"match">> := <<"all">>}) -> all;
-acl_data(#{<<"match">> := <<"none">>}) -> none;
-acl_data(M) ->
-    {AclName, AclKeys} = find_acl(M, lists:sort(maps:keys(M)), acl_keys()),
-    list_to_tuple([AclName | lists:map(fun(K) -> maps:get(K, M) end, AclKeys)]).
-
-find_acl(M, SortedMapKeys, [{AclName, AclKeys}|Rest]) ->
-    case lists:sort(AclKeys) of
-        SortedMapKeys -> {AclName, AclKeys};
-        _ -> find_acl(M, SortedMapKeys, Rest)
-    end.
-
-acl_keys() ->
-    [{user, [<<"user">>, <<"server">>]},
-     {user, [<<"user">>]},
-     {server, [<<"server">>]},
-     {resource, [<<"resource">>]},
-     {user_regexp, [<<"user_regexp">>, <<"server">>]},
-     {node_regexp, [<<"user_regexp">>, <<"server_regexp">>]},
-     {user_regexp, [<<"user_regexp">>]},
-     {server_regexp, [<<"server_regexp">>]},
-     {resource_regexp, [<<"resource_regexp">>]},
-     {user_glob, [<<"user_glob">>, <<"server">>]},
-     {node_glob, [<<"user_glob">>, <<"server_glob">>]},
-     {user_glob, [<<"user_glob">>]},
-     {server_glob, [<<"server_glob">>]},
-     {resource_glob, [<<"resource_glob">>]}
-    ].
-
-%% path: (host_config[].)access.*
--spec process_access_rule(path(), toml_value()) -> [config()].
-process_access_rule([Name, _|HostPath] = Path, Contents) ->
-    Rules = parse_list(Path, Contents),
-    [#config{key = {access, b2a(Name), host(HostPath)}, value = Rules}].
-
-%% path: (host_config[].)access.*[]
--spec process_access_rule_item(path(), toml_section()) -> [option()].
-process_access_rule_item(_, #{<<"acl">> := ACL, <<"value">> := Value}) ->
-    [{access_rule_value(Value), b2a(ACL)}].
-
-host([]) -> global;
-host([{host, Host}, _]) -> Host.
-
--spec access_rule_value(toml_value()) -> option().
-access_rule_value(B) when is_binary(B) -> b2a(B);
-access_rule_value(V) -> V.
-
 %% path: (host_config[].)s2s.*
 -spec process_s2s_option(path(), toml_value()) -> config_list().
 process_s2s_option([<<"dns">>|_] = Path, V) ->
@@ -1231,6 +1173,8 @@ convert(V, string) -> binary_to_list(V);
 convert(V, atom) -> b2a(V);
 convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
 convert(V, int_or_infinity) -> V;
+convert(V, int_or_atom) when is_integer(V) -> V;
+convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) -> V.
 
 format_spec(#section{format = Format}) -> Format;
@@ -1253,6 +1197,10 @@ format(Path, V, {host_local_config, Key}) ->
 format(Path, V, {local_config, Key}) ->
     global = get_host(Path),
     [#local_config{key = Key, value = V}];
+format([Key|_] = Path, V, {host_or_global_config, Tag}) ->
+    [#config{key = {Tag, b2a(Key), get_host(Path)}, value = V}];
+format([item, Key|_] = Path, V, host_or_global_acl) ->
+    [acl:to_record(get_host(Path), b2a(Key), V)];
 format(Path, V, {config, Key}) ->
     global = get_host(Path),
     [#config{key = Key, value = V}];
@@ -1318,10 +1266,10 @@ node_to_string(Node) -> [binary_to_list(Node)].
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
-handler([Section]) when Section =/= <<"general">>,
-                        Section =/= <<"listen">>,
-                        Section =/= <<"auth">>,
-                        Section =/= <<"outgoing_pools">> -> fun process_section/2;
+handler([Section]) when Section =:= <<"services">>;
+                        Section =:= <<"modules">>;
+                        Section =:= <<"s2s">>;
+                        Section =:= <<"host_config">> -> fun process_section/2;
 
 %% services
 handler([_, <<"services">>]) -> fun process_service/2;
@@ -1436,14 +1384,6 @@ handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_binary_search_fields/2;
 handler([_, <<"submods">>, <<"service_admin_extra">>, <<"services">>]) ->
     fun service_admin_extra_submods/2;
-
-
-%% shaper, acl, access
-handler([_, <<"shaper">>]) -> fun process_shaper/2;
-handler([_, <<"acl">>]) -> fun parse_list/2;
-handler([_, _, <<"acl">>]) -> fun process_acl/2;
-handler([_, <<"access">>]) -> fun process_access_rule/2;
-handler([_, _, <<"access">>]) -> fun process_access_rule_item/2;
 
 %% s2s
 handler([_, <<"s2s">>]) -> fun process_s2s_option/2;

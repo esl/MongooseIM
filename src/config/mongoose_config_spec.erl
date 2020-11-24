@@ -32,7 +32,10 @@ root() ->
        items = #{<<"general">> => general(),
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
-                 <<"outgoing_pools">> => outgoing_pools()
+                 <<"outgoing_pools">> => outgoing_pools(),
+                 <<"shaper">> => shaper(),
+                 <<"acl">> => acl(),
+                 <<"access">> => access()
                 },
        required = [<<"general">>],
        format = none
@@ -670,6 +673,7 @@ riak_credentials() ->
        format = prepend_key
       }.
 
+%% path: outgoing_pools.rdbms.*.connection.tls
 sql_tls() ->
     Items = tls_items(),
     #section{
@@ -694,6 +698,72 @@ tls_items() ->
       <<"ciphers">> => #option{type = string},
       <<"versions">> => #list{items = #option{type = atom}}
      }.
+
+%% path: (host_config[].)shaper
+shaper() ->
+    #section{
+       items = #{default =>
+                     #section{
+                        items = #{<<"max_rate">> => #option{type = integer,
+                                                            validate = positive,
+                                                            format = {kv, maxrate}}},
+                        required = all,
+                        process = fun ?MODULE:process_shaper/1,
+                        format = {host_or_global_config, shaper}
+                       }
+                },
+       validate_keys = non_empty,
+       format = none
+      }.
+
+%% path: (host_config[].)acl
+acl() ->
+    #section{
+       items = #{default => #list{items = acl_item(),
+                                  format = none}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)acl.*[]
+acl_item() ->
+    #section{
+       items = #{<<"match">> => #option{type = atom,
+                                        validate = {enum, [all, none]}},
+                 <<"user">> => #option{type = string},
+                 <<"server">> => #option{type = string},
+                 <<"resource">> => #option{type = string},
+                 <<"user_regexp">> => #option{type = string},
+                 <<"server_regexp">> => #option{type = string},
+                 <<"resource_regexp">> => #option{type = string},
+                 <<"user_glob">> => #option{type = string},
+                 <<"server_glob">> => #option{type = string},
+                 <<"resource_glob">> => #option{type = string}
+                },
+       validate_keys = non_empty,
+       process = fun ?MODULE:process_acl_item/1,
+       format = host_or_global_acl
+      }.
+
+%% path: (host_config[].)access
+access() ->
+    #section{
+       items = #{default => #list{items = access_rule_item(),
+                                  format = {host_or_global_config, access}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)access.*[]
+access_rule_item() ->
+    #section{
+       items = #{<<"acl">> => #option{type = atom,
+                                      validate = non_empty},
+                 <<"value">> => #option{type = int_or_atom}
+                },
+       required = all,
+       process = fun ?MODULE:process_access_rule_item/1
+      }.
 
 %% Callbacks for 'process'
 
@@ -923,3 +993,38 @@ b2a(B) -> binary_to_atom(B, utf8).
 
 wpool_strategy_values() ->
     [best_worker, random_worker, next_worker, available_worker, next_available_worker].
+
+process_shaper([MaxRate]) ->
+    MaxRate.
+
+process_acl_item([{match, V}]) -> V;
+process_acl_item(KVs) ->
+    {AclName, AclKeys} = find_acl(KVs, lists:sort(proplists:get_keys(KVs)), acl_keys()),
+    list_to_tuple([AclName | lists:map(fun(K) -> proplists:get_value(K, KVs) end, AclKeys)]).
+
+find_acl(KVs, SortedKeys, [{AclName, AclKeys}|Rest]) ->
+    case lists:sort(AclKeys) of
+        SortedKeys -> {AclName, AclKeys};
+        _ -> find_acl(KVs, SortedKeys, Rest)
+    end.
+
+acl_keys() ->
+    [{user, [user, server]},
+     {user, [user]},
+     {server, [server]},
+     {resource, [resource]},
+     {user_regexp, [user_regexp, server]},
+     {node_regexp, [user_regexp, server_regexp]},
+     {user_regexp, [user_regexp]},
+     {server_regexp, [server_regexp]},
+     {resource_regexp, [resource_regexp]},
+     {user_glob, [user_glob, server]},
+     {node_glob, [user_glob, server_glob]},
+     {user_glob, [user_glob]},
+     {server_glob, [server_glob]},
+     {resource_glob, [resource_glob]}
+    ].
+
+process_access_rule_item(KVs) ->
+    {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),
+    {Value, Acl}.
