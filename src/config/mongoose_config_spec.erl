@@ -35,7 +35,8 @@ root() ->
                  <<"outgoing_pools">> => outgoing_pools(),
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
-                 <<"access">> => access()
+                 <<"access">> => access(),
+                 <<"s2s">> => s2s()
                 },
        required = [<<"general">>],
        format = none
@@ -765,6 +766,105 @@ access_rule_item() ->
        process = fun ?MODULE:process_access_rule_item/1
       }.
 
+%% path: (host_config[].)s2s
+s2s() ->
+    #section{
+       items = #{<<"dns">> => s2s_dns(),
+                 <<"outgoing">> => s2s_outgoing(),
+                 <<"use_starttls">> => #option{type = atom,
+                                               validate = {enum, [false, optional, required,
+                                                                  required_trusted]},
+                                               format = {local_config, s2s_use_starttls}},
+                 <<"certfile">> => #option{type = string,
+                                           validate = non_empty,
+                                           format = {local_config, s2s_certfile}},
+                 <<"default_policy">> => #option{type = atom,
+                                                 validate = {enum, [allow, deny]},
+                                                 format = {host_local_config, s2s_default_policy}},
+                 <<"host_policy">> => #list{items = s2s_host_policy(),
+                                            format = {foreach, host_local_config}},
+                 <<"address">> => #list{items = s2s_address(),
+                                        format = {foreach, local_config}},
+                 <<"ciphers">> => #option{type = string,
+                                          format = {local_config, s2s_ciphers}},
+                 <<"domain_certfile">> => #list{items = s2s_domain_cert(),
+                                                format = {foreach, local_config}},
+                 <<"shared">> => #option{type = binary,
+                                         validate = non_empty,
+                                         format = {host_local_config, s2s_shared}},
+                 <<"max_retry_delay">> => #option{type = integer,
+                                                  validate = positive,
+                                                  format = {host_local_config, s2s_max_retry_delay}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)s2s.dns
+s2s_dns() ->
+    #section{
+       items = #{<<"timeout">> => #option{type = integer,
+                                          validate = positive},
+                 <<"retries">> => #option{type = integer,
+                                          validate = positive}},
+       format = {local_config, s2s_dns_options}
+      }.
+
+%% path: (host_config[].)s2s.outgoing
+s2s_outgoing() ->
+    #section{
+       items = #{<<"port">> => #option{type = integer,
+                                       validate = port,
+                                       format = {local_config, outgoing_s2s_port}},
+                 <<"ip_versions">> =>
+                     #list{items = #option{type = integer,
+                                           validate = {enum, [4, 6]},
+                                           process = fun ?MODULE:process_s2s_address_family/1},
+                           validate = unique_non_empty,
+                           format = {local_config, outgoing_s2s_families}},
+                 <<"connection_timeout">> => #option{type = int_or_infinity,
+                                                     validate = positive,
+                                                     format = {local_config, outgoing_s2s_timeout}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)s2s.host_policy[]
+s2s_host_policy() ->
+    #section{
+       items = #{<<"host">> => #option{type = binary,
+                                       validate = non_empty},
+                 <<"policy">> => #option{type = atom,
+                                         validate = {enum, [allow, deny]}}
+                },
+       required = all,
+       process = fun ?MODULE:process_s2s_host_policy/1
+      }.
+
+%% path: (host_config[].)s2s.address[]
+s2s_address() ->
+    #section{
+       items = #{<<"host">> => #option{type = binary,
+                                       validate = non_empty},
+                 <<"ip_address">> => #option{type = string,
+                                             validate = ip_address},
+                 <<"port">> => #option{type = integer,
+                                       validate = port}
+                },
+       required = [<<"host">>, <<"ip_address">>],
+       process = fun ?MODULE:process_s2s_address/1
+      }.
+
+%% path: (host_config[].)s2s.domain_certfile[]
+s2s_domain_cert() ->
+    #section{
+       items = #{<<"domain">> => #option{type = string,
+                                         validate = non_empty},
+                 <<"certfile">> => #option{type = string,
+                                           validate = non_empty}},
+       required = all,
+       process = fun ?MODULE:process_s2s_domain_cert/1
+      }.
+
 %% Callbacks for 'process'
 
 process_ctl_access_rule(KVs) ->
@@ -1028,3 +1128,21 @@ acl_keys() ->
 process_access_rule_item(KVs) ->
     {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),
     {Value, Acl}.
+
+process_s2s_address_family(4) -> ipv4;
+process_s2s_address_family(6) -> ipv6.
+
+process_s2s_host_policy(KVs) ->
+    {[[{host, S2SHost}], [{policy, Policy}]], []} = proplists:split(KVs, [host, policy]),
+    {{s2s_host, S2SHost}, Policy}.
+
+process_s2s_address(KVs) ->
+    {[[{host, S2SHost}], [{ip_address, IPAddr}]], Opts} = proplists:split(KVs, [host, ip_address]),
+    {{s2s_addr, S2SHost}, s2s_address(IPAddr, Opts)}.
+
+s2s_address(IPAddress, []) -> IPAddress;
+s2s_address(IPAddress, [{port, Port}]) -> {IPAddress, Port}.
+
+process_s2s_domain_cert(KVs) ->
+    {[[{domain, Domain}], [{certfile, Certfile}]], []} = proplists:split(KVs, [domain, certfile]),
+    {{domain_certfile, Domain}, Certfile}.
