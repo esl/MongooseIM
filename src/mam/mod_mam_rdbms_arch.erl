@@ -75,6 +75,21 @@ start(Host, Opts) ->
                            [<<"SELECT COUNT(*) FROM mam_message ">>,
                             index_hint_sql(Host),
                             <<"WHERE user_id = ?">>]),
+    mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
+                           [<<"DELETE FROM mam_message "
+                              "WHERE user_id = ?">>]),
+    mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
+                           [<<"UPDATE mam_message SET message = ?, search_body = '' "
+                              "WHERE user_id = ? AND id = ?">>]),
+
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
+    mongoose_rdbms:prepare(mam_select_messages_to_retract, mam_message,
+                           [user_id, remote_bare_jid, origin_id, direction],
+                           [<<"SELECT ", LimitMSSQL/binary,
+                              " id, message FROM mam_message"
+                              " WHERE user_id = ? AND remote_bare_jid = ? "
+                              " AND origin_id = ? AND direction = ?"
+                              " ORDER BY id DESC ", LimitSQL/binary>>]),
     ok.
 
 
@@ -172,46 +187,40 @@ retract_message(Host, #{archive_id := UserID,
                         direction := Dir,
                         packet := Packet}) ->
     case mod_mam_utils:get_retract_id(mod_mam, Host, Packet) of
-        none -> ok;
-        OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
+        none ->
+            ok;
+        OriginIDToRetract ->
+            retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
     end.
 
 retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
-    SUserID = use_escaped_integer(escape_user_id(UserID)),
-    SOriginID = use_escaped_string(escape_string(OriginID)),
-    SBareRemJID = use_escaped_string(minify_and_escape_bare_jid(Host, LocJID, RemJID)),
-    SDir = encode_direction(Dir),
-    Query = query_for_messages_to_retract(SUserID, SBareRemJID, SOriginID, SDir),
-    {selected, Rows} = mod_mam_utils:success_sql_query(Host, Query),
-    make_tombstone(Host, SUserID, OriginID, Rows),
+    MinBareRemJID = minify_bare_jid(Host, LocJID, RemJID),
+    BinDir = encode_direction(Dir),
+    {selected, Rows} = execute_select_messages_to_retract(
+                         Host, UserID, MinBareRemJID, OriginID, BinDir),
+    make_tombstone(Host, UserID, OriginID, Rows),
     ok.
 
-make_tombstone(_Host, SUserID, OriginID, []) ->
+make_tombstone(_Host, UserID, OriginID, []) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
-                user_id => SUserID, origin_id => OriginID});
-make_tombstone(Host, SUserID, OriginID, [{ResMessID, ResData}]) ->
+                user_id => UserID, origin_id => OriginID});
+make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}]) ->
     Data = mongoose_rdbms:unescape_binary(Host, ResData),
     Packet = stored_binary_to_packet(Host, Data),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
     TombstoneData = packet_to_stored_binary(Host, Tombstone),
-    STombstoneData = mongoose_rdbms:use_escaped_binary(
-                       mongoose_rdbms:escape_binary(Host, TombstoneData)),
-    BMessID = use_escaped_integer(escape_message_id(MessID)),
-    UpdateQuery = query_to_make_tombstone(STombstoneData, SUserID, BMessID),
-    {updated, 1} = mod_mam_utils:success_sql_query(Host, UpdateQuery).
+    execute_make_tombstone(Host, TombstoneData, UserID, MessID).
 
-query_for_messages_to_retract(SUserID, SBareRemJID, SOriginID, SDir) ->
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(1),
-    ["SELECT ", LimitMSSQL, " id, message FROM mam_message"
-     " WHERE user_id = ", SUserID, " AND remote_bare_jid = ", SBareRemJID,
-     " AND origin_id = ", SOriginID, " AND direction = '", SDir, "'"
-     " ORDER BY id DESC ", LimitSQL].
+execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
+    mod_mam_utils:success_sql_execute(Host, mam_select_messages_to_retract,
+                                      [UserID, BareRemJID, OriginID, Dir]).
 
-query_to_make_tombstone(STombstoneData, SUserID, BMessID) ->
-    ["UPDATE mam_message SET message = ", STombstoneData, ", search_body = ''"
-     " WHERE user_id = ", SUserID, " AND id = '", BMessID, "'"].
+execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
+    {updated, _} =
+        mod_mam_utils:success_sql_execute(Host, mam_make_tombstone,
+                                          [TombstoneData, UserID, MessID]).
 
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, #{message_id := MessID,
@@ -460,11 +469,7 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
     Acc.
 
 remove_archive(Host, UserID) ->
-    {updated, _} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["DELETE FROM mam_message "
-       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]).
+    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [UserID]).
 
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
@@ -665,6 +670,9 @@ escape_user_id(UserID) when is_integer(UserID) ->
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(Host, LocJID, JID) ->
     escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
+
+minify_bare_jid(Host, LocJID, JID) ->
+    jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
