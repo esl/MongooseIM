@@ -1,8 +1,9 @@
 -module(mongoose_config_validator_toml).
 
 -export([validate/2,
-         validate/3]).
--compile(export_all).
+         validate/3,
+         validate_section/2,
+         validate_list/2]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -1200,9 +1201,6 @@ validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
 
 validate_binary(Value) when is_binary(Value) -> ok.
 
-validate_hosts(Hosts = [_|_]) ->
-    validate_unique_items(Hosts).
-
 validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
     L = length(Items).
@@ -1254,9 +1252,6 @@ validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
 
 validate_non_empty_list(Value) when is_list(Value), Value =/= [] -> ok.
-
-validate_root_or_host_config([]) -> ok;
-validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
 validate_jid(Jid) ->
     case jid:from_binary(Jid) of
