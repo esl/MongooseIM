@@ -55,10 +55,21 @@ function install_odbc_ini
 #
 # Be aware, that Driver and Setup values are for Ubuntu.
 # CentOS would use different ones.
+if test -f "/usr/local/lib/libtdsodbc.so"; then
+  # Mac
+  ODBC_DRIVER="/usr/local/lib/libtdsodbc.so"
+fi
+
+if test -f "/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"; then
+  # Ubuntu
+  ODBC_DRIVER="/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"
+  ODBC_SETUP="/usr/lib/x86_64-linux-gnu/odbc/libtdsS.so"
+fi
+
     cat > ~/.odbc.ini << EOL
 [mongoose-mssql]
-Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
-Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+Setup       = $ODBC_SETUP
+Driver      = $ODBC_DRIVER
 Server      = 127.0.0.1
 Port        = $MSSQL_PORT
 Database    = ejabberd
@@ -66,7 +77,8 @@ Username    = sa
 Password    = mongooseim_secret+ESL123
 Charset     = UTF-8
 TDS_Version = 7.2
-client_charset = UTF-8
+client charset = UTF-8
+server charset = UTF-8
 EOL
 }
 

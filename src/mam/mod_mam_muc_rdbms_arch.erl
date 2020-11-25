@@ -204,8 +204,8 @@ prepare_message(Host, #{message_id := MessID,
 prepare_insert(Name, NumRows) ->
     Table = mam_muc_message,
     Fields = [id, room_id, sender_id, nick_name, origin_id, message, search_body],
-    Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
-    mongoose_rdbms:prepare(Name, Table, Fields, Query),
+    {Query, Fields2} = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
+    mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
 
 

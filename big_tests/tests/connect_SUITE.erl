@@ -61,10 +61,9 @@ groups() ->
           {starttls, [], [should_fail_to_authenticate_without_starttls,
                           should_not_send_other_features_with_starttls_required,
                           auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
-          {tls, [parallel], [auth_bind_pipelined_session,
-                             auth_bind_pipelined_auth_failure,
-                             should_pass_with_tlsv1_2
-                             | protocol_test_cases() ++ cipher_test_cases()]},
+          {tls, [parallel], auth_bind_pipelined_cases() ++
+                            protocol_test_cases() ++
+                            cipher_test_cases()},
           {feature_order, [parallel], [stream_features_test,
                                        tls_authenticate,
                                        tls_compression_fail,
@@ -98,6 +97,12 @@ tls_groups()->
      {group, c2s_noproc},
      {group, feature_order},
      {group, tls}].
+
+auth_bind_pipelined_cases() ->
+    [
+     auth_bind_pipelined_session,
+     auth_bind_pipelined_auth_failure
+    ].
 
 protocol_test_cases() ->
     [
@@ -750,7 +755,7 @@ ciphers_working_with_ssl_clients(Config) ->
 openssl_client_can_use_cipher(Cipher, Port) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
-          " -cipher " "\"" ++ Cipher ++ "\" 2>&1",
+          " -cipher " "\"" ++ Cipher ++ "\" -tls1_2 2>&1",
     {done, ReturnCode, _Result} = erlsh:oneliner(Cmd),
     0 == ReturnCode.
 

@@ -43,17 +43,30 @@ fun() ->
         end
 end,
 
-RequiredApps = fun() -> [mongooseim, inets, tools, compiler] end,
+FirstApps = [kernel, lager],
+RequiredApps = [mongooseim, inets, tools, compiler],
+OptionalApps = [{nksip, [nkservice, nkpacket, nklib]}],
+
 EnvApps = GetEnvApps(),
+
+PrepareApp =
+fun(App) ->
+        case lists:keyfind(App, 1, OptionalApps) of
+            false ->
+                [App];
+            {App, DepsOfApp} ->
+                lists:map(fun(V) -> {V, load} end, [App | DepsOfApp])
+        end
+end,
 
 SetupIncludedApps =
 fun(Config, EnvApps) ->
         RelxCfg = proplists:get_value(relx, Config),
         {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
         EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
-        AppsToIncludeIn = RequiredApps() ++ DevAppsToInclude() ++ EnvAppsToInclude,
-        AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
-        NewReleaseCfg = {release, Desc, AppsToInclude},
+        AppsToIncludeIn = lists:usort(RequiredApps ++ DevAppsToInclude() ++ EnvAppsToInclude),
+        Apps = lists:subtract(AppsToIncludeIn, FirstApps),
+        NewReleaseCfg = {release, Desc, FirstApps ++ lists:flatmap(PrepareApp, Apps)},
         NewRelxCfg = lists:keyreplace(release, 1, RelxCfg, NewReleaseCfg),
         lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
 end,

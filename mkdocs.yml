@@ -30,7 +30,7 @@ pages:
       - '3.5.0 to 3.6.0': 'migrations/3.5.0_3.6.0.md'
       - '3.6.0 to 3.7.0': 'migrations/3.6.0_3.7.0.md'
       - '3.7.0 to 4.0.0': 'migrations/3.7.0_4.0.0.md'
-      - '4.0.0 to 4.X.X': 'migrations/4.0.0_4.X.X.md'
+      - '4.0.0 to 4.0.1': 'migrations/4.0.0_4.0.1.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - Platform:
       - 'Contributions to ecosystem': 'Contributions.md'
@@ -76,6 +76,7 @@ pages:
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
       - 'Logging configuration': 'operation-and-maintenance/Logging.md'
+      - 'Logging with Humio': 'operation-and-maintenance/Humio.md'
       - 'Logging fields': 'operation-and-maintenance/Logging-fields.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'

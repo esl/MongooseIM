@@ -19,6 +19,7 @@
 CREATE TYPE test_enum_char AS ENUM('A','B', 'C');
 CREATE TABLE test_types(
     unicode text,
+    unicode250 varchar(250),
     binary_data_8k bytea, -- byte a has 1 GB limit
     binary_data_65k bytea,
     binary_data_16m bytea,

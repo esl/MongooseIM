@@ -76,6 +76,7 @@
 
 %% External exports
 -export([prepare/4,
+         prepared/1,
          execute/3,
          sql_query/2,
          sql_query_t/1,
@@ -179,6 +180,10 @@ prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
         true  -> {ok, Name};
         false -> {error, already_exists}
     end.
+
+-spec prepared(atom()) -> boolean().
+prepared(Name) ->
+    ets:member(prepared_statements, Name).
 
 -spec execute(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().

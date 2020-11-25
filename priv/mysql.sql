@@ -23,6 +23,7 @@
 
 CREATE TABLE test_types(
     unicode text CHARACTER SET utf8mb4,
+    unicode250 varchar(250) CHARACTER SET utf8mb4,
     `binary_data_8k` blob, -- blob has 65k bytes limit
     `binary_data_65k` blob,
     `binary_data_16m` mediumblob, -- mediumblob has 16MB size limit

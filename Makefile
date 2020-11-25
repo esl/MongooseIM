@@ -13,6 +13,7 @@ all: rel
 clean:
 	-rm -rf asngen
 	-rm -rf _build
+	-rm configure.out
 	-rm rel/configure.vars.config
 	-rm rel/vars-toml.config
 
