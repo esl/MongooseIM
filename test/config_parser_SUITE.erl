@@ -1288,7 +1288,9 @@ s2s_host_policy(_Config) ->
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"policy">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"host">> => <<>>}]}}),
-    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}).
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy,
+                                                           Policy#{<<"policy">> => <<"deny">>}]}}).
 
 s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
@@ -1302,7 +1304,8 @@ s2s_address(_Config) ->
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}})),
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}})),
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}})),
-    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}})).
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}})).
 
 s2s_ciphers(_Config) ->
     ?eq([#local_config{key = s2s_ciphers, value = "TLSv1.2:TLSv1.3"}],
@@ -1317,7 +1320,8 @@ s2s_domain_certfile(_Config) ->
     [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}}))
      || K <- maps:keys(DomCert)],
     [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}}))
-     || K <- maps:keys(DomCert)].
+     || K <- maps:keys(DomCert)],
+    ?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert, DomCert]}})).
 
 s2s_shared(_Config) ->
     eq_host_config([#local_config{key = {s2s_shared, ?HOST}, value = <<"secret">>}],

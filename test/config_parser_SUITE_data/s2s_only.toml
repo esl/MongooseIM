@@ -3,6 +3,7 @@
     "localhost",
     "dummy_host"
   ]
+
 [s2s]
   use_starttls = "optional"
   certfile = "tools/ssl/mongooseim/server.pem"
@@ -16,9 +17,22 @@
   shared = "shared secret"
   max_retry_delay = 30
 
+  [[s2s.host_policy]]
+    host = "fed1"
+    policy = "allow"
+
+  [[s2s.host_policy]]
+    host = "reg1"
+    policy = "deny"
+
   [[s2s.address]]
     host = "fed1"
     ip_address = "127.0.0.1"
+
+  [[s2s.address]]
+    host = "fed2"
+    ip_address = "127.0.0.1"
+    port = 8765
 
   [[s2s.domain_certfile]]
     domain = "example.com"

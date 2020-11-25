@@ -1,8 +1,9 @@
 -module(mongoose_config_validator_toml).
 
 -export([validate/2,
-         validate/3]).
--compile(export_all).
+         validate/3,
+         validate_section/2,
+         validate_list/2]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -15,68 +16,6 @@
           any().
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
-
-%% shaper
-validate([_, <<"shaper">>|Path],
-         [#config{value = {maxrate, Value}}]) ->
-    validate_root_or_host_config(Path),
-    validate_positive_integer(Value);
-
-%% s2s
-validate([<<"timeout">>, <<"dns">>, <<"s2s">>],
-         [{timeout, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"retries">>, <<"dns">>, <<"s2s">>],
-         [{retries, Value}]) ->
-    validate_positive_integer(Value);
-validate([<<"port">>, <<"outgoing">>, <<"s2s">>],
-         [#local_config{value = Value}]) ->
-    validate_port(Value);
-validate([<<"ip_versions">>, <<"outgoing">>, <<"s2s">>],
-         [#local_config{value = Value}]) ->
-    validate_non_empty_list(Value);
-validate([<<"connection_timeout">>, <<"outgoing">>, <<"s2s">>],
-         [#local_config{value = Value}]) ->
-    validate_positive_integer_or_infinity(Value);
-validate([<<"use_starttls">>, <<"s2s">>],
-         [#local_config{value = Value}]) ->
-    validate_enum(Value, [false, optional, required, required_trusted]);
-validate([<<"certfile">>, <<"s2s">>],
-         [#local_config{value = Value}]) ->
-    validate_non_empty_string(Value);
-validate([<<"default_policy">>, <<"s2s">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_enum(Value, [allow, deny]);
-validate([<<"host">>, item, <<"host_policy">>, <<"s2s">>|Path],
-         [{host, Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_non_empty_binary(Value);
-validate([<<"policy">>, item, <<"host_policy">>, <<"s2s">>|Path],
-         [{policy, Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_enum(Value, [allow, deny]);
-validate([<<"host">>, item, <<"address">>, <<"s2s">>],
-         [{host, Value}]) ->
-    validate_non_empty_binary(Value);
-validate([<<"ip_address">>, item, <<"address">>, <<"s2s">>],
-         [{ip_address, Value}]) ->
-    validate_ip_address(Value);
-validate([<<"port">>, item, <<"address">>, <<"s2s">>],
-         [{port, Value}]) ->
-    validate_port(Value);
-validate([item, <<"domain_certfile">>, <<"s2s">>],
-         [#local_config{key = {domain_certfile, Domain}, value = Certfile}]) ->
-    validate_non_empty_string(Domain),
-    validate_non_empty_string(Certfile);
-validate([<<"shared">>, <<"s2s">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_non_empty_binary(Value);
-validate([<<"max_retry_delay">>, <<"s2s">>|Path],
-         [#local_config{value = Value}]) ->
-    validate_root_or_host_config(Path),
-    validate_positive_integer(Value);
 
 %% Services
 validate([item, <<"submods">>, <<"service_admin_extra">>, <<"services">>],
@@ -1246,8 +1185,8 @@ validate(V, _, {enum, Values}) -> validate_enum(V, Values);
 validate(_V, _, any) -> ok.
 
 validate_list([_|_], non_empty) -> ok;
-validate_list(L = [_|_], unique_non_empty) ->
-    validate_unique_items(L);
+validate_list(L = [_|_], unique_non_empty) -> validate_unique_items(L);
+validate_list(L, unique) -> validate_unique_items(L);
 validate_list(L, any) when is_list(L) -> ok.
 
 validate_section([_|_], non_empty) -> ok;
@@ -1261,9 +1200,6 @@ validate_loglevel(Level) ->
 validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
 
 validate_binary(Value) when is_binary(Value) -> ok.
-
-validate_hosts(Hosts = [_|_]) ->
-    validate_unique_items(Hosts).
 
 validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
@@ -1316,9 +1252,6 @@ validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
 
 validate_non_empty_list(Value) when is_list(Value), Value =/= [] -> ok.
-
-validate_root_or_host_config([]) -> ok;
-validate_root_or_host_config([{host, _}, <<"host_config">>]) -> ok.
 
 validate_jid(Jid) ->
     case jid:from_binary(Jid) of
