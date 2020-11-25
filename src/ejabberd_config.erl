@@ -46,7 +46,8 @@
 -export([print_flat_config/0]).
 
 -export([get_local_config/0,
-         get_host_local_config/0]).
+         get_host_local_config/0,
+         get_config_path/0]).
 
 %% Introspection
 -export([config_info/0]).
@@ -98,7 +99,7 @@ start() ->
 
 %% @doc Get the filename of the ejabberd configuration file.
 %% The filename can be specified with: erl -config "/path/to/mongooseim.toml".
-%% It can also be specified with the environtment variable EJABBERD_CONFIG_PATH.
+%% It can also be specified with the environment variable EJABBERD_CONFIG_PATH.
 %% If not specified, the default value 'mongooseim.toml' is assumed.
 -spec get_config_path() -> string().
 get_config_path() ->

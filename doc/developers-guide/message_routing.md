@@ -3,7 +3,7 @@
 Let's examine the flow of a message sent from user A to user B, both of whom are served by the same domain.
 
 Note that hooks are called at various stages of routing - they perform many tasks, in fact, many MongooseIM functionalities are implemented through hooks & handlers. 
-For a general introduction to hooks, see [Hooks and Handlers](Hooks-and-handlers.md); to get a closer look at a core few, see [hooks description](hooks_description.md).
+For a general introduction to hooks, see [Hooks and Handlers](Hooks-and-handlers.md); to get a closer look at a core few, see the [hooks description](hooks_description.md).
 
 **1. Receiving the stanza**
 
@@ -46,14 +46,14 @@ The default behaviour is the following:
 An external component and a local route are obtained by looking up `external_component` and `route` mnesia tables, respectively. 
 The items stored in the tables provide funs to call and MFs to apply:
 
-    ```erlang
-    (ejabberd@localhost)2> ets:tab2list(route).
-    [{route,<<"vjud.localhost">>,
-            {apply_fun,#Fun<ejabberd_router.2.123745223>}},
-     {route,<<"muc.localhost">>,
-            {apply_fun,#Fun<mod_muc.2.63726579>}},
-     {route,<<"localhost">>,{apply,ejabberd_local,route}}]
-    ```
+```erlang
+(ejabberd@localhost)2> ets:tab2list(route).
+[{route,<<"vjud.localhost">>,
+        {apply_fun,#Fun<ejabberd_router.2.123745223>}},
+ {route,<<"muc.localhost">>,
+        {apply_fun,#Fun<mod_muc.2.63726579>}},
+ {route,<<"localhost">>,{apply,ejabberd_local,route}}]
+```
 
 Here we see that for a domain "localhost" `ejabberd_local:route()`is called.
 Routing the stanza there means calling `mongoose_local_delivery:do_route/5`, which calls `filter_local_packet` hook and, if passed, runs the fun or applies the handler.

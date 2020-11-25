@@ -56,17 +56,8 @@ suite() ->
 init_per_suite(Config) ->
     case rpc(mim(), application, get_application, [nksip]) of
         {ok, nksip} ->
-            Port = 12345,
-            Host = ct:get_config({hosts, mim, domain}),
             distributed_helper:add_node_to_cluster(mim2(), Config),
-            dynamic_modules:start(mim(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                                {proxy_port, Port},
-                                                                {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-            dynamic_modules:start(mim2(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                                 {proxy_port, Port},
-                                                                 {listen_port, 12346},
-                                                                 {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-
+            start_nksip_in_mim_nodes(),
             application:ensure_all_started(esip),
             spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
                            ets:new(jingle_sip_translator_bindings, [public, named_table]),
@@ -77,6 +68,35 @@ init_per_suite(Config) ->
         undefined ->
             {skip, build_was_not_configured_with_jingle_sip}
     end.
+
+start_nksip_in_mim_nodes() ->
+    Pid1 = start_nskip_in_parallel(mim(), []),
+    Pid2 = start_nskip_in_parallel(mim2(), [{listen_port, 12346}]),
+    wait_for_process_to_stop(Pid1),
+    wait_for_process_to_stop(Pid2).
+
+wait_for_process_to_stop(Pid) ->
+    erlang:monitor(process, Pid),
+    receive
+        {'DOWN', _, process, Pid, _} -> ok
+    after timer:seconds(60) ->
+              ct:fail(wait_for_process_to_stop_timeout)
+    end.
+
+start_nskip_in_parallel(RPCSpec, ExtraOpts) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    proc_lib:spawn_link(
+      fun() ->
+              {ok, _} = rpc(RPCSpec#{timeout => timer:seconds(60)}, gen_mod, start_module,
+                            [
+                             Host, mod_jingle_sip,
+                             [{proxy_host, "localhost"},
+                              {proxy_port, 12345},
+                              {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}
+                              | ExtraOpts]
+                            ])
+      end).
+
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),

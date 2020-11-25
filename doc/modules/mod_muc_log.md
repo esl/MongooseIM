@@ -88,7 +88,7 @@ When enabled, MongooseIM will enforce `rel="nofollow"` attribute in links sent b
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_muc_log]
   outdir = "/tmp/muclogs"
   access_log = "muc"

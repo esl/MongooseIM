@@ -103,7 +103,7 @@ Riak bucket type.
 Riak index name.
 
 ### Example Configuration
-```
+```toml
 [modules.mod_vcard]
   allow_return_all = true
   search_all_hosts = true

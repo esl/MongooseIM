@@ -6,7 +6,7 @@ This is an in-depth guide on `mod_muc_light` design decisions and implementation
 Source, header and test suite files
 -------------------------------
 
-All source files can be found in `src/`.
+All source files can be found in `src/muc_light/`.
 
 * `mod_muc_light.erl`
   Main module.

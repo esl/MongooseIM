@@ -12,8 +12,9 @@ main(_) ->
 -spec read_presets() -> [atom()].
 read_presets() ->
     {ok, Config} = file:consult("big_tests/test.config"),
-    Presets = proplists:get_value(ejabberd_presets, Config, []),
-    lists:map(fun({Name,_}) -> Name end, Presets).
+    Presets = proplists:get_value(presets, Config, []),
+    Toml = proplists:get_value(toml, Presets, []),
+    lists:map(fun({Name,_}) -> Name end, Toml).
 
 print_presets(PresetNames) ->
     [io:format("~p~n", [P]) || P <- PresetNames].

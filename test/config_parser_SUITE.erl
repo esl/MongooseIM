@@ -8,7 +8,8 @@
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
--define(err(Expr), ?assertError(_, Expr)).
+-define(err(Expr), ?assertMatch([#{class := error, what := _}|_],
+                                mongoose_config_parser_toml:extract_errors(Expr))).
 
 -define(HOST, <<"myhost">>).
 
@@ -22,8 +23,6 @@
 %% It's a HOF, so it would always pass if not passed into run_multi/1
 -define(_eqf(Expected, Actual), ?add_loc(fun() -> ?eqf(Expected, Actual) end)).
 -define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
-
--import(mongoose_config_parser_toml, [parse/1]).
 
 all() ->
     [{group, equivalence},
@@ -244,7 +243,8 @@ hosts(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => []}})),
-    ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})).
+    ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})). % hosts are mandatory
 
 registration_timeout(_Config) ->
     ?eq([#local_config{key = registration_timeout, value = infinity}],
@@ -1197,8 +1197,9 @@ shaper(_Config) ->
     eq_host_or_global(
       fun(Host) -> [#config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
       #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
-    err_host_config(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
-    err_host_config(#{<<"shaper">> => #{<<"fast">> => #{}}}).
+    err_host_or_global(#{<<"shaper">> => #{<<"unlimited">> =>
+                                               #{<<"max_rate">> => <<"infinity">>}}}),
+    err_host_or_global(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
     eq_host_or_global(
@@ -1215,9 +1216,9 @@ acl(_Config) ->
       fun(Host) -> [{acl, {alice, Host}, {user, <<"alice">>, <<"localhost">>}}] end,
       #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
                                          <<"server">> => <<"localhost">>}]}}),
-    err_host_config(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
-    err_host_config(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
-                                                       <<"server_blog">> => <<"bloghost">>}]}}).
+    err_host_or_global(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
+    err_host_or_global(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
+                                                          <<"server_blog">> => <<"bloghost">>}]}}).
 
 access(_Config) ->
     eq_host_or_global(
@@ -1232,10 +1233,13 @@ access(_Config) ->
       fun(Host) -> [#config{key = {access, max_user_sessions, Host}, value = [{10, all}]}] end,
       #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
                                                         <<"value">> => 10}]}}),
-    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}}),
-    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}}),
-    err_host_config(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
-                                                                     <<"value">> => 10}]}}).
+    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
+                                               [#{<<"acl">> => <<"all">>}]}}),
+    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
+                                               [#{<<"value">> => 10}]}}),
+    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
+                                               [#{<<"acl">> => 10,
+                                                  <<"value">> => 10}]}}).
 
 %% tests: s2s
 
@@ -1383,14 +1387,12 @@ mod_bosh_cases() ->
      ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
      ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
      ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?_eqf(M(backend, mnesia), T(<<"backend">>, <<"mnesia">>)),
      ?errf(T(<<"inactivity">>, -1)),
      ?errf(T(<<"inactivity">>, <<"10">>)),
      ?errf(T(<<"inactivity">>, <<"inactivity">>)),
      ?errf(T(<<"max_wait">>, <<"10">>)),
      ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1)),
-     ?errf(T(<<"backend">>, <<"devnull">>))].
+     ?errf(T(<<"server_acks">>, -1))].
 
 mod_caps(_Config) ->
     run_multi(mod_caps_cases()).
@@ -1524,8 +1526,6 @@ mod_inbox(_Config) ->
          T(<<"remove_on_kicked">>, true)),
     ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
          T(<<"remove_on_kicked">>, false)),
-    ?eqf(modopts(mod_inbox, [{backend, rdbms}]),
-         T(<<"backend">>, <<"rdbms">>)),
     ?errf(T(<<"reset_markers">>, 1)),
     ?errf(T(<<"reset_markers">>, <<"test">>)),
     ?errf(T(<<"reset_markers">>, [<<"test">>])),
@@ -1536,7 +1536,6 @@ mod_inbox(_Config) ->
     ?errf(T(<<"aff_changes">>, <<"true">>)),
     ?errf(T(<<"remove_on_kicked">>, 1)),
     ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
-    ?errf(T(<<"backend">>, <<"devnull">>)),
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
@@ -1559,6 +1558,7 @@ mod_global_distrib(_Config) ->
     BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
     RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
     TTOpts = #{
+          <<"enabled">> => true,
           <<"certfile">> => <<"/dev/null">>,
           <<"cacertfile">> => <<"/dev/null">>,
           <<"dhfile">> => <<"/dev/null">>,
@@ -1627,12 +1627,12 @@ mod_global_distrib(_Config) ->
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
     ?eqf(modopts(mod_global_distrib,
                  set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => false}})),
+         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
     %% Connection opts
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
             <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
@@ -2984,11 +2984,33 @@ eq_host_or_global(ResultF, Config) ->
     compare_config(ResultF(?HOST), parse_host_config(Config)). % check for a single host
 
 err_host_config(Config) ->
-    ?err(parse(Config)), %% XXX Apply me
+    ?err(begin
+             Items = parse(Config),
+             lists:flatmap(fun(F) when is_function(F) -> F(?HOST);
+                              (Item) -> [Item]
+                           end, Items)
+         end),
+    ?err(parse_host_config(Config)).
+
+err_host_or_global(Config) ->
+    ?err(parse(Config)),
     ?err(parse_host_config(Config)).
 
 parse_host_config(Config) ->
     parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
+
+%% plug in 'hosts' as this option is mandatory, then parse, then remove the extra 'hosts'
+parse(M)
+  when not is_map_key(<<"general">>, M) ->
+    parse(M#{<<"general">> => #{<<"hosts">> => [?HOST]}});
+parse(M = #{<<"general">> := GenM})
+  when not is_map_key(<<"hosts">>, GenM) ->
+    parse(M#{<<"general">> => GenM#{<<"hosts">> => [?HOST]}});
+parse(M) ->
+    Config = mongoose_config_parser_toml:parse(M),
+    lists:filter(fun(#config{key = hosts, value = [?HOST]}) -> false;
+                    (_) -> true
+                 end, Config).
 
 %% helpers for 'equivalence' tests
 

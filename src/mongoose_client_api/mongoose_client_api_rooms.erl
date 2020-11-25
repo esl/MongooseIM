@@ -116,7 +116,7 @@ from_json(Req, State) ->
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
-        {error, _} ->
+        {error, _, _} ->
             {false, Req, State};
         Room ->
             RoomJID = jid:from_binary(Room),

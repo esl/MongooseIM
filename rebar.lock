@@ -14,7 +14,7 @@
  {<<"cpool">>,{pkg,<<"cpool">>,<<"0.1.0">>},0},
  {<<"cqerl">>,
   {git,"https://github.com/esl/cqerl.git",
-       {ref,"c6105de4888c61f6de02de28fc9ae1923dcfb999"}},
+       {ref,"816a455bcb8ddc1e63d53602e73efe297f4d0a4e"}},
   0},
  {<<"credentials_obfuscation">>,
   {pkg,<<"credentials_obfuscation">>,<<"2.0.0">>},
@@ -26,7 +26,7 @@
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.7">>},1},
  {<<"eodbc">>,
   {git,"https://github.com/arcusfelis/eodbc.git",
-       {ref,"748d613846731c3d776c8f22600d8b6d89c26435"}},
+       {ref,"612461e4d8e12c0947a67e0bfdeb854010db0b2d"}},
   0},
  {<<"eper">>,
   {git,"http://github.com/basho/eper.git",
@@ -136,8 +136,8 @@
  {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.8.4">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
  {<<"re2">>,
-  {git,"https://github.com/tuncer/re2.git",
-       {ref,"2471e06ed7e548ca1af522e95b16867135afdfdc"}},
+  {git,"https://github.com/dukesoferl/re2.git",
+       {ref,"9d66dff878f229d7f2a33019022f590dede9fef1"}},
   1},
  {<<"recon">>,{pkg,<<"recon">>,<<"2.5.1">>},0},
  {<<"redbug">>,{pkg,<<"redbug">>,<<"1.2.1">>},1},
@@ -154,7 +154,7 @@
        {ref,"c7d509f38298ec6594be4efdcd8a8f2322760039"}},
   1},
  {<<"snappy">>,
-  {git,"https://github.com/fdmanana/snappy-erlang-nif.git",
+  {git,"https://github.com/skunkwerks/snappy-erlang-nif.git",
        {ref,"e8907ee8e37cfa07d933a070669a88798082c3d7"}},
   1},
  {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.1">>},2},
@@ -172,7 +172,7 @@
        {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
   0},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},0},
- {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"4.0.2">>},0}]}.
+ {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"4.0.3">>},0}]}.
 [
 {pkg_hash,[
  {<<"amqp_client">>, <<"31F1DF5495D452F321C0275C7263A18C3BA38E1DA486CFC7271BE84F4A84AF01">>},
@@ -222,5 +222,5 @@
  {<<"trails">>, <<"D51D7F065F2B692654C611C663BFAC377D47EAFF9D38D0C17ECD031D1A59399A">>},
  {<<"unicode_util_compat">>, <<"8516502659002CEC19E244EBD90D312183064BE95025A319A6C7E89F4BCCD65B">>},
  {<<"uuid">>, <<"280014F8FF57FCE36EE6E91C3ECF21CBFCE78AAE9854C09597BB4C11E27B66D6">>},
- {<<"worker_pool">>, <<"2F021BFE11484FDAEB42F9FB7D0B8F1A5365289637283D9328D49D15815CFF4E">>}]}
+ {<<"worker_pool">>, <<"729D98AF0EEF31D10A6027C5AF2EDD4EA7D6CF91E96B03C189BB47F6FDE9667C">>}]}
 ].

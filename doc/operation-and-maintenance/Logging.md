@@ -3,7 +3,6 @@
 The main configuration for logging is in the Application Config file.
 You can find it in `mongooseim/etc/app.config` in the release directory.
 
-
 # Primary log level
 
 Primary log level sets maximum log level in the system.
@@ -20,8 +19,7 @@ Primary log level, that is used before MongooseIM config is loaded:
 ].
 ```
 
-Once MongooseIM config is loaded, `loglevel` option is used instead.
-
+Once MongooseIM config is loaded, the [`loglevel`](../advanced-configuration/general.md#generalloglevel) option from `mongooseim.toml` is used instead.
 
 # Primary filters
 
@@ -48,8 +46,7 @@ unless you are planning to extend the filtering logic.
 ```
 
 `preserve_acc_filter` filter is disabled by default, but could be enabled,
-if you are interested in debugging the accumulator logic (`mongoose_acc` module).
-
+if you are interested in debugging the accumulator logic (see the `mongoose_acc` module).
 
 # Shell log handler
 
@@ -67,7 +64,6 @@ if you are interested in debugging the accumulator logic (`mongoose_acc` module)
          }}
     }},
 ```
-
 
 # File log handler
 
@@ -102,7 +98,6 @@ if you are interested in debugging the accumulator logic (`mongoose_acc` module)
     }},
 ```
 
-
 # Logfmt file log handler
 
 Wrapper around the [flatlog](https://github.com/ferd/flatlog) library with
@@ -125,10 +120,13 @@ Options:
          }}
 ```
 
-
 # JSON file log handler
 
-JSON formatted file. It could be used to store messages in ELK or in Splunk.
+JSON formatted file. It could be used to store messages in ELK, in Humio or in Splunk.
+
+Check this [tutorial](Humio.md) to configure MongooseIM with Humio.
+Check below information to configure MongooseIM with ELK.
+
 You can use [Filebeat](https://www.elastic.co/guide/en/beats/filebeat/current/filebeat-input-log.html#filebeat-input-log-config-json)
 to send messages from the file into ELK.
 
@@ -152,7 +150,6 @@ Options:
          }}
 ```
 
-
 # Different log level for a specific module
 
 Motivation:
@@ -173,7 +170,6 @@ Changes:
     %% Module log level
     {module_level, debug, [ejabberd_c2s]},
 ```
-
 
 # Separate log for module debugging
  

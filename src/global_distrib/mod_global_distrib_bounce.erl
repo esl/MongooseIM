@@ -91,8 +91,6 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     {ok, ID} = mod_global_distrib:find_metadata(Acc0, id),
     case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
         0 ->
-            FromBin = jid:to_binary(From),
-            ToBin = jid:to_binary(To),
             ?LOG_DEBUG(#{what => gd_skip_store_message,
                          text => <<"Not storing global message">>,
                          gd_id => ID, acc => Acc0, bounce_ttl => 0}),

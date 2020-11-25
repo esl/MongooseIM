@@ -14,6 +14,7 @@ clean:
 	-$(REBAR) clean
 	-rm -rf _build
 	-rm -rf asngen
+	-rm configure.out
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
 	-rm rel/vars-toml.config

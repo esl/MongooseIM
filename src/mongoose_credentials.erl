@@ -22,13 +22,9 @@
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()] }.
 
--spec new(jid:server()) -> mongoose_credentials:t().
-new(Server) ->
-    case jid:nameprep(Server) of
-        error -> error(nameprep_failed, [Server]);
-        LServer when is_binary(LServer) ->
-            #mongoose_credentials{lserver = LServer}
-    end.
+-spec new(jid:lserver()) -> mongoose_credentials:t().
+new(LServer) when is_binary(LServer) ->
+    #mongoose_credentials{lserver = LServer}.
 
 -spec lserver(t()) -> jid:lserver().
 lserver(#mongoose_credentials{lserver = S}) -> S.

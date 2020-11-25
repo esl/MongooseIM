@@ -12,7 +12,7 @@ Eventually the modules which are not host-specific will be refactored to be serv
 Typical services are already specified in the example configuration file.
 * **Example:** A configuration of the `service_admin_extra` service.
 
-```
+```toml
 [services.service_admin_extra]
   submods = ["node", "account", "sessions", "vcard", "gdpr", "upload", "roster",
              "last", "private", "stanza", "stats"]
@@ -91,7 +91,7 @@ The notification can be silenced by setting the `no_report` option explicitly.
 
 ### Example configuration
 
-```
+```toml
 [services.service_admin_extra]
   submods = ["node", "account", "sessions", "vcard", "gdpr", "upload", "roster",
              "last", "private", "stanza", "stats"]

@@ -33,7 +33,7 @@ Improves performance but should be disabled, when shared rosters are used.
 * **Example:** `backend = "mnesia"`
 
 ### Example configuration
-```
+```toml
 [modules.mod_roster]
   versioning = true
   store_current_id = true

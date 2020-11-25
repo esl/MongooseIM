@@ -25,9 +25,10 @@ commands() -> [
 
 -spec retrieve_all(jid:user(), jid:server(), Path :: binary()) -> ok | {error, Reason :: any()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
-    case user_exists(Username, Domain) of
+    JID = jid:make(Username, Domain, <<>>),
+    case user_exists(JID) of
         true ->
-            DataFromModules = get_data_from_modules(Username, Domain),
+            DataFromModules = get_data_from_modules(JID),
             % The contract is that we create personal data files only when there are any items
             % returned for the data group.
             DataToWrite = lists:filter(fun({_, _, Items}) -> Items /= [] end, DataFromModules),
@@ -60,6 +61,10 @@ retrieve_all(Username, Domain, ResultFilePath) ->
 -spec get_data_from_modules(jid:user(), jid:server()) -> gdpr:personal_data().
 get_data_from_modules(Username, Domain) ->
     JID = jid:make(Username, Domain, <<>>),
+    get_data_from_modules(JID).
+
+-spec get_data_from_modules(jid:jid()) -> gdpr:personal_data().
+get_data_from_modules(JID) ->
     mongoose_hooks:get_personal_data(JID#jid.lserver, [], JID).
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
@@ -70,9 +75,9 @@ to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->
     lists:foreach(fun(Row) -> csv_gen:row(File, Row) end, DataRows),
     file:close(File).
 
--spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().
-user_exists(Username, Domain) ->
-    ejabberd_auth:is_user_exists(Username, Domain).
+-spec user_exists(jid:jid()) -> boolean().
+user_exists(JID) ->
+    ejabberd_auth:does_user_exist(JID).
 
 -spec make_tmp_dir() -> file:name().
 make_tmp_dir() ->

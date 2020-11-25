@@ -2439,8 +2439,8 @@ process_unauthenticated_stanza(StateData, El) ->
                     ResIQ = IQ#iq{type = error,
                                   sub_el = [mongoose_xmpp_errors:service_unavailable()]},
                     Res1 = jlib:replace_from_to(
-                             jid:make(<<>>, StateData#state.server, <<>>),
-                             jid:make(<<>>, <<>>, <<>>),
+                             jid:make_noprep(<<>>, StateData#state.server, <<>>),
+                             jid:make_noprep(<<>>, <<>>, <<>>),
                              jlib:iq_to_xml(ResIQ)),
                     send_element_from_server_jid(StateData, jlib:remove_attr(<<"to">>, Res1));
                 _ ->

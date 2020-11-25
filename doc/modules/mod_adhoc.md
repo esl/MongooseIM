@@ -18,7 +18,7 @@ Strategy to handle incoming stanzas. For details, please refer to
 Determines whether the Ad-Hoc Commands should be announced upon Service Discovery.
 
 ### Example configuration
-```
+```toml
 [modules.mod_adhoc]
   report_commands_node = true
 ```

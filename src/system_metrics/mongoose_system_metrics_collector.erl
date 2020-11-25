@@ -33,7 +33,8 @@ report_getters() ->
         fun get_api/0,
         fun get_transport_mechanisms/0,
         fun get_tls_options/0,
-        fun get_outgoing_pools/0
+        fun get_outgoing_pools/0,
+        fun get_config_type/0
     ].
 
 get_hosts_count() ->
@@ -215,3 +216,12 @@ calculate_stanza_rate(PrevReport, NewCount) ->
             undefined -> Count;
             Total -> Count-Total
         end} || {Type, Count} <- NewCount].
+
+get_config_type() ->
+    ConfigPath = ejabberd_config:get_config_path(),
+    ConfigType = case filename:extension(ConfigPath) of
+        ".toml" -> toml;
+        ".cfg" -> cfg;
+        _ -> unknown_config_type
+    end,
+    [#{report_name => cluster, key => config_type, value => ConfigType}].

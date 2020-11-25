@@ -34,7 +34,7 @@ The maximum amount of concurrent HTTP connections.
 
 ### Example configuration
 
-```
+```toml
 [outgoing_pools.http.mongoose_push_http]
   scope = "global"
   workers = 50

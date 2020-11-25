@@ -12,6 +12,6 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_sic]
 ```

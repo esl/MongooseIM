@@ -1,3 +1,38 @@
+# [MongooseIM 4.0.1](https://github.com/esl/MongooseIM/releases/tag/4.0.1) - 2020-11-17
+
+## Highlights
+- A new metric now reports the type of configuration file that is being used. The aim is to determine the adoption of the new config file format.
+- Better error messages are reported from wrong TOML configuration files.
+
+## All changes
+
+### Added
+- User-friendly errors for the TOML configuration file (#2903)
+- Metric to report the type of config file used (#2918)
+
+### Removed
+- Removed deprecated `mod_http_notifications` #2912
+
+### Changed
+- TOML documentation improvements (#2896, #2898, #2899, #2901, #2905, #2942)
+- Some TOML configuration options have been reformatted (#2909)
+- More prepared queries to improve RDBMS performance (#2924, #2928)
+- Fixed Ubuntu 18.04 and OTP 23.1 for building docker images (#2926)
+- Moving from untyped binaries to proper `jid` structures (#2895, #2920, #2922)
+
+### Other
+- Dependencies update (#2914)
+- REST error handling cleanup (#2908)
+- `nksip` is started only when used (#2937)
+- RPM package improvements (#2906)
+- CI improvements (#2910, #2934)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A4.0.1)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-09-30..2020-11-13%22%20sort%3Acreated-asc%20)
+
+
 # [MongooseIM 4.0.0](https://github.com/esl/MongooseIM/releases/tag/4.0.0) - 2020-09-30
 ## Overview
 MongooseIM 4.0 is all about putting a friendly face to MongooseIM’s amazing features.
@@ -13,7 +48,6 @@ Logging and Kubernetes improvements to be more DevOps-friendly and Manager-frien
   * Documentation has been improved
 * Structured logging: the main idea of structured logging is that if we have properties of an event, let’s log them as they are, without losing their structure, and format it in a way that is most appropriate for the system we’re sending them to.
   * Moved to [OTP logger](https://erlang.org/doc/man/logger.html) from [lager](https://github.com/erlang-lager/lager) (#2810)
-  * Moved away from [lager](https://github.com/erlang-lager/lager), towards [OTP logger](https://erlang.org/doc/man/logger.html) (#2810)
   * No more logging of man-made strings, we now log structured reports (#2816)
   * `logfmt` formatter, a log format that's easy to read and write (#2848)
   * `JSON` formatter, a fully structured format (#2851)

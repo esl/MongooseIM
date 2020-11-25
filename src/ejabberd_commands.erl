@@ -417,14 +417,15 @@ check_access_commands(AccessCommands, Auth, Method, Command, Arguments) ->
 
 %% @private
 %% May throw {error, invalid_account_data}
--spec check_auth(auth()) -> {ok, User :: binary(), Server :: binary()} | no_return().
+-spec check_auth(auth()) -> {ok, jid:jid()} | no_return().
 check_auth({User, Server, Password}) ->
     %% Check the account exists and password is valid
-    AccountPass = ejabberd_auth:get_password_s(User, Server),
+    JID = jid:make(User, Server, <<>>),
+    AccountPass = ejabberd_auth:get_password_s(JID),
     AccountPassMD5 = get_md5(AccountPass),
     case Password of
-        AccountPass -> {ok, User, Server};
-        AccountPassMD5 -> {ok, User, Server};
+        AccountPass -> {ok, JID};
+        AccountPassMD5 -> {ok, JID};
         _ -> throw({error, invalid_account_data})
     end.
 
@@ -441,9 +442,10 @@ check_access(all, _) ->
 check_access(_, noauth) ->
     false;
 check_access(Access, Auth) ->
-    {ok, User, Server} = check_auth(Auth),
+    {ok, JID} = check_auth(Auth),
     %% Check this user has access permission
-    case acl:match_rule(Server, Access, jid:make(User, Server, <<"">>)) of
+    {_, LServer} = jid:to_lus(JID),
+    case acl:match_rule(LServer, Access, JID) of
         allow -> true;
         deny -> false
     end.

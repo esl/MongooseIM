@@ -73,13 +73,13 @@ For example:
 
 ## RDBMS options
 
-#### `outgoing_pools.rdbms.*.driver`
+#### `outgoing_pools.rdbms.*.connection.driver`
 * **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
 * **Example:** `driver = "psgql"`
 
 Selects driver for RDBMS connection. The choice of driver impacts the set of available options.
 
-#### `outgoing_pools.rdbms.*.call_timeout`
+#### `outgoing_pools.rdbms.*.connection.call_timeout`
 * **Syntax:** positive integer
 * **Default:** 60000 (msec)
 * **Example:** `call_timeout = 60000`
@@ -88,7 +88,7 @@ RDBMS pool sets its own default value of this option.
 
 ### ODBC options
 
-#### `outgoing_pools.rdbms.*.settings`
+#### `outgoing_pools.rdbms.*.connection.settings`
 * **Syntax:** string
 * **Default:** no default; required if the `"odbc"` driver is specified
 * **Example:** `settings = "DSN=mydb"`

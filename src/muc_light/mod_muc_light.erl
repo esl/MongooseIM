@@ -319,8 +319,11 @@ add_rooms_to_roster(Acc, UserUS) ->
     Info = get_rooms_info(lists:sort(RoomList)),
     NewItems = lists:foldl(
       fun({{RoomU, RoomS}, RoomName, RoomVersion}, Items0) ->
+              JID = jid:make_noprep(RoomU, RoomS, <<>>),
               Item = #roster{
-                        jid = jid:make_noprep(RoomU, RoomS, <<>>),
+                        usj = {RoomU, RoomS, jid:to_lower(JID)},
+                        us = {RoomU, RoomS},
+                        jid = jid:to_lower(JID),
                         name = RoomName,
                         subscription = to,
                         groups = [?NS_MUC_LIGHT],

@@ -17,6 +17,7 @@
 -module(mongoose_rdbms_odbc).
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
+-include("mongoose_logger.hrl").
 
 -export([escape_binary/1, escape_string/1,
          unescape_binary/1, connect/2, disconnect/1,
@@ -73,19 +74,19 @@ query(Connection, Query, Timeout) ->
 
 -spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
-                     {ok, {[binary()], [fun((term()) -> tuple())]}}.
+                     {ok, {binary(), [fun((term()) -> tuple())]}}.
 prepare(Connection, _Name, Table, Fields, Statement) ->
     {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
-    SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
     ServerType = server_type(),
     ParamMappers = [field_name_to_mapper(ServerType, TableDesc, Field) || Field <- Fields],
-    {ok, {SplitQuery, ParamMappers}}.
+    {ok, {iolist_to_binary(Statement), ParamMappers}}.
 
--spec execute(Connection :: term(), Statement :: {[binary()], [fun((term()) -> tuple())]},
+-spec execute(Connection :: term(), Statement :: {binary(), [fun((term()) -> tuple())]},
               Params :: [term()], Timeout :: infinity | non_neg_integer()) ->
                      mongoose_rdbms:query_result().
-execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
-    {Query, ODBCParams} = unsplit_query(SplitQuery, ParamMapper, Params),
+execute(Connection, {Query, ParamMapper}, Params, Timeout)
+    when length(ParamMapper) =:= length(Params) ->
+    ODBCParams = map_params(Params, ParamMapper),
     case eodbc:param_query(Connection, Query, ODBCParams, Timeout) of
         {error, Reason} ->
             Map = #{reason => Reason,
@@ -94,8 +95,16 @@ execute(Connection, {SplitQuery, ParamMapper}, Params, Timeout) ->
             {error, Map};
         Result ->
             parse(Result)
-    end.
-
+    end;
+execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
+    ?LOG_ERROR(#{what => odbc_execute_failed,
+                 params_length => length(Params),
+                 mapped_length => length(ParamMapper),
+                 connection => Connection,
+                 sql_query => Query,
+                 query_params => Params,
+                 param_mapper => ParamMapper}),
+    erlang:error({badarg, [Connection, {Query, ParamMapper}, Params, Timeout]}).
 
 %% Helpers
 
@@ -142,18 +151,35 @@ parse_row([], []) ->
 -spec field_name_to_mapper(ServerType :: atom(),
                            TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
-field_name_to_mapper(ServerType, TableDesc, FieldName) ->
+field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
+    fun(P) -> {sql_integer, [P]} end;
+field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
-            fun(P) -> {[escape_binary(ServerType, P)], []} end;
+            fun(P) -> binary_mapper(P) end;
         unicode ->
-            fun(P) -> {[escape_text_or_integer(ServerType, P)], []} end;
+            fun(P) -> unicode_mapper(P) end;
         bigint ->
-            fun(P) -> {[<<"'">>, integer_to_binary(P), <<"'">>], []} end;
+            fun(P) -> bigint_mapper(P) end;
         _ ->
-            fun(P) -> {<<"?">>, [{ODBCType, [P]}]} end
+            fun(P) -> {ODBCType, [P]} end
     end.
+
+unicode_mapper(P) ->
+    Utf16 = unicode_characters_to_binary(iolist_to_binary(P), utf8, {utf16, little}),
+    Len = byte_size(Utf16) div 2,
+    {{sql_wlongvarchar, Len}, [Utf16]}.
+
+bigint_mapper(P) when is_integer(P) ->
+    B = integer_to_binary(P),
+    Type = {'sql_varchar', byte_size(B)},
+    {Type, [B]}.
+
+binary_mapper(P) ->
+    Type = {'sql_longvarbinary', byte_size(P)},
+    {Type, [P]}.
+
 
 simple_type('SQL_BINARY')           -> binary;
 simple_type('SQL_VARBINARY')        -> binary;
@@ -170,29 +196,15 @@ just_type({Type, _Len}) ->
 just_type(Type) ->
     Type.
 
--spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: [fun((term()) -> tuple())],
-                    Params :: [term()]) -> {Query :: string(), ODBCParams :: [tuple()]}.
-unsplit_query(SplitQuery, ParamMappers, Params) ->
-    unsplit_query(SplitQuery, queue:from_list(ParamMappers), Params, [], []).
+map_params([Param|Params], [Mapper|Mappers]) ->
+    [maybe_null(Param, Mapper)|map_params(Params, Mappers)];
+map_params([], []) ->
+    [].
 
--spec unsplit_query(SplitQuery :: [binary()], ParamMappers :: queue:queue(fun((term()) -> tuple())),
-                    Params :: [term()], QueryAcc :: [binary()], ParamsAcc :: [tuple()]) ->
-                           {Query :: string(), ODBCParams :: [tuple()]}.
-unsplit_query([QueryHead], _ParamMappers, [], QueryAcc, ParamsAcc) ->
-    %% Make a list of bytes
-    Query = binary_to_list(iolist_to_binary(lists:reverse([QueryHead | QueryAcc]))),
-    Params = lists:reverse(ParamsAcc),
-    {Query, Params};
-unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc, ParamsAcc) ->
-    {{value, Mapper}, ParamMappersTail} = queue:out(ParamMappers),
-    NextParamMappers = queue:in(Mapper, ParamMappersTail),
-    {InlineQuery, ODBCParam} = maybe_null(Param, Mapper),
-    NewQueryAcc = [InlineQuery, QueryHead | QueryAcc],
-    NewParamsAcc = ODBCParam ++ ParamsAcc,
-    unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).
-
-maybe_null(null, _) ->
-    {"null", []};
+maybe_null(undefined, _Mapper) ->
+    {sql_integer, [null]}; %% some code uses "undefined" instead of "null"
+maybe_null(null, _Mapper) ->
+    {sql_integer, [null]}; %% Yeah, just random type for null
 maybe_null(Param, Mapper) ->
     Mapper(Param).
 
@@ -209,14 +221,6 @@ escape_binary(mssql, Bin) ->
     [<<"0x">>, base16:encode(Bin)];
 escape_binary(_ServerType, Bin) ->
     [$', base16:encode(Bin), $'].
-
-%% boolean are of type {sql_varchar,5} in pgsql.
-%% So, we need to handle integers.
-%% But converting to integer would cause type check failure.
-escape_text_or_integer(_ServerType, P) when is_integer(P) ->
-    [$', integer_to_list(P), $'];
-escape_text_or_integer(ServerType, P) ->
-    escape_text(ServerType, P).
 
 -spec escape_text(ServerType :: atom(), binary()) -> iodata().
 escape_text(pgsql, Bin) ->

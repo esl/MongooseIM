@@ -15,7 +15,7 @@ none
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_amp]
 ```
 

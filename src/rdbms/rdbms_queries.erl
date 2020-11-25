@@ -64,13 +64,6 @@
          roster_subscribe/4,
          get_subscription/3,
          get_subscription_t/3,
-         set_private_data/4,
-         set_private_data_sql/3,
-         get_all_private_namespaces/2,
-         get_private_data/3,
-         multi_get_private_data/3,
-         multi_set_private_data/3,
-         del_user_private_storage/2,
          get_default_privacy_list/2,
          get_default_privacy_list_t/1,
          count_privacy_lists/1,
@@ -87,9 +80,6 @@
          add_privacy_list/2,
          set_privacy_list/2,
          del_privacy_lists/3,
-         set_vcard/27,
-         get_vcard/3,
-         search_vcard/3,
          count_records_where/3,
          get_roster_version/2,
          set_roster_version/2,
@@ -158,42 +148,6 @@ update_t(Table, Fields, Vals, Where) ->
 
 join_escaped(Vals) ->
     join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
-
-%% Safe atomic update.
-%% Fields and their values are passed as a list where
-%% odd elements are fieldnames and
-%% even elements are their values.
-%% This function is useful, when there are a lot of fields to update.
-update_set_t(Table, FieldsVals, Where) ->
-    case mongoose_rdbms:sql_query_t(
-           [<<"update ">>, Table, <<" set ">>,
-        join_field_and_values(FieldsVals),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-        Fields = odds(FieldsVals),
-        Vals = evens(FieldsVals),
-            mongoose_rdbms:sql_query_t(
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
-
-odds([X, _|T]) -> [X|odds(T)];
-odds([])      -> [].
-
-evens([_, X|T]) -> [X|evens(T)];
-evens([])      -> [].
-
-join_field_and_values([Field, Val|FieldsVals]) ->
-    %% Append a field-value pair
-    [Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)].
-
-join_field_and_values_1([Field, Val|FieldsVals]) ->
-    %% Append a separater and a field-value pair
-    [$,, $ , Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)];
-join_field_and_values_1([]) ->
-    [].
 
 
 update(LServer, Table, Fields, Vals, Where) ->
@@ -626,137 +580,6 @@ get_subscription(LServer, Username, SJID) ->
 get_subscription_t(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
 
-set_private_data(_LServer, Username, LXMLNS, SData) ->
-    update_t(<<"private_storage">>,
-             [<<"username">>, <<"namespace">>, <<"data">>],
-             [Username, LXMLNS, SData],
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
-
-set_private_data_sql(Username, LXMLNS, SData) ->
-    [[<<"delete from private_storage "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-        "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS), ";"],
-     [<<"insert into private_storage(username, namespace, data) "
-        "values (">>, mongoose_rdbms:use_escaped_string(Username), ", ",
-                      mongoose_rdbms:use_escaped_string(LXMLNS), ", ",
-                      mongoose_rdbms:use_escaped_string(SData), ");"]].
-
-get_all_private_namespaces(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select namespace from private_storage where username=">>,
-       mongoose_rdbms:use_escaped_string(Username), " ;"]).
-
-get_private_data(LServer, Username, LXMLNS) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select data from private_storage "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-         "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
-
-multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select namespace, data from private_storage "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
-         "namespace IN (">>, join_escaped(LXMLNSs), ");"]).
-
-%% set_private_data for multiple queries using MySQL's specific syntax.
-multi_set_private_data(LServer, Username, SNS2XML) when length(SNS2XML) > 0 ->
-    Rows = [private_data_row(Username, NS, Data) || {NS, Data} <- SNS2XML],
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"replace into private_storage (username, namespace, data) "
-         "values ">>, join(Rows, ", ")]).
-
-private_data_row(Username, NS, Data) ->
-    [<<"(">>, mongoose_rdbms:use_escaped_string(Username),
-     <<", ">>, mongoose_rdbms:use_escaped_string(NS),
-     <<", ">>, mongoose_rdbms:use_escaped_string(Data), <<")">>].
-
-del_user_private_storage(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from private_storage where username=">>,
-           mongoose_rdbms:use_escaped_string(Username)]).
-
-set_vcard(LServer,
-          SLServer, SLUsername,
-          SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
-          SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
-          SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
-          SNickname, SOrgName, SOrgUnit, SVCARD, SUsername) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-        update_t(<<"vcard">>,
-          [<<"username">>, <<"server">>, <<"vcard">>],
-          [SLUsername, SLServer, SVCARD],
-          [<<"username=">>, mongoose_rdbms:use_escaped_string(SLUsername),
-           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]),
-        update_set_t(<<"vcard_search">>,
-          [<<"username">>, SUsername,
-           <<"lusername">>, SLUsername,
-           <<"server">>, SLServer,
-           <<"fn">>, SFN,
-           <<"lfn">>, SLFN,
-           <<"family">>, SFamily,
-           <<"lfamily">>, SLFamily,
-           <<"given">>, SGiven,
-           <<"lgiven">>, SLGiven,
-           <<"middle">>, SMiddle,
-           <<"lmiddle">>, SLMiddle,
-           <<"nickname">>, SNickname,
-           <<"lnickname">>, SLNickname,
-           <<"bday">>, SBDay,
-           <<"lbday">>, SLBDay,
-           <<"ctry">>, SCTRY,
-           <<"lctry">>, SLCTRY,
-           <<"locality">>, SLocality,
-           <<"llocality">>, SLLocality,
-           <<"email">>, SEMail,
-           <<"lemail">>, SLEMail,
-           <<"orgname">>, SOrgName,
-           <<"lorgname">>, SLOrgName,
-           <<"orgunit">>, SOrgUnit,
-           <<"lorgunit">>, SLOrgUnit],
-          [<<"lusername=">>, mongoose_rdbms:use_escaped_string(SLUsername),
-           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)])
-      end).
-
-get_vcard(LServer, Username, SLServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select vcard from vcard "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
-       <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]).
-
-
-search_vcard(LServer, RestrictionSQL, Limit) ->
-    Type = ?RDBMS_TYPE,
-    search_vcard(Type, LServer, RestrictionSQL, Limit).
-
-search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
-    rdbms_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
-search_vcard(_, LServer, RestrictionSQL, Limit) ->
-    do_search_vcard(LServer, RestrictionSQL, Limit).
-
-
-do_search_vcard(LServer, RestrictionSQL, infinity) ->
-    do_search_vcard2(LServer, RestrictionSQL, <<"">>);
-do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
-    BinLimit = integer_to_binary(Limit),
-    do_search_vcard2(LServer, RestrictionSQL, <<"LIMIT ", BinLimit/binary>>).
-
-do_search_vcard2(LServer, RestrictionSQL, Limit) ->
-    mongoose_rdbms:sql_query(
-        LServer,
-        [<<"select username, server, fn, family, given, middle, "
-        "nickname, bday, ctry, locality, "
-        "email, orgname, orgunit from vcard_search ">>,
-            RestrictionSQL, Limit, ";"]).
-
 get_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
@@ -980,7 +803,7 @@ count_offline_messages(_, LServer, SUser, SServer, Limit) ->
 
 -spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],
                                RowsNum :: pos_integer()) ->
-    iodata().
+    {iodata(), [binary()]}.
 create_bulk_insert_query(Table, Fields, RowsNum) when is_atom(Table) ->
     create_bulk_insert_query(atom_to_binary(Table, utf8), Fields, RowsNum);
 create_bulk_insert_query(Table, [Field | _] = Fields, RowsNum) when is_atom(Field) ->
@@ -991,8 +814,10 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
     PlaceholderSet = [<<"(">>, join(Placeholders, <<", ">>), <<")">>],
     PlaceholderSets = lists:duplicate(RowsNum, PlaceholderSet),
     JoinedPlaceholderSets = join(PlaceholderSets, <<", ">>),
-    [<<"INSERT INTO ">>, Table, <<" (">>, JoinedFields, <<") "
-       "VALUES ">>, JoinedPlaceholderSets, <<";">>].
+    Sql = [<<"INSERT INTO ">>, Table, <<" (">>, JoinedFields, <<") "
+       "VALUES ">>, JoinedPlaceholderSets, <<";">>],
+    Fields2 = lists:append(lists:duplicate(RowsNum, Fields)),
+    {Sql, Fields2}.
 
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.

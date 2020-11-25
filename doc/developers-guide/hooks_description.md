@@ -152,7 +152,7 @@ Handler function are expected to return:
 In the default implementation the hook is not used, built-in user control methods are supported elsewhere.
 This is the perfect place to plug in custom security control.
 
-## other hooks
+## Other hooks
 
 * adhoc_local_items
 * adhoc_sm_items

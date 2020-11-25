@@ -33,22 +33,21 @@
          get_opt/3,
          get_opt/2,
          authorize/1,
-         set_password/3,
-         check_password/3,
-         check_password/5,
-         try_register/3,
+         set_password/2,
+         check_password/2,
+         check_password/4,
+         try_register/2,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
          get_vh_registered_users_number/1,
          get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         get_passterm_with_authmodule/2,
+         get_password/1,
+         get_password_s/1,
+         get_passterm_with_authmodule/1,
          does_user_exist/1,
-         is_user_exists/2,
-         is_user_exists_in_other_modules/3,
-         remove_user/2,
+         is_user_exists_in_other_modules/2,
+         remove_user/1,
          supports_sasl_module/2,
          entropy/1
         ]).
@@ -154,44 +153,24 @@ do_authorize_loop([M | Modules], Creds) ->
 
 
 %% @doc Check if the user and password can login in server.
--spec check_password(User :: jid:user(),
-                     Server :: jid:server(),
-                     Password :: binary() ) -> boolean().
-check_password(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_check_password(LUser, LServer, Password).
-
--spec do_check_password(jid:luser(), jid:lserver(), binary()) -> boolean().
-do_check_password(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
+-spec check_password(JID :: jid:jid() | error, Password :: binary()) -> boolean().
+check_password(error, _Password) ->
     false;
-do_check_password(LUser, LServer, Password) ->
-    case check_password_with_authmodule(LUser, LServer, Password) of
+check_password(#jid{} = JID, Password) ->
+    case check_password_with_authmodule(JID, Password) of
         {true, _AuthModule} -> true;
         false -> false
     end.
 
 %% @doc Check if the user and password can login in server.
--spec check_password(User :: jid:user(),
-                     Server :: jid:server(),
+-spec check_password(JID :: jid:jid() | error,
                      Password :: binary(),
                      Digest :: binary(),
-                     DigestGen :: fun()) -> boolean().
-check_password(User, Server, Password, Digest, DigestGen) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_check_password(LUser, LServer, Password, Digest, DigestGen).
-
--spec do_check_password(User :: jid:luser(),
-                     Server :: jid:lserver(),
-                     Password :: binary(),
-                     Digest :: binary(),
-                     DigestGen :: fun()) -> boolean().
-do_check_password(LUser, LServer, _, _, _)
-    when LUser =:= error; LServer =:= error ->
+                     DigestGen :: fun((binary()) -> binary())) -> boolean().
+check_password(error, _, _, _) ->
     false;
-do_check_password(LUser, LServer, Password, Digest, DigestGen) ->
-    case check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen) of
+check_password(#jid{} = JID, Password, Digest, DigestGen) ->
+    case check_password_with_authmodule(JID, Password, Digest, DigestGen) of
         {true, _AuthModule} -> true;
         false -> false
     end.
@@ -199,46 +178,17 @@ do_check_password(LUser, LServer, Password, Digest, DigestGen) ->
 %% @doc Check if the user and password can login in server.
 %% The user can login if at least an authentication method accepts the user
 %% and the password.
--spec check_password_with_authmodule(User :: binary(),
-                                     Server :: binary(),
-                                     Password :: binary()
-                                     ) -> 'false' | {'true', authmodule()}.
-check_password_with_authmodule(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_check_password_with_authmodule(LUser, LServer, Password).
-
--spec do_check_password_with_authmodule(LUser :: jid:luser(),
-                                        LServer :: jid:lserver(),
-                                        Password :: binary()
-                                       ) -> 'false' | {'true', authmodule()}.
-do_check_password_with_authmodule(LUser, LServer, _)
-    when LUser =:= error; LServer =:= error ->
-    false;
-do_check_password_with_authmodule(LUser, LServer, Password) ->
+-spec check_password_with_authmodule(JID :: jid:jid(), Password :: binary()) ->
+    false | {true, authmodule()}.
+check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password) ->
     check_password_loop(auth_modules(LServer), [LUser, LServer, Password]).
 
--spec check_password_with_authmodule(User :: binary(),
-                                     Server :: binary(),
+-spec check_password_with_authmodule(JID :: jid:jid(),
                                      Password :: binary(),
                                      Digest :: binary(),
-                                     DigestGen :: fun()
+                                     DigestGen :: fun((binary()) -> binary())
                                      ) -> 'false' | {'true', authmodule()}.
-check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen).
-
--spec do_check_password_with_authmodule(LUser :: jid:luser(),
-                                        LServer :: jid:lserver(),
-                                        Password :: binary(),
-                                        Digest :: binary(),
-                                        DigestGen :: fun()
-                                     ) -> 'false' | {'true', authmodule()}.
-do_check_password_with_authmodule(LUser, LServer, _, _, _)
-    when LUser =:= error; LServer =:= error ->
-    false;
-do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen) ->
+check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(LServer), [LUser, LServer, Password,
                                                Digest, DigestGen]).
 
@@ -260,26 +210,19 @@ do_check_password_loop([AuthModule | AuthModules], Args) ->
             do_check_password_loop(AuthModules, Args)
     end.
 
--spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
+-spec check_digest(binary(), fun((binary()) -> binary()), binary(), binary()) -> boolean().
 check_digest(<<>>, _, <<>>, _) ->
     false; %%empty digest and password
 check_digest(Digest, DigestGen, _Password, Passwd) ->
     Digest == DigestGen(Passwd).
 
--spec set_password(User :: jid:user(),
-                   Server :: jid:server(),
-                   Password :: binary()
-                  ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
-set_password(_, _, <<"">>) ->
+-spec set_password(jid:jid() | error, binary()) ->
+    ok | {error, empty_password | not_allowed | invalid_jid}.
+set_password(_, <<"">>) ->
     {error, empty_password};
-set_password(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
-    do_set_password(LUser, LServer, Password).
-
-do_set_password(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
+set_password(error, _) ->
     {error, invalid_jid};
-do_set_password(LUser, LServer, Password) ->
+set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
     lists:foldl(
       fun(M, {error, _}) ->
               M:set_password(LUser, LServer, Password);
@@ -288,28 +231,22 @@ do_set_password(LUser, LServer, Password) ->
       end, {error, not_allowed}, auth_modules(LServer)).
 
 
--spec try_register(User :: jid:user(),
-                   Server :: jid:server(),
-                   Password :: binary()
-                   ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
-try_register(_, _, <<"">>) ->
+-spec try_register(jid:jid() | error, binary()) ->
+    ok | {error, exists | not_allowed | invalid_jid | null_password}.
+try_register(_, <<"">>) ->
     {error, null_password};
-try_register(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
-    do_try_register(LUser, LServer, Password).
-
--spec do_try_register(jid:luser(), jid:lserver(), binary())
-        -> ok | {error, exists | not_allowed | invalid_jid}.
-do_try_register(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
+try_register(error, _) ->
     {error, invalid_jid};
-do_try_register(LUser, LServer, Password) ->
-    Exists = is_user_exists(LUser, LServer),
-    do_try_register_if_does_not_exist(Exists, LUser, LServer, Password).
+try_register(JID, Password) ->
+    Exists = does_user_exist(JID),
+    do_try_register_if_does_not_exist(Exists, JID, Password).
 
-do_try_register_if_does_not_exist(true, _, _, _) ->
+-spec do_try_register_if_does_not_exist(boolean(), jid:jid(), binary()) ->
+    ok | {error, exists | not_allowed | invalid_jid | null_password}.
+do_try_register_if_does_not_exist(true, _, _) ->
     {error, exists};
-do_try_register_if_does_not_exist(_, LUser, LServer, Password) ->
+do_try_register_if_does_not_exist(_, JID, Password) ->
+    {LUser, LServer} = jid:to_lus(JID),
     case lists:member(LServer, ?MYHOSTS) of
         true ->
             timed_call(LServer, try_register,
@@ -342,8 +279,7 @@ dirty_get_registered_users() ->
 
 
 %% @doc Registered users list do not include anonymous users logged
--spec get_vh_registered_users(Server :: jid:server()
-                             ) -> [jid:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jid:server()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(Server) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer).
@@ -357,8 +293,8 @@ do_get_vh_registered_users(LServer) ->
       end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users(Server :: jid:server(),
-                              Opts :: [any()]) -> [jid:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jid:server(), Opts :: [any()]) ->
+    [jid:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer, Opts).
@@ -372,8 +308,7 @@ do_get_vh_registered_users(LServer, Opts) ->
         end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users_number(Server :: jid:server()
-                                    ) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:server()) -> integer().
 get_vh_registered_users_number(Server) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users_number(LServer).
@@ -388,8 +323,7 @@ do_get_vh_registered_users_number(LServer) ->
             end, auth_modules(LServer))).
 
 
--spec get_vh_registered_users_number(Server :: jid:server(),
-                                     Opts :: list()) -> integer().
+-spec get_vh_registered_users_number(Server :: jid:server(), Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users_number(LServer, Opts).
@@ -405,146 +339,85 @@ do_get_vh_registered_users_number(LServer, Opts) ->
 
 
 %% @doc Get the password of the user.
--spec get_password(User :: jid:user(),
-                   Server :: jid:server()) -> ejabberd_auth:passterm() | false.
-get_password(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_get_password(LUser, LServer).
-
-do_get_password(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    false;
-do_get_password(LUser, LServer) ->
+-spec get_password(JID :: jid:jid() | error) -> ejabberd_auth:passterm() | false.
+get_password(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, false) ->
             M:get_password(LUser, LServer);
             (_M, Password) ->
                 Password
-        end, false, auth_modules(LServer)).
+        end, false, auth_modules(LServer));
+get_password(error) ->
+    false.
 
 
--spec get_password_s(User :: jid:user(),
-                     Server :: jid:server()) -> binary().
-get_password_s(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_get_password_s(LUser, LServer).
-
-do_get_password_s(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    <<"">>;
-do_get_password_s(LUser, LServer) ->
+-spec get_password_s(JID :: jid:jid() | error) -> binary().
+get_password_s(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, <<"">>) ->
             M:get_password_s(LUser, LServer);
             (_M, Password) ->
                 Password
-        end, <<"">>, auth_modules(LServer)).
+        end, <<"">>, auth_modules(LServer));
+get_password_s(error) ->
+    <<"">>.
 
 %% @doc Get the password(like thing) of the user and the auth module.
--spec get_passterm_with_authmodule(jid:user(), jid:server()) -> R when
-      R :: {passterm(), authmodule()}
-         | {'false', 'none'}.
-get_passterm_with_authmodule(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_get_passterm_with_authmodule(LUser, LServer).
-
-do_get_passterm_with_authmodule(LUser, LServer)
-    when LUser =:= error; LServer =:= error ->
-    {false, none};
-do_get_passterm_with_authmodule(LUser, LServer) ->
+-spec get_passterm_with_authmodule(error | jid:jid()) -> R when
+      R :: {passterm(), authmodule()} | {false, none}.
+get_passterm_with_authmodule(#jid{luser = LUser, lserver = LServer}) ->
     lists:foldl(
         fun(M, {false, _}) ->
-            {M:get_password(LUser, LServer), M};
-            (_M, {Password, AuthModule}) ->
+                {M:get_password(LUser, LServer), M};
+           (_M, {Password, AuthModule}) ->
                 {Password, AuthModule}
         end, {false, none}, auth_modules(LServer)).
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists(User :: jid:user(),
-                     Server :: jid:server()) -> boolean().
-is_user_exists(<<"">>, _) ->
-    false;
-is_user_exists(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_does_user_exist(LUser, LServer).
-
--spec does_user_exist(JID :: jid:jid()) -> boolean().
-does_user_exist(JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
-    do_does_user_exist(LUser, LServer).
-
-do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    false;
-do_does_user_exist(LUser, LServer) ->
-    timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]).
+-spec does_user_exist(JID :: jid:jid() | error) -> boolean().
+does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
+    timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]);
+does_user_exist(error) ->
+    false.
 
 does_user_exist_timed(LUser, LServer) ->
-    lists:any(
-        fun(M) ->
-            case M:does_user_exist(LUser, LServer) of
-                {error, Error} ->
-                    ?LOG_ERROR(#{what => does_user_exist_failed,
-                                 text => <<"The authentication module returned an error">>,
-                                 auth_module => M, reason => Error,
-                                 user => LUser, server => LServer}),
-                    false;
-                Else ->
-                    Else
-            end
-        end, auth_modules(LServer)).
+    Modules = auth_modules(LServer),
+    does_user_exist_in_given_modules(Modules, LUser, LServer, false).
 
-%% Check if the user exists in all authentications module except the module
-%% passed as parameter
--spec is_user_exists_in_other_modules(Module :: authmodule(),
-                                      User :: jid:user(),
-                                      Server :: jid:server()
-                                      ) -> boolean() | 'maybe'.
-is_user_exists_in_other_modules(Module, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_does_user_exist_in_other_modules(Module, LUser, LServer).
+%% Check if the user exists in all authentications module
+%% except the module passed as parameter
+-spec is_user_exists_in_other_modules(Module :: authmodule(), JID :: jid:jid() | error) ->
+    boolean() | maybe.
+is_user_exists_in_other_modules(Module, #jid{luser = LUser, lserver = LServer}) ->
+    Modules = auth_modules(LServer) -- [Module],
+    does_user_exist_in_given_modules(Modules, LUser, LServer, maybe);
+is_user_exists_in_other_modules(_M, error) ->
+    false.
 
-do_does_user_exist_in_other_modules(_, LUser, LServer)
-    when LUser =:= error; LServer =:= error ->
+does_user_exist_in_given_modules([], _, _, _) ->
     false;
-do_does_user_exist_in_other_modules(Module, LUser, LServer) ->
-    does_user_exist_in_other_modules_loop(
-        auth_modules(LServer)--[Module],
-        LUser, LServer).
-
-
-does_user_exist_in_other_modules_loop([], _User, _Server) ->
-    false;
-does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
-    case AuthModule:does_user_exist(User, Server) of
+does_user_exist_in_given_modules(_, LUser, LServer, Default)
+  when LUser =:= error; LServer =:= error -> Default;
+does_user_exist_in_given_modules([Mod | Modules], LUser, LServer, Default) ->
+    case Mod:does_user_exist(LUser, LServer) of
         true ->
             true;
         false ->
-            does_user_exist_in_other_modules_loop(AuthModules, User, Server);
+            does_user_exist_in_given_modules(Modules, LUser, LServer, Default);
         {error, Error} ->
-            ?LOG_DEBUG(#{what => does_user_exist_failed,
+            ?LOG_ERROR(#{what => does_user_exist_failed,
                          text => <<"The authentication module returned an error">>,
-                         auth_module => AuthModule, reason => Error,
-                         user => User, server => Server}),
-            maybe
+                         auth_module => Mod, reason => Error,
+                         user => LUser, server => LServer}),
+            Default
     end.
-
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(User :: jid:user(),
-                  Server :: jid:server()) -> ok | error | {error, not_allowed}.
-remove_user(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    do_remove_user(LUser, LServer).
-
-do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
-    error;
-do_remove_user(LUser, LServer) ->
+-spec remove_user(JID :: jid:jid()) -> ok | {error, not_allowed};
+                 (error) -> error.
+remove_user(#jid{luser = LUser, lserver = LServer}) ->
     AuthModules = auth_modules(LServer),
     RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
     case lists:any(fun(El) -> El == ok end, RemoveResult) of
@@ -559,7 +432,8 @@ do_remove_user(LUser, LServer) ->
                          user => LUser, server => LServer,
                          auth_modules => AuthModules}),
             {error, not_allowed}
-    end.
+    end;
+remove_user(error) -> error.
 
 %% @doc Calculate informational entropy.
 -spec entropy(iolist()) -> float().

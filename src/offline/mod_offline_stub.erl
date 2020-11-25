@@ -10,7 +10,7 @@
 %%%           if the message is not stored for delayed delivery
 %%%           (i.e. as an "offline message").
 %%%           If the recipient exists (i.e. auth module returns `true`
-%%%           from `is_user_exists`) mod_mam stores the message,
+%%%           from `does_user_exist`) mod_mam stores the message,
 %%%           but <service-unavailable/> is still returned,
 %%%           what is not compliant with the RFC.
 %%%

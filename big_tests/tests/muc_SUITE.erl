@@ -459,20 +459,20 @@ domain() ->
     ct:get_config({hosts, mim, domain}).
 
 init_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
-    ok = rpc(mim(), meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room(),
     meck_room_start(),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = create_already_registered_room, Config) ->
-    ok = rpc(mim(), meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room(),
     meck_room_start(),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
-    ok = rpc(mim(), meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room(),
     meck_room_start(),
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
-    ok = rpc(mim(), meck, new, [mod_muc_room, [no_link, passthrough]]),
+    meck_room(),
     meck_room_start(),
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
@@ -533,6 +533,10 @@ init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+meck_room() ->
+    RPCSpec = (mim())#{timeout => timer:seconds(10)}, % it takes long to compile this module
+    ok = rpc(RPCSpec, meck, new, [mod_muc_room, [no_link, passthrough]]).
 
 %% Meck will register a fake room right before a 'real' room is started
 meck_room_start() ->

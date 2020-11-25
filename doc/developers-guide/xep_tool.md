@@ -12,7 +12,7 @@ For example `mod_privacy` file implements [XEP-0016: Privacy Lists](http://xmpp.
 
 #### Mandatory `xep` and `version`
 
-In order to let the XEP-tool know about your module, we add a special attribute `xep` at the begining of the `mod_privacy` module:
+In order to let the XEP-tool know about your module, we add a special attribute `xep` at the beginning of the `mod_privacy` module:
 
 ```
 -xep([{xep, 16}, {version, "1.6"}]).

@@ -57,7 +57,7 @@ Default value allows registration from every IP.
 ### Example configuration
 
 Allow registrations from localhost:
-``` 
+```toml
 [modules.mod_register]
   welcome_message = {subject = "Hello from MIM!", body = "Message body."}
   ip_access = [
@@ -67,7 +67,7 @@ Allow registrations from localhost:
 ```
 
 Deny registration from network 10.20.0.0 with mask 255.255.0.0.
-```
+```toml
 [modules.mod_register]
   ip_access = [
     {address = "10.20.0.0/16", policy = "deny"}

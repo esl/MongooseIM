@@ -766,6 +766,7 @@ item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
 decode_publisher(null) ->
     undefined;
 decode_publisher(Binary) ->
+    %% Silently returns `error` if parsing fails.
     jid:from_binary(Binary).
 
 encode_key(Key) when is_binary(Key) ->

@@ -155,7 +155,7 @@ Access token validity can't be sidestepped right now.
 
 ### Example configuration
 
-```
+```toml
 [modules.mod_auth_token]
   validity_period = [
     {token = "access", value = 13, unit = "minutes"},

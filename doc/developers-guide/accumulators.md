@@ -26,11 +26,11 @@ The stanza should always be packed into an accumulator and passed on, so that in
 
 There are three main benefits from this approach:
 
-a) performance - if we need to do something involving inspecting a stanza or more complicated operations (e.g. privacy check) we don't need to do it multiple times on various stages of processing - instead we can do it once and store the result in an accumulator
+1. Performance - if we need to do something involving inspecting a stanza or more complicated operations (e.g. privacy check) we don't need to do it multiple times on various stages of processing - instead we can do it once and store the result in an accumulator.
 
-b) debugging - it is now very easy to produce an exact track record of a stanza
+2. Debugging - it is now very easy to produce an exact track record of a stanza.
 
-c) simplified implementation of modules which inherently involve multi-stage processing (e.g. `mod_amp`)
+3. Simplified implementation of modules which inherently involve multi-stage processing (e.g. `mod_amp`).
 
 ## API
 
@@ -90,7 +90,7 @@ Accumulator is used mostly to cache values for reuse within a c2s process; when 
 
 If you want it to carry some additional values along with it, please use a dedicated api for setting "permanent" fields:
 
-```
+```erlang
 Acc2 = mongoose_acc:set_permanent(myns, myprop, 123, Acc1),
 ```
 
@@ -152,4 +152,3 @@ There are many places in the server, where an accumulator may be created, so `or
 ### Performance measurement
 
 Given that each accumulator has a timestamp denoting its creation time, it is now very easy to implement a metric showing the stanza processing time, or even multiple metrics splitting it into stages.
-

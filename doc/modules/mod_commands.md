@@ -14,7 +14,7 @@ In the future it may replace the current `mongooseimctl` implementation.
 This module contains command definitions loaded when the module is activated.
 There are no more configuration parameters, so the following entry in the config file is sufficient:
 
-```
+```toml
 [modules.mod_commands]
 ```
 
@@ -54,7 +54,7 @@ A simple command definition may look like this:
 Command registry is managed by `mongoose_commands` module.
 To register a command simply call:
 
-```
+```erlang
 mongoose_commands:register(list_of_command_definitions)
 ```
 
@@ -62,7 +62,9 @@ The registry provides functions for listing commands, retrieving their signature
 and also calling. To call the above method you should do:
 ```
 mongoose_commands:execute(admin, list_contacts) % if you want superuser privileges
+```
 or
+```
 mongoose_commands:execute(<<"alice@wonderland.lit">>, list_contacts)
 ```
 

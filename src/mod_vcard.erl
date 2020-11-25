@@ -129,7 +129,7 @@
 %%--------------------------------------------------------------------
 
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+get_personal_data(Acc, #jid{luser = LUser, lserver = LServer}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
     Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
@@ -685,7 +685,7 @@ parse_vcard(User, VHost, VCARD) ->
                 _ -> EMail1
             end,
     try
-        LUser     = binary_to_list(jid:nodeprep(User)),
+        LUser     = jid:nodeprep(User),
         LFN       = prepare_index(<<"FN">>, FN),
         LFamily   = prepare_index(<<"FAMILY">>, Family),
         LGiven    = prepare_index(<<"GIVEN">>, Given),
@@ -725,7 +725,7 @@ prepare_index(FieldName, Value) ->
         error ->
             throw({invalid_input, FieldName});
         LValue ->
-            binary_to_list(LValue)
+            LValue
     end.
 
 prepare_index_allow_emoji(FieldName, Value) ->

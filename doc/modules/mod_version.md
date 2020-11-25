@@ -20,7 +20,7 @@ Determines whether information about the operating system will be included.
 
 ### Example configuration 
 
-```
+```toml
 [modules.mod_version]
   os_info = true
 ```

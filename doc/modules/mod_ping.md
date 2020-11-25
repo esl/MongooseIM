@@ -41,7 +41,7 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 ### Example Configuration
 
-```
+```toml
 [modules.mod_ping]
   send_pings = true
   ping_interval = 60

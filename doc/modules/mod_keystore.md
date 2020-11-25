@@ -39,68 +39,40 @@ Names, types, and optional filepaths of the keys.
 The module public API is hook-based:
 
 ```erlang
-ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
+mongoose_hooks:get_key(Domain, [], KeyName).
 ```
-An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://github.com/esl/MongooseIM/blob/26a23a260b14176c103339d745037cf4e3c1c188/apps/ejabberd/src/mod_auth_token.erl#L367).
+
+An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://github.com/esl/MongooseIM/blob/4.0.0/src/mod_auth_token.erl#L393).
 
 ### Example Configuration
 
 
 Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 
-```
+```toml
 [modules.mod_keystore]
-  
-  [[modules.mod_keystore.keys]]
-    name = "access_secret"
-    type = "ram"
-
-  [[modules.mod_keystore.keys]]
-    name = "access_psk"
-    type = "file"
-    path = "priv/access_psk"
-
-  [[modules.mod_keystore.keys]]
-    name = "provision_psk"
-    type = "file"
-    path = "priv/provision_psk"
+  keys = [{name = "access_secret, type = "ram"},
+          {name = "access_psk, type = "file", path = "priv/access_psk"},
+          {name = "provision_psk, type = "file", path = "priv/provision_psk"}]
 ```
 
 Multi-tenant setup (`mod_keystore` configured differently
 for each virtual XMPP domain):
 
-```
+```toml
 [[host_config]]
   host = "first.com"
   
-    [[[modules.mod_keystore.keys]]]
-      name = "access_secret"
-      type = "ram"
-
-    [[[modules.mod_keystore.keys]]]
-      name = "access_psk"
-      type = "file"
-      path = "priv/access_psk"
-
-    [[[modules.mod_keystore.keys]]]
-      name = "provision_psk"
-      type = "file"
-      path = "priv/provision_psk"
+  [host_config.modules.mod_keystore]
+    keys = [{name = "access_secret, type = "ram"},
+            {name = "access_psk, type = "file", path = "priv/first_access_psk"},
+            {name = "provision_psk, type = "file", path = "priv/first_provision_psk"}]
 
 [[host_config]]
   host = "second.com"
   
-    [[[modules.mod_keystore.keys]]]
-      name = "access_secret"
-      type = "ram"
-
-    [[[modules.mod_keystore.keys]]]
-      name = "access_psk"
-      type = "file"
-      path = "priv/access_psk"
-
-    [[[modules.mod_keystore.keys]]]
-      name = "provision_psk"
-      type = "file"
-      path = "priv/provision_psk"
+  [host_config.modules.mod_keystore]
+    keys = [{name = "access_secret, type = "ram"},
+            {name = "access_psk, type = "file", path = "priv/second_access_psk"},
+            {name = "provision_psk, type = "file", path = "priv/second_provision_psk"}]
 ```
