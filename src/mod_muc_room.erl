@@ -399,19 +399,21 @@ locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
                     Acc :: mongoose_acc:t(), Packet :: exml:element()}, state()) -> fsm_return().
 locked_state({route, From, _ToNick, Acc,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
-    #iq{lang = Lang, sub_el = Query} = IQ = jlib:iq_query_info(Packet),
+    #iq{lang = Lang, sub_el = Query, xmlns = NS} = IQ = jlib:iq_query_info(Packet),
     {Result, NextState1} =
-        case IQ#iq.xmlns == ?NS_MUC_OWNER andalso get_affiliation(From, StateData)  =:= owner of
-            true ->
+        case {NS, get_affiliation(From, StateData)} of
+            {?NS_MUC_OWNER, owner} ->
                 locked_state_process_owner_iq(From, Query, Lang, IQ#iq.type, StateData);
-            false ->
+            {?NS_DISCO_INFO, owner} ->
+                {process_iq_disco_info(From, IQ#iq.type, Lang, StateData), locked_state};
+            _ ->
                 ErrText = <<"This room is locked">>,
                 {{error, mongoose_xmpp_errors:item_not_found(Lang, ErrText)}, locked_state}
         end,
     MkQueryResult = fun(Res) ->
                         IQ#iq{type = result,
                             sub_el = [#xmlel{name = <<"query">>,
-                                             attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
+                                             attrs = [{<<"xmlns">>, NS}],
                                              children = Res}]}
                     end,
     {IQRes, StateData3, NextState2} =
