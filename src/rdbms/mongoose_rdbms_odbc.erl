@@ -153,6 +153,8 @@ parse_row([], []) ->
                            FieldName :: binary()) -> fun((term()) -> tuple()).
 field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
     fun(P) -> {sql_integer, [P]} end;
+field_name_to_mapper(_ServerType, _TableDesc, <<"offset">>) ->
+    fun(P) -> {sql_integer, [P]} end;
 field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
