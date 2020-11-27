@@ -45,6 +45,7 @@
          fresh_room_name/0,
          fresh_room_name/1,
          disco_features_story/2,
+         has_features/2,
          room_address/2,
          room_address/1,
          disco_service_story/1,
@@ -226,6 +227,7 @@ groups() ->
                               cant_enter_locked_room,
                               create_instant_room,
                               destroy_locked_room,
+                              disco_info_locked_room,
                               create_reserved_room,
                               %% fails, see testcase
                               reserved_room_cancel,
@@ -3091,6 +3093,24 @@ destroy_locked_room(Config) ->
         [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
         was_room_destroyed(Iq),
         was_destroy_presented(Presence)
+    end).
+
+disco_info_locked_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        %% GIVEN a new room is created (should be locked on creation)
+        RoomName = fresh_room_name(),
+        escalus:send(Alice, stanza_muc_enter_room(RoomName, <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+
+        %% WHEN the owner sends disco#info to the locked room
+        escalus:wait_for_stanza(Alice),
+        Stanza = escalus:send_iq_and_wait_for_result(
+                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), RoomName)),
+
+        %% THEN receives MUC features
+        Namespaces = [?NS_MUC, <<"muc_public">>, <<"muc_temporary">>, <<"muc_open">>,
+                     <<"muc_semianonymous">>, <<"muc_moderated">>, <<"muc_unsecured">>],
+        has_features(Stanza, Namespaces)
     end).
 
 %%  Example 156
