@@ -42,12 +42,6 @@
         [apply_start_border/2,
          apply_end_border/2]).
 
--import(mongoose_rdbms,
-        [escape_string/1,
-         escape_integer/1,
-         use_escaped_string/1,
-         use_escaped_integer/1]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -58,10 +52,6 @@
 
 -type filter_field()      :: tuple().
 -type filter()            :: [filter_field()].
--type escaped_message_id() :: mongoose_rdbms:escape_string().
--type escaped_jid()       :: mongoose_rdbms:escaped_string().
--type escaped_resource()  :: mongoose_rdbms:escaped_string().
-
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -265,24 +255,13 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params) ->
     try
-        UserID = maps:get(archive_id, Params),
-        UserJID = maps:get(owner_jid, Params),
         RSM = maps:get(rsm, Params),
-        Borders = maps:get(borders, Params),
-        Start = maps:get(start_ts, Params),
-        End = maps:get(end_ts, Params),
-        Now = maps:get(now, Params),
-        WithJID = maps:get(with_jid, Params),
         SearchText = maps:get(search_text, Params),
-        PageSize = maps:get(page_size, Params),
-        IsSimple = maps:get(is_simple, Params),
-
-        do_lookup_messages(Host,
-                           UserID, UserJID, RSM, Borders,
-                           Start, End, Now, WithJID,
-                           mod_mam_utils:normalize_search_text(SearchText),
-                           PageSize,
-                           IsSimple, is_opt_count_supported_for(RSM))
+        Params2 = Params#{
+                    norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
+                    opt_count_supported => is_opt_count_supported_for(RSM)},
+        Filter = prepare_filter(Host, Params2),
+        do_lookup_messages(Host, Filter, Params2)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -304,50 +283,39 @@ is_opt_count_supported_for(_) ->
 %% - we can reduce number of queries if we skip counting for small data sets;
 %% - sometimes we want not to count at all
 %%   (for example, our client side counts ones and keep the information)
-do_lookup_messages(Host, UserID, UserJID,
-                   RSM, Borders,
-                   Start, End, _Now, WithJID, SearchText,
-                   PageSize, true, _) ->
-    %% Simple query without calculating offset and total count
-    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
-do_lookup_messages(Host, UserID, UserJID,
-                   RSM, Borders,
-                   Start, End, _Now, WithJID, SearchText,
-                   PageSize, opt_count, true) ->
-    %% Extract messages first than calculate offset and total count
-    %% Useful for small result sets (less than one page, than one query is enough)
-    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_opt_count(Host, UserJID, RSM, PageSize, Filter);
-do_lookup_messages(Host, UserID, UserJID,
-                   RSM, Borders,
-                   Start, End, _Now, WithJID, SearchText,
-                   PageSize, _, _) ->
-    %% Unsupported opt_count or just a regular query
-    %% Calculate offset and total count first than extract messages
-    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter).
+do_lookup_messages(Host, Filter, Params = #{owner_jid := UserJID, rsm := RSM,
+                                            page_size := PageSize}) ->
+    case Params of
+        #{is_simple := true} ->
+            %% Simple query without calculating offset and total count
+            lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
+        #{is_simple := opt_count, opt_count_supported := true} ->
+            %% Extract messages first than calculate offset and total count
+            %% Useful for small result sets (less than one page, than one query is enough)
+            lookup_messages_opt_count(Host, UserJID, RSM, PageSize, Filter);
+        _ ->
+            %% Unsupported opt_count or just a regular query
+            %% Calculate offset and total count first than extract messages
+            lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter)
+    end.
 
-lookup_messages_simple(Host, UserJID,
-                       #rsm_in{direction = aft, id = ID},
-                       PageSize, Filter) ->
-    %% Get last rows from result set
-    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, asc),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserJID,
-                       #rsm_in{direction = before, id = ID},
-                       PageSize, Filter) ->
-    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, desc),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserJID,
-                       #rsm_in{direction = undefined, index = Offset},
-                       PageSize, Filter) ->
-    %% Apply offset
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages_simple(Host, UserJID, undefined, PageSize, Filter) ->
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, asc),
+lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter) ->
+    {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
+    MessageRows = extract_messages(Host, Filter2, Offset, PageSize, Order),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
+
+rsm_to_filter(RSM, Filter) ->
+    case RSM of
+        %% Get last rows from result set
+        #rsm_in{direction = aft, id = ID} ->
+            {after_id(ID, Filter), 0, asc};
+        #rsm_in{direction = before, id = ID} ->
+            {before_id(ID, Filter), 0, desc};
+        #rsm_in{direction = undefined, index = Index} ->
+            {Filter, Index, asc};
+        undefined ->
+            {Filter, 0, asc}
+    end.
 
 %% Cases that cannot be optimized and used with this function:
 %% - #rsm_in{direction = aft, id = ID}
@@ -401,45 +369,37 @@ lookup_messages_opt_count(Host, UserJID,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
 
-lookup_messages_regular(Host, UserJID,
-                        RSM = #rsm_in{direction = aft, id = ID},
-                        PageSize, Filter) when ID =/= undefined ->
+lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter) ->
     TotalCount = calc_count(Host, Filter),
     Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, asc),
+    MessageRows =
+        case RSM of
+            #rsm_in{direction = aft, id = ID} ->
+                extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, asc);
+            #rsm_in{direction = before, id = ID} when ID =/= undefined ->
+                extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, desc);
+            _ ->
+                extract_messages(Host, Filter, Offset, PageSize, asc)
+        end,
     Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
-lookup_messages_regular(Host, UserJID,
-                        RSM = #rsm_in{direction = before, id = ID},
-                        PageSize, Filter) when ID =/= undefined ->
-    TotalCount = calc_count(Host, Filter),
-    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, desc),
-    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
-lookup_messages_regular(Host, UserJID, RSM,
-                        PageSize, Filter) ->
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
--spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+-spec after_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
     [{greater, id, ID}|Filter].
 
--spec before_id(ID :: escaped_message_id() | undefined,
+-spec before_id(ID :: mod_mam:message_id() | undefined,
                Filter :: filter()) -> filter().
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
     [{lower, id, ID}|Filter].
 
--spec from_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+-spec from_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
 from_id(ID, Filter) ->
     [{ge, id, ID}|Filter].
 
--spec to_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+-spec to_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
 to_id(ID, Filter) ->
     [{le, id, ID}|Filter].
 
@@ -485,11 +445,6 @@ extract_messages(Host, Filter, IOffset, IMax, Order) ->
                  mam_filter => Filter, offset => IOffset, max => IMax,
                  host => Host, message_rows => MessageRows}),
     maybe_reserve(Order, MessageRows).
-
-maybe_reserve(asc, List) ->
-    List;
-maybe_reserve(desc, List) ->
-    lists:reverse(List).
 
 do_extract_messages(Host, Filters, IOffset, IMax, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(IMax, IOffset),
@@ -580,18 +535,13 @@ calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
 calc_offset(_LS, _F, _PS, _TC, _RSM) ->
     0.
 
+maybe_reserve(asc, List) ->
+    List;
+maybe_reserve(desc, List) ->
+    lists:reverse(List).
+
 extract_gdpr_messages(Host, ArchiveID) ->
     mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
-
-escape_message_id(MessID) when is_integer(MessID) ->
-    escape_integer(MessID).
-
-escape_user_id(UserID) when is_integer(UserID) ->
-    escape_integer(UserID).
-
-%% @doc Strip resource, minify and escape JID.
-minify_and_escape_bare_jid(Host, LocJID, JID) ->
-    escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
 
 minify_bare_jid(Host, LocJID, JID) ->
     jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
@@ -734,13 +684,12 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
--spec prepare_filter(Host :: jid:server(), UserID :: mod_mam:archive_id(),
-                     UserJID :: jid:jid(), Borders :: mod_mam:borders(),
-                     Start :: mod_mam:unix_timestamp() | undefined,
-                     End :: mod_mam:unix_timestamp() | undefined, WithJID :: jid:jid(),
-                     SearchText :: binary() | undefined)
-                    -> filter().
-prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
+-spec prepare_filter(Host :: jid:server(), Params :: map()) -> filter().
+prepare_filter(Host, #{
+                       archive_id := UserID, owner_jid := UserJID,
+                       borders := Borders, start_ts := Start, end_ts := End,
+                       with_jid := WithJID, norm_search_text := SearchText
+                      }) ->
     {MinWithJID, WithResource} =
         case WithJID of
             undefined -> {undefined, undefined};
