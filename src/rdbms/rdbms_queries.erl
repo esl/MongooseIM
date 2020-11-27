@@ -33,6 +33,8 @@
          get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,
          add_limit_arg/2,
+         limit_offset_sql/0,
+         limit_offset_filters/2,
          sql_transaction/2,
          get_last/2,
          select_last/3,
@@ -861,3 +863,19 @@ add_limit_arg(_, Limit, Args) ->
 get_db_specific_limits_binaries(Limit) ->
     {LimitSQL, LimitMSSQL} = get_db_specific_limits(Limit),
     {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
+
+limit_offset_sql() ->
+    limit_offset_sql(?RDBMS_TYPE).
+
+limit_offset_sql(mssql) ->
+    <<" OFFSET (?) ROWS FETCH NEXT (?) ROWS ONLY">>;
+limit_offset_sql(_) ->
+    <<" LIMIT ? OFFSET ?">>.
+
+limit_offset_filters(Limit, Offset) ->
+    limit_offset_filters(?RDBMS_TYPE, Limit, Offset).
+
+limit_offset_filters(mssql, Limit, Offset) ->
+    [{offset, offset, Offset}, {limit, limit, Limit}];
+limit_offset_filters(_, Limit, Offset) ->
+    [{limit, limit, Limit}, {offset, offset, Offset}].

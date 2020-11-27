@@ -56,7 +56,8 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter()            :: mongoose_rdbms:sql_query_part().
+-type filter_field()      :: tuple().
+-type filter()            :: [filter_field()].
 -type escaped_message_id() :: mongoose_rdbms:escape_string().
 -type escaped_jid()       :: mongoose_rdbms:escaped_string().
 -type escaped_resource()  :: mongoose_rdbms:escaped_string().
@@ -357,7 +358,7 @@ lookup_messages_opt_count(Host, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(Host, before_id(FirstID, Filter), IndexHintSQL),
+            Offset = calc_count(Host, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
@@ -374,7 +375,7 @@ lookup_messages_opt_count(Host, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, after_id(LastID, Filter), IndexHintSQL),
+            CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
@@ -391,7 +392,7 @@ lookup_messages_opt_count(Host, UserJID,
         false ->
             IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, after_id(LastID, Filter), IndexHintSQL),
+            CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
@@ -399,51 +400,44 @@ lookup_messages_opt_count(Host, UserJID,
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
                         PageSize, Filter) when ID =/= undefined ->
-    IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter),
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
     Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
                         PageSize, Filter) when ID =/= undefined ->
-    IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter),
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
     Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter) ->
-    IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, Filter),
+    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
-    SID = escape_message_id(ID),
-    [Filter, " AND id > ", use_escaped_integer(SID)].
+    [{greater, id, ID}|Filter].
 
 -spec before_id(ID :: escaped_message_id() | undefined,
                Filter :: filter()) -> filter().
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
-    SID = escape_message_id(ID),
-    [Filter, " AND id < ", use_escaped_integer(SID)].
+    [{lower, id, ID}|Filter].
 
 -spec from_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 from_id(ID, Filter) ->
-    SID = escape_message_id(ID),
-    [Filter, " AND id >= ", use_escaped_integer(SID)].
+    [{ge, id, ID}|Filter].
 
 -spec to_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 to_id(ID, Filter) ->
-    SID = escape_message_id(ID),
-    [Filter, " AND id <= ", use_escaped_integer(SID)].
+    [{le, id, ID}|Filter].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     [do_row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
@@ -482,36 +476,149 @@ extract_messages(_Host, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, Filter, IOffset, IMax, false) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id "),
+        do_extract_messages(Host, Filter, IOffset, IMax, asc),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => IOffset, max => IMax,
                  host => Host, message_rows => MessageRows}),
     MessageRows;
 extract_messages(Host, Filter, IOffset, IMax, true) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, Filter, IOffset, IMax, " ORDER BY id DESC "),
+        do_extract_messages(Host, Filter, IOffset, IMax, desc),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => IOffset, max => IMax,
                  host => Host, message_rows => MessageRows}),
     lists:reverse(MessageRows).
 
-do_extract_messages(Host, Filter, 0, IMax, Order) ->
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
-    mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT ", LimitMSSQL, " id, from_jid, message "
-        "FROM mam_message ",
-            Filter,
-            Order,
-            " ", LimitSQL]);
-do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
-    {LimitSQL, _LimitMSSQL} = rdbms_queries:get_db_specific_limits(IMax),
-    Offset = rdbms_queries:get_db_specific_offset(IOffset, IMax),
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT id, from_jid, message "
-       "FROM mam_message ",
-       Filter, Order, LimitSQL, Offset]).
+do_extract_messages(Host, Filters, IOffset, IMax, Order) ->
+    Filters2 = Filters ++ rdbms_queries:limit_offset_filters(IMax, IOffset),
+    do_lookup_query(lookup, Host, Filters2, Order).
+
+do_lookup_query(QueryType, Host, Filters, Order) ->
+    StmtName = filters_to_statement_name(QueryType, Filters, Order),
+    case mongoose_rdbms:prepared(StmtName) of
+        false ->
+            %% Create a new type of a query
+            SQL = lookup_sql_binary(QueryType, Filters, Order),
+            Columns = filters_to_columns(Filters),
+            mongoose_rdbms:prepare(StmtName, mam_message, Columns, SQL);
+        true ->
+            ok
+    end,
+    Args = filters_to_args(Filters),
+    try mongoose_rdbms:execute(Host, StmtName, Args) of
+        {selected, Rs} when is_list(Rs) ->
+            {selected, Rs};
+        Error ->
+            What = #{what => mam_lookup_failed, statement => StmtName,
+                     sql_query => lookup_sql_binary(QueryType, Filters, Order),
+                     reason => Error, host => Host},
+            ?LOG_ERROR(What),
+            error(What)
+    catch Class:Error:Stacktrace ->
+            What = #{what => mam_lookup_failed, statement => StmtName,
+                     sql_query => lookup_sql_binary(QueryType, Filters, Order),
+                     class => Class, stacktrace => Stacktrace,
+                     reason => Error, host => Host},
+            ?LOG_ERROR(What),
+            error(What)
+    end.
+
+%   mod_mam_utils:success_sql_query(
+%     Host,
+%     ["SELECT id, from_jid, message "
+%      "FROM mam_message ",
+%      Filter, Order, LimitSQL, Offset]).
+
+lookup_sql_binary(QueryType, Filters, Order) ->
+    iolist_to_binary(lookup_sql(QueryType, Filters, Order)).
+
+lookup_sql(QueryType, Filters, Order) ->
+    LimitSQL = limit_sql(QueryType),
+    OrderSQL = order_to_sql(Order),
+    FilterSQL = filters_to_sql(Filters),
+    ["SELECT ", columns_sql(QueryType), " "
+     "FROM mam_message ",
+     FilterSQL, OrderSQL, LimitSQL].
+
+columns_sql(lookup) -> "id, from_jid, message";
+columns_sql(count) -> "COUNT(*)".
+
+limit_sql(lookup) -> rdbms_queries:limit_offset_sql();
+limit_sql(count) -> "".
+
+filters_to_columns(Filters) ->
+   [Column || {_Op, Column, _Value} <- Filters].
+
+filters_to_args(Filters) ->
+   [Value || {_Op, _Column, Value} <- Filters].
+
+
+filters_to_statement_name(QueryType, Filters, Order) ->
+    QueryId = query_type_to_id(QueryType),
+    Ids = [type_to_id(Type) ++ column_to_id(Col) || {Type, Col, _Val} <- Filters],
+    OrderId = order_type_to_id(Order),
+    list_to_atom("mam_" ++ QueryId ++ "_" ++ OrderId ++ "_" ++ lists:append(Ids)).
+
+query_type_to_id(lookup) -> "lookup";
+query_type_to_id(count) -> "count".
+
+order_type_to_id(desc) -> "d";
+order_type_to_id(asc) -> "a";
+order_type_to_id(unordered) -> "u".
+
+order_to_sql(asc) -> " ORDER BY id ";
+order_to_sql(desc) -> " ORDER BY id DESC ";
+order_to_sql(unordered) -> " ".
+
+type_to_id(le)      -> "le"; %% lower or equal
+type_to_id(ge)      -> "ge"; %% greater or equal
+type_to_id(equal)   -> "eq";
+type_to_id(lower)   -> "lt"; %% lower than
+type_to_id(greater) -> "gt"; %% greater than
+type_to_id(like)    -> "lk";
+type_to_id(limit)   -> "li";
+type_to_id(offset)  -> "of".
+
+column_to_id(id) -> "i";
+column_to_id(user_id) -> "u";
+column_to_id(remote_bare_jid) -> "b";
+column_to_id(remote_resource) -> "r";
+column_to_id(search_body) -> "s";
+%% fictional columns
+column_to_id(limit) -> "l";
+column_to_id(offset) -> "o".
+
+filters_to_sql(Filters) ->
+    SQLs = [filter_to_sql(Filter) || Filter <- Filters],
+    case skip_undefined(SQLs) of
+        [] ->
+            "";
+        Defined ->
+            [" WHERE ", rdbms_queries:join(Defined, " AND ")]
+    end.
+
+skip_undefined(List) ->
+    [X || X <- List, X =/= undefined].
+
+filter_to_sql({Op, Column, _Value}) ->
+    filter_to_sql(Op, atom_to_list(Column)).
+
+filter_to_sql(limit, _) ->
+    undefined;
+filter_to_sql(offset, _) ->
+    undefined;
+filter_to_sql(lower, Column) ->
+    Column ++ " < ?";
+filter_to_sql(greater, Column) ->
+    Column ++ " > ?";
+filter_to_sql(le, Column) ->
+    Column ++ " <= ?";
+filter_to_sql(ge, Column) ->
+    Column ++ " >= ?";
+filter_to_sql(equal, Column) ->
+    Column ++ " = ?";
+filter_to_sql(like, Column) ->
+    Column ++ " LIKE ?".
 
 extract_gdpr_messages(Host, ArchiveID) ->
     Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
@@ -528,16 +635,10 @@ extract_gdpr_messages(Host, ArchiveID) ->
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
 -spec calc_index(Host :: jid:server(),
-                 Filter :: filter(), IndexHintSQL :: string(),
-                 SUID :: escaped_message_id()) -> non_neg_integer().
-calc_index(Host, Filter, IndexHintSQL, SUID) ->
-    {selected, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM mam_message ",
-           IndexHintSQL, Filter,
-           " AND id <= ", use_escaped_integer(SUID)]),
-    mongoose_rdbms:result_to_integer(BIndex).
+                 Filter :: filter(),
+                 ID :: mod_mam:message_id()) -> non_neg_integer().
+calc_index(Host, Filter, ID) ->
+    calc_count(Host, [{le, id, ID}|Filter]).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
@@ -545,30 +646,19 @@ calc_index(Host, Filter, IndexHintSQL, SUID) ->
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
 -spec calc_before(Host :: jid:server(),
-                  Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()) ->
-                      non_neg_integer().
-calc_before(Host, Filter, IndexHintSQL, SUID) ->
-    {selected, [{BIndex}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM mam_message ",
-           IndexHintSQL, Filter,
-           " AND id < ", use_escaped_integer(SUID)]),
-    mongoose_rdbms:result_to_integer(BIndex).
-
+                  Filter :: filter(),
+                  ID :: mod_mam:message_id()) -> non_neg_integer().
+calc_before(Host, Filter, ID) ->
+    calc_count(Host, [{lower, id, ID}|Filter]).
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
 -spec calc_count(Host :: jid:server(),
-                 Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
-calc_count(Host, Filter, IndexHintSQL) ->
+                 Filter :: filter()) -> non_neg_integer().
+calc_count(Host, Filter) ->
     {selected, [{BCount}]} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["SELECT COUNT(*) FROM mam_message ",
-           IndexHintSQL, Filter]),
+        do_lookup_query(count, Host, Filter, unordered),
     mongoose_rdbms:result_to_integer(BCount).
-
 
 -spec prepare_filter(Host :: jid:server(), UserID :: mod_mam:archive_id(),
                      UserJID :: jid:jid(), Borders :: mod_mam:borders(),
@@ -577,51 +667,50 @@ calc_count(Host, Filter, IndexHintSQL) ->
                      SearchText :: binary() | undefined)
                     -> filter().
 prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
-    {SWithJID, SWithResource} =
+    {MinWithJID, WithResource} =
         case WithJID of
             undefined -> {undefined, undefined};
             #jid{lresource = <<>>} ->
-                {minify_and_escape_bare_jid(Host, UserJID, WithJID), undefined};
+                {minify_bare_jid(Host, UserJID, WithJID), undefined};
             #jid{lresource = WithLResource} ->
-                {minify_and_escape_bare_jid(Host, UserJID, WithJID),
-                 mongoose_rdbms:escape_string(WithLResource)}
+                {minify_bare_jid(Host, UserJID, WithJID),
+                 WithLResource}
         end,
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource, SearchText).
+    prepare_filters(UserID, StartID2, EndID2, MinWithJID, WithResource, SearchText).
 
 
--spec prepare_filter_sql(UserID :: non_neg_integer(),
-                         StartID :: mod_mam:message_id() | undefined,
-                         EndID :: mod_mam:message_id() | undefined,
-                         SWithJID :: escaped_jid() | undefined,
-                         SWithResource :: escaped_resource() | undefined,
-                         SearchText :: binary() | undefined) -> filter().
-prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
-    ["WHERE user_id=", use_escaped_integer(escape_user_id(UserID)),
-     case StartID of
-         undefined -> "";
-         _         -> [" AND id >= ", use_escaped_integer(escape_integer(StartID))]
-     end,
-     case EndID of
-         undefined -> "";
-         _         -> [" AND id <= ", use_escaped_integer(escape_integer(EndID))]
-     end,
-     case SWithJID of
-         undefined -> "";
-         _         -> [" AND remote_bare_jid = ", use_escaped_string(SWithJID)]
-     end,
-     case SWithResource of
-         undefined -> "";
-         _         -> [" AND remote_resource = ", use_escaped_string(SWithResource)]
-     end,
-     case SearchText of
-         undefined -> "";
-         _         -> prepare_search_filters(SearchText)
-     end
-    ].
+-spec prepare_filters(UserID :: non_neg_integer(),
+                      StartID :: mod_mam:message_id() | undefined,
+                      EndID :: mod_mam:message_id() | undefined,
+                      WithJID :: binary() | undefined,
+                      WithResource :: binary() | undefined,
+                      SearchText :: binary() | undefined) -> filter().
+prepare_filters(UserID, StartID, EndID, WithJID, WithResource, SearchText) ->
+    [{equal, user_id, UserID}] ++
+    case StartID of
+        undefined -> [];
+        _         -> [{ge, id, StartID}]
+    end ++
+    case EndID of
+        undefined -> [];
+        _         -> [{le, id, EndID}]
+    end ++
+    case WithJID of
+        undefined -> [];
+        _         -> [{equal, remote_bare_jid, WithJID}]
+    end ++
+    case WithResource of
+        undefined -> [];
+        _         -> [{equal, remote_resource, WithResource}]
+    end ++
+    case SearchText of
+        undefined -> [];
+        _         -> prepare_search_filters(SearchText)
+    end.
 
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
@@ -632,9 +721,8 @@ prepare_search_filters(SearchText) ->
 
 -spec prepare_search_filter(binary()) -> filter().
 prepare_search_filter(Word) ->
-    [" AND search_body like ",
      %% Search for "%Word%"
-     mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like(Word))].
+    {like, search_body, <<"%", Word/binary, "%">>}.
 
 %% @doc #rsm_in{
 %%    max = non_neg_integer() | undefined,
@@ -642,23 +730,21 @@ prepare_search_filter(Word) ->
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
 -spec calc_offset(Host :: jid:server(),
-                  Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
+                  Filter :: filter(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(_LS, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
   when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, _IH, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, F, IH, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
   when is_integer(ID) ->
-    SID = escape_message_id(ID),
-    max(0, calc_before(Host, F, IH, SID) - PS);
-calc_offset(Host, F, IH, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Host, F, ID) - PS);
+calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
   when is_integer(ID) ->
-    SID = escape_message_id(ID),
-    calc_index(Host, F, IH, SID);
-calc_offset(_LS, _F, _IH, _PS, _TC, _RSM) ->
+    calc_index(Host, F, ID);
+calc_offset(_LS, _F, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
