@@ -332,21 +332,21 @@ lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
-    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, asc),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
-    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, desc),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_simple(Host, UserJID, undefined, PageSize, Filter) ->
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, asc),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
 %% Cases that cannot be optimized and used with this function:
@@ -356,7 +356,7 @@ lookup_messages_opt_count(Host, UserJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, true),
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, desc),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -372,7 +372,7 @@ lookup_messages_opt_count(Host, UserJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) ->
     %% By offset
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -388,7 +388,7 @@ lookup_messages_opt_count(Host, UserJID,
                           undefined,
                           PageSize, Filter) ->
     %% First page
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, 0, PageSize, asc),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -406,7 +406,7 @@ lookup_messages_regular(Host, UserJID,
                         PageSize, Filter) when ID =/= undefined ->
     TotalCount = calc_count(Host, Filter),
     Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, asc),
     Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID,
@@ -414,14 +414,14 @@ lookup_messages_regular(Host, UserJID,
                         PageSize, Filter) when ID =/= undefined ->
     TotalCount = calc_count(Host, Filter),
     Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, desc),
     Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter) ->
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
     {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
@@ -475,23 +475,21 @@ remove_archive(Host, UserID) ->
 -type msg() :: {binary(), jid:literal_jid(), binary()}.
 -spec extract_messages(Host :: jid:server(),
                        Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
-                       ReverseLimit :: boolean()) -> [msg()].
+                       Order :: asc | desc) -> [msg()].
 extract_messages(_Host, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, Filter, IOffset, IMax, false) ->
+extract_messages(Host, Filter, IOffset, IMax, Order) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, Filter, IOffset, IMax, asc),
+        do_extract_messages(Host, Filter, IOffset, IMax, Order),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => IOffset, max => IMax,
                  host => Host, message_rows => MessageRows}),
-    MessageRows;
-extract_messages(Host, Filter, IOffset, IMax, true) ->
-    {selected, MessageRows} =
-        do_extract_messages(Host, Filter, IOffset, IMax, desc),
-    ?LOG_DEBUG(#{what => mam_extract_messages,
-                 mam_filter => Filter, offset => IOffset, max => IMax,
-                 host => Host, message_rows => MessageRows}),
-    lists:reverse(MessageRows).
+    maybe_reserve(Order, MessageRows).
+
+maybe_reserve(asc, List) ->
+    List;
+maybe_reserve(desc, List) ->
+    lists:reverse(List).
 
 do_extract_messages(Host, Filters, IOffset, IMax, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(IMax, IOffset),
@@ -668,7 +666,6 @@ filters_to_columns(Filters) ->
 
 filters_to_args(Filters) ->
    [Value || {_Op, _Column, Value} <- Filters].
-
 
 filters_to_statement_name(QueryType, Filters, Order) ->
     QueryId = query_type_to_id(QueryType),
