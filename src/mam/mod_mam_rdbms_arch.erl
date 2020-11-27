@@ -523,11 +523,129 @@ do_lookup_query(QueryType, Host, Filters, Order) ->
             error(What)
     end.
 
-%   mod_mam_utils:success_sql_query(
-%     Host,
-%     ["SELECT id, from_jid, message "
-%      "FROM mam_message ",
-%      Filter, Order, LimitSQL, Offset]).
+%% @doc Calculate a zero-based index of the row with UID in the result test.
+%%
+%% If the element does not exists, the ID of the next element will
+%% be returned instead.
+%% @end
+%% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
+-spec calc_index(Host :: jid:server(),
+                 Filter :: filter(),
+                 ID :: mod_mam:message_id()) -> non_neg_integer().
+calc_index(Host, Filter, ID) ->
+    calc_count(Host, [{le, id, ID}|Filter]).
+
+%% @doc Count of elements in RSet before the passed element.
+%%
+%% The element with the passed UID can be already deleted.
+%% @end
+%% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
+-spec calc_before(Host :: jid:server(),
+                  Filter :: filter(),
+                  ID :: mod_mam:message_id()) -> non_neg_integer().
+calc_before(Host, Filter, ID) ->
+    calc_count(Host, [{lower, id, ID}|Filter]).
+
+%% @doc Get the total result set size.
+%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
+-spec calc_count(Host :: jid:server(),
+                 Filter :: filter()) -> non_neg_integer().
+calc_count(Host, Filter) ->
+    {selected, [{BCount}]} =
+        do_lookup_query(count, Host, Filter, unordered),
+    mongoose_rdbms:result_to_integer(BCount).
+
+%% @doc #rsm_in{
+%%    max = non_neg_integer() | undefined,
+%%    direction = before | aft | undefined,
+%%    id = binary() | undefined,
+%%    index = non_neg_integer() | undefined}
+-spec calc_offset(Host :: jid:server(),
+                  Filter :: filter(), PageSize :: non_neg_integer(),
+                  TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
+calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+  when is_integer(Index) ->
+    Index;
+%% Requesting the Last Page in a Result Set
+calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+    max(0, TC - PS);
+calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
+  when is_integer(ID) ->
+    max(0, calc_before(Host, F, ID) - PS);
+calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+  when is_integer(ID) ->
+    calc_index(Host, F, ID);
+calc_offset(_LS, _F, _PS, _TC, _RSM) ->
+    0.
+
+extract_gdpr_messages(Host, ArchiveID) ->
+    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, from_jid, message "
+         "FROM mam_message ",
+         Filter, " ORDER BY id"]).
+
+escape_message_id(MessID) when is_integer(MessID) ->
+    escape_integer(MessID).
+
+escape_user_id(UserID) when is_integer(UserID) ->
+    escape_integer(UserID).
+
+%% @doc Strip resource, minify and escape JID.
+minify_and_escape_bare_jid(Host, LocJID, JID) ->
+    escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
+
+minify_bare_jid(Host, LocJID, JID) ->
+    jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
+
+maybe_encode_compact_uuid(undefined, _) ->
+    undefined;
+maybe_encode_compact_uuid(Microseconds, NodeID) ->
+    encode_compact_uuid(Microseconds, NodeID).
+
+%% ----------------------------------------------------------------------
+%% Optimizations
+
+jid_to_stored_binary(Host, UserJID, JID) ->
+    Module = db_jid_codec(Host),
+    mam_jid:encode(Module, UserJID, JID).
+
+stored_binary_to_jid(Host, UserJID, BSrcJID) ->
+    Module = db_jid_codec(Host),
+    mam_jid:decode(Module, UserJID, BSrcJID).
+
+packet_to_stored_binary(Host, Packet) ->
+    Module = db_message_codec(Host),
+    mam_message:encode(Module, Packet).
+
+stored_binary_to_packet(Host, Bin) ->
+    Module = db_message_codec(Host),
+    mam_message:decode(Module, Bin).
+
+-spec db_jid_codec(jid:server()) -> module().
+db_jid_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini).
+
+-spec db_message_codec(jid:server()) -> module().
+db_message_codec(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+%gdpr helpers
+gdpr_decode_jid(Host, UserJID, BSrcJID) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
+    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
+    jid:to_binary(JID).
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).
+
+%% ----------------------------------------------------------------------
+%% Prepared queries helpers
 
 lookup_sql_binary(QueryType, Filters, Order) ->
     iolist_to_binary(lookup_sql(QueryType, Filters, Order)).
@@ -620,46 +738,6 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
-extract_gdpr_messages(Host, ArchiveID) ->
-    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
-    mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, from_jid, message "
-         "FROM mam_message ",
-         Filter, " ORDER BY id"]).
-
-%% @doc Calculate a zero-based index of the row with UID in the result test.
-%%
-%% If the element does not exists, the ID of the next element will
-%% be returned instead.
-%% @end
-%% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host :: jid:server(),
-                 Filter :: filter(),
-                 ID :: mod_mam:message_id()) -> non_neg_integer().
-calc_index(Host, Filter, ID) ->
-    calc_count(Host, [{le, id, ID}|Filter]).
-
-%% @doc Count of elements in RSet before the passed element.
-%%
-%% The element with the passed UID can be already deleted.
-%% @end
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host :: jid:server(),
-                  Filter :: filter(),
-                  ID :: mod_mam:message_id()) -> non_neg_integer().
-calc_before(Host, Filter, ID) ->
-    calc_count(Host, [{lower, id, ID}|Filter]).
-
-%% @doc Get the total result set size.
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host :: jid:server(),
-                 Filter :: filter()) -> non_neg_integer().
-calc_count(Host, Filter) ->
-    {selected, [{BCount}]} =
-        do_lookup_query(count, Host, Filter, unordered),
-    mongoose_rdbms:result_to_integer(BCount).
-
 -spec prepare_filter(Host :: jid:server(), UserID :: mod_mam:archive_id(),
                      UserJID :: jid:jid(), Borders :: mod_mam:borders(),
                      Start :: mod_mam:unix_timestamp() | undefined,
@@ -681,7 +759,6 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
     prepare_filters(UserID, StartID2, EndID2, MinWithJID, WithResource, SearchText).
-
 
 -spec prepare_filters(UserID :: non_neg_integer(),
                       StartID :: mod_mam:message_id() | undefined,
@@ -723,84 +800,3 @@ prepare_search_filters(SearchText) ->
 prepare_search_filter(Word) ->
      %% Search for "%Word%"
     {like, search_body, <<"%", Word/binary, "%">>}.
-
-%% @doc #rsm_in{
-%%    max = non_neg_integer() | undefined,
-%%    direction = before | aft | undefined,
-%%    id = binary() | undefined,
-%%    index = non_neg_integer() | undefined}
--spec calc_offset(Host :: jid:server(),
-                  Filter :: filter(), PageSize :: non_neg_integer(),
-                  TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-  when is_integer(Index) ->
-    Index;
-%% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
-    max(0, TC - PS);
-calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
-  when is_integer(ID) ->
-    max(0, calc_before(Host, F, ID) - PS);
-calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
-  when is_integer(ID) ->
-    calc_index(Host, F, ID);
-calc_offset(_LS, _F, _PS, _TC, _RSM) ->
-    0.
-
-escape_message_id(MessID) when is_integer(MessID) ->
-    escape_integer(MessID).
-
-escape_user_id(UserID) when is_integer(UserID) ->
-    escape_integer(UserID).
-
-%% @doc Strip resource, minify and escape JID.
-minify_and_escape_bare_jid(Host, LocJID, JID) ->
-    escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
-
-minify_bare_jid(Host, LocJID, JID) ->
-    jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
-
-%% ----------------------------------------------------------------------
-%% Optimizations
-
-jid_to_stored_binary(Host, UserJID, JID) ->
-    Module = db_jid_codec(Host),
-    mam_jid:encode(Module, UserJID, JID).
-
-stored_binary_to_jid(Host, UserJID, BSrcJID) ->
-    Module = db_jid_codec(Host),
-    mam_jid:decode(Module, UserJID, BSrcJID).
-
-packet_to_stored_binary(Host, Packet) ->
-    Module = db_message_codec(Host),
-    mam_message:encode(Module, Packet).
-
-stored_binary_to_packet(Host, Bin) ->
-    Module = db_message_codec(Host),
-    mam_message:decode(Module, Bin).
-
--spec db_jid_codec(jid:server()) -> module().
-db_jid_codec(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini).
-
--spec db_message_codec(jid:server()) -> module().
-db_message_codec(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
-
-%gdpr helpers
-gdpr_decode_jid(Host, UserJID, BSrcJID) ->
-    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
-    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
-    jid:to_binary(JID).
-
-gdpr_decode_packet(Host, SDataRaw) ->
-    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
-                                            mam_message_compressed_eterm),
-    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Message = mam_message:decode(Codec, Data),
-    exml:to_binary(Message).
