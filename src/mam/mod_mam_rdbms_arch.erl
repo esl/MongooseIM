@@ -91,6 +91,13 @@ start(Host, Opts) ->
                               " WHERE user_id = ? AND remote_bare_jid = ? "
                               " AND origin_id = ? AND direction = ?"
                               " ORDER BY id DESC ", LimitSQL/binary>>]),
+
+    mongoose_rdbms:prepare(mam_extract_gdpr_messages, mam_message,
+                           [user_id],
+                           [<<"SELECT id, from_jid, message "
+                              " FROM mam_message "
+                              " WHERE user_id=? "
+                              " ORDER BY id">>]),
     ok.
 
 
@@ -356,7 +363,6 @@ lookup_messages_opt_count(Host, UserJID,
             {ok, {MessageRowsCount, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}};
         false ->
-            IndexHintSQL = index_hint_sql(Host),
             FirstID = row_to_message_id(hd(MessageRows)),
             Offset = calc_count(Host, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
@@ -373,7 +379,6 @@ lookup_messages_opt_count(Host, UserJID,
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}};
         false ->
-            IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
@@ -390,7 +395,6 @@ lookup_messages_opt_count(Host, UserJID,
             {ok, {MessageRowsCount, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}};
         false ->
-            IndexHintSQL = index_hint_sql(Host),
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
@@ -579,12 +583,7 @@ calc_offset(_LS, _F, _PS, _TC, _RSM) ->
     0.
 
 extract_gdpr_messages(Host, ArchiveID) ->
-    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
-    mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, from_jid, message "
-         "FROM mam_message ",
-         Filter, " ORDER BY id"]).
+    mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
 
 escape_message_id(MessID) when is_integer(MessID) ->
     escape_integer(MessID).
