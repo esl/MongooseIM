@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import pickle
@@ -15,7 +15,7 @@ else:
 
 def from_ejabberd():
     input_length = sys.stdin.read(2)
-    (size,) = unpack('>h', input_length)
+    (size,) = unpack('>h', input_length.encode())
     return sys.stdin.read(size).split(':')
 
 def to_ejabberd(bool):
@@ -23,7 +23,7 @@ def to_ejabberd(bool):
     if bool:
         answer = 1
     token = pack('>hh', 2, answer)
-    sys.stdout.write(token)
+    sys.stdout.write(token.decode("utf-8"))
     sys.stdout.flush()
 
 def auth(username, server, password):
@@ -52,7 +52,7 @@ def removeuser(username, server):
     return True
 
 def serialize():
-    f = open(outfile, 'a')
+    f = open(outfile, 'ab')
     pickle.dump(users, f)
     f.close()
 
@@ -72,4 +72,3 @@ while True:
     elif data[0] == "removeuser3":
         success = removeuser3(data[1], data[2], data[3])
     to_ejabberd(success)
-
