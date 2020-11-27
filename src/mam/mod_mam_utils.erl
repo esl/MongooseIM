@@ -1144,12 +1144,16 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
 %% return (up to) PageSize messages.
 %% @end
 -spec check_for_item_not_found(RSM, PageSize, LookupResult) -> R when
-      RSM :: jlib:rsm_in(),
+      RSM :: jlib:rsm_in() | undefined,
       PageSize :: non_neg_integer(),
       LookupResult :: mod_mam:lookup_result(),
       R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
+check_for_item_not_found(undefined, _PageSize, Result) ->
+    {ok, Result};
+check_for_item_not_found(#rsm_in{id = undefined}, _PageSize, Result) ->
+    {ok, Result};
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
-                         PageSize, {TotalCount, Offset, MessageRows}) when ID =/= undefined ->
+                         PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
         {ok, {ID, _, _}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
@@ -1158,7 +1162,7 @@ check_for_item_not_found(#rsm_in{direction = before, id = ID},
             {error, item_not_found}
     end;
 check_for_item_not_found(#rsm_in{direction = aft, id = ID},
-                         _PageSize, {TotalCount, Offset, MessageRows0}) when ID =/= undefined ->
+                         _PageSize, {TotalCount, Offset, MessageRows0}) ->
     case MessageRows0 of
         [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
             {ok, {TotalCount, Offset, MessageRows}};
