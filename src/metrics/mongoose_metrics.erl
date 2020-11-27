@@ -360,8 +360,9 @@ filter_hook(_) -> use.
 
 -spec create_metrics(jid:server()) -> 'ok'.
 create_metrics(Host) ->
-    lists:foreach(fun(Name) -> ensure_metric(Host, Name, spiral) end, ?GENERAL_SPIRALS),
-    lists:foreach(fun(Name) -> ensure_metric(Host, Name, counter) end, ?TOTAL_COUNTERS).
+    lists:foreach(fun(Name) -> ensure_metric(Host, Name, spiral) end, ?HOST_SPIRALS),
+    lists:foreach(fun(Name) -> ensure_metric(Host, Name, histogram) end, ?HOST_HISTOGRAMS),
+    lists:foreach(fun(Name) -> ensure_metric(Host, Name, counter) end, ?HOST_COUNTERS).
 
 ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(Host, [Metric], Type, ShortType);

@@ -31,7 +31,6 @@
          stop/1,
          terminate_session/2,
          start_link/2,
-         send_text/2,
          socket_type/0,
          get_presence/1,
          get_aux_field/2,
@@ -1668,7 +1667,47 @@ send_element_from_server_jid(Acc, StateData, #xmlel{} = El) ->
 send_element(Acc, El, #state{server = Server} = StateData) ->
     Acc1 = mongoose_hooks:xmpp_send_element(Server, Acc, El),
     Res = do_send_element(El, StateData),
+    maybe_record_message_time(Acc, El),
     mongoose_acc:set(c2s, send_result, Res, Acc1).
+
+maybe_record_message_time(Acc, #xmlel{name = MsgName} = El) ->
+    MsgType = exml_query:attr(El, <<"type">>, <<"normal">>),
+    maybe_record_message_time(MsgName,
+                              MsgType,
+                              mongoose_acc:get(tracing, source, undefined, Acc),
+                              Acc
+                             );
+maybe_record_message_time(_, _) ->
+    ok.
+
+%% this code records processing time for standard messages received directly from c2s
+%% or broadcast by MUC, but not sent from a buffer
+%% if you want to time some messages in a separate metric or otherwise customise timing,
+%% set custom message source on the accumulator
+%% mongoose_acc:set(traffic, source, MySource, Acc)
+%% in your module which sends a message or by hooking into c2s_preprocessing_hook
+%% then use message_time_hook to record time
+maybe_record_message_time(_, _, undefined, _) ->
+    ok;
+maybe_record_message_time(<<"message">>, <<"normal">>, direct, Acc) ->
+    record_message_time(Acc);
+maybe_record_message_time(<<"message">>, <<"chat">>, direct, Acc) ->
+    record_message_time(Acc);
+maybe_record_message_time(<<"message">>, <<"groupchat">>, direct, Acc) ->
+    record_message_time(Acc);
+maybe_record_message_time(<<"message">>, _, Source, Acc) ->
+    message_time_hook(Source, Acc);
+maybe_record_message_time(_, _, _, _) ->
+    ok.
+
+record_message_time(Acc) ->
+    Diff = os:system_time(microsecond) - mongoose_acc:timestamp(Acc),
+    Server = mongoose_acc:lserver(Acc),
+    mongoose_metrics:update(Server, [message_processing_time, direct], Diff).
+
+message_time_hook(Source, Acc) ->
+    Diff = os:system_time(microsecond) - mongoose_acc:timestamp(Acc),
+    mongoose_hooks:message_processing_time(mongoose_acc:lserver(Acc), Acc, Source, Diff).
 
 do_send_element(El, #state{sockmod = SockMod} = StateData)
                 when StateData#state.xml_socket ->
@@ -2748,6 +2787,7 @@ ship_to_local_user(Acc, Packet, State) ->
 maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_state = active} = State) ->
     send_and_maybe_buffer_stanza(Acc, Packet, State);
 maybe_csi_inactive_optimisation(Acc, {From,To,El}, #state{csi_buffer = Buffer} = State) ->
+
     NewAcc = update_stanza(From, To, El, Acc),
     NewBuffer = [NewAcc | Buffer],
     NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
@@ -2768,7 +2808,8 @@ flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
     F = fun(Acc, {_, _, OldState}) ->
             {From, To, El} = mongoose_acc:packet(Acc),
-            send_and_maybe_buffer_stanza_no_ack(Acc, {From, To, El}, OldState)
+            Acc1 = mongoose_acc:set(tracing, source, csi_buffer, Acc),
+            send_and_maybe_buffer_stanza_no_ack(Acc1, {From, To, El}, OldState)
         end,
     {_, _, NewState} = lists:foldr(F, {ok, ok, State}, BufferOut),
     NewState#state{csi_buffer = []}.
@@ -3108,8 +3149,9 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                                                   NSD#state.stream_mgmt_in),
                     send_element_from_server_jid(NSD, Resumed),
                     [begin
+                         Acc1 = mongoose_acc:set(tracing, source, stream_mgmt_buffer, Acc),
                          Elem = mongoose_acc:element(Acc),
-                         send_element(Acc, Elem, NSD)
+                         send_element(Acc1, Elem, NSD)
                      end || Acc <- lists:reverse(NSD#state.stream_mgmt_buffer)],
 
                     NSD2 = flush_csi_buffer(NSD),
@@ -3349,7 +3391,8 @@ element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
     end,
     Acc = mongoose_acc:new(Params),
     Acc1 = mongoose_acc:set_permanent(c2s, origin_sid, SID, Acc),
-    mongoose_acc:set_permanent(c2s, origin_jid, JID, Acc1).
+    Acc2 = mongoose_acc:set_permanent(tracing, source, direct, Acc1),
+    mongoose_acc:set_permanent(c2s, origin_jid, JID, Acc2).
 
 -spec hibernate() -> hibernate | infinity.
 hibernate() ->

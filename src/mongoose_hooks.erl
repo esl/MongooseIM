@@ -17,6 +17,7 @@
          inbox_unread_count/3,
          local_send_to_resource_hook/5,
          get_key/3,
+         message_processing_time/4,
          packet_to_component/3,
          presence_probe_hook/5,
          push_notifications/4,
@@ -272,6 +273,15 @@ local_send_to_resource_hook(Server, Acc, From, To, Packet) ->
 get_key(LServer, Acc, KeyName) ->
     ejabberd_hooks:run_fold(get_key, LServer, Acc,
                             [{KeyName, LServer}]).
+
+-spec message_processing_time(LServer, Acc, Source, Diff) -> Result when
+    LServer :: jid:lserver(),
+    Acc :: mod_keystore:key_list(),
+    Source :: atom(),
+    Diff :: integer(),
+    Result :: mongoose_acc:t().
+message_processing_time(LServer, Acc, Source, Diff) ->
+    ejabberd_hooks:run_fold(message_processing_time, LServer, Acc, [Source, Diff]).
 
 -spec packet_to_component(Acc, From, To) -> Result when
     Acc :: mongoose_acc:t(),

@@ -1,4 +1,4 @@
--define(GENERAL_SPIRALS, [
+-define(HOST_SPIRALS, [
     sessionSuccessfulLogins,
     sessionAuthAnonymous,
     sessionAuthFails,
@@ -59,9 +59,13 @@
     modCSIActive
 ]).
 
--define(TOTAL_COUNTERS, [
+-define(HOST_COUNTERS, [
     sessionCount
 ]).
+
+-define(HOST_HISTOGRAMS, [
+      [message_processing_time, direct]
+    ]).
 
 -define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
 
