@@ -253,7 +253,6 @@ If MongooseIM does not start because the configuration file is broken in some wa
 mongooseimctl live
 ```
 
-
 ## Using an XMPP/Jabber client/app
 
 The following steps use the registered users on the MongooseIM server, done above.
