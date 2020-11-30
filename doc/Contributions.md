@@ -33,7 +33,7 @@ Available on: [igniterealtime/Smack](https://github.com/igniterealtime/Smack)
 
 See [movim/movim](https://github.com/movim/movim) on GitHub for more details.
 
-* Docker image for Movim: https://github.com/esl/movim-docker
+* [Docker image](https://github.com/esl/movim-docker) for Movim
 
 ## Software by Erlang Solutions
 
@@ -75,8 +75,8 @@ See [MongoosePush](https://github.com/esl/MongoosePush) on GitHub for more detai
 
 ### MUC light
 
-MUC stands for Multi-User Chat. [MUC light](open-extensions/muc_light/) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
+MUC stands for Multi-User Chat. [MUC light](../open-extensions/muc_light/) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
 
 ### Token-based reconnection
 
-[Token-based reconnection](open-extensions/token-reconnection/) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords
+[Token-based reconnection](../open-extensions/token-reconnection/) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords
