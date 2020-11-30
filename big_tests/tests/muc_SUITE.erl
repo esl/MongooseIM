@@ -2956,7 +2956,8 @@ muc_namespaces() ->
      <<"muc_open">>,
      <<"muc_semianonymous">>,
      <<"muc_moderated">>,
-     <<"muc_unsecured">>].
+     <<"muc_unsecured">>,
+     <<"vcard-temp">>].
 
 disco_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -3109,7 +3110,8 @@ disco_info_locked_room(Config) ->
 
         %% THEN receives MUC features
         Namespaces = [?NS_MUC, <<"muc_public">>, <<"muc_temporary">>, <<"muc_open">>,
-                     <<"muc_semianonymous">>, <<"muc_moderated">>, <<"muc_unsecured">>],
+                     <<"muc_semianonymous">>, <<"muc_moderated">>, <<"muc_unsecured">>,
+                     <<"vcard-temp">>],
         has_features(Stanza, Namespaces)
     end).
 

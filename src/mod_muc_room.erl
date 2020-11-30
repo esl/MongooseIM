@@ -3975,7 +3975,8 @@ process_iq_disco_info(From, get, Lang, StateData) ->
               config_opt_to_feature((Config#config.moderated),
                          <<"muc_moderated">>, <<"muc_unmoderated">>),
               config_opt_to_feature((Config#config.password_protected),
-                         <<"muc_passwordprotected">>, <<"muc_unsecured">>)
+                         <<"muc_passwordprotected">>, <<"muc_unsecured">>),
+              #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}
              ] ++ iq_disco_info_extras(Lang, StateData) ++ RegisteredFeaturesXML, StateData}.
 
 
