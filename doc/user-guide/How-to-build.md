@@ -59,7 +59,7 @@ $ xcode-select --install # install compilation tools
 
 Install dependencies with Brew.
 
-```
+```bash
 $ brew install erlang openssl unixodbc
 ```
 
@@ -149,16 +149,14 @@ MongooseIM node mongooseim@localhost:
         log/mongooseim.log
 ```
 
-
 ## Building the testing target and running tests
 
 For testing purposes there's a different make target available:
 
-```
+```bash
 $ make devrel
 ```
 
 which will generate releases `mim1`, `mim2`, `mim3`, `fed1`, `reg1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
 
-In order to learn how to execute tests, please consult [Testing MongooseIM page](../developers-guide/Testing-MongooseIM.md)
-
+In order to learn how to execute tests, please consult [Testing MongooseIM page](../developers-guide/Testing-MongooseIM.md).

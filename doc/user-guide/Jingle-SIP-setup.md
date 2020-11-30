@@ -1,8 +1,8 @@
-## Jingle/SIP setup proof of concept
+# Jingle/SIP setup proof of concept
 
 This tutorial will show you how to configure MongooseIM, Routr (a SIP server) and client applications to demonstrate how the Jingle/SIP integration works.
 
-### Prerequisites
+## Prerequisites
 
 We are going to use the following open source software:
 
@@ -13,19 +13,19 @@ We are going to use the following open source software:
       Without this, third party dependencies required by the Jingle/SIP translator will not be included in the release.
 
 * Routr (SIP server) - [https://routr.io](https://routr.io)
-    * I recommend downloading binaries for your system from [https://routr.io/docs/getting-started-installation.html](https://routr.io/docs/getting-started-installation.html)
+    * I recommend downloading binaries for your system from [official source](https://routr.io/docs/introduction/installation/#custom).
 * Jitsi (XMPP and SIP client application) - [https://desktop.jitsi.org](https://desktop.jitsi.org/)
 * Otalk - web based XMPP client - [https://github.com/otalk/otalk-im-client](https://github.com/otalk/otalk-im-client)
     * Folow the instructions on [otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) to run it
 
 We will use 2 users `xmpp.user@xmpp.example` and `sip.user@sip.example`.
 
-### Configuring Routr
+## Configuring Routr
 
 First the domain `sip.example` needs to be added to domains served by Routr.
 To do it, paste the following content to config/domains.yml in the directory where Routr was:
 
-```yml
+```yaml
 - apiVersion: v1beta1
   kind: Domain
   metadata:
@@ -37,7 +37,7 @@ To do it, paste the following content to config/domains.yml in the directory whe
 
 Then the `sip.user@sip.example` needs to be added to `config/agents.yml` like below:
 
-```yml
+```yaml
 - apiVersion: v1beta1
   kind: Agent
   metadata:
@@ -66,7 +66,7 @@ If all goes well we'll see the following output:
 
 It is important to remember the IP address as it'll be used in next point.
 
-#### A side note
+### A side note
 
 In Routr's logs you may see messages like
 
@@ -78,14 +78,14 @@ or
 
 They can be ignored for the purpose of the tutorial.
 
-### Configuring /etc/hosts
+## Configuring /etc/hosts
 
 In my case the IP reported by Routr was `10.152.1.27`.
 Now we need to use this to update `/etc/hosts` file like below:
 
     10.152.1.27     sip.example xmpp.example
 
-### Configuring MongooseIM
+## Configuring MongooseIM
 
 At this point I assume that MongooseIM was built with `make rel`, that it is running and the current working directory is `_build/prod/rel/mongooseim`.
 Similar to Routr, MongooseIM also needs to know which hosts to server.
@@ -128,13 +128,13 @@ The roster can be set by us with the following commands:
     bin/mongooseimctl add_rosteritem sip.user sip.example xmpp.user xmpp.example xmpp.user none both
     bin/mongooseimctl add_rosteritem xmpp.user xmpp.example sip.user sip.example sip.user none both
 
-### Adding users to Jitsi
+## Adding users to Jitsi
 
 Now the `sip.user@sip.example` has to be added to Jitsi app.
 When the app is opened for the first time it will display a window to configure the user.
 Later users can be configured from the `Preferences` page.
 
-#### Adding a SIP user
+### Adding a SIP user
 
 In order to add a user who connects to the SIP server we need to choose the `SIP` protocol from the available `networks` in Jitsi.
 In the `SIP id` field we put `sip.user@sip.example` and in the `Password` field we put `1234` as in the `agents.yml` file.
@@ -143,7 +143,7 @@ Here we need to unselect the `Configure proxy automatically` and put the IP of o
 
 ![SIP setup in Jitsi](jingle-sip/jitsi-sip-config.png)
 
-#### Adding an XMPP user
+### Adding an XMPP user
 
 Now we have to add `sip.user@sip.example` to Jitsi's XMPP network in order to connect this user to MongooseIM over XMPP.
 It's very similar to adding a user to Jitsi's SIP network, the only difference is the password,
@@ -156,16 +156,16 @@ When Jitsi connects this user, it will likely display a warning about the server
 This is because by default MongooseIM is configured with a freshly generated, self-signed certificate.
 We can click `Continue anyway` button in order to proceed.
 
-### Adding user to Otalk
+## Adding user to Otalk
 
-Please follow the instructiond on [https://github.com/otalk/otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) in order to compile and run the app.
+Please follow the instructions on [https://github.com/otalk/otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) in order to compile and run the app.
 If all goes well, you should see the following message printed in the console:
 
     demo.stanza.io running at: http://localhost:8000
 
 This means that the app is hosted on `http://localhost:8000`.
 
-> At this point I also recommend opening [https://localhost:5285/ws-xmpp](wss://localhost:5285/ws-xmpp) in the same browser.
+> At this point I also recommend opening [wss://localhost:5285/ws-xmpp](wss://localhost:5285/ws-xmpp) in the same browser.
 > This endpoint works correctly only for WebSocket connections but most probably you will be prompted about the certificate.
 > This is again due to the self-signed certificate.
 > We need to add an exception for this certificate in order to successfully connect from Otalk.
@@ -182,7 +182,7 @@ Mind the `wss` protocol, Otalk will not connect the user over WebSockets if for 
 
 Now we can hit the `Go!` button and the `xmpp.user@xmpp.example` will connect to MongooseIM.
 
-### Making a call
+## Making a call
 
 On the left side we can see that the user already has `sip.user@sip.example` in the roster and there should be a green dot indicating that the user is online.
 When we click on the contact, the `Call` button should appear allowing us to initiate the call.
@@ -283,10 +283,9 @@ Via: SIP/2.0/TCP localhost:5600;rport=54071;branch=z9hG4bK1HMB3o-3mbahM;received
 Contact: "sip.user" <sip:sip.user@10.152.1.27:53697;transport=tcp;registering_acc=sip_example>
 User-Agent: Jitsi2.10.5550Mac OS X
 Content-Length: 0
-
 ```
 
-### Summary
+## Summary
 
 The example above showcases how you can use Jingle/SIP switch with the available open source software.
 Sonetel, who are this feature's sponsor, operate on a slightly different use case and utilize more of the functionality with their proprietary software.

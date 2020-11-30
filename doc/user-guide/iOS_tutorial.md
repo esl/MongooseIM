@@ -1,6 +1,7 @@
 # Build a complete iOS messaging app using XMPPFramework
 
 Read our blog posts:
+
 * [Build a complete iOS messaging app using XMPPFramework - Tutorial Part 1](https://www.erlang-solutions.com/blog/build-a-complete-ios-messaging-app-using-xmppframework-tutorial-part-1.html)
 * [Build a complete iOS messaging app using XMPPFramework - Part 2](https://www.erlang-solutions.com/blog/build-a-complete-ios-messaging-app-using-xmppframework-part-2.html)
 
@@ -244,7 +245,7 @@ The most important thing in an XMPP application is the stream,
 that’s where we are going to “write” our stanzas, so we need an object that is going to hold it.
 We are going to create an `XMPPController` class with an `XMPPStream`:
 
-```
+```swift
 import Foundation
 import XMPPFramework
 
@@ -273,7 +274,7 @@ Configure our stream with the `hostName`, `port` and `ourJID`.
 To provide all this info to the controller
 we are going to make some changes to the `init` to be able to receive all these parameters:
 
-```
+```swift
 enum XMPPControllerError: Error {
     case wrongUserJID
 }
@@ -313,7 +314,7 @@ class XMPPController: NSObject {
 Our next step is going to actually connect to a server and authenticate using our `userJID` and `password`,
 so we are adding a `connect` method to our `XMPPController`.
 
-```
+```swift
 func connect() {
     if !self.xmppStream.isDisconnected() {
         return
@@ -327,7 +328,7 @@ But how do we know we have successfully connected to the server?
 As I said earlier, we need to check for a suitable delegate method from `XMPPStreamDelegate`.
 After we connect to the server we need to authenticate so we are going to do the following:
 
-```
+```swift
 extension XMPPController: XMPPStreamDelegate {
 
     func xmppStreamDidConnect(_ stream: XMPPStream!) {
@@ -345,7 +346,7 @@ extension XMPPController: XMPPStreamDelegate {
 We need to test this.
 Let’s just create an instance of `XMPPController` in the `AppDelegate` to test how it works:
 
-```
+```swift
 try! self.xmppController = XMPPController(hostName: "host.com",
                                      userJIDString: "user@host.com",
                                           password: "password")
@@ -357,13 +358,13 @@ we missed something.
 We never told to our `xmppStream` who was the delegate object!
 We need to add the following line after the `super.init()`
 
-```
+```swift
 self.xmppStream.addDelegate(self, delegateQueue: DispatchQueue.main)
 ```
 
 If we run the app again:
 
-```
+```swift
 Stream: Connected
 Stream: Authenticated
 ```
@@ -372,7 +373,7 @@ Success! We have our own `XMPPController` with a fully functional and authentica
 
 Something that may catch your attention is how we are setting our delegate, we are not doing:
 
-```
+```swift
 self.xmppStream.delegate = self
 ```
 
@@ -393,7 +394,7 @@ I’m going to create a `LogInViewControllerDelegate` that is going to tell to o
 that the `Log in` button was pressed and that’s it.
 In that delegate implementation we are going to create our `XMPPController`, add the `ViewControlleras` delegate of the `XMPPStream` and connect!
 
-```
+```swift
 extension ViewController: LogInViewControllerDelegate {
 
     func didTouchLogIn(sender: LogInViewController, userJID: String, userPassword: String, server: String) {
@@ -419,7 +420,7 @@ This is why being able to add multiple delegates is so useful.
 
 So as I said I’m going to make `ViewController` to comform to the `XMPPStreamDelegate`:
 
-```
+```swift
 extension ViewController: XMPPStreamDelegate {
 
     func xmppStreamDidAuthenticate(_ sender: XMPPStream!) {
@@ -452,7 +453,7 @@ Logs are going to start showing up!
 This is a really simple task,
 you just need to add to your `func application(application: UIApplication, didFinishLaunchingWithOptions ...` method the following line (remember to `import CocoaLumberjack`):
 
-```
+```swift
 DDLog.add(DDTTYLogger.sharedInstance(), with: DDLogLevel.all)
 ```
 
