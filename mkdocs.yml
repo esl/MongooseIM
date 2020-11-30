@@ -5,6 +5,10 @@ site_favicon: favicon.ico
 extra_templates: []
 extra_css: ["custom.css"]
 extra_javascript: []
+markdown_extensions:
+  - pymdownx.highlight:
+      linenums: true
+  - pymdownx.superfences
 
 pages:
   - Home: 'index.md'
