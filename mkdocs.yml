@@ -54,7 +54,7 @@ pages:
       - 'Options: S2S': 'advanced-configuration/s2s.md'
       - 'Options: Host config': 'advanced-configuration/host_config.md'
       - 'Release options': 'advanced-configuration/release-options.md'
-      - 'Erlang Cookie Security': 'Erlang-cookie-security.md'
+      - 'Erlang Cookie Security': 'advanced-configuration/Erlang-cookie-security.md'
       - 'TLS hardening': 'advanced-configuration/TLS-hardening.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
   - 'Authentication methods':

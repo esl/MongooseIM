@@ -18,9 +18,9 @@ Typical services are already specified in the example configuration file.
              "last", "private", "stanza", "stats"]
 ```
 
-### service_admin_extra
+## service_admin_extra
 
-#### `services.service_admin_extra.submods`
+### `services.service_admin_extra.submods`
 * **Syntax:** Array of strings representing function groups added by `service_admin_extra`.
 * **Default:** All submodules: `["node", "account", "sessions", "vcard", "gdpr",
  "upload", "roster", "last", "private", "stanza", "stats"]`
@@ -47,12 +47,12 @@ They are bundled in the following groups:
 * `gdpr`: Adds `retrieve_personal_data`
 * `upload` : Adds `http_upload`
 
-### service_mongoose_system_metrics
+## service_mongoose_system_metrics
 
 MongooseIM system metrics are being gathered to analyse the trends and needs of our users, improve MongooseIM, and get to know where to focus our efforts.
 See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-Privacy-Policy.md) for more details.
 
-#### `services.service_mongoose_system_metrics.report`
+### `services.service_mongoose_system_metrics.report`
 * **Syntax:** boolean
 * **Default:** not specified
 * **Example:** `report = true`
@@ -63,21 +63,21 @@ appears in logs on startup.
 Enabling this option silences the notification reminder that metrics are gathered.
 When this option is set to `false`, System Metrics Service is not started and metrics are not collected.
 
-#### `services.service_mongoose_system_metrics.intial_report`
+### `services.service_mongoose_system_metrics.intial_report`
 * **Syntax:** non-negative integer
 * **Default:** `300_000` (milliseconds - 5 minutes).
 * **Example:** `intial_report = 300_000`
 
 Time delay counted when the service is started after which the first metrics report is created and sent.
 
-#### `services.service_mongoose_system_metrics.periodic_report`
+### `services.service_mongoose_system_metrics.periodic_report`
 * **Syntax:** non-negative integer
 * **Default:** `108_000_000` (milliseconds - 3 hours)
 * **Example:** `periodic_report = 108_000_000`
 
 Time delay for a periodic update report to be created and sent.
 
-#### `services.service_mongoose_system_metrics.tracking_id`:
+### `services.service_mongoose_system_metrics.tracking_id`:
 * **Syntax:** string
 * **Default:** no default.
 * **Example:** `tracking_id = "UA-123456789"`
@@ -89,7 +89,7 @@ Metrics will not be collected and shared.
 It will generate a notification that the feature is not being used.
 The notification can be silenced by setting the `no_report` option explicitly.
 
-### Example configuration
+## Example configuration
 
 ```toml
 [services.service_admin_extra]

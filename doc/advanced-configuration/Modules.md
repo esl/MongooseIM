@@ -13,7 +13,7 @@ A module configuration generally looks like this:
   access_create = "muc_create"
 ```
 
-### IQ processing policies
+## IQ processing policies
 
 Some of the modules feature an `iqdisc` parameter.
 It defines the method for handling incoming IQ stanzas.
@@ -26,7 +26,7 @@ The server may use one of the following strategies to handle incoming IQ stanzas
 
 **Note:** In the `"queues"` case alone, the following key becomes mandatory:
 
-##### `modules.*.iqdisc.workers`
+### `modules.*.iqdisc.workers`
 * **Syntax:** positive integer
 * **Example:** `iqdisc.workers = 50`
 
@@ -41,7 +41,7 @@ Their semantics works as follow:
   a new process will be spawned in place, for each incoming stanza.
 
 
-## Module list
+## Modules list
 
 ### [mod_adhoc](../modules/mod_adhoc.md)
 Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html) for advertising and executing application-specific commands, such as those related to a configuration workflow, using [XEP-0004: Data Forms](http://xmpp.org/extensions/xep-0004.html) in order to structure the information exchange.
@@ -95,7 +95,7 @@ Implements [XEP-0357 Push Notifiactions](https://xmpp.org/extensions/xep-0357.ht
 Forward events to an external HTTP service.
 This applies to situations such as sending messages or presences to mobile/SMS/email push service, big data, or an analytics service.
 
-#### [mod_extdisco](../modules/mod_extdisco.md)
+### [mod_extdisco](../modules/mod_extdisco.md)
 Implements [XEP-0215: External Service Discovery](http://xmpp.org/extensions/xep-0215.html) for discovering information about services external to the XMPP network.
 The main use-case is to help discover STUN/TURN servers to allow for negotiating media exchanges.
 
@@ -115,20 +115,20 @@ Enables Jingle to SIP and SIP to Jingle translator.
 Serves as a storage for crypto keys for `mod_auth_token`.
 
 ### [mod_last](../modules/mod_last.md)
-Implements [XEP-0012: Last Activity)](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
+Implements [XEP-0012: Last Activity](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
 
 ### [mod_mam](../modules/mod_mam.md)
 Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep-0313.html), that defines a protocol to query and control an archive of messages stored on a server.
 
 ### [mod_muc](../modules/mod_muc.md)
-Implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room.
+Implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room.
 It is tightly coupled with user presence in chat rooms.
 
 ### [mod_muc_commands](../modules/mod_muc_commands.md)
 Provides `mod_muc` related `mongoose_commands`, accessible via the client REST API.
 
 ### [mod_muc_log](../modules/mod_muc_log.md)
-Implements a logging subsystem for [mod_muc].
+Implements a logging subsystem for [mod_muc](../modules/mod_muc.md).
 
 ### [mod_muc_light](../modules/mod_muc_light.md)
 Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
@@ -137,28 +137,28 @@ Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
 Provides `mod_muc_light` related `mongoose_commands`, accessible via client REST API.
 
 ### [mod_offline](../modules/mod_offline.md)
-Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html).
+Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages](http://xmpp.org/extensions/xep-0160.html).
 
 ### [mod_offline_stub](../modules/mod_offline_stub.md)
 Prevents `<service-unavailable/>` error when the message recipient is offline.
 
 ### [mod_ping](../modules/mod_ping.md)
-Implements [XEP-0199 XMPP Ping](http://xmpp.org/extensions/xep-0199.html), enabling periodic XMPP pings sent to clients and responds to those sent from clients.
+Implements [XEP-0199: XMPP Ping](http://xmpp.org/extensions/xep-0199.html), enabling periodic XMPP pings sent to clients and responds to those sent from clients.
 
 ### [mod_privacy](../modules/mod_privacy.md)
-This module implements [XEP-0016: Privacy Lists)](http://xmpp.org/extensions/xep-0016.html), for enabling or disabling communication with other entities on a network.
+This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html), for enabling or disabling communication with other entities on a network.
 
 ### [mod_private](../modules/mod_private.md)
-Implements [XEP-0049 (Private XML Storage)](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
+Implements [XEP-0049: Private XML Storage](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
 
 ### [mod_pubsub](../modules/mod_pubsub.md)
-This extension implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html). It is a pluggable implementation using behaviours provided by `node_*.erl` and `nodetree_*.erl` modules.
+This extension implements [XEP-0060: Publish-Subscribe](http://www.xmpp.org/extensions/xep-0060.html). It is a pluggable implementation using behaviours provided by `node_*.erl` and `nodetree_*.erl` modules.
 
 ### [mod_push_service_mongoosepush](../modules/mod_push_service_mongoosepush.md)
 Handles push notifications generated by [mod_pubsub](../modules/mod_pubsub.md)'s `node_push` and passes them to [MongoosePush](https://github.com/esl/MongoosePush) service.
 
 ### [mod_register](../modules/mod_register.md)
-Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077.html), that enables creating an account and changing the password once connected.
+Implements [XEP-0077: In-Band Registration](http://xmpp.org/extensions/xep-0077.html), that enables creating an account and changing the password once connected.
 This does not provide a solution to the forgotten password use case via SMS or email.
 
 ### mod_revproxy
@@ -175,7 +175,7 @@ Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xe
 This module, when enabled, will inject roster entries fetched from LDAP.
 
 ### [mod_sic](../modules/mod_sic.md)
-Implements [XEP-0279: Server IP Check)](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
+Implements [XEP-0279: Server IP Check](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
 
 ### [mod_stream_management](../modules/mod_stream_management.md)
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html) functionality that defines the active management of an XML stream between two XMPP entities, including features for stanza acknowledgements and stream resumption.

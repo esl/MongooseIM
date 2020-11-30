@@ -6,7 +6,7 @@ The following files are used to configure MongooseIM:
 
 * `app.config` to change low-level logging parameters and settings of other Erlang applications.
 
-# mongooseim.toml
+## mongooseim.toml
 
 This [TOML](https://github.com/toml-lang/toml) file contains the configuration options for the MongooseIM server. It is located at `[MongooseIM repo root]/rel/files/` if you are building from source or `[MongooseIM install root]/etc/` if you are using a pre-built version.
 
@@ -26,7 +26,7 @@ The file is divided into the following sections:
 
 The section names above are links to the detailed documentation of each section.
 
-## Option scope
+### Option scope
 
 Each configuration option has its **scope**, which is one of the following:
 
@@ -35,13 +35,13 @@ Each configuration option has its **scope**, which is one of the following:
 
 The scope of each option is defined in the documentation above - either at the top of the section page or for each option individually.
 
-# vm.args
+## vm.args
 
 This file contains parameters passed directly to the Erlang VM. To configure it, go to `[MongooseIM root]/rel/files/`.
 
 Let's explore the default options.
 
-## Options
+### Options
 
 * `-sname` - Erlang node name. Can be changed to `name`, if necessary
 * `-setcookie` - Erlang cookie. All nodes in a cluster must use the same cookie value.
@@ -52,7 +52,7 @@ Let's explore the default options.
 * `-env ERL_FULLSWEEP_AFTER 2` - affects garbage collection. Reduces memory consumption (forces often full g.c.) at the expense of CPU usage.
 * `-sasl sasl_error_logger false` - MongooseIM's solution for logging is Lager, so SASL error logger is disabled.
 
-# app.config
+## app.config
 
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
@@ -61,7 +61,7 @@ By default only the following applications can be found there:
 * `ssl`
     * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 
-# Configuring TLS: Certificates & Keys
+## Configuring TLS: Certificates & Keys
 
 TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
 
