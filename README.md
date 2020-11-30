@@ -81,7 +81,7 @@ When developing new features/modules, please make sure you add basic documentati
     * [Set up MongoosePush](doc/user-guide/push-notifications/Push-notifications.md)
     * [Set up MongooseICE](doc/user-guide/ICE_tutorial.md)
     * [Build an iOS messaging app](doc/user-guide/iOS_tutorial.md)
-* [User Guide](https://mongooseim.readthedocs.io/en/latest/user-guide/Get-to-know-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
+* [User Guide](https://mongooseim.readthedocs.io/en/latest/user-guide/ABCs-of-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
 * [Configuration](https://mongooseim.readthedocs.io/en/latest/Basic-configuration/). Explore some of the available options including database backend configuration, access control lists, listener and extension modules.
 * [REST API](https://mongooseim.readthedocs.io/en/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://mongooseim.readthedocs.io/en/latest/swagger/index.html).
 * [Operation and maintenance](https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.

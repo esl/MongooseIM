@@ -9,7 +9,7 @@ extra_javascript: []
 pages:
   - Home: 'index.md'
   - 'User guide':
-      - 'ABCs of MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
+      - 'ABCs of MongooseIM': 'user-guide/ABCs-of-MongooseIM.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
       - 'Getting started': 'user-guide/Getting-started.md'
@@ -20,7 +20,7 @@ pages:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
       - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'user-guide/push-notifications/Push-notifications-client-side.md'
-      - 'How to Set up MongoosePush': 'user-guide/push-notifications/With-MongoosePush.md'
+      - 'How to Set up MongoosePush': 'user-guide/push-notifications/MongoosePush-setup.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
       - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
