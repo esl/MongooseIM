@@ -10,14 +10,14 @@ The `rdbms` method uses an outgoing connection pool of type `rdbms` with the `de
 
 Authentication:
 
-```
+```toml
 [auth]
   methods = ["rdbms"]
 ```
 
 Outgoing pools:
 
-```
+```toml
 [outgoing_pools.rdbms.default.connection]
   driver = "pgsql"
   host = "localhost"
