@@ -75,10 +75,6 @@ start(Host, Opts) ->
     start_pm(Host, Opts),
 
     prepare_insert(insert_mam_message, 1),
-    mongoose_rdbms:prepare(mam_archive_size, mam_message, [user_id],
-                           [<<"SELECT COUNT(*) FROM mam_message ">>,
-                            index_hint_sql(Host),
-                            <<"WHERE user_id = ?">>]),
     mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
                            [<<"DELETE FROM mam_message "
                               "WHERE user_id = ?">>]),
@@ -158,8 +154,8 @@ encode_direction(outgoing) -> <<"O">>.
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, UserID, _ArcJID) when is_integer(Size) ->
-    Result = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
-    mongoose_rdbms:selected_to_integer(Result).
+    Filter = [{equal, user_id, UserID}],
+    calc_count(Host, Filter).
 
 
 -spec index_hint_sql(jid:server()) -> string().
@@ -185,7 +181,7 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     end.
 
 do_archive_message(Host, Params, Env) ->
-    Row = prepare_message(Params, Env),
+    Row = prepare_message_with_env(Params, Env),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
     retract_message(Host, Params, Env).
 
@@ -251,9 +247,9 @@ db_mappings() ->
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
-    prepare_message(Params, Env).
+    prepare_message_with_env(Params, Env).
 
-prepare_message(Params, Env) ->
+prepare_message_with_env(Params, Env) ->
     [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
 
 prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
@@ -304,7 +300,7 @@ remove_archive(Host, UserID) ->
 
 %% GDPR logic
 extract_gdpr_messages(Host, ArchiveID) ->
-    Filters = [{user_id, ArchiveID}],
+    Filters = [{equal, user_id, ArchiveID}],
     lookup_query(lookup, Host, Filters, asc).
 
 %% Lookup logic
@@ -591,7 +587,7 @@ decode_jid(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
 encode_packet(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
 
--spec encode_packet(binary(), env_vars()) -> exml:element().
+-spec decode_packet(binary(), env_vars()) -> exml:element().
 decode_packet(Bin, #{db_message_codec := Codec}) ->
     mam_message:decode(Codec, Bin).
 
