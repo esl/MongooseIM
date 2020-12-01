@@ -17,7 +17,7 @@ Every option is inserted as a separate row and is stored as plain text, so it sh
 
 Let's say you were using the following config in `mongooseim.cfg`:
 
-```
+```erlang
 {config_schema, [
                  "roomname",
                  "subject",
@@ -34,7 +34,7 @@ Your client application has created some rooms without the `background` option b
 
 For every `id` in the `muc_light_rooms` table, you need to execute:
 
-```
+```sql
 INSERT INTO muc_light_config(room_id, opt, val) VALUES ('put id here', 'background', 'new default value');
 ```
 
@@ -47,9 +47,9 @@ It does not currently work on Ubuntu Bionic, CentOS 7 and macOS Mojave with the 
 The team is working on resolving this issue.
 Please watch for updates in MongooseIM release notes.
 
-### Proposed workarounds
+### Proposed workaround
 
-* Use Ubuntu Xenial x64 for MongooseIM deployment. This OS version is still maintained.
+Use Ubuntu Xenial x64 for MongooseIM deployment. This OS version is still maintained.
 
 ## GDPR retrieval for MAM MUC limitation
 

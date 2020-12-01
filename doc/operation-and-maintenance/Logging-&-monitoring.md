@@ -1,7 +1,7 @@
 ## Logs
 
 We strongly recommend storing logs in one centralized place when working in a clustered environment.
-MongooseIM uses the standard OTP logging framework: [Logger](Logger).
+MongooseIM uses the standard OTP logging framework: [Logger][Logger].
 Its handlers can be replaced and customised, according to Logger's documentation.
 
 ### Syslog integration
@@ -80,7 +80,7 @@ It shows setting up a reporter connecting to graphite running on localhost.
 You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`, which sets the metrics' resolution, i.e. how often Exometer gathers and sends metrics through reporters.
 By default, the resolution is set to 60 seconds.
 
-```erl
+```erlang
 ...
 {exometer_core, [
     {mongooseim_report_interval, 60000}, %% 60 seconds
@@ -103,10 +103,12 @@ By default, the resolution is set to 60 seconds.
 
 The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting the local directory `./docker-grafana-graphite-master/data` for metric persistence:
 
-    $ curl -SL https://github.com/kamon-io/docker-grafana-graphite/archive/master.tar.gz | tar -xzf -
-    $ make -C docker-grafana-graphite-master up
+```bash
+$ curl -SL https://github.com/kamon-io/docker-grafana-graphite/archive/master.tar.gz | tar -xzf -
+$ make -C docker-grafana-graphite-master up
+```
 
-Go to http://localhost:80 to view the Grafana dashboard that's already set up to use metrics from Graphite.
+Go to [http://localhost:80](http://localhost:80) to view the Grafana dashboard that's already set up to use metrics from Graphite.
 
 ### Add metrics to Grafana dashboard
 
