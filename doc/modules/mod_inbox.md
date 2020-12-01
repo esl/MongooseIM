@@ -1,11 +1,11 @@
-### Module Description
+## Module Description
 
 `Inbox` is an experimental feature implemented as a few separate modules.
 To use it, enable mod\_inbox in the config file.
 
-### Options
+## Options
 
-#### `modules.mod_inbox.reset_markers`
+### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
 * **Example:** `reset_markers = ["received"]`
@@ -14,7 +14,7 @@ List of chat markers that when sent, will reset the unread message counter for a
 This works when [Chat Markers](https://xmpp.org/extensions/xep-0333.html) are enabled on the client side.
 Setting as empty list (not recommended) means that no chat marker can decrease the counter value.
 
-#### `modules.mod_inbox.groupchat`
+### `modules.mod_inbox.groupchat`
 * **Syntax:** array of strings
 * **Default:** `["muclight"]`
 * **Example:** `groupchat = ["muclight"]`
@@ -22,7 +22,7 @@ Setting as empty list (not recommended) means that no chat marker can decrease t
 The list indicating which groupchats will be included in inbox.
 Possible values are `muclight` [Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html) or `muc` [Multi-User Chat](https://xmpp.org/extensions/xep-0045.html).
 
-#### `modules.mod_inbox.aff_changes`
+### `modules.mod_inbox.aff_changes`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `aff_changes = true`
@@ -31,7 +31,7 @@ Use this option when `muclight` is enabled.
 Indicates if MUC Light affiliation change messages should be included in the conversation inbox.
 Only changes that affect the user directly will be stored in their inbox.
 
-#### `modules.mod_inbox.remove_on_kicked`
+### `modules.mod_inbox.remove_on_kicked`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `remove_on_kicked = true`
@@ -39,14 +39,14 @@ Only changes that affect the user directly will be stored in their inbox.
 Use this option when `muclight` is enabled.
 If true, the inbox conversation is removed for a user when they are removed from the groupchat.
 
-#### `modules.mod_inbox.iqdisc.type`
+### `modules.mod_inbox.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
-### Note about supported RDBMS
+## Note about supported RDBMS
 
 `mod_inbox` executes upsert queries, which have different syntax in every supported RDBMS.
 Inbox currently supports the following DBs:
@@ -55,13 +55,13 @@ Inbox currently supports the following DBs:
 * PgSQL via native driver
 * MSSQL via ODBC driver
 
-### Legacy MUC support
+## Legacy MUC support
 Inbox comes with support for the legacy MUC as well. It stores all groupchat messages sent to
 room in each sender's and recipient's inboxes and private messages. Currently it is not possible to
 configure it to store system messages like [subject](https://xmpp.org/extensions/xep-0045.html#enter-subject) 
 or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
-### Filtering and ordering
+## Filtering and ordering
 
 Inbox query results may be filtered by time range and sorted by timestamp.
 By default, `mod_inbox` returns all conversations, listing the ones updated most recently first.
@@ -81,7 +81,7 @@ However, the IQ type must be "set", even when data form is missing.
 
 Your client application may request the currently supported form with IQ get:
 
-```
+```xml
 Client:
 
 <iq type='get' id='c94a88ddf4957128eafd08e233f4b964'>
@@ -107,7 +107,7 @@ Server:
 </iq>
 ```
 
-### Reseting inbox
+## Reseting inbox
 
 You can reset the inbox with the following stanza:
 
@@ -127,9 +127,9 @@ typical chat marker will be forwarded to the interlocutor(s), (including the
 case of a big groupchat with thousands of participants!), this reset stanza will
 not.
 
-### Example Request
+## Example request
 
-```
+```xml
 Alice sends:
 
 <message type="chat" to="bOb@localhost/res1" id=”123”>
@@ -156,7 +156,6 @@ Alice sends:
   </inbox>
 </iq>
 
-
 Alice receives:
 
 <message from="alicE@localhost" to="alicE@localhost" id="9b759">
@@ -180,7 +179,6 @@ Alice receives:
 
 ```
 
-
 Inbox query result IQ stanza returns the following values:
 
 * `count`: the total number of conversations (if `hidden_read` value was set
@@ -190,10 +188,10 @@ Inbox query result IQ stanza returns the following values:
 * `active-conversations`: the number of conversations with unread
   message(s)
 
-### Example error response
+## Example error response
 
-```
-Alice sends request with invalid value of start field:
+```xml
+<!--Alice sends request with invalid value of start field: -->
 
 <iq type='set' id='a78478f20103ff8354d7834d0ba2fdb2'>
   <inbox xmlns='erlang-solutions.com:xmpp:inbox:0'>
@@ -205,8 +203,8 @@ Alice sends request with invalid value of start field:
   </inbox>
 </iq>
 
-Alice receives an error with description of the first encountered invalid
-value: 
+<!--Alice receives an error with description of the first encountered invalid
+value: -->
 
 <iq from='alicE@localhost' to='alicE@localhost/res1'
     id='a78478f20103ff8354d7834d0ba2fdb2' type='error'>
@@ -219,7 +217,7 @@ value:
 </iq>
 ```
 
-### Example Configuration
+## Example configuration
 
 ```toml
 [modules.mod_inbox]

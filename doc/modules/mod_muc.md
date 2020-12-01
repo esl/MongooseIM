@@ -1,47 +1,49 @@
 ### Module Description
+
 This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC).
 It's a common XMPP group chat solution.
 This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself.
 Note that only `mod_muc` needs to be enabled in the configuration file.
 Also `mod_muc_log` is a logging submodule.
 
-### Options
-#### `modules.mod_muc.host`
+## Options
+
+### `modules.mod_muc.host`
  * **Syntax:** string, a valid subdomain
  * **Default:** `"conference.@HOST@"`
  * **Example:** `host = "group.@HOST@"`
 
 Subdomain for MUC service to reside under. `@HOST@` is replaced with each served domain.
 
-#### `modules.mod_muc.backend`
+### `modules.mod_muc.backend`
  * **Syntax:** string, one of `"mnesia"` or `"rdbms"`
  * **Default:** `"mnesia"`
  * **Example:** `backend = "rdbms"`
  
 Storage backend.
 
-####`modules.mod_muc.access`
+### `modules.mod_muc.access`
  * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access = "muc"`
 
 Access Rule to determine who is allowed to use the MUC service.
 
-#### `modules.mod_muc.access_create` 
+### `modules.mod_muc.access_create` 
  * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access_create = "muc_create"`
  
 Access Rule to determine who is allowed to create rooms.
 
-#### `modules.mod_muc.access_admin` 
+### `modules.mod_muc.access_admin` 
  * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `access_admin = "muc_create"`
 
 Access Rule to determine who is the administrator in all rooms.
 
-#### `modules.mod_muc.access_persistent`
+### `modules.mod_muc.access_persistent`
  * **Syntax:** non-empty string
  * **Default:** `"all"`
  * **Example:** `access_persistent = "none"`
@@ -49,92 +51,92 @@ Access Rule to determine who is the administrator in all rooms.
 Access Rule to determine who is allowed to make the rooms persistent.
 In order to change this parameter, the user must not only match the Access Rule but also be the owner of the room.
 
-#### `modules.mod_muc.history_size` 
+### `modules.mod_muc.history_size` 
  * **Syntax:** non-negative integer
  * **Default:** `20`
  * **Example:** `history_size = 30`
 
 Room message history to be kept in RAM. After node restart, the history is lost.
 
-#### `modules.mod_muc.room_shaper` 
+### `modules.mod_muc.room_shaper` 
  * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `room_shaper = "muc_room_shaper"`
 
 Limits per-room data throughput with traffic shaper.
 
-#### `modules.mod_muc.max_room_id` 
+### `modules.mod_muc.max_room_id` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `"infinity"`
  * **Example:** `max_room_id = 30`
  
 Maximum room username length (in JID).
 
-#### `modules.mod_muc.max_room_name` 
+### `modules.mod_muc.max_room_name` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `"infinity"`
  * **Example:** `max_room_name = 30`
 
 Maximum room name length.
 
-#### `modules.mod_muc.max_room_desc` 
+### `modules.mod_muc.max_room_desc` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `"infinity"`
  * **Example:** `max_room_desc = 140`
  
 Maximum room description length.
 
-#### `modules.mod_muc.min_message_interval` 
+### `modules.mod_muc.min_message_interval` 
  * **Syntax:** non-negative integer
  * **Default:** `0`
  * **Example:** `min_message_interval = 1`
 
 Minimal interval (in seconds) between messages processed by the room.
 
-#### `modules.mod_muc.min_presence_interval` 
+### `modules.mod_muc.min_presence_interval` 
  * **Syntax:** non-negative integer
  * **Default:** `0`
  * **Example:** `min_presence_interval = 1`
  
 Minimal interval (in seconds) between presences processed by the room.
 
-#### `modules.mod_muc.max_users` 
+### `modules.mod_muc.max_users` 
  * **Syntax:** positive integer
  * **Default:** `200`
  * **Example:** `max_users = 100`
 
 Absolute maximum user count per room on the node.
 
-#### `modules.mod_muc.max_users_admin_threshold` 
+### `modules.mod_muc.max_users_admin_threshold` 
  * **Syntax:** positive integer
  * **Default:** `5`
  * **Example:** `max_users_admin_threshold = 10`
 
 When the server checks if a new user can join a room and they are an admin,
- `max_users_admin_threshold` is added to `max_users` during occupant limit check.
- 
-#### `modules.mod_muc.user_message_shaper`
+`max_users_admin_threshold` is added to `max_users` during occupant limit check.
+
+### `modules.mod_muc.user_message_shaper`
  * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `user_message_shaper = "muc_user_msg_shaper"`
 
 Shaper for user messages processed by a room (global for the room).
 
-#### `modules.mod_muc.user_presence_shaper`
+### `modules.mod_muc.user_presence_shaper`
  * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `user_presence_shaper = "muc_user_presence_shaper"`
 
 Shaper for user presences processed by a room (global for the room).
 
-#### `modules.mod_muc.max_user_conferences` 
+### `modules.mod_muc.max_user_conferences` 
  * **Syntax:** non-negative integer
  * **Default:** `10`
  * **Example:** `max_user_conferences = 5`
 
 Specifies the number of rooms that a user can occupy simultaneously.
 
-#### `modules.mod_muc.http_auth_pool`
+### `modules.mod_muc.http_auth_pool`
  * **Syntax:** non-empty string
  * **Default:** `"none"`
  * **Example:** `http_auth_pool = "external_auth"`
@@ -142,7 +144,7 @@ Specifies the number of rooms that a user can occupy simultaneously.
 If an external HTTP service is chosen to check passwords for password-protected rooms,
 this option specifies the HTTP pool name to use (see [External HTTP Authentication](#external-http-authentication) below).
 
-#### `modules.mod_muc.load_permanent_rooms_at_startup`
+### `modules.mod_muc.load_permanent_rooms_at_startup`
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `load_permanent_rooms_at_startup = true`
@@ -150,21 +152,21 @@ this option specifies the HTTP pool name to use (see [External HTTP Authenticati
 Load all rooms at startup. Because it can be unsafe when there are many rooms,
 it is disabled by default.
 
-#### `modules.mod_muc.hibernate_timeout` 
+### `modules.mod_muc.hibernate_timeout` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `90000` (milliseconds, 90 seconds)
  * **Example:** `hibernate_timeout = 60000`
 
 Timeout (in milliseconds) defining the inactivity period after which the room's process should be hibernated.
 
-#### `modules.mod_muc.hibernated_room_check_interval` 
+### `modules.mod_muc.hibernated_room_check_interval` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `"infinity"`
  * **Example:** `hibernated_room_check_interval = 120000`
 
 Interval defining how often the hibernated rooms will be checked (a timer is global for a node).
 
-#### `modules.mod_muc.hibernated_room_timeout` 
+### `modules.mod_muc.hibernated_room_timeout` 
  * **Syntax:** non-negative integer or the string `"infinity"`
  * **Default:** `"infinity"`
  * **Example:** `hibernated_room_timeout = 120000`
@@ -172,10 +174,11 @@ Interval defining how often the hibernated rooms will be checked (a timer is glo
 A time after which a hibernated room is stopped (deeply hibernated).
  See [MUC performance optimisation](#performance-optimisations).
  
-#### `modules.mod_muc.default_room`
+### `modules.mod_muc.default_room`
  * **Syntax:** A TOML table of options described below
  * **Default:** Default room options
- * **Example:**  
+ * **Example:**
+
 ```toml
   [modules.mod_muc.default_room]
     password_protected = true
@@ -187,7 +190,9 @@ A time after which a hibernated room is stopped (deeply hibernated).
         resource = "resource1"
         affiliation = "member"
 ```
+
 or:
+
 ```toml
   default_room.password_protected = true
   default_room.description = "An example description."
@@ -374,7 +379,7 @@ Available room configuration options to be overridden in the initial state:
   affiliation = "owner"
 ```
 
-   This is the default list of affiliations set for every new room.
+This is the default list of affiliations set for every new room.
 
 * `modules.mod_muc.default_room.subject` 
     * **Syntax:** string
@@ -390,7 +395,8 @@ Available room configuration options to be overridden in the initial state:
 
     A nick name of the default subject's author.
 
-### Example Configuration
+## Example Configuration
+
 ```toml
 [modules.mod_muc]
   host = "muc.example.com"
@@ -412,18 +418,18 @@ Available room configuration options to be overridden in the initial state:
     affiliation = "owner"
 ```
 
-### Performance optimisations
+## Performance optimisations
 
 Each room is represented by an Erlang process with its own state and can consume memory even if it's not used.
 In large installations with many rooms, this might cause performance issues.
 To address that problem MongooseIM has 2 levels of MUC rooms memory optimisations.
 
-#### Room's process hibernation
+### Room's process hibernation
 
 By default the room's process is hibernated by the Erlang VM 90 seconds after the last activity.
 This timeout can be modified by `hibernate_timeout` option.
 
-#### Room deep hibernation
+### Room deep hibernation
 
 MongooseIM introduces an additional option of deep hibernation for unused rooms.
 This optimisation works only for persistent rooms as only these can be restored on demand.
@@ -435,13 +441,13 @@ If the owner is online, a presence of a type unavailable is sent to it indicatin
 
 The room's process can be recreated on demand, for example when a presence sent to it, or the owner wants to add more users to the room.
 
-### External HTTP Authentication
+## External HTTP Authentication
 
 MUC rooms can be protected by a password that is set by the room owner.
 Note that MongooseIM supports another custom solution, where each attempt to enter or create a room requires the password to be checked by an external HTTP service.
 To enable this option, you need to:
 
-* Configure an [HTTP connection pool](../advanced-configuration/outgoing-connections.md#http-connections-setup).
+* Configure an [HTTP connection pool](../advanced-configuration/outgoing-connections.md#http-options).
 * Set the name of the connection pool as the value of the `http_auth_pool` option of `mod_muc`.
 * Enable the `password_protected` default room option (without setting the password itself).
 
@@ -468,7 +474,7 @@ If the server returns something else, an error presence will be sent back to the
   default_room.password_protected = true
 ```
 
-### Metrics
+## Metrics
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 

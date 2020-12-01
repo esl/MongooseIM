@@ -1,99 +1,102 @@
-### Module Description
+## Module Description
 
 This module implements [Multi-User Chat Light](../open-extensions/muc_light.md).
 It's an experimental XMPP group chat solution.
 This extension consists of several modules but only `mod_muc_light` needs to be enabled in the config file.
 
-### Options
+## Options
 
-#### `modules.mod_muc_light.host`
+### `modules.mod_muc_light.host`
  * **Syntax:** string, a valid subdomain
  * **Default:** `"muclight.@HOST@"`
  * **Example:** `host = "group.@HOST@"`
+
+Domain for the MUC Light service to reside under. `@HOST@` is replaced with each served domain.
  
-Domain for the MUC Light service to reside under.
- `@HOST@` is replaced with each served domain.
- 
-#### `modules.mod_muc_light.backend`
+### `modules.mod_muc_light.backend`
   * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
   * **Default:** `"mnesia"`
   * **Example:** `backend = "rdbms"`
- 
+
 Database backend to use. 
 
-#### `modules.mod_muc_light.equal_occupants`
+### `modules.mod_muc_light.equal_occupants`
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `equal_occupants = true`
- 
-  When enabled, MUC Light rooms won't have owners. 
-  It means that every occupant will be a `member`, even the room creator. 
- **Warning:** This option does not implicitly set `all_can_invite` to `true`. 
- If that option is set to `false`, nobody will be able to join the room after the initial creation request.
 
-#### `modules.mod_muc_light.legacy_mode`
+When enabled, MUC Light rooms won't have owners. 
+It means that every occupant will be a `member`, even the room creator.
+
+**Warning:** This option does not implicitly set `all_can_invite` to `true`. 
+If that option is set to `false`, nobody will be able to join the room after the initial creation request.
+
+### `modules.mod_muc_light.legacy_mode`
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `legacy_mode = true`
- 
+
 Enables XEP-0045 compatibility mode. 
 It allows using a subset of classic MUC stanzas with some MUC Light functions limited.
 
-#### `modules.mod_muc_light.rooms_per_user`
+### `modules.mod_muc_light.rooms_per_user`
   * **Syntax:** positive integer or the string `"infinity"`
   * **Default:** `"infinity"`
   * **Example:** `rooms_per_user = 100`
-  
-  Specifies a cap on a number of rooms a user can occupy. 
- **Warning:** Setting such a limit may trigger expensive DB queries for every occupant addition.
- 
-#### `modules.mod_muc_light.blocking`
+
+Specifies a cap on a number of rooms a user can occupy.
+
+**Warning:** Setting such a limit may trigger expensive DB queries for every occupant addition.
+
+### `modules.mod_muc_light.blocking`
   * **Syntax:** boolean
   * **Default:** `true`
   * **Example:** `blocking = false`
- 
+
 Blocking feature enabled/disabled.
 
-#### `modules.mod_muc_light.all_can_configure`
+### `modules.mod_muc_light.all_can_configure`
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `all_can_configure = true`
-  
- When enabled, all room occupants can change all configuration options. 
- If disabled, everyone can still change the room subject.
- 
-#### `modules.mod_muc_light.all_can_invite`
+
+When enabled, all room occupants can change all configuration options. 
+If disabled, everyone can still change the room subject.
+
+### `modules.mod_muc_light.all_can_invite`
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `all_can_invite = true`
  
 When enabled, all room occupants can add new occupants to the room.
- Occupants added by `members` become `members` as well.
-#### `modules.mod_muc_light.max_occupants` 
+Occupants added by `members` become `members` as well.
+
+### `modules.mod_muc_light.max_occupants` 
   * **Syntax:** positive integer or the string `"infinity"`
   * **Default:** `"infinity"`
   * **Example:** `max_occupants = 100`
 
 Specifies a cap on the occupant count per room.
 
-#### `modules.mod_muc_light.rooms_per_page`
+### `modules.mod_muc_light.rooms_per_page`
   * **Syntax:** positive integer or the string `"infinity"`
   * **Default:** `10`
   * **Example:** `rooms_per_page = 100`
- 
+
 Specifies maximal number of rooms returned for a single Disco request.
 
-#### `modules.mod_muc_light.rooms_in_rosters` 
+### `modules.mod_muc_light.rooms_in_rosters` 
   * **Syntax:** boolean
   * **Default:** `false`
   * **Example:** `rooms_in_rosters = true`
 
 When enabled, rooms the user occupies are included in their roster.
 
-#### `modules.mod_muc_light.config_schema`
+### `modules.mod_muc_light.config_schema`
   * **Syntax:** an array of `config_schema` items, as described below
-  * **Default:** 
+  * **Default:**
 
+```toml
         [[modules.mod_muc_light.config_schema]] 
           field = "roomname"
           value = "Untitled"
@@ -101,42 +104,49 @@ When enabled, rooms the user occupies are included in their roster.
         [[modules.mod_muc_light.config_schema]] 
           field = "subject"
           value = ""
+```
 
   * **Example:** 
 
+```toml
         [[modules.mod_muc_light.config_schema]] 
           field = "display-lines"
           value = 30
           internal_key = "display_lines"
           type = "integer"
+```
 
- Defines fields allowed in the room configuration.
+Defines fields allowed in the room configuration.
   
- Allowed `config_schema` items are (may be mixed):
+Allowed `config_schema` items are (may be mixed):
 
 * Field name and a default value. The value has to be a string. An example:
+
 ```toml
 field = "field_name"
 value = "default_value"
 ```
+
 * Field name, a default value, an internal key representation string and a type.
-Valid config field types are:
+  Valid config field types are:
 
     * `binary` (i.e. any valid XML CDATA)
     * `integer`
     * `float`
 
-    Useful only for debugging or custom applications. An example:
+Useful only for debugging or custom applications. An example:
+
 ```toml
 field = "display-lines"
 value = 30
 internal_key = "display_lines"
 type = "integer"
 ```
-**WARNING!** Lack of the `roomname` field will cause room names in Disco results and Roster items be set to the room username.
 
+**WARNING!** Lack of the `roomname` field will cause room names in Disco results
+and Roster items be set to the room username.
 
-### Example Configuration
+## Example Configuration
 
 ```toml
 [modules.mod_muc_light]
@@ -162,7 +172,7 @@ type = "integer"
     type = "integer"
 ```
 
-### Metrics
+## Metrics
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
