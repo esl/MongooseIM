@@ -6,6 +6,8 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_rdbms_arch).
 
+-define(SEARCH_WORDS_LIMIT, 10).
+
 %% ----------------------------------------------------------------------
 %% Exports
 
@@ -263,12 +265,10 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params) ->
     try
         RSM = maps:get(rsm, Params),
-        SearchText = maps:get(search_text, Params),
-        Params2 = Params#{
-                    norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
-                    opt_count_supported => is_opt_count_supported_for(RSM)},
-        Filter = prepare_filter(Host, Params2),
-        do_lookup_messages(Host, Filter, Params2)
+        Params2 = Params#{opt_count_supported => is_opt_count_supported_for(RSM)},
+        Params3 = extend_params(Host, Params2),
+        Filter = prepare_filter(Params3),
+        do_lookup_messages(Host, Filter, Params3)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -550,6 +550,11 @@ maybe_reverse(desc, List) ->
 extract_gdpr_messages(Host, ArchiveID) ->
     mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
 
+maybe_minify_bare_jid(_Host, _LocJID, undefined) ->
+    undefined;
+maybe_minify_bare_jid(Host, LocJID, JID) ->
+    minify_bare_jid(Host, LocJID, JID).
+
 minify_bare_jid(Host, LocJID, JID) ->
     jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
 
@@ -691,64 +696,64 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
--spec prepare_filter(Host :: jid:server(), Params :: map()) -> filter().
-prepare_filter(Host, #{
-                       archive_id := UserID, owner_jid := UserJID,
-                       borders := Borders, start_ts := Start, end_ts := End,
-                       with_jid := WithJID, norm_search_text := SearchText
-                      }) ->
-    {MinWithJID, WithResource} =
-        case WithJID of
-            undefined -> {undefined, undefined};
-            #jid{lresource = <<>>} ->
-                {minify_bare_jid(Host, UserJID, WithJID), undefined};
-            #jid{lresource = WithLResource} ->
-                {minify_bare_jid(Host, UserJID, WithJID),
-                 WithLResource}
-        end,
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID   = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
-    prepare_filters(UserID, StartID2, EndID2, MinWithJID, WithResource, SearchText).
+extend_params(Host, #{owner_jid := UserJID, borders := Borders,
+                      start_ts := Start, end_ts := End, with_jid := WithJID,
+                      search_text := SearchText} = Params) ->
+    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
+            start_id => make_start_id(Start, Borders),
+            end_id => make_end_id(End, Borders),
+            remote_bare_jid => maybe_minify_bare_jid(Host, UserJID, WithJID),
+            remote_resource => jid_to_non_empty_resource(WithJID)}.
 
--spec prepare_filters(UserID :: non_neg_integer(),
-                      StartID :: mod_mam:message_id() | undefined,
-                      EndID :: mod_mam:message_id() | undefined,
-                      WithJID :: binary() | undefined,
-                      WithResource :: binary() | undefined,
-                      SearchText :: binary() | undefined) -> filter().
-prepare_filters(UserID, StartID, EndID, WithJID, WithResource, SearchText) ->
-    [{equal, user_id, UserID}] ++
-    case StartID of
-        undefined -> [];
-        _         -> [{ge, id, StartID}]
-    end ++
-    case EndID of
-        undefined -> [];
-        _         -> [{le, id, EndID}]
-    end ++
-    case WithJID of
-        undefined -> [];
-        _         -> [{equal, remote_bare_jid, WithJID}]
-    end ++
-    case WithResource of
-        undefined -> [];
-        _         -> [{equal, remote_resource, WithResource}]
-    end ++
-    case SearchText of
-        undefined -> [];
-        _         -> prepare_search_filters(SearchText)
+make_start_id(Start, Borders) ->
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    apply_start_border(Borders, StartID).
+
+make_end_id(End, Borders) ->
+    EndID = maybe_encode_compact_uuid(End, 255),
+    apply_end_border(Borders, EndID).
+
+jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
+    Res;
+jid_to_non_empty_resource(_) ->
+    undefined.
+
+-record(lookup_field, {op, column, param, required, value_maker}).
+
+lookup_fields() ->
+    [#lookup_field{op = equal, column = user_id, param = archive_id, required = true},
+     #lookup_field{op = ge, column = id, param = start_id},
+     #lookup_field{op = le, column = id, param = end_id},
+     #lookup_field{op = equal, column = remote_bare_jid, param = remote_bare_jid},
+     #lookup_field{op = equal, column = remote_resource, param = remote_resource},
+     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+
+prepare_filter(Params) ->
+    [new_filter(Field, Value)
+     || Field <- lookup_fields(),
+        Value <- field_to_values(Field, Params)].
+
+field_to_values(#lookup_field{param = Param, value_maker = ValueMaker, required = Required} = Field, Params) ->
+    case maps:find(Param, Params) of
+        {ok, Value} when Value =/= undefined ->
+            make_value(ValueMaker, Value);
+        Other when Required ->
+            error(#{reason => missing_required_field, field => Field, params => Params});
+        _ ->
+            []
     end.
+
+make_value(search_words, Value) ->
+    search_words(Value);
+make_value(undefined, Value) ->
+    [Value].
+
+new_filter(#lookup_field{op = Op, column = Column}, Value) ->
+    {Op, Column, Value}.
 
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
 %% Order of words does not matter (they can go in any order).
-prepare_search_filters(SearchText) ->
+search_words(SearchText) ->
     Words = binary:split(SearchText, <<"%">>, [global]),
-    [prepare_search_filter(Word) || Word <- Words].
-
--spec prepare_search_filter(binary()) -> filter_field().
-prepare_search_filter(Word) ->
-     %% Search for "%Word%"
-    {like, search_body, <<"%", Word/binary, "%">>}.
+    [<<"%", Word/binary, "%">> || Word <- lists:sublist(Words, ?SEARCH_WORDS_LIMIT)].
