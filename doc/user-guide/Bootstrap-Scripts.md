@@ -30,7 +30,7 @@ The `etc/templates.ini` file contains default template variables.
 
 A template config example:
 
-```toml
+```ini
 [options]
   demo_session_lifetime = 600
   demo_tls_versions = 'tlsv1.2', 'tlsv1.3'

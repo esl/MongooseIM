@@ -49,7 +49,7 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 
 ```toml
 [modules.mod_pubsub]
-  plugins = ["push] # mandatory minimal config
+  plugins = ["push"] # mandatory minimal config
 
 [modules.mod_event_pusher]
   backend.push.backend = "mnesia" # optional

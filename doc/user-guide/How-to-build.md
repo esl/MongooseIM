@@ -52,7 +52,7 @@ You may use a different package manager but you'll need to figure out the packag
 Install Xcode Command Line Tools.
 
 ```bash
-$ xcode-select --install # install compilation tools
+xcode-select --install # install compilation tools
 ```
 
 ### Step 3
@@ -60,7 +60,7 @@ $ xcode-select --install # install compilation tools
 Install dependencies with Brew.
 
 ```bash
-$ brew install erlang openssl unixodbc
+brew install erlang openssl unixodbc
 ```
 
 ### Step 4
@@ -68,8 +68,8 @@ $ brew install erlang openssl unixodbc
 Add OpenSSL paths to the compiler and linker environment variables:
 
 ```bash
-$ export LDFLAGS="-L/usr/local/opt/openssl/lib"
-$ export CFLAGS="-I/usr/local/opt/openssl/include"
+export LDFLAGS="-L/usr/local/opt/openssl/lib"
+export CFLAGS="-I/usr/local/opt/openssl/include"
 ```
 
 Now, please proceed to the "Building" section.
@@ -79,7 +79,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
+sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
 ```
 
 Now, please proceed to the "Building" section.
@@ -89,7 +89,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
+sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
 ```
 
 Now, please proceed to the "Building" section.
