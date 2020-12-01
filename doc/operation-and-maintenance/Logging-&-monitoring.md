@@ -145,5 +145,4 @@ Parts of the names are indexed from `0`.
 
 Time-based metrics in MongooseIM are given in **microseconds**, so to display human-readable values in graph's legend, the Y-axis unit has to be edited on the `Axes` tab.
 
-[MAM]: ../modules/mod_mam.md
 [Logger]: https://erlang.org/doc/apps/kernel/logger_chapter.html#handlers

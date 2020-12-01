@@ -15,4 +15,4 @@ These include:
 
 ## Configuration options
 
-None
+None.

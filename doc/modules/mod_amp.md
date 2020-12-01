@@ -10,7 +10,7 @@ not. See more below, under XEP Support.
 
 ## Options
 
-none
+None.
 
 ### Example Configuration
 

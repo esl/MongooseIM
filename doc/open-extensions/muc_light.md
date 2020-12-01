@@ -30,7 +30,7 @@ Here are some high-level features required from a new variant of MUC
 
 ## 3. Entity Use Cases
 
-### 3.1 Discovering a MUC Light Service
+### 3.1. Discovering a MUC Light Service
 
 An entity often discovers a MUC service by sending a Service Discovery items ("disco#items") request to its own server.
 
@@ -60,7 +60,7 @@ The server then returns the services that are associated with it.
 </iq>
 ```
 
-### 3.2 Discovering the Features Supported by a MUC Light Service
+### 3.2. Discovering the Features Supported by a MUC Light Service
 
 An entity may wish to discover if a service implements the Multi-User Chat protocol; in order to do so, it sends a service discovery information ("disco#info") query to the MUC service's JID.
 
@@ -90,7 +90,7 @@ The service MUST return its identity and the features it supports.
 </iq>
 ```
 
-### 3.3 Discovering Occupied Rooms
+### 3.3. Discovering Occupied Rooms
 
 The service discovery items ("disco#items") protocol enables an entity to query a service for a list of associated items, which in the case of a chat service would consist of the specific chat rooms the entity occupies.
 
@@ -172,7 +172,7 @@ If the full list of rooms is large (see XEP-0030 for details), the service MAY r
 
 ## 4. Occupant Use Cases
 
-### 4.1 Sending a message to a room
+### 4.1. Sending a message to a room
 
 Every occupant in the room MAY broadcast messages to other occupants. In order to do so, the client MUST send a groupchat message to the room bare JID.
 
@@ -219,7 +219,7 @@ Note the message is sent to all the room occupants including the original sender
 </message>
 ```
 
-### 4.2 Changing a room subject
+### 4.2. Changing a room subject
 
 The service MAY allow room occupants to set the room subject by changing the "subject" configuration field. A standard configuration stanza is used in this case. Subject change is announced like an ordinary configuration change.
 
@@ -271,7 +271,7 @@ The service MAY allow room occupants to set the room subject by changing the "su
     type='result' />
 ```
 
-### 4.3 Requesting room information
+### 4.3. Requesting room information
 
 Room occupants may request room information (configuration and/or occupants list) by an information version. It is up to the service to define the version string, the only requirement for it, is to be unique per room. Please note there are no separate versions for configuration and occupant list alone.
 
@@ -301,7 +301,7 @@ Only room occupants can get room information.
     type='result' />
 ```
 
-#### 4.3.1 Getting the room configuration
+#### 4.3.1. Getting the room configuration
 
 **Client gets configuration from the server**
 
@@ -328,7 +328,7 @@ Only room occupants can get room information.
 </iq>
 ```
 
-#### 4.3.2 Requesting a user list
+#### 4.3.2. Requesting a user list
 
 **Client requests a user list**
 
@@ -357,7 +357,7 @@ Only room occupants can get room information.
 </iq>
 ```
 
-#### 4.3.3 Requesting full room information
+#### 4.3.3. Requesting full room information
 
 Room occupants may request both lists (configuration + occupants) with a single request.
 
@@ -393,7 +393,7 @@ Room occupants may request both lists (configuration + occupants) with a single 
 </iq>
 ```
 
-### 4.4 Leaving the room
+### 4.4. Leaving the room
 
 Every occupant is allowed to leave the room at any time. It is done by modifying their own affiliation.
 
@@ -457,7 +457,7 @@ Every occupant is allowed to leave the room at any time. It is done by modifying
     type='result' />
 ```
 
-### 4.5 Blocking functionality
+### 4.5. Blocking functionality
 
 A user MAY choose to automatically deny being added to the room. All stanzas must be directed to MUC Light service. User MAY send more than one item in a single request and mix both 'user' and 'room' elements.
 
@@ -509,7 +509,7 @@ If the occupant tries to add another user to the room, and this user has set a b
     type='result' />
 ```
 
-#### 4.5.1 Requesting a blocking list
+#### 4.5.1. Requesting a blocking list
 
 In order to get the current blocking list in the MUC Light service, the client sends an empty IQ get query with a proper namespace.
 
@@ -539,7 +539,7 @@ The list includes only items with a 'deny' action, since the 'allow' behaviour i
 </iq>
 ```
 
-#### 4.5.2 Blocking a room
+#### 4.5.2. Blocking a room
 
 In order to block a room, a query must contain at least one 'room' item with a 'deny' action and a room bare JID in the content.
 
@@ -564,7 +564,7 @@ In order to block a room, a query must contain at least one 'room' item with a '
     from='muclight.shakespeare.lit' />
 ```
 
-#### 4.5.3 Blocking a user
+#### 4.5.3. Blocking a user
 
 In order to block a user, a query must contain at least one 'user' item with a 'deny' action and a user bare JID in the content.
 
@@ -589,7 +589,7 @@ In order to block a user, a query must contain at least one 'user' item with a '
     from='muclight.shakespeare.lit' />
 ```
 
-#### 4.5.4 Unblocking
+#### 4.5.4. Unblocking
 
 In order to cancel a blocking, a query must contain at least one 'room' or 'user' item with an 'allow' action and an appriopriate bare JID in the content.
 
@@ -618,7 +618,7 @@ Unblocking a JID that is not blocked does not trigger any error. The server MUST
 
 ## 5. Owner Use Cases
 
-### 5.1 Creating a new room
+### 5.1. Creating a new room
 
 A room is created by submitting a dedicated stanza. The client application should pick a random room node name, since a human-readable room name is in configuration.
 
@@ -703,7 +703,7 @@ After the room is created (but before receiving IQ result), new occupants (inclu
     type='result' />
 ```
 
-#### 5.1.1 Requesting a new room with a unique name
+#### 5.1.1. Requesting a new room with a unique name
 
 If a client would like to avoid a room JID conflict, it MAY request creating a new room with a server-side generated name, that is verfied to be unique. In order to do so, the client MUST send a creation request to service JID, not room bare JID. The IQ result will originate from the new room bare JID
 
@@ -745,7 +745,7 @@ The messages with affiliation change notifications MUST have the same ID as IQ s
     type='result' />
 ```
 
-#### 5.1.2 Room already exists
+#### 5.1.2. Room already exists
 
 If the chosen room name already exists, the service MUST return a 'conflict' error.
 
@@ -775,7 +775,7 @@ If the chosen room name already exists, the service MUST return a 'conflict' err
 </iq>
 ```
 
-### 5.2 Destroying a room
+### 5.2. Destroying a room
 
 A room is automatically destroyed when its occupant list becomes empty or the room owner explicitly sends an IQ with a room destroy request.
 
@@ -842,7 +842,7 @@ Room destruction notification SHOULD NOT contain version (or "prev-version" info
     type='result' />
 ```
 
-### 5.3 Setting room configuration
+### 5.3. Setting room configuration
 
 Only room owners can modify the room configuration but the service MAY allow members to change it too.
 
@@ -904,7 +904,7 @@ The Data Forms are not used for the configuration. Instead, the config fields ar
 
 The server SHOULD accept incomplete (i.e. delta) configuration forms. In such case, values of the missing fields SHOULD be preserved.
 
-### 5.4 Changing the occupant list
+### 5.4. Changing the occupant list
 
 The occupant list is modified by a direct affiliation change. Following rules apply:
 
@@ -1035,7 +1035,7 @@ Because `hag66` was not a member of this room before, they only receive **their 
 
 ## 6. Interactions with RFCs and other XEPs
 
-### 6.1 User rosters
+### 6.1. User rosters
 
 The service MAY add user's rooms to its roster. It allows the client to skip the separate Disco request to the service.
 Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include the `<version/>` element.
@@ -1062,7 +1062,7 @@ Their subscription type MUST be 'to'.
 </iq>
 ```
 
-### 6.2 XEP-0313 Message Archive Management
+### 6.2. XEP-0313 Message Archive Management
 
 This section defines the rules for archiving MUC Light events and messages.
 Stanzas described in the subsections below MUST be archived by the server.
@@ -1078,7 +1078,7 @@ As for room notification, e.g. create event, "from" MUST be equal to room bare J
 Examples below use MAM v0.4 protocol.
 The archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.
 
-#### 6.2.1 Groupchat message from occupant
+#### 6.2.1. Groupchat message from occupant
 
 Message from a user MUST be archived with all child elements.
 
@@ -1109,7 +1109,7 @@ Message from a user MUST be archived with all child elements.
 <iq type='result' id='mamget1' from='coven@muclight.shakespeare.lit'/>
 ```
 
-#### 6.2.2 Affiliation change
+#### 6.2.2. Affiliation change
 
 Every archived affiliation change notification MUST include the `<version/>` element and MUST NOT contain the `<prev-version/>` element.
 
@@ -1143,13 +1143,13 @@ Every archived affiliation change notification MUST include the `<version/>` ele
 <iq type='result' id='mamget12'/>
 ```
 
-#### 6.2.3 Room creation
+#### 6.2.3. Room creation
 
 Room creation is archived as an affiliation change that includes ALL initial occupants (including the room creator).
 
 ## 7. General Error Cases
 
-### 7.1 Client sends an unauthorized stanza to a room
+### 7.1. Client sends an unauthorized stanza to a room
 
 If a client sends a stanza to the room, that it does not occupy, the service MUST reply with the 'item-not-found' error.
 
@@ -1199,11 +1199,11 @@ If a client sends a stanza to the room, that it does not occupy, the service MUS
 </message>
 ```
 
-### 7.2 Client sends a &lt;presence/> stanza to the service
+### 7.2. Client sends a &lt;presence/> stanza to the service
 
 The service MUST ignore all `<presence/>` stanzas sent by the client.
 
-### 7.3 Client sends an invalid stanza to the service
+### 7.3. Client sends an invalid stanza to the service
 
 If service receives an invalid stanza it MUST reply with a 'bad-request' error.
 
@@ -1253,7 +1253,7 @@ If service receives an invalid stanza it MUST reply with a 'bad-request' error.
 </message>
 ```
 
-### 7.4 Request sender has insufficient privileges
+### 7.4. Request sender has insufficient privileges
 
 If the request sender does not have sufficient privileges (but is a room occupant),
 the service MUST reply with a 'not-allowed' error.
@@ -1293,7 +1293,7 @@ It occurs in the following cases:
 
 ## 8. Implementation Notes
 
-### 8.1 XEP-0045 mappings
+### 8.1. XEP-0045 mappings
 
 Some client-side developers might choose to use existing XEP-0045 Multi-User Chat implementations
 to interface with the new MUC Light.
@@ -1303,7 +1303,7 @@ This section provides suggestions of mappings between XEP-0045 stanzas and the n
 
 Operations not described here SHOULD remain unmodified.
 
-#### 8.1.1 Discovering the Features Supported by a MUC Service
+#### 8.1.1. Discovering the Features Supported by a MUC Service
 
 A Disco result MAY either include a new `<feature/>` element with an "http://jabber.org/protocol/muc" namespace
 next to MUC Light one, or completely replace it, which is the RECOMMENDED behaviour.
@@ -1333,7 +1333,7 @@ next to MUC Light one, or completely replace it, which is the RECOMMENDED behavi
 </iq>
 ```
 
-#### 8.1.2 Discovering Occupied Rooms
+#### 8.1.2. Discovering Occupied Rooms
 
 The room list MUST NOT include room versions.
 
@@ -1357,7 +1357,7 @@ The room list MUST NOT include room versions.
 </iq>
 ```
 
-#### 8.1.3 Changing a room subject
+#### 8.1.3. Changing a room subject
 
 Instead of distributing the configuration change notifications,
 the room MUST route `<message/>` with a `<subject/>` like a classic MUC would.
@@ -1393,7 +1393,7 @@ The room SHOULD save a new subject in the room configuration.
 </message>
 ```
 
-#### 8.1.4 Getting a room configuration
+#### 8.1.4. Getting a room configuration
 
 Room configuration is encoded in a Data Form, that simulates the XEP-0045 config form.
 
@@ -1436,7 +1436,7 @@ Getting the room configuration does not benefit from room versioning.
 </iq>
 ```
 
-#### 8.1.5 Requesting a user list
+#### 8.1.5. Requesting a user list
 
 A user list is retrieved with an affiliation IQ get.
 
@@ -1471,11 +1471,11 @@ A user list is retrieved with an affiliation IQ get.
 </iq>
 ```
 
-#### 8.1.6 Requesting room information
+#### 8.1.6. Requesting room information
 
 There is no XEP-0045 equivalent for getting full room information.
 
-#### 8.1.7 Leaving the room
+#### 8.1.7. Leaving the room
 
 Leaving the room is performed by setting the own affiliation to 'none'.
 The service uses `<presence/>` to notify all occupants (and former occupant) about the change.
@@ -1524,7 +1524,7 @@ and MUST include a status code 321 (i.e. user leaving due to affiliation change)
     type='result'/>
 ```
 
-#### 8.1.8 Blocking functionality
+#### 8.1.8. Blocking functionality
 
 The blocking functionality uses a small subset of the Privacy Lists protocol.
 Stanzas MUST be addressed to the sender's bare JID (the `to` attribute may be skipped).
@@ -1532,7 +1532,7 @@ The privacy list name MUST be equal to "urn:xmpp:muclight:0".
 Obviously, this method won't work properly in XMPP Server Federation, because privacy stanzas are handled by sender's server and the MUC Light Blocking functionality is handled by a MUC Light service server.
 As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 
-##### 8.1.8.1 Request blocking list
+##### 8.1.8.1. Request blocking list
 
 **Retrieving blocking list**
 
@@ -1561,7 +1561,7 @@ As opposed to XEP-0016, it is allowed to send "delta" privacy lists.
 </iq>
 ```
 
-##### 8.1.8.2 Blocking a room
+##### 8.1.8.2. Blocking a room
 
 In order to block a room, the client MUST deny a room bare JID in privacy list.
 
@@ -1584,7 +1584,7 @@ In order to block a room, the client MUST deny a room bare JID in privacy list.
 <iq type='result' id='comp-blockroom' to='crone1@shakespeare.lit/desktop' />
 ```
 
-##### 8.1.8.3 Blocking a user
+##### 8.1.8.3. Blocking a user
 
 In order to block a room, the client MUST deny a service JID with user's bare JID in the resource.
 
@@ -1607,7 +1607,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 <iq type='result' id='comp-blockuser' to='crone1@shakespeare.lit/desktop' />
 ```
 
-##### 8.1.8.4 Unblocking
+##### 8.1.8.4. Unblocking
 
 **Unblocking**
 
@@ -1632,7 +1632,7 @@ In order to block a room, the client MUST deny a service JID with user's bare JI
 <iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop' />
 ```
 
-#### 8.1.9 Creating a room
+#### 8.1.9. Creating a room
 
 The room is created in a standard XEP-0045 way. Client MUST use a nick equal to their own bare JID.
 
@@ -1658,7 +1658,7 @@ Compatibility mode MUST NOT support a unique room name generation.
 </presence>
 ```
 
-##### 8.1.9.1 Room already exists
+##### 8.1.9.1. Room already exists
 
 If the client attempts to create a room that is already used, it will
 receive an error `<presence/>` informing that registration is required
@@ -1677,7 +1677,7 @@ receive an error `<presence/>` informing that registration is required
 </presence>
 ```
 
-#### 8.1.10 Destroying the room
+#### 8.1.10. Destroying the room
 
 A classic XEP-0045 method is used but the service SHOULD NOT forward reason and alternate venue JID.
 
@@ -1736,7 +1736,7 @@ A classic XEP-0045 method is used but the service SHOULD NOT forward reason and 
     type='result'/>
 ```
 
-#### 8.1.11 Setting room configuration
+#### 8.1.11. Setting room configuration
 
 Room occupants can use a standard XEP-0045 configuration modification method. The service MUST broadcast only the notification about the configuration change with a status code 104, so every occupant can retrieve the new room configuration in a separate request. The client is allowed to send a config delta in a form.
 
@@ -1796,7 +1796,7 @@ Room occupants can use a standard XEP-0045 configuration modification method. Th
     type='result'/>
 ```
 
-#### 8.1.12 Changing occupant list
+#### 8.1.12. Changing occupant list
 
 The service MUST send an affiliation change notification to all participants.
 Leaving users MUST NOT receive any information except for their own "none" affiliation.
@@ -1867,7 +1867,7 @@ New users MUST receive an invitation message.
     type='result'/>
 ```
 
-### 8.2 Service limits and configuration
+### 8.2. Service limits and configuration
 
 The MUC Light service may be abused by a malicious users,
 e.g. due to replicating a single message for every room occupant.
