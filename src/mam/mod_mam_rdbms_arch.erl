@@ -64,6 +64,8 @@
 
 -type filter() :: [filter_field()].
 
+-type env_vars() :: map().
+
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
@@ -112,8 +114,9 @@ get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
     case mod_mam:archive_id(Host, User) of
         undefined -> [];
         ArchiveID ->
+            Env = env_vars(Host, ArcJID),
             {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
-            Messages = rows_to_uniform_format(Host, ?MODULE, ArcJID, Rows),
+            Messages = rows_to_uniform_format(Rows, Env),
             [uniform_to_gdpr(M) || M <- Messages] ++ Acc
     end.
 
@@ -248,31 +251,31 @@ db_mappings() ->
      #db_mapping{column = search_body, param = packet, format = search}].
 
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
-prepare_message(Host, Params) ->
-    Env = env_vars(Host),
+prepare_message(Host, Params = #{local_jid := ArcJID}) ->
+    Env = env_vars(Host, ArcJID),
     [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
 
-prepare_value(Params, Env, Mapping = #db_mapping{param = Param, format = Format}) ->
+prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
     Value = maps:get(Param, Params),
-    encode_value(Format, Value, Params, Env).
+    encode_value(Format, Value, Env).
 
-encode_value(int, Value, _Params, _Env) when is_integer(Value) ->
+encode_value(int, Value, _Env) when is_integer(Value) ->
     Value;
-encode_value(maybe_binary, none, _Params, _Env) ->
+encode_value(maybe_binary, none, _Env) ->
     null;
-encode_value(maybe_binary, Value, _Params, _Env) when is_binary(Value) ->
+encode_value(maybe_binary, Value, _Env) when is_binary(Value) ->
     Value;
-encode_value(direction, Value, _Params, _Env) ->
+encode_value(direction, Value, _Env) ->
     encode_direction(Value);
-encode_value(bare_jid, Value, #{local_jid := LocJID}, #{db_jid_codec := Codec}) ->
-    jid_to_stored_binary_with_codec(Codec, LocJID, jid:to_bare(Value));
-encode_value(jid, Value, #{local_jid := LocJID}, #{db_jid_codec := Codec}) ->
-    jid_to_stored_binary_with_codec(Codec, LocJID, Value);
-encode_value(jid_resource, #jid{lresource = Res}, _Params, _Env) ->
+encode_value(bare_jid, Value, Env) ->
+    jid_to_stored_binary_with_env(jid:to_bare(Value), Env);
+encode_value(jid, Value, Env) ->
+    jid_to_stored_binary_with_env(Value, Env);
+encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
     Res;
-encode_value(xml, Value, _Params, #{db_message_codec := Codec}) ->
-    packet_to_stored_binary_with_codec(Codec, Value);
-encode_value(search, Value, _Params, #{full_text_search := SearchEnabled}) ->
+encode_value(xml, Value, Env) ->
+    packet_to_stored_binary_with_env(Value, Env);
+encode_value(search, Value, #{full_text_search := SearchEnabled}) ->
     mod_mam_utils:packet_to_search_body(SearchEnabled, Value).
 
 column_names() ->
@@ -308,11 +311,12 @@ extract_gdpr_messages(Host, ArchiveID) ->
                              {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
-lookup_messages(_Result, Host, Params) ->
+lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     try
+        Env = env_vars(Host, ArcJID),
         ExtParams = extend_params(Host, Params),
         Filter = prepare_filter(ExtParams),
-        choose_lookup_messages_strategy(Host, Filter, ExtParams)
+        choose_lookup_messages_strategy(Host, Env, Filter, ExtParams)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -334,32 +338,31 @@ opt_count_type(_) ->
 %% - we can reduce number of queries if we skip counting for small data sets;
 %% - sometimes we want not to count at all
 %%   (for example, our client side counts ones and keep the information)
-choose_lookup_messages_strategy(Host, Filter,
-                                Params = #{owner_jid := ArcJID, rsm := RSM,
-                                           page_size := PageSize}) ->
+choose_lookup_messages_strategy(Host, Env, Filter,
+                                Params = #{rsm := RSM, page_size := PageSize}) ->
     case Params of
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
-            simple_lookup_messages(Host, ArcJID, RSM, PageSize, Filter);
+            simple_lookup_messages(Host, Env, RSM, PageSize, Filter);
         %% NOTICE: We always prefer opt_count optimization, if possible.
         %% Clients don't event know what opt_count is.
         #{opt_count_type := last_page} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_last_page(Host, ArcJID, PageSize, Filter);
+            lookup_last_page(Host, Env, PageSize, Filter);
         #{opt_count_type := by_offset} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_by_offset(Host, ArcJID, RSM, PageSize, Filter);
+            lookup_by_offset(Host, Env, RSM, PageSize, Filter);
         _ ->
             %% Calculate offset and total count first before extracting messages
-            lookup_messages_regular(Host, ArcJID, RSM, PageSize, Filter)
+            lookup_messages_regular(Host, Env, RSM, PageSize, Filter)
     end.
 
 %% Just extract messages
-simple_lookup_messages(Host, ArcJID, RSM, PageSize, Filter) ->
+simple_lookup_messages(Host, Env, RSM, PageSize, Filter) ->
     {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
-    Messages = extract_messages(Host, ArcJID, Filter2, Offset, PageSize, Order),
+    Messages = extract_messages(Host, Env, Filter2, Offset, PageSize, Order),
     {ok, {undefined, undefined, Messages}}.
 
 rsm_to_filter(RSM, Filter) ->
@@ -377,8 +380,8 @@ rsm_to_filter(RSM, Filter) ->
 
 %% This function handles case: #rsm_in{direction = before, id = undefined}
 %% Assumes assert_rsm_without_id(RSM)
-lookup_last_page(Host, ArcJID, PageSize, Filter) ->
-    Messages = extract_messages(Host, ArcJID, Filter, 0, PageSize, desc),
+lookup_last_page(Host, Env, PageSize, Filter) ->
+    Messages = extract_messages(Host, Env, Filter, 0, PageSize, desc),
     Selected = length(Messages),
     Offset =
         case Selected < PageSize of
@@ -390,10 +393,10 @@ lookup_last_page(Host, ArcJID, PageSize, Filter) ->
         end,
     {ok, {Offset + Selected, Offset, Messages}}.
 
-lookup_by_offset(Host, ArcJID, RSM, PageSize, Filter) ->
+lookup_by_offset(Host, Env, RSM, PageSize, Filter) ->
     assert_rsm_without_id(RSM),
     Offset = rsm_to_index(RSM),
-    Messages = extract_messages(Host, ArcJID, Filter, Offset, PageSize, asc),
+    Messages = extract_messages(Host, Env, Filter, Offset, PageSize, asc),
     Selected = length(Messages),
     TotalCount =
         case Selected < PageSize of
@@ -413,17 +416,17 @@ rsm_to_index(#rsm_in{direction = undefined, index = Offset})
     when is_integer(Offset) -> Offset;
 rsm_to_index(_) -> 0.
 
-lookup_messages_regular(Host, ArcJID, RSM, PageSize, Filter) ->
+lookup_messages_regular(Host, Env, RSM, PageSize, Filter) ->
     TotalCount = calc_count(Host, Filter),
     Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     Messages =
         case RSM of
             #rsm_in{direction = aft, id = ID} ->
-                extract_messages(Host, ArcJID, from_id(ID, Filter), 0, PageSize + 1, asc);
+                extract_messages(Host, Env, from_id(ID, Filter), 0, PageSize + 1, asc);
             #rsm_in{direction = before, id = ID} when ID =/= undefined ->
-                extract_messages(Host, ArcJID, to_id(ID, Filter), 0, PageSize + 1, desc);
+                extract_messages(Host, Env, to_id(ID, Filter), 0, PageSize + 1, desc);
             _ ->
-                extract_messages(Host, ArcJID, Filter, Offset, PageSize, asc)
+                extract_messages(Host, Env, Filter, Offset, PageSize, asc)
         end,
     Result = {TotalCount, Offset, Messages},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
@@ -447,14 +450,14 @@ from_id(ID, Filter) ->
 to_id(ID, Filter) ->
     [{le, id, ID}|Filter].
 
-rows_to_uniform_format(Host, Module, ArcJID, MessageRows) ->
-    [row_to_uniform_format(Host, Module, ArcJID, Row) || Row <- MessageRows].
+rows_to_uniform_format(MessageRows, Env) ->
+    [row_to_uniform_format(Row, Env) || Row <- MessageRows].
 
-row_to_uniform_format(Host, Module, ArcJID, {BMessID, BSrcJID, SDataRaw}) ->
+row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = stored_binary_to_jid(Host, Module, ArcJID, BSrcJID),
-    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Packet = stored_binary_to_packet(Host, Module, Data),
+    SrcJID = stored_binary_to_jid_with_env(BSrcJID, Env),
+    Data = unescape_binary_with_env(SDataRaw, Env),
+    Packet = stored_binary_to_packet_with_env(Data, Env),
     {MessID, SrcJID, Packet}.
 
 uniform_to_message_id({MessID, _, _}) -> MessID.
@@ -462,18 +465,18 @@ uniform_to_message_id({MessID, _, _}) -> MessID.
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
 %% Columns are `["id", "from_jid", "message"]'.
--spec extract_messages(Host :: jid:server(), ArcJID :: jid:jid(),
+-spec extract_messages(Host :: jid:server(), Env :: env_vars(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
                        Order :: asc | desc) -> [mod_mam:message_row()].
-extract_messages(_Host, _ArcJID, _Filter, _Offset, 0, _) ->
+extract_messages(_Host, _Env, _Filter, _Offset, 0 = _Max, _Order) ->
     [];
-extract_messages(Host, ArcJID, Filter, Offset, Max, Order) ->
+extract_messages(Host, Env, Filter, Offset, Max, Order) ->
     {selected, MessageRows} = extract_rows(Host, Filter, Offset, Max, Order),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => Offset, max => Max,
-                 host => Host, message_rows => MessageRows}),
+                 host => Host, env_vars => Env, message_rows => MessageRows}),
     Rows = maybe_reverse(Order, MessageRows),
-    rows_to_uniform_format(Host, ?MODULE, ArcJID, Rows).
+    rows_to_uniform_format(Rows, Env).
 
 extract_rows(Host, Filters, Offset, Max, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
@@ -589,28 +592,38 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 
 jid_to_stored_binary(Host, Module, ArcJID, JID) ->
     Codec = db_jid_codec(Host, Module),
-    jid_to_stored_binary_with_codec(Codec, ArcJID, JID).
-
-jid_to_stored_binary_with_codec(Codec, ArcJID, JID) ->
     mam_jid:encode(Codec, ArcJID, JID).
 
-stored_binary_to_jid(Host, Module, ArcJID, BSrcJID) ->
-    Codec = db_jid_codec(Host, Module),
-    mam_jid:decode(Codec, ArcJID, BSrcJID).
+jid_to_stored_binary_with_env(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
+    mam_jid:encode(Codec, ArcJID, JID).
+
+stored_binary_to_jid_with_env(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
+    mam_jid:decode(Codec, ArcJID, EncodedJID).
 
 packet_to_stored_binary(Host, Module, Packet) ->
     Codec = db_message_codec(Host, Module),
     mam_message:encode(Codec, Packet).
 
-packet_to_stored_binary_with_codec(Codec, Packet) ->
+packet_to_stored_binary_with_env(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
 
 stored_binary_to_packet(Host, Module, Bin) ->
     Codec = db_message_codec(Host, Module),
     mam_message:decode(Codec, Bin).
 
-env_vars(Host) ->
-    #{full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
+stored_binary_to_packet_with_env(Bin, #{db_message_codec := Codec}) ->
+    mam_message:decode(Codec, Bin).
+
+unescape_binary_with_env(Bin, #{host := Host}) ->
+    %% Funny, rdbms ignores this Host variable
+    mongoose_rdbms:unescape_binary(Host, Bin).
+
+env_vars(Host, ArcJID) ->
+    %% Please, minimize usage of the host field.
+    %% It's only for passing into RDBMS.
+    #{host => Host,
+      archive_jid => ArcJID,
+      full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
       db_message_codec => db_message_codec(Host, ?MODULE)}.
 
