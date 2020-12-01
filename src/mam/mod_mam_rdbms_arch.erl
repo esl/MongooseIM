@@ -94,13 +94,6 @@ start(Host, Opts) ->
                               " WHERE user_id = ? AND remote_bare_jid = ? "
                               " AND origin_id = ? AND direction = ?"
                               " ORDER BY id DESC ", LimitSQL/binary>>]),
-
-    mongoose_rdbms:prepare(mam_extract_gdpr_messages, mam_message,
-                           [user_id],
-                           [<<"SELECT id, from_jid, message "
-                              " FROM mam_message "
-                              " WHERE user_id=? "
-                              " ORDER BY id">>]),
     ok.
 
 
@@ -311,8 +304,8 @@ remove_archive(Host, UserID) ->
 
 %% GDPR logic
 extract_gdpr_messages(Host, ArchiveID) ->
-    mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
-
+    Filters = [{user_id, ArchiveID}],
+    lookup_query(lookup, Host, Filters, asc).
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
@@ -639,7 +632,7 @@ lookup_sql_binary(QueryType, Filters, Order, IndexHintSQL) ->
     iolist_to_binary(lookup_sql(QueryType, Filters, Order, IndexHintSQL)).
 
 lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
-    LimitSQL = limit_sql(QueryType),
+    LimitSQL = limit_sql(Filters),
     OrderSQL = order_to_sql(Order),
     FilterSQL = filters_to_sql(Filters),
     ["SELECT ", columns_sql(QueryType), " "
@@ -649,8 +642,14 @@ lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
 columns_sql(lookup) -> "id, from_jid, message";
 columns_sql(count) -> "COUNT(*)".
 
-limit_sql(lookup) -> rdbms_queries:limit_offset_sql();
-limit_sql(count) -> "".
+%% Caller should provide both limit and offset fields in the correct order.
+%% See limit_offset_filters.
+%% No limits option is fine too (it is used with count and GDPR).
+limit_sql(Filters) ->
+    case lists:keymember(limit, 1, Filters) of %% and offset
+        true -> rdbms_queries:limit_offset_sql();
+        false -> ""
+    end.
 
 filters_to_columns(Filters) ->
    [Column || {_Op, Column, _Value} <- Filters].
