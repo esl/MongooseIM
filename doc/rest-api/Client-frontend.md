@@ -65,7 +65,7 @@ For example if we have properties in the stanza like:
     </message>
 ```
 then in the final json message these properties will be converted to json map without tag names and all types will be taken as string:
-```
+```json
     {   "to": "alice@localhost",
         "timestamp": 1531329049949,
         "id": "123",
