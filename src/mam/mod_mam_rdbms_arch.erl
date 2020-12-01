@@ -371,6 +371,8 @@ rsm_to_filter(RSM, Filter) ->
         %% Get last rows from result set
         #rsm_in{direction = aft, id = ID} ->
             {after_id(ID, Filter), 0, asc};
+        #rsm_in{direction = before, id = undefined} ->
+            {Filter, 0, desc};
         #rsm_in{direction = before, id = ID} ->
             {before_id(ID, Filter), 0, desc};
         #rsm_in{direction = undefined, index = Index} ->
@@ -432,22 +434,19 @@ lookup_messages_regular(Host, Env, RSM, PageSize, Filter) ->
     Result = {TotalCount, Offset, Messages},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
--spec after_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
+-spec after_id(mod_mam:message_id(), filter()) -> filter().
 after_id(ID, Filter) ->
     [{greater, id, ID}|Filter].
 
--spec before_id(ID :: mod_mam:message_id() | undefined,
-               Filter :: filter()) -> filter().
-before_id(undefined, Filter) ->
-    Filter;
+-spec before_id(mod_mam:message_id(), filter()) -> filter().
 before_id(ID, Filter) ->
     [{lower, id, ID}|Filter].
 
--spec from_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
+-spec from_id(mod_mam:message_id(), filter()) -> filter().
 from_id(ID, Filter) ->
     [{ge, id, ID}|Filter].
 
--spec to_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
+-spec to_id(mod_mam:message_id(), filter()) -> filter().
 to_id(ID, Filter) ->
     [{le, id, ID}|Filter].
 
@@ -519,27 +518,22 @@ lookup_query(QueryType, Host, Filters, Order) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host :: jid:server(),
-                 Filter :: filter(),
-                 ID :: mod_mam:message_id()) -> non_neg_integer().
+-spec calc_index(jid:server(), filter(), mod_mam:message_id()) -> non_neg_integer().
 calc_index(Host, Filter, ID) ->
-    calc_count(Host, [{le, id, ID}|Filter]).
+    calc_count(Host, to_id(ID, Filter)).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host :: jid:server(),
-                  Filter :: filter(),
-                  ID :: mod_mam:message_id()) -> non_neg_integer().
+-spec calc_before(jid:server(), filter(), mod_mam:message_id()) -> non_neg_integer().
 calc_before(Host, Filter, ID) ->
-    calc_count(Host, [{lower, id, ID}|Filter]).
+    calc_count(Host, before_id(ID, Filter)).
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host :: jid:server(),
-                 Filter :: filter()) -> non_neg_integer().
+-spec calc_count(jid:server(), filter()) -> non_neg_integer().
 calc_count(Host, Filter) ->
     Result = lookup_query(count, Host, Filter, unordered),
     mongoose_rdbms:selected_to_integer(Result).
