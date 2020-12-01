@@ -112,9 +112,10 @@ get_mam_pm_gdpr_data(Acc, #jid{ user = User, server = Server, lserver = LServer 
     case mod_mam:archive_id(Server, User) of
         undefined -> [];
         ArchiveID ->
+            Module = ?MODULE,
             {selected, Rows} = extract_gdpr_messages(LServer, ArchiveID),
-            [{BMessID, gdpr_decode_jid(LServer, UserJid, FromJID),
-              gdpr_decode_packet(LServer, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
+            [{BMessID, gdpr_decode_jid(LServer, Module, UserJid, FromJID),
+              gdpr_decode_packet(LServer, Module, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
     end.
 
 %% ----------------------------------------------------------------------
@@ -202,7 +203,7 @@ retract_message(Host, #{archive_id := UserID,
     end.
 
 retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
-    MinBareRemJID = minify_bare_jid(Host, LocJID, RemJID),
+    MinBareRemJID = minify_bare_jid(Host, ?MODULE, LocJID, RemJID),
     BinDir = encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, MinBareRemJID, OriginID, BinDir),
@@ -215,10 +216,10 @@ make_tombstone(_Host, UserID, OriginID, []) ->
                 user_id => UserID, origin_id => OriginID});
 make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}]) ->
     Data = mongoose_rdbms:unescape_binary(Host, ResData),
-    Packet = stored_binary_to_packet(Host, Data),
+    Packet = stored_binary_to_packet(Host, ?MODULE, Data),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
-    TombstoneData = packet_to_stored_binary(Host, Tombstone),
+    TombstoneData = packet_to_stored_binary(Host, ?MODULE, Tombstone),
     execute_make_tombstone(Host, TombstoneData, UserID, MessID).
 
 execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
@@ -231,31 +232,54 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
                                           [TombstoneData, UserID, MessID]).
 
 %% Insert logic
+
+-record(db_mapping, {column, param, format, module}).
+
+db_mappings() ->
+    [#db_mapping{column = id, param = message_id, format = int},
+     #db_mapping{column = user_id, param = archive_id, format = int},
+     #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid, module = ?MODULE},
+     #db_mapping{column = remote_resource, param = remote_jid, format = jid_resource},
+     #db_mapping{column = direction, param = direction, format = direction},
+     #db_mapping{column = from_jid, param = source_jid, format = jid, module = ?MODULE},
+     #db_mapping{column = origin_id, param = origin_id, format = maybe_binary},
+     #db_mapping{column = message, param = packet, format = xml, module = ?MODULE},
+     #db_mapping{column = search_body, param = packet, format = search, module = mod_mam}].
+
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
-prepare_message(Host, #{message_id := MessID,
-                        archive_id := UserID,
-                        local_jid := LocJID,
-                        remote_jid := RemJID = #jid{lresource = RemLResource},
-                        source_jid := SrcJID,
-                        origin_id := OriginID,
-                        direction := Dir,
-                        packet := Packet}) ->
-    SBareRemJID = jid_to_stored_binary(Host, LocJID, jid:to_bare(RemJID)),
-    SSrcJID = jid_to_stored_binary(Host, LocJID, SrcJID),
-    SDir = encode_direction(Dir),
-    SOriginID = case OriginID of
-                    none -> null;
-                    _ -> OriginID
-                end,
-    Data = packet_to_stored_binary(Host, Packet),
-    TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
-    [MessID, UserID, SBareRemJID, RemLResource, SDir, SSrcJID, SOriginID, Data, TextBody].
+prepare_message(Host, Params) ->
+    [prepare_value(Host, Params, Mapping) || Mapping <- db_mappings()].
+
+prepare_value(Host, Params, Mapping = #db_mapping{param = Param, format = Format}) ->
+    Value = maps:get(Param, Params),
+    encode_value(Format, Value, Host, Params, Mapping).
+
+encode_value(int, Value, _Host, _Params, _Mapping) when is_integer(Value) ->
+    Value;
+encode_value(maybe_binary, none, _Host, _Params, _Mapping) ->
+    null;
+encode_value(maybe_binary, Value, _Host, _Params, _Mapping) when is_binary(Value) ->
+    Value;
+encode_value(direction, Value, _Host, _Params, _Mapping) ->
+    encode_direction(Value);
+encode_value(bare_jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module = Module}) ->
+    jid_to_stored_binary(Host, Module, LocJID, jid:to_bare(Value));
+encode_value(jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module = Module}) ->
+    jid_to_stored_binary(Host, Module, LocJID, Value);
+encode_value(jid_resource, #jid{lresource = Res}, Host, _Params, _Mapping) ->
+    Res;
+encode_value(xml, Value, Host, _Params, #db_mapping{module = Module}) ->
+    packet_to_stored_binary(Host, Module, Value);
+encode_value(search, Value, Host, _Params, #db_mapping{module = Module}) ->
+    mod_mam_utils:packet_to_search_body(Module, Host, Value).
+
+column_names() ->
+     [Column || #db_mapping{column = Column} <- db_mappings()].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
     Table = mam_message,
-    Fields = [id, user_id, remote_bare_jid, remote_resource,
-              direction, from_jid, origin_id, message, search_body],
+    Fields = column_names(),
     {Query, Fields2} = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
@@ -314,7 +338,7 @@ choose_lookup_messages_strategy(Host, Filter,
     case Params of
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
-            lookup_messages_simple(Host, ArcJID, RSM, PageSize, Filter);
+            simple_lookup_messages(Host, ArcJID, RSM, PageSize, Filter);
         %% NOTICE: We always prefer opt_count optimization, if possible.
         %% Clients don't event know what opt_count is.
         #{opt_count_type := last_page} when PageSize > 0 ->
@@ -330,7 +354,8 @@ choose_lookup_messages_strategy(Host, Filter,
             lookup_messages_regular(Host, ArcJID, RSM, PageSize, Filter)
     end.
 
-lookup_messages_simple(Host, ArcJID, RSM, PageSize, Filter) ->
+%% Just extract messages
+simple_lookup_messages(Host, ArcJID, RSM, PageSize, Filter) ->
     {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
     Messages = extract_messages(Host, ArcJID, Filter2, Offset, PageSize, Order),
     {ok, {undefined, undefined, Messages}}.
@@ -420,14 +445,14 @@ from_id(ID, Filter) ->
 to_id(ID, Filter) ->
     [{le, id, ID}|Filter].
 
-rows_to_uniform_format(Host, ArcJID, MessageRows) ->
-    [row_to_uniform_format(Host, ArcJID, Row) || Row <- MessageRows].
+rows_to_uniform_format(Host, Module, ArcJID, MessageRows) ->
+    [row_to_uniform_format(Host, Module, ArcJID, Row) || Row <- MessageRows].
 
-row_to_uniform_format(Host, ArcJID, {BMessID, BSrcJID, SDataRaw}) ->
+row_to_uniform_format(Host, Module, ArcJID, {BMessID, BSrcJID, SDataRaw}) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = stored_binary_to_jid(Host, ArcJID, BSrcJID),
+    SrcJID = stored_binary_to_jid(Host, Module, ArcJID, BSrcJID),
     Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Packet = stored_binary_to_packet(Host, Data),
+    Packet = stored_binary_to_packet(Host, Module, Data),
     {MessID, SrcJID, Packet}.
 
 uniform_to_message_id({MessID, _, _}) -> MessID.
@@ -446,7 +471,7 @@ extract_messages(Host, ArcJID, Filter, Offset, Max, Order) ->
                  mam_filter => Filter, offset => Offset, max => Max,
                  host => Host, message_rows => MessageRows}),
     Rows = maybe_reverse(Order, MessageRows),
-    rows_to_uniform_format(Host, ArcJID, Rows).
+    rows_to_uniform_format(Host, ?MODULE, ArcJID, Rows).
 
 extract_rows(Host, Filters, Offset, Max, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
@@ -539,13 +564,13 @@ maybe_reverse(desc, List) ->
 %% ----------------------------------------------------------------------
 %% Optimizations
 
-maybe_minify_bare_jid(_Host, _LocJID, undefined) ->
+maybe_minify_bare_jid(_Host, _Module, _LocJID, undefined) ->
     undefined;
-maybe_minify_bare_jid(Host, LocJID, JID) ->
-    minify_bare_jid(Host, LocJID, JID).
+maybe_minify_bare_jid(Host, Module, LocJID, JID) ->
+    minify_bare_jid(Host, Module, LocJID, JID).
 
-minify_bare_jid(Host, LocJID, JID) ->
-    jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
+minify_bare_jid(Host, Module, LocJID, JID) ->
+    jid_to_stored_binary(Host, Module, LocJID, jid:to_bare(JID)).
 
 make_start_id(Start, Borders) ->
     StartID = maybe_encode_compact_uuid(Start, 0),
@@ -560,38 +585,38 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-jid_to_stored_binary(Host, ArcJID, JID) ->
-    Module = db_jid_codec(Host),
-    mam_jid:encode(Module, ArcJID, JID).
+jid_to_stored_binary(Host, Module, ArcJID, JID) ->
+    Codec = db_jid_codec(Host, Module),
+    mam_jid:encode(Codec, ArcJID, JID).
 
-stored_binary_to_jid(Host, ArcJID, BSrcJID) ->
-    Module = db_jid_codec(Host),
-    mam_jid:decode(Module, ArcJID, BSrcJID).
+stored_binary_to_jid(Host, Module, ArcJID, BSrcJID) ->
+    Codec = db_jid_codec(Host, Module),
+    mam_jid:decode(Codec, ArcJID, BSrcJID).
 
-packet_to_stored_binary(Host, Packet) ->
-    Module = db_message_codec(Host),
-    mam_message:encode(Module, Packet).
+packet_to_stored_binary(Host, Module, Packet) ->
+    Codec = db_message_codec(Host, Module),
+    mam_message:encode(Codec, Packet).
 
-stored_binary_to_packet(Host, Bin) ->
-    Module = db_message_codec(Host),
-    mam_message:decode(Module, Bin).
+stored_binary_to_packet(Host, Module, Bin) ->
+    Codec = db_message_codec(Host, Module),
+    mam_message:decode(Codec, Bin).
 
--spec db_jid_codec(jid:server()) -> module().
-db_jid_codec(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini).
+-spec db_jid_codec(jid:server(), module()) -> module().
+db_jid_codec(Host, Module) ->
+    gen_mod:get_module_opt(Host, Module, db_jid_format, mam_jid_mini).
 
--spec db_message_codec(jid:server()) -> module().
-db_message_codec(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+-spec db_message_codec(jid:server(), module()) -> module().
+db_message_codec(Host, Module) ->
+    gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
 
 %% GDPR helpers
-gdpr_decode_jid(Host, ArcJID, BSrcJID) ->
-    JID = stored_binary_to_jid(Host, ArcJID, BSrcJID),
+gdpr_decode_jid(Host, Module, ArcJID, BSrcJID) ->
+    JID = stored_binary_to_jid(Host, Module, ArcJID, BSrcJID),
     jid:to_binary(JID).
 
-gdpr_decode_packet(Host, SDataRaw) ->
+gdpr_decode_packet(Host, Module, SDataRaw) ->
     Bin = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Message = stored_binary_to_packet(Host, Bin),
+    Message = stored_binary_to_packet(Host, Module, Bin),
     exml:to_binary(Message).
 
 %% ----------------------------------------------------------------------
@@ -694,7 +719,7 @@ extend_params(Host, #{owner_jid := ArcJID, rsm := RSM, borders := Borders,
             norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
             start_id => make_start_id(Start, Borders),
             end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_minify_bare_jid(Host, ArcJID, WithJID),
+            remote_bare_jid => maybe_minify_bare_jid(Host, ?MODULE, ArcJID, WithJID),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
 jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
