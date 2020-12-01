@@ -50,8 +50,17 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter_field()      :: tuple().
--type filter()            :: [filter_field()].
+-type column() :: atom().
+-type filter_field() :: {like, column(), binary()}
+    | {le, column(), integer()}
+    | {ge, column(), integer()}
+    | {equal, column(), integer() | binary()}
+    | {lower, column(), integer()}
+    | {greater, column(), integer()}
+    | {limit, limit, integer()}
+    | {offset, offset, integer()}.
+
+-type filter() :: [filter_field()].
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -148,8 +157,8 @@ encode_direction(outgoing) -> <<"O">>.
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
-    {selected, [{BSize}]} = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
-    mongoose_rdbms:result_to_integer(BSize).
+    Result = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
+    mongoose_rdbms:selected_to_integer(Result).
 
 
 -spec index_hint_sql(jid:server()) -> string().
@@ -185,10 +194,8 @@ retract_message(Host, #{archive_id := UserID,
                         direction := Dir,
                         packet := Packet}) ->
     case mod_mam_utils:get_retract_id(mod_mam, Host, Packet) of
-        none ->
-            ok;
-        OriginIDToRetract ->
-            retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
+        none -> ok;
+        OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
     end.
 
 retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
@@ -444,7 +451,7 @@ extract_messages(Host, Filter, IOffset, IMax, Order) ->
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => IOffset, max => IMax,
                  host => Host, message_rows => MessageRows}),
-    maybe_reserve(Order, MessageRows).
+    maybe_reverse(Order, MessageRows).
 
 do_extract_messages(Host, Filters, IOffset, IMax, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(IMax, IOffset),
@@ -535,9 +542,9 @@ calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
 calc_offset(_LS, _F, _PS, _TC, _RSM) ->
     0.
 
-maybe_reserve(asc, List) ->
+maybe_reverse(asc, List) ->
     List;
-maybe_reserve(desc, List) ->
+maybe_reverse(desc, List) ->
     lists:reverse(List).
 
 extract_gdpr_messages(Host, ArchiveID) ->
@@ -741,7 +748,7 @@ prepare_search_filters(SearchText) ->
     Words = binary:split(SearchText, <<"%">>, [global]),
     [prepare_search_filter(Word) || Word <- Words].
 
--spec prepare_search_filter(binary()) -> filter().
+-spec prepare_search_filter(binary()) -> filter_field().
 prepare_search_filter(Word) ->
      %% Search for "%Word%"
     {like, search_body, <<"%", Word/binary, "%">>}.
