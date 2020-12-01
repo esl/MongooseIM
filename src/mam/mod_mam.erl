@@ -118,9 +118,11 @@
 -type archive_id()          :: non_neg_integer().
 
 -type borders()             :: #mam_borders{}.
+
+-type message_row() :: {message_id(), jid:jid(), exml:element()}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
-                          MessageRows :: [{message_id(), jid:jid(), exml:element()}]}.
+                          MessageRows :: [message_row()]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
@@ -150,6 +152,7 @@
               unix_timestamp/0,
               archive_id/0,
               lookup_result/0,
+              message_row/0,
               message_id/0,
               restore_option/0,
               archive_message_params/0
