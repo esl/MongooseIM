@@ -29,6 +29,8 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_archivable_message/4,
+         has_message_retraction/2,
+         get_retract_id/2,
          get_retract_id/3,
          get_origin_id/1,
          tombstone/2,
@@ -357,10 +359,12 @@ has_chat_marker(Packet) ->
     end.
 
 get_retract_id(Module, Host, Packet) ->
-    case has_message_retraction(Module, Host) of
-        true -> get_retract_id(Packet);
-        false -> none
-    end.
+    get_retract_id(has_message_retraction(Module, Host), Packet).
+
+get_retract_id(true = _Enabled, Packet) ->
+    get_retract_id(Packet);
+get_retract_id(false, Packet) ->
+    none.
 
 get_retract_id(Packet) ->
     case exml_query:subelement_with_name_and_ns(Packet, <<"apply-to">>, ?NS_FASTEN) of
