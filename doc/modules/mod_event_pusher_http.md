@@ -106,7 +106,7 @@ Below is an example of what the body of an HTTP POST request can look like:
 
 ## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 
 | Name | Type | Description (when it gets incremented) |

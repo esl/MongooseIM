@@ -295,7 +295,7 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
 
 ### Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |

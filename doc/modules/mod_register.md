@@ -76,7 +76,7 @@ Deny registration from network 10.20.0.0 with mask 255.255.0.0.
 
 ### Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |

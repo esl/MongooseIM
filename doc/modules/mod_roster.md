@@ -54,7 +54,7 @@ Improves performance but should be disabled, when shared rosters are used.
 ### Metrics
 
 If you'd like to learn more about metrics in MongooseIM,
-please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Backend action | Description (when it gets incremented) |
 | ---- | -------------------------------------- |

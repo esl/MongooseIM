@@ -197,7 +197,7 @@ This node type **requires** `publish-options` with at least `device_id` and `ser
 
 ### Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit the [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit the [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 #### Overall PubSub action metrics
 

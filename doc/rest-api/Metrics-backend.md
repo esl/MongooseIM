@@ -22,7 +22,7 @@ An example configuration:
     handlers = ["mongoose_api_metrics"]
 ```
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 ### Security notice
 
