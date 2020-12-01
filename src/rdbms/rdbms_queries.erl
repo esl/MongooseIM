@@ -835,9 +835,13 @@ get_db_specific_offset(Offset, Limit) ->
     do_get_db_specific_offset(?RDBMS_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
 
-do_get_db_specific_limits(mssql, LimitStr, false) ->
+%% Arguments:
+%% - Type (atom) - database type
+%% - LimitStr (string) - a field value
+%% - Wrap (boolean) - add parentheses around a field for MSSQL
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = false) ->
     {"", "TOP " ++ LimitStr};
-do_get_db_specific_limits(mssql, LimitStr, true) ->
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = true) ->
     {"", "TOP (" ++ LimitStr ++ ")"};
 do_get_db_specific_limits(_, LimitStr, _Wrap) ->
     {"LIMIT " ++ LimitStr, ""}.
