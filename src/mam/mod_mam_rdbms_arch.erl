@@ -108,15 +108,17 @@ stop(Host) ->
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, #jid{ user = User, server = Server, lserver = LServer } = UserJid) ->
-    case mod_mam:archive_id(Server, User) of
+get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
+    case mod_mam:archive_id(Host, User) of
         undefined -> [];
         ArchiveID ->
-            Module = ?MODULE,
-            {selected, Rows} = extract_gdpr_messages(LServer, ArchiveID),
-            [{BMessID, gdpr_decode_jid(LServer, Module, UserJid, FromJID),
-              gdpr_decode_packet(LServer, Module, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
+            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            Messages = rows_to_uniform_format(Host, ?MODULE, ArcJID, Rows),
+            [uniform_to_gdpr(M) || M <- Messages] ++ Acc
     end.
+
+uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
+    {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -266,7 +268,7 @@ encode_value(bare_jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module =
     jid_to_stored_binary(Host, Module, LocJID, jid:to_bare(Value));
 encode_value(jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module = Module}) ->
     jid_to_stored_binary(Host, Module, LocJID, Value);
-encode_value(jid_resource, #jid{lresource = Res}, Host, _Params, _Mapping) ->
+encode_value(jid_resource, #jid{lresource = Res}, _Host, _Params, _Mapping) ->
     Res;
 encode_value(xml, Value, Host, _Params, #db_mapping{module = Module}) ->
     packet_to_stored_binary(Host, Module, Value);
@@ -608,16 +610,6 @@ db_jid_codec(Host, Module) ->
 -spec db_message_codec(jid:server(), module()) -> module().
 db_message_codec(Host, Module) ->
     gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
-
-%% GDPR helpers
-gdpr_decode_jid(Host, Module, ArcJID, BSrcJID) ->
-    JID = stored_binary_to_jid(Host, Module, ArcJID, BSrcJID),
-    jid:to_binary(JID).
-
-gdpr_decode_packet(Host, Module, SDataRaw) ->
-    Bin = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Message = stored_binary_to_packet(Host, Module, Bin),
-    exml:to_binary(Message).
 
 %% ----------------------------------------------------------------------
 %% Prepared queries helpers
