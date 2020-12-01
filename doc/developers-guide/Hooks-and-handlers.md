@@ -9,8 +9,6 @@ That results in an extensible system with pluggable extra functionality.
 To focus our attention, we'll analyze `mod_offline` which is responsible for storing messages for delivery to users unavailable at the time of sending.
 `mod_offline` is an implementation of [XEP-0203][xep-0203].
 
-[xep-0203]: http://xmpp.org/extensions/xep-0203.html
-
 ## Running a hook
 
 ### Basic usage
@@ -65,8 +63,6 @@ In between the XMPP domain (`StateData#state.server`) and handler arguments is t
 If you haven't encountered the term _fold_ before, think of it as _reduce_ (like `Array.reduce`) in Ruby-speak, roughly equivalent to the Reduce step in MapReduce, sometimes called _accumulate_, _aggregate_ or _compress_.
 [See Wikipedia for more.][wiki:fold]
 
-[wiki:fold]: http://en.wikipedia.org/wiki/Fold_%28higher-order_function%29
-
 ### Using accumulators
 
 MongooseIM uses a dedicated data structure to accumulate data related to stanza processing (see ["Accumulators"](accumulators.md)).
@@ -111,9 +107,6 @@ Thanks to loose coupling and `ejabberd_hooks` it's possible to turn off `mod_off
 a single line of code in `ejabberd_sm`.
 
 The only required change is to the configuration (apart from deploying the new module) which can even be performed at runtime - without restarting the server.
-
-[mvp]: http://en.wikipedia.org/wiki/Minimum_viable_product
-[mam]: http://xmpp.org/extensions/xep-0313.html
 
 ### Sidenote: Multiple Domains
 
@@ -160,7 +153,6 @@ ejabberd_hooks:delete(offline_message_hook, Host,
 
 The arguments are exactly the same as passed to `ejabberd_hooks:add/5`.
 
-
 ### Sidenote: Metrics
 
 Every time a hook is run, a corresponding metric of the same name in the same host is incremented by one.
@@ -179,7 +171,6 @@ The signature of a handler has to follow three rules:
 Let's look at this example, from MongooseIM codebase:
 
 ```erlang
-
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
     case {mod_muc_light_codec_backend:decode(From, To, IQ),
@@ -367,3 +358,8 @@ ok
 (mongooseim@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
 ok
 ```
+
+[mam]: http://xmpp.org/extensions/xep-0313.html
+[mvp]: http://en.wikipedia.org/wiki/Minimum_viable_product
+[wiki:fold]: http://en.wikipedia.org/wiki/Fold_%28higher-order_function%29
+[xep-0203]: http://xmpp.org/extensions/xep-0203.html

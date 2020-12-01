@@ -12,12 +12,10 @@ handler to MongooseIM.
 `gen_iq_handler` module provides functionality for registering IQ
 handlers for specific namespaces.
 
-
 ## Clone & build
 
 See [How-to-build](../../user-guide/How-to-build) for details on building MongooseIM
 from source code.
-
 
 ## Create a module & add a basic IQ handler
 
@@ -60,7 +58,6 @@ process_iq(_From, _To, Acc, IQ) ->
     ?LOG_INFO(#{what => example_handler, acc => Acc, iq_result => IQRes}),
     {Acc, IQRes}.
 ```
-
 
 ## Test your handler
 
@@ -182,7 +179,6 @@ should_return_error(Config) ->
         escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Res)
     end).
 ```
-
 
 ## Run it
 

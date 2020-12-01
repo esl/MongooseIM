@@ -15,7 +15,8 @@ Currently known incompatible features are:
 Make sure the option `--enable-fips` is specified for `configure` command.
 If you want to use a different OpenSSL than the default one, specify the option `--with-ssl=PATH_TO_YOUR_OPENSSL` as well.
 Here's an example of a command for building Erlang/OTP with kerl:
-```
+
+```bash
 KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 21.3 21.3-fips
 ```
 
@@ -23,7 +24,7 @@ KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 21.3 21.3-fips
 
 If you want to use a custom OpenSSL, please export the CFLAGS and LDFLAGS env vars pointing to a FIPS compliant OpenSSL before running `./rebar3 compile` or `make rel`.
 
-```
+```bash
 OPENSSL_LIB=~/openssl/lib #put your path here
 OPENSSL_INC=~/openssl/inc #put your path here
 
@@ -45,7 +46,7 @@ where `Value` is either `true` or `false`.
 
 ## How to check if the FIPS mode is enabled
 
-#### Log message
+### Log message
 
 When MongooseIM starts, it prints the following log message if FIPS mode is enabled
 
@@ -53,7 +54,7 @@ When MongooseIM starts, it prints the following log message if FIPS mode is enab
 2015-02-25 14:30:54.501 [warning] <0.242.0>@mongoose_fips:do_notify:37 FIPS mode enabled
 ```
 
-#### Run-time check
+### Run-time check
 
 Run the following function in the MongooseIM console:
 
@@ -104,4 +105,3 @@ Here are all the cipher suites available when the **FIPS** mode is **disabled** 
 * ECDHE-RSA-RC4-SHA
 * RC4-SHA
 * RC4-MD5
-

@@ -9,7 +9,7 @@ Each flat option key starts with an option type:
 - `h` - local host options
 - `g` - global options
 
-# Flat options example
+## Flat options example
 
 ```erlang
 {[l,listen],'FLAT'}.

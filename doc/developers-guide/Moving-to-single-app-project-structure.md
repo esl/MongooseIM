@@ -7,13 +7,14 @@ to a single application `rebar3` project.
 
 ### Move all apps/ejabberd subdirectories to the repo root
 
-- mv `apps/ejabberd/src/* src/`
-- mv `apps/ejabberd/include/* include`
-- mv `apps/ejabberd/priv/* priv`
-- mv `apps/ejabberd/test/* test`
-- mv `apps/ejabberd/c_src/* c_src`
-- mv `apps/ejabberd/asn1/* asn1`
-
+```bash
+mv apps/ejabberd/src/* src/
+mv apps/ejabberd/include/* include
+mv apps/ejabberd/priv/* priv
+mv apps/ejabberd/test/* test
+mv apps/ejabberd/c_src/* c_src
+mv apps/ejabberd/asn1/* asn1
+```
 When committing make sure that no new files were added (i.e. they are marked as `renamed`).
 
 ### Move tools files
@@ -75,6 +76,7 @@ Replace it with `mongooseim-*`.
 
 After previous changes, lots of tests fail, mostly because we changed the application name from
 `ejabberd` to `mongooseim`. Functions to look for are:
+
 - `application:set_env`
 - `application:get_env`
 - `application:get_key`
@@ -89,6 +91,7 @@ Those function are also called via RPC from big test suites. A good method to fi
 search using `application.*ej` regex.
 
 Files which require changes:
+
 - `include/ejabberd.hrl`
 - `src/ejabberd.erl`
 - `src/ejabberd_app.erl`
@@ -112,6 +115,7 @@ We also need to remove remaining occurences of `apps/ejabberd` directory structu
 files are scripts assembling the path programatically - the trick is to search for the `apps/` keyword.
 
 Affected files:
+
 - `CONTRIBUTING.md`
 - `Makefile`
 - `elvis.config`
@@ -157,5 +161,3 @@ This section describes how to move a customized fork of MongooseIM to a new stru
    - most of the functions from the `application` module
    - `code:priv_dir/1`
    - calls to `rpc` module which would call functions listed above
-
-

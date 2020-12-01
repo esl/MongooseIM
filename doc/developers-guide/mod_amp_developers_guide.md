@@ -1,10 +1,8 @@
-The Developer's Guide to mod_amp
-================================
+# The Developer's Guide to mod_amp
 
 This is a quick, introductory guide for developers wishing to extend `mod_amp` or plug into the message processing system.
 
-Source Files, Headers and Tests
--------------------------------
+## Source Files, Headers and Tests
 
   * `include/amp.hrl`
     This header file contains the amp XML namespace and the types used by mod_amp: `amp_rule()` and `amp_strategy()` are the top-level points of interest.
@@ -38,9 +36,7 @@ Source Files, Headers and Tests
     This module contains PropEr generators for server-side strategies, as well as valid and invalid amp rules. 
     Used in both test suites.
 
-
-Hooks for Other Modules
------------------------
+## Hooks for Other Modules
 
 If your module would like to have some say in the amp decision making process, please refer to the hooks: `amp_determine_strategy` and `amp_check_condition`.
 Remember that the hook for check_condition is a fold on a boolean(), and should behave like a variadic `or`. 
@@ -48,17 +44,17 @@ I.e: once a rule is deemed to apply, other hooks SHOULD NOT revert this value to
 
 Cf. this code from `amp_resolver`:
 
-    -spec check_condition(any(), amp_strategy(), amp_condition(), amp_value())
-                              -> boolean().
-    check_condition(HookAcc, Strategy, Condition, Value) ->
-        case HookAcc of
-            true -> true;   %% SOME OTHER HOOK HAS DECIDED THAT THIS RULE APPLIES %%
-            _    -> resolve(Strategy, Condition, Value) %% PERFORM LOCAL CHECK %%
-        end.
-    
+```erlang
+-spec check_condition(any(), amp_strategy(), amp_condition(), amp_value())
+                          -> boolean().
+check_condition(HookAcc, Strategy, Condition, Value) ->
+    case HookAcc of
+        true -> true;   %% SOME OTHER HOOK HAS DECIDED THAT THIS RULE APPLIES %%
+        _    -> resolve(Strategy, Condition, Value) %% PERFORM LOCAL CHECK %%
+    end.
+```
 
-Ideas for Further Development
------------------------------
+## Ideas for Further Development
 
 ### Easy
 
@@ -68,7 +64,7 @@ Ideas for Further Development
 ### Medium
 
   * Implement the security policy described in the third bullet point of XEP-0079, Section 9 (Security Considerations). 
-  This will require that `amp_resolver:verify_support` also take the `{From, To, Packet}` `:: hook_data()` parameter and check that `From` is permitted to know about `To`'s presence. 
+  This will require that `amp_resolver:verify_support` also take the `{From, To, Packet} :: hook_data()` parameter and check that `From` is permitted to know about `To`'s presence. 
   If they are not, then the server should treat this as a `not-acceptable` amp request.
 
   * Make support for various actions, conditions and values configurable.
@@ -79,10 +75,6 @@ Ideas for Further Development
     2.  Rule support is in `amp_resolver:verify_rule_support/1`
     3.  Every other function that deals with rules can handle unsupported rules, but ignores their meaning and decides that these rules don't apply.
 
-
 ### Hard
 
   * Implement support for the 'expire-at' condition.
-
-
-

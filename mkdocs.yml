@@ -91,7 +91,7 @@ pages:
       - 'Logging': 'developers-guide/logging.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
-      - 'Stanza routing': 'developers-guide/message_routing.md'
+      - 'Stanza routing': 'developers-guide/Stanza-routing.md'
       - 'Accumulators':  'developers-guide/accumulators.md'
       - 'Flat options format': 'developers-guide/flat_options.md'
       - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'

@@ -4,17 +4,17 @@ The XEP-tool is the answer for developers who wonder how to maintain an actual l
 It's a fast and easy way to automatically produce documentation from raw, beam files.
 This is a quick guide on how to enjoy the usage of the XEP-tool.
 
-###  Sign your module file first
+##  Sign your module file first
 
 The architecture of MongooseIM determines that almost every XEP or feature implementation resides in its own file. 
 It is not strictly enforced but usually the file is named with a `mod_` prefix. 
 For example `mod_privacy` file implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).
 
-#### Mandatory `xep` and `version`
+### Mandatory `xep` and `version`
 
 In order to let the XEP-tool know about your module, we add a special attribute `xep` at the beginning of the `mod_privacy` module:
 
-```
+```erlang
 -xep([{xep, 16}, {version, "1.6"}]).
 ```
 
@@ -34,21 +34,21 @@ Just list them one after another:
 -xep([{xep, 313}, {version, "0.5.1"}]).
 ```
 
-#### Specific URL
+### Specific URL
 
-```
+```erlang
 -xep([{xep, 16}, {version, "1.6"}, {url, "http://xmpp.org/extensions/xep-0016.html"}]).
 ```
 
-#### Comment
+### Comment
 
-```
+```erlang
 -xep([{xep, 16}, {version, "1.6"}, {comment, "Example comment: Partial Implemented"}]).
 ```
 
 And the XEP-tool will do the work!
 
-### Compile and run
+## Compile and run
 
 You've just finished marking your modules. 
 The only thing left is to `make compile` MongooseIM in order to generate the .beam files.
@@ -61,20 +61,26 @@ There are two choices:
 
 For example, to run our XEP-tool with a `markdown` command, type:
 
-`make xeplist`
+```bash
+make xeplist
+```
 
 Or do it manually:
 
-`$MONGOOSEIM_ROOT/tools/xep_tool/xep_tool.escript markdown <PATH_TO_EBIN> <OPTIONAL_OUTPUT_FILE>`
+```bash
+$MONGOOSEIM_ROOT/tools/xep_tool/xep_tool.escript markdown <PATH_TO_EBIN> <OPTIONAL_OUTPUT_FILE>
+```
 
 In our case, from MongooseIM root directory:
 
-`./tools/xep_tool/xep_tool.escript markdown ebin list.md`
+```bash
+./tools/xep_tool/xep_tool.escript markdown ebin list.md
+```
 
 The Markdown list with unique XEP names and URLs is saved to file `list.md`
 You can copy-paste the content of this file to your main README file.
 
-### Generated file example
+## Generated file example
 
 |||||
 | ------------- | ------------- | ------------- |------------- |
