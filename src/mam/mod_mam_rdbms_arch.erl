@@ -189,6 +189,7 @@ do_archive_message(Host, Params) ->
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
     retract_message(Host, Params).
 
+%% Retraction logic
 -spec retract_message(jid:server(), mod_mam:archive_message_params()) -> ok.
 retract_message(Host, #{archive_id := UserID,
                         local_jid := LocJID,
@@ -229,6 +230,7 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
         mod_mam_utils:success_sql_execute(Host, mam_make_tombstone,
                                           [TombstoneData, UserID, MessID]).
 
+%% Insert logic
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, #{message_id := MessID,
                         archive_id := UserID,
@@ -258,6 +260,24 @@ prepare_insert(Name, NumRows) ->
     mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
 
+
+%% Removal logic
+-spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
+                     ArchiveID :: mod_mam:archive_id(),
+                     RoomJID :: jid:jid()) -> mongoose_acc:t().
+remove_archive(Acc, Host, UserID, _ArcJID) ->
+    remove_archive(Host, UserID),
+    Acc.
+
+remove_archive(Host, UserID) ->
+    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [UserID]).
+
+%% GDPR logic
+extract_gdpr_messages(Host, ArchiveID) ->
+    mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
+
+
+%% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason}=Result, _Host, _Params) ->
@@ -412,19 +432,6 @@ row_to_uniform_format(Host, ArcJID, {BMessID, BSrcJID, SDataRaw}) ->
 
 uniform_to_message_id({MessID, _, _}) -> MessID.
 
-
-%% Removals
-
--spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
-                     ArchiveID :: mod_mam:archive_id(),
-                     RoomJID :: jid:jid()) -> mongoose_acc:t().
-remove_archive(Acc, Host, UserID, _ArcJID) ->
-    remove_archive(Host, UserID),
-    Acc.
-
-remove_archive(Host, UserID) ->
-    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [UserID]).
-
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
 %% Columns are `["id", "from_jid", "message"]'.
@@ -528,9 +535,6 @@ maybe_reverse(asc, List) ->
     List;
 maybe_reverse(desc, List) ->
     lists:reverse(List).
-
-extract_gdpr_messages(Host, ArchiveID) ->
-    mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
 
 %% ----------------------------------------------------------------------
 %% Optimizations
