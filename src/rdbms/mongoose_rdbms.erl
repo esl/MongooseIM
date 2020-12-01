@@ -115,7 +115,8 @@
          use_escaped_null/1]).
 
 %% count / integra types decoding
--export([result_to_integer/1]).
+-export([result_to_integer/1,
+         selected_to_integer/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -411,6 +412,9 @@ result_to_integer(Int) when is_integer(Int) ->
     Int;
 result_to_integer(Bin) when is_binary(Bin) ->
     binary_to_integer(Bin).
+
+selected_to_integer({selected, [{BInt}]}) ->
+    result_to_integer(BInt).
 
 %% pgsql returns booleans as "t" or "f"
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
