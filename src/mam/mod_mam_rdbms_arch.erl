@@ -265,10 +265,10 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params) ->
     try
         RSM = maps:get(rsm, Params),
-        Params2 = Params#{opt_count_supported => is_opt_count_supported_for(RSM)},
+        Params2 = Params#{opt_count_type => opt_count_type(RSM)},
         Params3 = extend_params(Host, Params2),
         Filter = prepare_filter(Params3),
-        do_lookup_messages(Host, Filter, Params3)
+        choose_lookup_messages_strategy(Host, Filter, Params3)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -276,33 +276,39 @@ lookup_messages(_Result, Host, Params) ->
 %% Not supported:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
-is_opt_count_supported_for(#rsm_in{direction = before, id = undefined}) ->
-    true; %% last page is supported
-is_opt_count_supported_for(#rsm_in{direction = undefined}) ->
-    true; %% offset
-is_opt_count_supported_for(undefined) ->
-    true; %% no RSM
-is_opt_count_supported_for(_) ->
-    false.
+opt_count_type(#rsm_in{direction = before, id = undefined}) ->
+    last_page; %% last page is supported
+opt_count_type(#rsm_in{direction = undefined}) ->
+    by_offset; %% offset
+opt_count_type(undefined) ->
+    by_offset; %% no RSM
+opt_count_type(_) ->
+    none. %% id field is defined in RSM
 
 %% There are several strategies how to extract messages:
 %% - we can use regular query that requires counting;
 %% - we can reduce number of queries if we skip counting for small data sets;
 %% - sometimes we want not to count at all
 %%   (for example, our client side counts ones and keep the information)
-do_lookup_messages(Host, Filter, Params = #{owner_jid := UserJID, rsm := RSM,
-                                            page_size := PageSize}) ->
+choose_lookup_messages_strategy(Host, Filter,
+                                Params = #{owner_jid := UserJID, rsm := RSM,
+                                           page_size := PageSize}) ->
     case Params of
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
             lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
-        #{is_simple := opt_count, opt_count_supported := true} ->
-            %% Extract messages first than calculate offset and total count
-            %% Useful for small result sets (less than one page, than one query is enough)
-            lookup_messages_opt_count(Host, UserJID, RSM, PageSize, Filter);
+        %% NOTICE: We always prefer opt_count optimization, if possible.
+        %% Clients don't event know what opt_count is.
+        #{opt_count_type := last_page} when PageSize > 0 ->
+            %% Extract messages before calculating offset and total count
+            %% Useful for small result sets
+            lookup_last_page(Host, UserJID, PageSize, Filter);
+        #{opt_count_type := by_offset} when PageSize > 0 ->
+            %% Extract messages before calculating offset and total count
+            %% Useful for small result sets
+            lookup_by_offset(Host, UserJID, RSM, PageSize, Filter);
         _ ->
-            %% Unsupported opt_count or just a regular query
-            %% Calculate offset and total count first than extract messages
+            %% Calculate offset and total count first before extracting messages
             lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter)
     end.
 
@@ -324,57 +330,45 @@ rsm_to_filter(RSM, Filter) ->
             {Filter, 0, asc}
     end.
 
-%% Cases that cannot be optimized and used with this function:
-%% - #rsm_in{direction = aft, id = ID}
-%% - #rsm_in{direction = before, id = ID}
-lookup_messages_opt_count(Host, UserJID,
-                          #rsm_in{direction = before, id = undefined},
-                          PageSize, Filter) ->
-    %% Last page
+%% This function handles case: #rsm_in{direction = before, id = undefined}
+%% Assumes assert_rsm_without_id(RSM)
+lookup_last_page(Host, UserJID, PageSize, Filter) ->
     MessageRows = extract_messages(Host, Filter, 0, PageSize, desc),
-    MessageRowsCount = length(MessageRows),
-    case MessageRowsCount < PageSize of
-        true ->
-            {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
-        false ->
-            FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(Host, before_id(FirstID, Filter)),
-            {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end;
-lookup_messages_opt_count(Host, UserJID,
-                          #rsm_in{direction = undefined, index = Offset},
-                          PageSize, Filter) ->
-    %% By offset
+    Messages = rows_to_uniform_format(Host, UserJID, MessageRows),
+    SelectedCount = length(MessageRows),
+    Offset =
+        case SelectedCount < PageSize of
+            true ->
+                0; %% Result fits on a single page
+            false ->
+                FirstID = row_to_message_id(hd(MessageRows)),
+                calc_count(Host, before_id(FirstID, Filter))
+        end,
+    {ok, {Offset + SelectedCount, Offset, Messages}}.
+
+lookup_by_offset(Host, UserJID, RSM, PageSize, Filter) ->
+    assert_rsm_without_id(RSM),
+    Offset = rsm_to_index(RSM),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
-    MessageRowsCount = length(MessageRows),
-    case MessageRowsCount < PageSize of
-        true ->
-            {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
-        false ->
-            LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
-            {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end;
-lookup_messages_opt_count(Host, UserJID,
-                          undefined,
-                          PageSize, Filter) ->
-    %% First page
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, asc),
-    MessageRowsCount = length(MessageRows),
-    case MessageRowsCount < PageSize of
-        true ->
-            {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
-        false ->
-            LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
-            {ok, {MessageRowsCount + CountAfterLastID, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end.
+    Messages = rows_to_uniform_format(Host, UserJID, MessageRows),
+    SelectedCount = length(MessageRows),
+    TotalCount =
+        case SelectedCount < PageSize of
+            true ->
+                Offset + SelectedCount; %% Result fits on a single page
+            false ->
+                LastID = row_to_message_id(lists:last(MessageRows)),
+                CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
+                Offset + SelectedCount + CountAfterLastID
+        end,
+    {ok, {TotalCount, Offset, Messages}}.
+
+assert_rsm_without_id(undefined) -> ok;
+assert_rsm_without_id(#rsm_in{id = undefined}) -> ok.
+
+rsm_to_index(#rsm_in{direction = undefined, index = Offset})
+    when is_integer(Offset) -> Offset;
+rsm_to_index(_) -> 0.
 
 lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter) ->
     TotalCount = calc_count(Host, Filter),
@@ -441,20 +435,20 @@ remove_archive(Host, UserID) ->
 %% Columns are `["id", "from_jid", "message"]'.
 -type msg() :: {binary(), jid:literal_jid(), binary()}.
 -spec extract_messages(Host :: jid:server(),
-                       Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
+                       Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
                        Order :: asc | desc) -> [msg()].
-extract_messages(_Host, _Filter, _IOffset, 0, _) ->
+extract_messages(_Host, _Filter, _Offset, 0, _) ->
     [];
-extract_messages(Host, Filter, IOffset, IMax, Order) ->
+extract_messages(Host, Filter, Offset, Max, Order) ->
     {selected, MessageRows} =
-        do_extract_messages(Host, Filter, IOffset, IMax, Order),
+        do_extract_messages(Host, Filter, Offset, Max, Order),
     ?LOG_DEBUG(#{what => mam_extract_messages,
-                 mam_filter => Filter, offset => IOffset, max => IMax,
+                 mam_filter => Filter, offset => Offset, max => Max,
                  host => Host, message_rows => MessageRows}),
     maybe_reverse(Order, MessageRows).
 
-do_extract_messages(Host, Filters, IOffset, IMax, Order) ->
-    Filters2 = Filters ++ rdbms_queries:limit_offset_filters(IMax, IOffset),
+do_extract_messages(Host, Filters, Offset, Max, Order) ->
+    Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
     do_lookup_query(lookup, Host, Filters2, Order).
 
 do_lookup_query(QueryType, Host, Filters, Order) ->
@@ -515,15 +509,9 @@ calc_before(Host, Filter, ID) ->
 -spec calc_count(Host :: jid:server(),
                  Filter :: filter()) -> non_neg_integer().
 calc_count(Host, Filter) ->
-    {selected, [{BCount}]} =
-        do_lookup_query(count, Host, Filter, unordered),
-    mongoose_rdbms:result_to_integer(BCount).
+    Result = do_lookup_query(count, Host, Filter, unordered),
+    mongoose_rdbms:selected_to_integer(Result).
 
-%% @doc #rsm_in{
-%%    max = non_neg_integer() | undefined,
-%%    direction = before | aft | undefined,
-%%    id = binary() | undefined,
-%%    index = non_neg_integer() | undefined}
 -spec calc_offset(Host :: jid:server(),
                   Filter :: filter(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
