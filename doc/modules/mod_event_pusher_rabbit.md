@@ -1,8 +1,8 @@
-### Current status
+## Current status
 
 **This module is still in an experimental phase.**
 
-### Module Description
+## Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the
 RabbitMQ integration. Currently there are 5 available notifications:
@@ -27,83 +27,83 @@ to make the module work. It's well advised to read through
 [*Advanced configuration/Outgoing connections*](../advanced-configuration/outgoing-connections.md)
 section before enabling the module.
 
-### Presence exchange options
+## Presence exchange options
 
-#### `modules.mod_event_pusher.backend.rabbit.presence_exchange.name`
+### `modules.mod_event_pusher.backend.rabbit.presence_exchange.name`
 * **Syntax:** non-empty string
 * **Default:** `"presence"`
 * **Example:** `name = "custom_presence_name"`
 
 Defines RabbitMQ presence exchange name.
 
-#### `modules.mod_event_pusher.backend.rabbit.presence_exchange.type`
+### `modules.mod_event_pusher.backend.rabbit.presence_exchange.type`
 * **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_presence_topic"`
 
 Defines RabbitMQ presence exchange type.
 
-### Chat message options
+## Chat message options
 
-#### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.name`
+### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.name`
 * **Syntax:** non-empty string
 * **Default:** `"chat_msg"`
 * **Example:** `name = "custom_msg_name"`
 
 Defines RabbitMQ chat message exchange name.
 
-#### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.type`
+### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.type`
 * **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_msg_topic"`
 
 Defines RabbitMQ chat message exchange type.
 
-#### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.sent_topic`
+### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.sent_topic`
 * **Syntax:** non-empty string
 * **Default:** `"chat_msg_sent"`
 * **Example:** `sent_topic = "custom_sent_topic"`
 
 Defines RabbitMQ chat message sent topic name.
 
-#### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.recv_topic`
+### `modules.mod_event_pusher.backend.rabbit.chat_msg_exchange.recv_topic`
 * **Syntax:** non-empty string
 * **Default:** `"chat_msg_recv"`
 * **Example:** `recv_topic = "custom_recv_topic"`
 
 Defines RabbitMQ chat message received topic name.
 
-### Group chat message options
+## Group chat message options
 
-#### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.name`
+### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.name`
 * **Syntax:** non-empty string
 * **Default:** `"groupchat_msg"`
 * **Example:** `name = "custom_group_msg_name"`
 
 Defines RabbitMQ group chat message exchange name.
 
-#### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.type`
+### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.type`
 * **Syntax:** non-empty string
 * **Default:** `"topic"`
 * **Example:** `type = "custom_group_msg_topic"`
 
 Defines RabbitMQ group chat message exchange type.
 
-#### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.sent_topic`
+### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.sent_topic`
 * **Syntax:** non-empty string
 * **Default:** `"groupchat_msg_sent"`
 * **Example:** `sent_topic = "custom_group_sent_topic"`
 
 Defines RabbitMQ group chat message sent topic name.
 
-#### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.recv_topic`
+### `modules.mod_event_pusher.backend.rabbit.groupchat_msg_exchange.recv_topic`
 * **Syntax:** non-empty string
 * **Default:** `"groupchat_msg_recv"`
 * **Example:** `recv_topic = "custom_group_recv_topic"`
 
 Defines RabbitMQ group chat message received topic name.
 
-### Example configuration
+## Example configuration
 
 ```toml
 [modules.mod_event_pusher]
@@ -117,10 +117,12 @@ Defines RabbitMQ group chat message received topic name.
   backend.rabbit.groupchat_msg_exchange.recv_topic = "groupchat_msg_recv"
 ```
 
-### JSON Schema examples
+## JSON Schema examples
+
 The different kinds of notifications deliver slightly different messages.
 The messages are delivered in a JSON format.
-#### Presence updates
+
+### Presence updates
 
 The JSON format for an online presence update notification is:
 ```JSON
@@ -138,8 +140,11 @@ For offline presence updates, the `present` boolean value is set to false:
     "present": false
 }
 ```
-#### Sent/received messages
+
+### Sent/received messages
+
 The JSON format for a private message notification is:
+
 ```JSON
 {
     "to_user_id": "bob@localhost/res1",
@@ -147,7 +152,9 @@ The JSON format for a private message notification is:
     "from_user_id": "alice@localhost/res1"
 }
 ```
+
 The notification is similar for group messages. For example for "sent" events:
+
 ```JSON
 {
     "to_user_id": "muc_publish@muc.localhost",
@@ -155,6 +162,7 @@ The notification is similar for group messages. For example for "sent" events:
     "from_user_id": "bob@localhost/res1"
 }
 ```
+
 and for "received" events:
 
 ```JSON
@@ -165,7 +173,7 @@ and for "received" events:
 }
 ```
 
-### Metrics
+## Metrics
 
 The module provides some metrics related to RabbitMQ connections and messages
 as well. Provided metrics:
@@ -187,7 +195,7 @@ as well. Provided metrics:
 > For example a proper metric name would look like:
 > `localhost.backends.mod_event_pusher_rabbit.connections_active`
 
-### Guarantees
+## Guarantees
 
 There are no guarantees. The current implementation uses "best effort" approach
 which means that we don't care if a message is delivered to a RabbitMQ server.
@@ -197,7 +205,7 @@ acknowledgment/didn't sent it at all or there was a channel exception)
 the module just updates appropriate metrics and prints some log messages. Notice
 that there might be situations when a message silently gets lost.
 
-### Type of exchanges
+## Type of exchanges
 
 By default all the exchanges used are of type `topic`. Using topic exchanges
 gives a lot of flexibility when binding queues to such an exchange by using
@@ -213,31 +221,31 @@ If performance is a top priority go for `direct` exchanges. Using this type of
 exchanges is proved to work efficiently with 100k users. Keep in mind it gives
 up flexibility over performance.
 
-### Publisher confirms
+## Publisher confirms
 
 By default publisher confirmations are disabled. However, one-to-one
 confirmations can be enabled (see
-[*RabbitMQ connection setup*](../advanced-configuration/outgoing-connections.md#rabbitmq-connection-setup)
+[*RabbitMQ connection setup*](../advanced-configuration/outgoing-connections.md#rabbitmq-options)
 section). When a worker sends a message to a RabbitMQ server it waits for a
 confirmation from the server before it starts to process next message. This
 approach allows to introduce backpressure on a RabbitMQ server connection cause
 the server can reject/not confirm messages when it's overloaded. On the other
 hand it can cause performance degradation.
 
-### Worker selection strategy
+## Worker selection strategy
 
 The module uses `mongoose_wpool` for managing worker processes  and `best_worker`
 strategy, for choosing a worker, is in use by default. Different strategies
 imply different behaviors of the system.
 
-#### Event messages queuing
+### Event messages queuing
 
 When `available_worker` strategy is in use all the event messages are queued in
 single worker pool manager process state. When different strategy is set e.g
 `best_worker` those messages are placed in worker processes inboxes. Worker
 selection strategy can be set in `rabbit` pool configuration.
 
-#### Event messages ordering
+### Event messages ordering
 
 None of worker selection strategies ensures that user events will be delivered to
 a RabbitMQ server properly ordered in time.

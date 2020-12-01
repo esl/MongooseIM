@@ -25,14 +25,14 @@ with 100 asynchronous workers that will handle all push notification related wor
 
 ## Options
 
-#### `modules.mod_event_pusher_push.backend`
+### `modules.mod_event_pusher_push.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
 Backend to use for storing the registrations.
 
-#### `modules.mod_event_pusher_push.wpool`
+### `modules.mod_event_pusher_push.wpool`
 * **Syntax:** Array of TOML tables. See description.
 * **Default:** `[]`
 * **Example:** `wpool = [workers = 200]`
@@ -40,7 +40,7 @@ Backend to use for storing the registrations.
 List of options that will be passed to the `worker_pool` library that handles all the requests.
 Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
 
-#### `modules.mod_event_pusher_push.plugin_module`
+### `modules.mod_event_pusher_push.plugin_module`
 * **Syntax:** non-empty string
 * **Default:** `"mod_event_pusher_push_plugin_defaults"`
 * **Example:** `plugin_module = "mod_event_pusher_push_plugin_defaults"`
@@ -48,7 +48,7 @@ Please refer to the [Project Site](https://github.com/inaka/worker_pool) for mor
 The module implementing `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
 See the [relevant section](#plugin-module) for more details.
 
-#### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
+### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
 * **Default:** `["pubsub.@HOSTS@"]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`

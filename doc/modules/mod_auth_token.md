@@ -1,4 +1,4 @@
-### Module Description
+## Module Description
 
 This module implements handling of tokens in an OAuth-like authentication scheme. 
 It provides services necessary to:
@@ -13,9 +13,9 @@ It provides services necessary to:
 The module itself does not implement protocol related details - these are implemented in `cyrsasl.erl`.
 Generation of keys necessary to sign binary tokens is delegated to module `mod_keystore.erl`.
 
-### Options
+## Options
 
-#### `modules.mod_auth_token.validity_period`
+### `modules.mod_auth_token.validity_period`
 * **Syntax:** Array of TOML tables with the following keys: `token`, `value`, `unit` and following values: {token = `values: "access", "refresh", "provision"`, value = `non-negative integer`, unit = `values: "days", "hours", "minutes", "seconds"`}.
 * **Default:** `[{token = "access", value = 1, unit = "hours"}, {token = "refresh", value = 25, unit = "days"}]`
 * **Example:** `[{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}]`
@@ -23,11 +23,11 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 Validity periods of access and refresh tokens can be defined independently.
 Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
 
-#### Required keys
+### Required keys
 
 To read more about the keys MongooseIM makes use of, please refer to [mod_keystore](mod_keystore.md) documentation.
 
-### Token types
+## Token types
 
 Three token types are supported:
 
@@ -49,7 +49,7 @@ Three token types are supported:
   Using a provision token to create an account (and inject VCard data) is done similarly to other token types, i.e. by passing it as payload for the X-OAUTH mechanism.
   The XMPP server has no way of tracking and revoking provision tokens, as they come from an outside source.
 
-### Token serialization format
+## Token serialization format
 
 All tokens (access, refresh, provision) are to be exchanged as *Base64 encoded* binary data.
 Serialization format of the token before encoding with Base64 is dependent on its type:
@@ -85,7 +85,7 @@ For example (these tokens are randomly generated, hence field values don't make 
 
 To request access and refresh tokens for the first time a client should send an IQ stanza after they have successfully authenticated for the first time using some other method.
 
-### Token response format
+## Token response format
 
 Requested tokens are being returned by the server wrapped in IQ stanza with the following fields:
 
@@ -107,7 +107,7 @@ Example response (encoded tokens have been truncated in this example):
 
 Once a client has obtained a token, they may start authenticating using the `X-OAUTH` SASL mechanism when reaching the authentication phase of an XMPP connection initiation.
 
-### Login with access or refresh token
+## Login with access or refresh token
 
 In order to log into the XMPP server using a previously requested token, a client should send the following stanza:
 
@@ -130,7 +130,7 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 
 The above response is to be expected unless the refresh token used is expired or there were some problems processing the key on the server side.
 
-### Token revocation using command line tool
+## Token revocation using command line tool
 
 Refresh tokens issued by the server can be used to:
 
@@ -152,8 +152,7 @@ Moreover, an access token still kept on a compromised device can be used to esta
 To alleviate rerequesting tokens by the user, an operator can use `mod_admin` extension allowing to terminate the user's connection.
 Access token validity can't be sidestepped right now.
 
-
-### Example configuration
+## Example configuration
 
 ```toml
 [modules.mod_auth_token]
