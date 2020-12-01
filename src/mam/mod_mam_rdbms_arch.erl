@@ -180,9 +180,10 @@ index_hint_sql(Host) ->
 
 
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
-archive_message(_Result, Host, Params) ->
+archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     try
-        do_archive_message(Host, Params)
+        Env = env_vars(Host, ArcJID),
+        do_archive_message(Host, Params, Env)
     catch Class:Reason:StackTrace ->
               ?LOG_ERROR(#{what => archive_message_failed,
                            host => Host, mam_params => Params,
@@ -190,41 +191,45 @@ archive_message(_Result, Host, Params) ->
             {error, Reason}
     end.
 
-do_archive_message(Host, Params) ->
-    Row = prepare_message(Host, Params),
+do_archive_message(Host, Params, Env) ->
+    Row = prepare_message_with_env(Params, Env),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
-    retract_message(Host, Params).
+    retract_message(Host, Params, Env).
 
 %% Retraction logic
 -spec retract_message(jid:server(), mod_mam:archive_message_params()) -> ok.
+retract_message(Host, #{local_jid := ArcJID} = Params)  ->
+    Env = env_vars(Host, ArcJID),
+    retract_message(Host, Params, Env).
+
+-spec retract_message(jid:server(), mod_mam:archive_message_params(), env_vars()) -> ok.
 retract_message(Host, #{archive_id := UserID,
-                        local_jid := LocJID,
                         remote_jid := RemJID,
                         direction := Dir,
-                        packet := Packet}) ->
-    case mod_mam_utils:get_retract_id(mod_mam, Host, Packet) of
+                        packet := Packet}, Env) ->
+    case get_retract_id_with_env(Packet, Env) of
         none -> ok;
-        OriginIDToRetract -> retract_message(Host, UserID, LocJID, RemJID, OriginIDToRetract, Dir)
+        OriginIDToRetract -> retract_message(Host, UserID, RemJID, OriginIDToRetract, Dir, Env)
     end.
 
-retract_message(Host, UserID, LocJID, RemJID, OriginID, Dir) ->
-    MinBareRemJID = minify_bare_jid(Host, ?MODULE, LocJID, RemJID),
+retract_message(Host, UserID, RemJID, OriginID, Dir, Env) ->
+    MinBareRemJID = jid_to_stored_binary_with_env(jid:to_bare(RemJID), Env),
     BinDir = encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, MinBareRemJID, OriginID, BinDir),
-    make_tombstone(Host, UserID, OriginID, Rows),
+    make_tombstone(Host, UserID, OriginID, Rows, Env),
     ok.
 
-make_tombstone(_Host, UserID, OriginID, []) ->
+make_tombstone(_Host, UserID, OriginID, [], _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => UserID, origin_id => OriginID});
-make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}]) ->
-    Data = mongoose_rdbms:unescape_binary(Host, ResData),
-    Packet = stored_binary_to_packet(Host, ?MODULE, Data),
+make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}], Env) ->
+    Data = unescape_binary_with_env(ResData, Env),
+    Packet = stored_binary_to_packet_with_env(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
-    TombstoneData = packet_to_stored_binary(Host, ?MODULE, Tombstone),
+    TombstoneData = packet_to_stored_binary_with_env(Tombstone, Env),
     execute_make_tombstone(Host, TombstoneData, UserID, MessID).
 
 execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
@@ -253,6 +258,9 @@ db_mappings() ->
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
+    prepare_message_with_env(Params, Env).
+
+prepare_message_with_env(Params, Env) ->
     [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
 
 prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
@@ -314,7 +322,7 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     try
         Env = env_vars(Host, ArcJID),
-        ExtParams = extend_params(Host, Params),
+        ExtParams = extend_params(Params, Env),
         Filter = prepare_filter(ExtParams),
         choose_lookup_messages_strategy(Host, Env, Filter, ExtParams)
     catch _Type:Reason:S ->
@@ -567,15 +575,7 @@ maybe_reverse(desc, List) ->
     lists:reverse(List).
 
 %% ----------------------------------------------------------------------
-%% Optimizations
-
-maybe_minify_bare_jid(_Host, _Module, _LocJID, undefined) ->
-    undefined;
-maybe_minify_bare_jid(Host, Module, LocJID, JID) ->
-    minify_bare_jid(Host, Module, LocJID, JID).
-
-minify_bare_jid(Host, Module, LocJID, JID) ->
-    jid_to_stored_binary(Host, Module, LocJID, jid:to_bare(JID)).
+%% Optimizations and extensible code
 
 make_start_id(Start, Borders) ->
     StartID = maybe_encode_compact_uuid(Start, 0),
@@ -590,9 +590,10 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-jid_to_stored_binary(Host, Module, ArcJID, JID) ->
-    Codec = db_jid_codec(Host, Module),
-    mam_jid:encode(Codec, ArcJID, JID).
+maybe_minify_bare_jid(undefined, _Env) ->
+    undefined;
+maybe_minify_bare_jid(JID, Env) ->
+    jid_to_stored_binary_with_env(jid:to_bare(JID), Env).
 
 jid_to_stored_binary_with_env(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
     mam_jid:encode(Codec, ArcJID, JID).
@@ -600,16 +601,8 @@ jid_to_stored_binary_with_env(JID, #{db_jid_codec := Codec, archive_jid := ArcJI
 stored_binary_to_jid_with_env(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
     mam_jid:decode(Codec, ArcJID, EncodedJID).
 
-packet_to_stored_binary(Host, Module, Packet) ->
-    Codec = db_message_codec(Host, Module),
-    mam_message:encode(Codec, Packet).
-
 packet_to_stored_binary_with_env(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
-
-stored_binary_to_packet(Host, Module, Bin) ->
-    Codec = db_message_codec(Host, Module),
-    mam_message:decode(Codec, Bin).
 
 stored_binary_to_packet_with_env(Bin, #{db_message_codec := Codec}) ->
     mam_message:decode(Codec, Bin).
@@ -618,11 +611,15 @@ unescape_binary_with_env(Bin, #{host := Host}) ->
     %% Funny, rdbms ignores this Host variable
     mongoose_rdbms:unescape_binary(Host, Bin).
 
+get_retract_id_with_env(Packet, #{has_message_retraction := Enabled}) ->
+    mod_mam_utils:get_retract_id(Enabled, Packet).
+
 env_vars(Host, ArcJID) ->
     %% Please, minimize usage of the host field.
     %% It's only for passing into RDBMS.
     #{host => Host,
       archive_jid => ArcJID,
+      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
       full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
       db_message_codec => db_message_codec(Host, ?MODULE)}.
@@ -728,14 +725,14 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
-extend_params(Host, #{owner_jid := ArcJID, rsm := RSM, borders := Borders,
-                      start_ts := Start, end_ts := End, with_jid := WithJID,
-                      search_text := SearchText} = Params) ->
+extend_params(#{rsm := RSM, borders := Borders,
+                start_ts := Start, end_ts := End, with_jid := WithJID,
+                search_text := SearchText} = Params, Env) ->
     Params#{opt_count_type => opt_count_type(RSM),
             norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
             start_id => make_start_id(Start, Borders),
             end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_minify_bare_jid(Host, ?MODULE, ArcJID, WithJID),
+            remote_bare_jid => maybe_minify_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
 jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
