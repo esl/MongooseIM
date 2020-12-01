@@ -158,7 +158,7 @@ encode_direction(outgoing) -> <<"O">>.
 
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
+archive_size(Size, Host, UserID, _ArcJID) when is_integer(Size) ->
     Result = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
     mongoose_rdbms:selected_to_integer(Result).
 
@@ -264,11 +264,9 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params) ->
     try
-        RSM = maps:get(rsm, Params),
-        Params2 = Params#{opt_count_type => opt_count_type(RSM)},
-        Params3 = extend_params(Host, Params2),
-        Filter = prepare_filter(Params3),
-        choose_lookup_messages_strategy(Host, Filter, Params3)
+        ExtParams = extend_params(Host, Params),
+        Filter = prepare_filter(ExtParams),
+        choose_lookup_messages_strategy(Host, Filter, ExtParams)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -291,31 +289,31 @@ opt_count_type(_) ->
 %% - sometimes we want not to count at all
 %%   (for example, our client side counts ones and keep the information)
 choose_lookup_messages_strategy(Host, Filter,
-                                Params = #{owner_jid := UserJID, rsm := RSM,
+                                Params = #{owner_jid := ArcJID, rsm := RSM,
                                            page_size := PageSize}) ->
     case Params of
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
-            lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_simple(Host, ArcJID, RSM, PageSize, Filter);
         %% NOTICE: We always prefer opt_count optimization, if possible.
         %% Clients don't event know what opt_count is.
         #{opt_count_type := last_page} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_last_page(Host, UserJID, PageSize, Filter);
+            lookup_last_page(Host, ArcJID, PageSize, Filter);
         #{opt_count_type := by_offset} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_by_offset(Host, UserJID, RSM, PageSize, Filter);
+            lookup_by_offset(Host, ArcJID, RSM, PageSize, Filter);
         _ ->
             %% Calculate offset and total count first before extracting messages
-            lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter)
+            lookup_messages_regular(Host, ArcJID, RSM, PageSize, Filter)
     end.
 
-lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter) ->
+lookup_messages_simple(Host, ArcJID, RSM, PageSize, Filter) ->
     {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
-    MessageRows = extract_messages(Host, Filter2, Offset, PageSize, Order),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
+    Messages = extract_messages(Host, ArcJID, Filter2, Offset, PageSize, Order),
+    {ok, {undefined, undefined, Messages}}.
 
 rsm_to_filter(RSM, Filter) ->
     case RSM of
@@ -332,34 +330,32 @@ rsm_to_filter(RSM, Filter) ->
 
 %% This function handles case: #rsm_in{direction = before, id = undefined}
 %% Assumes assert_rsm_without_id(RSM)
-lookup_last_page(Host, UserJID, PageSize, Filter) ->
-    MessageRows = extract_messages(Host, Filter, 0, PageSize, desc),
-    Messages = rows_to_uniform_format(Host, UserJID, MessageRows),
-    SelectedCount = length(MessageRows),
+lookup_last_page(Host, ArcJID, PageSize, Filter) ->
+    Messages = extract_messages(Host, ArcJID, Filter, 0, PageSize, desc),
+    Selected = length(Messages),
     Offset =
-        case SelectedCount < PageSize of
+        case Selected < PageSize of
             true ->
                 0; %% Result fits on a single page
             false ->
-                FirstID = row_to_message_id(hd(MessageRows)),
+                FirstID = uniform_to_message_id(hd(Messages)),
                 calc_count(Host, before_id(FirstID, Filter))
         end,
-    {ok, {Offset + SelectedCount, Offset, Messages}}.
+    {ok, {Offset + Selected, Offset, Messages}}.
 
-lookup_by_offset(Host, UserJID, RSM, PageSize, Filter) ->
+lookup_by_offset(Host, ArcJID, RSM, PageSize, Filter) ->
     assert_rsm_without_id(RSM),
     Offset = rsm_to_index(RSM),
-    MessageRows = extract_messages(Host, Filter, Offset, PageSize, asc),
-    Messages = rows_to_uniform_format(Host, UserJID, MessageRows),
-    SelectedCount = length(MessageRows),
+    Messages = extract_messages(Host, ArcJID, Filter, Offset, PageSize, asc),
+    Selected = length(Messages),
     TotalCount =
-        case SelectedCount < PageSize of
+        case Selected < PageSize of
             true ->
-                Offset + SelectedCount; %% Result fits on a single page
+                Offset + Selected; %% Result fits on a single page
             false ->
-                LastID = row_to_message_id(lists:last(MessageRows)),
+                LastID = uniform_to_message_id(lists:last(Messages)),
                 CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
-                Offset + SelectedCount + CountAfterLastID
+                Offset + Selected + CountAfterLastID
         end,
     {ok, {TotalCount, Offset, Messages}}.
 
@@ -370,19 +366,19 @@ rsm_to_index(#rsm_in{direction = undefined, index = Offset})
     when is_integer(Offset) -> Offset;
 rsm_to_index(_) -> 0.
 
-lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter) ->
+lookup_messages_regular(Host, ArcJID, RSM, PageSize, Filter) ->
     TotalCount = calc_count(Host, Filter),
     Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows =
+    Messages =
         case RSM of
             #rsm_in{direction = aft, id = ID} ->
-                extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, asc);
+                extract_messages(Host, ArcJID, from_id(ID, Filter), 0, PageSize + 1, asc);
             #rsm_in{direction = before, id = ID} when ID =/= undefined ->
-                extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, desc);
+                extract_messages(Host, ArcJID, to_id(ID, Filter), 0, PageSize + 1, desc);
             _ ->
-                extract_messages(Host, Filter, Offset, PageSize, asc)
+                extract_messages(Host, ArcJID, Filter, Offset, PageSize, asc)
         end,
-    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
+    Result = {TotalCount, Offset, Messages},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 -spec after_id(ID :: mod_mam:message_id(), Filter :: filter()) -> filter().
@@ -404,18 +400,17 @@ from_id(ID, Filter) ->
 to_id(ID, Filter) ->
     [{le, id, ID}|Filter].
 
-rows_to_uniform_format(Host, UserJID, MessageRows) ->
-    [do_row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
+rows_to_uniform_format(Host, ArcJID, MessageRows) ->
+    [row_to_uniform_format(Host, ArcJID, Row) || Row <- MessageRows].
 
-do_row_to_uniform_format(Host, UserJID, {BMessID, BSrcJID, SDataRaw}) ->
+row_to_uniform_format(Host, ArcJID, {BMessID, BSrcJID, SDataRaw}) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = stored_binary_to_jid(Host, UserJID, BSrcJID),
+    SrcJID = stored_binary_to_jid(Host, ArcJID, BSrcJID),
     Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 
-row_to_message_id({BMessID, _, _}) ->
-    mongoose_rdbms:result_to_integer(BMessID).
+uniform_to_message_id({MessID, _, _}) -> MessID.
 
 
 %% Removals
@@ -423,7 +418,7 @@ row_to_message_id({BMessID, _, _}) ->
 -spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> mongoose_acc:t().
-remove_archive(Acc, Host, UserID, _UserJID) ->
+remove_archive(Acc, Host, UserID, _ArcJID) ->
     remove_archive(Host, UserID),
     Acc.
 
@@ -433,30 +428,29 @@ remove_archive(Host, UserID) ->
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
 %% Columns are `["id", "from_jid", "message"]'.
--type msg() :: {binary(), jid:literal_jid(), binary()}.
--spec extract_messages(Host :: jid:server(),
+-spec extract_messages(Host :: jid:server(), ArcJID :: jid:jid(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
-                       Order :: asc | desc) -> [msg()].
-extract_messages(_Host, _Filter, _Offset, 0, _) ->
+                       Order :: asc | desc) -> [mod_mam:message_row()].
+extract_messages(_Host, _ArcJID, _Filter, _Offset, 0, _) ->
     [];
-extract_messages(Host, Filter, Offset, Max, Order) ->
-    {selected, MessageRows} =
-        do_extract_messages(Host, Filter, Offset, Max, Order),
+extract_messages(Host, ArcJID, Filter, Offset, Max, Order) ->
+    {selected, MessageRows} = extract_rows(Host, Filter, Offset, Max, Order),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => Offset, max => Max,
                  host => Host, message_rows => MessageRows}),
-    maybe_reverse(Order, MessageRows).
+    Rows = maybe_reverse(Order, MessageRows),
+    rows_to_uniform_format(Host, ArcJID, Rows).
 
-do_extract_messages(Host, Filters, Offset, Max, Order) ->
+extract_rows(Host, Filters, Offset, Max, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
-    do_lookup_query(lookup, Host, Filters2, Order).
+    lookup_query(lookup, Host, Filters2, Order).
 
-do_lookup_query(QueryType, Host, Filters, Order) ->
+lookup_query(QueryType, Host, Filters, Order) ->
     StmtName = filters_to_statement_name(QueryType, Filters, Order),
     case mongoose_rdbms:prepared(StmtName) of
         false ->
             %% Create a new type of a query
-            SQL = lookup_sql_binary(QueryType, Filters, Order),
+            SQL = lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
             Columns = filters_to_columns(Filters),
             mongoose_rdbms:prepare(StmtName, mam_message, Columns, SQL);
         true ->
@@ -468,13 +462,13 @@ do_lookup_query(QueryType, Host, Filters, Order) ->
             {selected, Rs};
         Error ->
             What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Filters, Order),
+                     sql_query => lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
                      reason => Error, host => Host},
             ?LOG_ERROR(What),
             error(What)
     catch Class:Error:Stacktrace ->
             What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Filters, Order),
+                     sql_query => lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
                      class => Class, stacktrace => Stacktrace,
                      reason => Error, host => Host},
             ?LOG_ERROR(What),
@@ -509,26 +503,26 @@ calc_before(Host, Filter, ID) ->
 -spec calc_count(Host :: jid:server(),
                  Filter :: filter()) -> non_neg_integer().
 calc_count(Host, Filter) ->
-    Result = do_lookup_query(count, Host, Filter, unordered),
+    Result = lookup_query(count, Host, Filter, unordered),
     mongoose_rdbms:selected_to_integer(Result).
 
 -spec calc_offset(Host :: jid:server(),
                   Filter :: filter(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
-  when is_integer(Index) ->
-    Index;
-%% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
-    max(0, TC - PS);
-calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
-  when is_integer(ID) ->
-    max(0, calc_before(Host, F, ID) - PS);
-calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
-  when is_integer(ID) ->
-    calc_index(Host, F, ID);
-calc_offset(_LS, _F, _PS, _TC, _RSM) ->
-    0.
+calc_offset(Host, Filter, PageSize, TotalCount, RSM) ->
+  case RSM of
+      #rsm_in{direction = undefined, index = Index} when is_integer(Index) ->
+          Index;
+      #rsm_in{direction = before, id = undefined} ->
+          %% Requesting the Last Page in a Result Set
+          max(0, TotalCount - PageSize);
+      #rsm_in{direction = before, id = ID} when is_integer(ID) ->
+          max(0, calc_before(Host, Filter, ID) - PageSize);
+      #rsm_in{direction = aft, id = ID} when is_integer(ID) ->
+          calc_index(Host, Filter, ID);
+      _ ->
+          0
+  end.
 
 maybe_reverse(asc, List) ->
     List;
@@ -538,6 +532,9 @@ maybe_reverse(desc, List) ->
 extract_gdpr_messages(Host, ArchiveID) ->
     mod_mam_utils:success_sql_execute(Host, mam_extract_gdpr_messages, [ArchiveID]).
 
+%% ----------------------------------------------------------------------
+%% Optimizations
+
 maybe_minify_bare_jid(_Host, _LocJID, undefined) ->
     undefined;
 maybe_minify_bare_jid(Host, LocJID, JID) ->
@@ -546,21 +543,26 @@ maybe_minify_bare_jid(Host, LocJID, JID) ->
 minify_bare_jid(Host, LocJID, JID) ->
     jid_to_stored_binary(Host, LocJID, jid:to_bare(JID)).
 
+make_start_id(Start, Borders) ->
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    apply_start_border(Borders, StartID).
+
+make_end_id(End, Borders) ->
+    EndID = maybe_encode_compact_uuid(End, 255),
+    apply_end_border(Borders, EndID).
+
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-%% ----------------------------------------------------------------------
-%% Optimizations
-
-jid_to_stored_binary(Host, UserJID, JID) ->
+jid_to_stored_binary(Host, ArcJID, JID) ->
     Module = db_jid_codec(Host),
-    mam_jid:encode(Module, UserJID, JID).
+    mam_jid:encode(Module, ArcJID, JID).
 
-stored_binary_to_jid(Host, UserJID, BSrcJID) ->
+stored_binary_to_jid(Host, ArcJID, BSrcJID) ->
     Module = db_jid_codec(Host),
-    mam_jid:decode(Module, UserJID, BSrcJID).
+    mam_jid:decode(Module, ArcJID, BSrcJID).
 
 packet_to_stored_binary(Host, Packet) ->
     Module = db_message_codec(Host),
@@ -578,32 +580,29 @@ db_jid_codec(Host) ->
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
 
-%gdpr helpers
-gdpr_decode_jid(Host, UserJID, BSrcJID) ->
-    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
-    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
+%% GDPR helpers
+gdpr_decode_jid(Host, ArcJID, BSrcJID) ->
+    JID = stored_binary_to_jid(Host, ArcJID, BSrcJID),
     jid:to_binary(JID).
 
 gdpr_decode_packet(Host, SDataRaw) ->
-    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
-                                            mam_message_compressed_eterm),
-    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-    Message = mam_message:decode(Codec, Data),
+    Bin = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = stored_binary_to_packet(Host, Bin),
     exml:to_binary(Message).
 
 %% ----------------------------------------------------------------------
 %% Prepared queries helpers
 
-lookup_sql_binary(QueryType, Filters, Order) ->
-    iolist_to_binary(lookup_sql(QueryType, Filters, Order)).
+lookup_sql_binary(QueryType, Filters, Order, IndexHintSQL) ->
+    iolist_to_binary(lookup_sql(QueryType, Filters, Order, IndexHintSQL)).
 
-lookup_sql(QueryType, Filters, Order) ->
+lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
     LimitSQL = limit_sql(QueryType),
     OrderSQL = order_to_sql(Order),
     FilterSQL = filters_to_sql(Filters),
     ["SELECT ", columns_sql(QueryType), " "
      "FROM mam_message ",
-     FilterSQL, OrderSQL, LimitSQL].
+     IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
 
 columns_sql(lookup) -> "id, from_jid, message";
 columns_sql(count) -> "COUNT(*)".
@@ -684,22 +683,15 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
-extend_params(Host, #{owner_jid := UserJID, borders := Borders,
+extend_params(Host, #{owner_jid := ArcJID, rsm := RSM, borders := Borders,
                       start_ts := Start, end_ts := End, with_jid := WithJID,
                       search_text := SearchText} = Params) ->
-    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
+    Params#{opt_count_type => opt_count_type(RSM),
+            norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
             start_id => make_start_id(Start, Borders),
             end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_minify_bare_jid(Host, UserJID, WithJID),
+            remote_bare_jid => maybe_minify_bare_jid(Host, ArcJID, WithJID),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
-
-make_start_id(Start, Borders) ->
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    apply_start_border(Borders, StartID).
-
-make_end_id(End, Borders) ->
-    EndID = maybe_encode_compact_uuid(End, 255),
-    apply_end_border(Borders, EndID).
 
 jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
     Res;
@@ -726,7 +718,7 @@ field_to_values(#lookup_field{param = Param, value_maker = ValueMaker, required 
         {ok, Value} when Value =/= undefined ->
             make_value(ValueMaker, Value);
         Other when Required ->
-            error(#{reason => missing_required_field, field => Field, params => Params});
+            error(#{reason => missing_required_field, field => Field, params => Params, result => Other});
         _ ->
             []
     end.
