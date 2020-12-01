@@ -185,7 +185,7 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     end.
 
 do_archive_message(Host, Params, Env) ->
-    Row = prepare_message_with_env(Params, Env),
+    Row = prepare_message(Params, Env),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
     retract_message(Host, Params, Env).
 
@@ -200,13 +200,13 @@ retract_message(Host, #{archive_id := UserID,
                         remote_jid := RemJID,
                         direction := Dir,
                         packet := Packet}, Env) ->
-    case get_retract_id_with_env(Packet, Env) of
+    case get_retract_id(Packet, Env) of
         none -> ok;
         OriginIDToRetract -> retract_message(Host, UserID, RemJID, OriginIDToRetract, Dir, Env)
     end.
 
 retract_message(Host, UserID, RemJID, OriginID, Dir, Env) ->
-    MinBareRemJID = jid_to_stored_binary_with_env(jid:to_bare(RemJID), Env),
+    MinBareRemJID = encode_jid(jid:to_bare(RemJID), Env),
     BinDir = encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, MinBareRemJID, OriginID, BinDir),
@@ -218,11 +218,11 @@ make_tombstone(_Host, UserID, OriginID, [], _Env) ->
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => UserID, origin_id => OriginID});
 make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}], Env) ->
-    Data = unescape_binary_with_env(ResData, Env),
-    Packet = stored_binary_to_packet_with_env(Data, Env),
+    Data = unescape_binary(ResData, Env),
+    Packet = decode_packet(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
-    TombstoneData = packet_to_stored_binary_with_env(Tombstone, Env),
+    TombstoneData = encode_packet(Tombstone, Env),
     execute_make_tombstone(Host, TombstoneData, UserID, MessID).
 
 execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
@@ -251,9 +251,9 @@ db_mappings() ->
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
-    prepare_message_with_env(Params, Env).
+    prepare_message(Params, Env).
 
-prepare_message_with_env(Params, Env) ->
+prepare_message(Params, Env) ->
     [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
 
 prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
@@ -269,13 +269,13 @@ encode_value(maybe_binary, Value, _Env) when is_binary(Value) ->
 encode_value(direction, Value, _Env) ->
     encode_direction(Value);
 encode_value(bare_jid, Value, Env) ->
-    jid_to_stored_binary_with_env(jid:to_bare(Value), Env);
+    encode_jid(jid:to_bare(Value), Env);
 encode_value(jid, Value, Env) ->
-    jid_to_stored_binary_with_env(Value, Env);
+    encode_jid(Value, Env);
 encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
     Res;
 encode_value(xml, Value, Env) ->
-    packet_to_stored_binary_with_env(Value, Env);
+    encode_packet(Value, Env);
 encode_value(search, Value, #{full_text_search := SearchEnabled}) ->
     mod_mam_utils:packet_to_search_body(SearchEnabled, Value).
 
@@ -455,16 +455,13 @@ rows_to_uniform_format(MessageRows, Env) ->
 
 row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = stored_binary_to_jid_with_env(BSrcJID, Env),
-    Data = unescape_binary_with_env(SDataRaw, Env),
-    Packet = stored_binary_to_packet_with_env(Data, Env),
+    SrcJID = decode_jid(BSrcJID, Env),
+    Data = unescape_binary(SDataRaw, Env),
+    Packet = decode_packet(Data, Env),
     {MessID, SrcJID, Packet}.
 
 uniform_to_message_id({MessID, _, _}) -> MessID.
 
-%% @doc Each record is a tuple of form
-%% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
-%% Columns are `["id", "from_jid", "message"]'.
 -spec extract_messages(Host :: jid:server(), Env :: env_vars(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
                        Order :: asc | desc) -> [mod_mam:message_row()].
@@ -580,25 +577,31 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 maybe_minify_bare_jid(undefined, _Env) ->
     undefined;
 maybe_minify_bare_jid(JID, Env) ->
-    jid_to_stored_binary_with_env(jid:to_bare(JID), Env).
+    encode_jid(jid:to_bare(JID), Env).
 
-jid_to_stored_binary_with_env(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
+-spec encode_jid(jid:jid(), env_vars()) -> binary().
+encode_jid(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
     mam_jid:encode(Codec, ArcJID, JID).
 
-stored_binary_to_jid_with_env(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
+-spec decode_jid(binary(), env_vars()) -> jid:jid().
+decode_jid(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
     mam_jid:decode(Codec, ArcJID, EncodedJID).
 
-packet_to_stored_binary_with_env(Packet, #{db_message_codec := Codec}) ->
+-spec encode_packet(exml:element(), env_vars()) -> binary().
+encode_packet(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
 
-stored_binary_to_packet_with_env(Bin, #{db_message_codec := Codec}) ->
+-spec encode_packet(binary(), env_vars()) -> exml:element().
+decode_packet(Bin, #{db_message_codec := Codec}) ->
     mam_message:decode(Codec, Bin).
 
-unescape_binary_with_env(Bin, #{host := Host}) ->
+-spec unescape_binary(binary(), env_vars()) -> binary().
+unescape_binary(Bin, #{host := Host}) ->
     %% Funny, rdbms ignores this Host variable
     mongoose_rdbms:unescape_binary(Host, Bin).
 
-get_retract_id_with_env(Packet, #{has_message_retraction := Enabled}) ->
+-spec get_retract_id(exml:element(), env_vars()) -> none | binary().
+get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
 
 env_vars(Host, ArcJID) ->
