@@ -59,6 +59,7 @@
     normalize_search_text/1,
     normalize_search_text/2,
     packet_to_search_body/3,
+    packet_to_search_body/2,
     has_full_text_search/2
 ]).
 
@@ -761,13 +762,16 @@ normalize_search_text(Text, WordSeparator) ->
 -spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: jid:server(),
                             Packet :: exml:element()) -> binary().
 packet_to_search_body(Module, Host, Packet) ->
-    case has_full_text_search(Module, Host) of
-        true ->
-            BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-            mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
-        false ->
-            <<>>
-    end.
+    SearchEnabled = has_full_text_search(Module, Host),
+    packet_to_search_body(SearchEnabled, Packet).
+
+-spec packet_to_search_body(Enabled :: boolean(),
+                            Packet :: exml:element()) -> binary().
+packet_to_search_body(true, Packet) ->
+    BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+    mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
+packet_to_search_body(false, Packet) ->
+    <<>>.
 
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->

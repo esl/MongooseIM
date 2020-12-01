@@ -234,46 +234,46 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
                                           [TombstoneData, UserID, MessID]).
 
 %% Insert logic
-
--record(db_mapping, {column, param, format, module}).
+-record(db_mapping, {column, param, format}).
 
 db_mappings() ->
     [#db_mapping{column = id, param = message_id, format = int},
      #db_mapping{column = user_id, param = archive_id, format = int},
-     #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid, module = ?MODULE},
+     #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid},
      #db_mapping{column = remote_resource, param = remote_jid, format = jid_resource},
      #db_mapping{column = direction, param = direction, format = direction},
-     #db_mapping{column = from_jid, param = source_jid, format = jid, module = ?MODULE},
+     #db_mapping{column = from_jid, param = source_jid, format = jid},
      #db_mapping{column = origin_id, param = origin_id, format = maybe_binary},
-     #db_mapping{column = message, param = packet, format = xml, module = ?MODULE},
-     #db_mapping{column = search_body, param = packet, format = search, module = mod_mam}].
+     #db_mapping{column = message, param = packet, format = xml},
+     #db_mapping{column = search_body, param = packet, format = search}].
 
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params) ->
-    [prepare_value(Host, Params, Mapping) || Mapping <- db_mappings()].
+    Env = env_vars(Host),
+    [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
 
-prepare_value(Host, Params, Mapping = #db_mapping{param = Param, format = Format}) ->
+prepare_value(Params, Env, Mapping = #db_mapping{param = Param, format = Format}) ->
     Value = maps:get(Param, Params),
-    encode_value(Format, Value, Host, Params, Mapping).
+    encode_value(Format, Value, Params, Env).
 
-encode_value(int, Value, _Host, _Params, _Mapping) when is_integer(Value) ->
+encode_value(int, Value, _Params, _Env) when is_integer(Value) ->
     Value;
-encode_value(maybe_binary, none, _Host, _Params, _Mapping) ->
+encode_value(maybe_binary, none, _Params, _Env) ->
     null;
-encode_value(maybe_binary, Value, _Host, _Params, _Mapping) when is_binary(Value) ->
+encode_value(maybe_binary, Value, _Params, _Env) when is_binary(Value) ->
     Value;
-encode_value(direction, Value, _Host, _Params, _Mapping) ->
+encode_value(direction, Value, _Params, _Env) ->
     encode_direction(Value);
-encode_value(bare_jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module = Module}) ->
-    jid_to_stored_binary(Host, Module, LocJID, jid:to_bare(Value));
-encode_value(jid, Value, Host, #{local_jid := LocJID}, #db_mapping{module = Module}) ->
-    jid_to_stored_binary(Host, Module, LocJID, Value);
-encode_value(jid_resource, #jid{lresource = Res}, _Host, _Params, _Mapping) ->
+encode_value(bare_jid, Value, #{local_jid := LocJID}, #{db_jid_codec := Codec}) ->
+    jid_to_stored_binary_with_codec(Codec, LocJID, jid:to_bare(Value));
+encode_value(jid, Value, #{local_jid := LocJID}, #{db_jid_codec := Codec}) ->
+    jid_to_stored_binary_with_codec(Codec, LocJID, Value);
+encode_value(jid_resource, #jid{lresource = Res}, _Params, _Env) ->
     Res;
-encode_value(xml, Value, Host, _Params, #db_mapping{module = Module}) ->
-    packet_to_stored_binary(Host, Module, Value);
-encode_value(search, Value, Host, _Params, #db_mapping{module = Module}) ->
-    mod_mam_utils:packet_to_search_body(Module, Host, Value).
+encode_value(xml, Value, _Params, #{db_message_codec := Codec}) ->
+    packet_to_stored_binary_with_codec(Codec, Value);
+encode_value(search, Value, _Params, #{full_text_search := SearchEnabled}) ->
+    mod_mam_utils:packet_to_search_body(SearchEnabled, Value).
 
 column_names() ->
      [Column || #db_mapping{column = Column} <- db_mappings()].
@@ -589,6 +589,9 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 
 jid_to_stored_binary(Host, Module, ArcJID, JID) ->
     Codec = db_jid_codec(Host, Module),
+    jid_to_stored_binary_with_codec(Codec, ArcJID, JID).
+
+jid_to_stored_binary_with_codec(Codec, ArcJID, JID) ->
     mam_jid:encode(Codec, ArcJID, JID).
 
 stored_binary_to_jid(Host, Module, ArcJID, BSrcJID) ->
@@ -599,9 +602,17 @@ packet_to_stored_binary(Host, Module, Packet) ->
     Codec = db_message_codec(Host, Module),
     mam_message:encode(Codec, Packet).
 
+packet_to_stored_binary_with_codec(Codec, Packet) ->
+    mam_message:encode(Codec, Packet).
+
 stored_binary_to_packet(Host, Module, Bin) ->
     Codec = db_message_codec(Host, Module),
     mam_message:decode(Codec, Bin).
+
+env_vars(Host) ->
+    #{full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
+      db_jid_codec => db_jid_codec(Host, ?MODULE),
+      db_message_codec => db_message_codec(Host, ?MODULE)}.
 
 -spec db_jid_codec(jid:server(), module()) -> module().
 db_jid_codec(Host, Module) ->
