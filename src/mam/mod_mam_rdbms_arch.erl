@@ -66,6 +66,50 @@
 
 -type env_vars() :: map().
 
+-type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
+
+-record(db_mapping, {column, param, format}).
+-record(lookup_field, {op, column, param, required, value_maker}).
+
+db_mappings() ->
+    [#db_mapping{column = id, param = message_id, format = int},
+     #db_mapping{column = user_id, param = archive_id, format = int},
+     #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid},
+     #db_mapping{column = remote_resource, param = remote_jid, format = jid_resource},
+     #db_mapping{column = direction, param = direction, format = direction},
+     #db_mapping{column = from_jid, param = source_jid, format = jid},
+     #db_mapping{column = origin_id, param = origin_id, format = maybe_string},
+     #db_mapping{column = message, param = packet, format = xml},
+     #db_mapping{column = search_body, param = packet, format = search}].
+
+lookup_fields() ->
+    [#lookup_field{op = equal, column = user_id, param = archive_id, required = true},
+     #lookup_field{op = ge, column = id, param = start_id},
+     #lookup_field{op = le, column = id, param = end_id},
+     #lookup_field{op = equal, column = remote_bare_jid, param = remote_bare_jid},
+     #lookup_field{op = equal, column = remote_resource, param = remote_resource},
+     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+
+env_vars(Host, ArcJID) ->
+    %% Please, minimize the usage of the host field.
+    %% It's only for passing into RDBMS.
+    #{host => Host,
+      archive_jid => ArcJID,
+      lookup_fun => fun lookup_query/4,
+      row_to_uniform_format_fun => fun row_to_uniform_format/2,
+      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
+      full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
+      db_jid_codec => db_jid_codec(Host, ?MODULE),
+      db_message_codec => db_message_codec(Host, ?MODULE)}.
+
+extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
+                       borders := Borders, search_text := SearchText} = Params, Env) ->
+    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
+            start_id => make_start_id(Start, Borders),
+            end_id => make_end_id(End, Borders),
+            remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
+            remote_resource => jid_to_non_empty_resource(WithJID)}.
+
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
@@ -91,7 +135,6 @@ start(Host, Opts) ->
                               " AND origin_id = ? AND direction = ?"
                               " ORDER BY id DESC ", LimitSQL/binary>>]),
     ok.
-
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
@@ -179,20 +222,18 @@ retract_message(Host, #{local_jid := ArcJID} = Params)  ->
     retract_message(Host, Params, Env).
 
 -spec retract_message(jid:server(), mod_mam:archive_message_params(), env_vars()) -> ok.
-retract_message(Host, #{archive_id := UserID,
-                        remote_jid := RemJID,
-                        direction := Dir,
-                        packet := Packet}, Env) ->
+retract_message(Host, #{archive_id := UserID, remote_jid := RemJID,
+                        direction := Dir, packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
-        OriginIDToRetract -> retract_message(Host, UserID, RemJID, OriginIDToRetract, Dir, Env)
+        OriginID -> retract_message(Host, UserID, RemJID, OriginID, Dir, Env)
     end.
 
 retract_message(Host, UserID, RemJID, OriginID, Dir, Env) ->
-    MinBareRemJID = encode_jid(jid:to_bare(RemJID), Env),
+    BinBareRemJID = encode_jid(jid:to_bare(RemJID), Env),
     BinDir = encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
-                         Host, UserID, MinBareRemJID, OriginID, BinDir),
+                         Host, UserID, BinBareRemJID, OriginID, BinDir),
     make_tombstone(Host, UserID, OriginID, Rows, Env),
     ok.
 
@@ -218,18 +259,6 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
                                           [TombstoneData, UserID, MessID]).
 
 %% Insert logic
--record(db_mapping, {column, param, format}).
-
-db_mappings() ->
-    [#db_mapping{column = id, param = message_id, format = int},
-     #db_mapping{column = user_id, param = archive_id, format = int},
-     #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid},
-     #db_mapping{column = remote_resource, param = remote_jid, format = jid_resource},
-     #db_mapping{column = direction, param = direction, format = direction},
-     #db_mapping{column = from_jid, param = source_jid, format = jid},
-     #db_mapping{column = origin_id, param = origin_id, format = maybe_binary},
-     #db_mapping{column = message, param = packet, format = xml},
-     #db_mapping{column = search_body, param = packet, format = search}].
 
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
@@ -243,32 +272,13 @@ prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
     Value = maps:get(Param, Params),
     encode_value(Format, Value, Env).
 
-encode_value(int, Value, _Env) when is_integer(Value) ->
-    Value;
-encode_value(maybe_binary, none, _Env) ->
-    null;
-encode_value(maybe_binary, Value, _Env) when is_binary(Value) ->
-    Value;
-encode_value(direction, Value, _Env) ->
-    encode_direction(Value);
-encode_value(bare_jid, Value, Env) ->
-    encode_jid(jid:to_bare(Value), Env);
-encode_value(jid, Value, Env) ->
-    encode_jid(Value, Env);
-encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
-    Res;
-encode_value(xml, Value, Env) ->
-    encode_packet(Value, Env);
-encode_value(search, Value, Env) ->
-    encode_search_body(Value, Env).
-
-column_names() ->
-     [Column || #db_mapping{column = Column} <- db_mappings()].
+column_names(Mappings) ->
+     [Column || #db_mapping{column = Column} <- Mappings].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
     Table = mam_message,
-    Fields = column_names(),
+    Fields = column_names(db_mappings()),
     {Query, Fields2} = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
@@ -296,14 +306,10 @@ extract_gdpr_messages(Env, ArchiveID) ->
 lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
-    try
-        Env = env_vars(Host, ArcJID),
-        ExtParams = extend_params(Params, Env),
-        Filter = prepare_filter(ExtParams),
-        mam_lookup:lookup(Env, Filter, ExtParams)
-    catch _Type:Reason:S ->
-        {error, {Reason, {stacktrace, S}}}
-    end.
+    Env = env_vars(Host, ArcJID),
+    ExtParams = extend_lookup_params(Params, Env),
+    Filter = prepare_filter(ExtParams),
+    mam_lookup:lookup(Env, Filter, ExtParams).
 
 row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
@@ -346,6 +352,26 @@ lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
 
+-spec encode_value(value_type(), term(), env_vars()) -> term().
+encode_value(int, Value, _Env) when is_integer(Value) ->
+    Value;
+encode_value(maybe_string, none, _Env) ->
+    null;
+encode_value(maybe_string, Value, _Env) when is_binary(Value) ->
+    Value;
+encode_value(direction, Value, _Env) ->
+    encode_direction(Value);
+encode_value(bare_jid, Value, Env) ->
+    encode_jid(jid:to_bare(Value), Env);
+encode_value(jid, Value, Env) ->
+    encode_jid(Value, Env);
+encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
+    Res;
+encode_value(xml, Value, Env) ->
+    encode_packet(Value, Env);
+encode_value(search, Value, Env) ->
+    encode_search_body(Value, Env).
+
 encode_direction(incoming) -> <<"I">>;
 encode_direction(outgoing) -> <<"O">>.
 
@@ -361,6 +387,10 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
+
+jid_to_non_empty_resource(undefined) -> undefined;
+jid_to_non_empty_resource(#jid{lresource = <<>>}) -> undefined;
+jid_to_non_empty_resource(#jid{lresource = Res}) -> Res.
 
 maybe_encode_bare_jid(undefined, _Env) -> undefined;
 maybe_encode_bare_jid(JID, Env) -> encode_jid(jid:to_bare(JID), Env).
@@ -394,18 +424,6 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 encode_search_body(Packet, #{full_text_search := SearchEnabled}) ->
     mod_mam_utils:packet_to_search_body(SearchEnabled, Packet).
 
-env_vars(Host, ArcJID) ->
-    %% Please, minimize usage of the host field.
-    %% It's only for passing into RDBMS.
-    #{host => Host,
-      archive_jid => ArcJID,
-      lookup_fun => fun lookup_query/4,
-      row_to_uniform_format_fun => fun row_to_uniform_format/2,
-      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
-      full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
-      db_jid_codec => db_jid_codec(Host, ?MODULE),
-      db_message_codec => db_message_codec(Host, ?MODULE)}.
-
 -spec db_jid_codec(jid:server(), module()) -> module().
 db_jid_codec(Host, Module) ->
     gen_mod:get_module_opt(Host, Module, db_jid_format, mam_jid_mini).
@@ -427,14 +445,12 @@ lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
     ["SELECT ", columns_sql(QueryType), " FROM mam_message ",
      IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
 
-columns_sql(lookup) -> "id, from_jid, message";
-columns_sql(count) -> "COUNT(*)".
-
 %% Caller should provide both limit and offset fields in the correct order.
 %% See limit_offset_filters.
 %% No limits option is fine too (it is used with count and GDPR).
 limit_sql(Filters) ->
-    case lists:keymember(limit, 1, Filters) of %% and offset
+    HasLimit = lists:keymember(limit, 1, Filters), %% and offset
+    case HasLimit of
         true -> rdbms_queries:limit_offset_sql();
         false -> ""
     end.
@@ -454,9 +470,12 @@ filters_to_args(Filters) ->
 
 filters_to_statement_name(QueryType, Filters, Order) ->
     QueryId = query_type_to_id(QueryType),
-    Ids = [type_to_id(Type) ++ column_to_id(Col) || {Type, Col, _Val} <- Filters],
+    Ids = [op_to_id(Op) ++ column_to_id(Col) || {Op, Col, _Val} <- Filters],
     OrderId = order_type_to_id(Order),
     list_to_atom("mam_" ++ QueryId ++ "_" ++ OrderId ++ "_" ++ lists:append(Ids)).
+
+columns_sql(lookup) -> "id, from_jid, message";
+columns_sql(count) -> "COUNT(*)".
 
 query_type_to_id(lookup) -> "lookup";
 query_type_to_id(count) -> "count".
@@ -468,15 +487,6 @@ order_type_to_id(unordered) -> "u".
 order_to_sql(asc) -> " ORDER BY id ";
 order_to_sql(desc) -> " ORDER BY id DESC ";
 order_to_sql(unordered) -> " ".
-
-type_to_id(le)      -> "le"; %% lower or equal
-type_to_id(ge)      -> "ge"; %% greater or equal
-type_to_id(equal)   -> "eq";
-type_to_id(lower)   -> "lt"; %% lower than
-type_to_id(greater) -> "gt"; %% greater than
-type_to_id(like)    -> "lk";
-type_to_id(limit)   -> "li";
-type_to_id(offset)  -> "of".
 
 column_to_id(id) -> "i";
 column_to_id(user_id) -> "u";
@@ -498,35 +508,23 @@ skip_undefined(List) -> [X || X <- List, X =/= undefined].
 
 filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
 
-filter_to_sql(_Column, limit)   -> undefined;
-filter_to_sql(_Column, offset)  -> undefined;
+op_to_id(equal)   -> "eq";
+op_to_id(lower)   -> "lt"; %% lower than
+op_to_id(greater) -> "gt"; %% greater than
+op_to_id(le)      -> "le"; %% lower or equal
+op_to_id(ge)      -> "ge"; %% greater or equal
+op_to_id(like)    -> "lk";
+op_to_id(limit)   -> "li";
+op_to_id(offset)  -> "of".
+
+filter_to_sql(Column, equal)    -> Column ++ " = ?";
 filter_to_sql(Column, lower)    -> Column ++ " < ?";
 filter_to_sql(Column, greater)  -> Column ++ " > ?";
 filter_to_sql(Column, le)       -> Column ++ " <= ?";
 filter_to_sql(Column, ge)       -> Column ++ " >= ?";
-filter_to_sql(Column, equal)    -> Column ++ " = ?";
-filter_to_sql(Column, like)     -> Column ++ " LIKE ?".
-
-extend_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
-                borders := Borders, search_text := SearchText} = Params, Env) ->
-    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
-            start_id => make_start_id(Start, Borders),
-            end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
-            remote_resource => jid_to_non_empty_resource(WithJID)}.
-
-jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 -> Res;
-jid_to_non_empty_resource(_) -> undefined.
-
--record(lookup_field, {op, column, param, required, value_maker}).
-
-lookup_fields() ->
-    [#lookup_field{op = equal, column = user_id, param = archive_id, required = true},
-     #lookup_field{op = ge, column = id, param = start_id},
-     #lookup_field{op = le, column = id, param = end_id},
-     #lookup_field{op = equal, column = remote_bare_jid, param = remote_bare_jid},
-     #lookup_field{op = equal, column = remote_resource, param = remote_resource},
-     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+filter_to_sql(Column, like)     -> Column ++ " LIKE ?";
+filter_to_sql(_Column, limit)   -> undefined;
+filter_to_sql(_Column, offset)  -> undefined.
 
 prepare_filter(Params) ->
     [new_filter(Field, Value)
@@ -544,7 +542,7 @@ field_to_values(#lookup_field{param = Param, value_maker = ValueMaker, required 
     end.
 
 make_value(search_words, Value) -> search_words(Value);
-make_value(undefined, Value) -> [Value].
+make_value(undefined, Value) -> [Value]. %% Default value_maker
 
 new_filter(#lookup_field{op = Op, column = Column}, Value) ->
     {Op, Column, Value}.
@@ -552,6 +550,7 @@ new_filter(#lookup_field{op = Op, column = Column}, Value) ->
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
 %% Order of words does not matter (they can go in any order).
+-spec search_words(binary()) -> list(binary()).
 search_words(SearchText) ->
     Words = binary:split(SearchText, <<"%">>, [global]),
     [<<"%", Word/binary, "%">> || Word <- lists:sublist(Words, ?SEARCH_WORDS_LIMIT)].
