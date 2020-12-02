@@ -33,15 +33,6 @@
 %% ----------------------------------------------------------------------
 %% Imports
 
-%% UID
--import(mod_mam_utils,
-        [encode_compact_uuid/2]).
-
-%% Other
--import(mod_mam_utils,
-        [apply_start_border/2,
-         apply_end_border/2]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -64,8 +55,6 @@
 -type filter() :: [filter_field()].
 
 -type env_vars() :: map().
-
--type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
 
 db_mappings() ->
     [#db_mapping{column = id, param = message_id, format = int},
@@ -101,14 +90,6 @@ env_vars(Host, ArcJID) ->
       has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
       db_message_codec => db_message_codec(Host, ?MODULE)}.
-
-extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
-                       borders := Borders, search_text := SearchText} = Params, Env) ->
-    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
-            start_id => make_start_id(Start, Borders),
-            end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
-            remote_resource => jid_to_non_empty_resource(WithJID)}.
 
 -spec index_hint_sql(env_vars()) -> string().
 index_hint_sql(#{host := Host}) ->
@@ -228,7 +209,7 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     end.
 
 do_archive_message(Host, Params, Env) ->
-    Row = prepare_message_with_env(Params, Env),
+    Row = mam_encoder:encode_message(Params, Env, db_mappings()),
     {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row).
 
 %% Retraction logic
@@ -249,8 +230,8 @@ retract_message(Host, #{archive_id := UserID, remote_jid := RemJID,
     end.
 
 get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env) ->
-    BinBareRemJID = encode_jid(jid:to_bare(RemJID), Env),
-    BinDir = encode_direction(Dir),
+    BinBareRemJID = mam_encoder:encode_jid(jid:to_bare(RemJID), Env),
+    BinDir = mam_encoder:encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, BinBareRemJID, OriginID, BinDir),
     decode_retraction_info(Env, Rows).
@@ -267,7 +248,7 @@ make_tombstone(_Host, UserID, OriginID, skip, _Env) ->
                 user_id => UserID, origin_id => OriginID});
 make_tombstone(Host, UserID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
-    TombstoneData = encode_packet(Tombstone, Env),
+    TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
     execute_make_tombstone(Host, TombstoneData, UserID, MessID).
 
 execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
@@ -284,14 +265,7 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
-    prepare_message_with_env(Params, Env).
-
-prepare_message_with_env(Params, Env) ->
-    [prepare_value(Params, Env, Mapping) || Mapping <- db_mappings()].
-
-prepare_value(Params, Env, #db_mapping{param = Param, format = Format}) ->
-    Value = maps:get(Param, Params),
-    encode_value(Format, Value, Env).
+    mam_encoder:encode_message(Params, Env, db_mappings()).
 
 column_names(Mappings) ->
      [Column || #db_mapping{column = Column} <- Mappings].
@@ -328,7 +302,7 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
-    ExtParams = extend_lookup_params(Params, Env),
+    ExtParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExtParams, lookup_fields()),
     mam_lookup:lookup(Env, Filter, ExtParams).
 
@@ -344,60 +318,9 @@ lookup_query(QueryType, Env, Filters, Order) ->
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
 
--spec encode_value(value_type(), term(), env_vars()) -> term().
-encode_value(int, Value, _Env) when is_integer(Value) ->
-    Value;
-encode_value(maybe_string, none, _Env) ->
-    null;
-encode_value(maybe_string, Value, _Env) when is_binary(Value) ->
-    Value;
-encode_value(direction, Value, _Env) ->
-    encode_direction(Value);
-encode_value(bare_jid, Value, Env) ->
-    encode_jid(jid:to_bare(Value), Env);
-encode_value(jid, Value, Env) ->
-    encode_jid(Value, Env);
-encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
-    Res;
-encode_value(xml, Value, Env) ->
-    encode_packet(Value, Env);
-encode_value(search, Value, Env) ->
-    encode_search_body(Value, Env).
-
-encode_direction(incoming) -> <<"I">>;
-encode_direction(outgoing) -> <<"O">>.
-
-make_start_id(Start, Borders) ->
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    apply_start_border(Borders, StartID).
-
-make_end_id(End, Borders) ->
-    EndID = maybe_encode_compact_uuid(End, 255),
-    apply_end_border(Borders, EndID).
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
-
-jid_to_non_empty_resource(undefined) -> undefined;
-jid_to_non_empty_resource(#jid{lresource = <<>>}) -> undefined;
-jid_to_non_empty_resource(#jid{lresource = Res}) -> Res.
-
-maybe_encode_bare_jid(undefined, _Env) -> undefined;
-maybe_encode_bare_jid(JID, Env) -> encode_jid(jid:to_bare(JID), Env).
-
--spec encode_jid(jid:jid(), env_vars()) -> binary().
-encode_jid(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
-    mam_jid:encode(Codec, ArcJID, JID).
-
 -spec decode_jid(binary(), env_vars()) -> jid:jid().
 decode_jid(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
     mam_jid:decode(Codec, ArcJID, EncodedJID).
-
--spec encode_packet(exml:element(), env_vars()) -> binary().
-encode_packet(Packet, #{db_message_codec := Codec}) ->
-    mam_message:encode(Codec, Packet).
 
 -spec decode_packet(binary(), env_vars()) -> exml:element().
 decode_packet(EncBin, Env = #{db_message_codec := Codec}) ->
@@ -412,10 +335,6 @@ unescape_binary(Bin, #{host := Host}) ->
 -spec get_retract_id(exml:element(), env_vars()) -> none | binary().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
-
--spec encode_search_body(exml:element(), env_vars()) -> binary().
-encode_search_body(Packet, #{has_full_text_search := SearchEnabled}) ->
-    mod_mam_utils:packet_to_search_body(SearchEnabled, Packet).
 
 -spec db_jid_codec(jid:server(), module()) -> module().
 db_jid_codec(Host, Module) ->
