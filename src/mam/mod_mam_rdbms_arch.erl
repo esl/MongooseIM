@@ -243,24 +243,29 @@ retract_message(Host, #{archive_id := UserID, remote_jid := RemJID,
                         direction := Dir, packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
-        OriginID -> retract_message(Host, UserID, RemJID, OriginID, Dir, Env)
+        OriginID ->
+            Info = get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env),
+            make_tombstone(Host, UserID, OriginID, Info, Env)
     end.
 
-retract_message(Host, UserID, RemJID, OriginID, Dir, Env) ->
+get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env) ->
     BinBareRemJID = encode_jid(jid:to_bare(RemJID), Env),
     BinDir = encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, BinBareRemJID, OriginID, BinDir),
-    make_tombstone(Host, UserID, OriginID, Rows, Env),
-    ok.
+    decode_retraction_info(Env, Rows).
 
-make_tombstone(_Host, UserID, OriginID, [], _Env) ->
+decode_retraction_info(_Env, []) -> skip;
+decode_retraction_info(Env, [{ResMessID, Data}]) ->
+    Packet = decode_packet(Data, Env),
+    MessID = mongoose_rdbms:result_to_integer(ResMessID),
+    #{packet => Packet, message_id => MessID}.
+
+make_tombstone(_Host, UserID, OriginID, skip, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => UserID, origin_id => OriginID});
-make_tombstone(Host, UserID, OriginID, [{ResMessID, Data}], Env) ->
-    Packet = decode_packet(Data, Env),
-    MessID = mongoose_rdbms:result_to_integer(ResMessID),
+make_tombstone(Host, UserID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
     TombstoneData = encode_packet(Tombstone, Env),
     execute_make_tombstone(Host, TombstoneData, UserID, MessID).
