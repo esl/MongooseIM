@@ -105,8 +105,7 @@ get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
         ArchiveID ->
             Env = env_vars(Host, ArcJID),
             {selected, Rows} = extract_gdpr_messages(Env, ArchiveID),
-            Messages = rows_to_uniform_format(Rows, Env),
-            [uniform_to_gdpr(M) || M <- Messages] ++ Acc
+            [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
     end.
 
 uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
@@ -147,10 +146,6 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-encode_direction(incoming) -> <<"I">>;
-encode_direction(outgoing) -> <<"O">>.
-
-
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, UserID, ArcJID) when is_integer(Size) ->
@@ -159,12 +154,12 @@ archive_size(Size, Host, UserID, ArcJID) when is_integer(Size) ->
     Result = lookup_query(count, Env, Filter, unordered),
     mongoose_rdbms:selected_to_integer(Result).
 
-
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
 archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     try
         Env = env_vars(Host, ArcJID),
-        do_archive_message(Host, Params, Env)
+        do_archive_message(Host, Params, Env),
+        retract_message(Host, Params, Env)
     catch Class:Reason:StackTrace ->
               ?LOG_ERROR(#{what => archive_message_failed,
                            host => Host, mam_params => Params,
@@ -174,10 +169,10 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
 
 do_archive_message(Host, Params, Env) ->
     Row = prepare_message_with_env(Params, Env),
-    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
-    retract_message(Host, Params, Env).
+    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row).
 
 %% Retraction logic
+%% Called after inserting a new message
 -spec retract_message(jid:server(), mod_mam:archive_message_params()) -> ok.
 retract_message(Host, #{local_jid := ArcJID} = Params)  ->
     Env = env_vars(Host, ArcJID),
@@ -310,9 +305,6 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
         {error, {Reason, {stacktrace, S}}}
     end.
 
-rows_to_uniform_format(MessageRows, Env) ->
-    [row_to_uniform_format(Row, Env) || Row <- MessageRows].
-
 row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = decode_jid(BSrcJID, Env),
@@ -353,6 +345,9 @@ lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
 
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
+
+encode_direction(incoming) -> <<"I">>;
+encode_direction(outgoing) -> <<"O">>.
 
 make_start_id(Start, Borders) ->
     StartID = maybe_encode_compact_uuid(Start, 0),
@@ -525,9 +520,8 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
-extend_params(#{borders := Borders,
-                start_ts := Start, end_ts := End, with_jid := WithJID,
-                search_text := SearchText} = Params, Env) ->
+extend_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
+                borders := Borders, search_text := SearchText} = Params, Env) ->
     Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
             start_id => make_start_id(Start, Borders),
             end_id => make_end_id(End, Borders),
