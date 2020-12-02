@@ -362,10 +362,8 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-maybe_encode_bare_jid(undefined, _Env) ->
-    undefined;
-maybe_encode_bare_jid(JID, Env) ->
-    encode_jid(jid:to_bare(JID), Env).
+maybe_encode_bare_jid(undefined, _Env) -> undefined;
+maybe_encode_bare_jid(JID, Env) -> encode_jid(jid:to_bare(JID), Env).
 
 -spec encode_jid(jid:jid(), env_vars()) -> binary().
 encode_jid(JID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
@@ -422,8 +420,7 @@ lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
     LimitSQL = limit_sql(Filters),
     OrderSQL = order_to_sql(Order),
     FilterSQL = filters_to_sql(Filters),
-    ["SELECT ", columns_sql(QueryType), " "
-     "FROM mam_message ",
+    ["SELECT ", columns_sql(QueryType), " FROM mam_message ",
      IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
 
 columns_sql(lookup) -> "id, from_jid, message";
@@ -441,10 +438,8 @@ limit_sql(Filters) ->
 -spec index_hint_sql(jid:server()) -> string().
 index_hint_sql(Host) ->
     case mongoose_rdbms:db_engine(Host) of
-        mysql ->
-            "USE INDEX(PRIMARY, i_mam_message_rem) ";
-        _ ->
-            ""
+        mysql -> "USE INDEX(PRIMARY, i_mam_message_rem) ";
+        _ -> ""
     end.
 
 filters_to_columns(Filters) ->
@@ -491,34 +486,22 @@ column_to_id(offset) -> "o".
 filters_to_sql(Filters) ->
     SQLs = [filter_to_sql(Filter) || Filter <- Filters],
     case skip_undefined(SQLs) of
-        [] ->
-            "";
-        Defined ->
-            [" WHERE ", rdbms_queries:join(Defined, " AND ")]
+        [] -> "";
+        Defined -> [" WHERE ", rdbms_queries:join(Defined, " AND ")]
     end.
 
-skip_undefined(List) ->
-    [X || X <- List, X =/= undefined].
+skip_undefined(List) -> [X || X <- List, X =/= undefined].
 
-filter_to_sql({Op, Column, _Value}) ->
-    filter_to_sql(Op, atom_to_list(Column)).
+filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
 
-filter_to_sql(limit, _) ->
-    undefined;
-filter_to_sql(offset, _) ->
-    undefined;
-filter_to_sql(lower, Column) ->
-    Column ++ " < ?";
-filter_to_sql(greater, Column) ->
-    Column ++ " > ?";
-filter_to_sql(le, Column) ->
-    Column ++ " <= ?";
-filter_to_sql(ge, Column) ->
-    Column ++ " >= ?";
-filter_to_sql(equal, Column) ->
-    Column ++ " = ?";
-filter_to_sql(like, Column) ->
-    Column ++ " LIKE ?".
+filter_to_sql(_Column, limit)   -> undefined;
+filter_to_sql(_Column, offset)  -> undefined;
+filter_to_sql(Column, lower)    -> Column ++ " < ?";
+filter_to_sql(Column, greater)  -> Column ++ " > ?";
+filter_to_sql(Column, le)       -> Column ++ " <= ?";
+filter_to_sql(Column, ge)       -> Column ++ " >= ?";
+filter_to_sql(Column, equal)    -> Column ++ " = ?";
+filter_to_sql(Column, like)     -> Column ++ " LIKE ?".
 
 extend_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
                 borders := Borders, search_text := SearchText} = Params, Env) ->
@@ -528,10 +511,8 @@ extend_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
             remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
-jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
-    Res;
-jid_to_non_empty_resource(_) ->
-    undefined.
+jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 -> Res;
+jid_to_non_empty_resource(_) -> undefined.
 
 -record(lookup_field, {op, column, param, required, value_maker}).
 
@@ -558,10 +539,8 @@ field_to_values(#lookup_field{param = Param, value_maker = ValueMaker, required 
             []
     end.
 
-make_value(search_words, Value) ->
-    search_words(Value);
-make_value(undefined, Value) ->
-    [Value].
+make_value(search_words, Value) -> search_words(Value);
+make_value(undefined, Value) -> [Value].
 
 new_filter(#lookup_field{op = Op, column = Column}, Value) ->
     {Op, Column, Value}.
