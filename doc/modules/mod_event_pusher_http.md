@@ -29,25 +29,25 @@ By default it uses the function in `mod_event_pusher_http` itself, which ships a
 ## Prerequisites
 
 This module uses a connection pool created by mongoose_http_client.
-It must be defined in the [`outgoing_pools` settings](../advanced-configuration/outgoing-connections.md#http-connections-setup).
+It must be defined in the [`outgoing_pools` settings](../advanced-configuration/outgoing-connections.md#http-options).
 
 ## Options
 
-#### `modules.mod_event_pusher_http.pool_name`
+### `modules.mod_event_pusher_http.pool_name`
 * **Syntax:** non-empty string
 * **Default:** `"http_pool"`
 * **Example:** `pool_name = "http_pool"`
 
 Name of the pool to use (as defined in outgoing_pools).
 
-#### `modules.mod_event_pusher_http.path`
+### `modules.mod_event_pusher_http.path`
 * **Syntax:** string
 * **Default:** `""`
 * **Example:** `path = "/notifications"`
 
 Path part of an URL to which a request should be sent (will be appended to the pool's prefix path).
 
-#### `modules.mod_event_pusher_http.callback_module`
+### `modules.mod_event_pusher_http.callback_module`
 * **Syntax:** string
 * **Default:** `"mod_event_pusher_http_defaults"`
 * **Example:** `callback_module = "mod_event_pusher_http_notifications"`
@@ -87,7 +87,6 @@ Notifications will be POSTed to `http://localhost:8000/webservice/notifications`
 
 Here, some notifications will be POSTed to `http://localhost:8000/webservice/notifications` and some to `http://localhost:8000/webservice/alerts`, depending on implementation of `should_make_req/6` in the two callback modules.
 
-
 ## Default payload format
 The default HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
 * `author`: username of the user who authored the message
@@ -106,8 +105,7 @@ Below is an example of what the body of an HTTP POST request can look like:
 
 ## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
-
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |

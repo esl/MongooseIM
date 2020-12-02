@@ -1,7 +1,7 @@
 The `general` section contains basic settings as well as some miscellaneous options.
 You can start with providing only the basic options, configuring the loglevel, a single host (XMPP domain) and setting the default server language:
 
-```
+```toml
 [general]
   loglevel = "warning"
   hosts = ["my-xmpp-domain.com"]
@@ -10,11 +10,11 @@ You can start with providing only the basic options, configuring the loglevel, a
 
 All options are described below.
 
-# General options
+## General options
 
 These are the basic settings that you should configure before running your MongooseIM server.
 
-## `general.loglevel`
+### `general.loglevel`
 * **Scope:** local
 * **Syntax:** string, one of `"none"`, `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
 * **Default:** `"warning"`
@@ -22,7 +22,7 @@ These are the basic settings that you should configure before running your Mongo
 
 Verbosity level of the logger. Values recommended for production systems are `"error"` and `"warning"`. The `"debug"` level is good for development.
 
-## `general.hosts`
+### `general.hosts`
 * **Scope:** global
 * **Syntax:** array of strings representing the domain names.
 * **Default:** there is no default, you have to provide at least one host name.
@@ -32,7 +32,7 @@ Mandatory option, specifying the XMPP domains served by this cluster.
 
 **Warning:** Extension modules and database backends will be started separately for every domain. When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
-## `general.language`
+### `general.language`
 * **Scope:** global
 * **Syntax:** string representing the two-letter language code.
 * **Default:** `"en"`
@@ -40,12 +40,12 @@ Mandatory option, specifying the XMPP domains served by this cluster.
 
 Default language for messages sent by the server to users. You can get a full list of supported codes by executing `cd [MongooseIM root] ; ls priv/*.msg | awk '{split($0,a,"/"); split(a[4],b,"."); print b[1]}'` (`en` is not listed there)
 
-# Database settings
+## Database settings
 
 RDBMS connection pools are set using [outgoing connections configuration](./outgoing-connections.md).
 There are some additional options that influence all database connections in the server:
 
-## `general.rdbms_server_type`
+### `general.rdbms_server_type`
 * **Scope:** local
 * **Syntax:** string, `"mssql"` or `"pgsql"`
 * **Default:** not set
@@ -53,7 +53,7 @@ There are some additional options that influence all database connections in the
 
 When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optimize some queries for these DBs (e.g. `mod_mam_rdbms_user` uses different queries for `mssql`).
 
-## `general.pgsql_users_number_estimate`
+### `general.pgsql_users_number_estimate`
 * **Scope:** local
 * **Syntax:** boolean
 * **Default:** false
@@ -62,11 +62,11 @@ When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optim
 PostgreSQL's internal structure can make row counting slow.
 Enabling this option uses an alternative query instead of `SELECT COUNT`, that might be not as accurate, but is always fast.
 
-# Access management
+## Access management
 
 User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
 
-## `general.mongooseimctl_access_commands`
+### `general.mongooseimctl_access_commands`
 * **Scope:** local
 * **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
     * `commands`: mandatory, a list of strings representing the allowed commands, or the string `"all"`
@@ -77,7 +77,7 @@ By default all admin operations are permitted with the `mongooseimctl` command w
 
 **Example 1.** Allow administrators to execute all commands without any restrictions:
 
-```
+```toml
   [general.mongooseimctl_access_commands.admin]
     commands = "all"
 ```
@@ -86,7 +86,7 @@ The `admin` rule needs to be defined in the `access` section.
 
 **Example 2.** Allow local users to execute the `join_cluster` command, but only if the `node` argument is equal to `mongooseim@prime`:
 
-```
+```toml
   [general.mongooseimctl_access_commands.local]
     commands = ["join_cluster"]
     argument_restrictions.node = "mongooseim@prime"
@@ -94,11 +94,11 @@ The `admin` rule needs to be defined in the `access` section.
 
 The `local` rule needs to be defined in the `access` section.
 
-# Security
+## Security
 
 Here you can find some additional options related to system security.
 
-## `general.registration_timeout`
+### `general.registration_timeout`
 * **Scope:** local
 * **Syntax:** the string `"infinity"` or a number of seconds (positive integer)
 * **Default:** `600`
@@ -106,7 +106,7 @@ Here you can find some additional options related to system security.
 
 Limits the registration frequency from a single IP address. The special value `infinity` means no limit.
 
-## `general.hide_service_name`
+### `general.hide_service_name`
 * **Scope:** local
 * **Syntax:** boolean
 * **Default:** `false`
@@ -114,11 +114,11 @@ Limits the registration frequency from a single IP address. The special value `i
 
 According to RFC 6210, even when a client sends invalid data after opening a connection, the server must open an XML stream and return a stream error anyway. For extra security, this option may be enabled. It changes MIM behaviour to simply close the connection without any errors returned (effectively hiding the server's identity).
 
-# User session management
+## User session management
 
 These options can be used to configure the way MongooseIM manages user sessions.
 
-## `general.sm_backend`
+### `general.sm_backend`
 * **Scope:** global
 * **Syntax:** string, `"mnesia"` or `"redis"`
 * **Default:** `"mnesia"`
@@ -126,9 +126,9 @@ These options can be used to configure the way MongooseIM manages user sessions.
 
 Backend for storing user session data. All nodes in a cluster must have access to a complete session database.
 Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend. Requires a redis pool with the `default` tag defined in the `outgoing_pools` section.
-See the section about [redis connection setup](./outgoing-connections.md#redis-connection-setup) for more information.
+See the section about [redis connection setup](./outgoing-connections.md#redis-specific-options) for more information.
 
-## `general.replaced_wait_timeout`
+### `general.replaced_wait_timeout`
 * **Scope:** local
 * **Syntax:** positive integer, representing time in milliseconds
 * **Default:** `2000`
@@ -136,11 +136,11 @@ See the section about [redis connection setup](./outgoing-connections.md#redis-c
 
 When a user's session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
 
-# Message routing
+## Message routing
 
 The following options influence the way MongooseIM routes incoming messages to their recipients.
 
-## `general.route_subdomains`
+### `general.route_subdomains`
 * **Scope:** local
 * **Syntax:** string, the only accepted value is `"s2s"`
 * **Default:** not set
@@ -148,7 +148,7 @@ The following options influence the way MongooseIM routes incoming messages to t
 
 If a stanza is addressed to a subdomain of the served domain and this option is set to `s2s`, such a stanza will be transmitted over a server-to-server connection. Without it, MongooseIM will try to route the stanza to one of its internal services.
 
-## `general.routing_modules`
+### `general.routing_modules`
 * **Scope:** local
 * **Syntax:** a list of strings representing the routing module names.
 * **Default:** `["mongoose_router_global", "mongoose_router_localdomain", "mongoose_router_external_localnode", "mongoose_router_external", "ejabberd_s2s"]`
@@ -164,11 +164,11 @@ Allowed module names:
 * `mongoose_router_external` - delivers packets to an XMPP component connected to the local cluster.
 * `ejabberd_s2s` - forwards packets to another XMPP cluster over XMPP Federation.
 
-# Miscellaneous
+## Miscellaneous
 
 The options listed below are used to configure more specific settings, that do not need to be changed in usual use cases.
 
-## `general.all_metrics_are_global`
+### `general.all_metrics_are_global`
 * **Scope:** local
 * **Syntax:** boolean
 * **Default:** `false`
@@ -176,7 +176,7 @@ The options listed below are used to configure more specific settings, that do n
 
 When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
 
-## `general.http_server_name`
+### `general.http_server_name`
 * **Scope:** local
 * **Syntax:** string
 * **Default:** `"Cowboy"`
@@ -184,7 +184,7 @@ When enabled, all per-host metrics are merged into global equivalents. It means 
 
 Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** configured HTTP listeners.
 
-## `general.override`
+### `general.override`
 * **Scope:** local
 * **Syntax:** array of strings: `"global"`, `"local"`, `"acls"`
 * **Default:** not set
@@ -192,7 +192,7 @@ Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned i
 
 Will cause MongooseIM to erase all global/local/acl configuration options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
 
-## `general.max_fsm_queue`
+### `general.max_fsm_queue`
 * **Scope:** local
 * **Syntax:** positive integer
 * **Default:** not set

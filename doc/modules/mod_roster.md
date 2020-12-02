@@ -1,25 +1,26 @@
-### Module Description
+## Module Description
+
 The module implements roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
 Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
 It can sometimes become quite a heavyweight feature, so there is an option to disable it.
 
-### Options
+## Options
 
-#### `modules.mod_roster.iqdisc.type`
+### `modules.mod_roster.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** "one_queue"
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
 
-#### `modules.mod_roster.versioning`
+### `modules.mod_roster.versioning`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `versioning = true`
 
 Turn on/off support for Roster Versioning.
 
-#### `modules.mod_roster.store_current_id`
+### `modules.mod_roster.store_current_id`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `store_current_id = true`
@@ -27,19 +28,12 @@ Turn on/off support for Roster Versioning.
 Stores the last roster hash in DB (used in Roster Versioning).
 Improves performance but should be disabled, when shared rosters are used.
 
-#### `modules.mod_roster.backend`
+### `modules.mod_roster.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
-### Example configuration
-```toml
-[modules.mod_roster]
-  versioning = true
-  store_current_id = true
-```
-
-##### Riak-specific options
+### Riak-specific options
 
 #### `modules.mod_roster.riak.bucket_type`
 * **Syntax:** string
@@ -51,10 +45,18 @@ Improves performance but should be disabled, when shared rosters are used.
 * **Default:** `"roster_versions"`
 * **Example:** `riak.version_bucket_type = "roster_versions"`
 
-### Metrics
+## Example configuration
+
+```toml
+[modules.mod_roster]
+  versioning = true
+  store_current_id = true
+```
+
+## Metrics
 
 If you'd like to learn more about metrics in MongooseIM,
-please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Backend action | Description (when it gets incremented) |
 | ---- | -------------------------------------- |

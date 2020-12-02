@@ -1,4 +1,4 @@
-### Module Description
+## Module Description
 
 `mod_keystore` serves as storage for crypto keys - it doesn't implement
 any XMPP-level protocol.
@@ -18,23 +18,23 @@ multi-tenant hosting scenarios.
 In a multi-tenant server **`mod_keystore` must be configured separately
 for each virtual XMPP domain to avoid sharing keys between domains!**
 
-### Options
+## Options
 
-#### `modules.mod_keystore.ram_key_size`
+### `modules.mod_keystore.ram_key_size`
 * **Syntax:** non-negative integer
 * **Default:** `2048`
 * **Example:** `ram_key_size = 10000`
 
 Size to use when generating RAM-only keys (designated by type `ram`).
 
-#### `modules.mod_keystore.keys`
+### `modules.mod_keystore.keys`
 * **Syntax:** Array of TOML tables with the following keys: `"name"`, `"type"`, `"file"`, and following values: {name = `string`, type = `values: "file", "ram"`, file = `string`}.
 * **Default:** `[]`
 * **Example:** `modules.mod_keystore.keys = [name = "access_psk", type = "file", path = "priv/access_psk"]`
 
 Names, types, and optional filepaths of the keys.
 
-### API
+## API
 
 The module public API is hook-based:
 
@@ -44,8 +44,7 @@ mongoose_hooks:get_key(Domain, [], KeyName).
 
 An example of usage can be found in [mod_auth_token:get_key_for_user/2](https://github.com/esl/MongooseIM/blob/4.0.0/src/mod_auth_token.erl#L393).
 
-### Example Configuration
-
+## Example Configuration
 
 Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 

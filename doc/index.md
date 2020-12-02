@@ -56,7 +56,7 @@ We offer a set of server-side components:
 For a quick start just download:
 
 * The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS, and macOS)
-* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/): [https://hub.docker.com/r/mongooseim/mongooseim/](https://hub.docker.com/r/mongooseim/mongooseim/) (source code repository: [https://github.com/esl/mongooseim-docker](https://github.com/esl/mongooseim-docker))
+* The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
 
 ## Public testing
 

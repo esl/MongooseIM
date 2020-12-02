@@ -1,4 +1,4 @@
-### Module Description
+## Module Description
 
 This module is a generic interface for event-pushing backends.
 It defines a single callback, `push_event/3` that forwards the event to all registered backends.
@@ -10,9 +10,9 @@ and outgoing) are already hooked up to the frontend via `mod_event_pusher_hook_t
 `mod_event_pusher` dependency, which is a proxy between various hooks and the `push_event/3` hook
 handler.
 
-### Options
+## Options
 
-#### `modules.mod_event_pusher.backend`
+### `modules.mod_event_pusher.backend`
 * **Syntax:** Array of TOML tables. See description.
 * **Default:** see description
 * **Example:** see description
@@ -21,7 +21,7 @@ Specifies backends to register with the frontend, along with arguments that will
 Currently supported backends include [sns], [push], [http_notification] and [rabbit].
 Refer to their specific documentation to learn more about their functions and configuration options.
 
-### Example configuration
+## Example configuration
 
 ```toml
 [modules.mod_event_pusher]

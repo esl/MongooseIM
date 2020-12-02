@@ -10,7 +10,7 @@ or
 -include("mongoose.hrl").
 ```
 
-# Logging macros
+## Logging macros
 
 There are several macros for the most common logging levels:
 
@@ -26,7 +26,7 @@ There are several macros for the most common logging levels:
 Use them in correspondence with the appropriate log level.
 Please be mindful of what is logged and which log level is used for it.
 
-# Logging levels
+## Logging levels
 
 A system operator can choose the global log level by setting `loglevel` in `mongooseim.toml`.
 
@@ -42,21 +42,15 @@ If a user sets the log level to `all`, then they would see all messages in logs.
 
 Levels `warning` and `error` are the most commonly used for production systems.
 
-# Logging format
+## Logging format
 
 We use structured logging as inspired by [Ferd's post](https://ferd.ca/erlang-otp-21-s-new-logger.html).
-
-We use a modified [logfmt](https://brandur.org/logfmt) format as one of
+We also use a modified [logfmt](https://brandur.org/logfmt) format as one of
 the possible default logger formatters.
-
-This format is [Splunk](https://www.splunk.com/en_us/solutions/solution-areas/log-management.html)
-and [ELK](https://www.elastic.co/elk-stack) friendly.
-
+This format is [Splunk](https://www.splunk.com/en_us/devops.html) and [ELK](https://www.elastic.co/elk-stack) friendly.
 Check [the list of fields](../operation-and-maintenance/Logging-fields.md) for fields documentation.
 
-
 `what => something_interesting` field is required.
-
 
 ```erlang
     ?LOG_ERROR(#{what => check_password_failed,
@@ -75,7 +69,7 @@ Field `user => <<"alice">>` is often used too.
 
 A common way to name an error event is `what => function_name_failed`.
 For example, `what => remove_user_failed`. Use the advice critically, it would
-not work well for any function. Counter example:
+not work well for any function. Counterexample:
 
 ```erlang
 handle_info(Info, State) ->
@@ -84,7 +78,7 @@ handle_info(Info, State) ->
 ```
 
 
-# Filtering logs by module
+## Filtering logs by module
 
 Setting loglevel to `debug` can lead to a flood of messages in logs.
 To set a different loglevel for just one module, call:

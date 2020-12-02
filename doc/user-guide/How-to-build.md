@@ -52,15 +52,15 @@ You may use a different package manager but you'll need to figure out the packag
 Install Xcode Command Line Tools.
 
 ```bash
-$ xcode-select --install # install compilation tools
+xcode-select --install # install compilation tools
 ```
 
 ### Step 3
 
 Install dependencies with Brew.
 
-```
-$ brew install erlang openssl unixodbc
+```bash
+brew install erlang openssl unixodbc
 ```
 
 ### Step 4
@@ -68,8 +68,8 @@ $ brew install erlang openssl unixodbc
 Add OpenSSL paths to the compiler and linker environment variables:
 
 ```bash
-$ export LDFLAGS="-L/usr/local/opt/openssl/lib"
-$ export CFLAGS="-I/usr/local/opt/openssl/include"
+export LDFLAGS="-L/usr/local/opt/openssl/lib"
+export CFLAGS="-I/usr/local/opt/openssl/include"
 ```
 
 Now, please proceed to the "Building" section.
@@ -79,7 +79,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
+sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
 ```
 
 Now, please proceed to the "Building" section.
@@ -89,7 +89,7 @@ Now, please proceed to the "Building" section.
 Please install the required dependencies:
 
 ```bash
-$ sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
+sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
 ```
 
 Now, please proceed to the "Building" section.
@@ -99,7 +99,7 @@ Now, please proceed to the "Building" section.
 To compile MongooseIM, navigate to the main repo directory (referenced as `$REPO` in this guide) and execute:
 
 ```bash
-$ make [rel]
+make [rel]
 ```
 
 `rel` is optional as it is the default target.
@@ -125,13 +125,13 @@ There you can use the `mongooseim` command line administration script to start a
 For example, this command will start the server:
 
 ```bash
-$ bin/mongooseim start
+bin/mongooseim start
 ```
 
 You can also run the server in interactive mode (drop into an Erlang shell):
 
 ```bash
-$ bin/mongooseim live
+bin/mongooseim live
 ```
 
 There's also a tool called `mongooseimctl` to perform some operations on a running instance, e.g.:
@@ -149,16 +149,14 @@ MongooseIM node mongooseim@localhost:
         log/mongooseim.log
 ```
 
-
 ## Building the testing target and running tests
 
 For testing purposes there's a different make target available:
 
-```
-$ make devrel
+```bash
+make devrel
 ```
 
 which will generate releases `mim1`, `mim2`, `mim3`, `fed1`, `reg1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
 
-In order to learn how to execute tests, please consult [Testing MongooseIM page](../developers-guide/Testing-MongooseIM.md)
-
+In order to learn how to execute tests, please consult [Testing MongooseIM page](../developers-guide/Testing-MongooseIM.md).

@@ -27,9 +27,7 @@ The stanza should always be packed into an accumulator and passed on, so that in
 There are three main benefits from this approach:
 
 1. Performance - if we need to do something involving inspecting a stanza or more complicated operations (e.g. privacy check) we don't need to do it multiple times on various stages of processing - instead we can do it once and store the result in an accumulator.
-
 2. Debugging - it is now very easy to produce an exact track record of a stanza.
-
 3. Simplified implementation of modules which inherently involve multi-stage processing (e.g. `mod_amp`).
 
 ## API

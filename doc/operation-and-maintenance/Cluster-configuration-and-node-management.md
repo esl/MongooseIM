@@ -15,7 +15,6 @@ To increase the limit the following entries should be added in `/etc/security/li
 
 ```
 mongooseim   soft   nofile   1000000
-
 mongooseim   hard   nofile   1000000
 ```
 
@@ -146,9 +145,9 @@ mongooseimctl mnesia info | grep "running db nodes"
 This command shows all running nodes.
 A healthy cluster should contain all nodes here.
 For example:
-
-    running db nodes   = [mongooseim@node1, mongooseim@node2]
-
+```bash
+running db nodes = [mongooseim@node1, mongooseim@node2]
+```
 To see stopped or misbehaving nodes following command can be useful:
 
 ```bash

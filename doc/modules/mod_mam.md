@@ -1,5 +1,6 @@
-### Module Description
-This module implements [XEP-0313 (Message Archive Management)](https://xmpp.org/extensions/xep-0313.html).
+## Module Description
+
+This module implements [XEP-0313: Message Archive Management](https://xmpp.org/extensions/xep-0313.html).
 It enables a service to store all user messages for one-to-one chats as well as group chats (MUC, MultiUser Chat).
 It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging.
 It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
@@ -15,7 +16,7 @@ Configure MAM with different storage backends:
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
-#### Message retraction
+### Message retraction
 This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone. The following criteria are used to find the original message:
 
 * The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` element of the original message.
@@ -24,7 +25,7 @@ This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/x
 
 If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the origin ID.
 
-#### Full Text Search
+### Full Text Search
 This module allows message filtering by their text body (if enabled, see *Common backend options*).
 This means that an XMPP client, while requesting messages from the archive may not only specify standard form fields (`with`, `start`, `end`), but also `full-text-search` (of type `text-single`).
 If this happens, the client will receive only messages that contain words specified in the request.
@@ -36,29 +37,29 @@ For now `rdbms` backend has very limited support for this feature, while `cassan
 `mod_mam_rdbms_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).
 
-##### Note on full text search with ElasticSearch backend
+#### Note on full text search with ElasticSearch backend
 
 When using ElasticSearch MAM backend, the value provided in `full-text-search` form field will be passed to ElasticSearch as [Simple Search Query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html).
 If you're using our official ElasticSearch mappings from `priv/elasticsearch` then the query analyzer is set to `english`.
 Also note that the default separator for the search query is `AND` (which roughly means that ElasticSearch will search for messages containing all the terms provided in the query string).
 
-### Options
+## Options
 
-#### `modules.mod_mam_meta.backend`
+### `modules.mod_mam_meta.backend`
 * **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
 * **Default:** `"rdbms"`
 * **Example:** `backend = "riak"`
 
 Database backend to use.
 
-#### `modules.mod_mam_meta.no_stanzaid_element`
+### `modules.mod_mam_meta.no_stanzaid_element`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `no_stanzaid_element = true`
 
 Do not add a `<stanza-id/>` element from MAM v0.6.
 
-#### `modules.mod_mam_meta.is_archivable_message`
+### `modules.mod_mam_meta.is_archivable_message`
 * **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
 * **Example:** `is_archivable_message = "mod_mam_utils"`
@@ -66,7 +67,7 @@ Do not add a `<stanza-id/>` element from MAM v0.6.
 
 Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
 
-#### `modules.mod_mam_meta.archive_chat_markers`
+### `modules.mod_mam_meta.archive_chat_markers`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `archive_chat_markers = true`
@@ -74,7 +75,7 @@ Name of a module implementing [`is_archivable_message/3` callback](#is_archivabl
 If set to true, XEP-0333 chat markers will be archived.
 See more details [here](#archiving-chat-markers).
 
-#### `modules.mod_mam_meta.message_retraction`
+### `modules.mod_mam_meta.message_retraction`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `message_retraction = false`
@@ -85,22 +86,25 @@ This functionality is currently implemented only for the `rdbms` backend.
 
 **backend**, **no_stanzaid_element**, **is_archivable_message** and **message_retraction** will be applied to both `pm` and `muc` (if they are enabled), unless overridden explicitly (see example below).
 
-#### Enable one-to-one message archive
+### Enable one-to-one message archive
 
 Archive for one-to-one messages can be enabled in one of two ways:
 
 * Specify `[mod_mam_meta.pm]` section
+
 ```toml
 [modules.mod_mam_meta]
 [modules.mod_mam_meta.pm] # defining this section enables PM support
 ```
+
 * Define any PM related option
+
 ```toml
 [modules.mod_mam_meta]
   pm.backend = "rdbms" # enables PM support and overrides its backend
 ```
 
-#### Disable one-to-one message archive
+### Disable one-to-one message archive
 
 To disable archive for one-to-one messages please remove PM section or any PM related option from the config file.
 
@@ -119,11 +123,14 @@ MongooseIM will print a warning on startup if `pm` MAM is enabled without `archi
 Archive for MUC messages can be enabled in one of two ways:
 
 * Specify `[mod_mam_meta.muc]` section
+
 ```toml
 [modules.mod_mam_meta]
 [modules.mod_mam_meta.muc] # defining this section enables MUC support
 ```
+
 * Define any MUC related option
+
 ```toml
 [modules.mod_mam_meta]
   muc.backend = "rdbms" # enables MUC support and overrides its backend
@@ -151,11 +158,10 @@ Please note that you can override all common options in similar way.
 [modules.mod_mam_meta]
   backend = "rdbms"
   async_writer = true # this option enables async writer for RDBMS backend
-
   muc.async_writer = false # disable async writer for MUC archive only
 ```
 
-#### RDBMS backend options
+### RDBMS backend options
 
 These options will only have effect when the `rdbms` backend is used:
 
@@ -198,7 +204,7 @@ How often (in milliseconds) the buffered messages are flushed to a DB.
 Max size of the batch insert query for an async writer.
 If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
-#### Common backend options
+### Common backend options
 
 #### `modules.mod_mam_meta.user_prefs_store`
 * **Syntax:** one of `false`, `"rdbms"`, `"cassandra"`, `"mnesia"`
@@ -250,16 +256,16 @@ Your instance of Riak KV must be configured with Yokozuna enabled.
 
 This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
-##### Riak-specific options
+#### Riak-specific options
 
-#### `modules.mod_mam_meta.riak.bucket_type`
+##### `modules.mod_mam_meta.riak.bucket_type`
 * **Syntax:** non-empty string
 * **Default:** `"mam_yz"`
 * **Example:** `modules.mod_mam_meta.riak.bucket_type = "mam_yz"`
 
 Riak bucket type.
 
-#### `modules.mod_mam_meta.riak.search_index`
+##### `modules.mod_mam_meta.riak.search_index`
 * **Syntax:** non-empty string
 * **Default:** `"mam"`
 * **Example:** `modules.mod_mam_meta.riak.search_index = "mam"`
@@ -268,16 +274,16 @@ Riak index name.
 
 ### Cassandra backend
 
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.
-By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag:
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-options) page to learn how to properly configure Cassandra connection pool.
+By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag.
 
 
 ### ElasticSearch backend
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-connection-setup) page to learn how to properly configure ElasticSearch connection pool.
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
 
-### Example configuration
+## Example configuration
 
 ```toml
 [modules.mod_mam_meta]
@@ -293,9 +299,9 @@ Please consult [Outgoing connections](../advanced-configuration/outgoing-connect
 
 ```
 
-### Metrics
+## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |

@@ -2,3 +2,8 @@ img#mim-readme-logo {
     margin-right: 1.5em;
     margin-bottom: 1em;
 }
+
+:root {
+  --md-primary-fg-color: #459bb6;
+  --md-accent-fg-color: #0554b8;
+}

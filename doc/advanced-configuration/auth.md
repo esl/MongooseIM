@@ -16,7 +16,7 @@ To enable user connections, you need to set up at least one of the methods liste
 Some methods have more complex setup procedures - the method names above are links to their descriptions,
 which list their specific configuration options. The general options are described below.
 
-# General Options
+## General Options
 
 The options listed here are used to configure the authentication methods.
 
@@ -122,7 +122,7 @@ According to the [capabilities](#authentication-method-capabilities) of the `int
 
 However, for production systems other methods like `rdbms` are recommended, as using an external database offers easier maintenance, flexibility, scalability and configurability in a typical setup.
 
-# Method-specific options
+## Method-specific options
 
 See the links below for options related to the particular methods:
 
