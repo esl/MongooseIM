@@ -6,8 +6,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_rdbms_arch).
 
--define(SEARCH_WORDS_LIMIT, 10).
-
 %% ----------------------------------------------------------------------
 %% Exports
 
@@ -48,6 +46,7 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose_mam.hrl").
 
 %% ----------------------------------------------------------------------
 %% Types
@@ -67,9 +66,6 @@
 -type env_vars() :: map().
 
 -type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
-
--record(db_mapping, {column, param, format}).
--record(lookup_field, {op, column, param, required, value_maker}).
 
 db_mappings() ->
     [#db_mapping{column = id, param = message_id, format = int},
@@ -95,8 +91,12 @@ env_vars(Host, ArcJID) ->
     %% It's only for passing into RDBMS.
     #{host => Host,
       archive_jid => ArcJID,
+      table => mam_message,
+      index_hint_fn => fun index_hint_sql/1,
+      columns_sql_fn => fun columns_sql/1,
+      column_to_id_fn => fun column_to_id/1,
       lookup_fun => fun lookup_query/4,
-      row_to_uniform_format_fun => fun row_to_uniform_format/2,
+      decode_row_fun => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
       full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
@@ -109,6 +109,25 @@ extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
             end_id => make_end_id(End, Borders),
             remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
+
+-spec index_hint_sql(env_vars()) -> string().
+index_hint_sql(#{host := Host}) ->
+    case mongoose_rdbms:db_engine(Host) of
+        mysql -> "USE INDEX(PRIMARY, i_mam_message_rem) ";
+        _ -> ""
+    end.
+
+columns_sql(lookup) -> "id, from_jid, message";
+columns_sql(count) -> "COUNT(*)".
+
+column_to_id(id) -> "i";
+column_to_id(user_id) -> "u";
+column_to_id(remote_bare_jid) -> "b";
+column_to_id(remote_resource) -> "r";
+column_to_id(search_body) -> "s";
+%% fictional columns
+column_to_id(limit) -> "l";
+column_to_id(offset) -> "o".
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -307,7 +326,7 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
     ExtParams = extend_lookup_params(Params, Env),
-    Filter = prepare_filter(ExtParams),
+    Filter = mam_filter:produce_filter(ExtParams, lookup_fields()),
     mam_lookup:lookup(Env, Filter, ExtParams).
 
 row_to_uniform_format({BMessID, BSrcJID, Data}, Env) ->
@@ -316,36 +335,8 @@ row_to_uniform_format({BMessID, BSrcJID, Data}, Env) ->
     Packet = decode_packet(Data, Env),
     {MessID, SrcJID, Packet}.
 
-lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
-    StmtName = filters_to_statement_name(QueryType, Filters, Order),
-    case mongoose_rdbms:prepared(StmtName) of
-        false ->
-            %% Create a new type of a query
-            SQL = lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
-            Columns = filters_to_columns(Filters),
-            mongoose_rdbms:prepare(StmtName, mam_message, Columns, SQL);
-        true ->
-            ok
-    end,
-    Args = filters_to_args(Filters),
-    try mongoose_rdbms:execute(Host, StmtName, Args) of
-        {selected, Rs} when is_list(Rs) ->
-            {selected, Rs};
-        Error ->
-            What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
-                     reason => Error, host => Host},
-            ?LOG_ERROR(What),
-            error(What)
-    catch Class:Error:Stacktrace ->
-            What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Filters, Order, index_hint_sql(Host)),
-                     class => Class, stacktrace => Stacktrace,
-                     reason => Error, host => Host},
-            ?LOG_ERROR(What),
-            error(What)
-    end.
-
+lookup_query(QueryType, Env, Filters, Order) ->
+    mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order).
 
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
@@ -406,7 +397,7 @@ encode_packet(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
 
 -spec decode_packet(binary(), env_vars()) -> exml:element().
-decode_packet(EncBin, #{db_message_codec := Codec}) ->
+decode_packet(EncBin, Env = #{db_message_codec := Codec}) ->
     Bin = unescape_binary(EncBin, Env),
     mam_message:decode(Codec, Bin).
 
@@ -430,126 +421,3 @@ db_jid_codec(Host, Module) ->
 -spec db_message_codec(jid:server(), module()) -> module().
 db_message_codec(Host, Module) ->
     gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
-
-%% ----------------------------------------------------------------------
-%% Prepared queries helpers
-
-lookup_sql_binary(QueryType, Filters, Order, IndexHintSQL) ->
-    iolist_to_binary(lookup_sql(QueryType, Filters, Order, IndexHintSQL)).
-
-lookup_sql(QueryType, Filters, Order, IndexHintSQL) ->
-    LimitSQL = limit_sql(Filters),
-    OrderSQL = order_to_sql(Order),
-    FilterSQL = filters_to_sql(Filters),
-    ["SELECT ", columns_sql(QueryType), " FROM mam_message ",
-     IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
-
-%% Caller should provide both limit and offset fields in the correct order.
-%% See limit_offset_filters.
-%% No limits option is fine too (it is used with count and GDPR).
-limit_sql(Filters) ->
-    HasLimit = lists:keymember(limit, 1, Filters), %% and offset
-    case HasLimit of
-        true -> rdbms_queries:limit_offset_sql();
-        false -> ""
-    end.
-
--spec index_hint_sql(jid:server()) -> string().
-index_hint_sql(Host) ->
-    case mongoose_rdbms:db_engine(Host) of
-        mysql -> "USE INDEX(PRIMARY, i_mam_message_rem) ";
-        _ -> ""
-    end.
-
-filters_to_columns(Filters) ->
-   [Column || {_Op, Column, _Value} <- Filters].
-
-filters_to_args(Filters) ->
-   [Value || {_Op, _Column, Value} <- Filters].
-
-filters_to_statement_name(QueryType, Filters, Order) ->
-    QueryId = query_type_to_id(QueryType),
-    Ids = [op_to_id(Op) ++ column_to_id(Col) || {Op, Col, _Val} <- Filters],
-    OrderId = order_type_to_id(Order),
-    list_to_atom("mam_" ++ QueryId ++ "_" ++ OrderId ++ "_" ++ lists:append(Ids)).
-
-columns_sql(lookup) -> "id, from_jid, message";
-columns_sql(count) -> "COUNT(*)".
-
-query_type_to_id(lookup) -> "lookup";
-query_type_to_id(count) -> "count".
-
-order_type_to_id(desc) -> "d";
-order_type_to_id(asc) -> "a";
-order_type_to_id(unordered) -> "u".
-
-order_to_sql(asc) -> " ORDER BY id ";
-order_to_sql(desc) -> " ORDER BY id DESC ";
-order_to_sql(unordered) -> " ".
-
-column_to_id(id) -> "i";
-column_to_id(user_id) -> "u";
-column_to_id(remote_bare_jid) -> "b";
-column_to_id(remote_resource) -> "r";
-column_to_id(search_body) -> "s";
-%% fictional columns
-column_to_id(limit) -> "l";
-column_to_id(offset) -> "o".
-
-filters_to_sql(Filters) ->
-    SQLs = [filter_to_sql(Filter) || Filter <- Filters],
-    case skip_undefined(SQLs) of
-        [] -> "";
-        Defined -> [" WHERE ", rdbms_queries:join(Defined, " AND ")]
-    end.
-
-skip_undefined(List) -> [X || X <- List, X =/= undefined].
-
-filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
-
-op_to_id(equal)   -> "eq";
-op_to_id(lower)   -> "lt"; %% lower than
-op_to_id(greater) -> "gt"; %% greater than
-op_to_id(le)      -> "le"; %% lower or equal
-op_to_id(ge)      -> "ge"; %% greater or equal
-op_to_id(like)    -> "lk";
-op_to_id(limit)   -> "li";
-op_to_id(offset)  -> "of".
-
-filter_to_sql(Column, equal)    -> Column ++ " = ?";
-filter_to_sql(Column, lower)    -> Column ++ " < ?";
-filter_to_sql(Column, greater)  -> Column ++ " > ?";
-filter_to_sql(Column, le)       -> Column ++ " <= ?";
-filter_to_sql(Column, ge)       -> Column ++ " >= ?";
-filter_to_sql(Column, like)     -> Column ++ " LIKE ?";
-filter_to_sql(_Column, limit)   -> undefined;
-filter_to_sql(_Column, offset)  -> undefined.
-
-prepare_filter(Params) ->
-    [new_filter(Field, Value)
-     || Field <- lookup_fields(),
-        Value <- field_to_values(Field, Params)].
-
-field_to_values(#lookup_field{param = Param, value_maker = ValueMaker, required = Required} = Field, Params) ->
-    case maps:find(Param, Params) of
-        {ok, Value} when Value =/= undefined ->
-            make_value(ValueMaker, Value);
-        Other when Required ->
-            error(#{reason => missing_required_field, field => Field, params => Params, result => Other});
-        _ ->
-            []
-    end.
-
-make_value(search_words, Value) -> search_words(Value);
-make_value(undefined, Value) -> [Value]. %% Default value_maker
-
-new_filter(#lookup_field{op = Op, column = Column}, Value) ->
-    {Op, Column, Value}.
-
-%% Constructs a separate LIKE filter for each word.
-%% SearchText example is "word1%word2%word3".
-%% Order of words does not matter (they can go in any order).
--spec search_words(binary()) -> list(binary()).
-search_words(SearchText) ->
-    Words = binary:split(SearchText, <<"%">>, [global]),
-    [<<"%", Word/binary, "%">> || Word <- lists:sublist(Words, ?SEARCH_WORDS_LIMIT)].
