@@ -17,23 +17,6 @@
 validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
-%% Services
-validate([item, <<"submods">>, <<"service_admin_extra">>, <<"services">>],
-         [Value]) ->
-    validate_backend(service_admin_extra, Value);
-validate([<<"initial_report">>,
-          <<"service_mongoose_system_metrics">>, <<"services">>],
-         [{initial_report, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"periodic_report">>,
-          <<"service_mongoose_system_metrics">>, <<"services">>],
-         [{periodic_report, Value}]) ->
-    validate_non_negative_integer(Value);
-validate([<<"tracking_id">>,
-          <<"service_mongoose_system_metrics">>, <<"services">>],
-         [{tracking_id, Value}]) ->
-    validate_non_empty_string(Value);
-
 %% Modules
 validate([<<"callback_module">>, <<"http">>, <<"backend">>,
           <<"mod_event_pusher">>, <<"modules">>|_],
@@ -1165,7 +1148,6 @@ validate([<<"timeout_action">>, <<"mod_ping">>, <<"modules">>|_],
 validate(_Path, _Value) ->
     ok.
 
-validate(V, boolean, any) -> validate_boolean(V);
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);

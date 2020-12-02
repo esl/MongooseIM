@@ -4,6 +4,8 @@
 -behaviour(mongoose_service).
 -behaviour(gen_server).
 
+-include("ejabberd_config.hrl").
+
 -define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).
 -ifdef(PROD_NODE).
@@ -15,13 +17,16 @@
 
 -include("mongoose.hrl").
 
--export([start/1, stop/0]).
+-export([start/1, stop/0, config_spec/0]).
 -export([start_link/1,
          init/1,
          handle_call/3,
          handle_cast/2,
          handle_info/2,
          terminate/2]).
+
+%% config spec callbacks
+-export([process_report_option/1]).
 
 -export([verify_if_configured/0]).
 
@@ -53,6 +58,24 @@ start(Args) ->
 -spec stop() -> ok.
 stop() ->
     ejabberd_sup:stop_child(?MODULE).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"initial_report">> => #option{type = integer,
+                                                 validate = non_negative},
+                 <<"periodic_report">> => #option{type = integer,
+                                                  validate = non_negative},
+                 <<"report">> => #option{type = boolean,
+                                         process = fun ?MODULE:process_report_option/1,
+                                         format = item},
+                 <<"tracking_id">> => #option{type = string,
+                                              validate = non_empty}
+                }
+      }.
+
+process_report_option(true) -> report;
+process_report_option(false) -> no_report.
 
 -spec start_link(proplists:proplist()) -> {ok, pid()}.
 start_link(Args) ->
@@ -165,7 +188,8 @@ msg_removed_from_config() ->
     <<"We're sorry to hear you don't want to share the system's metrics with us. "
     "These metrics would enable us to improve MongooseIM and know where to focus our efforts. "
     "To stop being notified, you can add this to the services section of your config file: \n"
-    "    '{service_mongoose_system_metrics, [no_report]}' \n"
+    "  [services.service_mongoose_system_metrics]\n"
+    "    report = false\n"
     "For more info on how to customise, read, enable, and disable the metrics visit: \n"
     "- MongooseIM docs - \n"
     "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"

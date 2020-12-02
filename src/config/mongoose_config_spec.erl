@@ -4,9 +4,12 @@
 
 -include("ejabberd_config.hrl").
 
--type config_node() :: #section{} | #option{} | #list{}.
+-type config_node() :: config_section() | config_list() | config_option().
+-type config_section() :: #section{}.
+-type config_list() :: #list{}.
+-type config_option() :: #option{}.
 
--export_type([config_node/0]).
+-export_type([config_node/0, config_section/0, config_list/0, config_option/0]).
 
 handler(Path) ->
     handler(Path, root()).
@@ -33,6 +36,7 @@ root() ->
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
+                 <<"services">> => services(),
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
@@ -700,6 +704,18 @@ tls_items() ->
       <<"versions">> => #list{items = #option{type = atom}}
      }.
 
+%% path: (host_config[].)services
+services() ->
+    Services = [{a2b(Service), mongoose_service:config_spec(Service)} || Service <- all_services()],
+    #section{
+       items = maps:from_list(Services),
+       format = local_config
+      }.
+
+all_services() ->
+    [service_admin_extra,
+     service_mongoose_system_metrics].
+
 %% path: (host_config[].)shaper
 shaper() ->
     #section{
@@ -1090,6 +1106,8 @@ process_riak_credentials(KVs) ->
     {User, Pass}.
 
 b2a(B) -> binary_to_atom(B, utf8).
+
+a2b(A) -> atom_to_binary(A, utf8).
 
 wpool_strategy_values() ->
     [best_worker, random_worker, next_worker, available_worker, next_available_worker].

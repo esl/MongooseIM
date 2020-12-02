@@ -94,9 +94,6 @@ parse_root(Path, Content) ->
 
 %% path: *
 -spec process_section(path(), toml_section() | [toml_section()]) -> config_list().
-process_section([<<"services">>] = Path, Content) ->
-    Services = parse_section(Path, Content),
-    [#local_config{key = services, value = Services}];
 process_section([<<"modules">>|_] = Path, Content) ->
     Mods = parse_section(Path, Content),
     ?HOST_F([#local_config{key = {modules, Host}, value = Mods}]);
@@ -110,27 +107,6 @@ process_section(Path, Content) ->
 pool_option([<<"workers">>|_], V) -> [{workers, V}];
 pool_option([<<"strategy">>|_], V) -> [{strategy, b2a(V)}];
 pool_option([<<"call_timeout">>|_], V) -> [{call_timeout, V}].
-
-%% path: services.*
--spec process_service(path(), toml_section()) -> [option()].
-process_service([S|_] = Path, Opts) ->
-    [{b2a(S), parse_section(Path, Opts)}].
-
-%% path: services.*.*
--spec service_opt(path(), toml_value()) -> [option()].
-service_opt([<<"submods">>, <<"service_admin_extra">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{submods, List}];
-service_opt([<<"initial_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
-    [{initial_report, V}];
-service_opt([<<"periodic_report">>, <<"service_mongoose_system_metrics">>|_], V) ->
-    [{periodic_report, V}];
-service_opt([<<"report">>, <<"service_mongoose_system_metrics">>|_], true) ->
-    [report];
-service_opt([<<"report">>, <<"service_mongoose_system_metrics">>|_], false) ->
-    [no_report];
-service_opt([<<"tracking_id">>, <<"service_mongoose_system_metrics">>|_],  V) ->
-    [{tracking_id, b2l(V)}].
 
 %% path: (host_config[].)modules.*
 -spec process_module(path(), toml_section()) -> [option()].
@@ -928,10 +904,6 @@ iqdisc_value(Type, V) ->
     limit_keys([], V),
     Type.
 
--spec service_admin_extra_submods(path(), toml_value()) -> [option()].
-service_admin_extra_submods(_, V) ->
-    [b2a(V)].
-
 welcome_message([<<"subject">>|_], Value) ->
     [{subject, b2l(Value)}];
 welcome_message([<<"body">>|_], Value) ->
@@ -1083,15 +1055,15 @@ process(_Path, V, undefined) -> V;
 process(_Path, V, F) when is_function(F, 1) -> F(V);
 process(Path, V, F) when is_function(F, 2) -> F(Path, V).
 
-convert(V, boolean) -> V;
-convert(V, binary) -> V;
+convert(V, boolean) when is_boolean(V) -> V;
+convert(V, binary) when is_binary(V) -> V;
 convert(V, string) -> binary_to_list(V);
 convert(V, atom) -> b2a(V);
 convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
-convert(V, int_or_infinity) -> V;
+convert(V, int_or_infinity) when is_integer(V) -> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
-convert(V, integer) -> V.
+convert(V, integer) when is_integer(V) -> V.
 
 format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
@@ -1184,13 +1156,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
-handler([Section]) when Section =:= <<"services">>;
-                        Section =:= <<"modules">>;
+handler([Section]) when Section =:= <<"modules">>;
                         Section =:= <<"host_config">> -> fun process_section/2;
-
-%% services
-handler([_, <<"services">>]) -> fun process_service/2;
-handler([_, _, <<"services">>]) -> fun service_opt/2;
 
 %% modules
 handler([_, <<"modules">>]) -> fun process_module/2;
@@ -1299,8 +1266,6 @@ handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_search_reported/2;
 handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_binary_search_fields/2;
-handler([_, <<"submods">>, <<"service_admin_extra">>, <<"services">>]) ->
-    fun service_admin_extra_submods/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
