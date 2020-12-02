@@ -2,18 +2,23 @@
 -module(mam_lookup).
 -export([lookup/3]).
 
--type filter() :: list(tuple()).
--type env_vars() :: map().
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
 -include("mongoose_rsm.hrl").
+
+-type filter() :: list(tuple()).
+-type env_vars() :: map().
+-type params() :: map().
+-type message_id() :: mod_mam:message_id().
+-type maybe_rsm() :: #rsm_in{} | undefined.
+-type opt_count_type() :: last_page | by_offset | none.
 
 %% Public logic
 %% We use two fields from Env:
 %% - lookup_fun
 %% - row_to_uniform_format_fun
+-spec lookup(env_vars(), filter(), params()) ->
+    {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
     OptParams = Params#{opt_count_type => opt_count_type(RSM)},
     choose_lookup_messages_strategy(Env, Filter, OptParams).
@@ -26,9 +31,10 @@ row_to_uniform_format(Row, #{row_to_uniform_format_fun := FormatF} = Env) ->
 
 %% Private logic below
 
-%% Not supported:
+%% There is no optimizations for these queries yet:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
+-spec opt_count_type(RSM :: maybe_rsm()) -> opt_count_type().
 opt_count_type(#rsm_in{direction = before, id = undefined}) ->
     last_page; %% last page is supported
 opt_count_type(#rsm_in{direction = undefined}) ->
@@ -64,8 +70,7 @@ choose_lookup_messages_strategy(Env, Filter,
             lookup_messages_regular(Env, RSM, PageSize, Filter)
     end.
 
-
-%% Just extract messages
+%% Just extract messages without count and offset information
 simple_lookup_messages(Env, RSM, PageSize, Filter) ->
     {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
     Messages = extract_messages(Env, Filter2, Offset, PageSize, Order),
@@ -101,7 +106,6 @@ lookup_last_page(Env, PageSize, Filter) ->
         end,
     {ok, {Offset + Selected, Offset, Messages}}.
 
-
 lookup_by_offset(Env, RSM, PageSize, Filter) ->
     assert_rsm_without_id(RSM),
     Offset = rsm_to_index(RSM),
@@ -125,37 +129,30 @@ rsm_to_index(#rsm_in{direction = undefined, index = Offset})
     when is_integer(Offset) -> Offset;
 rsm_to_index(_) -> 0.
 
-
 lookup_messages_regular(Env, RSM, PageSize, Filter) ->
     TotalCount = calc_count(Env, Filter),
     Offset = calc_offset(Env, Filter, PageSize, TotalCount, RSM),
-    Messages =
-        case RSM of
-            #rsm_in{direction = aft, id = ID} ->
-                extract_messages(Env, from_id(ID, Filter), 0, PageSize + 1, asc);
-            #rsm_in{direction = before, id = ID} when ID =/= undefined ->
-                extract_messages(Env, to_id(ID, Filter), 0, PageSize + 1, desc);
-            _ ->
-                extract_messages(Env, Filter, Offset, PageSize, asc)
-        end,
+    {LookupById, Filter2, Offset2, PageSize2, Order} =
+        rsm_to_regular_lookup_vars(RSM, Filter, Offset, PageSize),
+    Messages = extract_messages(Env, Filter2, Offset2, PageSize2, Order),
     Result = {TotalCount, Offset, Messages},
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
+    case LookupById of
+        true -> %% check if we've selected a message with #rsm_in.id
+            mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
+        false ->
+            {ok, Result}
+    end.
 
--spec after_id(mod_mam:message_id(), filter()) -> filter().
-after_id(ID, Filter) ->
-    [{greater, id, ID}|Filter].
-
--spec before_id(mod_mam:message_id(), filter()) -> filter().
-before_id(ID, Filter) ->
-    [{lower, id, ID}|Filter].
-
--spec from_id(mod_mam:message_id(), filter()) -> filter().
-from_id(ID, Filter) ->
-    [{ge, id, ID}|Filter].
-
--spec to_id(mod_mam:message_id(), filter()) -> filter().
-to_id(ID, Filter) ->
-    [{le, id, ID}|Filter].
+rsm_to_regular_lookup_vars(RSM, Filter, Offset, PageSize) ->
+    case RSM of
+        #rsm_in{direction = aft, id = ID} when ID =/= undefined ->
+            %% Set extra flag when selecting PageSize + 1 messages
+            {true, from_id(ID, Filter), 0, PageSize + 1, asc};
+        #rsm_in{direction = before, id = ID} when ID =/= undefined ->
+            {true, to_id(ID, Filter), 0, PageSize + 1, desc};
+        _ ->
+            {false, Filter, Offset, PageSize, asc}
+    end.
 
 rows_to_uniform_format(MessageRows, Env) ->
     [row_to_uniform_format(Row, Env) || Row <- MessageRows].
@@ -169,18 +166,18 @@ extract_messages(_Env, _Filter, _Offset, 0 = _Max, _Order) ->
     [];
 extract_messages(Env, Filter, Offset, Max, Order) ->
     {selected, MessageRows} = extract_rows(Env, Filter, Offset, Max, Order),
-    ?LOG_DEBUG(#{what => mam_extract_messages,
-                 mam_filter => Filter, offset => Offset, max => Max,
-                 env_vars => Env, message_rows => MessageRows}),
     Rows = maybe_reverse(Order, MessageRows),
     rows_to_uniform_format(Rows, Env).
+
+maybe_reverse(asc, List) -> List;
+maybe_reverse(desc, List) -> lists:reverse(List).
 
 extract_rows(Env, Filters, Offset, Max, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
     lookup_query(lookup, Env, Filters2, Order).
 
 %% @doc Get the total result set size.
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
+%% SELECT COUNT(*) as count FROM mam_message
 -spec calc_count(env_vars(), filter()) -> non_neg_integer().
 calc_count(Env, Filter) ->
     Result = lookup_query(count, Env, Filter, unordered),
@@ -191,8 +188,8 @@ calc_count(Env, Filter) ->
 %% If the element does not exists, the ID of the next element will
 %% be returned instead.
 %% @end
-%% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
+%% SELECT COUNT(*) as index FROM mam_message WHERE id <= ?
+-spec calc_index(env_vars(), filter(), message_id()) -> non_neg_integer().
 calc_index(Env, Filter, ID) ->
     calc_count(Env, to_id(ID, Filter)).
 
@@ -200,8 +197,8 @@ calc_index(Env, Filter, ID) ->
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
+%% SELECT COUNT(*) as count FROM mam_message WHERE id < ?
+-spec calc_before(env_vars(), filter(), message_id()) -> non_neg_integer().
 calc_before(Env, Filter, ID) ->
     calc_count(Env, before_id(ID, Filter)).
 
@@ -223,7 +220,18 @@ calc_offset(Env, Filter, PageSize, TotalCount, RSM) ->
           0
   end.
 
-maybe_reverse(asc, List) ->
-    List;
-maybe_reverse(desc, List) ->
-    lists:reverse(List).
+-spec after_id(message_id(), filter()) -> filter().
+after_id(ID, Filter) ->
+    [{greater, id, ID}|Filter].
+
+-spec before_id(message_id(), filter()) -> filter().
+before_id(ID, Filter) ->
+    [{lower, id, ID}|Filter].
+
+-spec from_id(message_id(), filter()) -> filter().
+from_id(ID, Filter) ->
+    [{ge, id, ID}|Filter].
+
+-spec to_id(message_id(), filter()) -> filter().
+to_id(ID, Filter) ->
+    [{le, id, ID}|Filter].

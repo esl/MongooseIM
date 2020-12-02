@@ -1156,10 +1156,6 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
       PageSize :: non_neg_integer(),
       LookupResult :: mod_mam:lookup_result(),
       R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
-check_for_item_not_found(undefined, _PageSize, Result) ->
-    {ok, Result};
-check_for_item_not_found(#rsm_in{id = undefined}, _PageSize, Result) ->
-    {ok, Result};
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
                          PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
