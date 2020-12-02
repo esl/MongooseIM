@@ -1,0 +1,2 @@
+-record(db_mapping, {column, param, format}).
+-record(lookup_field, {op, column, param, required, value_maker}).

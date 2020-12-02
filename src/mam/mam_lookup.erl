@@ -16,7 +16,7 @@
 %% Public logic
 %% We use two fields from Env:
 %% - lookup_fun
-%% - row_to_uniform_format_fun
+%% - decode_row_fun
 -spec lookup(env_vars(), filter(), params()) ->
     {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
@@ -26,8 +26,8 @@ lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
 lookup_query(QueryType, #{lookup_fun := LookupF} = Env, Filters, Order) ->
     LookupF(QueryType, Env, Filters, Order).
 
-row_to_uniform_format(Row, #{row_to_uniform_format_fun := FormatF} = Env) ->
-    FormatF(Row, Env).
+decode_row(Row, #{decode_row_fun := DecodeF} = Env) ->
+    DecodeF(Row, Env).
 
 %% Private logic below
 
@@ -101,7 +101,7 @@ lookup_last_page(Env, PageSize, Filter) ->
             true ->
                 0; %% Result fits on a single page
             false ->
-                FirstID = uniform_to_message_id(hd(Messages)),
+                FirstID = decoded_row_to_message_id(hd(Messages)),
                 calc_count(Env, before_id(FirstID, Filter))
         end,
     {ok, {Offset + Selected, Offset, Messages}}.
@@ -116,7 +116,7 @@ lookup_by_offset(Env, RSM, PageSize, Filter) ->
             true ->
                 Offset + Selected; %% Result fits on a single page
             false ->
-                LastID = uniform_to_message_id(lists:last(Messages)),
+                LastID = decoded_row_to_message_id(lists:last(Messages)),
                 CountAfterLastID = calc_count(Env, after_id(LastID, Filter)),
                 Offset + Selected + CountAfterLastID
         end,
@@ -154,10 +154,11 @@ rsm_to_regular_lookup_vars(RSM, Filter, Offset, PageSize) ->
             {false, Filter, Offset, PageSize, asc}
     end.
 
-rows_to_uniform_format(MessageRows, Env) ->
-    [row_to_uniform_format(Row, Env) || Row <- MessageRows].
+decode_rows(MessageRows, Env) ->
+    [decode_row(Row, Env) || Row <- MessageRows].
 
-uniform_to_message_id({MessID, _, _}) -> MessID.
+%% First element of the tuple is decoded message ID
+decoded_row_to_message_id(DecodedRow) -> element(1, DecodedRow).
 
 -spec extract_messages(Env :: env_vars(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
@@ -167,7 +168,7 @@ extract_messages(_Env, _Filter, _Offset, 0 = _Max, _Order) ->
 extract_messages(Env, Filter, Offset, Max, Order) ->
     {selected, MessageRows} = extract_rows(Env, Filter, Offset, Max, Order),
     Rows = maybe_reverse(Order, MessageRows),
-    rows_to_uniform_format(Rows, Env).
+    decode_rows(Rows, Env).
 
 maybe_reverse(asc, List) -> List;
 maybe_reverse(desc, List) -> lists:reverse(List).
