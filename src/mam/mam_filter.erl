@@ -3,6 +3,21 @@
 -export([produce_filter/2]).
 -include("mongoose_mam.hrl").
 
+-type column() :: atom().
+
+-type filter_field() :: {like, column(), binary()}
+    | {le, column(), integer()}
+    | {ge, column(), integer()}
+    | {equal, column(), integer() | binary()}
+    | {lower, column(), integer()}
+    | {greater, column(), integer()}
+    | {limit, limit, integer()}
+    | {offset, offset, integer()}.
+-type filter() :: [filter_field()].
+
+-export_type([filter_field/0]).
+-export_type([filter/0]).
+
 -define(SEARCH_WORDS_LIMIT, 10).
 
 produce_filter(Params, Fields) ->

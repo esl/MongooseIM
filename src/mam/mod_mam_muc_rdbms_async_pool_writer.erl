@@ -153,7 +153,8 @@ stop_worker(Proc) ->
 
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) ->
           ok | {error, timeout}.
-archive_message(_Result, Host, Params = #{archive_id := RoomID}) ->
+archive_message(_Result, Host, Params0 = #{archive_id := RoomID}) ->
+    Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(Host, Params0),
     Worker = select_worker(Host, RoomID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
