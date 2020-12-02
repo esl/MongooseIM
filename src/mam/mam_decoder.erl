@@ -1,5 +1,6 @@
 -module(mam_decoder).
 -export([decode_row/2]).
+-export([decode_muc_row/2]).
 -export([decode_retraction_info/2]).
 
 -type env_vars() :: map().
@@ -7,6 +8,12 @@
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
     SrcJID = decode_jid(ExtSrcJID, Env),
+    Packet = decode_packet(ExtData, Env),
+    {MessID, SrcJID, Packet}.
+
+decode_muc_row({ExtMessID, Nick, ExtData}, Env = #{archive_jid := RoomJID}) ->
+    MessID = mongoose_rdbms:result_to_integer(ExtMessID),
+    SrcJID = jid:replace_resource(RoomJID, Nick),
     Packet = decode_packet(ExtData, Env),
     {MessID, SrcJID, Packet}.
 
