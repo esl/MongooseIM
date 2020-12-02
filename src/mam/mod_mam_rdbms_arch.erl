@@ -259,8 +259,8 @@ encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
     Res;
 encode_value(xml, Value, Env) ->
     encode_packet(Value, Env);
-encode_value(search, Value, #{full_text_search := SearchEnabled}) ->
-    mod_mam_utils:packet_to_search_body(SearchEnabled, Value).
+encode_value(search, Value, Env) ->
+    encode_search_body(Value, Env).
 
 column_names() ->
      [Column || #db_mapping{column = Column} <- db_mappings()].
@@ -389,6 +389,10 @@ unescape_binary(Bin, #{host := Host}) ->
 -spec get_retract_id(exml:element(), env_vars()) -> none | binary().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
+
+-spec encode_search_body(exml:element(), env_vars()) -> binary().
+encode_search_body(Packet, #{full_text_search := SearchEnabled}) ->
+    mod_mam_utils:packet_to_search_body(SearchEnabled, Packet).
 
 env_vars(Host, ArcJID) ->
     %% Please, minimize usage of the host field.
