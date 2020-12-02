@@ -28,8 +28,6 @@
 
 -export([get_db_type/0,
          begin_trans/0,
-         get_db_specific_limits/0,
-         get_db_specific_limits/1,
          get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,
          add_limit_arg/2,
@@ -851,10 +849,6 @@ do_get_db_specific_offset(mssql, Offset, Limit) ->
     " FETCH NEXT ", Limit, " ROWS ONLY"];
 do_get_db_specific_offset(_, Offset, _Limit) ->
     [" OFFSET ", Offset].
-
-get_db_specific_limits() ->
-    LimitStr = "?",
-    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr, true).
 
 add_limit_arg(Limit, Args) ->
     add_limit_arg(?RDBMS_TYPE, Limit, Args).

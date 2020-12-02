@@ -46,13 +46,12 @@ lookup_query(QueryType, Env, Filters, Order) ->
                      reason => Error, host => Host},
             ?LOG_ERROR(What),
             error(What)
-    catch Class:Error:Stacktrace ->
+    catch error:Error:Stacktrace ->
             What = #{what => mam_lookup_failed, statement => StmtName,
                      sql_query => lookup_sql_binary(QueryType, Table, Env, Filters, Order),
-                     class => Class, stacktrace => Stacktrace,
-                     reason => Error, host => Host},
+                     stacktrace => Stacktrace, reason => Error, host => Host},
             ?LOG_ERROR(What),
-            erlang:raise(Class, Error, Stacktrace)
+            erlang:raise(error, Error, Stacktrace)
     end.
 
 lookup_sql_binary(QueryType, Table, Env, Filters, Order) ->
@@ -110,7 +109,7 @@ skip_undefined(List) -> [X || X <- List, X =/= undefined].
 filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
 
 op_to_id(equal)   -> "eq";
-op_to_id(lower)   -> "lt"; %% lower than
+op_to_id(lower)   -> "lt"; %% less than
 op_to_id(greater) -> "gt"; %% greater than
 op_to_id(le)      -> "le"; %% lower or equal
 op_to_id(ge)      -> "ge"; %% greater or equal

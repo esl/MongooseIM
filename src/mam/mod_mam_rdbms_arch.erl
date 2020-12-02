@@ -232,11 +232,11 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
         do_archive_message(Host, Params, Env),
         retract_message(Host, Params, Env),
         ok
-    catch Class:Reason:StackTrace ->
+    catch error:Reason:StackTrace ->
               ?LOG_ERROR(#{what => archive_message_failed,
                            host => Host, mam_params => Params,
-                           class => Class, reason => Reason, stacktrace => StackTrace}),
-              erlang:raise(Class, Reason, StackTrace)
+                           reason => Reason, stacktrace => StackTrace}),
+              erlang:raise(error, Reason, StackTrace)
     end.
 
 do_archive_message(Host, Params, Env) ->
