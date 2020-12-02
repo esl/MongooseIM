@@ -71,6 +71,16 @@
 start(Host, Opts) ->
     prepare_insert(insert_mam_muc_message, 1),
 
+    mongoose_rdbms:prepare(mam_muc_archive_size, mam_muc_message, [user_id],
+                           [<<"SELECT COUNT(*) FROM mam_muc_message "
+                              "WHERE room_id = ?">>]),
+
+    mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message,
+                           [sender_id],
+                           [<<"SELECT id, message "
+                              " FROM mam_muc_message "
+                              " WHERE sender_id=? "
+                              " ORDER BY id">>]),
     start_muc(Host, Opts).
 
 -spec stop(jid:server()) -> 'ok'.
@@ -116,13 +126,8 @@ stop_muc(Host) ->
 -spec archive_size(integer(), jid:server(), integer(), jid:jid())
                   -> integer().
 archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
-    {selected, [{BSize}]} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT COUNT(*) "
-       "FROM mam_muc_message ",
-       "WHERE room_id = ", use_escaped_integer(escape_room_id(RoomID))]),
-    mongoose_rdbms:result_to_integer(BSize).
+    Result = mod_mam_utils:success_sql_execute(Host, mam_muc_archive_size, [RoomID]),
+    mongoose_rdbms:selected_to_integer(Result).
 
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
 archive_message(_Result, Host, Params = #{direction := incoming}) ->
@@ -465,12 +470,7 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
        Filter, Order, LimitSQL, Offset]).
 
 extract_gdpr_messages(Host, ArchiveID) ->
-    Filter = ["WHERE sender_id = ", use_escaped_integer(escape_integer(ArchiveID))],
-    mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, message "
-         "FROM mam_muc_message ",
-         Filter, " ORDER BY id"]).
+    mod_mam_utils:success_sql_execute(Host, mam_muc_extract_gdpr_messages, [ArchiveID]).
 
 %% @doc Zero-based index of the row with UMessID in the result test.
 %% If the element does not exists, the MessID of the next element will

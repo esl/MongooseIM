@@ -241,8 +241,7 @@ make_tombstone(_Host, UserID, OriginID, [], _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => UserID, origin_id => OriginID});
-make_tombstone(Host, UserID, OriginID, [{ResMessID, ResData}], Env) ->
-    Data = unescape_binary(ResData, Env),
+make_tombstone(Host, UserID, OriginID, [{ResMessID, Data}], Env) ->
     Packet = decode_packet(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
@@ -311,10 +310,9 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Filter = prepare_filter(ExtParams),
     mam_lookup:lookup(Env, Filter, ExtParams).
 
-row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
+row_to_uniform_format({BMessID, BSrcJID, Data}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = decode_jid(BSrcJID, Env),
-    Data = unescape_binary(SDataRaw, Env),
     Packet = decode_packet(Data, Env),
     {MessID, SrcJID, Packet}.
 
@@ -408,7 +406,8 @@ encode_packet(Packet, #{db_message_codec := Codec}) ->
     mam_message:encode(Codec, Packet).
 
 -spec decode_packet(binary(), env_vars()) -> exml:element().
-decode_packet(Bin, #{db_message_codec := Codec}) ->
+decode_packet(EncBin, #{db_message_codec := Codec}) ->
+    Bin = unescape_binary(EncBin, Env),
     mam_message:decode(Codec, Bin).
 
 -spec unescape_binary(binary(), env_vars()) -> binary().
