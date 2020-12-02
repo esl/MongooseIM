@@ -62,22 +62,22 @@
 
 -spec start(jid:server(), _) -> ok.
 start(Host, Opts) ->
-    start_pm(Host, Opts),
+    start_hooks(Host, Opts),
     register_prepared_queries(),
     ok.
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    stop_pm(Host).
+    stop_hooks(Host).
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
     case mod_mam:archive_id(Host, User) of
         undefined -> [];
-        ArchiveID ->
+        ArcID ->
             Env = env_vars(Host, ArcJID),
-            {selected, Rows} = extract_gdpr_messages(Env, ArchiveID),
+            {selected, Rows} = extract_gdpr_messages(Env, ArcID),
             [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
     end.
 
@@ -87,8 +87,8 @@ uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(jid:server(), _) -> 'ok'.
-start_pm(Host, _Opts) ->
+-spec start_hooks(jid:server(), _) -> ok.
+start_hooks(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
             ok;
@@ -102,8 +102,8 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(jid:server()) -> ok.
-stop_pm(Host) ->
+-spec stop_hooks(jid:server()) -> ok.
+stop_hooks(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
             ok;
@@ -219,8 +219,8 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, UserID, ArcJID) when is_integer(Size) ->
-    Filter = [{equal, user_id, UserID}],
+archive_size(Size, Host, ArcID, ArcJID) when is_integer(Size) ->
+    Filter = [{equal, user_id, ArcID}],
     Env = env_vars(Host, ArcJID),
     Result = lookup_query(count, Env, Filter, unordered),
     mongoose_rdbms:selected_to_integer(Result).
@@ -230,7 +230,8 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     try
         Env = env_vars(Host, ArcJID),
         do_archive_message(Host, Params, Env),
-        retract_message(Host, Params, Env)
+        retract_message(Host, Params, Env),
+        ok
     catch Class:Reason:StackTrace ->
               ?LOG_ERROR(#{what => archive_message_failed,
                            host => Host, mam_params => Params,
@@ -250,42 +251,42 @@ retract_message(Host, #{local_jid := ArcJID} = Params)  ->
     retract_message(Host, Params, Env).
 
 -spec retract_message(jid:server(), mod_mam:archive_message_params(), env_vars()) -> ok.
-retract_message(Host, #{archive_id := UserID, remote_jid := RemJID,
+retract_message(Host, #{archive_id := ArcID, remote_jid := RemJID,
                         direction := Dir, packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
         OriginID ->
-            Info = get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env),
-            make_tombstone(Host, UserID, OriginID, Info, Env)
+            Info = get_retraction_info(Host, ArcID, RemJID, OriginID, Dir, Env),
+            make_tombstone(Host, ArcID, OriginID, Info, Env)
     end.
 
-get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env) ->
+get_retraction_info(Host, ArcID, RemJID, OriginID, Dir, Env) ->
     %% Code style notice:
     %% - Add Ext prefix for all externally encoded data
     %% (in cases, when we usually add Bin, B, S Esc prefixes)
     ExtBareRemJID = mam_encoder:encode_jid(jid:to_bare(RemJID), Env),
     ExtDir = mam_encoder:encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
-                         Host, UserID, ExtBareRemJID, OriginID, ExtDir),
+                         Host, ArcID, ExtBareRemJID, OriginID, ExtDir),
     mam_decoder:decode_retraction_info(Env, Rows).
 
-make_tombstone(_Host, UserID, OriginID, skip, _Env) ->
+make_tombstone(_Host, ArcID, OriginID, skip, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
-                user_id => UserID, origin_id => OriginID});
-make_tombstone(Host, UserID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
+                user_id => ArcID, origin_id => OriginID});
+make_tombstone(Host, ArcID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
-    execute_make_tombstone(Host, TombstoneData, UserID, MessID).
+    execute_make_tombstone(Host, TombstoneData, ArcID, MessID).
 
-execute_select_messages_to_retract(Host, UserID, BareRemJID, OriginID, Dir) ->
+execute_select_messages_to_retract(Host, ArcID, BareRemJID, OriginID, Dir) ->
     mod_mam_utils:success_sql_execute(Host, mam_select_messages_to_retract,
-                                      [UserID, BareRemJID, OriginID, Dir]).
+                                      [ArcID, BareRemJID, OriginID, Dir]).
 
-execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
+execute_make_tombstone(Host, TombstoneData, ArcID, MessID) ->
     {updated, _} =
         mod_mam_utils:success_sql_execute(Host, mam_make_tombstone,
-                                          [TombstoneData, UserID, MessID]).
+                                          [TombstoneData, ArcID, MessID]).
 
 %% Insert logic
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
@@ -303,18 +304,18 @@ prepare_insert(Name, NumRows) ->
 
 %% Removal logic
 -spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
-                     ArchiveID :: mod_mam:archive_id(),
+                     ArcID :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> mongoose_acc:t().
-remove_archive(Acc, Host, UserID, _ArcJID) ->
-    remove_archive(Host, UserID),
+remove_archive(Acc, Host, ArcID, _ArcJID) ->
+    remove_archive(Host, ArcID),
     Acc.
 
-remove_archive(Host, UserID) ->
-    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [UserID]).
+remove_archive(Host, ArcID) ->
+    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [ArcID]).
 
 %% GDPR logic
-extract_gdpr_messages(Env, ArchiveID) ->
-    Filters = [{equal, user_id, ArchiveID}],
+extract_gdpr_messages(Env, ArcID) ->
+    Filters = [{equal, user_id, ArcID}],
     lookup_query(lookup, Env, Filters, asc).
 
 %% Lookup logic
