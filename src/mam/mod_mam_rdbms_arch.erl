@@ -230,10 +230,13 @@ retract_message(Host, #{archive_id := UserID, remote_jid := RemJID,
     end.
 
 get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env) ->
-    BinBareRemJID = mam_encoder:encode_jid(jid:to_bare(RemJID), Env),
-    BinDir = mam_encoder:encode_direction(Dir),
+    %% Code style notice:
+    %% - Add Ext prefix for all externally encoded data
+    %% (in cases, when we usually add Bin, B, S Esc prefixes)
+    ExtBareRemJID = mam_encoder:encode_jid(jid:to_bare(RemJID), Env),
+    ExtDir = mam_encoder:encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
-                         Host, UserID, BinBareRemJID, OriginID, BinDir),
+                         Host, UserID, ExtBareRemJID, OriginID, ExtDir),
     decode_retraction_info(Env, Rows).
 
 decode_retraction_info(_Env, []) -> skip;
@@ -302,14 +305,14 @@ lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
-    ExtParams = mam_encoder:extend_lookup_params(Params, Env),
-    Filter = mam_filter:produce_filter(ExtParams, lookup_fields()),
+    ExdParams = mam_encoder:extend_lookup_params(Params, Env),
+    Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
     mam_lookup:lookup(Env, Filter, ExtParams).
 
-row_to_uniform_format({BMessID, BSrcJID, Data}, Env) ->
-    MessID = mongoose_rdbms:result_to_integer(BMessID),
-    SrcJID = decode_jid(BSrcJID, Env),
-    Packet = decode_packet(Data, Env),
+row_to_uniform_format({ExtMessID, ExtSrcJID, ExtData}, Env) ->
+    MessID = mongoose_rdbms:result_to_integer(ExtMessID),
+    SrcJID = decode_jid(ExtSrcJID, Env),
+    Packet = decode_packet(ExtData, Env),
     {MessID, SrcJID, Packet}.
 
 lookup_query(QueryType, Env, Filters, Order) ->
@@ -319,12 +322,12 @@ lookup_query(QueryType, Env, Filters, Order) ->
 %% Optimizations and extensible code
 
 -spec decode_jid(binary(), env_vars()) -> jid:jid().
-decode_jid(EncodedJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
-    mam_jid:decode(Codec, ArcJID, EncodedJID).
+decode_jid(ExtJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
+    mam_jid:decode(Codec, ArcJID, ExtJID).
 
 -spec decode_packet(binary(), env_vars()) -> exml:element().
-decode_packet(EncBin, Env = #{db_message_codec := Codec}) ->
-    Bin = unescape_binary(EncBin, Env),
+decode_packet(ExtBin, Env = #{db_message_codec := Codec}) ->
+    Bin = unescape_binary(ExtBin, Env),
     mam_message:decode(Codec, Bin).
 
 -spec unescape_binary(binary(), env_vars()) -> binary().
