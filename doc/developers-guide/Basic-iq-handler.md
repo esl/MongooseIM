@@ -187,7 +187,7 @@ Compile & generate releases for testing purposes according to
 Go to `$REPO/_build/mim1/rel/mongooseim` and start one MongooseIM node.
 
 ```bash
-$ bin/mongooseim live
+bin/mongooseim live
 ```
 Open up a new terminal window, go to `$REPO` and use the [test runner](Testing-MongooseIM.md).
 Run single suite with the already started `mim1` node.

@@ -99,7 +99,7 @@ Now, please proceed to the "Building" section.
 To compile MongooseIM, navigate to the main repo directory (referenced as `$REPO` in this guide) and execute:
 
 ```bash
-$ make [rel]
+make [rel]
 ```
 
 `rel` is optional as it is the default target.
@@ -125,13 +125,13 @@ There you can use the `mongooseim` command line administration script to start a
 For example, this command will start the server:
 
 ```bash
-$ bin/mongooseim start
+bin/mongooseim start
 ```
 
 You can also run the server in interactive mode (drop into an Erlang shell):
 
 ```bash
-$ bin/mongooseim live
+bin/mongooseim live
 ```
 
 There's also a tool called `mongooseimctl` to perform some operations on a running instance, e.g.:
@@ -154,7 +154,7 @@ MongooseIM node mongooseim@localhost:
 For testing purposes there's a different make target available:
 
 ```bash
-$ make devrel
+make devrel
 ```
 
 which will generate releases `mim1`, `mim2`, `mim3`, `fed1`, `reg1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
