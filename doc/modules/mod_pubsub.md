@@ -6,7 +6,7 @@ There might be several subscribers, several publishers, and even several channel
 
 ## Module Description
 
-This module implements [XEP-0060 (Publish-Subscribe)](http://www.xmpp.org/extensions/xep-0060.html).
+This module implements [XEP-0060: Publish-Subscribe](http://www.xmpp.org/extensions/xep-0060.html).
 Due to the complexity of the protocol, the PubSub engine makes successive calls to the `nodetree` and `node plugins` in order to check the validity of requests, perform the corresponding action and return a result or appropriate error.
 Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
 It's all about tailoring PubSub to your needs!
@@ -155,7 +155,7 @@ A user may create a subnode of a node, only if they own it or it was created by 
 
 ### `"dag"`
 
-Provides experimental support for [XEP-0248 (PubSub Collection Nodes)](http://xmpp.org/extensions/xep-0248.html).
+Provides experimental support for [XEP-0248: PubSub Collection Nodes](http://xmpp.org/extensions/xep-0248.html).
 In this case you should also add the `"dag"` node plugin as default, for example: `plugins = ["dag", "flat", "hometree", "pep"]`.
 
 ## Plugins
@@ -178,19 +178,19 @@ Each node can contain items and/or sub-nodes.
 
 ### `"pep"`
 
-Implementation of [XEP-0163 (Personal Eventing Protocol)](http://xmpp.org/extensions/xep-0163.html).
+Implementation of [XEP-0163: Personal Eventing Protocol](http://xmpp.org/extensions/xep-0163.html).
 In this case, items are not persisted but kept in an in-memory cache.
 When the `pep` plugin is enabled, a user can have their own node (exposed as their bare jid) with a common namespace.
 Requires module `mod_caps` to be enabled.
 
 ### `"dag"`
 
-Implementation of [XEP-0248 (PubSub Collection Nodes)](https://xmpp.org/extensions/xep-0248.html).
+Implementation of [XEP-0248: PubSub Collection Nodes](https://xmpp.org/extensions/xep-0248.html).
 Every node takes a place in a collection and becomes either a collection node (and have only sub-nodes) or a leaf node (contains only items).
 
 ### `"push"`
 
-Special node type that may be used as a target node for [XEP-0357 (Push Notifications)](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
+Special node type that may be used as a target node for [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) capable services (e.g. `mod_event_pusher_push`).
 For each published notification, a hook `push_notification` is run.
 You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`).
 This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.

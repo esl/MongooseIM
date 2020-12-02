@@ -28,7 +28,7 @@ server_info = [
 ]
 ```
 Adds extra disco information to all or chosen modules.
-New fields will be added in a manner compliant with [XEP-0157](https://xmpp.org/extensions/xep-0157.html).
+New fields will be added in a manner compliant with [XEP-0157: Contact Addresses for XMPP Services](https://xmpp.org/extensions/xep-0157.html).
 
 Required keys and their values for each entry:
 

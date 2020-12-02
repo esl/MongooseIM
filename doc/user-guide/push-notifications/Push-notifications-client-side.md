@@ -53,7 +53,7 @@ and will pass them through to the APNS and/or FCM.
 
 The most important and only difference from the standard node creation
 is the `type='push'` part of the `create` element.
-According to [XEP-0357](https://xmpp.org/extensions/xep-0357.html#enabling), a PubSub node is
+According to [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html#enabling), a PubSub node is
 required to route the push notification mechanism. This implies you need a node that will handle
 your push notifications, hence we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
@@ -132,7 +132,7 @@ there are also some other `publish-options` supported:
     more information please refer to _APNS_ documentation.
   * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
     payload will be send to the push notifications provider with no notification. The data payload
-    will contain all notification fields as defined in [XEP-0357].
+    will contain all notification fields as defined in [XEP-0357: Push Notifications][XEP-0357].
   * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
     This value will set the push notification priority. Please refer to FCM / APNS documentation for
     more details on those values.

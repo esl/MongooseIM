@@ -11,14 +11,14 @@ You might also want to read about the push notification's [client side configura
 All push notification mechanisms use [mod_event_pusher_push][] as a backend implementation,
 read [the relevant documentation][mod_event_pusher] to know more about it.
 
-## XEP-0357 Push Notifications
+## XEP-0357: Push Notifications
 
-Server side push notification support is fully compliant with [XEP-0357 Push Notifications][XEP-0357],
+Server side push notification support is fully compliant with [XEP-0357: Push Notifications][XEP-0357],
 which defines several components that need to work together in order to provide clients with working
 push notifications. However, there's just one non-optimal detail required by the aforementioned XEP:
 that push notifications being a PubSub service — [we can do better than that][pubsub-less].
 
-If you're already familiar with the workings of [XEP-0357][], make sure to have a look at
+If you're already familiar with the workings of [XEP-0357: Push Notifications][XEP-0357], make sure to have a look at
 [our PubSub-less enhancement][pubsub-less].
 
 As it is always said, one picture is worth a thousand words:
@@ -125,7 +125,7 @@ A connector to [MongoosePush][] application. You can read more about it [here][W
 
 ### [mod_pubsub][]'s `push` node
 
-According to the [XEP-0357 Push Notifications](https://xmpp.org/extensions/xep-0357.html), all
+According to the [XEP-0357: Push Notifications][XEP-0357], all
 notifications generated via the module we have just enabled (i.e. [mod_event_pusher_push][]) have to
 be send to a push enabled publish-subscribe node. In order to allow clients to allocate such a
 node, we need to enable it in our [mod_pubsub][] on the MongooseIM server that will communicate with

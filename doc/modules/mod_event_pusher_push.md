@@ -1,7 +1,7 @@
 ## Module Description
 
 This module is a backend for [mod_event_pusher][] that implements
-[XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
+[XEP-0357: Push Notifications][XEP-0357].
 It provides push notification data to the service that delivers actual notifications
 to a client device.
 
@@ -88,7 +88,7 @@ option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
 * Versatility: PubSub-less and PubSub-full mechanisms can be configured with different domains and
   therefore give fine-grained control over the push notification handling
 * Takes advantage of the PubSub-less efficiency when told to do so
-* Fully compliant with [XEP-0357][] and therefore with most 3rd party client libraries
+* Fully compliant with [XEP-0357: Push Notifications][XEP-0357] and therefore with most 3rd party client libraries
 * Ideal for migrations to PubSub-less deployments.
 
 #### Drawbacks
@@ -108,7 +108,7 @@ A plugin module handles the dynamic configuration of push notifications.
 It contains the filtering and custom logic for notifying about messages.
 
 Two plugin implementations are provided.
-They offer different behaviour considering unacknowledged messages when using [Stream Management][XEP-0198]:
+They offer different behaviour considering unacknowledged messages when using [XEP-0198: Stream Management][XEP-0198]:
 
 
 * `mod_event_pusher_push_plugin_defaults`, which implements an older behaviour. It does not notify
@@ -134,3 +134,4 @@ the defaults are used instead.
 [XEP-0198]: https://xmpp.org/extensions/xep-0198.html
 [enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
 [tutorial]: ../user-guide/push-notifications/Push-notifications.md
+[XEP-0357]: https://xmpp.org/extensions/xep-0357.html

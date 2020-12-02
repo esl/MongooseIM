@@ -41,7 +41,7 @@ When no `xmppAddr` is specified, the `cn` (common name) field might be used to p
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
-For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
+For the details please refer to [XEP-0178: Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
 ### Enable compatible authentication method
 

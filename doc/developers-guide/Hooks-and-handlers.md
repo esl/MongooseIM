@@ -7,7 +7,7 @@ It can be thought of as a simple eventing mechanism notifying about certain thin
 That results in an extensible system with pluggable extra functionality.
 
 To focus our attention, we'll analyze `mod_offline` which is responsible for storing messages for delivery to users unavailable at the time of sending.
-`mod_offline` is an implementation of [XEP-0203][xep-0203].
+`mod_offline` is an implementation of [XEP-0203: Delayed Delivery][xep-0203].
 
 ## Running a hook
 

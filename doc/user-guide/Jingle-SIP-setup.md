@@ -292,7 +292,7 @@ Sonetel, who are this feature's sponsor, operate on a slightly different use cas
 Current implementation makes following assumptions:
 
 * The peer-to-peer stream is always encrypted.
-  This means that MongooseIM expects element `<fingerprint>` as described in [XEP-0320](https://xmpp.org/extensions/xep-0320.html) to be in the content description.
+  This means that MongooseIM expects element `<fingerprint>` as described in [XEP-0320: Use of DTLS-SRTP in Jingle Sessions](https://xmpp.org/extensions/xep-0320.html) to be in the content description.
   Not every open source XMPP client supporting Jingle supports this encryption.
 * MongooseIM expects that the `200 OK` response contains at least one ICE candidate to set the peer-to-peer connection up.
 

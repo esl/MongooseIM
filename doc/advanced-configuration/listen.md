@@ -383,7 +383,7 @@ By setting this option to `kick_old`, we drop any old connections registered at 
 
 In order to register a component for all virtual hosts served by the server (see `hosts` in the `general` section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
-The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114](http://xmpp.org/extensions/xep-0114.html).
+The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
 ### Service listener example
 

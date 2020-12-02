@@ -62,7 +62,7 @@ Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html
 Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Synchronous HTTP), the HTTP long-polling technique described in [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html).
 
 ### [mod_caps](../modules/mod_caps.md)
-Implements [XEP-0115 Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
+Implements [XEP-0115: Entity Capabilities](https://xmpp.org/extensions/xep-0115.html).
 It queries clients for their supported functionalities and caches them in Mnesia.
 This module tightly cooperates with [mod_pubsub](../modules/mod_pubsub.md) in order to deliver [PEP](https://xmpp.org/extensions/xep-0163.html) events to user's subscribers.
 
@@ -89,7 +89,7 @@ Allows sending online/offline notifications, chat and groupchat messages as even
 Allows sending presence changes (to available/unavailable), chat and groupchat messages as events to a RabbitMQ server.
 
 #### [mod_event_pusher_push](../modules/mod_event_pusher_push.md)
-Implements [XEP-0357 Push Notifiactions](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporary unavailable.
+Implements [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporary unavailable.
 
 #### [mod_event_pusher_http](../modules/mod_event_pusher_http.md)
 Forward events to an external HTTP service.
