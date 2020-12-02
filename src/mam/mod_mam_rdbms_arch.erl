@@ -155,17 +155,8 @@ encode_direction(outgoing) -> <<"O">>.
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, UserID, _ArcJID) when is_integer(Size) ->
     Filter = [{equal, user_id, UserID}],
-    calc_count(Host, Filter).
-
-
--spec index_hint_sql(jid:server()) -> string().
-index_hint_sql(Host) ->
-    case mongoose_rdbms:db_engine(Host) of
-        mysql ->
-            "USE INDEX(PRIMARY, i_mam_message_rem) ";
-        _ ->
-            ""
-    end.
+    Env = #{host => Host},
+    calc_count(Env, Filter).
 
 
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
@@ -301,7 +292,8 @@ remove_archive(Host, UserID) ->
 %% GDPR logic
 extract_gdpr_messages(Host, ArchiveID) ->
     Filters = [{equal, user_id, ArchiveID}],
-    lookup_query(lookup, Host, Filters, asc).
+    Env = #{host => Host},
+    lookup_query(lookup, Env, Filters, asc).
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
@@ -313,7 +305,7 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
         Env = env_vars(Host, ArcJID),
         ExtParams = extend_params(Params, Env),
         Filter = prepare_filter(ExtParams),
-        choose_lookup_messages_strategy(Host, Env, Filter, ExtParams)
+        choose_lookup_messages_strategy(Env, Filter, ExtParams)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
@@ -335,31 +327,31 @@ opt_count_type(_) ->
 %% - we can reduce number of queries if we skip counting for small data sets;
 %% - sometimes we want not to count at all
 %%   (for example, our client side counts ones and keep the information)
-choose_lookup_messages_strategy(Host, Env, Filter,
+choose_lookup_messages_strategy(Env, Filter,
                                 Params = #{rsm := RSM, page_size := PageSize}) ->
     case Params of
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
-            simple_lookup_messages(Host, Env, RSM, PageSize, Filter);
+            simple_lookup_messages(Env, RSM, PageSize, Filter);
         %% NOTICE: We always prefer opt_count optimization, if possible.
         %% Clients don't event know what opt_count is.
         #{opt_count_type := last_page} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_last_page(Host, Env, PageSize, Filter);
+            lookup_last_page(Env, PageSize, Filter);
         #{opt_count_type := by_offset} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
-            lookup_by_offset(Host, Env, RSM, PageSize, Filter);
+            lookup_by_offset(Env, RSM, PageSize, Filter);
         _ ->
             %% Calculate offset and total count first before extracting messages
-            lookup_messages_regular(Host, Env, RSM, PageSize, Filter)
+            lookup_messages_regular(Env, RSM, PageSize, Filter)
     end.
 
 %% Just extract messages
-simple_lookup_messages(Host, Env, RSM, PageSize, Filter) ->
+simple_lookup_messages(Env, RSM, PageSize, Filter) ->
     {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
-    Messages = extract_messages(Host, Env, Filter2, Offset, PageSize, Order),
+    Messages = extract_messages(Env, Filter2, Offset, PageSize, Order),
     {ok, {undefined, undefined, Messages}}.
 
 rsm_to_filter(RSM, Filter) ->
@@ -379,8 +371,8 @@ rsm_to_filter(RSM, Filter) ->
 
 %% This function handles case: #rsm_in{direction = before, id = undefined}
 %% Assumes assert_rsm_without_id(RSM)
-lookup_last_page(Host, Env, PageSize, Filter) ->
-    Messages = extract_messages(Host, Env, Filter, 0, PageSize, desc),
+lookup_last_page(Env, PageSize, Filter) ->
+    Messages = extract_messages(Env, Filter, 0, PageSize, desc),
     Selected = length(Messages),
     Offset =
         case Selected < PageSize of
@@ -388,14 +380,14 @@ lookup_last_page(Host, Env, PageSize, Filter) ->
                 0; %% Result fits on a single page
             false ->
                 FirstID = uniform_to_message_id(hd(Messages)),
-                calc_count(Host, before_id(FirstID, Filter))
+                calc_count(Env, before_id(FirstID, Filter))
         end,
     {ok, {Offset + Selected, Offset, Messages}}.
 
-lookup_by_offset(Host, Env, RSM, PageSize, Filter) ->
+lookup_by_offset(Env, RSM, PageSize, Filter) ->
     assert_rsm_without_id(RSM),
     Offset = rsm_to_index(RSM),
-    Messages = extract_messages(Host, Env, Filter, Offset, PageSize, asc),
+    Messages = extract_messages(Env, Filter, Offset, PageSize, asc),
     Selected = length(Messages),
     TotalCount =
         case Selected < PageSize of
@@ -403,7 +395,7 @@ lookup_by_offset(Host, Env, RSM, PageSize, Filter) ->
                 Offset + Selected; %% Result fits on a single page
             false ->
                 LastID = uniform_to_message_id(lists:last(Messages)),
-                CountAfterLastID = calc_count(Host, after_id(LastID, Filter)),
+                CountAfterLastID = calc_count(Env, after_id(LastID, Filter)),
                 Offset + Selected + CountAfterLastID
         end,
     {ok, {TotalCount, Offset, Messages}}.
@@ -415,17 +407,17 @@ rsm_to_index(#rsm_in{direction = undefined, index = Offset})
     when is_integer(Offset) -> Offset;
 rsm_to_index(_) -> 0.
 
-lookup_messages_regular(Host, Env, RSM, PageSize, Filter) ->
-    TotalCount = calc_count(Host, Filter),
-    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+lookup_messages_regular(Env, RSM, PageSize, Filter) ->
+    TotalCount = calc_count(Env, Filter),
+    Offset = calc_offset(Env, Filter, PageSize, TotalCount, RSM),
     Messages =
         case RSM of
             #rsm_in{direction = aft, id = ID} ->
-                extract_messages(Host, Env, from_id(ID, Filter), 0, PageSize + 1, asc);
+                extract_messages(Env, from_id(ID, Filter), 0, PageSize + 1, asc);
             #rsm_in{direction = before, id = ID} when ID =/= undefined ->
-                extract_messages(Host, Env, to_id(ID, Filter), 0, PageSize + 1, desc);
+                extract_messages(Env, to_id(ID, Filter), 0, PageSize + 1, desc);
             _ ->
-                extract_messages(Host, Env, Filter, Offset, PageSize, asc)
+                extract_messages(Env, Filter, Offset, PageSize, asc)
         end,
     Result = {TotalCount, Offset, Messages},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
@@ -458,24 +450,32 @@ row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
 
 uniform_to_message_id({MessID, _, _}) -> MessID.
 
--spec extract_messages(Host :: jid:server(), Env :: env_vars(),
+-spec extract_messages(Env :: env_vars(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
                        Order :: asc | desc) -> [mod_mam:message_row()].
-extract_messages(_Host, _Env, _Filter, _Offset, 0 = _Max, _Order) ->
+extract_messages(_Env, _Filter, _Offset, 0 = _Max, _Order) ->
     [];
-extract_messages(Host, Env, Filter, Offset, Max, Order) ->
-    {selected, MessageRows} = extract_rows(Host, Filter, Offset, Max, Order),
+extract_messages(Env, Filter, Offset, Max, Order) ->
+    {selected, MessageRows} = extract_rows(Env, Filter, Offset, Max, Order),
     ?LOG_DEBUG(#{what => mam_extract_messages,
                  mam_filter => Filter, offset => Offset, max => Max,
-                 host => Host, env_vars => Env, message_rows => MessageRows}),
+                 env_vars => Env, message_rows => MessageRows}),
     Rows = maybe_reverse(Order, MessageRows),
     rows_to_uniform_format(Rows, Env).
 
-extract_rows(Host, Filters, Offset, Max, Order) ->
+extract_rows(Env, Filters, Offset, Max, Order) ->
     Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
-    lookup_query(lookup, Host, Filters2, Order).
+    lookup_query(lookup, Env, Filters2, Order).
 
-lookup_query(QueryType, Host, Filters, Order) ->
+%% @doc Get the total result set size.
+%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
+-spec calc_count(env_vars(), filter()) -> non_neg_integer().
+calc_count(Env, Filter) ->
+    Result = lookup_query(count, Env, Filter, unordered),
+    mongoose_rdbms:selected_to_integer(Result).
+
+
+lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
     StmtName = filters_to_statement_name(QueryType, Filters, Order),
     case mongoose_rdbms:prepared(StmtName) of
         false ->
@@ -511,30 +511,23 @@ lookup_query(QueryType, Host, Filters, Order) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(jid:server(), filter(), mod_mam:message_id()) -> non_neg_integer().
-calc_index(Host, Filter, ID) ->
-    calc_count(Host, to_id(ID, Filter)).
+-spec calc_index(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
+calc_index(Env, Filter, ID) ->
+    calc_count(Env, to_id(ID, Filter)).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(jid:server(), filter(), mod_mam:message_id()) -> non_neg_integer().
-calc_before(Host, Filter, ID) ->
-    calc_count(Host, before_id(ID, Filter)).
+-spec calc_before(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
+calc_before(Env, Filter, ID) ->
+    calc_count(Env, before_id(ID, Filter)).
 
-%% @doc Get the total result set size.
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(jid:server(), filter()) -> non_neg_integer().
-calc_count(Host, Filter) ->
-    Result = lookup_query(count, Host, Filter, unordered),
-    mongoose_rdbms:selected_to_integer(Result).
-
--spec calc_offset(Host :: jid:server(),
+-spec calc_offset(Env :: env_vars(),
                   Filter :: filter(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(Host, Filter, PageSize, TotalCount, RSM) ->
+calc_offset(Env, Filter, PageSize, TotalCount, RSM) ->
   case RSM of
       #rsm_in{direction = undefined, index = Index} when is_integer(Index) ->
           Index;
@@ -542,9 +535,9 @@ calc_offset(Host, Filter, PageSize, TotalCount, RSM) ->
           %% Requesting the Last Page in a Result Set
           max(0, TotalCount - PageSize);
       #rsm_in{direction = before, id = ID} when is_integer(ID) ->
-          max(0, calc_before(Host, Filter, ID) - PageSize);
+          max(0, calc_before(Env, Filter, ID) - PageSize);
       #rsm_in{direction = aft, id = ID} when is_integer(ID) ->
-          calc_index(Host, Filter, ID);
+          calc_index(Env, Filter, ID);
       _ ->
           0
   end.
@@ -642,6 +635,15 @@ limit_sql(Filters) ->
     case lists:keymember(limit, 1, Filters) of %% and offset
         true -> rdbms_queries:limit_offset_sql();
         false -> ""
+    end.
+
+-spec index_hint_sql(jid:server()) -> string().
+index_hint_sql(Host) ->
+    case mongoose_rdbms:db_engine(Host) of
+        mysql ->
+            "USE INDEX(PRIMARY, i_mam_message_rem) ";
+        _ ->
+            ""
     end.
 
 filters_to_columns(Filters) ->
