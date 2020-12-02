@@ -327,36 +327,19 @@ never_run_handler(Acc, Number) ->
 The module is intended to be used from the shell for educational purposes:
 
 ```erlang
-TODO Update this once new log formatters are available
-
 (mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
 (mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
 {ok,ok}
 (mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
-(mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, 4).
+(mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, info).
 ok
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
-17:48:55.421 [info] First handler
-  value: 5
-  argument: 2
-  will return: 7
+when=2020-12-02T10:29:14.875981+00:00 level=error what=first_handler pid=<0.2321.0> at=mod_hook_example:first_handler/2:40 value=5 result=7 argument=2
+when=2020-12-02T10:29:14.876248+00:00 level=error what=stopping_handler pid=<0.2321.0> at=mod_hook_example:stopping_handler/2:46 value=7 result=9 argument=2
 ok
-17:48:55.421 [info] Stopping handler
-  value: 7
-  argument: 2
-  will return: 9
-17:48:55.421 [info] Final hook result: 9
-(mongooseim@localhost)6> 17:48:55.421 [info] Returned accumulator: #{lserver => <<"localhost">>,mongoose_acc => true,non_strippable => {set,0,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]}}},origin_location => {mod_hook_example,run_custom_hook,31},origin_pid => <0.1189.0>,origin_stanza => undefined,ref => #Ref<0.3348369203.60555266.196226>,stanza => undefined,timestamp => {1538,408935,405141},{example,value} => 9}
-
-(mongooseim@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
-ok
-17:49:11.672 [info] Final hook result: 5
-(mongooseim@localhost)7> 17:49:11.673 [info] Returned accumulator: #{lserver => <<"another-domain">>,mongoose_acc => true,non_strippable => {set,0,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]}}},origin_location => {mod_hook_example,run_custom_hook,31},origin_pid => <0.1189.0>,origin_stanza => undefined,ref => #Ref<0.3348369203.60555270.195733>,stanza => undefined,timestamp => {1538,408951,672653},{example,value} => 5}
-
-(mongooseim@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
-ok
+when=2020-12-02T10:29:14.876453+00:00 level=error what=hook_finished pid=<0.2321.0> at=mod_hook_example:run_custom_hook/1:35 result_acc_{example,value}=9 result_acc_timestamp=1606904954871246 result_acc_stanza=undefined result_acc_ref=#Ref<0.186499973.2771648514.42380> result_acc_origin_stanza=undefined result_acc_origin_pid=<0.2321.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=31 result_acc_origin_location_file=/Users/mikhailuvarov/erlang/esl/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result=9
 ```
 
 [mam]: http://xmpp.org/extensions/xep-0313.html
