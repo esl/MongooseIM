@@ -133,10 +133,9 @@ column_to_id(offset) -> "o".
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(jid:server(), _) -> 'ok'.
+-spec start(jid:server(), _) -> ok.
 start(Host, Opts) ->
     start_pm(Host, Opts),
-
     prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
                            [<<"DELETE FROM mam_message "
@@ -144,7 +143,6 @@ start(Host, Opts) ->
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
                            [<<"UPDATE mam_message SET message = ?, search_body = '' "
                               "WHERE user_id = ? AND id = ?">>]),
-
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
     mongoose_rdbms:prepare(mam_select_messages_to_retract, mam_message,
                            [user_id, remote_bare_jid, origin_id, direction],
