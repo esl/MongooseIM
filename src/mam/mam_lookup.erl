@@ -15,18 +15,18 @@
 
 %% Public logic
 %% We use two fields from Env:
-%% - lookup_fun
-%% - decode_row_fun
+%% - lookup_fn
+%% - decode_row_fn
 -spec lookup(env_vars(), filter(), params()) ->
     {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
     OptParams = Params#{opt_count_type => opt_count_type(RSM)},
     choose_lookup_messages_strategy(Env, Filter, OptParams).
 
-lookup_query(QueryType, #{lookup_fun := LookupF} = Env, Filters, Order) ->
+lookup_query(QueryType, #{lookup_fn := LookupF} = Env, Filters, Order) ->
     LookupF(QueryType, Env, Filters, Order).
 
-decode_row(Row, #{decode_row_fun := DecodeF} = Env) ->
+decode_row(Row, #{decode_row_fn := DecodeF} = Env) ->
     DecodeF(Row, Env).
 
 %% Private logic below
