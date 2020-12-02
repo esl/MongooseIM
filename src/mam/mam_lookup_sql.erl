@@ -5,6 +5,17 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_mam.hrl").
 
+
+%% This function uses some fields from Env:
+%% - host
+%% - table
+%% - index_hint_fn
+%% - column_to_id_fn
+%% - columns_sql_fn
+%%
+%% Filters are in format {Op, Column, Value}
+%% QueryType should be an atom, that we pass into the columns_sql_fn function.
+-spec lookup_query(QueryType :: atom(), Env :: map(), Filters :: list(), Order :: atom()) -> term().
 lookup_query(QueryType, #{host := Host, table := Table} = Env, Filters, Order) ->
     StmtName = filters_to_statement_name(Env, QueryType, Filters, Order),
     case mongoose_rdbms:prepared(StmtName) of
