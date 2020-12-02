@@ -56,6 +56,89 @@
 
 -type env_vars() :: map().
 
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+-spec start(jid:server(), _) -> ok.
+start(Host, Opts) ->
+    start_pm(Host, Opts),
+    register_prepared_queries(),
+    ok.
+
+-spec stop(jid:server()) -> ok.
+stop(Host) ->
+    stop_pm(Host).
+
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
+    case mod_mam:archive_id(Host, User) of
+        undefined -> [];
+        ArchiveID ->
+            Env = env_vars(Host, ArcJID),
+            {selected, Rows} = extract_gdpr_messages(Env, ArchiveID),
+            [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
+    end.
+
+uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
+    {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+-spec start_pm(jid:server(), _) -> 'ok'.
+start_pm(Host, _Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
+    ok.
+
+
+-spec stop_pm(jid:server()) -> ok.
+stop_pm(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
+    ok.
+
+%% ----------------------------------------------------------------------
+%% SQL queries
+
+register_prepared_queries() ->
+    prepare_insert(insert_mam_message, 1),
+    mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
+                           [<<"DELETE FROM mam_message "
+                              "WHERE user_id = ?">>]),
+    mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
+                           [<<"UPDATE mam_message SET message = ?, search_body = '' "
+                              "WHERE user_id = ? AND id = ?">>]),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
+    mongoose_rdbms:prepare(mam_select_messages_to_retract, mam_message,
+                           [user_id, remote_bare_jid, origin_id, direction],
+                           [<<"SELECT ", LimitMSSQL/binary,
+                              " id, message FROM mam_message"
+                              " WHERE user_id = ? AND remote_bare_jid = ? "
+                              " AND origin_id = ? AND direction = ?"
+                              " ORDER BY id DESC ", LimitSQL/binary>>]).
+
+%% ----------------------------------------------------------------------
+%% Declarative logic
+
 db_mappings() ->
     [#db_mapping{column = id, param = message_id, format = int},
      #db_mapping{column = user_id, param = archive_id, format = int},
@@ -113,79 +196,23 @@ column_to_id(search_body) -> "s";
 column_to_id(limit) -> "l";
 column_to_id(offset) -> "o".
 
-%% ----------------------------------------------------------------------
-%% gen_mod callbacks
-%% Starting and stopping functions for users' archives
-
--spec start(jid:server(), _) -> ok.
-start(Host, Opts) ->
-    start_pm(Host, Opts),
-    prepare_insert(insert_mam_message, 1),
-    mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
-                           [<<"DELETE FROM mam_message "
-                              "WHERE user_id = ?">>]),
-    mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
-                           [<<"UPDATE mam_message SET message = ?, search_body = '' "
-                              "WHERE user_id = ? AND id = ?">>]),
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
-    mongoose_rdbms:prepare(mam_select_messages_to_retract, mam_message,
-                           [user_id, remote_bare_jid, origin_id, direction],
-                           [<<"SELECT ", LimitMSSQL/binary,
-                              " id, message FROM mam_message"
-                              " WHERE user_id = ? AND remote_bare_jid = ? "
-                              " AND origin_id = ? AND direction = ?"
-                              " ORDER BY id DESC ", LimitSQL/binary>>]),
-    ok.
-
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    stop_pm(Host).
-
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
-    case mod_mam:archive_id(Host, User) of
-        undefined -> [];
-        ArchiveID ->
-            Env = env_vars(Host, ArcJID),
-            {selected, Rows} = extract_gdpr_messages(Env, ArchiveID),
-            [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
-    end.
-
-uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
-    {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
+column_names(Mappings) ->
+     [Column || #db_mapping{column = Column} <- Mappings].
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Options
 
--spec start_pm(jid:server(), _) -> 'ok'.
-start_pm(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
+-spec db_jid_codec(jid:server(), module()) -> module().
+db_jid_codec(Host, Module) ->
+    gen_mod:get_module_opt(Host, Module, db_jid_format, mam_jid_mini).
 
+-spec db_message_codec(jid:server(), module()) -> module().
+db_message_codec(Host, Module) ->
+    gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
 
--spec stop_pm(jid:server()) -> ok.
-stop_pm(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
+-spec get_retract_id(exml:element(), env_vars()) -> none | binary().
+get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
+    mod_mam_utils:get_retract_id(Enabled, Packet).
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
@@ -208,7 +235,7 @@ archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
               ?LOG_ERROR(#{what => archive_message_failed,
                            host => Host, mam_params => Params,
                            class => Class, reason => Reason, stacktrace => StackTrace}),
-            {error, Reason}
+              erlang:raise(Class, Reason, StackTrace)
     end.
 
 do_archive_message(Host, Params, Env) ->
@@ -261,14 +288,10 @@ execute_make_tombstone(Host, TombstoneData, UserID, MessID) ->
                                           [TombstoneData, UserID, MessID]).
 
 %% Insert logic
-
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
 prepare_message(Host, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
     mam_encoder:encode_message(Params, Env, db_mappings()).
-
-column_names(Mappings) ->
-     [Column || #db_mapping{column = Column} <- Mappings].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
@@ -277,7 +300,6 @@ prepare_insert(Name, NumRows) ->
     {Query, Fields2} = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields2, Query),
     ok.
-
 
 %% Removal logic
 -spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
@@ -308,18 +330,3 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
 
 lookup_query(QueryType, Env, Filters, Order) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order).
-
-%% ----------------------------------------------------------------------
-%% Optimizations and extensible code
-
--spec get_retract_id(exml:element(), env_vars()) -> none | binary().
-get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
-    mod_mam_utils:get_retract_id(Enabled, Packet).
-
--spec db_jid_codec(jid:server(), module()) -> module().
-db_jid_codec(Host, Module) ->
-    gen_mod:get_module_opt(Host, Module, db_jid_format, mam_jid_mini).
-
--spec db_message_codec(jid:server(), module()) -> module().
-db_message_codec(Host, Module) ->
-    gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
