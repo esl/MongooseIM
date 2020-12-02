@@ -91,6 +91,9 @@ env_vars(Host, ArcJID) ->
       db_jid_codec => db_jid_codec(Host, ?MODULE),
       db_message_codec => db_message_codec(Host, ?MODULE)}.
 
+row_to_uniform_format(Row, Env) ->
+    mam_decoder:decode_row(Row, Env).
+
 -spec index_hint_sql(env_vars()) -> string().
 index_hint_sql(#{host := Host}) ->
     case mongoose_rdbms:db_engine(Host) of
@@ -237,13 +240,7 @@ get_retraction_info(Host, UserID, RemJID, OriginID, Dir, Env) ->
     ExtDir = mam_encoder:encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
                          Host, UserID, ExtBareRemJID, OriginID, ExtDir),
-    decode_retraction_info(Env, Rows).
-
-decode_retraction_info(_Env, []) -> skip;
-decode_retraction_info(Env, [{ResMessID, Data}]) ->
-    Packet = decode_packet(Data, Env),
-    MessID = mongoose_rdbms:result_to_integer(ResMessID),
-    #{packet => Packet, message_id => MessID}.
+    mam_decoder:decode_retraction_info(Env, Rows).
 
 make_tombstone(_Host, UserID, OriginID, skip, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
@@ -307,33 +304,13 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
-    mam_lookup:lookup(Env, Filter, ExtParams).
-
-row_to_uniform_format({ExtMessID, ExtSrcJID, ExtData}, Env) ->
-    MessID = mongoose_rdbms:result_to_integer(ExtMessID),
-    SrcJID = decode_jid(ExtSrcJID, Env),
-    Packet = decode_packet(ExtData, Env),
-    {MessID, SrcJID, Packet}.
+    mam_lookup:lookup(Env, Filter, ExdParams).
 
 lookup_query(QueryType, Env, Filters, Order) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order).
 
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
-
--spec decode_jid(binary(), env_vars()) -> jid:jid().
-decode_jid(ExtJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
-    mam_jid:decode(Codec, ArcJID, ExtJID).
-
--spec decode_packet(binary(), env_vars()) -> exml:element().
-decode_packet(ExtBin, Env = #{db_message_codec := Codec}) ->
-    Bin = unescape_binary(ExtBin, Env),
-    mam_message:decode(Codec, Bin).
-
--spec unescape_binary(binary(), env_vars()) -> binary().
-unescape_binary(Bin, #{host := Host}) ->
-    %% Funny, rdbms ignores this Host variable
-    mongoose_rdbms:unescape_binary(Host, Bin).
 
 -spec get_retract_id(exml:element(), env_vars()) -> none | binary().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
