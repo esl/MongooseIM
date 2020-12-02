@@ -95,10 +95,10 @@ env_vars(Host, ArcJID) ->
       index_hint_fn => fun index_hint_sql/1,
       columns_sql_fn => fun columns_sql/1,
       column_to_id_fn => fun column_to_id/1,
-      lookup_fun => fun lookup_query/4,
-      decode_row_fun => fun row_to_uniform_format/2,
+      lookup_fn => fun lookup_query/4,
+      decode_row_fn => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
-      full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
+      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
       db_message_codec => db_message_codec(Host, ?MODULE)}.
 
@@ -411,7 +411,7 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
 
 -spec encode_search_body(exml:element(), env_vars()) -> binary().
-encode_search_body(Packet, #{full_text_search := SearchEnabled}) ->
+encode_search_body(Packet, #{has_full_text_search := SearchEnabled}) ->
     mod_mam_utils:packet_to_search_body(SearchEnabled, Packet).
 
 -spec db_jid_codec(jid:server(), module()) -> module().
