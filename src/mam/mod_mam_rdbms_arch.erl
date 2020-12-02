@@ -104,7 +104,7 @@ get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
         undefined -> [];
         ArchiveID ->
             Env = env_vars(Host, ArcJID),
-            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            {selected, Rows} = extract_gdpr_messages(Env, ArchiveID),
             Messages = rows_to_uniform_format(Rows, Env),
             [uniform_to_gdpr(M) || M <- Messages] ++ Acc
     end.
@@ -153,10 +153,11 @@ encode_direction(outgoing) -> <<"O">>.
 
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, UserID, _ArcJID) when is_integer(Size) ->
+archive_size(Size, Host, UserID, ArcJID) when is_integer(Size) ->
     Filter = [{equal, user_id, UserID}],
-    Env = #{host => Host},
-    calc_count(Env, Filter).
+    Env = env_vars(Host, ArcJID),
+    Result = lookup_query(count, Env, Filter, unordered),
+    mongoose_rdbms:selected_to_integer(Result).
 
 
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
@@ -290,9 +291,8 @@ remove_archive(Host, UserID) ->
     {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_archive_remove, [UserID]).
 
 %% GDPR logic
-extract_gdpr_messages(Host, ArchiveID) ->
+extract_gdpr_messages(Env, ArchiveID) ->
     Filters = [{equal, user_id, ArchiveID}],
-    Env = #{host => Host},
     lookup_query(lookup, Env, Filters, asc).
 
 %% Lookup logic
@@ -305,138 +305,10 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
         Env = env_vars(Host, ArcJID),
         ExtParams = extend_params(Params, Env),
         Filter = prepare_filter(ExtParams),
-        choose_lookup_messages_strategy(Env, Filter, ExtParams)
+        mam_lookup:lookup(Env, Filter, ExtParams)
     catch _Type:Reason:S ->
         {error, {Reason, {stacktrace, S}}}
     end.
-
-%% Not supported:
-%% - #rsm_in{direction = aft, id = ID}
-%% - #rsm_in{direction = before, id = ID}
-opt_count_type(#rsm_in{direction = before, id = undefined}) ->
-    last_page; %% last page is supported
-opt_count_type(#rsm_in{direction = undefined}) ->
-    by_offset; %% offset
-opt_count_type(undefined) ->
-    by_offset; %% no RSM
-opt_count_type(_) ->
-    none. %% id field is defined in RSM
-
-%% There are several strategies how to extract messages:
-%% - we can use regular query that requires counting;
-%% - we can reduce number of queries if we skip counting for small data sets;
-%% - sometimes we want not to count at all
-%%   (for example, our client side counts ones and keep the information)
-choose_lookup_messages_strategy(Env, Filter,
-                                Params = #{rsm := RSM, page_size := PageSize}) ->
-    case Params of
-        #{is_simple := true} ->
-            %% Simple query without calculating offset and total count
-            simple_lookup_messages(Env, RSM, PageSize, Filter);
-        %% NOTICE: We always prefer opt_count optimization, if possible.
-        %% Clients don't event know what opt_count is.
-        #{opt_count_type := last_page} when PageSize > 0 ->
-            %% Extract messages before calculating offset and total count
-            %% Useful for small result sets
-            lookup_last_page(Env, PageSize, Filter);
-        #{opt_count_type := by_offset} when PageSize > 0 ->
-            %% Extract messages before calculating offset and total count
-            %% Useful for small result sets
-            lookup_by_offset(Env, RSM, PageSize, Filter);
-        _ ->
-            %% Calculate offset and total count first before extracting messages
-            lookup_messages_regular(Env, RSM, PageSize, Filter)
-    end.
-
-%% Just extract messages
-simple_lookup_messages(Env, RSM, PageSize, Filter) ->
-    {Filter2, Offset, Order} = rsm_to_filter(RSM, Filter),
-    Messages = extract_messages(Env, Filter2, Offset, PageSize, Order),
-    {ok, {undefined, undefined, Messages}}.
-
-rsm_to_filter(RSM, Filter) ->
-    case RSM of
-        %% Get last rows from result set
-        #rsm_in{direction = aft, id = ID} ->
-            {after_id(ID, Filter), 0, asc};
-        #rsm_in{direction = before, id = undefined} ->
-            {Filter, 0, desc};
-        #rsm_in{direction = before, id = ID} ->
-            {before_id(ID, Filter), 0, desc};
-        #rsm_in{direction = undefined, index = Index} ->
-            {Filter, Index, asc};
-        undefined ->
-            {Filter, 0, asc}
-    end.
-
-%% This function handles case: #rsm_in{direction = before, id = undefined}
-%% Assumes assert_rsm_without_id(RSM)
-lookup_last_page(Env, PageSize, Filter) ->
-    Messages = extract_messages(Env, Filter, 0, PageSize, desc),
-    Selected = length(Messages),
-    Offset =
-        case Selected < PageSize of
-            true ->
-                0; %% Result fits on a single page
-            false ->
-                FirstID = uniform_to_message_id(hd(Messages)),
-                calc_count(Env, before_id(FirstID, Filter))
-        end,
-    {ok, {Offset + Selected, Offset, Messages}}.
-
-lookup_by_offset(Env, RSM, PageSize, Filter) ->
-    assert_rsm_without_id(RSM),
-    Offset = rsm_to_index(RSM),
-    Messages = extract_messages(Env, Filter, Offset, PageSize, asc),
-    Selected = length(Messages),
-    TotalCount =
-        case Selected < PageSize of
-            true ->
-                Offset + Selected; %% Result fits on a single page
-            false ->
-                LastID = uniform_to_message_id(lists:last(Messages)),
-                CountAfterLastID = calc_count(Env, after_id(LastID, Filter)),
-                Offset + Selected + CountAfterLastID
-        end,
-    {ok, {TotalCount, Offset, Messages}}.
-
-assert_rsm_without_id(undefined) -> ok;
-assert_rsm_without_id(#rsm_in{id = undefined}) -> ok.
-
-rsm_to_index(#rsm_in{direction = undefined, index = Offset})
-    when is_integer(Offset) -> Offset;
-rsm_to_index(_) -> 0.
-
-lookup_messages_regular(Env, RSM, PageSize, Filter) ->
-    TotalCount = calc_count(Env, Filter),
-    Offset = calc_offset(Env, Filter, PageSize, TotalCount, RSM),
-    Messages =
-        case RSM of
-            #rsm_in{direction = aft, id = ID} ->
-                extract_messages(Env, from_id(ID, Filter), 0, PageSize + 1, asc);
-            #rsm_in{direction = before, id = ID} when ID =/= undefined ->
-                extract_messages(Env, to_id(ID, Filter), 0, PageSize + 1, desc);
-            _ ->
-                extract_messages(Env, Filter, Offset, PageSize, asc)
-        end,
-    Result = {TotalCount, Offset, Messages},
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
-
--spec after_id(mod_mam:message_id(), filter()) -> filter().
-after_id(ID, Filter) ->
-    [{greater, id, ID}|Filter].
-
--spec before_id(mod_mam:message_id(), filter()) -> filter().
-before_id(ID, Filter) ->
-    [{lower, id, ID}|Filter].
-
--spec from_id(mod_mam:message_id(), filter()) -> filter().
-from_id(ID, Filter) ->
-    [{ge, id, ID}|Filter].
-
--spec to_id(mod_mam:message_id(), filter()) -> filter().
-to_id(ID, Filter) ->
-    [{le, id, ID}|Filter].
 
 rows_to_uniform_format(MessageRows, Env) ->
     [row_to_uniform_format(Row, Env) || Row <- MessageRows].
@@ -447,33 +319,6 @@ row_to_uniform_format({BMessID, BSrcJID, SDataRaw}, Env) ->
     Data = unescape_binary(SDataRaw, Env),
     Packet = decode_packet(Data, Env),
     {MessID, SrcJID, Packet}.
-
-uniform_to_message_id({MessID, _, _}) -> MessID.
-
--spec extract_messages(Env :: env_vars(),
-                       Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
-                       Order :: asc | desc) -> [mod_mam:message_row()].
-extract_messages(_Env, _Filter, _Offset, 0 = _Max, _Order) ->
-    [];
-extract_messages(Env, Filter, Offset, Max, Order) ->
-    {selected, MessageRows} = extract_rows(Env, Filter, Offset, Max, Order),
-    ?LOG_DEBUG(#{what => mam_extract_messages,
-                 mam_filter => Filter, offset => Offset, max => Max,
-                 env_vars => Env, message_rows => MessageRows}),
-    Rows = maybe_reverse(Order, MessageRows),
-    rows_to_uniform_format(Rows, Env).
-
-extract_rows(Env, Filters, Offset, Max, Order) ->
-    Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
-    lookup_query(lookup, Env, Filters2, Order).
-
-%% @doc Get the total result set size.
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(env_vars(), filter()) -> non_neg_integer().
-calc_count(Env, Filter) ->
-    Result = lookup_query(count, Env, Filter, unordered),
-    mongoose_rdbms:selected_to_integer(Result).
-
 
 lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
     StmtName = filters_to_statement_name(QueryType, Filters, Order),
@@ -505,47 +350,6 @@ lookup_query(QueryType, #{host := Host} = _Env, Filters, Order) ->
             error(What)
     end.
 
-%% @doc Calculate a zero-based index of the row with UID in the result test.
-%%
-%% If the element does not exists, the ID of the next element will
-%% be returned instead.
-%% @end
-%% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
-calc_index(Env, Filter, ID) ->
-    calc_count(Env, to_id(ID, Filter)).
-
-%% @doc Count of elements in RSet before the passed element.
-%%
-%% The element with the passed UID can be already deleted.
-%% @end
-%% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(env_vars(), filter(), mod_mam:message_id()) -> non_neg_integer().
-calc_before(Env, Filter, ID) ->
-    calc_count(Env, before_id(ID, Filter)).
-
--spec calc_offset(Env :: env_vars(),
-                  Filter :: filter(), PageSize :: non_neg_integer(),
-                  TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
-calc_offset(Env, Filter, PageSize, TotalCount, RSM) ->
-  case RSM of
-      #rsm_in{direction = undefined, index = Index} when is_integer(Index) ->
-          Index;
-      #rsm_in{direction = before, id = undefined} ->
-          %% Requesting the Last Page in a Result Set
-          max(0, TotalCount - PageSize);
-      #rsm_in{direction = before, id = ID} when is_integer(ID) ->
-          max(0, calc_before(Env, Filter, ID) - PageSize);
-      #rsm_in{direction = aft, id = ID} when is_integer(ID) ->
-          calc_index(Env, Filter, ID);
-      _ ->
-          0
-  end.
-
-maybe_reverse(asc, List) ->
-    List;
-maybe_reverse(desc, List) ->
-    lists:reverse(List).
 
 %% ----------------------------------------------------------------------
 %% Optimizations and extensible code
@@ -563,9 +367,9 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-maybe_minify_bare_jid(undefined, _Env) ->
+maybe_encode_bare_jid(undefined, _Env) ->
     undefined;
-maybe_minify_bare_jid(JID, Env) ->
+maybe_encode_bare_jid(JID, Env) ->
     encode_jid(jid:to_bare(JID), Env).
 
 -spec encode_jid(jid:jid(), env_vars()) -> binary().
@@ -598,6 +402,8 @@ env_vars(Host, ArcJID) ->
     %% It's only for passing into RDBMS.
     #{host => Host,
       archive_jid => ArcJID,
+      lookup_fun => fun lookup_query/4,
+      row_to_uniform_format_fun => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
       full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
       db_jid_codec => db_jid_codec(Host, ?MODULE),
@@ -719,14 +525,13 @@ filter_to_sql(equal, Column) ->
 filter_to_sql(like, Column) ->
     Column ++ " LIKE ?".
 
-extend_params(#{rsm := RSM, borders := Borders,
+extend_params(#{borders := Borders,
                 start_ts := Start, end_ts := End, with_jid := WithJID,
                 search_text := SearchText} = Params, Env) ->
-    Params#{opt_count_type => opt_count_type(RSM),
-            norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
+    Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
             start_id => make_start_id(Start, Borders),
             end_id => make_end_id(End, Borders),
-            remote_bare_jid => maybe_minify_bare_jid(WithJID, Env),
+            remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
 jid_to_non_empty_resource(#jid{lresource = Res}) when byte_size(Res) > 0 ->
