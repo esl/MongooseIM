@@ -110,7 +110,7 @@ Node configuration still uses the default configuration defined by the node plug
 When enabled, a JID of the publisher will be saved in the item metadata.
 This effectively makes them an owner of this item.
 
-#### `modules.mod_pubsub.sync_broadcast`
+### `modules.mod_pubsub.sync_broadcast`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `sync_broadcast = false`
