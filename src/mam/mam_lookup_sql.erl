@@ -5,23 +5,32 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_mam.hrl").
 
+%% The ONLY usage of Env is in these functions:
+%% The rest of code should treat Env as opaque (i.e. the code just passes Env around).
+host(#{host := Host}) -> Host.
+table(#{table := Table}) -> Table.
+index_hint_sql(Env = #{index_hint_fn := F}) -> F(Env).
+columns_sql(#{columns_sql_fn := F}, QueryType) -> F(QueryType).
+column_to_id(#{column_to_id_fn := F}, Col) -> F(Col).
 
 %% This function uses some fields from Env:
 %% - host
 %% - table
 %% - index_hint_fn
-%% - column_to_id_fn
 %% - columns_sql_fn
+%% - column_to_id_fn
 %%
 %% Filters are in format {Op, Column, Value}
 %% QueryType should be an atom, that we pass into the columns_sql_fn function.
 -spec lookup_query(QueryType :: atom(), Env :: map(), Filters :: list(), Order :: atom()) -> term().
-lookup_query(QueryType, #{host := Host, table := Table} = Env, Filters, Order) ->
-    StmtName = filters_to_statement_name(Env, QueryType, Filters, Order),
+lookup_query(QueryType, Env, Filters, Order) ->
+    Table = table(Env),
+    Host = host(Env),
+    StmtName = filters_to_statement_name(Env, QueryType, Table, Filters, Order),
     case mongoose_rdbms:prepared(StmtName) of
         false ->
             %% Create a new type of a query
-            SQL = lookup_sql_binary(QueryType, Env, Filters, Order),
+            SQL = lookup_sql_binary(QueryType, Table, Env, Filters, Order),
             Columns = filters_to_columns(Filters),
             mongoose_rdbms:prepare(StmtName, Table, Columns, SQL);
         true ->
@@ -33,24 +42,24 @@ lookup_query(QueryType, #{host := Host, table := Table} = Env, Filters, Order) -
             {selected, Rs};
         Error ->
             What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Env, Filters, Order),
+                     sql_query => lookup_sql_binary(QueryType, Table, Env, Filters, Order),
                      reason => Error, host => Host},
             ?LOG_ERROR(What),
             error(What)
     catch Class:Error:Stacktrace ->
             What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Env, Filters, Order),
+                     sql_query => lookup_sql_binary(QueryType, Table, Env, Filters, Order),
                      class => Class, stacktrace => Stacktrace,
                      reason => Error, host => Host},
             ?LOG_ERROR(What),
             erlang:raise(Class, Error, Stacktrace)
     end.
 
-lookup_sql_binary(QueryType, Env, Filters, Order) ->
-    iolist_to_binary(lookup_sql(QueryType, Env, Filters, Order)).
+lookup_sql_binary(QueryType, Table, Env, Filters, Order) ->
+    iolist_to_binary(lookup_sql(QueryType, Table, Env, Filters, Order)).
 
-lookup_sql(QueryType, Env = #{index_hint_fn := IndexHintF, table := Table}, Filters, Order) ->
-    IndexHintSQL = IndexHintF(Env),
+lookup_sql(QueryType, Table, Env, Filters, Order) ->
+    IndexHintSQL = index_hint_sql(Env),
     FilterSQL = filters_to_sql(Filters),
     OrderSQL = order_to_sql(Order),
     LimitSQL = limit_sql(Filters),
@@ -73,13 +82,11 @@ filters_to_columns(Filters) ->
 filters_to_args(Filters) ->
    [Value || {_Op, _Column, Value} <- Filters].
 
-filters_to_statement_name(#{table := Table, column_to_id_fn := ColFn}, QueryType, Filters, Order) ->
+filters_to_statement_name(Env, QueryType, Table, Filters, Order) ->
     QueryId = query_type_to_id(QueryType),
-    Ids = [op_to_id(Op) ++ ColFn(Col) || {Op, Col, _Val} <- Filters],
+    Ids = [op_to_id(Op) ++ column_to_id(Env, Col) || {Op, Col, _Val} <- Filters],
     OrderId = order_type_to_id(Order),
     list_to_atom(atom_to_list(Table) ++ "_" ++ QueryId ++ "_" ++ OrderId ++ "_" ++ lists:append(Ids)).
-
-columns_sql(#{columns_sql_fn := F}, QueryType) -> F(QueryType).
 
 query_type_to_id(QueryType) -> atom_to_list(QueryType).
 
