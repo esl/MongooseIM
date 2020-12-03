@@ -16,8 +16,7 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(errf(Config),
-        begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+-define(errf(Config), err_host_config(Config)).
 
 %% Constructs HOF to pass into run_multi/1 function
 %% It's a HOF, so it would always pass if not passed into run_multi/1
@@ -3154,10 +3153,6 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
-
-parse_with_host(Config) ->
-    [F] = parse(Config),
-    apply(F, [?HOST]).
 
 set_pl(K, V, List) ->
     lists:keyreplace(K, 1, List, {K, V}).
