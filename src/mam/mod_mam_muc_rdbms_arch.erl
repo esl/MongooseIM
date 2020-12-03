@@ -123,7 +123,7 @@ register_prepared_queries() ->
                               " WHERE room_id = ? AND sender_id = ? "
                               " AND origin_id = ?"
                               " ORDER BY id DESC ", LimitSQL/binary>>]),
-    mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [id, message],
+    mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [sender_id],
                            [<<"SELECT id, message FROM mam_muc_message "
                               " WHERE sender_id = ? ORDER BY id">>]).
 
