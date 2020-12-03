@@ -1,2 +1,2 @@
--record(db_mapping, {column, param, format}).
--record(lookup_field, {op, column, param, required, value_maker}).
+-record(db_mapping, {column :: atom(), param :: atom(), format :: atom()}).
+-record(lookup_field, {op :: atom(), column :: atom(), param :: atom(), required :: atom(), value_maker :: atom()}).
