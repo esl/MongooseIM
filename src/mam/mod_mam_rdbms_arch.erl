@@ -74,7 +74,8 @@ stop(Host) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
     case mod_mam:archive_id(Host, User) of
-        undefined -> [];
+        undefined ->
+            Acc;
         ArcID ->
             Env = env_vars(Host, ArcJID),
             {selected, Rows} = extract_gdpr_messages(Env, ArcID),
