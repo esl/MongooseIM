@@ -2280,9 +2280,9 @@ mod_muc_log_opts() ->
      {timezone, <<"local">>, local},
      {timezone, <<"universal">>, universal},
      {spam_prevention, true, true},
-     {top_link, #{<<"target">> => <<"https://mongooseim.readthedocs.io/en/latest/modules/mod_muc_log/">>,
+     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/">>,
                   <<"text">> => <<"docs">>},
-                {"https://mongooseim.readthedocs.io/en/latest/modules/mod_muc_log/", "docs"}}].
+                {"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/", "docs"}}].
 
 mod_muc_log_bad_opts() ->
     %% toml-name toml
@@ -2294,7 +2294,7 @@ mod_muc_log_bad_opts() ->
      {timezone, <<"galactive">>},
      {spam_prevention, 69},
      {top_link, #{<<"target">> => 1, <<"text">> => <<"docs">>}},
-     {top_link, #{<<"target">> => <<"https://mongooseim.readthedocs.io/">>, <<"text">> => <<>>}}
+     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>, <<"text">> => <<>>}}
     ].
 
 mod_muc_light(_Config) ->
