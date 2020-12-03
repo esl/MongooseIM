@@ -28,7 +28,9 @@
 
 -behaviour(mongoose_service).
 
--export([start/1, stop/0]).
+-include("ejabberd_config.hrl").
+
+-export([start/1, stop/0, config_spec/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats, gdpr, upload
@@ -49,6 +51,15 @@ stop() ->
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:unregister_commands((mod_name(Submod)):commands())
         end, ?SUBMODS).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"submods">> => #list{items = #option{type = atom,
+                                                        validate = {enum, ?SUBMODS}},
+                                        validate = unique}
+                }
+      }.
 
 mod_name(ModAtom) ->
     list_to_existing_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(ModAtom)).

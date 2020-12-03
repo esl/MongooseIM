@@ -2894,6 +2894,8 @@ service_mongoose_system_metrics(_Config) ->
         parse(T(#{<<"periodic_report">> => 5000}))),
     ?eq(servopts(M, [{tracking_id, "UA-123456789"}]),
         parse(T(#{<<"tracking_id">> => <<"UA-123456789">>}))),
+    ?eq(servopts(M, [no_report]),
+        parse(T(#{<<"report">> => false}))),
     %% error cases
     ?err(parse(T(#{<<"initial_report">> => <<"forever">>}))),
     ?err(parse(T(#{<<"periodic_report">> => <<"forever">>}))),

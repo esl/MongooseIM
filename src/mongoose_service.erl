@@ -21,6 +21,7 @@
 -export([start/0, stop/0,
          start_service/2,
          stop_service/1,
+         config_spec/1,
          is_loaded/1,
          assert_loaded/1,
          ensure_loaded/1,
@@ -43,6 +44,7 @@
 
 -callback start(Opts :: list()) -> any().
 -callback stop() -> any().
+-callback config_spec() -> mongoose_config_spec:config_section().
 %%optional:
 %%-callback deps() -> [service()].
 
@@ -69,6 +71,10 @@ stop_service(Service) ->
         false -> {error, not_running};
         true -> run_stop_service(Service)
     end.
+
+-spec config_spec(service()) -> mongoose_config_spec:config_section().
+config_spec(Service) ->
+    Service:config_spec().
 
 -spec ensure_loaded(service()) -> ok.
 ensure_loaded(Service) ->
