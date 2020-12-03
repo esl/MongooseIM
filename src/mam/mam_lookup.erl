@@ -23,8 +23,8 @@ lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
     OptParams = Params#{opt_count_type => opt_count_type(RSM)},
     choose_lookup_messages_strategy(Env, Filter, OptParams).
 
-lookup_query(QueryType, #{lookup_fn := LookupF} = Env, Filters, Order) ->
-    LookupF(QueryType, Env, Filters, Order).
+lookup_query(QueryType, #{lookup_fn := LookupF} = Env, Filters, Order, OffsetLimit) ->
+    LookupF(QueryType, Env, Filters, Order, OffsetLimit).
 
 decode_row(Row, #{decode_row_fn := DecodeF} = Env) ->
     DecodeF(Row, Env).
@@ -174,14 +174,13 @@ maybe_reverse(asc, List) -> List;
 maybe_reverse(desc, List) -> lists:reverse(List).
 
 extract_rows(Env, Filters, Offset, Max, Order) ->
-    Filters2 = Filters ++ rdbms_queries:limit_offset_filters(Max, Offset),
-    lookup_query(lookup, Env, Filters2, Order).
+    lookup_query(lookup, Env, Filters, Order, {Offset, Max}).
 
 %% @doc Get the total result set size.
 %% SELECT COUNT(*) as count FROM mam_message
 -spec calc_count(env_vars(), filter()) -> non_neg_integer().
 calc_count(Env, Filter) ->
-    Result = lookup_query(count, Env, Filter, unordered),
+    Result = lookup_query(count, Env, Filter, unordered, all),
     mongoose_rdbms:selected_to_integer(Result).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
