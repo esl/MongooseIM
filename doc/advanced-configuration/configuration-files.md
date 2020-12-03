@@ -12,17 +12,17 @@ This [TOML](https://github.com/toml-lang/toml) file contains the configuration o
 
 The file is divided into the following sections:
 
-* [**general**](advanced-configuration/general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
-* [**listen**](advanced-configuration/listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
-* [**auth**](advanced-configuration/auth.md) - Supported client authentication methods and their options.
-* [**outgoing_pools**](advanced-configuration/outgoing-connections.md) - Outgoing connections to external services, including databases, message queues and HTTP services.
-* [**services**](advanced-configuration/Services.md) - Internal services like an administration API and system metrics.
-* [**modules**](advanced-configuration/Modules.md) - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
-* [**shaper**](advanced-configuration/shaper.md) - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
-* [**acl**](advanced-configuration/acl.md) - Access classes to which connecting users are assigned.
-* [**access**](advanced-configuration/access.md) - Access rules, specifying the privileges of the defined access classes.
-* [**s2s**](advanced-configuration/s2s.md) - Server-to-server connection options, used for XMPP federation.
-* [**host_config**](advanced-configuration/host_config.md) - Configuration options that need to be different for a specific XMPP domain.
+* [**general**](general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
+* [**listen**](listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
+* [**auth**](auth.md) - Supported client authentication methods and their options.
+* [**outgoing_pools**](outgoing-connections.md) - Outgoing connections to external services, including databases, message queues and HTTP services.
+* [**services**](Services.md) - Internal services like an administration API and system metrics.
+* [**modules**](Modules.md) - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
+* [**shaper**](shaper.md) - Traffic shapers that limit the incoming XMPP traffic, providing a safety valve to protect the server.
+* [**acl**](acl.md) - Access classes to which connecting users are assigned.
+* [**access**](access.md) - Access rules, specifying the privileges of the defined access classes.
+* [**s2s**](s2s.md) - Server-to-server connection options, used for XMPP federation.
+* [**host_config**](host_config.md) - Configuration options that need to be different for a specific XMPP domain.
 
 The section names above are links to the detailed documentation of each section.
 
@@ -71,4 +71,4 @@ TLS is configured in one of two ways: some modules need a private key and certif
 
 In order to create private key & certificate bundle, you may simply concatenate them.
 
-More information about configuring TLS for these endpoints is available in the [listen section configuration](advanced-configuration/listen.md) page.
+More information about configuring TLS for these endpoints is available in the [listen section configuration](listen.md) page.
