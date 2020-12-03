@@ -70,7 +70,7 @@ lookup_sql(QueryType, Table, Env, Filters, Order, OffsetLimit) ->
      IndexHintSQL, FilterSQL, OrderSQL, LimitSQL].
 
 limit_sql(all) -> {"", ""};
-limit_sql({0, Limit}) -> rdbms_queries:get_db_specific_limits();
+limit_sql({0, _Limit}) -> rdbms_queries:get_db_specific_limits();
 limit_sql({_Offset, _Limit}) -> {rdbms_queries:limit_offset_sql(), ""}.
 
 filters_to_columns(Filters, OffsetLimit) ->
