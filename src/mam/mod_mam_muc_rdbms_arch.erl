@@ -61,7 +61,7 @@ stop(Host) ->
     stop_hooks(Host).
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(Acc, #jid{luser = User, lserver = Host} = _UserJID) ->
     case mod_mam:archive_id(Host, User) of
         undefined ->
