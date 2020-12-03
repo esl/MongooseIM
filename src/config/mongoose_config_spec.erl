@@ -37,6 +37,7 @@ root() ->
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
                  <<"services">> => services(),
+                 <<"modules">> => modules(),
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
@@ -715,6 +716,35 @@ services() ->
 all_services() ->
     [service_admin_extra,
      service_mongoose_system_metrics].
+
+%% path: (host_config[].)modules
+modules() ->
+    Modules = [{a2b(Module), gen_mod:config_spec(Module)} || Module <- all_modules()],
+    #section{
+       items = maps:from_list(Modules),
+       format = host_local_config
+      }.
+
+all_modules() ->
+    [mod_adhoc].
+
+%% path: (host_config[].)modules.*.iqdisc
+iqdisc() ->
+    #section{
+       items = #{<<"type">> => #option{type = atom,
+                                       validate = {enum, [no_queue, one_queue, parallel, queues]}},
+                 <<"workers">> => #option{type = integer,
+                                          validate = positive}},
+       required = [<<"type">>],
+       process = fun ?MODULE:format_iqdisc/1
+      }.
+
+format_iqdisc(KVs) ->
+    {[[{type, Type}]], WorkersOpts} = proplists:split(KVs, [type]),
+    iqdisc(Type, WorkersOpts).
+
+iqdisc(queues, [{workers, N}]) -> {queues, N};
+iqdisc(Type, []) -> Type.
 
 %% path: (host_config[].)shaper
 shaper() ->

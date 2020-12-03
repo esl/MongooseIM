@@ -356,12 +356,6 @@ validate([<<"body">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_
 validate([<<"subject">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
          [{subject, V}]) ->
     validate_string(V);
-validate([<<"iqdisc">>, <<"mod_adhoc">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>|_],
-         [{report_commands_node, V}]) ->
-    validate_boolean(V);
 validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
          [{cache_life_time, V}]) ->
     validate_non_negative_integer_or_infinity(V);

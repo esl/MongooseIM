@@ -92,16 +92,6 @@ parse_root(Path, Content) ->
     ensure_keys([<<"general">>], Content),
     parse_section(Path, Content).
 
-%% path: *
--spec process_section(path(), toml_section() | [toml_section()]) -> config_list().
-process_section([<<"modules">>|_] = Path, Content) ->
-    Mods = parse_section(Path, Content),
-    ?HOST_F([#local_config{key = {modules, Host}, value = Mods}]);
-process_section([<<"host_config">>] = Path, Content) ->
-    parse_list(Path, Content);
-process_section(Path, Content) ->
-    parse_section(Path, Content).
-
 %% path: (host_config[].)modules.mod_event_pusher.backend.push.wpool.*
 -spec pool_option(path(), toml_value()) -> [option()].
 pool_option([<<"workers">>|_], V) -> [{workers, V}];
@@ -122,8 +112,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"report_commands_node">>, <<"mod_adhoc">>|_], V) ->
-    [{report_commands_node, V}];
 module_opt([<<"validity_period">>, <<"mod_auth_token">>|_] = Path, V) ->
     parse_list(Path, V);
 module_opt([<<"inactivity">>, <<"mod_bosh">>|_], V) ->
@@ -1153,16 +1141,17 @@ node_to_string({host, _}) -> [];
 node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
 
+-define(HAS_NO_SPEC(Mod), Mod =/= <<"mod_adhoc">>). % TODO temporary, remove with 'handler/1'
+
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
-handler([Section]) when Section =:= <<"modules">>;
-                        Section =:= <<"host_config">> -> fun process_section/2;
+handler([<<"host_config">>]) -> fun parse_list/2;
 
 %% modules
-handler([_, <<"modules">>]) -> fun process_module/2;
-handler([_, _, <<"modules">>]) -> fun module_opt/2;
-handler([_, <<"riak">>, _, <<"modules">>]) ->
+handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
+handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
+handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
 handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
     fun mod_register_ip_access_rule/2;
@@ -1271,7 +1260,7 @@ handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
 handler([<<"auth">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([<<"modules">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([_, _, <<"host_config">>]) -> fun process_section/2;
+handler([<<"general">>, _, <<"host_config">>]) -> fun parse_section/2;
 handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
