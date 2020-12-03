@@ -6,7 +6,7 @@
 -export([extend_lookup_params/2]).
 
 -type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
--type env_vars() :: map().
+-type env_vars() :: mod_mam_rdbms_arch:env_vars().
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

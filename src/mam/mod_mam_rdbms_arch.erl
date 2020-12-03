@@ -42,7 +42,22 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type env_vars() :: map().
+-type env_vars() :: #{
+        host := jid:lserver(),
+        archive_jid := jid:jid(),
+        table := atom(),
+        index_hint_fn := fun((env_vars()) -> mam_lookup_sql:sql_part()),
+        columns_sql_fn := fun((mam_lookup_sql:query_type()) -> mam_lookup_sql:sql_part()),
+        column_to_id_fn := fun((mam_lookup_sql:column()) -> string()),
+        lookup_fn := mam_lookup_sql:lookup_query_fn(),
+        decode_row_fn := fun((Row :: tuple(), env_vars()) -> Decoded :: tuple()),
+        has_message_retraction := boolean(),
+        has_full_text_search := boolean(),
+        db_jid_codec := module(),
+        db_message_codec := module()
+       }.
+
+-export_type([env_vars/0]).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -149,6 +164,7 @@ lookup_fields() ->
      #lookup_field{op = equal, column = remote_resource, param = remote_resource},
      #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
 
+-spec env_vars(jid:lserver(), jid:jid()) -> env_vars().
 env_vars(Host, ArcJID) ->
     %% Please, minimize the usage of the host field.
     %% It's only for passing into RDBMS.
