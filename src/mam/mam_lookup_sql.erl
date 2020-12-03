@@ -7,9 +7,16 @@
 
 -type offset_limit() :: all | {Offset :: non_neg_integer(), Limit :: non_neg_integer()}.
 -type sql_part() :: iolist() | binary().
--type env_vars() :: map().
+-type env_vars() :: mod_mam_rdbms_arch:env_vars().
 -type query_type() :: atom().
 -type column() :: atom().
+-type lookup_query_fn() :: fun((QueryType :: atom(), Env :: map(), Filters :: list(),
+                                Order :: atom(), OffsetLimit :: offset_limit()) -> term()).
+
+-export_type([sql_part/0]).
+-export_type([query_type/0]).
+-export_type([column/0]).
+-export_type([lookup_query_fn/0]).
 
 %% The ONLY usage of Env is in these functions:
 %% The rest of code should treat Env as opaque (i.e. the code just passes Env around).

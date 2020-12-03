@@ -4,7 +4,7 @@
 -export([decode_muc_gdpr_row/2]).
 -export([decode_retraction_info/2]).
 
--type env_vars() :: map().
+-type env_vars() :: mod_mam_rdbms_arch:env_vars().
 
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
