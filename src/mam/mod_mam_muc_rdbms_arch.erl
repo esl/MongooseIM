@@ -62,17 +62,16 @@ stop(Host) ->
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_muc_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
+get_mam_muc_gdpr_data(Acc, #jid{luser = User, lserver = Host} = _UserJID) ->
     case mod_mam:archive_id(Host, User) of
-        undefined -> [];
-        ArcID ->
-            Env = env_vars(Host, ArcJID),
-            {selected, Rows} = extract_gdpr_messages(Env, ArcID),
-            [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
+        undefined ->
+            Acc;
+        SenderID ->
+            %% We don't know the real room JID here, use FakeEnv
+            FakeEnv = env_vars(Host, jid:make(<<>>, <<>>, <<>>)),
+            {selected, Rows} = extract_gdpr_messages(Host, SenderID),
+            [mam_decoder:decode_muc_gdpr_row(Row, FakeEnv) || Row <- Rows] ++ Acc
     end.
-
-uniform_to_gdpr({MessID, _Nick, Packet}) ->
-    {integer_to_binary(MessID), exml:to_binary(Packet)}.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -124,7 +123,10 @@ register_prepared_queries() ->
                               " id, message FROM mam_muc_message"
                               " WHERE room_id = ? AND sender_id = ? "
                               " AND origin_id = ?"
-                              " ORDER BY id DESC ", LimitSQL/binary>>]).
+                              " ORDER BY id DESC ", LimitSQL/binary>>]),
+    mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [id, message],
+                           [<<"SELECT id, message FROM mam_muc_message "
+                              " WHERE sender_id = ?">>]).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
@@ -297,9 +299,8 @@ remove_archive(Host, ArcID) ->
     {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_muc_archive_remove, [ArcID]).
 
 %% GDPR logic
-extract_gdpr_messages(Env, ArcID) ->
-    Filters = [{equal, room_id, ArcID}],
-    lookup_query(lookup, Env, Filters, asc, all).
+extract_gdpr_messages(Host, SenderID) ->
+    mod_mam_utils:success_sql_execute(Host, mam_muc_extract_gdpr_messages, [SenderID]).
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
