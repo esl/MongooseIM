@@ -178,14 +178,12 @@ index_hint_sql(#{host := Host}) ->
 columns_sql(lookup) -> "id, from_jid, message";
 columns_sql(count) -> "COUNT(*)".
 
+%% For each unique column in lookup_fields()
 column_to_id(id) -> "i";
 column_to_id(user_id) -> "u";
 column_to_id(remote_bare_jid) -> "b";
 column_to_id(remote_resource) -> "r";
-column_to_id(search_body) -> "s";
-%% fictional columns
-column_to_id(limit) -> "l";
-column_to_id(offset) -> "o".
+column_to_id(search_body) -> "s".
 
 column_names(Mappings) ->
      [Column || #db_mapping{column = Column} <- Mappings].

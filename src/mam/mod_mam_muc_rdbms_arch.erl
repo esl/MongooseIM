@@ -43,7 +43,6 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type column() :: atom().
 -type env_vars() :: map().
 
 %% ----------------------------------------------------------------------
@@ -175,10 +174,7 @@ columns_sql(count) -> "COUNT(*)".
 column_to_id(id) -> "i";
 column_to_id(room_id) -> "u";
 column_to_id(nick_name) -> "n";
-column_to_id(search_body) -> "s";
-%% fictional columns
-column_to_id(limit) -> "l";
-column_to_id(offset) -> "o".
+column_to_id(search_body) -> "s".
 
 column_names(Mappings) ->
      [Column || #db_mapping{column = Column} <- Mappings].
