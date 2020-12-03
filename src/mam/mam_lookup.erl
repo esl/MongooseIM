@@ -6,7 +6,7 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
--type filter() :: list(tuple()).
+-type filter() :: mam_filter:filter().
 -type env_vars() :: map().
 -type params() :: map().
 -type message_id() :: mod_mam:message_id().

@@ -6,14 +6,28 @@
 -include("mongoose_mam.hrl").
 
 -type offset_limit() :: all | {Offset :: non_neg_integer(), Limit :: non_neg_integer()}.
+-type sql_part() :: iolist() | binary().
+-type env_vars() :: map().
+-type query_type() :: atom().
+-type column() :: atom().
 
 %% The ONLY usage of Env is in these functions:
 %% The rest of code should treat Env as opaque (i.e. the code just passes Env around).
+-spec host(env_vars()) -> jid:lserver().
 host(#{host := Host}) -> Host.
+
+-spec table(env_vars()) -> atom().
 table(#{table := Table}) -> Table.
+
+-spec index_hint_sql(env_vars()) -> sql_part().
 index_hint_sql(Env = #{index_hint_fn := F}) -> F(Env).
+
+-spec columns_sql(env_vars(), query_type()) -> sql_part().
 columns_sql(#{columns_sql_fn := F}, QueryType) -> F(QueryType).
+
+-spec column_to_id(env_vars(), column()) -> string().
 column_to_id(#{column_to_id_fn := F}, Col) -> F(Col).
+
 
 %% This function uses some fields from Env:
 %% - host
@@ -123,6 +137,7 @@ filters_to_sql(Filters) ->
 
 skip_undefined(List) -> [X || X <- List, X =/= undefined].
 
+-spec filter_to_sql(mam_filter:filter_field()) -> sql_part().
 filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
 
 op_to_id(equal)   -> "eq";
