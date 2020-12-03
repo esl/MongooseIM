@@ -7,7 +7,7 @@
 -include("mongoose_rsm.hrl").
 
 -type filter() :: mam_filter:filter().
--type env_vars() :: map().
+-type env_vars() :: mod_mam_rdbms_arch:env_vars().
 -type params() :: map().
 -type message_id() :: mod_mam:message_id().
 -type maybe_rsm() :: #rsm_in{} | undefined.
