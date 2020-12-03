@@ -42,18 +42,6 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type column() :: atom().
--type filter_field() :: {like, column(), binary()}
-    | {le, column(), integer()}
-    | {ge, column(), integer()}
-    | {equal, column(), integer() | binary()}
-    | {lower, column(), integer()}
-    | {greater, column(), integer()}
-    | {limit, limit, integer()}
-    | {offset, offset, integer()}.
-
--type filter() :: [filter_field()].
-
 -type env_vars() :: map().
 
 %% ----------------------------------------------------------------------
@@ -141,6 +129,7 @@ register_prepared_queries() ->
 %% Declarative logic
 
 db_mappings() ->
+    %% One entry per the database field
     [#db_mapping{column = id, param = message_id, format = int},
      #db_mapping{column = user_id, param = archive_id, format = int},
      #db_mapping{column = remote_bare_jid, param = remote_jid, format = bare_jid},
@@ -152,6 +141,7 @@ db_mappings() ->
      #db_mapping{column = search_body, param = packet, format = search}].
 
 lookup_fields() ->
+    %% Describe each possible filtering option
     [#lookup_field{op = equal, column = user_id, param = archive_id, required = true},
      #lookup_field{op = ge, column = id, param = start_id},
      #lookup_field{op = le, column = id, param = end_id},

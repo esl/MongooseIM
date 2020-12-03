@@ -10,16 +10,18 @@
     | {ge, column(), integer()}
     | {equal, column(), integer() | binary()}
     | {lower, column(), integer()}
-    | {greater, column(), integer()}
-    | {limit, limit, integer()}
-    | {offset, offset, integer()}.
+    | {greater, column(), integer()}.
+
 -type filter() :: [filter_field()].
+-type fields() :: [#lookup_field{}].
+-type params() :: map().
 
 -export_type([filter_field/0]).
 -export_type([filter/0]).
 
 -define(SEARCH_WORDS_LIMIT, 10).
 
+-spec produce_filter(params(), fields()) -> list(filter_field()).
 produce_filter(Params, Fields) ->
     [new_filter(Field, Value)
      || Field <- Fields,
