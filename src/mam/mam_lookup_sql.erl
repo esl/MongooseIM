@@ -88,23 +88,23 @@ limit_sql({0, _Limit}) -> rdbms_queries:get_db_specific_limits();
 limit_sql({_Offset, _Limit}) -> {rdbms_queries:limit_offset_sql(), ""}.
 
 filters_to_columns(Filters, OffsetLimit) ->
-    limit_offset_to_columns(OffsetLimit, [Column || {_Op, Column, _Value} <- Filters]).
+    offset_limit_to_columns(OffsetLimit, [Column || {_Op, Column, _Value} <- Filters]).
 
 filters_to_args(Filters, OffsetLimit) ->
-    limit_offset_to_args(OffsetLimit, [Value || {_Op, _Column, Value} <- Filters]).
+    offset_limit_to_args(OffsetLimit, [Value || {_Op, _Column, Value} <- Filters]).
 
-limit_offset_to_args(all, Args) ->
+offset_limit_to_args(all, Args) ->
     Args;
-limit_offset_to_args({0, Limit}, Args) ->
+offset_limit_to_args({0, Limit}, Args) ->
     rdbms_queries:add_limit_arg(Limit, Args);
-limit_offset_to_args({Offset, Limit}, Args) ->
+offset_limit_to_args({Offset, Limit}, Args) ->
     Args ++ rdbms_queries:limit_offset_args(Limit, Offset).
 
-limit_offset_to_columns(all, Columns) ->
+offset_limit_to_columns(all, Columns) ->
     Columns;
-limit_offset_to_columns({0, _Limit}, Columns) ->
+offset_limit_to_columns({0, _Limit}, Columns) ->
     rdbms_queries:add_limit_arg(limit, Columns);
-limit_offset_to_columns({_Offset, _Limit}, Columns) ->
+offset_limit_to_columns({_Offset, _Limit}, Columns) ->
     Columns ++ rdbms_queries:limit_offset_args(limit, offset).
 
 filters_to_statement_name(Env, QueryType, Table, Filters, Order, OffsetLimit) ->
