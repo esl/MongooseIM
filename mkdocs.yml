@@ -1,16 +1,17 @@
 site_name: MongooseIM
 docs_dir: doc
-theme: material
-site_favicon: favicon.ico
+theme:
+  name: material
+  favicon: favicon.ico
 extra_templates: []
-extra_css: ["custom.css"]
-extra_javascript: []
+extra_css: [css/custom.css, css/version-select.css]
+extra_javascript: [js/version-select.js]
 markdown_extensions:
   - pymdownx.highlight:
       linenums: true
   - pymdownx.superfences
 
-pages:
+nav:
   - Home: 'index.md'
   - 'User guide':
       - 'ABCs of MongooseIM': 'user-guide/ABCs-of-MongooseIM.md'
