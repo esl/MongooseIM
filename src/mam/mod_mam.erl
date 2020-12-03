@@ -142,7 +142,9 @@
                                     source_jid := jid:jid(),
                                     origin_id := binary() | none,
                                     direction := atom(),
-                                    packet := exml:element()}.
+                                    packet := exml:element(),
+                                    %% Only in mod_mam_muc_rdbms_arch:retract_message/2
+                                    sender_id => mod_mam:archive_id()}.
 
 -export_type([rewriter_fun/0,
               borders/0,
