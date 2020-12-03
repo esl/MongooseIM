@@ -125,7 +125,7 @@ register_prepared_queries() ->
                               " ORDER BY id DESC ", LimitSQL/binary>>]),
     mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [id, message],
                            [<<"SELECT id, message FROM mam_muc_message "
-                              " WHERE sender_id = ?">>]).
+                              " WHERE sender_id = ? ORDER BY id">>]).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
