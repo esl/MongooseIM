@@ -154,7 +154,7 @@ env_vars(Host, ArcJID) ->
       index_hint_fn => fun index_hint_sql/1,
       columns_sql_fn => fun columns_sql/1,
       column_to_id_fn => fun column_to_id/1,
-      lookup_fn => fun lookup_query/4,
+      lookup_fn => fun lookup_query/5,
       decode_row_fn => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam_muc, Host),
       has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam_muc, Host),
@@ -204,7 +204,7 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 archive_size(Size, Host, ArcID, ArcJID) when is_integer(Size) ->
     Filter = [{equal, room_id, ArcID}],
     Env = env_vars(Host, ArcJID),
-    Result = lookup_query(count, Env, Filter, unordered),
+    Result = lookup_query(count, Env, Filter, unordered, all),
     mongoose_rdbms:selected_to_integer(Result).
 
 extend_params_with_sender_id(Host, Params = #{remote_jid := SenderJID}) ->
@@ -299,7 +299,7 @@ remove_archive(Host, ArcID) ->
 %% GDPR logic
 extract_gdpr_messages(Env, ArcID) ->
     Filters = [{equal, room_id, ArcID}],
-    lookup_query(lookup, Env, Filters, asc).
+    lookup_query(lookup, Env, Filters, asc, all).
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
@@ -312,5 +312,5 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
     mam_lookup:lookup(Env, Filter, ExdParams).
 
-lookup_query(QueryType, Env, Filters, Order) ->
-    mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order).
+lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
+    mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order, OffsetLimit).
