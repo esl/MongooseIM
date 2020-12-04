@@ -1381,17 +1381,14 @@ mod_bosh(_Config) ->
     ?errf(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
-    run_multi(mod_caps_cases()).
-
-mod_caps_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
-    [?_eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
-     ?_eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
-     ?_errf(T(<<"cache_size">>, -1)),
-     ?_errf(T(<<"cache_size">>, <<"infinity">>)),
-     ?_errf(T(<<"cache_life_time">>, -1)),
-     ?_errf(T(<<"cache_life_time">>, <<"cache_life_time">>))].
+    ?eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
+    ?eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+    ?errf(T(<<"cache_size">>, 0)),
+    ?errf(T(<<"cache_size">>, <<"infinity">>)),
+    ?errf(T(<<"cache_life_time">>, 0)),
+    ?errf(T(<<"cache_life_time">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).

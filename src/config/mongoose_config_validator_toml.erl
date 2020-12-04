@@ -356,12 +356,6 @@ validate([<<"body">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_
 validate([<<"subject">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
          [{subject, V}]) ->
     validate_string(V);
-validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
-         [{cache_life_time, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
-         [{cache_size, V}]) ->
-    validate_non_negative_integer(V);
 validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
          [{type, V}]) ->
     validate_non_empty_atom(V);

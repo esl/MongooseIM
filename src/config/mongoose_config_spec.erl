@@ -728,8 +728,8 @@ modules() ->
 all_modules() ->
     [mod_adhoc,
      mod_auth_token,
-     mod_bosh%%,
-     %% mod_caps,
+     mod_bosh,
+     mod_caps%%,
      %% mod_csi,
      %% mod_disco,
      %% mod_event_pusher

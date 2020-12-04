@@ -112,10 +112,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
-    [{cache_size, V}];
-module_opt([<<"cache_life_time">>, <<"mod_caps">>|_], V) ->
-    [{cache_life_time, V}];
 module_opt([<<"buffer_max">>, <<"mod_csi">>|_], V) ->
     [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
@@ -1129,7 +1125,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
 -define(HAS_NO_SPEC(Mod),
         Mod =/= <<"mod_adhoc">>,
         Mod =/= <<"mod_auth_token">>,
-        Mod =/= <<"mod_bosh">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_bosh">>,
+        Mod =/= <<"mod_caps">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
