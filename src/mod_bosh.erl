@@ -21,7 +21,8 @@
 
 %% gen_mod callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         config_spec/0]).
 
 %% cowboy_loop_handler callbacks
 -export([init/2,
@@ -40,6 +41,7 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
+-include("ejabberd_config.hrl").
 
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
@@ -146,6 +148,21 @@ start(_Host, Opts) ->
 
 stop(_Host) ->
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"inactivity">> => #option{type = int_or_infinity,
+                                             validate = non_negative},
+                 <<"max_wait">> => #option{type = int_or_infinity,
+                                           validate = non_negative},
+                 <<"server_acks">> => #option{type = boolean},
+                 <<"max_pause">> => #option{type = integer,
+                                            validate = positive,
+                                            format = {kv, maxpause}}
+                }
+      }.
+
 %%--------------------------------------------------------------------
 %% Hooks handlers
 %%--------------------------------------------------------------------

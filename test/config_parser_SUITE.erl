@@ -16,8 +16,7 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(errf(Config),
-        begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+-define(errf(Config), err_host_config(Config)).
 
 %% Constructs HOF to pass into run_multi/1 function
 %% It's a HOF, so it would always pass if not passed into run_multi/1
@@ -1337,82 +1336,69 @@ s2s_max_retry_delay(_Config) ->
 
 mod_adhoc(_Config) ->
     check_iqdisc(mod_adhoc),
-    run_multi(mod_adhoc_cases()).
-
-mod_adhoc_cases() ->
     M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    [?_eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
-     ?_eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
-     %% not boolean
-     ?_errf(T(<<"report_commands_node">>, <<"hello">>))].
+    ?eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
+    ?eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+    %% not boolean
+    ?errf(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token),
-    run_multi(mod_auth_token_cases()).
-
-mod_auth_token_cases() ->
     P = fun(X) ->
-                     Opts = #{<<"validity_period">> => X},
-                     #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
-             end,
-    [?_eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
-                                    {{validity_period,refresh}, {31,days}}]),
-           P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
-              #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-     ?_errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}]))].
-
+                Opts = #{<<"validity_period">> => X},
+                #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
+        end,
+    ?eqf(modopts(mod_auth_token, [{{validity_period, access}, {13, minutes}},
+                                  {{validity_period, refresh}, {31, days}}]),
+         P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>},
+            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => <<"13">>,
+               <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+    ?errf(P([#{<<"token">> => <<"Access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
 
 mod_bosh(_Config) ->
-    run_multi(mod_bosh_cases()).
-
-mod_bosh_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
-    [?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
-     ?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
-     ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
-     ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?errf(T(<<"inactivity">>, -1)),
-     ?errf(T(<<"inactivity">>, <<"10">>)),
-     ?errf(T(<<"inactivity">>, <<"inactivity">>)),
-     ?errf(T(<<"max_wait">>, <<"10">>)),
-     ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1))].
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
+    ?eqf(M(server_acks, true), T(<<"server_acks">>, true)),
+    ?eqf(M(server_acks, false), T(<<"server_acks">>, false)),
+    ?eqf(M(maxpause, 10), T(<<"max_pause">>, 10)),
+    ?errf(T(<<"inactivity">>, -1)),
+    ?errf(T(<<"inactivity">>, <<"10">>)),
+    ?errf(T(<<"inactivity">>, <<"inactivity">>)),
+    ?errf(T(<<"max_wait">>, <<"10">>)),
+    ?errf(T(<<"max_wait">>, -1)),
+    ?errf(T(<<"server_acks">>, -1)),
+    ?errf(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
-    run_multi(mod_caps_cases()).
-
-mod_caps_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
-    [?_eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
-     ?_eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
-     ?_errf(T(<<"cache_size">>, -1)),
-     ?_errf(T(<<"cache_size">>, <<"infinity">>)),
-     ?_errf(T(<<"cache_life_time">>, -1)),
-     ?_errf(T(<<"cache_life_time">>, <<"cache_life_time">>))].
+    ?eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
+    ?eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+    ?errf(T(<<"cache_size">>, 0)),
+    ?errf(T(<<"cache_size">>, <<"infinity">>)),
+    ?errf(T(<<"cache_life_time">>, 0)),
+    ?errf(T(<<"cache_life_time">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
-    run_multi(mod_csi_cases()).
-
-mod_csi_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
-    [?_eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
-     ?_eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
-     ?_errf(T(<<"buffer_max">>, -1))].
+    ?eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
+    ?eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+    ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
@@ -3154,10 +3140,6 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
-
-parse_with_host(Config) ->
-    [F] = parse(Config),
-    apply(F, [?HOST]).
 
 set_pl(K, V, List) ->
     lists:keyreplace(K, 1, List, {K, V}).

@@ -51,6 +51,7 @@
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
+         config_spec/1,
          % Get/set opts by host or from a list
          get_opt/2,
          get_opt/3,
@@ -93,6 +94,8 @@
 %%     undefined.
 -callback start(Host :: jid:server(), Opts :: list()) -> any().
 -callback stop(Host :: jid:server()) -> any().
+-callback config_spec() -> mongoose_config_spec:config_section().
+-optional_callbacks([config_spec/0]).
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -249,6 +252,10 @@ stop_module_keep_config(Host, Module) ->
 reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
+
+-spec config_spec(module()) -> mongoose_config_spec:config_section().
+config_spec(Module) ->
+    Module:config_spec().
 
 -spec wait_for_process(atom() | pid() | {atom(), atom()}) -> 'ok'.
 wait_for_process(Process) ->

@@ -356,18 +356,6 @@ validate([<<"body">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_
 validate([<<"subject">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
          [{subject, V}]) ->
     validate_string(V);
-validate([<<"iqdisc">>, <<"mod_adhoc">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"report_commands_node">>, <<"mod_adhoc">>, <<"modules">>|_],
-         [{report_commands_node, V}]) ->
-    validate_boolean(V);
-validate([<<"cache_life_time">>, <<"mod_caps">>, <<"modules">>|_],
-         [{cache_life_time, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"cache_size">>, <<"mod_caps">>, <<"modules">>|_],
-         [{cache_size, V}]) ->
-    validate_non_negative_integer(V);
 validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
          [{type, V}]) ->
     validate_non_empty_atom(V);
@@ -650,11 +638,6 @@ validate([<<"simple">>, <<"mod_mam_meta">>, <<"modules">>|_],
 validate([<<"user_prefs_store">>, <<"mod_mam_meta">>, <<"modules">>|_],
          [{user_prefs_store, V}]) ->
     validate_enum(V, [false,rdbms,cassandra,mnesia]);
-validate([<<"iqdisc">>, <<"mod_auth_token">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"validity_period">>,<<"mod_auth_token">>,<<"modules">>|_], Vs) ->
-    lists:foreach(fun validate_validity_period/1, Vs);
 validate([<<"listen_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
          [{listen_port, V}]) ->
     validate_network_port(V);
@@ -670,9 +653,6 @@ validate([<<"proxy_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
 validate([<<"sdp_origin">>, <<"mod_jingle_sip">>, <<"modules">>|_],
          [{sdp_origin, V}]) ->
     validate_ip_address(V);
-validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>|_],
-         [{buffer_max, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
 validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
@@ -760,15 +740,6 @@ validate([<<"iqdisc">>, <<"mod_private">>, <<"modules">>|_],
 validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
          [{bucket_type, V}]) ->
     validate_non_empty_binary(V);
-validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{inactivity, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{max_wait, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{server_acks, V}]) ->
-    validate_boolean(V);
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
          [{aff_changes, V}]) ->
     validate_boolean(V);
@@ -835,9 +806,6 @@ validate([<<"rooms_in_rosters">>, <<"mod_muc_light">>, <<"modules">>|_],
 validate([<<"rooms_per_page">>, <<"mod_muc_light">>, <<"modules">>|_],
          [{rooms_per_page, V}]) ->
     validate_positive_integer_or_infinity(V);
-validate([<<"iqdisc">>, <<"mod_carboncopy">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
 validate([<<"access_max_user_messages">>, <<"mod_offline">>, <<"modules">>|_],
          [{access_max_user_messages, V}]) ->
     validate_access_rule(V);
@@ -1247,18 +1215,6 @@ validate_iqdisc(no_queue) -> ok;
 validate_iqdisc(one_queue) -> ok;
 validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
-
--spec validate_auth_token_domain(mod_auth_token:token_type()) -> ok.
-validate_auth_token_domain(Type) ->
-    validate_enum(Type, [access, refresh, provision]).
-
-validate_validity_period({{validity_period, Token}, {Value, Unit}}) ->
-    validate_auth_token_domain(Token),
-    validate_non_negative_integer(Value),
-    validate_period_unit(Unit).
-
-validate_period_unit(Unit) ->
-    validate_enum(Unit, [days, hours, minutes, seconds]).
 
 validate_ip_access({Access, IPMask}) ->
     validate_enum(Access, [allow, deny]),
