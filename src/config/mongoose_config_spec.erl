@@ -730,8 +730,8 @@ all_modules() ->
      mod_auth_token,
      mod_bosh,
      mod_caps,
-     mod_carboncopy%%,
-     %% mod_csi,
+     mod_carboncopy,
+     mod_csi%%,
      %% mod_disco,
      %% mod_event_pusher
     ].

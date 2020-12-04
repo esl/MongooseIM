@@ -1394,14 +1394,11 @@ mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
-    run_multi(mod_csi_cases()).
-
-mod_csi_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
-    [?_eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
-     ?_eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
-     ?_errf(T(<<"buffer_max">>, -1))].
+    ?eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
+    ?eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+    ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,

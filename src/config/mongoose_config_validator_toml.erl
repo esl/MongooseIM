@@ -653,9 +653,6 @@ validate([<<"proxy_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
 validate([<<"sdp_origin">>, <<"mod_jingle_sip">>, <<"modules">>|_],
          [{sdp_origin, V}]) ->
     validate_ip_address(V);
-validate([<<"buffer_max">>, <<"mod_csi">>, <<"modules">>|_],
-         [{buffer_max, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
 validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);

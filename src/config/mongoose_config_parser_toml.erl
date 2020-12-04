@@ -112,8 +112,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"buffer_max">>, <<"mod_csi">>|_], V) ->
-    [{buffer_max, int_or_infinity(V)}];
 module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
     Domains = parse_list(Path, V),
     [{extra_domains, Domains}];
@@ -1127,7 +1125,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_auth_token">>,
         Mod =/= <<"mod_bosh">>,
         Mod =/= <<"mod_caps">>,
-        Mod =/= <<"mod_carboncopy">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_carboncopy">>,
+        Mod =/= <<"mod_csi">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
