@@ -809,9 +809,6 @@ validate([<<"rooms_in_rosters">>, <<"mod_muc_light">>, <<"modules">>|_],
 validate([<<"rooms_per_page">>, <<"mod_muc_light">>, <<"modules">>|_],
          [{rooms_per_page, V}]) ->
     validate_positive_integer_or_infinity(V);
-validate([<<"iqdisc">>, <<"mod_carboncopy">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
 validate([<<"access_max_user_messages">>, <<"mod_offline">>, <<"modules">>|_],
          [{access_max_user_messages, V}]) ->
     validate_access_rule(V);

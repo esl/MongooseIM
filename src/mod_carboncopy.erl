@@ -32,6 +32,7 @@
 %% API
 -export([start/2,
          stop/1,
+         config_spec/0,
          is_carbon_copy/1,
          classify_packet/1]).
 
@@ -51,7 +52,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("session.hrl").
-
+-include("ejabberd_config.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
 
@@ -85,6 +86,10 @@ stop(Host) ->
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
 iq_handler2(From, To, Acc, IQ) ->
     iq_handler(From, To, Acc, IQ, ?NS_CC_2).
