@@ -112,14 +112,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"inactivity">>, <<"mod_bosh">>|_], V) ->
-    [{inactivity, int_or_infinity(V)}];
-module_opt([<<"max_wait">>, <<"mod_bosh">>|_], V) ->
-    [{max_wait, int_or_infinity(V)}];
-module_opt([<<"server_acks">>, <<"mod_bosh">>|_], V) ->
-    [{server_acks, V}];
-module_opt([<<"maxpause">>, <<"mod_bosh">>|_], V) ->
-    [{maxpause, V}];
 module_opt([<<"cache_size">>, <<"mod_caps">>|_], V) ->
     [{cache_size, V}];
 module_opt([<<"cache_life_time">>, <<"mod_caps">>|_], V) ->
@@ -1136,7 +1128,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
 
 -define(HAS_NO_SPEC(Mod),
         Mod =/= <<"mod_adhoc">>,
-        Mod =/= <<"mod_auth_token">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_auth_token">>,
+        Mod =/= <<"mod_bosh">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

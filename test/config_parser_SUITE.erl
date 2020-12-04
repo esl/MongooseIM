@@ -1363,23 +1363,22 @@ mod_auth_token(_Config) ->
     ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
 
 mod_bosh(_Config) ->
-    run_multi(mod_bosh_cases()).
-
-mod_bosh_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
-    [?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
-     ?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
-     ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
-     ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?errf(T(<<"inactivity">>, -1)),
-     ?errf(T(<<"inactivity">>, <<"10">>)),
-     ?errf(T(<<"inactivity">>, <<"inactivity">>)),
-     ?errf(T(<<"max_wait">>, <<"10">>)),
-     ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1))].
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
+    ?eqf(M(server_acks, true), T(<<"server_acks">>, true)),
+    ?eqf(M(server_acks, false), T(<<"server_acks">>, false)),
+    ?eqf(M(maxpause, 10), T(<<"max_pause">>, 10)),
+    ?errf(T(<<"inactivity">>, -1)),
+    ?errf(T(<<"inactivity">>, <<"10">>)),
+    ?errf(T(<<"inactivity">>, <<"inactivity">>)),
+    ?errf(T(<<"max_wait">>, <<"10">>)),
+    ?errf(T(<<"max_wait">>, -1)),
+    ?errf(T(<<"server_acks">>, -1)),
+    ?errf(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
     run_multi(mod_caps_cases()).

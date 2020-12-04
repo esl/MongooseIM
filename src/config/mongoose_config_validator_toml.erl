@@ -749,15 +749,6 @@ validate([<<"iqdisc">>, <<"mod_private">>, <<"modules">>|_],
 validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
          [{bucket_type, V}]) ->
     validate_non_empty_binary(V);
-validate([<<"inactivity">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{inactivity, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"max_wait">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{max_wait, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"server_acks">>, <<"mod_bosh">>, <<"modules">>|_],
-         [{server_acks, V}]) ->
-    validate_boolean(V);
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
          [{aff_changes, V}]) ->
     validate_boolean(V);

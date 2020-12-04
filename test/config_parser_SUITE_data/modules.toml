@@ -18,7 +18,7 @@
   inactivity = 20
   max_wait = "infinity"
   server_acks = true
-  maxpause = 120
+  max_pause = 120
 
 [modules.mod_caps]
   cache_size = 1000
