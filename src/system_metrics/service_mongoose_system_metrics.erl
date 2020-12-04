@@ -168,7 +168,7 @@ msg_removed_from_config() ->
     "    '{service_mongoose_system_metrics, [no_report]}' \n"
     "For more info on how to customise, read, enable, and disable the metrics visit: \n"
     "- MongooseIM docs - \n"
-    "     https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
+    "     https://esl.github.io/MongooseDocs/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
     "- MongooseIM GitHub page - https://github.com/esl/MongooseIM">>.
 
 msg_accept_terms_and_conditions() ->
@@ -176,6 +176,6 @@ msg_accept_terms_and_conditions() ->
     "improve MongooseIM, and know where to focus our efforts. "
     "For more info on how to customise, read, enable, and disable these metrics visit: \n"
     "- MongooseIM docs - \n"
-    "      https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
+    "      https://esl.github.io/MongooseDocs/latest/operation-and-maintenance/System-Metrics-Privacy-Policy/ \n"
     "- MongooseIM GitHub page - https://github.com/esl/MongooseIM \n"
     "The last sent report is also written to a file ~s">>.

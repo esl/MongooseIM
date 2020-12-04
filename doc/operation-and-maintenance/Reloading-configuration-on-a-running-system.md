@@ -33,6 +33,6 @@ The following options' changes will be ignored when using `mongooseimctl` tool:
 This option is deprecated and not available when using a config file in the TOML
 format.
 
-For the documentation of this option for the `cfg` config format please refer to
-the [MIM 3.7.1 documentation](https://mongooseim.readthedocs.io/en/3.7.1/operation-and-maintenance/Reloading-configuration-on-a-running-system/)
+For the documentation of this option for the `cfg` config format please refer to the
+[MIM 3.7.1 documentation](https://esl.github.io/MongooseDocs/3.7.1/operation-and-maintenance/Reloading-configuration-on-a-running-system/)
 or older.
