@@ -320,10 +320,13 @@ jobs:
                   else
                       DOCS_TAG=`echo $CIRCLE_BRANCH | sed 's,/,_,g'`
                   fi
+                  env | sort
+                  echo "export DOCS_TAG=$DOCS_TAG" >> $BASH_ENV
             - run:
                 name: Build latest
                 command: |
                   pip3 install mike
+                  echo $DOCS_TAG
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch main --push --force
 
 filters: &all_tags
