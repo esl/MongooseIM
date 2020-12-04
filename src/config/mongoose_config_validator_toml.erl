@@ -755,24 +755,6 @@ validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
 validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_chat_marker_type(V);
-validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_binary_domain(V);
-validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_module(V);
-validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_non_empty_binary(V);
-validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_url(V);
-validate([item, <<"urls">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_url(V);
-validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>|_],
-         [{users_can_see_hidden_services, V}]) ->
-    validate_boolean(V);
 validate([<<"all_can_configure">>, <<"mod_muc_light">>, <<"modules">>|_],
          [{all_can_configure, V}]) ->
     validate_boolean(V);

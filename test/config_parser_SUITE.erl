@@ -1401,6 +1401,7 @@ mod_csi(_Config) ->
     ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
+    check_iqdisc(mod_disco),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
          T(<<"users_can_see_hidden_services">>, true)),
@@ -1411,46 +1412,30 @@ mod_disco(_Config) ->
          T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
     ?eqf(modopts(mod_disco, [{extra_domains, []}]),
          T(<<"extra_domains">>, [])),
+    Info = #{<<"name">> => <<"abuse-address">>,
+             <<"urls">> => [<<"admin@example.com">>]},
     ?eqf(modopts(mod_disco, [{server_info, [{all, "abuse-address", ["admin@example.com"]},
                                             {[mod_muc, mod_disco], "friendly-spirits",
-                                             ["spirit1@localhost", "spirit2@localhost"]}]} ]),
-         T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]},
-                               #{<<"module">> => [<<"mod_muc">>, <<"mod_disco">>],
-                                 <<"name">> => <<"friendly-spirits">>,
-                                 <<"urls">> => [<<"spirit1@localhost">>, <<"spirit2@localhost">>]} ])),
-    %% Correct version, used as a prototype to make invalid versions
-%%  ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-%%                               <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => 1,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Mising name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"roll">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => [<<"meow_meow_meow">>],
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Missing urls
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>}])),
-    %% Missing module
-    ?errf(T(<<"server_info">>, [#{<<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid url
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [1]}])),
+                                             ["spirit1@localhost", "spirit2@localhost"]}]}
+                            ]),
+         T(<<"server_info">>, [Info, #{<<"modules">> => [<<"mod_muc">>, <<"mod_disco">>],
+                                       <<"name">> => <<"friendly-spirits">>,
+                                       <<"urls">> => [<<"spirit1@localhost">>,
+                                                      <<"spirit2@localhost">>]}
+                              ])),
     ?errf(T(<<"users_can_see_hidden_services">>, 1)),
     ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
-    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
+    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => 1}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => <<"">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => <<"roll">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => [<<"meow_meow_meow">>]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [1]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [<<"">>]}])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"name">>, Info)])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,

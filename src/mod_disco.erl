@@ -32,6 +32,8 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
+         process_server_info/1,
          process_local_iq_items/4,
          process_local_iq_info/4,
          get_local_identity/5,
@@ -52,6 +54,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("ejabberd_config.hrl").
 
 -type feature() :: any().
 
@@ -76,6 +79,34 @@ stop(Host) ->
     unregister_host(Host),
     ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"extra_domains">> => #list{items = #option{type = binary,
+                                                              validate = domain}},
+                 <<"server_info">> => #list{items = server_info_spec()},
+                 <<"users_can_see_hidden_services">> => #option{type = boolean},
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()
+                }
+      }.
+
+server_info_spec() ->
+    #section{
+       items = #{<<"name">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"urls">> => #list{items = #option{type = string,
+                                                     validate = url}},
+                 <<"modules">> => #list{items = #option{type = atom,
+                                                        validate = module}}
+                },
+       required = [<<"name">>, <<"urls">>],
+       process = fun ?MODULE:process_server_info/1
+      }.
+
+process_server_info(KVs) ->
+    {[[{name, Name}], [{urls, URLs}]], _} = proplists:split(KVs, [name, urls]),
+    Modules = proplists:get_value(modules, KVs, all),
+    {Modules, Name, URLs}.
 
 register_subhost(Host, Subhost) ->
     case gen_mod:is_loaded(Host, ?MODULE) of
