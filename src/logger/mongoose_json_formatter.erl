@@ -11,27 +11,54 @@
 -export([format/2]).
 
 -spec format(logger:log_event(), logger:formatter_config()) -> unicode:chardata().
-format(E = #{msg := {report, #{label := {error_logger, _}, format := Format, args := Terms}}}, FConfig) ->
-    format(E#{msg := {report,
+format(Event, FConfig) ->
+    try do_format(Event, FConfig)
+    catch
+        %% Errors during log formatting can lead to a death spiral of recursive error logging, so
+        %% format the formatter error in a safe way and don't allow the exception to propagate.
+        error:Reason:Stacktrace -> format_log_formatter_error(error, Reason, Stacktrace, Event, FConfig)
+    end.
+
+
+format_log_formatter_error(Class, Reason, Stacktrace, #{meta := #{time := Time}} = Event, FConfig) ->
+    IoData = jiffy:encode(
+        #{
+            'when' => format_time(Time),
+            level => error,
+            what => log_format_failed,
+            class => Class,
+            reason => Reason,
+            stacktrace => format_item(Stacktrace, FConfig),
+            formatter_module => ?MODULE,
+            original_event => unicode:characters_to_binary(io_lib:format("~0p", [Event]))
+        }
+    ),
+    [IoData, <<"\n">>].
+
+
+-spec do_format(logger:log_event(), logger:formatter_config()) -> unicode:chardata().
+do_format(E = #{msg := {report, #{label := {error_logger, _}, format := Format, args := Terms}}}, FConfig) ->
+    do_format(E#{msg := {report,
                       #{unstructured_log =>
                         unicode:characters_to_binary(io_lib:format(Format, Terms))}}},
            FConfig);
-format(E = #{msg := {string, String}}, FConfig) ->
-    format(E#{msg := {report,
+do_format(E = #{msg := {string, String}}, FConfig) ->
+    do_format(E#{msg := {report,
                       #{unstructured_log =>
                         unicode:characters_to_binary(io_lib:format(String, []))}}}, FConfig);
-format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
+do_format(E = #{msg := {report, Report}}, FConfig) when is_map(Report) ->
     NewMap = process_metadata(E),
     NewReport = maps:merge(Report, NewMap),
     NewConfig = maps:merge(default_config(), config_correct_depth(FConfig)),
     Formatted = format_item(NewReport, NewConfig),
-    B = jiffy:encode(Formatted),
-    <<B/binary, "\n">>;
-format(Map = #{msg := {Format, Terms}}, FConfig) ->
-    format(Map#{msg := {report,
+    IoData = jiffy:encode(Formatted),
+    [IoData, <<"\n">>];
+do_format(Map = #{msg := {Format, Terms}}, FConfig) ->
+    do_format(Map#{msg := {report,
                         #{unstructured_log =>
                           unicode:characters_to_binary(io_lib:format(Format, Terms))}}},
            FConfig).
+
 
 format_item(_Item, _FConfig = #{depth := 0}) ->
     <<"...">>;
