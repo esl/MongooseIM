@@ -310,6 +310,11 @@ jobs:
           steps:
             - add_ssh_keys
             - run:
+                name: Configure Git
+                command: |
+                  git config --global user.email "mongoose-im@erlang-solutions.com"
+                  git config --global user.name "mongooseim"
+            - run:
                 name: Generate image tag
                 command: |
                   set -x
@@ -325,9 +330,9 @@ jobs:
             - run:
                 name: Build latest
                 command: |
+                  git fetch git@github.com:esl/MongooseDocs.git gh-pages:gh-pages
                   pip3 install mike
-                  echo $DOCS_TAG
-                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch main --push --force
+                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
 filters: &all_tags
   tags:
