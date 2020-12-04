@@ -1346,24 +1346,21 @@ mod_adhoc(_Config) ->
 
 mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token),
-    run_multi(mod_auth_token_cases()).
-
-mod_auth_token_cases() ->
     P = fun(X) ->
-                     Opts = #{<<"validity_period">> => X},
-                     #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
-             end,
-    [?_eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
-                                    {{validity_period,refresh}, {31,days}}]),
-           P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
-              #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-     ?_errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}]))].
-
+                Opts = #{<<"validity_period">> => X},
+                #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
+        end,
+    ?eqf(modopts(mod_auth_token, [{{validity_period, access}, {13, minutes}},
+                                  {{validity_period, refresh}, {31, days}}]),
+         P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>},
+            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => <<"13">>,
+               <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+    ?errf(P([#{<<"token">> => <<"Access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
 
 mod_bosh(_Config) ->
     run_multi(mod_bosh_cases()).
