@@ -302,32 +302,36 @@ jobs:
             pip3 install mkdocs
             pip3 install mkdocs-material
             mkdocs build --strict
-      - when:
-          condition:
-            or:
-              - equal: [ master, << pipeline.git.branch >> ]
-              - << pipeline.git.tag >>
-          steps:
-            - add_ssh_keys
-            - run:
-                name: Generate image tag
-                command: |
-                  set -x
-                  if [ -n "$CIRCLE_TAG" ]; then
-                      DOCS_TAG="$CIRCLE_TAG"
-                  elif [ "$CIRCLE_BRANCH" == "master" ]; then
-                      DOCS_TAG="latest"
-                  else
-                      DOCS_TAG=`echo $CIRCLE_BRANCH | sed 's,/,_,g'`
-                  fi
-                  env | sort
-                  echo "export DOCS_TAG=$DOCS_TAG" >> $BASH_ENV
-            - run:
-                name: Build latest
-                command: |
-                  pip3 install mike
-                  echo $DOCS_TAG
-                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch main --push --force
+      # - when:
+      #     condition:
+      #       or:
+      #         - equal: [ master, << pipeline.git.branch >> ]
+      #         - << pipeline.git.tag >>
+      #     steps:
+      #       - add_ssh_keys
+      #       - run:
+      #           name: Configure Git
+      #           command: |
+      #             git config --global user.email "mongoose-im@erlang-solutions.com"
+      #             git config --global user.name "mongooseim"
+      #       - run:
+      #           name: Generate image tag
+      #           command: |
+      #             set -x
+      #             if [ -n "$CIRCLE_TAG" ]; then
+      #                 DOCS_TAG="$CIRCLE_TAG"
+      #             elif [ "$CIRCLE_BRANCH" == "master" ]; then
+      #                 DOCS_TAG="latest"
+      #             else
+      #                 DOCS_TAG=`echo $CIRCLE_BRANCH | sed 's,/,_,g'`
+      #             fi
+      #             env | sort
+      #             echo "export DOCS_TAG=$DOCS_TAG" >> $BASH_ENV
+      #       - run:
+      #           name: Build latest
+      #           command: |
+      #             pip3 install mike
+      #             mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch main --push --rebase
 
 filters: &all_tags
   tags:
