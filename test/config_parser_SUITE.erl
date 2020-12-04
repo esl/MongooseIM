@@ -1336,16 +1336,13 @@ s2s_max_retry_delay(_Config) ->
 
 mod_adhoc(_Config) ->
     check_iqdisc(mod_adhoc),
-    run_multi(mod_adhoc_cases()).
-
-mod_adhoc_cases() ->
     M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    [?_eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
-     ?_eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
-     %% not boolean
-     ?_errf(T(<<"report_commands_node">>, <<"hello">>))].
+    ?eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
+    ?eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+    %% not boolean
+    ?errf(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token),
