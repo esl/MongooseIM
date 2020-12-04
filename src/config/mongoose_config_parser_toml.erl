@@ -112,8 +112,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"validity_period">>, <<"mod_auth_token">>|_] = Path, V) ->
-    parse_list(Path, V);
 module_opt([<<"inactivity">>, <<"mod_bosh">>|_], V) ->
     [{inactivity, int_or_infinity(V)}];
 module_opt([<<"max_wait">>, <<"mod_bosh">>|_], V) ->
@@ -473,11 +471,6 @@ riak_opts([<<"search_index">>|_], V) ->
 -spec mod_register_ip_access_rule(path(), toml_section()) -> [option()].
 mod_register_ip_access_rule(_, #{<<"address">> := Addr, <<"policy">> := Policy}) ->
     [{b2a(Policy), b2l(Addr)}].
-
--spec mod_auth_token_validity_periods(path(), toml_section()) -> [option()].
-mod_auth_token_validity_periods(_,
-    #{<<"token">> := Token, <<"value">> := Value, <<"unit">> := Unit}) ->
-        [{{validity_period, b2a(Token)}, {Value, b2a(Unit)}}].
 
 -spec mod_disco_server_info(path(), toml_section()) -> [option()].
 mod_disco_server_info(Path, #{<<"module">> := <<"all">>, <<"name">> := Name, <<"urls">> := Urls}) ->
@@ -1141,7 +1134,9 @@ node_to_string({host, _}) -> [];
 node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
 
--define(HAS_NO_SPEC(Mod), Mod =/= <<"mod_adhoc">>). % TODO temporary, remove with 'handler/1'
+-define(HAS_NO_SPEC(Mod),
+        Mod =/= <<"mod_adhoc">>,
+        Mod =/= <<"mod_auth_token">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -1159,8 +1154,6 @@ handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
 handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
     fun welcome_message/2;
-handler([_, <<"validity_period">>, <<"mod_auth_token">>, <<"modules">>]) ->
-    fun mod_auth_token_validity_periods/2;
 handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
 handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->

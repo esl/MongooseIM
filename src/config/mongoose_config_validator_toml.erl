@@ -644,11 +644,6 @@ validate([<<"simple">>, <<"mod_mam_meta">>, <<"modules">>|_],
 validate([<<"user_prefs_store">>, <<"mod_mam_meta">>, <<"modules">>|_],
          [{user_prefs_store, V}]) ->
     validate_enum(V, [false,rdbms,cassandra,mnesia]);
-validate([<<"iqdisc">>, <<"mod_auth_token">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"validity_period">>,<<"mod_auth_token">>,<<"modules">>|_], Vs) ->
-    lists:foreach(fun validate_validity_period/1, Vs);
 validate([<<"listen_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
          [{listen_port, V}]) ->
     validate_network_port(V);
@@ -1241,18 +1236,6 @@ validate_iqdisc(no_queue) -> ok;
 validate_iqdisc(one_queue) -> ok;
 validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
-
--spec validate_auth_token_domain(mod_auth_token:token_type()) -> ok.
-validate_auth_token_domain(Type) ->
-    validate_enum(Type, [access, refresh, provision]).
-
-validate_validity_period({{validity_period, Token}, {Value, Unit}}) ->
-    validate_auth_token_domain(Token),
-    validate_non_negative_integer(Value),
-    validate_period_unit(Unit).
-
-validate_period_unit(Unit) ->
-    validate_enum(Unit, [days, hours, minutes, seconds]).
 
 validate_ip_access({Access, IPMask}) ->
     validate_enum(Access, [allow, deny]),
