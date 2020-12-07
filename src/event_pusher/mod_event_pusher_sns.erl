@@ -7,6 +7,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
+-include("ejabberd_config.hrl").
 
 -callback user_guid(UserJID :: jid:jid()) -> user_guid().
 -callback message_attributes(TopicARN :: topic_arn(), UserJID :: jid:jid(),
@@ -32,7 +33,7 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% API
 -export([try_publish/5, push_event/3]).
@@ -49,23 +50,36 @@ start(Host, Opts) ->
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns,
                                    [{workers, WorkerNum}, {strategy, available_worker}]),
 
-    %% Check for required options
-    RequiredOptions = [access_key_id, secret_access_key, region, account_id, sns_host],
-    lists:foreach(
-        fun(Option) ->
-            case opt(Host, Option) of
-                undefined ->
-                    error({missing_required_option, Option});
-                _ -> ok
-            end
-         end, RequiredOptions),
-
     ok.
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     mongoose_wpool:stop(generic, Host, pusher_sns),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"presence_updates_topic">> => #option{type = string},
+                 <<"pm_messages_topic">> => #option{type = string},
+                 <<"muc_messages_topic">> => #option{type = string},
+                 <<"plugin_module">> => #option{type = atom,
+                                                validate = module},
+                 <<"sns_host">> => #option{type = string},
+                 <<"region">> => #option{type = string},
+                 <<"access_key_id">> => #option{type = string},
+                 <<"secret_access_key">> => #option{type = string},
+                 <<"account_id">> => #option{type = string},
+                 <<"pool_size">> => #option{type = integer,
+                                            validate = positive},
+                 <<"publish_retry_count">> => #option{type = integer,
+                                                      validate = non_negative},
+                 <<"publish_retry_time_ms">> => #option{type = integer,
+                                                        validate = non_negative}
+                },
+       required = [<<"access_key_id">>, <<"secret_access_key">>,
+                   <<"region">>, <<"account_id">>, <<"sns_host">>]
+      }.
 
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
     user_presence_changed(UserJID, Status == online),
