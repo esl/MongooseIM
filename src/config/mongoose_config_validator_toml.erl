@@ -130,24 +130,6 @@ validate([<<"pool">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
 validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
          [{refresh_after, V}]) ->
     validate_non_negative_integer(V);
-validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{type, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"host">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{host, V}]) ->
-    validate_non_empty_list(V);
-validate([<<"port">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{port, V}]) ->
-    validate_port(V);
-validate([<<"transport">>,_, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{transport, V}]) ->
-    validate_non_empty_list(V);
-validate([<<"username">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{username, V}]) ->
-    validate_non_empty_list(V);
-validate([<<"password">>, _,<<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
-         [{password, V}]) ->
-    validate_non_empty_list(V);
 validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_http_upload, V);
@@ -322,8 +304,6 @@ validate_port(Value) when is_integer(Value), Value >= 0, Value =< 65535 -> ok.
 validate_non_empty_atom(Value) when is_atom(Value), Value =/= '' -> ok.
 
 validate_non_empty_string(Value) when is_list(Value), Value =/= "" -> ok.
-
-validate_non_empty_list(Value) when is_list(Value), Value =/= [] -> ok.
 
 validate_jid(Jid) ->
     case jid:from_binary(Jid) of

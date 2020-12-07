@@ -1453,40 +1453,33 @@ mod_disco(_Config) ->
     ?errf(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
-    Service = #{
+    T = fun(Opts) -> #{<<"modules">> =>
+                         #{<<"mod_extdisco">> => 
+                             #{<<"service">> => [Opts]}}}
+        end,
+    M = fun(Opts) -> modopts(mod_extdisco, [Opts]) end,
+    RequiredOpts = #{
         <<"type">> => <<"stun">>,
-        <<"host">> => <<"stun1">>,
-        <<"port">> => 3478,
-        <<"transport">> => <<"udp">>,
-        <<"username">> => <<"username">>,
-        <<"password">> => <<"password">>},
-    Base = #{<<"service">> => [Service]},
-    MBase = [{host, "stun1"},
-             {password, "password"},
-             {port, 3478},
-             {transport, "udp"},
-             {type, stun},
-             {username, "username"}],
-    ?eqf(modopts(mod_extdisco, [MBase]), T(Base)),
-    %% Invalid service type
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => ["stun"]}]})),
-    %% Invalid host
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => [1]}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => true}]})),
-    %% Invalid port
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => 9999999}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => "port"}]})),
-    %% Invalid transport
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => ""}]})),
-    %% Invalid username
-    ?errf(T(Base#{<<"service">> => [Base#{<<"username">> => -2}]})),
-    %% Invalid password
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => 1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => [<<"test">>]}]})).
+        <<"host">> => <<"stun1">>},
+    ExpectedCfg = [{host, "stun1"},
+                   {type, stun}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{port, 3478}]),
+         T(RequiredOpts#{<<"port">> => 3478})),
+    ?eqf(M(ExpectedCfg ++ [{transport, "udp"}]),
+         T(RequiredOpts#{<<"transport">> => <<"udp">>})),
+    ?eqf(M(ExpectedCfg ++ [{username, "username"}]),
+         T(RequiredOpts#{<<"username">> => <<"username">>})),
+    ?eqf(M(ExpectedCfg ++ [{password, "password"}]),
+         T(RequiredOpts#{<<"password">> => <<"password">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"type">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"port">> => -1})),
+    ?errf(T(RequiredOpts#{<<"transport">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"username">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"password">> => <<"">>})).
 
 mod_inbox(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,
@@ -2900,6 +2893,8 @@ compare_values({auth_opts, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_auth_opt/2);
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
+compare_values({modules, _}, [{mod_extdisco, V1}], [{mod_extdisco, V2}]) ->
+    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
 compare_values({modules, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_modules/2);
 compare_values({services, _}, V1, V2) ->
