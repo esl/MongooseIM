@@ -31,7 +31,6 @@
          is_archivable_message/4,
          has_message_retraction/2,
          get_retract_id/2,
-         get_retract_id/3,
          get_origin_id/1,
          tombstone/2,
          wrap_message/6,
@@ -357,9 +356,6 @@ has_chat_marker(Packet) ->
         #xmlel{name = <<"acknowledged">>} -> true;
         _                                 -> false
     end.
-
-get_retract_id(Module, Host, Packet) ->
-    get_retract_id(has_message_retraction(Module, Host), Packet).
 
 get_retract_id(true = _Enabled, Packet) ->
     get_retract_id(Packet);
