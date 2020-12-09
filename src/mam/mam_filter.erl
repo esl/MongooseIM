@@ -9,7 +9,7 @@
     | {le, column(), integer()}
     | {ge, column(), integer()}
     | {equal, column(), integer() | binary()}
-    | {lower, column(), integer()}
+    | {less, column(), integer()}
     | {greater, column(), integer()}.
 
 -type filter() :: [filter_field()].
