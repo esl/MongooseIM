@@ -175,53 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"host">>, <<"mod_muc">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"access">>, <<"mod_muc">>|_], V) ->
-    [{access, b2a(V)}];
-module_opt([<<"access_create">>, <<"mod_muc">>|_], V) ->
-    [{access_create, b2a(V)}];
-module_opt([<<"access_admin">>, <<"mod_muc">>|_], V) ->
-    [{access_admin, b2a(V)}];
-module_opt([<<"access_persistent">>, <<"mod_muc">>|_], V) ->
-    [{access_persistent, b2a(V)}];
-module_opt([<<"history_size">>, <<"mod_muc">>|_], V) ->
-    [{history_size, V}];
-module_opt([<<"room_shaper">>, <<"mod_muc">>|_], V) ->
-    [{room_shaper, b2a(V)}];
-module_opt([<<"max_room_id">>, <<"mod_muc">>|_], V) ->
-    [{max_room_id, int_or_infinity(V)}];
-module_opt([<<"max_room_name">>, <<"mod_muc">>|_], V) ->
-    [{max_room_name, int_or_infinity(V)}];
-module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], V) ->
-    [{max_room_desc, int_or_infinity(V)}];
-module_opt([<<"min_message_interval">>, <<"mod_muc">>|_], V) ->
-    [{min_message_interval, V}];
-module_opt([<<"min_presence_interval">>, <<"mod_muc">>|_], V) ->
-    [{min_presence_interval, V}];
-module_opt([<<"max_users">>, <<"mod_muc">>|_], V) ->
-    [{max_users, V}];
-module_opt([<<"max_users_admin_threshold">>, <<"mod_muc">>|_], V) ->
-    [{max_users_admin_threshold, V}];
-module_opt([<<"user_message_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_message_shaper, b2a(V)}];
-module_opt([<<"user_presence_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_presence_shaper, b2a(V)}];
-module_opt([<<"max_user_conferences">>, <<"mod_muc">>|_], V) ->
-    [{max_user_conferences, V}];
-module_opt([<<"http_auth_pool">>, <<"mod_muc">>|_], V) ->
-    [{http_auth_pool, b2a(V)}];
-module_opt([<<"load_permanent_rooms_at_startup">>, <<"mod_muc">>|_], V) ->
-    [{load_permanent_rooms_at_startup, V}];
-module_opt([<<"hibernate_timeout">>, <<"mod_muc">>|_], V) ->
-    [{hibernate_timeout, V}];
-module_opt([<<"hibernated_room_check_interval">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_check_interval, int_or_infinity(V)}];
-module_opt([<<"hibernated_room_timeout">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_timeout, int_or_infinity(V)}];
-module_opt([<<"default_room">>, <<"mod_muc">>|_] = Path, V) ->
-    Defaults = parse_section(Path, V),
-    [{default_room_options, Defaults}];
 module_opt([<<"outdir">>, <<"mod_muc_log">>|_], V) ->
     [{outdir, b2l(V)}];
 module_opt([<<"access_log">>, <<"mod_muc_log">>|_], V) ->
@@ -593,63 +546,6 @@ mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
--spec mod_muc_default_room(path(), toml_value()) -> [option()].
-mod_muc_default_room([<<"title">>|_], V) ->
-    [{title, V}];
-mod_muc_default_room([<<"description">>|_], V) ->
-    [{description, V}];
-mod_muc_default_room([<<"allow_change_subj">>|_], V) ->
-    [{allow_change_subj, V}];
-mod_muc_default_room([<<"allow_query_users">>|_], V) ->
-    [{allow_query_users, V}];
-mod_muc_default_room([<<"allow_private_messages">>|_], V) ->
-    [{allow_private_messages, V}];
-mod_muc_default_room([<<"allow_visitor_status">>|_], V) ->
-    [{allow_visitor_status, V}];
-mod_muc_default_room([<<"allow_visitor_nickchange">>|_], V) ->
-    [{allow_visitor_nickchange, V}];
-mod_muc_default_room([<<"public">>|_], V) ->
-    [{public, V}];
-mod_muc_default_room([<<"public_list">>|_], V) ->
-    [{public_list, V}];
-mod_muc_default_room([<<"persistent">>|_], V) ->
-    [{persistent, V}];
-mod_muc_default_room([<<"moderated">>|_], V) ->
-    [{moderated, V}];
-mod_muc_default_room([<<"members_by_default">>|_], V) ->
-    [{members_by_default, V}];
-mod_muc_default_room([<<"members_only">>|_], V) ->
-    [{members_only, V}];
-mod_muc_default_room([<<"allow_user_invites">>|_], V) ->
-    [{allow_user_invites, V}];
-mod_muc_default_room([<<"allow_multiple_sessions">>|_], V) ->
-    [{allow_multiple_sessions, V}];
-mod_muc_default_room([<<"password_protected">>|_], V) ->
-    [{password_protected, V}];
-mod_muc_default_room([<<"password">>|_], V) ->
-    [{password, V}];
-mod_muc_default_room([<<"anonymous">>|_], V) ->
-    [{anonymous, V}];
-mod_muc_default_room([<<"max_users">>|_], V) ->
-    [{max_users, V}];
-mod_muc_default_room([<<"logging">>|_], V) ->
-    [{logging, V}];
-mod_muc_default_room([<<"maygetmemberlist">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{maygetmemberlist, List}];
-mod_muc_default_room([<<"affiliations">>|_] = Path, V) ->
-    Affs = parse_list(Path, V),
-    [{affiliations, Affs}];
-mod_muc_default_room([<<"subject">>|_], V) ->
-    [{subject, V}];
-mod_muc_default_room([<<"subject_author">>|_], V) ->
-    [{subject_author, V}].
-
--spec mod_muc_default_room_affiliations(path(), toml_section()) -> [option()].
-mod_muc_default_room_affiliations(_, #{<<"user">> := User, <<"server">> := Server,
-    <<"resource">> := Resource, <<"affiliation">> := Aff}) ->
-    [{{User, Server, Resource}, b2a(Aff)}].
-
 -spec mod_muc_log_top_link(path(), toml_value()) -> [option()].
 mod_muc_log_top_link([<<"target">>|_], V) ->
     [b2l(V)];
@@ -1011,7 +907,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_carboncopy">>,
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
-        Mod =/= <<"mod_event_pusher">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_muc">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -1057,12 +954,6 @@ handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
-handler([_, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun mod_muc_default_room/2;
-handler([_, <<"maygetmemberlist">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun (_, V) -> [b2a(V)] end;
-handler([_, <<"affiliations">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun mod_muc_default_room_affiliations/2;
 handler([_, <<"top_link">>, <<"mod_muc_log">>, <<"modules">>]) ->
     fun mod_muc_log_top_link/2;
 handler([_, <<"config_schema">>, <<"mod_muc_light">>, <<"modules">>]) ->

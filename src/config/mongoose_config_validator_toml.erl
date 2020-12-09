@@ -807,155 +807,6 @@ validate([item, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>|_],
 validate([<<"sync_broadcast">>, <<"mod_pubsub">>, <<"modules">>|_],
          [{sync_broadcast, V}]) ->
     validate_boolean(V);
-validate([<<"access">>, <<"mod_muc">>, <<"modules">>|_],
-         [{access, V}]) ->
-    validate_access_rule(V);
-validate([<<"access_admin">>, <<"mod_muc">>, <<"modules">>|_],
-         [{access_admin, V}]) ->
-    validate_access_rule(V);
-validate([<<"access_create">>, <<"mod_muc">>, <<"modules">>|_],
-         [{access_create, V}]) ->
-    validate_access_rule(V);
-validate([<<"access_persistent">>, <<"mod_muc">>, <<"modules">>|_],
-         [{access_persistent, V}]) ->
-    validate_access_rule(V);
-validate([<<"backend">>, <<"mod_muc">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_muc_db, V);
-validate([item, <<"affiliations">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [V]) ->
-    validate_muc_affiliation_rule(V);
-validate([<<"allow_change_subj">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_change_subj, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_multiple_sessions">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_multiple_sessions, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_private_messages">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_private_messages, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_query_users">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_query_users, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_user_invites">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_user_invites, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_visitor_nickchange">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_visitor_nickchange, V}]) ->
-    validate_boolean(V);
-validate([<<"allow_visitor_status">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{allow_visitor_status, V}]) ->
-    validate_boolean(V);
-validate([<<"anonymous">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{anonymous, V}]) ->
-    validate_boolean(V);
-validate([<<"description">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{description, V}]) ->
-    validate_binary(V);
-validate([<<"logging">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{logging, V}]) ->
-    validate_boolean(V);
-validate([<<"max_users">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_users, V}]) ->
-    validate_positive_integer(V);
-validate([item, <<"maygetmemberlist">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [V]) ->
-    validate_non_empty_atom(V);
-validate([<<"members_by_default">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{members_by_default, V}]) ->
-    validate_boolean(V);
-validate([<<"members_only">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{members_only, V}]) ->
-    validate_boolean(V);
-validate([<<"moderated">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{moderated, V}]) ->
-    validate_boolean(V);
-validate([<<"password">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{password, V}]) ->
-    validate_string(V);
-validate([<<"password_protected">>, <<"default_room">>,
-          <<"mod_muc">>, <<"modules">>|_],
-         [{password_protected, V}]) ->
-    validate_boolean(V);
-validate([<<"persistent">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{persistent, V}]) ->
-    validate_boolean(V);
-validate([<<"public">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{public, V}]) ->
-    validate_boolean(V);
-validate([<<"public_list">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{public_list, V}]) ->
-    validate_boolean(V);
-validate([<<"subject">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{subject, V}]) ->
-    validate_string(V);
-validate([<<"subject_author">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{subject_author, V}]) ->
-    validate_string(V);
-validate([<<"title">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>|_],
-         [{title, V}]) ->
-    validate_string(V);
-validate([<<"hibernated_room_check_interval">>, <<"mod_muc">>, <<"modules">>|_],
-         [{hibernated_room_check_interval, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"hibernated_room_timeout">>, <<"mod_muc">>, <<"modules">>|_],
-         [{hibernated_room_timeout, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"history_size">>, <<"mod_muc">>, <<"modules">>|_],
-         [{history_size, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"host">>, <<"mod_muc">>, <<"modules">>|_],
-         [{host, V}]) ->
-    validate_domain_template(V);
-validate([<<"http_auth_pool">>, <<"mod_muc">>, <<"modules">>|_],
-         [{http_auth_pool, V}]) ->
-    validate_pool_name(V);
-validate([<<"load_permanent_rooms_at_startup">>, <<"mod_muc">>, <<"modules">>|_],
-         [{load_permanent_rooms_at_startup, V}]) ->
-    validate_boolean(V);
-validate([<<"max_room_desc">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_room_desc, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"max_room_id">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_room_id, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"max_room_name">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_room_name, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"max_user_conferences">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_user_conferences, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"max_users">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_users, V}]) ->
-    validate_positive_integer(V);
-validate([<<"max_users_admin_threshold">>, <<"mod_muc">>, <<"modules">>|_],
-         [{max_users_admin_threshold, V}]) ->
-    validate_positive_integer(V);
-validate([<<"min_message_interval">>, <<"mod_muc">>, <<"modules">>|_],
-         [{min_message_interval, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"min_presence_interval">>, <<"mod_muc">>, <<"modules">>|_],
-         [{min_presence_interval, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"room_shaper">>, <<"mod_muc">>, <<"modules">>|_],
-         [{room_shaper, V}]) ->
-    validate_shaper_name(V);
-validate([<<"user_message_shaper">>, <<"mod_muc">>, <<"modules">>|_],
-         [{user_message_shaper, V}]) ->
-    validate_shaper_name(V);
-validate([<<"user_presence_shaper">>, <<"mod_muc">>, <<"modules">>|_],
-         [{user_presence_shaper, V}]) ->
-    validate_shaper_name(V);
 validate([<<"iqdisc">>, <<"mod_ping">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
@@ -990,6 +841,8 @@ validate(V, atom, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
 validate(V, atom, loglevel) -> validate_loglevel(V);
 validate(V, atom, pool_name) -> validate_non_empty_atom(V);
+validate(V, atom, shaper) -> validate_non_empty_atom(V);
+validate(V, atom, access_rule) -> validate_non_empty_atom(V);
 validate(V, atom, non_empty) -> validate_non_empty_atom(V);
 validate(V, _, {enum, Values}) -> validate_enum(V, Values);
 validate(_V, _, any) -> ok.
@@ -1008,8 +861,6 @@ validate_loglevel(Level) ->
     mongoose_logs:loglevel_keyword_to_number(Level).
 
 validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
-
-validate_binary(Value) when is_binary(Value) -> ok.
 
 validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
@@ -1193,12 +1044,6 @@ validate_keystore_key({Name, {file, Path}}) ->
     validate_non_empty_atom(Name),
     validate_filename(Path).
 
-validate_muc_affiliation_rule({{User, Server, Resource}, Affiliation}) ->
-    validate_non_empty_binary(User),
-    validate_binary_domain(Server),
-    validate_binary(Resource),
-    validate_non_empty_atom(Affiliation).
-
 validate_maybe_css_file(false) ->
     ok;
 validate_maybe_css_file(Bin) ->
@@ -1265,7 +1110,4 @@ validate_pool_name(V) ->
     validate_non_empty_atom(V).
 
 validate_access_rule(V) ->
-    validate_non_empty_atom(V).
-
-validate_shaper_name(V) ->
     validate_non_empty_atom(V).

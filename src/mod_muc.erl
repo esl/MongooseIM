@@ -35,6 +35,8 @@
 -export([start_link/2,
          start/2,
          stop/1,
+         config_spec/0,
+         process_room_affiliation/1,
          room_destroyed/3,
          store_room/4,
          restore_room/3,
@@ -71,6 +73,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose_config_spec.hrl").
 
 -export_type([access/0,
              room/0,
@@ -163,6 +166,108 @@ start(Host, Opts) ->
 stop(Host) ->
     stop_supervisor(Host),
     stop_gen_server(Host).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, mod_muc_db}},
+                 <<"host">> => #option{type = string,
+                                       validate = domain_template},
+                 <<"access">> => #option{type = atom,
+                                         validate = access_rule},
+                 <<"access_create">> => #option{type = atom,
+                                                validate = access_rule},
+                 <<"access_admin">> => #option{type = atom,
+                                               validate = access_rule},
+                 <<"access_persistent">> => #option{type = atom,
+                                                    validate = access_rule},
+                 <<"history_size">> => #option{type = integer,
+                                               validate = non_negative},
+                 <<"room_shaper">> => #option{type = atom,
+                                              validate = shaper},
+                 <<"max_room_id">> => #option{type = int_or_infinity,
+                                              validate = non_negative},
+                 <<"max_room_name">> => #option{type = int_or_infinity,
+                                                validate = non_negative},
+                 <<"max_room_desc">> => #option{type = int_or_infinity,
+                                                validate = non_negative},
+                 <<"min_message_interval">> => #option{type = integer,
+                                                       validate = non_negative},
+                 <<"min_presence_interval">> => #option{type = integer,
+                                                        validate = non_negative},
+                 <<"max_users">> => #option{type = integer,
+                                            validate = positive},
+                 <<"max_users_admin_threshold">> => #option{type = integer,
+                                                            validate = positive},
+                 <<"user_message_shaper">> => #option{type = atom,
+                                                      validate = shaper},
+                 <<"user_presence_shaper">> => #option{type = atom,
+                                                       validate = shaper},
+                 <<"max_user_conferences">> => #option{type = integer,
+                                                       validate = non_negative},
+                 <<"http_auth_pool">> => #option{type = atom,
+                                                 validate = pool_name},
+                 <<"load_permanent_rooms_at_startup">> => #option{type = boolean},
+                 <<"hibernate_timeout">> => #option{type = int_or_infinity,
+                                                    validate = non_negative},
+                 <<"hibernated_room_check_interval">> => #option{type = int_or_infinity,
+                                                                 validate = non_negative},
+                 <<"hibernated_room_timeout">> => #option{type = int_or_infinity,
+                                                          validate = non_negative},
+                 <<"default_room">> => default_room_config_spec()
+                }
+      }.
+
+default_room_config_spec() ->
+    #section{
+       items = #{<<"title">> => #option{type = binary},
+                 <<"description">> => #option{type = binary},
+                 <<"allow_change_subj">> => #option{type = boolean},
+                 <<"allow_query_users">> => #option{type = boolean},
+                 <<"allow_private_messages">> => #option{type = boolean},
+                 <<"allow_visitor_status">> => #option{type = boolean},
+                 <<"allow_visitor_nickchange">> => #option{type = boolean},
+                 <<"public">> => #option{type = boolean},
+                 <<"public_list">> => #option{type = boolean},
+                 <<"persistent">> => #option{type = boolean},
+                 <<"moderated">> => #option{type = boolean},
+                 <<"members_by_default">> => #option{type = boolean},
+                 <<"members_only">> => #option{type = boolean},
+                 <<"allow_user_invites">> => #option{type = boolean},
+                 <<"allow_multiple_sessions">> => #option{type = boolean},
+                 <<"password_protected">> => #option{type = boolean},
+                 <<"password">> => #option{type = binary},
+                 <<"anonymous">> => #option{type = boolean},
+                 <<"max_users">> => #option{type = integer,
+                                            validate = positive},
+                 <<"logging">> => #option{type = boolean},
+                 <<"maygetmemberlist">> => #list{items = #option{type = atom,
+                                                                 validate = non_empty}},
+                 <<"affiliations">> => #list{items = default_room_affiliations_spec()},
+                 <<"subject">> => #option{type = binary},
+                 <<"subject_author">> => #option{type = binary}
+                },
+       format = {kv, default_room_options}
+      }.
+
+default_room_affiliations_spec() ->
+    #section{
+       items = #{<<"user">> => #option{type = binary,
+                                       validate = non_empty},
+                 <<"server">> => #option{type = binary,
+                                         validate = domain},
+                 <<"resource">> => #option{type = binary},
+                 <<"affiliation">> => #option{type = atom,
+                                              validate = non_empty}},
+       required = all,
+       process = fun ?MODULE:process_room_affiliation/1
+      }.
+
+process_room_affiliation(KVs) ->
+    {[[{user, User}], [{server, Server}], [{resource, Res}], [{affiliation, Aff}]], []} =
+        proplists:split(KVs, [user, server, resource, affiliation]),
+    {{User, Server, Res}, Aff}.
 
 stop_gen_server(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
