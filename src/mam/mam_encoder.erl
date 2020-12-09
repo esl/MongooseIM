@@ -5,14 +5,17 @@
 -export([encode_packet/2]).
 -export([extend_lookup_params/2]).
 
--type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
--type env_vars() :: mod_mam_rdbms_arch:env_vars().
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_mam.hrl").
 
+-type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
+-type env_vars() :: mod_mam_rdbms_arch:env_vars().
+-type db_mapping() :: #db_mapping{}.
+-type encoded_field_value() :: term().
+
+-spec extend_lookup_params(mam_iq:lookup_params(), env_vars()) -> mam_iq:lookup_params().
 extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
                        borders := Borders, search_text := SearchText} = Params, Env) ->
     Params#{norm_search_text => mod_mam_utils:normalize_search_text(SearchText),
@@ -21,6 +24,8 @@ extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
             remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
+-spec encode_message(mod_mam:archive_message_params(), env_vars(), list(db_mapping())) ->
+    [encoded_field_value()].
 encode_message(Params, Env, Mappings) ->
     [encode_value_using_mapping(Params, Env, Mapping) || Mapping <- Mappings].
 
@@ -28,7 +33,7 @@ encode_value_using_mapping(Params, Env, #db_mapping{param = Param, format = Form
     Value = maps:get(Param, Params),
     encode_value(Format, Value, Env).
 
--spec encode_value(value_type(), term(), env_vars()) -> term().
+-spec encode_value(value_type(), term(), env_vars()) -> encoded_field_value().
 encode_value(int, Value, _Env) when is_integer(Value) ->
     Value;
 encode_value(maybe_string, none, _Env) ->
