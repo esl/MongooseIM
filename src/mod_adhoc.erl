@@ -45,7 +45,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
--include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),

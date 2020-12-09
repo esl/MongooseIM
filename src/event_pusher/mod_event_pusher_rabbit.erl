@@ -23,7 +23,7 @@
 
 -include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
--include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).

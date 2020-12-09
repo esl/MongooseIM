@@ -52,7 +52,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("session.hrl").
--include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
 

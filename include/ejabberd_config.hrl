@@ -27,4 +27,19 @@
                        value :: mongoose_config_parser:value()
                       }).
 
+-record(section, {items,
+                  validate_keys = any,
+                  required = [],
+                  validate = any,
+                  process,
+                  format = default}).
+-record(list, {items,
+               validate = any,
+               process,
+               format = default}).
+-record(option, {type,
+                 validate = any,
+                 process,
+                 format = default}).
+
 -endif.
