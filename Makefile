@@ -11,8 +11,9 @@ REBAR=./rebar3
 all: rel
 
 clean:
-	-rm -rf asngen
+	-$(REBAR) clean
 	-rm -rf _build
+	-rm -rf asngen
 	-rm configure.out
 	-rm rel/configure.vars.config
 	-rm rel/vars-toml.config
