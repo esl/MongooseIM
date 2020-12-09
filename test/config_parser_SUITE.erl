@@ -189,6 +189,7 @@ groups() ->
                             mod_muc_default_room_affiliations,
                             mod_muc_log,
                             mod_muc_light,
+                            mod_muc_light_config_schema,
                             mod_offline,
                             mod_ping,
                             mod_privacy,
@@ -2208,54 +2209,66 @@ mod_muc_log_bad_opts() ->
 
 mod_muc_light(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
-    run_multi(
-        generic_opts_cases(mod_muc_light, T, mod_muc_light_opts()) ++
-        generic_bad_opts_cases(T, mod_muc_light_bad_opts())
-      ).
+    M = fun(Cfg) -> modopts(mod_muc_light, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+         T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{host, "muclight.@HOST@"}]),
+         T(#{<<"host">> => <<"muclight.@HOST@">>})),
+    ?eqf(M([{equal_occupants, true}]),
+         T(#{<<"equal_occupants">> => true})),
+    ?eqf(M([{legacy_mode, false}]),
+         T(#{<<"legacy_mode">> => false})),
+    ?eqf(M([{rooms_per_user, 100}]),
+         T(#{<<"rooms_per_user">> => 100})),
+    ?eqf(M([{blocking, false}]),
+         T(#{<<"blocking">> => false})),
+    ?eqf(M([{all_can_configure, true}]),
+         T(#{<<"all_can_configure">> => true})),
+    ?eqf(M([{all_can_invite, false}]),
+         T(#{<<"all_can_invite">> => false})),
+    ?eqf(M([{max_occupants, infinity}]),
+         T(#{<<"max_occupants">> => <<"infinity">>})),
+    ?eqf(M([{rooms_per_page, 10}]),
+         T(#{<<"rooms_per_page">> => 10})),
+    ?eqf(M([{rooms_in_rosters, true}]),
+         T(#{<<"rooms_in_rosters">> => true})),
+    ?errf(T(#{<<"backend">> => <<"frontend">>})),
+    ?errf(T(#{<<"host">> => <<"what is a domain?!">>})),
+    ?errf(T(#{<<"equal_occupants">> => <<"true">>})),
+    ?errf(T(#{<<"legacy_mode">> => 1234})),
+    ?errf(T(#{<<"rooms_per_user">> => 0})),
+    ?errf(T(#{<<"blocking">> => <<"true">>})),
+    ?errf(T(#{<<"all_can_configure">> => []})),
+    ?errf(T(#{<<"all_can_invite">> => #{}})),
+    ?errf(T(#{<<"max_occupants">> => <<"seven">>})),
+    ?errf(T(#{<<"rooms_per_page">> => false})),
+    ?errf(T(#{<<"rooms_in_rosters">> => [1, 2, 3]})).
 
-mod_muc_light_opts() ->
-    [{host, <<"muclight.@HOST@">>, "muclight.@HOST@"},
-     {backend, <<"mnesia">>, mnesia},
-     {equal_occupants, true, true},
-     {legacy_mode, true, true},
-     {rooms_per_user, 1, 1},
-     {rooms_per_user, <<"infinity">>, infinity},
-     {blocking, true, true},
-     {all_can_configure, true, true},
-     {all_can_invite, true, true},
-     {max_occupants, 1, 1},
-     {max_occupants, <<"infinity">>, infinity},
-     {rooms_per_page, 1, 1},
-     {rooms_per_page, <<"infinity">>, infinity},
-     {rooms_in_rosters, true, true},
-     {config_schema, [
-          #{<<"field">> => <<"roomname">>, <<"value">> => <<"My Room">>},
-          #{<<"field">> => <<"subject">>, <<"value">> => <<"Hi">>},
-          #{<<"field">> => <<"priority">>, <<"value">> => 0,
-            <<"internal_key">> => <<"priority">>, <<"type">> => <<"integer">>}
-      ],
-      [{"roomname", "My Room"}, {"subject", "Hi"},
-       {"priority", 0, priority, integer}]}
-    ].
-
-mod_muc_light_bad_opts() ->
-    [{host, 1},
-     {host, <<"test test">>},
-     {equal_occupants, 1},
-     {equal_occupants, #{}},
-     {legacy_mode, 1},
-     {rooms_per_user, true},
-     {blocking, 1},
-     {all_can_configure, 1},
-     {all_can_invite, 1},
-     {max_occupants, true},
-     {rooms_per_page, false},
-     {rooms_in_rosters, 1},
-     {config_schema, [ #{<<"field">> => 1, <<"value">> => <<"ok">>} ]},
-     {config_schema, [ #{<<"field">> => <<"subject">>} ]},
-     {config_schema, [ #{<<"field">> => <<"priority">>, <<"value">> => 0,
-            <<"internal_key">> => <<"priority">>, <<"type">> => <<"bad_integer">>} ]}
-    ].
+mod_muc_light_config_schema(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_muc_light">> => #{<<"config_schema">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_muc_light, [{config_schema, Cfg}]) end,
+    Field = #{<<"field">> => <<"my_field">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([{"my_field", <<"My Room">>, my_field, binary}]),
+         T([Field#{<<"string_value">> => <<"My Room">>}])),
+    ?eqf(M([{"my_field", 1, my_field, integer}]),
+         T([Field#{<<"integer_value">> => 1}])),
+    ?eqf(M([{"my_field", 0.5, my_field, float}]),
+         T([Field#{<<"float_value">> => 0.5}])),
+    ?eqf(M([{"my_field", 0, your_field, integer}]),
+         T([Field#{<<"integer_value">> => 0,
+                   <<"internal_key">> => <<"your_field">>}])),
+    ?errf(T([#{<<"string_value">> => <<"My Room">>}])),
+    ?errf(T([#{<<"field">> => <<>>,
+               <<"string_value">> => <<"My Room">>}])),
+    ?errf(T([Field#{<<"string_value">> => 0}])),
+    ?errf(T([Field#{<<"integer_value">> => 1.5}])),
+    ?errf(T([Field#{<<"float_value">> => 1}])),
+    ?errf(T([Field#{<<"integer_value">> => 0,
+                    <<"string_value">> => <<"My Room">>}])),
+    ?errf(T([Field#{<<"integer_value">> => 0,
+                    <<"internal_key">> => <<>>}])).
 
 mod_offline(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
