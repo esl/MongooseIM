@@ -148,14 +148,14 @@ skip_undefined(List) -> [X || X <- List, X =/= undefined].
 filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).
 
 op_to_id(equal)   -> "eq";
-op_to_id(lower)   -> "lt"; %% less than
+op_to_id(less)    -> "lt"; %% less than
 op_to_id(greater) -> "gt"; %% greater than
 op_to_id(le)      -> "le"; %% less or equal
 op_to_id(ge)      -> "ge"; %% greater or equal
 op_to_id(like)    -> "lk".
 
 filter_to_sql(Column, equal)    -> Column ++ " = ?";
-filter_to_sql(Column, lower)    -> Column ++ " < ?";
+filter_to_sql(Column, less)     -> Column ++ " < ?";
 filter_to_sql(Column, greater)  -> Column ++ " > ?";
 filter_to_sql(Column, le)       -> Column ++ " <= ?";
 filter_to_sql(Column, ge)       -> Column ++ " >= ?";
