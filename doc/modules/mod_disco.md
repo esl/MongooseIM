@@ -23,17 +23,17 @@ Please note that `mod_disco` doesn't verify these domains, so if no handlers are
 * **Example:**
 ```toml
 server_info = [
-                {module = "all", name = "abuse-address", urls = ["admin@example.com"]}
+                {name = "abuse-address", urls = ["admin@example.com"]}
               ]
 ```
 Adds extra disco information to all or chosen modules.
 New fields will be added in a manner compliant with [XEP-0157](https://xmpp.org/extensions/xep-0157.html).
 
-Required keys and their values for each entry:
+Keys and their values for each entry:
 
-* `module` - the string `"all"` or an array of module names for which the additional server information is to be returned
-* `name` - a non-empty string with the name of the field
-* `urls` - an array of valid addresses
+* `name` - required, a non-empty string with the name of the field
+* `urls` - required, an array of valid addresses
+* `modules` - optional, an array of module names for which the additional server information is to be returned. By default the server information is returned for all modules.
 
 #### `modules.mod_disco.users_can_see_hidden_services`
 * **Syntax:** boolean
@@ -51,8 +51,8 @@ will still receive full disco results.
   iqdisc.type = "one_queue"
   extra_domains = ["some_domain", "another_domain"]
   server_info = [
-    {module = "all", name = "abuse-address", urls = ["admin@example.com"]},
-    {module = ["mod_muc", "mod_disco"], name = "friendly-spirits", urls = ["spirit1@localhost", "spirit2@localhost"]}
+    {name = "abuse-address", urls = ["admin@example.com"]},
+    {name = "friendly-spirits", urls = ["spirit1@localhost", "spirit2@localhost"], modules = ["mod_muc", "mod_disco"]}
   ]
   users_can_see_hidden_services = true
 ```

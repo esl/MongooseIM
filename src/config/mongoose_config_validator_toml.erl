@@ -18,130 +18,6 @@ validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
 %% Modules
-validate([<<"callback_module">>, <<"http">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{callback_module, V}]) ->
-    validate_module(V);
-validate([<<"path">>, <<"http">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{path, V}]) ->
-    validate_string(V);
-validate([<<"pool_name">>, <<"http">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{pool_name, V}]) ->
-    validate_pool_name(V);
-validate([<<"backend">>, <<"push">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_event_pusher_push, V);
-validate([<<"plugin_module">>, <<"push">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{plugin_module, V}]) ->
-    validate_module(V);
-validate([item, <<"virtual_pubsub_hosts">>, <<"push">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [V]) ->
-    validate_domain_template(V);
-validate([<<"strategy">>, <<"wpool">>, <<"push">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{strategy, V}]) ->
-    validate_wpool_strategy(V);
-validate([<<"workers">>, <<"wpool">>, <<"push">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{workers, V}]) ->
-    validate_positive_integer(V);
-validate([<<"name">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{name, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"type">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"recv_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{recv_topic, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"sent_topic">>, <<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{sent_topic, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"name">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{name, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"type">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"recv_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{recv_topic, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"sent_topic">>, <<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{sent_topic, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"name">>, <<"presence_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{name, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"type">>, <<"presence_exchange">>, <<"rabbit">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"access_key_id">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{access_key_id, V}]) ->
-    validate_string(V);
-validate([<<"account_id">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{account_id, V}]) ->
-    validate_string(V);
-validate([<<"muc_host">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{muc_host, V}]) ->
-    validate_domain_template(V);
-validate([<<"muc_messages_topic">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{muc_messages_topic, V}]) ->
-    validate_string(V);
-validate([<<"plugin_module">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{plugin_module, V}]) ->
-    validate_module(V);
-validate([<<"pm_messages_topic">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{pm_messages_topic, V}]) ->
-    validate_string(V);
-validate([<<"pool_size">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{pool_size, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"presence_updates_topic">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{presence_updates_topic, V}]) ->
-    validate_string(V);
-validate([<<"publish_retry_count">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{publish_retry_count, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"publish_retry_time_ms">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{publish_retry_time_ms, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"region">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{region, V}]) ->
-    validate_string(V);
-validate([<<"secret_access_key">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{secret_access_key, V}]) ->
-    validate_string(V);
-validate([<<"sns_host">>, <<"sns">>, <<"backend">>,
-          <<"mod_event_pusher">>, <<"modules">>|_],
-         [{sns_host, V}]) ->
-    validate_string(V);
 validate([<<"enabled">>, <<"bounce">>,
           <<"mod_global_distrib">>, <<"modules">>|_],
          [{enabled, true}]) ->
@@ -755,24 +631,6 @@ validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
 validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_chat_marker_type(V);
-validate([item, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_binary_domain(V);
-validate([item, <<"module">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_module(V);
-validate([<<"name">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_non_empty_binary(V);
-validate([item, <<"urls">>, item, <<"server_info">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_url(V);
-validate([item, <<"urls">>, <<"mod_disco">>, <<"modules">>|_],
-         [V]) ->
-    validate_url(V);
-validate([<<"users_can_see_hidden_services">>, <<"mod_disco">>, <<"modules">>|_],
-         [{users_can_see_hidden_services, V}]) ->
-    validate_boolean(V);
 validate([<<"all_can_configure">>, <<"mod_muc_light">>, <<"modules">>|_],
          [{all_can_configure, V}]) ->
     validate_boolean(V);
@@ -1124,12 +982,14 @@ validate(V, integer, port) -> validate_port(V);
 validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_infinity(V);
 validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
 validate(V, string, url) -> validate_url(V);
+validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
-    validate_module(list_to_atom(atom_to_list(Prefix) ++ atom_to_list(V)));
+    validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
 validate(V, atom, loglevel) -> validate_loglevel(V);
+validate(V, atom, pool_name) -> validate_non_empty_atom(V);
 validate(V, atom, non_empty) -> validate_non_empty_atom(V);
 validate(V, _, {enum, Values}) -> validate_enum(V, Values);
 validate(_V, _, any) -> ok.
@@ -1310,10 +1170,6 @@ validate_network_port(Value) ->
 
 validate_range(Value, Min, Max) when Value >= Min, Value =< Max ->
     ok.
-
-validate_wpool_strategy(Value) ->
-    validate_enum(Value, [best_worker, random_worker, next_worker,
-                          available_worker, next_available_worker]).
 
 validate_filename(Filename) ->
     case file:read_file_info(Filename) of

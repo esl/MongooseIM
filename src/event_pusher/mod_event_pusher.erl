@@ -22,11 +22,12 @@
 
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
+-include("ejabberd_config.hrl").
 
 -type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
 -export_type([event/0]).
 
--export([deps/2, start/2, stop/1, push_event/3]).
+-export([deps/2, start/2, stop/1, config_spec/0, push_event/3]).
 
 -export([config_metrics/1]).
 
@@ -67,6 +68,16 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     ets:delete(ets_name(Host)).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    BackendItems = [{atom_to_binary(B, utf8),
+                     (translate_backend(B)):config_spec()} || B <- all_backends()],
+    #section{
+       items = #{<<"backend">> => #section{items = maps:from_list(BackendItems),
+                                           format = {kv, backends}}
+                }
+      }.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -144,3 +155,6 @@ get_backend(BackendsWithOpts, Backend) ->
         Backend ->
             {backend, Backend}
     end.
+
+all_backends() ->
+    [sns, push, http, rabbit].

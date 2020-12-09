@@ -67,7 +67,7 @@ general() ->
                  <<"all_metrics_are_global">> => #option{type = boolean,
                                                          format = local_config},
                  <<"sm_backend">> => #option{type = atom,
-                                             validate = {module, ejabberd_sm_},
+                                             validate = {module, ejabberd_sm},
                                              process = fun ?MODULE:process_sm_backend/1,
                                              format = config},
                  <<"max_fsm_queue">> => #option{type = integer,
@@ -339,7 +339,7 @@ http_handler_required(_) -> [].
 auth() ->
     #section{
        items = #{<<"methods">> => #list{items = #option{type = atom,
-                                                        validate = {module, ejabberd_auth_}},
+                                                        validate = {module, ejabberd_auth}},
                                         format = {kv, auth_method}},
                  <<"password">> => auth_password(),
                  <<"scram_iterations">> => #option{type = integer,
@@ -350,7 +350,7 @@ auth() ->
                            format = {kv, cyrsasl_external}},
                  <<"sasl_mechanisms">> =>
                      #list{items = #option{type = atom,
-                                           validate = {module, cyrsasl_},
+                                           validate = {module, cyrsasl},
                                            process = fun ?MODULE:process_sasl_mechanism/1}},
                  <<"anonymous">> => auth_anonymous(),
                  <<"external">> => auth_external(),
@@ -518,22 +518,26 @@ outgoing_pools() ->
 
 %% path: outgoing_pools.*.*
 outgoing_pool(Type) ->
+    WPool = wpool_items(),
     #section{
-       items = #{<<"scope">> => #option{type = atom,
-                                        validate = {enum, [global, host, single_host]}},
-                 <<"host">> => #option{type = binary,
-                                       validate = non_empty},
-                 <<"connection">> => outgoing_pool_connection(Type),
-                 <<"workers">> => #option{type = integer,
-                                          validate = positive},
-                 <<"strategy">> => #option{type = atom,
-                                           validate = {enum, wpool_strategy_values()}},
-                 <<"call_timeout">> => #option{type = integer,
-                                               validate = positive}
+       items = WPool#{<<"scope">> => #option{type = atom,
+                                             validate = {enum, [global, host, single_host]}},
+                      <<"host">> => #option{type = binary,
+                                            validate = non_empty},
+                      <<"connection">> => outgoing_pool_connection(Type)
                 },
        process = fun ?MODULE:process_pool/2,
        format = item
       }.
+
+wpool_items() ->
+    #{<<"workers">> => #option{type = integer,
+                               validate = positive},
+      <<"strategy">> => #option{type = atom,
+                                validate = {enum, wpool_strategy_values()}},
+      <<"call_timeout">> => #option{type = integer,
+                                    validate = positive}
+     }.
 
 %% path: outgoing_pools.*.*.connection
 outgoing_pool_connection(<<"cassandra">>) ->
@@ -731,10 +735,9 @@ all_modules() ->
      mod_bosh,
      mod_caps,
      mod_carboncopy,
-     mod_csi%%,
-     %% mod_disco,
-     %% mod_event_pusher
-    ].
+     mod_csi,
+     mod_disco,
+     mod_event_pusher].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

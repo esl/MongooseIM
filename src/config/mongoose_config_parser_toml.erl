@@ -92,12 +92,6 @@ parse_root(Path, Content) ->
     ensure_keys([<<"general">>], Content),
     parse_section(Path, Content).
 
-%% path: (host_config[].)modules.mod_event_pusher.backend.push.wpool.*
--spec pool_option(path(), toml_value()) -> [option()].
-pool_option([<<"workers">>|_], V) -> [{workers, V}];
-pool_option([<<"strategy">>|_], V) -> [{strategy, b2a(V)}];
-pool_option([<<"call_timeout">>|_], V) -> [{call_timeout, V}].
-
 %% path: (host_config[].)modules.*
 -spec process_module(path(), toml_section()) -> [option()].
 process_module([Mod|_] = Path, Opts) ->
@@ -112,17 +106,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"extra_domains">>, <<"mod_disco">>|_] = Path, V) ->
-    Domains = parse_list(Path, V),
-    [{extra_domains, Domains}];
-module_opt([<<"server_info">>, <<"mod_disco">>|_] = Path, V) ->
-    Info = parse_list(Path, V),
-    [{server_info, Info}];
-module_opt([<<"users_can_see_hidden_services">>, <<"mod_disco">>|_], V) ->
-    [{users_can_see_hidden_services, V}];
-module_opt([<<"backend">>, <<"mod_event_pusher">>|_] = Path, V) ->
-    Backends = parse_section(Path, V),
-    [{backends, Backends}];
 module_opt([<<"service">>, <<"mod_extdisco">>|_] = Path, V) ->
     parse_list(Path, V);
 module_opt([<<"host">>, <<"mod_http_upload">>|_], V) ->
@@ -457,107 +440,6 @@ riak_opts([<<"search_index">>|_], V) ->
 -spec mod_register_ip_access_rule(path(), toml_section()) -> [option()].
 mod_register_ip_access_rule(_, #{<<"address">> := Addr, <<"policy">> := Policy}) ->
     [{b2a(Policy), b2l(Addr)}].
-
--spec mod_disco_server_info(path(), toml_section()) -> [option()].
-mod_disco_server_info(Path, #{<<"module">> := <<"all">>, <<"name">> := Name, <<"urls">> := Urls}) ->
-    URLList = parse_list([<<"urls">> | Path], Urls),
-    [{all, b2l(Name), URLList}];
-mod_disco_server_info(Path, #{<<"module">> := Modules, <<"name">> := Name, <<"urls">> := Urls}) ->
-    Mods = parse_list([<<"module">> | Path], Modules),
-    URLList = parse_list([<<"urls">> | Path], Urls),
-    [{Mods, b2l(Name), URLList}].
-
--spec mod_event_pusher_backend_sns(path(), toml_section()) -> [option()].
-mod_event_pusher_backend_sns(Path, Opts) ->
-    SnsOpts = parse_section(Path, Opts),
-    [{sns, SnsOpts}].
-
--spec mod_event_pusher_backend_push(path(), toml_section()) -> [option()].
-mod_event_pusher_backend_push(Path, Opts) ->
-    PushOpts = parse_section(Path, Opts),
-    [{push, PushOpts}].
-
--spec mod_event_pusher_backend_http(path(), toml_section()) -> [option()].
-mod_event_pusher_backend_http(Path, Opts) ->
-    HttpOpts = parse_section(Path, Opts),
-    [{http, HttpOpts}].
-
--spec mod_event_pusher_backend_rabbit(path(), toml_section()) -> [option()].
-mod_event_pusher_backend_rabbit(Path, Opts) ->
-    ROpts = parse_section(Path, Opts),
-    [{rabbit, ROpts}].
-
--spec mod_event_pusher_backend_sns_opts(path(), toml_value()) -> [option()].
-mod_event_pusher_backend_sns_opts([<<"presence_updates_topic">>|_], V) ->
-    [{presence_updates_topic, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"pm_messages_topic">>|_], V) ->
-    [{pm_messages_topic, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"muc_messages_topic">>|_], V) ->
-    [{muc_messages_topic, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"plugin_module">>|_], V) ->
-    [{plugin_module, b2a(V)}];
-mod_event_pusher_backend_sns_opts([<<"muc_host">>|_], V) ->
-    [{muc_host, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"sns_host">>|_], V) ->
-    [{sns_host, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"region">>|_], V) ->
-    [{region, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"access_key_id">>|_], V) ->
-    [{access_key_id, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"secret_access_key">>|_], V) ->
-    [{secret_access_key, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"account_id">>|_], V) ->
-    [{account_id, b2l(V)}];
-mod_event_pusher_backend_sns_opts([<<"pool_size">>|_], V) ->
-    [{pool_size, V}];
-mod_event_pusher_backend_sns_opts([<<"publish_retry_count">>|_], V) ->
-    [{publish_retry_count, V}];
-mod_event_pusher_backend_sns_opts([<<"publish_retry_time_ms">>|_], V) ->
-    [{publish_retry_time_ms, V}].
-
--spec mod_event_pusher_backend_push_opts(path(), toml_value()) -> [option()].
-mod_event_pusher_backend_push_opts([<<"backend">>|_], V) ->
-    [{backend, b2a(V)}];
-mod_event_pusher_backend_push_opts([<<"wpool">>|_] = Path, V) ->
-    WpoolOpts = parse_section(Path, V),
-    [{wpool, WpoolOpts}];
-mod_event_pusher_backend_push_opts([<<"plugin_module">>|_], V) ->
-    [{plugin_module, b2a(V)}];
-mod_event_pusher_backend_push_opts([<<"virtual_pubsub_hosts">> |_] = Path, V) ->
-    VPH = parse_list(Path, V),
-    [{virtual_pubsub_hosts, VPH}].
-
--spec mod_event_pusher_backend_http_opts(path(), toml_value()) -> [option()].
-mod_event_pusher_backend_http_opts([<<"pool_name">>|_], V) ->
-    [{pool_name, b2a(V)}];
-mod_event_pusher_backend_http_opts([<<"path">>|_], V) ->
-    [{path, b2l(V)}];
-mod_event_pusher_backend_http_opts([<<"callback_module">>|_], V) ->
-    [{callback_module, b2a(V)}].
-
--spec mod_event_pusher_backend_rabbit_opts(path(), toml_value()) -> [option()].
-mod_event_pusher_backend_rabbit_opts([<<"presence_exchange">>|_] = Path, V) ->
-    [{presence_exchange, parse_section(Path, V)}];
-mod_event_pusher_backend_rabbit_opts([<<"chat_msg_exchange">>|_] = Path, V) ->
-    [{chat_msg_exchange, parse_section(Path, V)}];
-mod_event_pusher_backend_rabbit_opts([<<"groupchat_msg_exchange">>|_] = Path, V) ->
-    [{groupchat_msg_exchange, parse_section(Path, V)}].
-
--spec mod_event_pusher_rabbit_presence_ex(path(), toml_value()) -> [option()].
-mod_event_pusher_rabbit_presence_ex([<<"name">>|_], V) ->
-    [{name, V}];
-mod_event_pusher_rabbit_presence_ex([<<"type">>|_], V) ->
-    [{type, V}].
-
--spec mod_event_pusher_rabbit_msg_ex(path(), toml_value()) -> [option()].
-mod_event_pusher_rabbit_msg_ex([<<"name">>|_], V) ->
-    [{name, V}];
-mod_event_pusher_rabbit_msg_ex([<<"type">>|_], V) ->
-    [{type, V}];
-mod_event_pusher_rabbit_msg_ex([<<"sent_topic">>|_], V) ->
-    [{sent_topic, V}];
-mod_event_pusher_rabbit_msg_ex([<<"recv_topic">>|_], V) ->
-    [{recv_topic, V}].
 
 -spec mod_extdisco_service(path(), toml_value()) -> [option()].
 mod_extdisco_service([_, <<"service">>|_] = Path, V) ->
@@ -1126,7 +1008,9 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_bosh">>,
         Mod =/= <<"mod_caps">>,
         Mod =/= <<"mod_carboncopy">>,
-        Mod =/= <<"mod_csi">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_csi">>,
+        Mod =/= <<"mod_disco">>,
+        Mod =/= <<"mod_event_pusher">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -1144,40 +1028,6 @@ handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
 handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
     fun welcome_message/2;
-handler([_, <<"extra_domains">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun mod_disco_server_info/2;
-handler([_, <<"urls">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2l(V)] end;
-handler([_, <<"module">>, _, <<"server_info">>, <<"mod_disco">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
-handler([<<"sns">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_sns/2;
-handler([<<"push">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_push/2;
-handler([<<"http">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_http/2;
-handler([<<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_rabbit/2;
-handler([_, <<"sns">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_sns_opts/2;
-handler([_, <<"push">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_push_opts/2;
-handler([_, <<"http">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_http_opts/2;
-handler([_, <<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_backend_rabbit_opts/2;
-handler([_,<<"wpool">>, <<"push">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun pool_option/2;
-handler([_,<<"virtual_pubsub_hosts">>, <<"push">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun (_, V) -> [b2l(V)] end;
-handler([_,<<"presence_exchange">>, <<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_rabbit_presence_ex/2;
-handler([_,<<"chat_msg_exchange">>, <<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_rabbit_msg_ex/2;
-handler([_,<<"groupchat_msg_exchange">>, <<"rabbit">>, <<"backend">>, <<"mod_event_pusher">>, <<"modules">>]) ->
-    fun mod_event_pusher_rabbit_msg_ex/2;
 handler([_, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
     fun mod_extdisco_service/2;
 handler([_, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->

@@ -19,6 +19,7 @@
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("ejabberd_config.hrl").
 
 -define(SESSION_KEY, publish_service).
 
@@ -27,7 +28,7 @@
 %%--------------------------------------------------------------------
 
 %% gen_mod behaviour
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% mod_event_pusher behaviour
 -export([push_event/3]).
@@ -107,6 +108,19 @@ stop(Host) ->
 
     mongoose_wpool:stop(generic, Host, pusher_push),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, ?MODULE}},
+                 <<"wpool">> => #section{items = mongoose_config_spec:wpool_items()},
+                 <<"plugin_module">> => #option{type = atom,
+                                                validate = module},
+                 <<"virtual_pubsub_hosts">> => #list{items = #option{type = string,
+                                                                     validate = domain_template}}
+                }
+      }.
 
 %%--------------------------------------------------------------------
 %% mod_event_pusher callbacks

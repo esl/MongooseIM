@@ -37,10 +37,11 @@
 -include("jlib.hrl").
 
 %% API
--export([start/2, stop/1, push_event/3]).
+-export([start/2, stop/1, config_spec/0, push_event/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("ejabberd_config.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).
 -define(DEFAULT_PATH, "").
@@ -55,6 +56,16 @@ start(Host, _Opts) ->
 
 stop(_Host) ->
     ok.
+
+config_spec() ->
+    #section{
+       items = #{<<"pool_name">> => #option{type = atom,
+                                            validate = pool_name},
+                 <<"path">> => #option{type = string},
+                 <<"callback_module">> => #option{type = atom,
+                                                  validate = module}
+                }
+      }.
 
 push_event(Acc, _Host, #chat_event{direction = Dir, from = From, to = To, packet = Packet}) ->
     lists:map(fun(Opts) -> push_event(Acc, Dir, From, To, Packet, Opts) end,

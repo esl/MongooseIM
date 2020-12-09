@@ -15,7 +15,7 @@ Full topics for notifications (ARN as defined in [Amazon Resource Names][aws-arn
 
 #### `modules.mod_event_pusher_sns.presence_updates_topic`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** no default is given
 * **Example:** `presence_updates_topic = "user_presence_updated"`
 
 Defines Amazon SNS Topic for presence change notifications. Remove this option to disable these notifications.
@@ -40,13 +40,6 @@ Defines Amazon SNS Topic for group message notifications. Remove this option to 
 * **Example:** `plugin_module = "mod_event_pusher_sns_defaults"`
 
 Sets a callback module used for creating user's GUID used in notifications (from user's JID) and for defining custom attributes attached to a published SNS message.
-
-#### `modules.mod_event_pusher_sns.muc_host`
-* **Syntax:** string
-* **Default:** `"conference.@HOST@"`
-* **Example:** `muc_host = "conference.HOST"`
-
-Messages from this MUC host will be sent to the set SNS topic for MUCs.
 
 #### `modules.mod_event_pusher_sns.sns_host`
 * **Syntax:** string
@@ -85,7 +78,7 @@ The [AWS region][aws-region] to use for requests.
 12 digit number as defined in [AWS Account Identifiers][aws-acct-identifier] to use for creating TopicArn for publishing notifications.
 
 #### `modules.mod_event_pusher_sns.pool_size`
-* **Syntax:** non-negative integer
+* **Syntax:** positive integer
 * **Default:** `100`
 * **Example:** `pool_size = 100`
 

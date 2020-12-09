@@ -174,7 +174,10 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
-                            mod_event_pusher,
+                            mod_event_pusher_sns,
+                            mod_event_pusher_push,
+                            mod_event_pusher_http,
+                            mod_event_pusher_rabbit,
                             mod_extdisco,
                             mod_http_upload,
                             mod_jingle_sip,
@@ -1401,6 +1404,7 @@ mod_csi(_Config) ->
     ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
+    check_iqdisc(mod_disco),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
          T(<<"users_can_see_hidden_services">>, true)),
@@ -1411,46 +1415,30 @@ mod_disco(_Config) ->
          T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
     ?eqf(modopts(mod_disco, [{extra_domains, []}]),
          T(<<"extra_domains">>, [])),
+    Info = #{<<"name">> => <<"abuse-address">>,
+             <<"urls">> => [<<"admin@example.com">>]},
     ?eqf(modopts(mod_disco, [{server_info, [{all, "abuse-address", ["admin@example.com"]},
                                             {[mod_muc, mod_disco], "friendly-spirits",
-                                             ["spirit1@localhost", "spirit2@localhost"]}]} ]),
-         T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]},
-                               #{<<"module">> => [<<"mod_muc">>, <<"mod_disco">>],
-                                 <<"name">> => <<"friendly-spirits">>,
-                                 <<"urls">> => [<<"spirit1@localhost">>, <<"spirit2@localhost">>]} ])),
-    %% Correct version, used as a prototype to make invalid versions
-%%  ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-%%                               <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => 1,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Mising name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"roll">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => [<<"meow_meow_meow">>],
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Missing urls
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>}])),
-    %% Missing module
-    ?errf(T(<<"server_info">>, [#{<<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid url
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [1]}])),
+                                             ["spirit1@localhost", "spirit2@localhost"]}]}
+                            ]),
+         T(<<"server_info">>, [Info, #{<<"modules">> => [<<"mod_muc">>, <<"mod_disco">>],
+                                       <<"name">> => <<"friendly-spirits">>,
+                                       <<"urls">> => [<<"spirit1@localhost">>,
+                                                      <<"spirit2@localhost">>]}
+                              ])),
     ?errf(T(<<"users_can_see_hidden_services">>, 1)),
     ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
-    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
+    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => 1}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => <<"">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => <<"roll">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => [<<"meow_meow_meow">>]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [1]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [<<"">>]}])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"name">>, Info)])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
@@ -1656,144 +1644,122 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
     ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
 
-mod_event_pusher(_Config) ->
-    T = fun(Backend, Opt, Value) ->
-                Opts = #{<<"backend">> => #{
-                             atom_to_binary(Backend, utf8) =>
-                                 #{atom_to_binary(Opt, utf8) => Value}}},
-                #{<<"modules">> => #{<<"mod_event_pusher">> => Opts}}
+mod_event_pusher_sns(_Config) ->
+    RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
+                     <<"secret_access_key">> => <<"KEY">>,
+                     <<"region">> => <<"eu-west-1">>,
+                     <<"account_id">> => <<"123456789012">>,
+                     <<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>},
+    ExpectedCfg = [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
+                   {secret_access_key, "KEY"},
+                   {region, "eu-west-1"},
+                   {account_id, "123456789012"},
+                   {sns_host, "sns.eu-west-1.amazonaws.com"}],
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"sns">> => Opts}}}}
         end,
-    M = fun(Backend, Opt, Value) ->
-                Backends = [{Backend, [{Opt, Value}]}],
-                modopts(mod_event_pusher, [{backends, Backends}])
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{sns, Cfg}]}]) end,
+    ?eqf(M(ExpectedCfg),
+         T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{presence_updates_topic, "pres"}]),
+         T(RequiredOpts#{<<"presence_updates_topic">> => <<"pres">>})),
+    ?eqf(M(ExpectedCfg ++ [{pm_messages_topic, "pm"}]),
+         T(RequiredOpts#{<<"pm_messages_topic">> => <<"pm">>})),
+    ?eqf(M(ExpectedCfg ++ [{muc_messages_topic, "muc"}]),
+         T(RequiredOpts#{<<"muc_messages_topic">> => <<"muc">>})),
+    ?eqf(M(ExpectedCfg ++ [{plugin_module, mod_event_pusher_sns_defaults}]),
+         T(RequiredOpts#{<<"plugin_module">> => <<"mod_event_pusher_sns_defaults">>})),
+    ?eqf(M(ExpectedCfg ++ [{pool_size, 10}]),
+         T(RequiredOpts#{<<"pool_size">> => 10})),
+    ?eqf(M(ExpectedCfg ++ [{publish_retry_count, 1}]),
+         T(RequiredOpts#{<<"publish_retry_count">> => 1})),
+    ?eqf(M(ExpectedCfg ++ [{publish_retry_time_ms, 100}]),
+         T(RequiredOpts#{<<"publish_retry_time_ms">> => 100})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"presence_updates_topic">> => #{}})),
+    ?errf(T(RequiredOpts#{<<"pm_messages_topic">> => true})),
+    ?errf(T(RequiredOpts#{<<"muc_messages_topic">> => [1, 2]})),
+    ?errf(T(RequiredOpts#{<<"plugin_module">> => <<"plug_and_play">>})),
+    ?errf(T(RequiredOpts#{<<"pool_size">> => 0})),
+    ?errf(T(RequiredOpts#{<<"publish_retry_count">> => -1})),
+    ?errf(T(RequiredOpts#{<<"publish_retry_time_ms">> => -1})).
+
+mod_event_pusher_push(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"push">> => Opts}}}}
         end,
-    [?eqf(M(Backend, Opt, Mim), T(Backend, Opt, Toml))
-     || {Backend, Opt, Toml, Mim} <- mod_event_pusher_valid_opts()],
-    [begin
-         FullToml = T(Backend, Opt, Toml),
-         try
-             ?errf(FullToml)
-         catch Class:Error:Stacktrace ->
-                   erlang:raise(Class, #{what => passed_but_shouldnt,
-                                         backend => Backend, opt => Opt,
-                                         full_toml => FullToml,
-                                         toml => Toml, reason => Error},
-                                Stacktrace)
-         end
-     end
-     || {Backend, Opt, Toml} <- mod_event_pusher_ivalid_opts()],
-    ok.
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{push, Cfg}]}]) end,
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{wpool, [{workers, 200}]}]),
+         T(#{<<"wpool">> => #{<<"workers">> => 200}})),
+    ?eqf(M([{plugin_module, mod_event_pusher_push_plugin_defaults}]),
+         T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
+    ?eqf(M([{virtual_pubsub_hosts, ["host1", "host2"]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
+    ?errf(T(#{<<"backend">> => <<"redis">>})),
+    ?errf(T(#{<<"wpool">> => true})),
+    ?errf(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
+    ?errf(T(#{<<"plugin_module">> => <<"wow_cool_but_missing">>})),
+    ?errf(T(#{<<"plugin_module">> => 1})),
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})).
 
-mod_event_pusher_valid_opts() ->
-    %% {BackendName, BackendOptionName, TomlValue, MongooseValue}
-    [%% sns
-     {sns, access_key_id, <<"AKIAIOSFODNN7EXAMPLE">>,"AKIAIOSFODNN7EXAMPLE"},
-     {sns, secret_access_key, <<"KEY">>, "KEY"},
-     {sns, region, <<"eu-west-1">>, "eu-west-1"},
-     {sns, account_id, <<"123456789012">>, "123456789012"},
-     {sns, sns_host, <<"sns.eu-west-1.amazonaws.com">>, "sns.eu-west-1.amazonaws.com"},
-     {sns, muc_host, <<"conference.HOST">>, "conference.HOST"},
-     {sns, plugin_module, <<"mod_event_pusher_sns_defaults">>, mod_event_pusher_sns_defaults},
-     {sns, presence_updates_topic, <<"user_presence_updated">>, "user_presence_updated"},
-     {sns, pm_messages_topic, <<"user_message_sent">>, "user_message_sent"},
-     {sns, muc_messages_topic, <<"user_messagegroup_sent">>, "user_messagegroup_sent"},
-     {sns, pool_size, 100, 100},
-     {sns, publish_retry_count, 2, 2},
-     {sns, publish_retry_time_ms, 50, 50},
-     %% push
-     {push, plugin_module, <<"mod_event_pusher_push_plugin_defaults">>, mod_event_pusher_push_plugin_defaults},
-     {push, virtual_pubsub_hosts, [<<"host1">>, <<"host2">>], ["host1", "host2"]},
-     {push, backend, <<"mnesia">>, mnesia},
-     {push, wpool, #{<<"workers">> => 200}, [{workers, 200}]},
-     %% http
-     {http, pool_name, <<"http_pool">>, http_pool},
-     {http, path, <<"/notifications">>, "/notifications"},
-     {http, callback_module, <<"mod_event_pusher_http_defaults">>, mod_event_pusher_http_defaults},
-     %% rabbit
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"type">> => <<"topic">>},
-          [{name, <<"presence">>}, {type, <<"topic">>}]},
-     {rabbit, chat_msg_exchange,
-          #{<<"name">> => <<"chat_msg">>,
-            <<"recv_topic">> => <<"chat_msg_recv">>,
-            <<"sent_topic">> => <<"chat_msg_sent">>},
-          [{name, <<"chat_msg">>},
-           {recv_topic, <<"chat_msg_recv">>},
-           {sent_topic, <<"chat_msg_sent">>}]},
-     {rabbit, groupchat_msg_exchange,
-          #{<<"name">> => <<"groupchat_msg">>,
-            <<"sent_topic">> => <<"groupchat_msg_sent">>,
-            <<"recv_topic">> => <<"groupchat_msg_recv">>},
-          [{name, <<"groupchat_msg">>},
-           {recv_topic, <<"groupchat_msg_recv">>},
-           {sent_topic, <<"groupchat_msg_sent">>}]}].
+mod_event_pusher_http(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"http">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{http, Cfg}]}]) end,
+    ?eqf(M([{pool_name, http_pool}]),
+         T(#{<<"pool_name">> => <<"http_pool">>})),
+    ?eqf(M([{path, "/notifications"}]),
+         T(#{<<"path">> => <<"/notifications">>})),
+    ?eqf(M([{callback_module, mod_event_pusher_http_defaults}]),
+         T(#{<<"callback_module">> => <<"mod_event_pusher_http_defaults">>})),
+    ?errf(T(#{<<"pool_name">> => <<>>})),
+    ?errf(T(#{<<"path">> => true})),
+    ?errf(T(#{<<"callback_module">> => <<"wow_cool_but_missing">>})),
+    ?errf(T(#{<<"callback_module">> => 1})).
 
-mod_event_pusher_ivalid_opts() ->
-    %% {BackendName, BackendOptionName, TomlValue}
-    [%% sns
-     {sns, access_key_id, 1},
-     {sns, secret_access_key, 1},
-     {sns, region, 1},
-     {sns, account_id, 1},
-     {sns, sns_host, 1},
-     {sns, muc_host, 1},
-     {sns, muc_host, <<"kek kek">>},
-     {sns, plugin_module, <<"wow_cool_but_missing">>},
-     {sns, plugin_module, 1},
-     {sns, presence_updates_topic, 1},
-     {sns, pm_messages_topic, 1},
-     {sns, muc_messages_topic, 1},
-     {sns, pool_size, <<"1">>},
-     {sns, publish_retry_count, <<"1">>},
-     {sns, publish_retry_time_ms, <<"1">>},
-     %% push
-     {push, plugin_module, <<"wow_cool_but_missing">>},
-     {push, plugin_module, 1},
-     {push, virtual_pubsub_hosts, [<<"host with whitespace">>]},
-     {push, backend, <<"mnesiAD">>},
-     {push, wpool, #{<<"workers">> => <<"500">>}},
-     %% http
-     {http, pool_name, 1},
-     {http, path, 1},
-     {http, callback_module, <<"wow_cool_but_missing">>},
-     {http, callback_module, 1},
-     %% rabbit
-     {rabbit, presence_exchange,
-          #{<<"namesss">> => <<"presence">>, <<"type">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"typessss">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => 1, <<"type">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"type">> => 1}}
-    ] ++ make_chat_exchange_invalid_opts(chat_msg_exchange)
-      ++ make_chat_exchange_invalid_opts(groupchat_msg_exchange).
+mod_event_pusher_rabbit(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"rabbit">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{rabbit, Cfg}]}]) end,
+    ?eqf(M([{presence_exchange, [{name, <<"pres">>}]}]),
+         T(#{<<"presence_exchange">> => #{<<"name">> => <<"pres">>}})),
+    ?eqf(M([{presence_exchange, [{type, <<"topic">>}]}]),
+         T(#{<<"presence_exchange">> => #{<<"type">> => <<"topic">>}})),
 
-make_chat_exchange_invalid_opts(Exchange) ->
-    [{rabbit, Exchange, Val} || Val <- chat_exchange_invalid_opts()].
+    %% first two keys are the same as before, test them together
+    ?eqf(M([{chat_msg_exchange, [{name, <<"pres1">>},
+                                 {type, <<"topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"name">> => <<"pres1">>,
+                                          <<"type">> => <<"topic1">>}})),
+    ?eqf(M([{chat_msg_exchange, [{sent_topic, <<"sent_topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"sent_topic">> => <<"sent_topic1">>}})),
+    ?eqf(M([{chat_msg_exchange, [{recv_topic, <<"recv_topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"recv_topic">> => <<"recv_topic1">>}})),
 
-chat_exchange_invalid_opts() ->
-     [#{<<"names4">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topicsss">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topics33">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topics444">> => <<"chat_msg_sent">>},
-      #{<<"name">> => 1,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => 1,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => 1}].
+    %% all keys are the same as before, test them together
+    ?eqf(M([{groupchat_msg_exchange, [{name, <<"pres2">>},
+                                      {type, <<"topic2">>},
+                                      {sent_topic, <<"sent_topic2">>},
+                                      {recv_topic, <<"recv_topic2">>}]}]),
+         T(#{<<"groupchat_msg_exchange">> => #{<<"name">> => <<"pres2">>,
+                                               <<"type">> => <<"topic2">>,
+                                               <<"sent_topic">> => <<"sent_topic2">>,
+                                               <<"recv_topic">> => <<"recv_topic2">>}})),
+
+    Exchanges = [<<"presence_exchange">>, <<"chat_msg_exchange">>, <<"groupchat_msg_exchange">>],
+    Keys = [<<"name">>, <<"topic">>, <<"sent_topic">>, <<"recv_topic">>],
+    [?errf(T(#{Exch => #{Key => <<>>}})) || Exch <- Exchanges, Key <- Keys],
+    [?errf(T(#{Exch => #{<<"badkey">> => <<"goodvalue">>}})) || Exch <- Exchanges],
+    ?errf(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
