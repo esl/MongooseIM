@@ -196,29 +196,6 @@ module_opt([<<"top_link">>, <<"mod_muc_log">>|_] = Path, V) ->
     [{top_link, Link}];
 module_opt([<<"spam_prevention">>, <<"mod_muc_log">>|_], V) ->
     [{spam_prevention, V}];
-module_opt([<<"host">>, <<"mod_muc_light">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"equal_occupants">>, <<"mod_muc_light">>|_], V) ->
-    [{equal_occupants, V}];
-module_opt([<<"legacy_mode">>, <<"mod_muc_light">>|_], V) ->
-    [{legacy_mode, V}];
-module_opt([<<"rooms_per_user">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_user, int_or_infinity(V)}];
-module_opt([<<"blocking">>, <<"mod_muc_light">>|_], V) ->
-    [{blocking, V}];
-module_opt([<<"all_can_configure">>, <<"mod_muc_light">>|_], V) ->
-    [{all_can_configure, V}];
-module_opt([<<"all_can_invite">>, <<"mod_muc_light">>|_], V) ->
-    [{all_can_invite, V}];
-module_opt([<<"max_occupants">>, <<"mod_muc_light">>|_], V) ->
-    [{max_occupants, int_or_infinity(V)}];
-module_opt([<<"rooms_per_page">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_page, int_or_infinity(V)}];
-module_opt([<<"rooms_in_rosters">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_in_rosters, V}];
-module_opt([<<"config_schema">>, <<"mod_muc_light">>|_] = Path, V) ->
-    Configs = parse_list(Path, V),
-    [{config_schema, Configs}];
 module_opt([<<"access_max_user_messages">>, <<"mod_offline">>|_], V) ->
     [{access_max_user_messages, b2a(V)}];
 module_opt([<<"send_pings">>, <<"mod_ping">>|_], V) ->
@@ -552,13 +529,6 @@ mod_muc_log_top_link([<<"target">>|_], V) ->
 mod_muc_log_top_link([<<"text">>|_], V) ->
     [b2l(V)].
 
--spec mod_muc_light_config_schema(path(), toml_section()) -> [option()].
-mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val,
-                                 <<"internal_key">> := Key, <<"type">> := Type}) ->
-    [{b2l(Field), Val, b2a(Key), b2a(Type)}];
-mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val}) ->
-    [{b2l(Field), b2l(Val)}].
-
 -spec mod_pubsub_pep_mapping(path(), toml_section()) -> [option()].
 mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
     [{b2l(Name), b2l(Node)}].
@@ -809,7 +779,8 @@ convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+i
 convert(V, int_or_infinity) when is_integer(V) -> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
-convert(V, integer) when is_integer(V) -> V.
+convert(V, integer) when is_integer(V) -> V;
+convert(V, float) when is_float(V) -> V.
 
 format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
@@ -908,7 +879,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
-        Mod =/= <<"mod_muc">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_muc">>,
+        Mod =/= <<"mod_muc_light">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -956,8 +928,6 @@ handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
 handler([_, <<"top_link">>, <<"mod_muc_log">>, <<"modules">>]) ->
     fun mod_muc_log_top_link/2;
-handler([_, <<"config_schema">>, <<"mod_muc_light">>, <<"modules">>]) ->
-    fun mod_muc_light_config_schema/2;
 handler([_, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
 handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->

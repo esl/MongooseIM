@@ -738,7 +738,8 @@ all_modules() ->
      mod_csi,
      mod_disco,
      mod_event_pusher,
-     mod_muc].
+     mod_muc,
+     mod_muc_light].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

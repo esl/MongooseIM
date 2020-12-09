@@ -631,39 +631,6 @@ validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
 validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_chat_marker_type(V);
-validate([<<"all_can_configure">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{all_can_configure, V}]) ->
-    validate_boolean(V);
-validate([<<"all_can_invite">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{all_can_invite, V}]) ->
-    validate_boolean(V);
-validate([<<"backend">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_muc_light_db, V);
-validate([<<"blocking">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{blocking, V}]) ->
-    validate_boolean(V);
-validate([item, <<"config_schema">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [V]) ->
-    validate_muc_config_schema(V);
-validate([<<"equal_occupants">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{equal_occupants, V}]) ->
-    validate_boolean(V);
-validate([<<"host">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{host, V}]) ->
-    validate_domain_template(V);
-validate([<<"legacy_mode">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{legacy_mode, V}]) ->
-    validate_boolean(V);
-validate([<<"max_occupants">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{max_occupants, V}]) ->
-    validate_positive_integer_or_infinity(V);
-validate([<<"rooms_in_rosters">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{rooms_in_rosters, V}]) ->
-    validate_boolean(V);
-validate([<<"rooms_per_page">>, <<"mod_muc_light">>, <<"modules">>|_],
-         [{rooms_per_page, V}]) ->
-    validate_positive_integer_or_infinity(V);
 validate([<<"access_max_user_messages">>, <<"mod_offline">>, <<"modules">>|_],
          [{access_max_user_messages, V}]) ->
     validate_access_rule(V);
@@ -1052,15 +1019,6 @@ validate_maybe_css_file(Bin) ->
 validate_top_link({Url, Text}) ->
     validate_url(Url),
     validate_non_empty_string(Text).
-
-validate_muc_config_schema({Field, Value}) ->
-    validate_non_empty_string(Field),
-    validate_string(Value);
-validate_muc_config_schema({Field, Value, InternalField, FieldType})
-    when is_list(Value); is_float(Value); is_integer(Value) ->
-    validate_non_empty_string(Field),
-    validate_enum(FieldType, [binary, integer, float]),
-    validate_non_empty_atom(InternalField).
 
 validate_pubsub_nodetree(Value) ->
     validate_non_empty_binary(Value),
