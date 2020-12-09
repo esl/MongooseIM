@@ -19,7 +19,7 @@
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(SESSION_KEY, publish_service).
 

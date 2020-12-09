@@ -41,7 +41,7 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds

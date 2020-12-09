@@ -7,7 +7,7 @@
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 %% gen_mod callbacks
 -export([start/2,

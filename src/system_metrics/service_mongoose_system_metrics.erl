@@ -4,7 +4,7 @@
 -behaviour(mongoose_service).
 -behaviour(gen_server).
 
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
 -define(DEFAULT_REPORT_AFTER, timer:hours(3)).

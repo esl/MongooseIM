@@ -2,7 +2,7 @@
 
 -compile(export_all).
 
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.

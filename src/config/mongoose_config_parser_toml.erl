@@ -11,6 +11,7 @@
 -endif.
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("ejabberd_config.hrl").
 
 %% Used to create per-host config when the list of hosts is not known yet
