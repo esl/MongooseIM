@@ -41,7 +41,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).
 -define(DEFAULT_PATH, "").

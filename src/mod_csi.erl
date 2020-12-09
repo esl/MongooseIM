@@ -13,7 +13,7 @@
 -export([add_csi_feature/2]).
 
 -include("jlib.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -type state() :: active | inactive.
 

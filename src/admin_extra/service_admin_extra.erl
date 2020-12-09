@@ -28,7 +28,7 @@
 
 -behaviour(mongoose_service).
 
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -export([start/1, stop/0, config_spec/0]).
 

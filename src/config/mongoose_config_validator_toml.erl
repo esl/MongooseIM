@@ -6,7 +6,7 @@
          validate_list/2]).
 
 -include("mongoose.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 -include_lib("jid/include/jid.hrl").
 
 -define(HOST, 'HOST').

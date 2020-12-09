@@ -7,7 +7,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -callback user_guid(UserJID :: jid:jid()) -> user_guid().
 -callback message_attributes(TopicARN :: topic_arn(), UserJID :: jid:jid(),

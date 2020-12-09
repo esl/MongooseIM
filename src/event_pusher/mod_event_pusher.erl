@@ -22,7 +22,7 @@
 
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
--include("ejabberd_config.hrl").
+-include("mongoose_config_spec.hrl").
 
 -type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
 -export_type([event/0]).
