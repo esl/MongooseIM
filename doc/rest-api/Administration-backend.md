@@ -27,17 +27,17 @@ section of the [listeners](../advanced-configuration/listen.md) documentation.
 
 ## OpenAPI specifications
 
-Read the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html) for more information.
+Read the beautiful [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html) for more information.
 
-[![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](http://mongooseim.readthedocs.io/en/latest/swagger/index.html)
+[![Swagger](https://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](https://esl.github.io/MongooseDocs/latest/swagger/index.html)
 
-<iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html"
+<iframe src="https://esl.github.io/MongooseDocs/latest/swagger/index.html"
 height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
 
 <script>
 
 $(document).ready(function() {
-  if (window.location.host.match("readthedocs")){
+  if (window.location.host.match("github")){
     path = window.location.pathname.match("(.*)/rest-api/Administration-backend")[1]
     url = window.location.protocol + "//" + window.location.hostname
     finalURL = url + path + "/swagger/index.html"

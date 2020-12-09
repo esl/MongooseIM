@@ -8,7 +8,7 @@ For each domain requiring such options, a `host_config` section needs to be crea
 
 **Note:** Each hosted domain needs to be included in the list of [`hosts`](general.md#generalhosts) in the `general` section.
 
-# General options
+## General options
 
 ### `host_config.host`
 
@@ -18,11 +18,11 @@ For each domain requiring such options, a `host_config` section needs to be crea
 
 This option specifies the XMPP domain that this section refers to.
 
-# Configuration sections
+## Configuration sections
 
 The following sections are accepted in `host_config`:
 
-## `host_config.general`
+### `host_config.general`
 
 The options defined here override the ones defined in the top-level [`general`](general.md) section.
 The following options are allowed:
@@ -50,7 +50,7 @@ The `hide_service_name` option is set to `false` only for `domain2.com`.
     hide_service_name = false
 ```
 
-## `host_config.auth`
+### `host_config.auth`
 
 This section overrides the top-level [`auth`](auth.md) section, all options are allowed.
 It is recommended to repeat all top-level options in the domain-specific section as the rule is quite complicated:
@@ -101,7 +101,7 @@ The last section would work the same without `methods`:
     scram_iterations = 40_000
 ```
 
-## `host_config.modules`
+### `host_config.modules`
 
 This section completely overrides the top-level [`modules`](../Modules) section. All options are allowed.
 
@@ -129,7 +129,7 @@ If we wanted to enable `mod_roster`, it would need to be repeated in `host_confi
   [host_config.modules.mod_stream_management]
 ```
 
-## `host_config.acl`
+### `host_config.acl`
 
 The access classes defined here are merged with the ones defined in the top-level [`acl`](acl.md) section - when a class is defined in both places, the result is a union of both classes.
 
@@ -156,7 +156,7 @@ The `blocked` access class is extended for `host_config` by adding `hacker2`.
     ]
 ```
 
-## `host_config.access`
+### `host_config.access`
 
 The access rules defined here are merged with the ones defined in the top-level [`access`](access.md) section:
 When a rule is defined in both places:
@@ -206,7 +206,7 @@ The `register` rule is defined only for `domain2.com`.
 
 **Note:** some access rules are checked outside of the context of any domain, e.g. the [access rule for external components](listen.md#listenserviceaccess) - defining them in `host_config` would have no effect.
 
-## `host_config.s2s`
+### `host_config.s2s`
 
 The options defined here override the ones defined in the top-level [`s2s`](s2s.md) section.
 The following options are allowed:

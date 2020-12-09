@@ -13,7 +13,7 @@ Please see the [Authentication](#authentication) section for more details.
 1. The relevant endpoint has to be configured on the server side.
 See the [configuration section](#configuration).
 1. A list of provided actions is documented with Swagger.
-See the beautiful [specification](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true).
+See the beautiful [specification](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true).
 
 ## Authentication
 
@@ -65,7 +65,7 @@ For example if we have properties in the stanza like:
     </message>
 ```
 then in the final json message these properties will be converted to json map without tag names and all types will be taken as string:
-```
+```json
     {   "to": "alice@localhost",
         "timestamp": 1531329049949,
         "id": "123",
@@ -80,17 +80,17 @@ then in the final json message these properties will be converted to json map wi
 
 ## OpenAPI specifications
 
-See the beautiful [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true) for more information.
+See the beautiful [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true) for more information.
 
-[![Swagger](http://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true)
+[![Swagger](https://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true)
 
-<iframe src="http://mongooseim.readthedocs.io/en/latest/swagger/index.html?client=true"
+<iframe src="https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true"
 height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
 
 <script>
 
 $(document).ready(function() {
-  if (window.location.host.match("readthedocs")){
+  if (window.location.host.match("github")){
     path = window.location.pathname.match("(.*)/REST-API/")[1]
     url = window.location.protocol + "//" + window.location.hostname
     finalURL = url + path + "/swagger/index.html?client=true"

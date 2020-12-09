@@ -1,34 +1,34 @@
-### Module Description
+## Module Description
 
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html).
 Most of the logic regarding session resumption and acknowledgement is implemented in `ejabberd_c2s`,
 while the management of the session tables and configuration is implemented in
 `mod_stream_management`.
 
-### Options
+## Options
 
-#### `modules.mod_stream_management.buffer_max`
+### `modules.mod_stream_management.buffer_max`
 * **Syntax:** positive integer or string `"infinity"` or string `"no_buffer"`
 * **Default:** `100`
 * **Example:** `buffer_max = "no_buffer"`
 
 Buffer size for messages yet to be acknowledged.
 
-#### `modules.mod_stream_management.ack_freq`
+### `modules.mod_stream_management.ack_freq`
 * **Syntax:** positive integer or string `"never"`
 * **Default:** `1`
 * **Example:** `ack_freq = "never"`
 
 Frequency of ack requests sent from the server to the client, e.g. 1 means a request after each stanza, 3 means a request after each 3 stanzas.
 
-#### `modules.mod_stream_management.resume_timeout`
+### `modules.mod_stream_management.resume_timeout`
 * **Syntax:** positive integer, value given in seconds
 * **Default:** `600`
 * **Example:** `resume_timeout = 600`
 
 Timeout for the session resumption. Sessions will be removed after the specified number of seconds.
 
-#### Stale_h options
+### Stale_h options
 Enables keeping old server's `<h>` values after the resumption timed out. Disabled by default. When enabled, parameters for the garbage collection of these tables should be provided.
 
 #### `modules.mod_stream_management.stale_h.enabled`
@@ -52,7 +52,7 @@ How often the garbage collection will run in the background to clean this table.
 
 The maximum lifespan of a record in memory. After this, they will be chased for cleanup.
 
-### Example Configuration
+## Example Configuration
 
 ```toml
 [modules.mod_stream_management]
@@ -64,9 +64,9 @@ The maximum lifespan of a record in memory. After this, they will be chased for 
   stale_h.geriatric = 3600
 ```
 
-### Implementation details
+## Implementation details
 
-#### In `ejabberd_c2s`
+### In `ejabberd_c2s`
 
 The record `#smgc_state{}` in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
 
@@ -85,7 +85,7 @@ stream_mgmt_resumed_from, %% a ejabberd_sm:sid() to keep identifiying the old se
 stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for buffer_full check
 ```
 
-#### In `mod_stream_management`
+### In `mod_stream_management`
 
 This module is just a "starter", to provide the configuration values to new client connections. It
 also provides a basic session table API and adds a new stream feature.
@@ -131,4 +131,3 @@ the following:
 ```
 
 And `ejabberd_c2s` will pattern-match and act accordingly.
-

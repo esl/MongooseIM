@@ -253,14 +253,13 @@ If MongooseIM does not start because the configuration file is broken in some wa
 mongooseimctl live
 ```
 
-
 ## Using an XMPP/Jabber client/app
 
 The following steps use the registered users on the MongooseIM server, done above.
 
 Users that are registered on your server can now add their accounts in a chat application like Gajim (specifying either the server’s IP address or domain name), and start chatting!
 
-#### Note about session conflicts
+### Note about session conflicts
 
 If you're going to connect several clients with the same username and domain (for example a phone and a laptop), please make sure they are using different resource names (a kind of device/client identifier).
 This should be configurable in the account settings of every XMPP client.

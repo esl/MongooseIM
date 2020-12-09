@@ -20,12 +20,12 @@ In this case it's enabled by adding the following options to the `tls` option of
 * [`tls.verify_peer = true`](../../advanced-configuration/listen/#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
 * [`tls.cacertfile = "ca.pem"`](../../advanced-configuration/listen/#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
 
-Please check [Options: Listen](../advanced_configuration/listen/#http-based-services-listenhttp) for more details regarding `http` listener configuration.
+Please check [Options: Listen](../../advanced-configuration/listen/#http-based-services-listenhttp) for more details regarding `http` listener configuration.
 
 ### Enable `SASL EXTERNAL` mechanism
 
 A `SASL EXTERNAL` authentication mechanism is disabled by default.
-In order to enable it, please configure [`auth.sasl_mechanisms` option](../advanced-configuration/auth/#authsasl_mechanisms) in the MongooseIM config file.
+In order to enable it, please configure [`auth.sasl_mechanisms` option](../advanced-configuration/auth.md#authsasl_mechanisms) in the MongooseIM config file.
 ```toml
 [auth]
   sasl_mechanisms = ["external"]
@@ -41,11 +41,11 @@ When no `xmppAddr` is specified, the `cn` (common name) field might be used to p
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
-For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
+For the details please refer to [XEP-0178: Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
 ### Enable compatible authentication method
 
-You need to enable one of the following authentication methods by using the [`auth.method` option](../advanced-configuration/auth.md#authmethods) in the MongooseIM configuration file.
+You need to enable one of the following authentication methods by using the [`auth.methods` option](../advanced-configuration/auth.md#authmethods) in the MongooseIM configuration file.
 
 * `"pki"` - accepts user credentials,
 * `"http"` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)
@@ -82,7 +82,6 @@ In order to accept self-signed certs for WS or BOSH connections, the `tls` optio
 [listen.http]
   tls.verify_mode = "selfsigned_peer"
 ```
-
 
 ### Examples
 

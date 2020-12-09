@@ -16,7 +16,7 @@ The SCRAM format can vary depending on the SHA algorithms that are used for SCRA
 Salt and iteration count is common for different SHA types.
 Stored Key and Server Key are specific to a given SHA and are following a SHA prefix that is indicating which SHA they belong to.
 
-In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification](https://tools.ietf.org/html/rfc5802).
+In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification][the SCRAM specification].
 
 ### Example
 
@@ -75,10 +75,12 @@ The SCRAM format that was used can be seen below.
 * `<salt>` - Base64-encoded Salt
 * `<iteration count>` - Iteration Count formatted as a human-readable integer
 
-In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification](https://tools.ietf.org/html/rfc5802).
+In order to learn more about the meaning of the Stored Key, Server Key, Salt and Iteration Count, please check [the SCRAM specification][the SCRAM specification].
 
 ### Example
 
 * *Password:* `misio`
 * *Erlang record:* `#scram{ storedkey = <<"tmi5IE+9pceRV/jkPLFHEaVY33c=">>, serverkey = <<"MiWNa8T3dniVDwmh77ufJ41fpAQ=">>, salt = <<"inKXODlSY5y5SCsLxibi0w==">>, iterationcount = 4096 }`
 * *Serialized password:* `==SCRAM==,tmi5IE+9pceRV/jkPLFHEaVY33c=,MiWNa8T3dniVDwmh77ufJ41fpAQ=,inKXODlSY5y5SCsLxibi0w==,4096`
+
+[the SCRAM specification]: https://tools.ietf.org/html/rfc5802

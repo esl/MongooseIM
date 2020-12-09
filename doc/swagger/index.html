@@ -37,11 +37,11 @@
       }
 
       var make_backup_spec_url = function(SpecFile) {
-          return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/rest-api/" + SpecFile
+        return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/rest-api/" + SpecFile
       }
 
       var determine_client_mode = function(Search) {
-	var client = Search.match(/client=([^&]+)/)
+        var client = Search.match(/client=([^&]+)/)
         if (client && client.length > 1) {
           return client[1] == "true"
         } else {
@@ -49,28 +49,27 @@
         }
       }
       var backend_or_client_spec = function(CurrentLocation) {
-	var clientMode = determine_client_mode(CurrentLocation.search)
+        var clientMode = determine_client_mode(CurrentLocation.search)
         if (clientMode) {
-	  return "Client-frontend_swagger.yml"
-	} else{
-	  return "Administration-backend_swagger.yml"
-	}
+          return "Client-frontend_swagger.yml"
+        } else{
+          return "Administration-backend_swagger.yml"
+        }
       }
 
       var get_spec_url = function(CurrentLocation){
-	var SpecFile = backend_or_client_spec(CurrentLocation)
-        if (CurrentLocation.host.match("readthedocs")){
-	  return make_spec_url(CurrentLocation, SpecFile)
+        var SpecFile = backend_or_client_spec(CurrentLocation)
+        if (CurrentLocation.host.match("github")){
+          return make_spec_url(CurrentLocation, SpecFile)
         }
         else {
-	  return make_backup_spec_url(SpecFile)
+          return make_backup_spec_url(SpecFile)
         }
       }
 
       var url = get_spec_url(window.location)
 
       console.log(url)
-
 
       hljs.configure({
         highlightSizeThreshold: 5000
@@ -91,7 +90,6 @@
               additionalQueryStringParams: {}
             });
           }
-
         },
         onFailure: function(data) {
           log("Unable to Load SwaggerUI");
@@ -109,7 +107,7 @@
           console.log.apply(console, arguments);
         }
       }
-  });
+    });
   </script>
 </head>
 

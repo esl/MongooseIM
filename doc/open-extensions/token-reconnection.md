@@ -1,4 +1,4 @@
-# Introduction
+## Introduction
 
 Automatic reconnection after spurious disconnection is a must-have feature in modern IM applications. 
 One way of providing this feature is storing the user login information on the disk. 
@@ -6,11 +6,10 @@ Here you need to balance two values - security and convienience for the end-user
 To put it simply: storing passowords in plaintext is inherently insecure while protecting the XMPP password with a master-password is damages the user experience.
 With a token-based authentication mechanism, the user has to provide login information only once, for the initial connection to the XMPP server, and can later rely on the application's automatic use of tokens for subsequent reconnections.
 
-
 Reconnecting to the XMPP server, usually means that the client has to go through the same long process of SASL challenge-response exchange which may cause noticable lags, especially while using SCRAM-based mechanisms. 
 Providing a token to the XMPP server is secure and doesn't require multiple challenge-response roundtrips, therefore might significantly speed up reconnection times.
 
-# Requirements
+## Requirements
 
 This extension requires the client application to authenticate to the XMPP server using a regular XMPP authentication mechanism like SCRAM-SHA-1 at least once.
 
@@ -18,7 +17,7 @@ After that, the following authentications may be done using X-OAUTH SASL mechani
 
 To enable the feature, modules `mod_auth_token` and `mod_keystore` have to be enabled on the server. For more details regarding the configuration see [mod_auth_token documentation](../modules/mod_auth_token.md) and [mod_keystore](../modules/mod_keystore.md).
 
-# Token types
+## Token types
 
 | Token Type | Description |
 | ---------  | ----------- |

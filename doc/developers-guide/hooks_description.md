@@ -4,7 +4,6 @@ This is a brief documentation for a few selected hooks.
 Though hooks & handlers differ in what they are there to do, it is not necessary to describe them all, because the mechanism is general.
 The following is meant to give you the idea of how the hooks work, what they are used for and the various purposes they can serve.
 
-
 ## `user_send_packet`
 
 ```erlang
@@ -49,10 +48,8 @@ Acc2 = mongoose_hooks:user_receive_packet(StateData#state.server,
 
 The hook is run just before a packet received by the server is sent to the user.
 
-Prior to sending, the packet is verified against any relevant privacy lists (the mechanism is described in [XEP-0016][privacy-lists]).
+Prior to sending, the packet is verified against any relevant privacy lists (the mechanism is described in [XEP-0016: Privacy Lists][privacy-lists]).
 The privacy list mechanism itself is not mandatory and requires `mod_privacy` to be configured; otherwise all stanzas are allowed to pass.
-
-[privacy-lists]: http://xmpp.org/extensions/xep-0016.html
 
 This hook won't run for stanzas which are destined to users of a different XMPP domain served by a federated server, connection to which is handled by `ejabberd_s2s`.
 
@@ -111,7 +108,7 @@ mongoose_hooks:remove_user(LServer, Acc, LUser)
 
 `remove_user` is run by `ejabberd_auth` - the authentication module - when a request is made to remove the user from the database of the server.
 This one is rather complex, since removing a user requires many cleanup operations:
-`mod_last` removes last activity information (xep 0012);
+`mod_last` removes last activity information ([XEP-0012: Last Activity][XEP-0012]);
 `mod_mam` removes the user's message archive;
 `mod_muc_light` quits multi-user chat rooms;
 `mod_offline` deletes the user's offline messages;
@@ -285,3 +282,6 @@ This is the perfect place to plug in custom security control.
 * xmpp_bounce_message
 * xmpp_send_element
 * xmpp_stanza_dropped
+
+[privacy-lists]: http://xmpp.org/extensions/xep-0016.html
+[XEP-0012]: https://xmpp.org/extensions/xep-0012.html

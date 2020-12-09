@@ -5,7 +5,7 @@ Some of them require extra work before they can be used.
 For example the SQL databases require defining a schema.
 MongooseIM is tested with TravisCI, so the travis scripts can be used as a reference.
 
-# A Brief Overview
+## A Brief Overview
 
 Data in MongooseIM is either transient or persistent:
 
@@ -14,7 +14,7 @@ Data in MongooseIM is either transient or persistent:
 * **persistent**: long-lived data, such as roster items, credentials, and chat archives.
  These absolutely need regular and tested backups.
 
-# Choosing a database for MongooseIM
+## Choosing a database for MongooseIM
 
 Here is some general advice on the use of databases.
 Subsequent sections go into more depth on each database: what they are suitable for and how to set them up.
@@ -56,9 +56,9 @@ User Data:
 * LDAP -  Used for: users, shared rosters, vCards
 
 
-# RDBMS
+## RDBMS
 
-## MySQL
+### MySQL
 
 **Can be used for**:
 
@@ -91,12 +91,12 @@ Please refer to the [RDBMS options](../advanced-configuration/outgoing-connectio
 The required minimum version of MySQL is `5.7.9`.
 This is mainly to benefit from the JSON data type and the default settings which works out of the box with MongooseIM.
 
-### MySQL 8
+#### MySQL 8
 
 In case of using MySQL version 8 and MongooseIM `3.6.2` or older the `mysql_native_password` authentication plugin must be used as the default one.
 Newer versions of MongooseIM works correctly with MySQL 8 and its default auth plugins.
 
-## PostgreSQL
+### PostgreSQL
 
 **Can be used for:**
 
@@ -125,7 +125,7 @@ Please refer to the [RDBMS options](../advanced-configuration/outgoing-connectio
 and [general database options](general.md#database-settings)
 for more information.
 
-## Microsoft SQL Server
+### Microsoft SQL Server
 
 Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
@@ -180,7 +180,7 @@ client_charset = UTF-8
 
 Please amend the paths above to match your current OS if necessary.
 
-For more details, please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
+For more details, please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.html) and
 [unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
 
 MongooseIM is built with ODBC support by default.
@@ -227,9 +227,9 @@ Configure the `outgoing_pools.rdbms` section as follows:
     settings = "DSN=mongoose-mssql;UID=username;PWD=password"
 ```
 
-# NOSQL
+## NOSQL
 
-## Riak KV
+### Riak KV
 
 Riak KV, for Key-Value, is technically supported by MongooseIM for versions upper than Riak KV 2.0. Erlang Solutions commercially supports Riak KV.
 
@@ -318,7 +318,7 @@ You should also configure Riak in the `mongooseim.toml` file.
 Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options)
 and [Riak options](../advanced-configuration/outgoing-connections.md#riak-options) for more information.
 
-## Cassandra
+### Cassandra
 
 **Setup**
 
@@ -328,7 +328,7 @@ $ cqlsh
 $ cqlsh> source '$REPO/priv/casssandra.cql';
 ```
 
-## ElasticSearch
+### ElasticSearch
 
 **Can be used for:**
 
@@ -350,7 +350,7 @@ where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP A
 
 Please refer to the [advanced configuration](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
 
-## Redis
+### Redis
 
 **Can be used for:**
 
@@ -360,7 +360,7 @@ Please refer to the [advanced configuration](../advanced-configuration/outgoing-
 
 Please refer to the [Redis options](../advanced-configuration/outgoing-connections.md#redis-specific-options) for more information.
 
-# LDAP
+## LDAP
 
 **Can be used for:**
 

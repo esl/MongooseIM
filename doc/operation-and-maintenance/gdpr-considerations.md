@@ -29,7 +29,7 @@ It ensures that no personal information will be leaked via logs or database entr
 
 #### Example
 
-```
+```bash
 $ mongooseimctl register localhost abc123
 User 1567-420657-155810-C1CEC31F5C993258@localhost successfully registered
 ```
@@ -45,7 +45,9 @@ After the execution is complete, a zip file will appear in the specified folder 
 
 #### Example
 
-`mongooseimctl retrieve_personal_data 1567-420657-155810-C1CEC31F5C993258 localhost /home/mongooseim/gdpr/1567-420657-155810-C1CEC31F5C993258.zip`
+```bash
+mongooseimctl retrieve_personal_data 1567-420657-155810-C1CEC31F5C993258 localhost /home/mongooseim/gdpr/1567-420657-155810-C1CEC31F5C993258.zip
+```
 
 ### Removal of Personal Data
 
@@ -55,7 +57,9 @@ It removes the user's account along with all associated personal data accessible
 
 #### Example
 
-`mongooseimctl unregister 1567-420657-155810-C1CEC31F5C993258 localhost`
+```bash
+mongooseimctl unregister 1567-420657-155810-C1CEC31F5C993258 localhost
+```
 
 ## Technical limitations of GDPR retrieval and removal
 

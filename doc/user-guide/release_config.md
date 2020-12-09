@@ -152,7 +152,6 @@ var/log/mongooseim/erlang.log.1
 var/log/mongooseim/run_erl.log
 ```
 
-
 ### Caveats
 
 * Running `make install` will blindly overwrite any configs it encounters on its way.

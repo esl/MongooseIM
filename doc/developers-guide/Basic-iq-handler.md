@@ -12,12 +12,10 @@ handler to MongooseIM.
 `gen_iq_handler` module provides functionality for registering IQ
 handlers for specific namespaces.
 
-
 ## Clone & build
 
 See [How-to-build](../../user-guide/How-to-build) for details on building MongooseIM
 from source code.
-
 
 ## Create a module & add a basic IQ handler
 
@@ -60,7 +58,6 @@ process_iq(_From, _To, Acc, IQ) ->
     ?LOG_INFO(#{what => example_handler, acc => Acc, iq_result => IQRes}),
     {Acc, IQRes}.
 ```
-
 
 ## Test your handler
 
@@ -183,7 +180,6 @@ should_return_error(Config) ->
     end).
 ```
 
-
 ## Run it
 
 Compile & generate releases for testing purposes according to
@@ -191,7 +187,7 @@ Compile & generate releases for testing purposes according to
 Go to `$REPO/_build/mim1/rel/mongooseim` and start one MongooseIM node.
 
 ```bash
-$ bin/mongooseim live
+bin/mongooseim live
 ```
 Open up a new terminal window, go to `$REPO` and use the [test runner](Testing-MongooseIM.md).
 Run single suite with the already started `mim1` node.

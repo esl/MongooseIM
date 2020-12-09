@@ -1,4 +1,4 @@
-## Push notifications with MongoosePush
+# Push notifications with MongoosePush
 
 MongoosePush is a simple RESTful service written in Elixir. It provides the ability to send push
 notifications to FCM (Firebase Cloud Messaging) and/or APNS (Apple Push Notification Service) via
@@ -8,7 +8,7 @@ To take advantage of MongoosePush's functionality, you will need to enable the
 `mod_push_service_mongoosepush` module: this module acts as a bridge between the
 `push_notifications` hook and [MongoosePush][] itself.
 
-### Getting started
+## Getting started
 
 To enable integration with MongoosePush, it is as simple as the next two steps.
 First, you need to define a pool of HTTPS connections to MongoosePush in the
@@ -39,7 +39,7 @@ use and the second one is the version of [MongoosePush][]'s API ("_v2_" or "_v3_
 And that's it, we've just completed the entire MongooseIM configuration.
 All we need to do now is to set up [MongoosePush][].
 
-### Starting [MongoosePush][]
+## Starting [MongoosePush][]
 
 The easiest way to start [MongoosePush][] is using its [docker image](https://hub.docker.com/r/mongooseim/mongoose-push).
 But before you can set [MongoosePush][] up, you need a _FCM_ application token and/or an _APNS_ application certificate.

@@ -1,7 +1,7 @@
 ## Module Description
 
 This module is a backend for [mod_event_pusher][] that implements
-[XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html).
+[XEP-0357: Push Notifications][XEP-0357].
 It provides push notification data to the service that delivers actual notifications
 to a client device.
 
@@ -25,21 +25,21 @@ with 100 asynchronous workers that will handle all push notification related wor
 
 ## Options
 
-#### `modules.mod_event_pusher_push.backend`
+### `modules.mod_event_pusher_push.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
 Backend to use for storing the registrations.
 
-#### `modules.mod_event_pusher_push.wpool`
+### `modules.mod_event_pusher_push.wpool`
 * **Syntax:** TOML table with worker pool options
 * **Default:** `{}`
 * **Example:** `wpool.workers = 200`
 
 Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../../advanced-configuration/outgoing-connections#worker-pool-options).
 
-#### `modules.mod_event_pusher_push.plugin_module`
+### `modules.mod_event_pusher_push.plugin_module`
 * **Syntax:** non-empty string
 * **Default:** `"mod_event_pusher_push_plugin_defaults"`
 * **Example:** `plugin_module = "mod_event_pusher_push_plugin_defaults"`
@@ -47,7 +47,7 @@ Array of options that will be passed to the `worker_pool` library that handles a
 The module implementing `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
 See the [relevant section](#plugin-module) for more details.
 
-#### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
+### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
 * **Default:** `[]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
@@ -87,7 +87,7 @@ option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
 * Versatility: PubSub-less and PubSub-full mechanisms can be configured with different domains and
   therefore give fine-grained control over the push notification handling
 * Takes advantage of the PubSub-less efficiency when told to do so
-* Fully compliant with [XEP-0357][] and therefore with most 3rd party client libraries
+* Fully compliant with [XEP-0357: Push Notifications][XEP-0357] and therefore with most 3rd party client libraries
 * Ideal for migrations to PubSub-less deployments.
 
 #### Drawbacks
@@ -107,7 +107,7 @@ A plugin module handles the dynamic configuration of push notifications.
 It contains the filtering and custom logic for notifying about messages.
 
 Two plugin implementations are provided.
-They offer different behaviour considering unacknowledged messages when using [Stream Management][XEP-0198]:
+They offer different behaviour considering unacknowledged messages when using [XEP-0198: Stream Management][XEP-0198]:
 
 
 * `mod_event_pusher_push_plugin_defaults`, which implements an older behaviour. It does not notify
@@ -133,3 +133,4 @@ the defaults are used instead.
 [XEP-0198]: https://xmpp.org/extensions/xep-0198.html
 [enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
 [tutorial]: ../user-guide/push-notifications/Push-notifications.md
+[XEP-0357]: https://xmpp.org/extensions/xep-0357.html

@@ -13,8 +13,8 @@
     [RFC 6120](https://tools.ietf.org/html/rfc6120)
     * over WebSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
     * over HTTP(S) long-polling (BOSH) as defined in
-    [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
-    [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
+    [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and
+    [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)
     * [REST API](../rest-api/Client-frontend.md)
 * Server/backend connections:
     * [REST API](../rest-api/Administration-backend.md)

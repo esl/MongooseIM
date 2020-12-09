@@ -18,57 +18,57 @@ The double-bracket syntax is used because there can be multiple listeners of a g
   port = 5222
 ```
 
-# General listener options
+## General listener options
 
 The options listed below are the same for all listener types. They set the basic listening socket options. Only `port` is required, the rest can be used to change the default settings.
 
-#### `listen.*.port`
+### `listen.*.port`
 * **Syntax:** integer, port number
 * **Default:** no default, this option is mandatory.
 * **Example:** `port = 5222`
 
 The port number to which the listening socket is bound.
 
-#### `listen.*.ip_address`
+### `listen.*.ip_address`
 * **Syntax:** string with the IP address
 * **Default:** all-zeros address (e.g. `"0.0.0.0"` for IPv4)
 * **Example:** `ip_address = "127.0.0.1"`
 
 The IP address to which the listening socket is bound.
 
-#### `listen.*.proto`
+### `listen.*.proto`
 * **Syntax:** string, `"udp"` or `"tcp"`
 * **Default:** `"tcp"`
 * **Example:** `proto = "udp"`
 
 The protocol, which is TCP by default. There is no reason to change this for XMPP or HTTP listeners.
 
-#### `listen.*.ip_version`
+### `listen.*.ip_version`
 * **Syntax:** integer, `4` or `6`
 * **Default:** if `ip_address` is specified, the IP version is determined from that address, otherwise it is `4`
 * **Example:** `ip_version = 6`
 
 Allows to set the IP version to IPv6. Does not need to be set if `ip_address` is defined.
 
-# XMPP listener options
+## XMPP listener options
 
 The options listed below can be set for the `c2s`, `s2s` and `service` listeners to adjust their parameters.
 
-#### `listen.*.backlog`
+### `listen.*.backlog`
 * **Syntax:** positive integer
 * **Default:** `100`
 * **Example:** `backlog = 1000`
 
 Overrides the default TCP backlog value.
 
-#### `listen.*.proxy_protocol`
+### `listen.*.proxy_protocol`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `proxy_protocol = true`
 
 When set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
 
-#### `listen.*.hibernate_after`
+### `listen.*.hibernate_after`
 * **Syntax:** non-negative integer
 * **Default:** `0`
 * **Example:** `hibernate_after = 10`
@@ -77,7 +77,7 @@ Time in milliseconds after which a client process spawned by this listener will 
 Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
 The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 
-#### `listen.*.max_stanza_size`
+### `listen.*.max_stanza_size`
 * **Syntax:** positive integer
 * **Default:** not set, unlimited size
 * **Example:** `max_stanza_size = 10_000`
@@ -85,14 +85,14 @@ The default, recommended value of 0 means that the client processes will hiberna
 Maximum allowed incoming stanza size in bytes.
 **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
-#### `listen.*.num_acceptors`
+### `listen.*.num_acceptors`
 * **Syntax:** positive integer
 * **Default:** `100`
 * **Example:** `num_acceptors = 200`
 
 The number of processes accepting new connections on the listening socket.
 
-#### `listen.*.max_fsm_queue`
+### `listen.*.max_fsm_queue`
 * **Syntax:** positive integer
 * **Default:** not set - no limit
 * **Example:** `max_fsm_queue = 1000`
@@ -100,20 +100,20 @@ The number of processes accepting new connections on the listening socket.
 Message queue limit to prevent resource exhaustion; overrides the value set in the `general` section.
 This option does **not** work for `s2s` listeners - the `general` value is used for them.
 
-# Client-to-server (C2S): `[[listen.c2s]]`
+## Client-to-server (C2S): `[[listen.c2s]]`
 
 Handles XMPP client-to-server (C2S) connections.
 The recommended port number for a C2S listener is 5222 [as registered in the XMPP protocol](https://tools.ietf.org/html/rfc6120#section-14.7).
 The following options are supported for each C2S listener:
 
-#### `listen.c2s.access`
+### `listen.c2s.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "c2s"`
 
 The rule that determines who is allowed to connect. By default the rule is `"all"`, which means that anyone can connect. The rule referenced here needs to be defined in the `access` configuration section.
 
-#### `listen.c2s.shaper`
+### `listen.c2s.shaper`
 * **Syntax:** string, rule name
 * **Default:** `"none"` (no shaper)
 * **Example:** `shaper = "c2s_shaper"`
@@ -122,7 +122,7 @@ The rule that determines what traffic shaper is used to limit the incoming XMPP 
 The rule referenced here needs to be defined in the `access` configuration section.
 The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
 
-#### `listen.c2s.zlib`
+### `listen.c2s.zlib`
 * **Syntax:** positive integer
 * **Default:** not set, disabled
 * **Example:** `zlib = 1024`
@@ -134,7 +134,7 @@ Enables ZLIB support, the integer value is a limit for a decompressed output siz
 The following options allow enabling and configuring TLS which makes the client-to-server conenctions secure.
 They all have the `tls.` prefix.
 
-#### `listen.c2s.tls.mode`
+### `listen.c2s.tls.mode`
 * **Syntax:** string, one of `"tls"`, `"starttls"`, `"starttls_required"`
 * **Default:** not set
 * **Example:** `tls.mode = "starttls"`
@@ -145,14 +145,14 @@ By default there is no encryption for the incoming connections. You can change t
 * `starttls` - enables StartTLS support; requires `certfile`,
 * `starttls_required` - enables and enforces StartTLS usage.
 
-#### `listen.c2s.tls.verify_peer`
+### `listen.c2s.tls.verify_peer`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `verify_peer = true`
 
 Enforces verification of a client certificate. Requires a valid `cacertfile`.
 
-#### `listen.c2s.tls.module`
+### `listen.c2s.tls.module`
 * **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
 * **Default:** `"fast_tls"`
 * **Example:** `tls.module = "just_tls"`
@@ -161,42 +161,42 @@ By default the TLS library used for C2S connections is `fast_tls`, which uses Op
 
 Requires setting `tls.verify_mode`.  When set to `false`, it allows the client to connect even though the certificate verification failed. It is then up to the authentication layer to accept or reject the client connection. This behaviour mimics the FastTLS one.
 
-#### `listen.c2s.tls.certfile`
+### `listen.c2s.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.certfile = "server.pem"`
 
 Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 
-#### `listen.c2s.tls.cacertfile`
+### `listen.c2s.tls.cacertfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.cacertfile = "ca.pem"`
 
 Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
 
-#### `listen.c2s.tls.dhfile`
+### `listen.c2s.tls.dhfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.dhfile = "dh.pem"`
 
 Path to the Diffie-Hellman parameter file.
 
-#### `listen.c2s.tls.ciphers`
+### `listen.c2s.tls.ciphers`
 * **Syntax:** string with the OpenSSL cipher suite specification
 * **Default:** for `fast_tls` the default is`"TLSv1.2:TLSv1.3"`. For `just_tls` this option is not set by default - all supported suites are accepted.
 * **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
 Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For `fast_tls`, this string can be used to specify versions as well. For `just_tls`, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers) for allowed values.
 
-#### `listen.c2s.tls.protocol_options` - only for `fast_tls`
+### `listen.c2s.tls.protocol_options` - only for `fast_tls`
 * **Syntax:** array of strings
 * **Default:** `["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]`
 * **Example:** `tls.protocol_options = ["no_tlsv1", "no_tlsv1_1"]`
 
 A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
 
-#### `listen.c2s.tls.verify_mode` - only for `just_tls`
+### `listen.c2s.tls.verify_mode` - only for `just_tls`
 * **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
 * **Default:** not set (equivalent to `"peer"` in the current version of Erlang/OTP)
 * **Example:** `tls.verify_mode = "selfsigned_peer"`
@@ -207,19 +207,19 @@ Specifies the way certificate verification works:
 * `selfsigned_peer` - makes sure the peer's certificate is valid, but allows self-signed certificates,
 * `none` - any certificate is accepted.
 
-#### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
+### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `tls.disconnect_on_failure = false`
 
-#### `listen.c2s.tls.versions` - only for `just_tls`
+### `listen.c2s.tls.versions` - only for `just_tls`
 * **Syntax:** array of strings
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
 TLS versions to use with StartTLS or TLS. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
 
-#### `listen.c2s.tls.crl_files` - only for `just_tls`
+### `listen.c2s.tls.crl_files` - only for `just_tls`
 * **Syntax:** array of strings, paths in the file system
 * **Default:** not set
 * **Example:** `tls.crl_files = ["certs.crl"]`
@@ -261,7 +261,7 @@ The recommended port number for an S2S listener is 5269 [as registered in the XM
 
 **Note:** Many S2S options are configured in the `s2s` section of the configuration file and they apply to both incoming and outgoing connections.
 
-#### `listen.s2s.shaper`
+### `listen.s2s.shaper`
 * **Syntax:** string, name of the shaper rule or `"none"`
 * **Default:** `"none"` - no shaper
 * **Example:** `shaper = "s2s_shaper"`
@@ -311,23 +311,23 @@ The `s2s_shaper` access rule is used, which requires a definition in the `access
 
 Interface for external services acting as XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between MongooseIM and external services over the XMPP network. The recommended port number for a component listener is 8888.
 
-According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) the component's hostname should be given in the <stream:stream> element.
+According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html) the component's hostname should be given in the <stream:stream> element.
 
-#### `listen.service.access`
+### `listen.service.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
 Determines who is allowed to connect to the listener. By default the rule is `all`, which means that any external component can connect. The access rule referenced here needs to be defined in the `access` configuration section.
 
-#### `listen.service.password`
+### `listen.service.password`
 * **Syntax:** string
 * **Default:** no default, this option is mandatory
 * **Example:** `password = "secret"`
 
 The external component needs to authenticate with this password to connect.
 
-#### `listen.service.shaper_rule`
+### `listen.service.shaper_rule`
 * **Syntax:** string, name of the shaper
 * **Default:** `"none"`
 * **Example:** `shaper = "component_shaper"`
@@ -335,14 +335,14 @@ The external component needs to authenticate with this password to connect.
 The traffic shaper used to limit the XMPP traffic to prevent the server from being flooded with incoming data.
 Contrary to the C2S and S2S shapers, here the shaper name directly references the shaper that needs to be defined in the [`shaper`](shaper.md) section.
 
-#### `listen.service.check_from`
+### `listen.service.check_from`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `check_from = false`
 
 Specifies whether the server should verify the "from" field in stanzas from the component.
 
-#### `listen.service.hidden_components`
+### `listen.service.hidden_components`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `hidden_components = true`
@@ -355,7 +355,7 @@ An example would be [`mod_disco`](../modules/mod_disco.md), which may be configu
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
 Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
 
-#### `listen.service.conflict_behaviour`
+### `listen.service.conflict_behaviour`
 * **Syntax:** string, one of: `"disconnect"`, `"kick_old"`
 * **Default:** `"disconnect"`
 * **Example:** `conflict_behaviour = "kick_old"`
@@ -376,7 +376,7 @@ By setting this option to `kick_old`, we drop any old connections registered at 
 
 In order to register a component for all virtual hosts served by the server (see `hosts` in the `general` section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
-The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114](http://xmpp.org/extensions/xep-0114.html).
+The `is_subdomain` attribute is optional and the default behaviour is as described in [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html).
 
 ### Service listener example
 
@@ -402,7 +402,7 @@ Recommended port number: 5280 for BOSH/WS.
 
 There are the following options for each of the HTTP listeners:
 
-#### `listen.http.handlers`
+### `listen.http.handlers`
 * **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types, e.g.
 
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,

@@ -1,16 +1,15 @@
 # MongooseIM platform
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM)
-[![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 
-* [Getting started](https://mongooseim.readthedocs.io/en/latest/user-guide/Getting-started/)
-* [Developer's guide](https://mongooseim.readthedocs.io/en/latest/developers-guide/Testing-MongooseIM/)
+* [Getting started](https://esl.github.io/MongooseDocs/latest/user-guide/Getting-started/)
+* [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
 * [Packages](https://www.erlang-solutions.com/resources/download.html)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
+* Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/)
 
 ## Get to know MongooseIM
 MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations.
@@ -36,7 +35,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 
 * Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
+* Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/)
 
 ## Download packages
 
@@ -58,33 +57,33 @@ Check out our test results:
 
 ## Documentation
 
-Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://mongooseim.readthedocs.io/en/latest/](https://mongooseim.readthedocs.io/en/latest/).
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://esl.github.io/MongooseDocs/latest/](https://esl.github.io/MongooseDocs/latest/).
 
 Latest releases:
-* [4.0.1](https://mongooseim.readthedocs.io/en/4.0.1/)
-* [3.7.1](https://mongooseim.readthedocs.io/en/3.7.1/)
-* [3.6.2](https://mongooseim.readthedocs.io/en/3.6.2/)
-* [3.5.0](https://mongooseim.readthedocs.io/en/3.5.0/)
-* [3.4.0](https://mongooseim.readthedocs.io/en/3.4.0/)
-* [3.3.0](https://mongooseim.readthedocs.io/en/3.3.0/)
-* [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
-* [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
-* [3.0.0](https://mongooseim.readthedocs.io/en/3.0.0/)
+* [4.0.1](https://esl.github.io/MongooseDocs/4.0.1/)
+* [3.7.1](https://esl.github.io/MongooseDocs/3.7.1/)
+* [3.6.2](https://esl.github.io/MongooseDocs/3.6.2/)
+* [3.5.0](https://esl.github.io/MongooseDocs/3.5.0/)
+* [3.4.1](https://esl.github.io/MongooseDocs/3.4.1/)
+* [3.3.0](https://esl.github.io/MongooseDocs/3.3.0/)
+* [3.2.0](https://esl.github.io/MongooseDocs/3.2.0/)
+* [3.1.1](https://esl.github.io/MongooseDocs/3.1.1/)
+* [3.0.1](https://esl.github.io/MongooseDocs/3.0.1/)
 
 
 **MongooseIM documentation highligts:**
 
 When developing new features/modules, please make sure you add basic documentation to the 'doc/' directory, and add a link to your document in 'doc/README.md.'
 
-* [Tutorials](https://mongooseim.readthedocs.io/en/latest/user-guide/How-to-build/). Learn how to:
+* [Tutorials](https://esl.github.io/MongooseDocs/latest/user-guide/How-to-build/). Learn how to:
     * [Build MongooseIM from source code](doc/user-guide/How-to-build.md)
     * [Set up MongoosePush](doc/user-guide/push-notifications/Push-notifications.md)
     * [Set up MongooseICE](doc/user-guide/ICE_tutorial.md)
     * [Build an iOS messaging app](doc/user-guide/iOS_tutorial.md)
-* [User Guide](https://mongooseim.readthedocs.io/en/latest/user-guide/Get-to-know-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
-* [Configuration](https://mongooseim.readthedocs.io/en/latest/Basic-configuration/). Explore some of the available options including database backend configuration, access control lists, listener and extension modules.
-* [REST API](https://mongooseim.readthedocs.io/en/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://mongooseim.readthedocs.io/en/latest/swagger/index.html).
-* [Operation and maintenance](https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
+* [User Guide](https://esl.github.io/MongooseDocs/latest/user-guide/ABCs-of-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
+* [Configuration](https://esl.github.io/MongooseDocs/latest/Basic-configuration/). Explore some of the available options including database backend configuration, access control lists, listener and extension modules.
+* [REST API](https://esl.github.io/MongooseDocs/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html).
+* [Operation and maintenance](https://esl.github.io/MongooseDocs/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
 * [Server developer's guide](doc/developers-guide/Testing-MongooseIM.md). Get all the information you need to expand MongooseIM platform.
 
 

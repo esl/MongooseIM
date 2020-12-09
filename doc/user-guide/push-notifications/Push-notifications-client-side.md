@@ -1,9 +1,9 @@
-## Using push notifications on the client side
+# Using push notifications on the client side
 
 There are just a few things the XMPP client application needs to receive the push notifications.
 Depending on whether you plan to use PubSub-full or PubSub-less configuration, some of the steps may be unnecessary.
 
-### Registering with a Push Service provider
+## Registering with a Push Service provider
 
 First, the client application has to get a device-specific token from the Push Service Provider
 (FCM or APNS). This process is different, depending on the platform, so please consult your Push
@@ -16,12 +16,12 @@ you can learn about setting up _APNS_ on _iOS_ platform.
 After this step, your application shall be able to receive _FCM_ or _APNS_ token - it will be
 required in the next step of this tutorial.
 
-### Setting up an XMPP `pubsub` node
+## Setting up an XMPP `pubsub` node
 
 This step is specific to the PubSub-full push configuration that you chose for your MongooseIM
 server. If you're running a PubSub-less configuration, skip to [this point](#enabling-push-notifications).
 
-#### Creating a new push node
+### Creating a new push node
 In this example `mypubsub.com` is a domain of the MongooseIM server that has [mod_pubsub][] enabled
 with the `push` node support. The client sends the following stanza to the server:
 
@@ -53,7 +53,7 @@ and will pass them through to the APNS and/or FCM.
 
 The most important and only difference from the standard node creation
 is the `type='push'` part of the `create` element.
-According to [XEP-0357](https://xmpp.org/extensions/xep-0357.html#enabling), a PubSub node is
+According to [XEP-0357: Push Notifications](https://xmpp.org/extensions/xep-0357.html#enabling), a PubSub node is
 required to route the push notification mechanism. This implies you need a node that will handle
 your push notifications, hence we create a node called `punsub_node_for_my_private_iphone`.
 This node should be unique to the device and you may reuse nodes already created this way.
@@ -65,7 +65,7 @@ It is also important from the security perspective to configure the node with:
 * `publish_model` set to `publishers` so only users with `publisher` or `publisher_only` role
 can publish notifications.
 
-#### Adding the server's JID to allowed publishers
+### Adding the server's JID to allowed publishers
 
 Push notifications to the push node are addressed from your server's JID.
 If the push node was configured with the above recommended options, you need to allow your server's
@@ -86,7 +86,7 @@ The following stanza sent to the just created push node will allow your server J
 </iq>
 ```
 
-### Enabling push notifications
+## Enabling push notifications
 
 The next and the last step is to enable push notifications on the server that handles your messages
 (and has [mod_event_pusher_push][] enabled).
@@ -114,7 +114,7 @@ on the node `punsub_node_for_my_private_iphone` created previously, or in the ca
 for whatever unique node name we give here, for example any variation of the token obtained from
 _APNS_ or _FCM_. Please note that `publish-options` are specific to various XMPP Push Services.
 
-### Publish options
+## Publish options
 For [mod_push_service_mongoosepush][] the next `publish-options` are mandatory:
 
   * `device_id` - device token (here: `your_pns_device_token`) that you received from your push notification service provider (as described in [Registering with Push Service provider](#registering-with-a-push-service-provider))
@@ -132,7 +132,7 @@ there are also some other `publish-options` supported:
     more information please refer to _APNS_ documentation.
   * `silent` - if set to `true`, all notifications will be "silent". This means that only the data
     payload will be send to the push notifications provider with no notification. The data payload
-    will contain all notification fields as defined in [XEP-0357].
+    will contain all notification fields as defined in [XEP-0357: Push Notifications][XEP-0357].
   * `priority` — which may be either `normal` or `high`, and if not given, defaults to `normal`.
     This value will set the push notification priority. Please refer to FCM / APNS documentation for
     more details on those values.
@@ -142,7 +142,7 @@ there are also some other `publish-options` supported:
 
 Any other `publish-options` are ignored by [mod_push_service_mongoosepush][]
 
-### Disabling push notifications
+## Disabling push notifications
 
 Disabling push notifications is very simple. Just send the following stanza to your XMPP chat server:
 
@@ -156,16 +156,16 @@ You may skip the `node='punsub_node_for_my_private_iphone'` to globally disable 
 on all nodes that are registered with your `JID`.
 This may be used to disable push notifications on all your devices.
 
-### Communication overview
+## Communication overview
 
 One picture is worth a thousand words, so here are two diagrams
 showing the typical communication when using push notifications:
 
-#### PubSub-full:
+### PubSub-full
 
  ![](pubsub_full_push_notifications_example_message_flow.png)
 
-#### PubSub-less:
+### PubSub-less
 
  ![](pubsub_less_push_notifications_example_message_flow.png)
 

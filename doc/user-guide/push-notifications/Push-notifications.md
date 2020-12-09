@@ -1,4 +1,4 @@
-## How to set up Push Notifications
+# How to set up Push Notifications
 
 Push notifications are the bread and butter of the modern mobile experience, and MongooseIM has
 support for them. When used together with [MongoosePush][], you get out-of-the-box push
@@ -11,14 +11,14 @@ You might also want to read about the push notification's [client side configura
 All push notification mechanisms use [mod_event_pusher_push][] as a backend implementation,
 read [the relevant documentation][mod_event_pusher] to know more about it.
 
-### [XEP-0357 Push Notifications][XEP-0357]
+## XEP-0357: Push Notifications
 
-Server side push notification support is fully compliant with [XEP-0357 Push Notifications][XEP-0357],
+Server side push notification support is fully compliant with [XEP-0357: Push Notifications][XEP-0357],
 which defines several components that need to work together in order to provide clients with working
 push notifications. However, there's just one non-optimal detail required by the aforementioned XEP:
 that push notifications being a PubSub service — [we can do better than that][pubsub-less].
 
-If you're already familiar with the workings of [XEP-0357][], make sure to have a look at
+If you're already familiar with the workings of [XEP-0357: Push Notifications][XEP-0357], make sure to have a look at
 [our PubSub-less enhancement][pubsub-less].
 
 As it is always said, one picture is worth a thousand words:
@@ -36,7 +36,7 @@ node (the most common setup!). Or, for the best performance, you might just skip
 altogether. While the whole setup can be incredibly extensible, we see the following straightforward
 uses of it.
 
-### XEP-0357 compliant with local PubSub
+## XEP-0357 compliant with local PubSub
 
  ![](PushNotifications-MIM_with_local_pubsub.png)
 
@@ -49,7 +49,7 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 
 ```toml
 [modules.mod_pubsub]
-  plugins = ["push] # mandatory minimal config
+  plugins = ["push"] # mandatory minimal config
 
 [modules.mod_event_pusher]
   backend.push.backend = "mnesia" # optional
@@ -57,16 +57,16 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
   backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
 ```
 
-#### Advantages
+### Advantages
 * Completely XEP-0357 compliant, and therefore compatible with any compliant 3rd party client library
 * No need to have two different servers
 
-#### Drawbacks
+### Drawbacks
 * Less efficient (PubSub has a considerable impact on heavily loaded systems)
 * More load within a single node
 * Harder to customise
 
-### MongooseIM as a PubSub-less XMPP server
+## MongooseIM as a PubSub-less XMPP server
 
  ![](PushNotifications-no_pubsub.png)
 
@@ -87,18 +87,18 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
   backend.push.virtual_pubsub_hosts = ["pubsub.@HOSTS@"]
 ```
 
-#### Advantages
+### Advantages
 * No need to use PubSub at all
 * More efficient (PubSub has a considerable impact on heavily loaded systems)
 * Simpler client-side usage — Read about the [client side configuration here][client-side]
 
-#### Drawbacks
+### Drawbacks
 * If the client application is built to create the push PubSub node, this might require a migration
   for such client — as he attempts to create the node, the server will answer with an IQ error
   stanza. If migrating the client side is a problem, there's a solution for that
   [in the module section][mod_event_pusher_push_plugin]
 
-#### Virtual PubSub hosts
+### Virtual PubSub hosts
 
 These domains will shadow any identical domain configured for PubSub, stealing any notification
 published to it. It enables easy migration from PubSub-full deployments to PubSub-less variants.
@@ -115,17 +115,17 @@ PubSub-full setup | PubSub-less setup
 ![](component-architecture-with-PubSub.png) | ![](component-architecture-without-PubSub.png)
 
 
-#### [mod_event_pusher_push][]
+### [mod_event_pusher_push][]
 
 The first component that we need to configure in MongooseIM is the [mod_event_pusher_push][] module.
 
-#### [mod_push_service_mongoosepush][]
+### [mod_push_service_mongoosepush][]
 
 A connector to [MongoosePush][] application. You can read more about it [here][WithMongoosePush].
 
-##### [mod_pubsub][]'s `push` node
+### [mod_pubsub][]'s `push` node
 
-According to the [XEP-0357 Push Notifications](https://xmpp.org/extensions/xep-0357.html), all
+According to the [XEP-0357: Push Notifications][XEP-0357], all
 notifications generated via the module we have just enabled (i.e. [mod_event_pusher_push][]) have to
 be send to a push enabled publish-subscribe node. In order to allow clients to allocate such a
 node, we need to enable it in our [mod_pubsub][] on the MongooseIM server that will communicate with
@@ -141,7 +141,7 @@ the _XMPP Push Service_.
 [mod_pubsub]: ../../modules/mod_pubsub.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md
 [MongoosePush]: https://github.com/esl/MongoosePush
-[WithMongoosePush]: ./With-MongoosePush.md
+[WithMongoosePush]: ./MongoosePush-setup.md
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html
 [federation]: ../../../advanced-configuration/listen/#server-to-server-s2s-listens2s

@@ -1,5 +1,3 @@
-### Reloading configuration on a running system 
-
 `mongooseimctl` subcommands for configuration reloading are:
 
 `mongooseimctl reload_local`
@@ -22,8 +20,7 @@ below on this page.
 but does not apply them.
 Useful for debugging.
 
-
-### Non-reloadable options
+## Non-reloadable options
 Some options require restarting the server in order to be reloaded.
 The following options' changes will be ignored when using `mongooseimctl` tool:
 
@@ -31,12 +28,11 @@ The following options' changes will be ignored when using `mongooseimctl` tool:
 * general.all_metrics_are_global
 * \*.rdbms.\*
 
-
-### Node-specific options
+## Node-specific options
 
 This option is deprecated and not available when using a config file in the TOML
 format.
 
-For the documentation of this option for the `cfg` config format please refer to
-the [MIM 3.7.1 documentation](https://mongooseim.readthedocs.io/en/3.7.1/operation-and-maintenance/Reloading-configuration-on-a-running-system/)
+For the documentation of this option for the `cfg` config format please refer to the
+[MIM 3.7.1 documentation](https://esl.github.io/MongooseDocs/3.7.1/operation-and-maintenance/Reloading-configuration-on-a-running-system/)
 or older.

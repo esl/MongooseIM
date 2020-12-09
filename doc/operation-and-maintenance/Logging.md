@@ -3,7 +3,7 @@
 The main configuration for logging is in the Application Config file.
 You can find it in `mongooseim/etc/app.config` in the release directory.
 
-# Primary log level
+## Primary log level
 
 Primary log level sets maximum log level in the system.
 This check is applied for any event in the system before
@@ -21,7 +21,7 @@ Primary log level, that is used before MongooseIM config is loaded:
 
 Once MongooseIM config is loaded, the [`loglevel`](../advanced-configuration/general.md#generalloglevel) option from `mongooseim.toml` is used instead.
 
-# Primary filters
+## Primary filters
 
 Functions from the filters section are applied for any message once it passes
 the primary log level check.
@@ -48,7 +48,7 @@ unless you are planning to extend the filtering logic.
 `preserve_acc_filter` filter is disabled by default, but could be enabled,
 if you are interested in debugging the accumulator logic (see the `mongoose_acc` module).
 
-# Shell log handler
+## Shell log handler
 
 - Controls what MongooseIM prints to the standard output.
 - [Erlang OTP docs for logger_std_h](https://erlang.org/doc/man/logger_std_h.html)
@@ -65,7 +65,7 @@ if you are interested in debugging the accumulator logic (see the `mongoose_acc`
     }},
 ```
 
-# File log handler
+## File log handler
 
 - Controls what and how MongooseIM prints into files.
 - [Erlang OTP docs for logger_disk_log_h](https://erlang.org/doc/man/logger_disk_log_h.html)
@@ -98,7 +98,7 @@ if you are interested in debugging the accumulator logic (see the `mongoose_acc`
     }},
 ```
 
-# Logfmt file log handler
+## Logfmt file log handler
 
 Wrapper around the [flatlog](https://github.com/ferd/flatlog) library with
 custom template options configured by default.
@@ -114,13 +114,13 @@ Options:
    `unlimited` by default.
 
 ```erlang
-         formatter => {mongoose_flatlog_formatter, #{
-           map_depth => 3,
-           term_depth => 50
-         }}
+formatter => {mongoose_flatlog_formatter, #{
+  map_depth => 3,
+  term_depth => 50
+}}
 ```
 
-# JSON file log handler
+## JSON file log handler
 
 JSON formatted file. It could be used to store messages in ELK, in Humio or in Splunk.
 
@@ -143,14 +143,14 @@ Options:
    Options deeper than the depth are replaced with the `...` string.
 
 ```erlang
-         formatter => {mongoose_json_formatter, #{
-           format_depth => 10,
-           format_chars_limit => 3000,
-           depth => 10
-         }}
+formatter => {mongoose_json_formatter, #{
+  format_depth => 10,
+  format_chars_limit => 3000,
+  depth => 10
+}}
 ```
 
-# Different log level for a specific module
+## Different log level for a specific module
 
 Motivation:
 
@@ -167,11 +167,11 @@ Changes:
 - Enable module log level for `ejabberd_c2s`.
 
 ```erlang
-    %% Module log level
-    {module_level, debug, [ejabberd_c2s]},
+%% Module log level
+{module_level, debug, [ejabberd_c2s]},
 ```
 
-# Separate log for module debugging
+## Separate log for module debugging
  
 Motivation:
 
@@ -195,46 +195,46 @@ Issues:
 - This would also disable module log level logic for other handlers.
 
 ```erlang
-    %% Existing handlers
-    {handler, shell_log, logger_std_h, #{
-         level => notice, %% was level => all
-         ...
-    },
-    {handler, disk_log, logger_disk_log_h, #{
-          level => notice,
-          ...
-    },
-    ...
-    %% Module log level
-    {module_level, debug, [ejabberd_c2s]},
-    %% New handler
-    {handler, disk_log_c2s, logger_disk_log_h, #{
-         level => debug,
-         config => #{
-           %% Choose destination:
-           file => "{{mongooseim_log_dir}}/ejabberd_c2s.log",
-           %% Common options:
-           type => wrap,
-           max_no_files => 5,
-           max_no_bytes => 2097152,
-           sync_mode_qlen => 2000,
-           drop_mode_qlen => 2000,
-           flush_qlen => 5000,
-           overload_kill_enable => true
-         },
-         formatter => {mongoose_flatlog_formatter, #{
-           map_depth => 3,
-           term_depth => 50
-         }},
-         filters => [
-           %% That filter matches messages from ejabberd_c2s module
-           {module_filter, {fun mongoose_log_filter:filter_module/2, [ejabberd_c2s]}}
-         ]
-    }}
+%% Existing handlers
+{handler, shell_log, logger_std_h, #{
+     level => notice, %% was level => all
+     ...
+},
+{handler, disk_log, logger_disk_log_h, #{
+      level => notice,
+      ...
+},
+...
+%% Module log level
+{module_level, debug, [ejabberd_c2s]},
+%% New handler
+{handler, disk_log_c2s, logger_disk_log_h, #{
+     level => debug,
+     config => #{
+       %% Choose destination:
+       file => "{{mongooseim_log_dir}}/ejabberd_c2s.log",
+       %% Common options:
+       type => wrap,
+       max_no_files => 5,
+       max_no_bytes => 2097152,
+       sync_mode_qlen => 2000,
+       drop_mode_qlen => 2000,
+       flush_qlen => 5000,
+       overload_kill_enable => true
+     },
+     formatter => {mongoose_flatlog_formatter, #{
+       map_depth => 3,
+       term_depth => 50
+     }},
+     filters => [
+       %% That filter matches messages from ejabberd_c2s module
+       {module_filter, {fun mongoose_log_filter:filter_module/2, [ejabberd_c2s]}}
+     ]
+}}
 ```
 
 
-# Setting up Kibana
+## Setting up Kibana
 
 This example sets up ElasticSearch and Kibana for development purposes.
 

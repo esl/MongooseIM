@@ -1,15 +1,20 @@
 site_name: MongooseIM
 docs_dir: doc
-theme: readthedocs
-site_favicon: favicon.ico
+theme:
+  name: material
+  favicon: favicon.ico
 extra_templates: []
-extra_css: ["custom.css"]
-extra_javascript: []
+extra_css: [css/custom.css, css/version-select.css]
+extra_javascript: [js/version-select.js]
+markdown_extensions:
+  - pymdownx.highlight:
+      linenums: true
+  - pymdownx.superfences
 
-pages:
+nav:
   - Home: 'index.md'
   - 'User guide':
-      - 'ABCs of MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
+      - 'ABCs of MongooseIM': 'user-guide/ABCs-of-MongooseIM.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
       - 'Getting started': 'user-guide/Getting-started.md'
@@ -20,7 +25,7 @@ pages:
       - 'How to Build MongooseIM from source code': 'user-guide/How-to-build.md'
       - 'How to Set up Push Notifications': 'user-guide/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'user-guide/push-notifications/Push-notifications-client-side.md'
-      - 'How to Set up MongoosePush': 'user-guide/push-notifications/With-MongoosePush.md'
+      - 'How to Set up MongoosePush': 'user-guide/push-notifications/MongoosePush-setup.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
       - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
@@ -36,8 +41,8 @@ pages:
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
       - 'History': 'History.md'
-  - 'Configuration':
-      - 'Configuration files': 'Advanced-configuration.md'
+  - Configuration:
+      - 'Configuration files': 'advanced-configuration/configuration-files.md'
       - 'Options: General': 'advanced-configuration/general.md'
       - 'Options: Listen': 'advanced-configuration/listen.md'
       - 'Options: Auth': 'advanced-configuration/auth.md'
@@ -50,7 +55,7 @@ pages:
       - 'Options: S2S': 'advanced-configuration/s2s.md'
       - 'Options: Host config': 'advanced-configuration/host_config.md'
       - 'Release options': 'advanced-configuration/release-options.md'
-      - 'Erlang Cookie Security': 'Erlang-cookie-security.md'
+      - 'Erlang Cookie Security': 'advanced-configuration/Erlang-cookie-security.md'
       - 'TLS hardening': 'advanced-configuration/TLS-hardening.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
   - 'Authentication methods':
@@ -79,7 +84,7 @@ pages:
       - 'Logging with Humio': 'operation-and-maintenance/Humio.md'
       - 'Logging fields': 'operation-and-maintenance/Logging-fields.md'
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
-      - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
+      - 'Metrics': 'operation-and-maintenance/MongooseIM-metrics.md'
       - 'System Metrics Privacy Policy': 'operation-and-maintenance/System-Metrics-Privacy-Policy.md'
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
       - 'Known issues': 'operation-and-maintenance/known-issues.md'
@@ -88,7 +93,7 @@ pages:
       - 'Logging': 'developers-guide/logging.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
-      - 'Stanza routing': 'developers-guide/message_routing.md'
+      - 'Stanza routing': 'developers-guide/Stanza-routing.md'
       - 'Accumulators':  'developers-guide/accumulators.md'
       - 'Flat options format': 'developers-guide/flat_options.md'
       - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'
@@ -109,9 +114,7 @@ pages:
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
       - 'mod_commands': 'modules/mod_commands.md'
       - 'mod_csi': 'modules/mod_csi.md'
-      - 'mod_inbox': 'modules/mod_inbox.md'
       - 'mod_disco': 'modules/mod_disco.md'
-      - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_event_pusher':
           - 'mod_event_pusher': 'modules/mod_event_pusher.md'
           - 'HTTP backend': 'modules/mod_event_pusher_http.md'
@@ -119,7 +122,9 @@ pages:
           - 'SNS backend': 'modules/mod_event_pusher_sns.md'
           - 'RabbitMQ backend': 'modules/mod_event_pusher_rabbit.md'
       - 'mod_extdisco': 'modules/mod_extdisco.md'
+      - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
+      - 'mod_inbox': 'modules/mod_inbox.md'
       - 'mod_jingle_sip': 'modules/mod_jingle_sip.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'

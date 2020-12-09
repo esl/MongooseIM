@@ -1,13 +1,13 @@
-### Module Description
+## Module Description
 
 This module enables global distribution of a single XMPP domain.
 With `mod_global_distrib`, multiple distinct MongooseIM clusters can share a single domain name and route messages to the specific datacenter where the recipient is available.
 
-### How it works
+## How it works
 
 There are multiple subsystems that cooperate to enable global distribution:
 
-#### Metadata sharing
+### Metadata sharing
 
 Sharing of metadata is done by leveraging a database with cross-datacenter replication.
 Currently, only Redis is supported, with [Dynomite](https://github.com/Netflix/dynomite) layer for replication.
@@ -20,7 +20,7 @@ Each node of each cluster is responsible for refreshing its own data.
 Thus, in an event of a netsplit, datacenters' information about unreachable datacenters' users will expire, as those users are now unreachable; but once the connection is reestablished, the data will be replicated again as datacenters refresh their entries.
 Additionally, to prevent edge cases where an incoming message is received and replied to before the datacenter learns about the sender's host, an incoming message also carries information about its origin which may be used to temporarily update the local routing table.
 
-##### Redis entries
+#### Redis entries
 
 Following structures are stored in Redis:
 
@@ -36,7 +36,7 @@ Example: `"dc2.example.com#{nodes}" -> {"node1@dc2.example.com", "node3@dc2.exam
 * Hosts are stored in a set with key `hosts` and values being the individual local XMPP domains.
 Example: `"hosts" -> {"dc1.example.com", "dc2.example.com"}`.
 
-#### Message routing
+### Message routing
 
 `mod_global_distrib` establishes its own listeners and dedicated TCP/TLS connections for message routing.
 Each node listens on preconfigured endpoints, where each node in a datacenter can have any number of endpoints, including none.
@@ -56,7 +56,7 @@ Messages are given a TTL parameter by the source datacenter so that they cannot 
 The TTL is decreased on each reroute.
 Note that in the edge case of multi-datacenter routing, the messages may be received out-of-order at the destination datacenter.
 
-#### Bounce
+### Bounce
 
 Consider the following edge case: user **U1** logged into datacenter **DC2** and then quickly reconnected to datacenter **DC3**.
 Because session table has not yet been replicated, **DC2** does not see **U1** in the session table, while a different datacenter **DC1** still sees **U1** logged into **DC2**.
@@ -70,7 +70,7 @@ In the example above, the message from **U2** would be temporarily stored at **D
 
 > Note: bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
 
-#### Metrics
+### Metrics
 
 Global distribution modules expose several per-datacenter metrics that can be used to monitor health of the system. All metrics begin with **global.mod_global_distrib** prefix:
 
@@ -97,14 +97,14 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * `stop_ttl_zero`: A number of packets that weren't processed by global routing due to TTL=0.
 * `bounce_queue_size`: a number of messages enqueued for rerouting (the value of this metric is individual per MongooseIM node!).
 
-### Notes
+## Notes
 
 * You should only start `mod_global_distrib` by configuring it under `modules` option in `mongooseim.toml`. Do not add it as host-specific module via `host_config`.
 * Do not use `mod_offline` on domains given via `global_host` or `local_host` options, as it will decrease messaging robustness; the users logged in other datacenters will not be registered as available by `mod_offline`, and so the messages will not be flushed.
 
-### Options
+## Options
 
-#### `modules.mod_global_distrib.global_host`
+### `modules.mod_global_distrib.global_host`
 * **Syntax:** string
 * **Default:** none, this option is mandatory
 * **Example:** `global_host = "example.com"`
@@ -112,7 +112,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 The XMPP domain that will be shared between datacenters.
 *Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
-#### `modules.mod_global_distrib.local_host`
+### `modules.mod_global_distrib.local_host`
 * **Syntax:** string
 * **Default:** none, this option is mandatory
 * **Example:** `local_host = "datacenter1.example.com"`
@@ -120,21 +120,21 @@ The XMPP domain that will be shared between datacenters.
 XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
 *Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
-#### `modules.mod_global_distrib.message_ttl`
+### `modules.mod_global_distrib.message_ttl`
 * **Syntax:** non-negative integer
 * **Default:** `4`
 * **Example:** `message_ttl = 5`
 
 Number of times a message can be rerouted between datacenters.
 
-#### `modules.mod_global_distrib.hosts_refresh_interval`
+### `modules.mod_global_distrib.hosts_refresh_interval`
 * **Syntax:** non-negative integer, value given in milliseconds
 * **Default:** `3000`
 * **Example:** `hosts_refresh_interval = 3000`
 
 The interval telling how often Redis should be asked if new hosts appeared.
 
-#### Connections' options
+### Connections' options
 
 #### `modules.mod_global_distrib.connections.endpoints`
  * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
@@ -182,7 +182,7 @@ Endpoint refresh interval, when array of endpoints is empty.
 An interval between disabled endpoints "garbage collection".
 It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
 
-#### TLS options
+### TLS options
 
 #### `modules.mod_global_distrib.connections.tls.enabled`
 * **Syntax:** boolean
@@ -209,14 +209,14 @@ If `tls` is disabled, all data will be sent via standard TCP connections.
 * **Default:** not set
 * **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
-Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
+Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://www.openssl.org/docs/man1.0.2/man1/ciphers.html) for the cipher string format.
 
 #### `modules.mod_global_distrib.connections.tls.dhfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `dhfile = "dh.pem"`
 
-#### Redis session storage options
+### Redis session storage options
 
 #### `modules.mod_global_distrib.redis.pool`
 * **Syntax:** string
@@ -239,7 +239,7 @@ Number of seconds after which a session entry written by this cluster will expir
 
 Number of seconds after which session's expiration timer will be refreshed.
 
-#### Database cache options
+### Database cache options
 Options for caching database lookups, by default no options are passed.
 
 #### `modules.mod_global_distrib.cache.cache_missed`
@@ -272,7 +272,7 @@ How long should full and bare JID mappings be cached (e.g. `user1@example.com/re
 
 The maximum number of JID entries that can be stored in cache at any point in time.
 
-#### Message bouncing options
+### Message bouncing options
 
 #### `modules.mod_global_distrib.bounce.enabled`
 * **Syntax:** boolean
@@ -296,18 +296,18 @@ Time after which message will be resent in case of delivery error.
 
 Number of times message delivery will be retried in case of errors.
 
-#### Global Distribution and Service Discovery
+### Global Distribution and Service Discovery
 
 `mod_global_distrib` extension relies on [`mod_disco`](mod_disco.md)'s option `users_can_see_hidden_services`, when provided. If it is not configured, the default value is `true`. `mod_disco` does not have to be enabled for `mod_global_distrib` to work, as this parameter is used only for processing Disco requests by Global Distribution.
 
-### Overriding remote datacenter endpoints
+## Overriding remote datacenter endpoints
 
 There may be cases when the endpoint list given via **endpoints** option does not accurately specify endpoints on which the node may be reached from other datacenters; e.g. in case the node is behind NAT, or in testing environment.
 The endpoints used for connection to a remote datacenter may be overridden by global option `{ {global_distrib_addr, Host}, [{IP, Port}] }`.
 
-### Example configuration
+## Example configuration
 
-#### Configuring mod_global_distrib
+### Configuring mod_global_distrib
 
 ```toml
 [modules.mod_global_distrib]
@@ -325,13 +325,13 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
   redis.pool = "global_distrib"
 ```
 
-#### Overriding endpoints to a remote datacenter
+### Overriding endpoints to a remote datacenter
 
-```Erlang
+```erlang
 { {global_distrib_addr, "datacenter2.example.com"}, [{"124.12.4.3", 5556}, {"182.172.23.55", 5555}] }.
 ```
 
-#### Configuring Dynomite
+### Configuring Dynomite
 
 For more information about Dynomite configuration, consult [Dynomite wiki](https://github.com/Netflix/dynomite/wiki).
 

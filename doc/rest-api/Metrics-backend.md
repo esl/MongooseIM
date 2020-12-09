@@ -22,7 +22,7 @@ An example configuration:
     handlers = ["mongoose_api_metrics"]
 ```
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 ### Security notice
 
@@ -35,24 +35,25 @@ The above configuration starts the API only on a loopback interface.
 The responses are composed in a JSON format with a root element containing one or more attributes as response elements.
 
 Example response:
-
-    {
-        "hosts": [
-            "localhost"
-        ],
-        "metrics": [
-            "xmppErrorIq",
-            "xmppPresenceReceived",
-            "xmppMessageBounced",
-            (...)
-        ],
-        "global": [
-            "nodeSessionCount",
-            "totalSessionCount",
-            "uniqueSessionCount",
-            (...)
-        ]
-    }
+```json
+{
+    "hosts": [
+        "localhost"
+    ],
+    "metrics": [
+        "xmppErrorIq",
+        "xmppPresenceReceived",
+        "xmppMessageBounced",
+        (...)
+    ],
+    "global": [
+        "nodeSessionCount",
+        "totalSessionCount",
+        "uniqueSessionCount",
+        (...)
+    ]
+}
+```
 
 ## Services
 
@@ -114,7 +115,7 @@ The interface is compatible with the collectd curl_json plugin.
 Data fetched by collectd may be later visualized by tools like Graphite.
 
 Here's an example of a collectd configuration entry that will fetch all available metrics for a given host:
-```
+```json
 LoadPlugin curl_json
 ...
 <Plugin curl_json>

@@ -1,10 +1,11 @@
-### Module Description
+## Module Description
+
 This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-0016.html).
 This extension allows user to block IQs, messages, presences, or all, based on JIDs, subscription, and roster groups.
 
-### Options
+## Options
 
-#### `modules.mod_privacy.backend`
+### `modules.mod_privacy.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`.
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
@@ -32,16 +33,17 @@ Riak bucket type for information about privacy list names.
 
 Riak bucket type for privacy lists.
 
-### Example Configuration
+## Example Configuration
+
 ```toml
 [modules.mod_privacy]
   backend = "riak"
   riak.defaults_bucket_type = "privacy_defaults"
 ```
 
-### Metrics
+## Metrics
 
-If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
 | Backend action | Description (when it gets incremented) |
 | ---- | -------------------------------------- |

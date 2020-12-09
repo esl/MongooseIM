@@ -10,7 +10,7 @@ The `shaper` section specifies **traffic shapers** used to limit the incoming XM
   max_rate = 1000
 ```
 
-# Traffic shaper options
+## Traffic shaper options
 
 ### `shaper.maxrate`
 * **Syntax:** positive integer
@@ -19,11 +19,11 @@ The `shaper` section specifies **traffic shapers** used to limit the incoming XM
 
 Defines the maximum accepted rate. For the shapers used by XMPP listeners this is the number of bytes per second, but there are shapers that use different units, e.g. [MAM shapers](#mam-shapers).
 
-# Examples
+## Examples
 
 The following examples show the typical shaper definitions.
 
-## C2S Shaper
+### C2S Shaper
 
 This is the typical definition of an XMPP shaper, which accepts the maximum data rate of 1 kbps. When the rate is exceeded, the receiver pauses before processing the next packet.
 
@@ -35,7 +35,7 @@ This is the typical definition of an XMPP shaper, which accepts the maximum data
 To make use of it, the [corresponding rule](access.md#c2s-shaper) should be defined in the `access` section.
 Finally, the C2S listener has to be configured to use the defined shaper - see the [C2S Example](listen.md#c2s-example).
 
-## S2S Shaper
+### S2S Shaper
 
 For S2S connections we need to increase the limit as they receive the accumulated traffic from multiple users - e.g. to 50 kbps:
 
@@ -47,7 +47,7 @@ For S2S connections we need to increase the limit as they receive the accumulate
 To make use of it, the [corresponding rule](access.md#s2s-shaper) should be defined in the `access` section.
 Finally, the C2S listener has to be configured to use the defined shaper - see the [S2S Example](listen.md#s2s-example).
 
-## MAM Shapers
+### MAM Shapers
 
 These shapers limit the number of MAM operations per second (rather than bytes per second).
 
