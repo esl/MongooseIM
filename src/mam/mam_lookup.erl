@@ -226,7 +226,7 @@ after_id(ID, Filter) ->
 
 -spec before_id(message_id(), filter()) -> filter().
 before_id(ID, Filter) ->
-    [{lower, id, ID}|Filter].
+    [{less, id, ID}|Filter].
 
 -spec from_id(message_id(), filter()) -> filter().
 from_id(ID, Filter) ->
