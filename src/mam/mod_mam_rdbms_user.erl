@@ -118,12 +118,12 @@ stop_muc(Host) ->
 
 %% Preparing queries
 prepare_queries() ->
-    mongoose_rdbms:prepare(mam_user_remove, mam_server_user, [server, user_name],
-                            <<"DELETE FROM mam_server_user WHERE server=? AND user_name=?">>),
-    mongoose_rdbms:prepare(mam_user_select, mam_server_user, [server, user_name],
-                            <<"SELECT id FROM mam_server_user WHERE server=? AND user_name=?">>),
     mongoose_rdbms:prepare(mam_user_insert, mam_server_user, [server, user_name],
                             <<"INSERT INTO mam_server_user (server, user_name) VALUES (?, ?)">>),
+    mongoose_rdbms:prepare(mam_user_select, mam_server_user, [server, user_name],
+                            <<"SELECT id FROM mam_server_user WHERE server=? AND user_name=?">>),
+    mongoose_rdbms:prepare(mam_user_remove, mam_server_user, [server, user_name],
+                            <<"DELETE FROM mam_server_user WHERE server=? AND user_name=?">>),
     ok.
 
 %%====================================================================
