@@ -1806,22 +1806,18 @@ mod_jingle_sip(_Config) ->
       <<"listen_port">> => 5601,
       <<"local_host">> => <<"localhost">>,
       <<"sdp_origin">> => <<"127.0.0.1">>
-     },
+    },
     MBase = [
       {listen_port, 5601},
       {local_host, "localhost"},
       {proxy_host, "proxxxy"},
       {proxy_port, 5600},
       {sdp_origin, "127.0.0.1"}
-     ],
+    ],
     ?eqf(modopts(mod_jingle_sip, MBase), T(Base)),
     ?errf(T(Base#{<<"proxy_host">> => -1})),
-    ?errf(T(Base#{<<"proxy_host">> => <<"test test">>})),
     ?errf(T(Base#{<<"listen_port">> => -1})),
-    ?errf(T(Base#{<<"listen_port">> => 10000000})),
-    ?errf(T(Base#{<<"proxy_port">> => -1})),
     ?errf(T(Base#{<<"proxy_port">> => 10000000})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
     ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
     ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
 

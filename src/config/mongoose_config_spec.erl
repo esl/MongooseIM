@@ -740,6 +740,7 @@ all_modules() ->
      mod_event_pusher,
      mod_extdisco,
      mod_inbox,
+     mod_jingle_sip,
      mod_last,
      mod_mam_meta,
      mod_muc,
