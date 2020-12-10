@@ -241,9 +241,9 @@ retract_message(Host, #{archive_id := ArcID, sender_id := SenderID,
                         packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
-        OriginID ->
-            Info = get_retraction_info(Host, ArcID, SenderID, OriginID, Env),
-            make_tombstone(Host, ArcID, OriginID, Info, Env)
+        OriginIDToRetract ->
+            Info = get_retraction_info(Host, ArcID, SenderID, OriginIDToRetract, Env),
+            make_tombstone(Host, ArcID, OriginIDToRetract, Info, Env)
     end.
 
 get_retraction_info(Host, ArcID, SenderID, OriginID, Env) ->
@@ -301,7 +301,7 @@ extract_gdpr_messages(Host, SenderID) ->
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason}=Result, _Host, _Params) ->
+lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(Host, ArcJID),
