@@ -69,9 +69,6 @@ stop(Host) ->
 
 %% Prepared queries
 prepare_queries(Host) ->
-    OrdBy = order_by_remote_jid_in_delete(Host),
-    mongoose_rdbms:prepare(mam_prefs_delete, mam_config, [user_id],
-                           <<"DELETE FROM mam_config WHERE user_id=?", OrdBy/binary>>),
     mongoose_rdbms:prepare(mam_prefs_insert, mam_config, [user_id, remote_jid, behaviour],
                            <<"INSERT INTO mam_config(user_id, remote_jid, behaviour) "
                              "VALUES (?, ?, ?)">>),
@@ -90,6 +87,9 @@ prepare_queries(Host) ->
                              "FROM mam_config "
                              "WHERE user_id=? "
                                "AND (remote_jid='' OR remote_jid=? OR remote_jid=?)">>),
+    OrdBy = order_by_remote_jid_in_delete(Host),
+    mongoose_rdbms:prepare(mam_prefs_delete, mam_config, [user_id],
+                           <<"DELETE FROM mam_config WHERE user_id=?", OrdBy/binary>>),
     ok.
 
 order_by_remote_jid_in_delete(Host) ->
