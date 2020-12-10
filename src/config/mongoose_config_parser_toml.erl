@@ -117,16 +117,6 @@ module_opt([<<"max_file_size">>, <<"mod_http_upload">>|_], V) ->
 module_opt([<<"s3">>, <<"mod_http_upload">>|_] = Path, V) ->
     S3Opts = parse_section(Path, V),
     [{s3, S3Opts}];
-module_opt([<<"reset_markers">>, <<"mod_inbox">>|_] = Path, V) ->
-    Markers = parse_list(Path, V),
-    [{reset_markers, Markers}];
-module_opt([<<"groupchat">>, <<"mod_inbox">>|_] = Path, V) ->
-    GChats = parse_list(Path, V),
-    [{groupchat, GChats}];
-module_opt([<<"aff_changes">>, <<"mod_inbox">>|_], V) ->
-    [{aff_changes, V}];
-module_opt([<<"remove_on_kicked">>, <<"mod_inbox">>|_], V) ->
-    [{remove_on_kicked, V}];
 module_opt([<<"global_host">>, <<"mod_global_distrib">>|_], V) ->
     [{global_host, b2l(V)}];
 module_opt([<<"local_host">>, <<"mod_global_distrib">>|_], V) ->
@@ -544,6 +534,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
         Mod =/= <<"mod_extdisco">>,
+        Mod =/= <<"mod_inbox">>,
         Mod =/= <<"mod_last">>,
         Mod =/= <<"mod_mam_meta">>,
         Mod =/= <<"mod_muc">>,
@@ -574,10 +565,6 @@ handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
 handler([_, <<"s3">>, <<"mod_http_upload">>, <<"modules">>]) ->
     fun mod_http_upload_s3/2;
-handler([_, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
-handler([_, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
 handler([_, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
     fun mod_global_distrib_connections/2;
 handler([_, <<"cache">>, <<"mod_global_distrib">>, <<"modules">>]) ->

@@ -739,6 +739,7 @@ all_modules() ->
      mod_disco,
      mod_event_pusher,
      mod_extdisco,
+     mod_inbox,
      mod_last,
      mod_mam_meta,
      mod_muc,
