@@ -136,6 +136,8 @@ The interval telling how often Redis should be asked if new hosts appeared.
 
 ### Connections' options
 
+**Note:** This section is mandatory.
+
 #### `modules.mod_global_distrib.connections.endpoints`
  * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
  * **Default:** `[{host = "LocalHost", port = 5555}]`
@@ -146,8 +148,8 @@ A list of endpoints on which the server will listen for connections.
 The endpoint list will be shared with other datacenters via the replicated backend.
 
 #### `modules.mod_global_distrib.connections.advertised_endpoints`
-* **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`} **or** `false`
-* **Default:** `false`
+* **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
+* **Default:** not set
 * **Example:** `advertised_endpoints = [{host = "172.16.0.2", port = 5555}]`
 
 A list of endpoints which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
@@ -175,7 +177,7 @@ A separate timer is maintained for every remote domain.
 Endpoint refresh interval, when array of endpoints is empty.
 
 #### `modules.mod_global_distrib.connections.disabled_gc_interval`
-* **Syntax:** non-negative integer, value given in seconds
+* **Syntax:** positive integer, value given in seconds
 * **Default:** `60`
 * **Example:** `disabled_gc_interval = 60`
 
@@ -184,9 +186,11 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 
 ### TLS options
 
+**Note:** This section is mandatory.
+
 #### `modules.mod_global_distrib.connections.tls.enabled`
 * **Syntax:** boolean
-* **Default:** `false`
+* **Default:** `false`, this option is mandatory
 * **Example:** `enabled = true`
 
 To enable TLS support the `cacertfile` and `certfile` options have to be present.
@@ -226,7 +230,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
 
 #### `modules.mod_global_distrib.redis.expire_after`
-* **Syntax:** non-negative integer
+* **Syntax:** positive integer
 * **Default:** `120`
 * **Example:** `expire_after = 120`
 

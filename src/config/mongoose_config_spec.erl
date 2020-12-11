@@ -739,6 +739,7 @@ all_modules() ->
      mod_disco,
      mod_event_pusher,
      mod_extdisco,
+     mod_global_distrib,
      mod_inbox,
      mod_jingle_sip,
      mod_keystore,

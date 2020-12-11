@@ -21,14 +21,15 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--include("mongoose.hrl").
--include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
+-include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
--export([deps/2, start/2, stop/1]).
+-export([deps/2, start/2, stop/1, config_spec/0]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
 -export([maybe_reroute/1]).
-
+-export([process_endpoints/1, process_tls/1, process_bounce/1]).
 %%--------------------------------------------------------------------
 %% gen_mod API
 %% See "gen_mod logic" block below in this file
@@ -47,6 +48,120 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"global_host">> => #option{type = string,
+                                               validate = domain},
+                  <<"local_host">> => #option{type = string,
+                                              validate = domain},
+                  <<"message_ttl">> => #option{type = integer,
+                                               validate = non_negative},
+                  <<"hosts_refresh_interval">> => #option{type = integer,
+                                                          validate = non_negative},
+                  <<"connections">> => connections_spec(),
+                  <<"redis">> => redis_spec(),
+                  <<"cache">> => cache_spec(),
+                  <<"bounce">> => bounce_spec()
+        },
+        required = [<<"global_host">>, <<"local_host">>, <<"connections">>]
+    }.
+
+connections_spec() ->
+    #section{
+        items = #{<<"endpoints">> => #list{items = endpoints_spec()},
+                  <<"advertised_endpoints">> => #list{items = endpoints_spec()},
+                  <<"connections_per_endpoint">> => #option{type = integer,
+                                                            validate = non_negative},
+                  <<"endpoint_refresh_interval">> => #option{type = integer,
+                                                             validate = positive},
+                  <<"endpoint_refresh_interval_when_empty">> => #option{type = integer,
+                                                                        validate = positive},
+                  <<"disabled_gc_interval">> => #option{type = integer,
+                                                        validate = positive},
+                  <<"tls">> => tls_spec()
+        },
+        required = [<<"tls">>]
+    }.
+
+endpoints_spec() ->
+    #section{
+        items = #{<<"host">> => #option{type = string,
+                                        validate = network_address},
+                  <<"port">> => #option{type = integer,
+                                        validate = port}
+        },
+        required = all,
+        process = fun ?MODULE:process_endpoints/1
+    }.
+
+tls_spec() ->
+    #section{
+        items = #{<<"enabled">> => #option{type = boolean},
+                  <<"certfile">> => #option{type = string,
+                                            validate = filename},
+                  <<"cacertfile">> => #option{type = string,
+                                              validate = filename,
+                                              format = {kv, cafile}},
+                  <<"ciphers">> => #option{type = string},
+                  <<"dhfile">> => #option{type = string,
+                                          validate = filename}
+        },
+        required = [<<"enabled">>],
+        process = fun ?MODULE:process_tls/1,
+        format = {kv, tls_opts}
+    }.
+
+redis_spec() ->
+    #section{
+        items = #{<<"pool">> => #option{type = atom,
+                                        validate = pool_name},
+                  <<"expire_after">> => #option{type = integer,
+                                                validate = positive},
+                  <<"refresh_after">> => #option{type = integer,
+                                                 validate = non_negative}                              
+        }
+    }.
+
+cache_spec() ->
+    #section{
+        items = #{<<"cache_missed">> => #option{type = boolean},
+                  <<"domain_lifetime_seconds">> => #option{type = integer,
+                                                           validate = non_negative},
+                  <<"jid_lifetime_seconds">> => #option{type = integer,
+                                                        validate = non_negative},
+                  <<"max_jids">> => #option{type = integer,
+                                            validate = non_negative}
+        }
+    }.
+
+bounce_spec() ->
+    #section{
+        items = #{<<"enabled">> => #option{type = boolean},
+                  <<"resend_after_ms">> => #option{type = integer,
+                                                   validate = non_negative},
+                  <<"max_retries">> => #option{type = integer,
+                                               validate = non_negative}
+        },
+        process = fun ?MODULE:process_bounce/1
+    }.
+
+process_endpoints(KV) ->
+    {[[{host, Host}],[{port, Port}]], []} = proplists:split(KV, [host, port]),
+    {Host, Port}.
+
+process_tls(KV) ->
+    case proplists:get_value(enabled, KV, false) of
+        true -> proplists:delete(enabled, KV);
+        false -> false
+    end.
+
+process_bounce(KVs) ->
+    {[EnabledOpts], Opts} = proplists:split(KVs, [enabled]),
+    bounce_value(EnabledOpts, Opts).
+  
+bounce_value([{enabled, false}], _) -> false;
+bounce_value(_, Opts) -> Opts.
 
 %%--------------------------------------------------------------------
 %% public functions

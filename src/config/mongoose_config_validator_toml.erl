@@ -18,118 +18,6 @@ validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
 %% Modules
-validate([<<"enabled">>, <<"bounce">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{enabled, true}]) ->
-    ok;
-validate([<<"bounce">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{bounce, false}]) ->
-    ok;
-validate([<<"max_retries">>, <<"bounce">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{max_retries, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"resend_after_ms">>, <<"bounce">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{resend_after_ms, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"cache_missed">>, <<"cache">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{cache_missed, V}]) ->
-    validate_boolean(V);
-validate([<<"domain_lifetime_seconds">>, <<"cache">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{domain_lifetime_seconds, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"jid_lifetime_seconds">>, <<"cache">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{jid_lifetime_seconds, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"max_jids">>, <<"cache">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{max_jids, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"advertised_endpoints">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [false]) ->
-   ok;
-validate([<<"host">>, item, <<"advertised_endpoints">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [V]) ->
-    validate_network_address(V);
-validate([<<"port">>, item, <<"advertised_endpoints">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [V]) ->
-    validate_network_port(V);
-validate([<<"connections_per_endpoint">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{connections_per_endpoint, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"disabled_gc_interval">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{disabled_gc_interval, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"endpoint_refresh_interval">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{endpoint_refresh_interval, V}]) ->
-    validate_positive_integer(V);
-validate([<<"endpoint_refresh_interval_when_empty">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{endpoint_refresh_interval_when_empty, V}]) ->
-    validate_positive_integer(V);
-validate([<<"host">>, item, <<"endpoints">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [V]) ->
-    validate_network_address(V);
-validate([<<"port">>, item, <<"endpoints">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [V]) ->
-    validate_network_port(V);
-validate([<<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{tls_opts, false}]) ->
-    ok;
-validate([<<"enabled">>, <<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{enabled, true}]) ->
-    ok;
-validate([<<"cacertfile">>, <<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{cafile, V}]) ->
-    validate_filename(V);
-validate([<<"certfile">>, <<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{certfile, V}]) ->
-    validate_filename(V);
-validate([<<"ciphers">>, <<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{ciphers, V}]) ->
-    validate_string(V);
-validate([<<"dhfile">>, <<"tls">>, <<"connections">>,
-          <<"mod_global_distrib">>, <<"modules">>|_],
-         [{dhfile, V}]) ->
-    validate_filename(V);
-validate([<<"global_host">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{global_host, V}]) ->
-    validate_domain(V);
-validate([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{hosts_refresh_interval, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"local_host">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{local_host, V}]) ->
-    validate_domain(V);
-validate([<<"message_ttl">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{message_ttl, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"expire_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{expire_after, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"pool">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{pool, V}]) ->
-    validate_pool_name(V);
-validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
-         [{refresh_after, V}]) ->
-    validate_non_negative_integer(V);
 validate([<<"backend">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_http_upload, V);
@@ -187,6 +75,7 @@ validate(V, int_or_infinity_or_atom, positive) ->
 validate(V, int_or_atom, positive) ->
     validate_positive_integer_or_atom(V, never);
 validate(V, string, url) -> validate_url(V);
+validate(V, string, domain) -> validate_domain(V);
 validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, ip_mask) -> validate_ip_mask_string(V);
@@ -361,9 +250,6 @@ safe_call_validator(F, Value) ->
     catch error:Reason:Stacktrace ->
               #{reason => Reason, stacktrace => Stacktrace}
     end.
-
-validate_network_port(Value) ->
-    validate_range(Value, 0, 65535).
 
 validate_range(Value, Min, Max) when Value >= Min, Value =< Max ->
     ok.

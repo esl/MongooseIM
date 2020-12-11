@@ -1579,21 +1579,20 @@ mod_global_distrib(_Config) ->
        ]), T(Base)),
     ?eqf(modopts(mod_global_distrib,
                  set_pl(connections,
-                        set_pl(advertised_endpoints, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> => false}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
                         set_pl(tls_opts, false, ConnOpts),
                         MBase)),
          T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
     ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
+                 set_pl(bounce, false, MBase)),
+         T(Base#{<<"bounce">> => TBounceOpts#{<<"enabled">> => false}})),
+    %% Global Opts
+    ?errf(T(Base#{<<"global_host">> => 1})),
+    ?errf(T(Base#{<<"local_host">> => 1})),
+    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
+    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})),
     %% Connection opts
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+            <<"tls">> =>TTOpts#{<<"enabled">> => <<"yes">>}}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
             <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
@@ -1606,17 +1605,14 @@ mod_global_distrib(_Config) ->
         <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{
         <<"advertised_endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => <<"kek">>}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => 0}})),
     ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval_when_empty">> => -1}})),
+    ?errf(T(Base#{<<"connections">> => TConnOpts#{
+        <<"endpoint_refresh_interval_when_empty">> => -1}})),
     %% Redis Opts
     ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => -1}})),
+    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => 0}})),
     ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
     %% Cache Opts
     ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"cache_missed">> => 1}})),
@@ -1624,17 +1620,9 @@ mod_global_distrib(_Config) ->
     ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"jid_lifetime_seconds">> => -1}})),
     ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"max_jids">> => -1}})),
     %% Bouncing Opts
+    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"enabled">> => <<"yes">>}})),
     ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"resend_after_ms">> => -1}})),
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})),
-    %% Global Opts
-    ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"global_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
-    ?errf(T(Base#{<<"message_ttl">> => -1})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
+    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})).
 
 mod_event_pusher_sns(_Config) ->
     RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
