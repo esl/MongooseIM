@@ -28,9 +28,9 @@ for each virtual XMPP domain to avoid sharing keys between domains!**
 Size to use when generating RAM-only keys (designated by type `ram`).
 
 ### `modules.mod_keystore.keys`
-* **Syntax:** Array of TOML tables with the following keys: `"name"`, `"type"`, `"file"`, and following values: {name = `string`, type = `values: "file", "ram"`, file = `string`}.
+* **Syntax:** Array of TOML tables with the following keys: `"name"`, `"type"`, `"path"`, and following values: {name = `string`, type = `values: "file", "ram"`, path = `string`}.
 * **Default:** `[]`
-* **Example:** `modules.mod_keystore.keys = [name = "access_psk", type = "file", path = "priv/access_psk"]`
+* **Example:** `modules.mod_keystore.keys = [{name = "access_psk", type = "file", path = "priv/access_psk"}]`
 
 Names, types, and optional filepaths of the keys.
 
@@ -71,7 +71,7 @@ for each virtual XMPP domain):
   host = "second.com"
   
   [host_config.modules.mod_keystore]
-    keys = [{name = "access_secret, type = "ram"},
-            {name = "access_psk, type = "file", path = "priv/second_access_psk"},
-            {name = "provision_psk, type = "file", path = "priv/second_provision_psk"}]
+    keys = [{name = "access_secret", type = "ram"},
+            {name = "access_psk," type = "file", path = "priv/second_access_psk"},
+            {name = "provision_psk", type = "file", path = "priv/second_provision_psk"}]
 ```

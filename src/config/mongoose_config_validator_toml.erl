@@ -169,13 +169,6 @@ validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
 validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
-validate([item, <<"keys">>, <<"mod_keystore">>, <<"modules">>|_],
-         [V]) ->
-    validate_keystore_key(V);
-validate([<<"ram_key_size">>, <<"mod_keystore">>, <<"modules">>|_],
-         [{ram_key_size, V}]) ->
-    validate_non_negative_integer(V);
-
 validate(_Path, _Value) ->
     ok.
 
@@ -198,6 +191,7 @@ validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, ip_mask) -> validate_ip_mask_string(V);
 validate(V, string, network_address) -> validate_network_address(V);
+validate(V, string, filename) -> validate_filename(V);
 validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, string, dirname) -> validate_dirname(V);
 validate(V, atom, module) -> validate_module(V);
@@ -389,12 +383,6 @@ validate_dirname(Dirname) ->
         Reason ->
             error(#{what => invalid_dirname, dirname => Dirname, reason => Reason})
     end.
-
-validate_keystore_key({Name, ram}) ->
-    validate_non_empty_atom(Name);
-validate_keystore_key({Name, {file, Path}}) ->
-    validate_non_empty_atom(Name),
-    validate_filename(Path).
 
 validate_pool_name(V) ->
     validate_non_empty_atom(V).

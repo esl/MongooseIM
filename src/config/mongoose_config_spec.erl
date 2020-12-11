@@ -741,6 +741,7 @@ all_modules() ->
      mod_extdisco,
      mod_inbox,
      mod_jingle_sip,
+     mod_keystore,
      mod_last,
      mod_mam_meta,
      mod_muc,

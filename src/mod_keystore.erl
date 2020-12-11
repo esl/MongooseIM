@@ -5,7 +5,8 @@
 
 %% gen_mod callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         config_spec/0]).
 
 %% Hook handlers
 -export([get_key/2]).
@@ -14,6 +15,7 @@
 -export([validate_opts/1]).
 
 -export([config_metrics/1]).
+-export([process_keys/1]).
 
 %% Public types
 -export_type([key/0,
@@ -22,8 +24,9 @@
               key_name/0,
               raw_key/0]).
 
--include("mongoose.hrl").
 -include("mod_keystore.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_RAM_KEY_SIZE, 2048).
 -define(IOL2B(L), iolist_to_binary(L)).
@@ -78,6 +81,33 @@ stop(Domain) ->
       || {Hook, Handler, Priority} <- hook_handlers() ],
     clear_keystore_ets(Domain),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"ram_key_size">> => #option{type = integer,
+                                                validate = non_negative},
+                  <<"keys">> => #list{items = keys_spec()}
+        }
+    }.
+
+keys_spec() ->
+    #section{
+        items = #{<<"name">> => #option{type = atom,
+                                        validate = non_empty},
+                  <<"type">> => #option{type = atom,
+                                        validate = {enum, [file, ram]}},
+                  <<"path">> => #option{type = string,
+                                        validate = filename}
+        },
+        required = [<<"name">>, <<"type">>],
+        process = fun ?MODULE:process_keys/1
+    }.
+
+process_keys([{name, Name},{type, ram}]) ->
+    {Name, ram};
+process_keys([{name, Name}, {path, File}, {type, file}]) ->
+    {Name, {file, File}}.
 
 %%
 %% Hook handlers
