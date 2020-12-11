@@ -183,6 +183,15 @@ In this case, items are not persisted but kept in an in-memory cache.
 When the `pep` plugin is enabled, a user can have their own node (exposed as their bare jid) with a common namespace.
 Requires module `mod_caps` to be enabled.
 
+For [XEP-0384: OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html), it might be required to configure the `access_model` to `open` or override the default `access_model` in the following way:
+
+```toml
+[modules.mod_pubsub]
+  access_createnode = "pubsub_createnode"
+  plugins = ["pep"]
+  default_node_config = {access_model = "open"}
+```
+
 ### `"dag"`
 
 Implementation of [XEP-0248: PubSub Collection Nodes](https://xmpp.org/extensions/xep-0248.html).
