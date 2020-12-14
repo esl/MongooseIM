@@ -359,7 +359,7 @@ has_chat_marker(Packet) ->
 
 get_retract_id(true = _Enabled, Packet) ->
     get_retract_id(Packet);
-get_retract_id(false, Packet) ->
+get_retract_id(false, _Packet) ->
     none.
 
 get_retract_id(Packet) ->
@@ -770,7 +770,7 @@ packet_to_search_body(Module, Host, Packet) ->
 packet_to_search_body(true, Packet) ->
     BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
-packet_to_search_body(false, Packet) ->
+packet_to_search_body(false, _Packet) ->
     <<>>.
 
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().

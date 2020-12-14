@@ -110,22 +110,22 @@ stop_hooks(Host) ->
 register_prepared_queries() ->
     prepare_insert(insert_mam_muc_message, 1),
     mongoose_rdbms:prepare(mam_muc_archive_remove, mam_muc_message, [room_id],
-                           [<<"DELETE FROM mam_muc_message "
-                              "WHERE room_id = ?">>]),
+                           <<"DELETE FROM mam_muc_message "
+                             "WHERE room_id = ?">>),
     mongoose_rdbms:prepare(mam_muc_make_tombstone, mam_muc_message, [message, room_id, id],
-                           [<<"UPDATE mam_muc_message SET message = ?, search_body = '' "
-                              "WHERE room_id = ? AND id = ?">>]),
+                           <<"UPDATE mam_muc_message SET message = ?, search_body = '' "
+                             "WHERE room_id = ? AND id = ?">>),
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
     mongoose_rdbms:prepare(mam_muc_select_messages_to_retract, mam_muc_message,
                            [room_id, sender_id, origin_id],
-                           [<<"SELECT ", LimitMSSQL/binary,
-                              " id, message FROM mam_muc_message"
-                              " WHERE room_id = ? AND sender_id = ? "
-                              " AND origin_id = ?"
-                              " ORDER BY id DESC ", LimitSQL/binary>>]),
+                           <<"SELECT ", LimitMSSQL/binary,
+                             " id, message FROM mam_muc_message"
+                             " WHERE room_id = ? AND sender_id = ? "
+                             " AND origin_id = ?"
+                             " ORDER BY id DESC ", LimitSQL/binary>>),
     mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [sender_id],
-                           [<<"SELECT id, message FROM mam_muc_message "
-                              " WHERE sender_id = ? ORDER BY id">>]).
+                           <<"SELECT id, message FROM mam_muc_message "
+                             " WHERE sender_id = ? ORDER BY id">>).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
@@ -287,11 +287,8 @@ prepare_insert(Name, NumRows) ->
                      ArcID :: mod_mam:archive_id(),
                      ArcJID :: jid:jid()) -> mongoose_acc:t().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
-    remove_archive(Host, ArcID),
+    mongoose_rdbms:execute_successfully(Host, mam_muc_archive_remove, [ArcID]),
     Acc.
-
-remove_archive(Host, ArcID) ->
-    mongoose_rdbms:execute_successfully(Host, mam_muc_archive_remove, [ArcID]).
 
 %% GDPR logic
 extract_gdpr_messages(Host, SenderID) ->
