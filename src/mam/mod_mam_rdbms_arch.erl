@@ -126,19 +126,19 @@ stop_hooks(Host) ->
 register_prepared_queries() ->
     prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
-                           [<<"DELETE FROM mam_message "
-                              "WHERE user_id = ?">>]),
+                           <<"DELETE FROM mam_message "
+                             "WHERE user_id = ?">>),
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
-                           [<<"UPDATE mam_message SET message = ?, search_body = '' "
-                              "WHERE user_id = ? AND id = ?">>]),
+                           <<"UPDATE mam_message SET message = ?, search_body = '' "
+                             "WHERE user_id = ? AND id = ?">>),
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(1),
     mongoose_rdbms:prepare(mam_select_messages_to_retract, mam_message,
                            [user_id, remote_bare_jid, origin_id, direction],
-                           [<<"SELECT ", LimitMSSQL/binary,
-                              " id, message FROM mam_message"
-                              " WHERE user_id = ? AND remote_bare_jid = ? "
-                              " AND origin_id = ? AND direction = ?"
-                              " ORDER BY id DESC ", LimitSQL/binary>>]).
+                           <<"SELECT ", LimitMSSQL/binary,
+                             " id, message FROM mam_message"
+                             " WHERE user_id = ? AND remote_bare_jid = ? "
+                             " AND origin_id = ? AND direction = ?"
+                             " ORDER BY id DESC ", LimitSQL/binary>>).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
@@ -311,11 +311,8 @@ prepare_insert(Name, NumRows) ->
                      ArcID :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> mongoose_acc:t().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
-    remove_archive(Host, ArcID),
+    mongoose_rdbms:execute_successfully(Host, mam_archive_remove, [ArcID]),
     Acc.
-
-remove_archive(Host, ArcID) ->
-    mongoose_rdbms:execute_successfully(Host, mam_archive_remove, [ArcID]).
 
 %% GDPR logic
 extract_gdpr_messages(Env, ArcID) ->
