@@ -738,21 +738,6 @@ validate([item, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>|_],
 validate([<<"sync_broadcast">>, <<"mod_pubsub">>, <<"modules">>|_],
          [{sync_broadcast, V}]) ->
     validate_boolean(V);
-validate([<<"iqdisc">>, <<"mod_ping">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"ping_interval">>, <<"mod_ping">>, <<"modules">>|_],
-         [{ping_interval, V}]) ->
-    validate_positive_integer(V);
-validate([<<"ping_req_timeout">>, <<"mod_ping">>, <<"modules">>|_],
-         [{ping_req_timeout, V}]) ->
-    validate_positive_integer(V);
-validate([<<"send_pings">>, <<"mod_ping">>, <<"modules">>|_],
-         [{send_pings, V}]) ->
-    validate_boolean(V);
-validate([<<"timeout_action">>, <<"mod_ping">>, <<"modules">>|_],
-         [{timeout_action, V}]) ->
-    validate_enum(V, [none,kill]);
 validate(_Path, _Value) ->
     ok.
 

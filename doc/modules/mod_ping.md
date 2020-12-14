@@ -12,7 +12,7 @@ This module implements XMPP Ping functionality as described in [XEP-0199: XMPP P
 If set to true, the server will send ping iqs to the client if they are not active for a `ping_interval`.
 
 ### `modules.mod_ping.ping_interval`
-* **Syntax:** positive integer
+* **Syntax:** positive integer (seconds)
 * **Default:** `60`
 * **Example:** `ping_interval = 30`
 
@@ -26,7 +26,7 @@ Defines the client inactivity timeout after which the server will send a ping re
 Defines if the client connection should be closed if it doesn't reply to a ping request in less than `ping_req_timeout`.
 
 ### `modules.mod_ping.ping_req_timeout`
-* **Syntax:** positive integer
+* **Syntax:** positive integer (seconds)
 * **Default:** `32`
 * **Example:** `ping_req_timeout = 60`
 

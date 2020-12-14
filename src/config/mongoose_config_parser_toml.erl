@@ -175,14 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"send_pings">>, <<"mod_ping">>|_], V) ->
-    [{send_pings, V}];
-module_opt([<<"ping_interval">>, <<"mod_ping">>|_], V) ->
-    [{ping_interval, V}];
-module_opt([<<"timeout_action">>, <<"mod_ping">>|_], V) ->
-    [{timeout_action, b2a(V)}];
-module_opt([<<"ping_req_timeout">>, <<"mod_ping">>|_], V) ->
-    [{ping_req_timeout, V}];
 module_opt([<<"host">>, <<"mod_pubsub">>|_], V) ->
     [{host, b2l(V)}];
 module_opt([<<"access_createnode">>, <<"mod_pubsub">>|_], V) ->
@@ -853,7 +845,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_muc">>,
         Mod =/= <<"mod_muc_light">>,
         Mod =/= <<"mod_muc_log">>,
-        Mod =/= <<"mod_offline">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_offline">>,
+        Mod =/= <<"mod_ping">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

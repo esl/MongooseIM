@@ -12,13 +12,14 @@
 -xep([{xep, 199}, {version, "2.0"}]).
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_SEND_PINGS, false). % bool()
 -define(DEFAULT_PING_INTERVAL, 60). % seconds
 -define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
 %% gen_mod callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% Hook callbacks
 -export([iq_ping/4,
@@ -108,6 +109,20 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
     mod_disco:unregister_feature(Host, ?NS_PING).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"send_pings">> => #option{type = boolean},
+                 <<"ping_interval">> => #option{type = integer,
+                                                validate = positive},
+                 <<"timeout_action">> => #option{type = atom,
+                                                 validate = {enum, [none, kill]}},
+                 <<"ping_req_timeout">> => #option{type = integer,
+                                                   validate = positive},
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()
+                }
+      }.
 
 %%====================================================================
 %% IQ handlers

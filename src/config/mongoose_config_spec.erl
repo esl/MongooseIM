@@ -741,7 +741,8 @@ all_modules() ->
      mod_muc,
      mod_muc_light,
      mod_muc_log,
-     mod_offline].
+     mod_offline,
+     mod_ping].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->
