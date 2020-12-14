@@ -78,6 +78,7 @@
 -export([prepare/4,
          prepared/1,
          execute/3,
+         execute_successfully/3,
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
@@ -190,6 +191,38 @@ prepared(Name) ->
                      query_result().
 execute(Host, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_call(Host, {sql_execute, Name, Parameters}).
+
+%% Same as execute/3, but would fail loudly on any error.
+-spec execute_successfully(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
+                     query_result().
+execute_successfully(Host, Name, Parameters) ->
+    try execute(Host, Name, Parameters) of
+        {selected, _} = Result ->
+            Result;
+        {updated, _} = Result ->
+            Result;
+        Other ->
+            Log = #{what => sql_execute_failed, host => Host,statement_name => Name,
+                    statement_query => query_name_to_string(Name),
+                    statement_params => Parameters, reason => Other},
+            ?LOG_ERROR(Log),
+            error(Log)
+    catch error:Reason:Stacktrace ->
+            Log = #{what => sql_execute_failed, host => Host, statement_name => Name,
+                    statement_query => query_name_to_string(Name),
+                    statement_params => Parameters,
+                    reason => Reason, stacktrace => Stacktrace},
+            ?LOG_ERROR(Log),
+            erlang:raise(error, Reason, Stacktrace)
+    end.
+
+query_name_to_string(Name) ->
+    case ets:lookup(prepared_statements, Name) of
+        [] ->
+            not_found;
+        [{_, _Table, _Fields, Statement}] ->
+            Statement
+    end.
 
 -spec sql_query(Host :: server(), Query :: any()) -> query_result().
 sql_query(Host, Query) ->

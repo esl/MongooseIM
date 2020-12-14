@@ -50,5 +50,4 @@ decode_packet(ExtBin, Env = #{db_message_codec := Codec}) ->
 
 -spec unescape_binary(binary(), env_vars()) -> binary().
 unescape_binary(Bin, #{host := Host}) ->
-    %% Funny, rdbms ignores this Host variable
     mongoose_rdbms:unescape_binary(Host, Bin).
