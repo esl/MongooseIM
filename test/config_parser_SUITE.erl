@@ -2557,29 +2557,28 @@ mod_revproxy(_Config) ->
           ]).
 
 mod_roster(_Config) ->
-    Riak = #{<<"bucket_type">> => <<"rosters">>,
-             <<"version_bucket_type">> => <<"roster_versions">>},
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"versioning">> => false,
-             <<"store_current_id">> => false,
-             <<"backend">> => <<"mnesia">>,
-             <<"riak">> => Riak},
-    MBase = [{iqdisc, one_queue},
-             {versioning, false},
-             {store_current_id, false},
-             {backend, mnesia},
-             {bucket_type, <<"rosters">>},
-             {version_bucket_type, <<"roster_versions">>}],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
-    run_multi([
-            ?_eqf(modopts(mod_roster, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"versioning">> => 1})),
-            ?_errf(T(#{<<"store_current_id">> => 1})),
-            ?_errf(T(#{<<"backend">> => 1})),
-            ?_errf(T(#{<<"backend">> => <<"iloveyou">>})),
-            ?_errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-            ?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}}))
-          ]),
+    M = fun(Cfg) -> modopts(mod_roster, Cfg) end,
+
+    ?eqf(M([{iqdisc, one_queue}]),
+       T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
+    ?eqf(M([{store_current_id, false}]),
+       T(#{<<"store_current_id">> => false})),
+    ?eqf(M([{versioning, false}]),
+       T(#{<<"versioning">> => false})),
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"rosters">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"rosters">>}})),
+    ?eqf(M([{version_bucket_type, <<"roster_versions">>}]),
+       T(#{<<"riak">> => #{<<"version_bucket_type">> => <<"roster_versions">>}})),
+
+    ?errf(T(#{<<"versioning">> => 1})),
+    ?errf(T(#{<<"store_current_id">> => 1})),
+    ?errf(T(#{<<"backend">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"iloveyou">>})),
+    ?errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_roster).
 
 mod_shared_roster_ldap(_Config) ->

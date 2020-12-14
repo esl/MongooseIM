@@ -178,10 +178,6 @@ module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
-module_opt([<<"versioning">>, <<"mod_roster">>|_], V) ->
-    [{versioning, V}];
-module_opt([<<"store_current_id">>, <<"mod_roster">>|_], V) ->
-    [{store_current_id, V}];
 module_opt([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>|_], V) ->
     [{ldap_useruid, b2l(V)}];
 module_opt([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
@@ -745,7 +741,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_private">>,
         Mod =/= <<"mod_pubsub">>,
         Mod =/= <<"mod_push_service_mongoosepush">>,
-        Mod =/= <<"mod_register">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_register">>,
+        Mod =/= <<"mod_roster">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

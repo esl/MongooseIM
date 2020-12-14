@@ -747,7 +747,8 @@ all_modules() ->
      mod_private,
      mod_pubsub,
      mod_push_service_mongoosepush,
-     mod_register].
+     mod_register,
+     mod_roster].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

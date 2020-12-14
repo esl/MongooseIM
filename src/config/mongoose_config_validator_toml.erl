@@ -490,24 +490,6 @@ validate([<<"sdp_origin">>, <<"mod_jingle_sip">>, <<"modules">>|_],
 validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
-validate([<<"backend">>, <<"mod_roster">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_roster, V);
-validate([<<"iqdisc">>, <<"mod_roster">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_roster">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"version_bucket_type">>, <<"riak">>, <<"mod_roster">>, <<"modules">>|_],
-         [{version_bucket_type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"store_current_id">>, <<"mod_roster">>, <<"modules">>|_],
-         [{store_current_id, V}]) ->
-    validate_boolean(V);
-validate([<<"versioning">>, <<"mod_roster">>, <<"modules">>|_],
-         [{versioning, V}]) ->
-    validate_boolean(V);
 validate([item, <<"keys">>, <<"mod_keystore">>, <<"modules">>|_],
          [V]) ->
     validate_keystore_key(V);
