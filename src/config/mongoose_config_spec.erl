@@ -739,7 +739,8 @@ all_modules() ->
      mod_disco,
      mod_event_pusher,
      mod_muc,
-     mod_muc_light].
+     mod_muc_light,
+     mod_muc_log].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

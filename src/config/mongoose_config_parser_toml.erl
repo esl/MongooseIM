@@ -175,27 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"outdir">>, <<"mod_muc_log">>|_], V) ->
-    [{outdir, b2l(V)}];
-module_opt([<<"access_log">>, <<"mod_muc_log">>|_], V) ->
-    [{access_log, b2a(V)}];
-module_opt([<<"dirtype">>, <<"mod_muc_log">>|_], V) ->
-    [{dirtype, b2a(V)}];
-module_opt([<<"dirname">>, <<"mod_muc_log">>|_], V) ->
-    [{dirname, b2a(V)}];
-module_opt([<<"file_format">>, <<"mod_muc_log">>|_], V) ->
-    [{file_format, b2a(V)}];
-module_opt([<<"css_file">>, <<"mod_muc_log">>|_], <<"false">>) ->
-    [{cssfile, false}];
-module_opt([<<"css_file">>, <<"mod_muc_log">>|_], V) ->
-    [{cssfile, V}];
-module_opt([<<"timezone">>, <<"mod_muc_log">>|_], V) ->
-    [{timezone, b2a(V)}];
-module_opt([<<"top_link">>, <<"mod_muc_log">>|_] = Path, V) ->
-    Link = list_to_tuple(parse_section(Path, V)),
-    [{top_link, Link}];
-module_opt([<<"spam_prevention">>, <<"mod_muc_log">>|_], V) ->
-    [{spam_prevention, V}];
 module_opt([<<"access_max_user_messages">>, <<"mod_offline">>|_], V) ->
     [{access_max_user_messages, b2a(V)}];
 module_opt([<<"send_pings">>, <<"mod_ping">>|_], V) ->
@@ -522,12 +501,6 @@ mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
     [{extra_lookup_params, b2a(V)}];
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
-
--spec mod_muc_log_top_link(path(), toml_value()) -> [option()].
-mod_muc_log_top_link([<<"target">>|_], V) ->
-    [b2l(V)];
-mod_muc_log_top_link([<<"text">>|_], V) ->
-    [b2l(V)].
 
 -spec mod_pubsub_pep_mapping(path(), toml_section()) -> [option()].
 mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
@@ -880,7 +853,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
         Mod =/= <<"mod_muc">>,
-        Mod =/= <<"mod_muc_light">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_muc_light">>,
+        Mod =/= <<"mod_muc_log">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -926,8 +900,6 @@ handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
-handler([_, <<"top_link">>, <<"mod_muc_log">>, <<"modules">>]) ->
-    fun mod_muc_log_top_link/2;
 handler([_, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>]) ->
     fun(_, V) -> [V] end;
 handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->

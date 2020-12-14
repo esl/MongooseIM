@@ -640,33 +640,6 @@ validate([<<"backend">>, <<"mod_offline">>, <<"modules">>|_],
 validate([<<"bucket_type">>, <<"riak">>, <<"mod_offline">>, <<"modules">>|_],
          [{bucket_type, V}]) ->
     validate_non_empty_binary(V);
-validate([<<"access_log">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{access_log, V}]) ->
-    validate_access_rule(V);
-validate([<<"css_file">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{cssfile, V}]) ->
-    validate_maybe_css_file(V);
-validate([<<"dirname">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{dirname, V}]) ->
-    validate_enum(V, [room_jid,room_name]);
-validate([<<"dirtype">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{dirtype, V}]) ->
-    validate_enum(V, [subdirs,plain]);
-validate([<<"file_format">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{file_format, V}]) ->
-    validate_enum(V, [html,plaintext]);
-validate([<<"outdir">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{outdir, V}]) ->
-    validate_dirname(V);
-validate([<<"spam_prevention">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{spam_prevention, V}]) ->
-    validate_boolean(V);
-validate([<<"timezone">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{timezone, V}]) ->
-    validate_enum(V, [local,universal]);
-validate([<<"top_link">>, <<"mod_muc_log">>, <<"modules">>|_],
-         [{top_link, V}]) ->
-    validate_top_link(V);
 validate([<<"access_createnode">>, <<"mod_pubsub">>, <<"modules">>|_],
          [{access_createnode, V}]) ->
     validate_access_rule(V);
@@ -803,6 +776,7 @@ validate(V, string, url) -> validate_url(V);
 validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, non_empty) -> validate_non_empty_string(V);
+validate(V, string, dirname) -> validate_dirname(V);
 validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
@@ -1010,15 +984,6 @@ validate_keystore_key({Name, ram}) ->
 validate_keystore_key({Name, {file, Path}}) ->
     validate_non_empty_atom(Name),
     validate_filename(Path).
-
-validate_maybe_css_file(false) ->
-    ok;
-validate_maybe_css_file(Bin) ->
-    validate_non_empty_binary(Bin). %% Could be more precise type
-
-validate_top_link({Url, Text}) ->
-    validate_url(Url),
-    validate_non_empty_string(Text).
 
 validate_pubsub_nodetree(Value) ->
     validate_non_empty_binary(Value),
