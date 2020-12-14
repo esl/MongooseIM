@@ -188,6 +188,7 @@ groups() ->
                             mod_muc_default_room,
                             mod_muc_default_room_affiliations,
                             mod_muc_log,
+                            mod_muc_log_top_link,
                             mod_muc_light,
                             mod_muc_light_config_schema,
                             mod_offline,
@@ -2168,44 +2169,42 @@ mod_muc_default_room_affiliations(_Config) ->
 
 mod_muc_log(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => Opts}} end,
-    run_multi(
-        generic_opts_cases(mod_muc_log, T, mod_muc_log_opts()) ++
-        generic_renamed_opts_cases(mod_muc_log, T, mod_muc_log_renamed_opts()) ++
-        generic_bad_opts_cases(T, mod_muc_log_bad_opts())
-      ).
+    M = fun(Cfg) -> modopts(mod_muc_log, Cfg) end,
+    ?eqf(M([{outdir, "www/muc"}]),
+         T(#{<<"outdir">> => <<"www/muc">>})),
+    ?eqf(M([{access_log, muc_admin}]),
+         T(#{<<"access_log">> => <<"muc_admin">>})),
+    ?eqf(M([{dirtype, subdirs}]),
+         T(#{<<"dirtype">> => <<"subdirs">>})),
+    ?eqf(M([{dirname, room_name}]),
+         T(#{<<"dirname">> => <<"room_name">>})),
+    ?eqf(M([{file_format, html}]),
+         T(#{<<"file_format">> => <<"html">>})),
+    ?eqf(M([{cssfile, <<"path/to/css_file">>}]),
+         T(#{<<"css_file">> => <<"path/to/css_file">>})),
+    ?eqf(M([{timezone, local}]),
+         T(#{<<"timezone">> => <<"local">>})),
+    ?eqf(M([{spam_prevention, false}]),
+         T(#{<<"spam_prevention">> => false})),
+    ?errf(T(#{<<"outdir">> => <<"does/not/exist">>})),
+    ?errf(T(#{<<"access_log">> => 1})),
+    ?errf(T(#{<<"dirtype">> => <<"imaginary">>})),
+    ?errf(T(#{<<"dirname">> => <<"dyrektory">>})),
+    ?errf(T(#{<<"file_format">> => <<"none">>})),
+    ?errf(T(#{<<"css_file">> => <<>>})),
+    ?errf(T(#{<<"timezone">> => <<"yes">>})),
+    ?errf(T(#{<<"spam_prevention">> => <<"spam and eggs and spam">>})).
 
-mod_muc_log_renamed_opts() ->
-    %% toml-name mim-name toml mim
-    [{css_file, cssfile, <<"path/to/css_file">>, <<"path/to/css_file">>},
-     {css_file, cssfile, false, false}].
-
-mod_muc_log_opts() ->
-    %% name toml mim
-    [{outdir, <<"www/muc">>, "www/muc"},
-     {access_log, <<"muc_admin">>, muc_admin},
-     {dirtype, <<"subdirs">>, subdirs},
-     {dirtype, <<"plain">>, plain},
-     {file_format, <<"html">>, html},
-     {file_format, <<"plaintext">>, plaintext},
-     {timezone, <<"local">>, local},
-     {timezone, <<"universal">>, universal},
-     {spam_prevention, true, true},
-     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/">>,
-                  <<"text">> => <<"docs">>},
-                {"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/", "docs"}}].
-
-mod_muc_log_bad_opts() ->
-    %% toml-name toml
-    [{outdir, 1},
-     {outdir, <<"does/not/exist">>},
-     {access_log, 1},
-     {dirtype, <<"subways">>},
-     {file_format, <<"haskelencodedlove">>},
-     {timezone, <<"galactive">>},
-     {spam_prevention, 69},
-     {top_link, #{<<"target">> => 1, <<"text">> => <<"docs">>}},
-     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>, <<"text">> => <<>>}}
-    ].
+mod_muc_log_top_link(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => #{<<"top_link">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_muc_log, [{top_link, Cfg}]) end,
+    RequiredOpts = #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>,
+                     <<"text">> => <<"Docs">>},
+    ExpectedCfg = {"https://esl.github.io/MongooseDocs/", "Docs"},
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    [?errf(T(maps:remove(K, RequiredOpts))) || K <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"target">> => true})),
+    ?errf(T(RequiredOpts#{<<"text">> => <<"">>})).
 
 mod_muc_light(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
