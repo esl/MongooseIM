@@ -24,12 +24,13 @@
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_TOKEN_BYTES, 32).
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
--export([start/2, stop/1, iq_handler/4, get_urls/5]).
+-export([start/2, stop/1, iq_handler/4, get_urls/5, config_spec/0]).
 
 %% Hook implementations
 -export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
@@ -121,6 +122,37 @@ get_urls(Host, Filename, Size, ContentType, Timeout) ->
     NewOpts = gen_mod:set_opt(expiration_time, Opts, Timeout),
     mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
                                         ContentType, Size, NewOpts).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                  <<"host">> => #option{type = string,
+                                        validate = domain_template},
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, mod_http_upload}},
+                  <<"expiration_time">> => #option{type = integer,
+                                                   validate = positive},
+                  <<"token_bytes">> => #option{type = integer,
+                                               validate = positive},
+                  <<"max_file_size">> => #option{type = integer,
+                                                 validate = positive},
+                  <<"s3">> => s3_spec()
+        },
+        required = [<<"s3">>]
+    }.
+
+s3_spec() ->
+    #section{
+        items = #{<<"bucket_url">> => #option{type = string,
+                                              validate = url},
+                  <<"add_acl">> => #option{type = boolean},
+                  <<"region">> => #option{type = string},
+                  <<"access_key_id">> => #option{type = string},
+                  <<"secret_access_key">> => #option{type = string}
+        },
+        required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>]
+    }.
 
 -spec get_disco_identity(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().

@@ -1860,49 +1860,34 @@ mod_event_pusher_rabbit(_Config) ->
     ?errf(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
 
 mod_http_upload(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
-    S3 = #{
-      <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
-      <<"add_acl">> => true,
-      <<"region">> => <<"antarctica-1">>,
-      <<"access_key_id">> => <<"PLEASE">>,
-      <<"secret_access_key">> => <<"ILOVEU">>
-     },
-    Base = #{
-           <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-           <<"host">> => <<"upload.@HOST@">>,
-           <<"backend">> => <<"s3">>,
-           <<"expiration_time">> => 666,
-           <<"token_bytes">> => 32,
-           <<"max_file_size">> => 42,
-           <<"s3">> => S3
-          },
-    MS3 = [{access_key_id, "PLEASE"},
-           {add_acl, true},
-           {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-           {region, "antarctica-1"},
-           {secret_access_key, "ILOVEU"}],
-    MBase = [{backend, s3},
-             {expiration_time, 666},
-             {host, "upload.@HOST@"},
-             {iqdisc, one_queue},
-             {max_file_size, 42},
-             {s3, MS3},
-             {token_bytes, 32}],
-    ?eqf(modopts(mod_http_upload, MBase), T(Base)),
-    ?errf(T(Base#{<<"host">> => -1})),
-    ?errf(T(Base#{<<"host">> => <<" f g ">>})),
-    ?errf(T(Base#{<<"backend">> => <<"dev_null_as_a_service">>})),
-    ?errf(T(Base#{<<"expiration_time">> => <<>>})),
-    ?errf(T(Base#{<<"expiration_time">> => -1})),
-    ?errf(T(Base#{<<"token_bytes">> => -1})),
-    ?errf(T(Base#{<<"max_file_size">> => -1})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"access_key_id">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"add_acl">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"bucket_url">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"region">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"secret_access_key">> => -1}})),
-    check_iqdisc(mod_http_upload).
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_http_upload">> => Opts}} end,
+    M = fun(Opts) -> modopts(mod_http_upload, Opts) end,
+    RequiredOpts = #{<<"s3">> => #{
+        <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+        <<"region">> => <<"antarctica-1">>,
+        <<"access_key_id">> => <<"PLEASE">>,
+        <<"secret_access_key">> => <<"ILOVEU">>
+    }},
+    ExpectedCfg = [{s3, [{access_key_id, "PLEASE"},
+        {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
+        {region, "antarctica-1"},
+        {secret_access_key, "ILOVEU"}]}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{host, "upload.@HOST@"}]),
+         T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
+    ?eqf(M(ExpectedCfg ++ [{backend, s3}]),
+    T(RequiredOpts#{<<"backend">> => <<"s3">>})),
+    ?eqf(M(ExpectedCfg ++ [{expiration_time, 666}]),
+         T(RequiredOpts#{<<"expiration_time">> => 666})),
+    ?eqf(M(ExpectedCfg ++ [{token_bytes, 32}]),
+         T(RequiredOpts#{<<"token_bytes">> => 32})),
+    ?eqf(M(ExpectedCfg ++ [{max_file_size, 42}]),
+         T(RequiredOpts#{<<"max_file_size">> => 42})),
+    ?errf(T(#{<<"backend">> => <<"">>})),
+    ?errf(T(#{<<"expiration_time">> => 0})),
+    ?errf(T(#{<<"token_bytes">> => 0})),
+    ?errf(T(#{<<"max_file_size">> => 0})).
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,

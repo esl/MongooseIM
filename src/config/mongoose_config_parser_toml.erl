@@ -104,19 +104,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"host">>, <<"mod_http_upload">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"backend">>, <<"mod_http_upload">>|_], V) ->
-    [{backend, b2a(V)}];
-module_opt([<<"expiration_time">>, <<"mod_http_upload">>|_], V) ->
-    [{expiration_time, V}];
-module_opt([<<"token_bytes">>, <<"mod_http_upload">>|_], V) ->
-    [{token_bytes, V}];
-module_opt([<<"max_file_size">>, <<"mod_http_upload">>|_], V) ->
-    [{max_file_size, V}];
-module_opt([<<"s3">>, <<"mod_http_upload">>|_] = Path, V) ->
-    S3Opts = parse_section(Path, V),
-    [{s3, S3Opts}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     {Type, Opts} = maps:take(<<"type">>, V),
@@ -148,18 +135,6 @@ riak_opts([<<"bucket_type">>|_], V) ->
     [{bucket_type, V}];
 riak_opts([<<"search_index">>|_], V) ->
     [{search_index, V}].
-
--spec mod_http_upload_s3(path(), toml_value()) -> [option()].
-mod_http_upload_s3([<<"bucket_url">>|_], V) ->
-    [{bucket_url, b2l(V)}];
-mod_http_upload_s3([<<"add_acl">>|_], V) ->
-    [{add_acl, V}];
-mod_http_upload_s3([<<"region">>|_], V) ->
-    [{region, b2l(V)}];
-mod_http_upload_s3([<<"access_key_id">>|_], V) ->
-    [{access_key_id, b2l(V)}];
-mod_http_upload_s3([<<"secret_access_key">>|_], V) ->
-    [{secret_access_key, b2l(V)}].
 
 -spec iqdisc_value(atom(), toml_section()) -> option().
 iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
@@ -413,6 +388,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_event_pusher">>,
         Mod =/= <<"mod_extdisco">>,
         Mod =/= <<"mod_global_distrib">>,
+        Mod =/= <<"mod_http_upload">>,
         Mod =/= <<"mod_inbox">>,
         Mod =/= <<"mod_jingle_sip">>,
         Mod =/= <<"mod_keystore">>,
@@ -444,8 +420,6 @@ handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
 handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
 handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
-handler([_, <<"s3">>, <<"mod_http_upload">>, <<"modules">>]) ->
-    fun mod_http_upload_s3/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
