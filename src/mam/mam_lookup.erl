@@ -31,7 +31,7 @@ decode_row(Row, #{decode_row_fn := DecodeF} = Env) ->
 
 %% Private logic below
 
-%% There is no optimizations for these queries yet:
+%% There are no optimizations for these queries yet:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
 -spec opt_count_type(RSM :: maybe_rsm()) -> opt_count_type().
