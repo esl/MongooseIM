@@ -78,6 +78,7 @@
 -export([prepare/4,
          prepared/1,
          execute/3,
+         execute_successfully/3,
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
@@ -115,7 +116,8 @@
          use_escaped_null/1]).
 
 %% count / integra types decoding
--export([result_to_integer/1]).
+-export([result_to_integer/1,
+         selected_to_integer/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -176,7 +178,8 @@ prepare(Name, Table, [Field | _] = Fields, Statement) when is_atom(Field) ->
     prepare(Name, Table, [atom_to_binary(F, utf8) || F <- Fields], Statement);
 prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
     true = lists:all(fun is_binary/1, Fields),
-    case ets:insert_new(prepared_statements, {Name, Table, Fields, Statement}) of
+    Tuple = {Name, Table, Fields, iolist_to_binary(Statement)},
+    case ets:insert_new(prepared_statements, Tuple) of
         true  -> {ok, Name};
         false -> {error, already_exists}
     end.
@@ -189,6 +192,38 @@ prepared(Name) ->
                      query_result().
 execute(Host, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_call(Host, {sql_execute, Name, Parameters}).
+
+%% Same as execute/3, but would fail loudly on any error.
+-spec execute_successfully(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
+                     query_result().
+execute_successfully(Host, Name, Parameters) ->
+    try execute(Host, Name, Parameters) of
+        {selected, _} = Result ->
+            Result;
+        {updated, _} = Result ->
+            Result;
+        Other ->
+            Log = #{what => sql_execute_failed, host => Host,statement_name => Name,
+                    statement_query => query_name_to_string(Name),
+                    statement_params => Parameters, reason => Other},
+            ?LOG_ERROR(Log),
+            error(Log)
+    catch error:Reason:Stacktrace ->
+            Log = #{what => sql_execute_failed, host => Host, statement_name => Name,
+                    statement_query => query_name_to_string(Name),
+                    statement_params => Parameters,
+                    reason => Reason, stacktrace => Stacktrace},
+            ?LOG_ERROR(Log),
+            erlang:raise(error, Reason, Stacktrace)
+    end.
+
+query_name_to_string(Name) ->
+    case ets:lookup(prepared_statements, Name) of
+        [] ->
+            not_found;
+        [{_, _Table, _Fields, Statement}] ->
+            Statement
+    end.
 
 -spec sql_query(Host :: server(), Query :: any()) -> query_result().
 sql_query(Host, Query) ->
@@ -411,6 +446,9 @@ result_to_integer(Int) when is_integer(Int) ->
     Int;
 result_to_integer(Bin) when is_binary(Bin) ->
     binary_to_integer(Bin).
+
+selected_to_integer({selected, [{BInt}]}) ->
+    result_to_integer(BInt).
 
 %% pgsql returns booleans as "t" or "f"
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().

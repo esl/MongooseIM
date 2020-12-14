@@ -28,8 +28,12 @@
 
 -export([get_db_type/0,
          begin_trans/0,
-         get_db_specific_limits/1,
+         get_db_specific_limits/0,
+         get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,
+         add_limit_arg/2,
+         limit_offset_sql/0,
+         limit_offset_args/2,
          sql_transaction/2,
          get_last/2,
          select_last/3,
@@ -819,20 +823,29 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
     Fields2 = lists:append(lists:duplicate(RowsNum, Fields)),
     {Sql, Fields2}.
 
+get_db_specific_limits() ->
+    do_get_db_specific_limits(?RDBMS_TYPE, "?", true).
+
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
 get_db_specific_limits(Limit) ->
     LimitStr = integer_to_list(Limit),
-    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr).
+    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr, false).
 
 -spec get_db_specific_offset(integer(), integer()) -> iolist().
 get_db_specific_offset(Offset, Limit) ->
     do_get_db_specific_offset(?RDBMS_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
 
-do_get_db_specific_limits(mssql, LimitStr) ->
+%% Arguments:
+%% - Type (atom) - database type
+%% - LimitStr (string) - a field value
+%% - Wrap (boolean) - add parentheses around a field for MSSQL
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = false) ->
     {"", "TOP " ++ LimitStr};
-do_get_db_specific_limits(_, LimitStr) ->
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = true) ->
+    {"", "TOP (" ++ LimitStr ++ ")"};
+do_get_db_specific_limits(_, LimitStr, _Wrap) ->
     {"LIMIT " ++ LimitStr, ""}.
 
 do_get_db_specific_offset(mssql, Offset, Limit) ->
@@ -840,3 +853,29 @@ do_get_db_specific_offset(mssql, Offset, Limit) ->
     " FETCH NEXT ", Limit, " ROWS ONLY"];
 do_get_db_specific_offset(_, Offset, _Limit) ->
     [" OFFSET ", Offset].
+
+add_limit_arg(Limit, Args) ->
+    add_limit_arg(?RDBMS_TYPE, Limit, Args).
+
+add_limit_arg(mssql, Limit, Args) ->
+    [Limit|Args];
+add_limit_arg(_, Limit, Args) ->
+    Args ++ [Limit].
+
+get_db_specific_limits_binaries(Limit) ->
+    {LimitSQL, LimitMSSQL} = get_db_specific_limits(Limit),
+    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
+
+limit_offset_sql() ->
+    limit_offset_sql(?RDBMS_TYPE).
+
+limit_offset_sql(mssql) ->
+    <<" OFFSET (?) ROWS FETCH NEXT (?) ROWS ONLY">>;
+limit_offset_sql(_) ->
+    <<" LIMIT ? OFFSET ?">>.
+
+limit_offset_args(Limit, Offset) ->
+    limit_offset_args(?RDBMS_TYPE, Limit, Offset).
+
+limit_offset_args(mssql, Limit, Offset) -> [Offset, Limit];
+limit_offset_args(_, Limit, Offset) -> [Limit, Offset].
