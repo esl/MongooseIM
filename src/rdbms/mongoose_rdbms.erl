@@ -178,7 +178,8 @@ prepare(Name, Table, [Field | _] = Fields, Statement) when is_atom(Field) ->
     prepare(Name, Table, [atom_to_binary(F, utf8) || F <- Fields], Statement);
 prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
     true = lists:all(fun is_binary/1, Fields),
-    case ets:insert_new(prepared_statements, {Name, Table, Fields, Statement}) of
+    Tuple = {Name, Table, Fields, iolist_to_binary(Statement)},
+    case ets:insert_new(prepared_statements, Tuple) of
         true  -> {ok, Name};
         false -> {error, already_exists}
     end.
