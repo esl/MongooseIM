@@ -42,6 +42,7 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
          process_iq/4,
          process_local_iq/4,
          get_user_roster/2,
@@ -75,6 +76,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
+-include("mongoose_config_spec.hrl").
 
 -export_type([roster/0, sub_presence/0]).
 
@@ -211,6 +213,26 @@ start(Host, Opts) ->
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                <<"versioning">> => #option{type = boolean},
+                <<"store_current_id">> => #option{type = boolean},
+                <<"backend">> => #option{type = atom,
+                                          validate = {module, mod_roster}},
+                <<"riak">> => riak_config_spec()
+                }
+      }.
+
+riak_config_spec() ->
+    #section{items = #{<<"bucket_type">> => #option{type = binary,
+                                                    validate = non_empty},
+                       <<"version_bucket_type">> => #option{type = binary,
+                                                            validate = non_empty}},
+             format = none
+            }.
 
 hooks(Host) ->
     [{roster_get, Host, ?MODULE, get_user_roster, 50},
