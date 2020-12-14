@@ -631,15 +631,6 @@ validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
 validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_chat_marker_type(V);
-validate([<<"access_max_user_messages">>, <<"mod_offline">>, <<"modules">>|_],
-         [{access_max_user_messages, V}]) ->
-    validate_access_rule(V);
-validate([<<"backend">>, <<"mod_offline">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_offline, V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_offline">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
 validate([<<"access_createnode">>, <<"mod_pubsub">>, <<"modules">>|_],
          [{access_createnode, V}]) ->
     validate_access_rule(V);

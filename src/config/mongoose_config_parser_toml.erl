@@ -175,8 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"access_max_user_messages">>, <<"mod_offline">>|_], V) ->
-    [{access_max_user_messages, b2a(V)}];
 module_opt([<<"send_pings">>, <<"mod_ping">>|_], V) ->
     [{send_pings, V}];
 module_opt([<<"ping_interval">>, <<"mod_ping">>|_], V) ->
@@ -854,7 +852,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_event_pusher">>,
         Mod =/= <<"mod_muc">>,
         Mod =/= <<"mod_muc_light">>,
-        Mod =/= <<"mod_muc_log">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_muc_log">>,
+        Mod =/= <<"mod_offline">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

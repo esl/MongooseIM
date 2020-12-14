@@ -740,7 +740,8 @@ all_modules() ->
      mod_event_pusher,
      mod_muc,
      mod_muc_light,
-     mod_muc_log].
+     mod_muc_log,
+     mod_offline].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

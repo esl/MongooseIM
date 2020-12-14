@@ -2271,16 +2271,17 @@ mod_muc_light_config_schema(_Config) ->
 
 mod_offline(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
-    Base = #{<<"access_max_user_messages">> => <<"max_user_offline_messages">>,
-             <<"backend">> => <<"riak">>,
-             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
-    MBase = [{access_max_user_messages, max_user_offline_messages},
-             {backend, riak},
-             {bucket_type, <<"test">>}],
-    ?eqf(modopts(mod_offline, MBase), T(Base)),
-    ?errf(T(Base#{<<"access_max_user_messages">> => 1})),
-    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    M = fun(Cfg) -> modopts(mod_offline, Cfg) end,
+    ?eqf(M([{access_max_user_messages, max_user_offline_messages}]),
+         T(#{<<"access_max_user_messages">> => <<"max_user_offline_messages">>})),
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{bucket_type, <<"test">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+    ?errf(T(#{<<"access_max_user_messages">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"riak_is_the_best">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket">> => <<"leaky">>}})).
 
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
