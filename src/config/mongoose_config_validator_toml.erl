@@ -211,27 +211,6 @@ validate([<<"iqdisc">>, <<"mod_version">>, <<"modules">>|_],
 validate([<<"os_info">>, <<"mod_version">>, <<"modules">>|_],
          [{os_info, V}]) ->
     validate_boolean(V);
-validate([<<"access">>, <<"mod_register">>, <<"modules">>|_],
-         [{access, V}]) ->
-    validate_non_empty_atom(V);
-validate([item, <<"ip_access">>, <<"mod_register">>, <<"modules">>|_],
-         [V]) ->
-    validate_ip_access(V);
-validate([<<"iqdisc">>, <<"mod_register">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"password_strength">>, <<"mod_register">>, <<"modules">>|_],
-         [{password_strength, V}]) ->
-    validate_non_negative_integer(V);
-validate([item, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>|_],
-         [V]) ->
-    validate_jid(V);
-validate([<<"body">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
-         [{body, V}]) ->
-    validate_string(V);
-validate([<<"subject">>, <<"welcome_message">>, <<"mod_register">>, <<"modules">>|_],
-         [{subject, V}]) ->
-    validate_string(V);
 validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
          [{type, V}]) ->
     validate_non_empty_atom(V);
@@ -607,8 +586,7 @@ validate(_Path, _Value) ->
 
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
-validate(V, binary, {module, Prefix}) ->
-    validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
+validate(V, binary, jid) -> validate_jid(V);
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);
 validate(V, integer, positive) -> validate_positive_integer(V);
 validate(V, integer, port) -> validate_port(V);
@@ -617,6 +595,7 @@ validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(
 validate(V, string, url) -> validate_url(V);
 validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
+validate(V, string, ip_mask) -> validate_ip_mask_string(V);
 validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, string, dirname) -> validate_dirname(V);
 validate(V, atom, module) -> validate_module(V);
