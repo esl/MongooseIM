@@ -31,14 +31,18 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
          clean_opts/1,
          stream_feature_register/2,
          unauthenticated_iq_register/4,
          try_register/5,
-         process_iq/4]).
+         process_iq/4,
+         process_ip_access/1,
+         process_welcome_message/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -64,6 +68,50 @@ stop(Host) ->
                           ?MODULE, unauthenticated_iq_register, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_REGISTER),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_REGISTER).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                 <<"access">> => #option{type = atom,
+                                         validate = non_empty},
+                 <<"welcome_message">> => welcome_message_spec(),
+                 <<"registration_watchers">> => #list{items = #option{type = binary,
+                                                                      validate = jid}},
+                 <<"password_strength">> => #option{type = integer,
+                                                    validate = non_negative},
+                 <<"ip_access">> => #list{items = ip_access_spec()}
+                }
+      }.
+
+welcome_message_spec() ->
+    #section{
+        items = #{<<"body">> => #option{type = string,
+                                        validate = non_empty},
+                  <<"subject">> => #option{type = string,
+                                           validate = non_empty}},
+        process = fun ?MODULE:process_welcome_message/1
+    }.
+
+ip_access_spec() ->
+    #section{
+        items = #{<<"address">> => #option{type = string,
+                                           validate = ip_mask},
+                  <<"policy">> => #option{type = atom,
+                                          validate = {enum, [allow, deny]}}
+                },
+        required = all,
+        process = fun ?MODULE:process_ip_access/1
+    }.
+
+process_ip_access(KVs) ->
+    {[[{address, Address}], [{policy, Policy}]], []} = proplists:split(KVs, [address, policy]),
+    {Policy, Address}.
+
+process_welcome_message(KVs) ->
+    Body = proplists:get_value(body, KVs, ""),
+    Subject = proplists:get_value(subject, KVs, ""),
+    {Subject, Body}.
 
 clean_opts(Opts) ->
     lists:map(fun clean_opt/1, Opts).

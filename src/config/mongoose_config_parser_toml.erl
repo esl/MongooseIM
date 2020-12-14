@@ -164,17 +164,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"access">>, <<"mod_register">>|_], V) ->
-    [{access, b2a(V)}];
-module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
-    [{registration_watchers, parse_list(Path, V)}];
-module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
-    [{password_strength, V}];
-module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
-    Rules = parse_list(Path, V),
-    [{ip_access, Rules}];
-module_opt([<<"welcome_message">>, <<"mod_register">>|_] = Path, V) ->
-    parse_section(Path, V, fun process_welcome_message/1);
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
@@ -271,11 +260,6 @@ module_opt([<<"ldap_deref">>|_], V) ->
 module_opt([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
-process_welcome_message(Props) ->
-    Subject = proplists:get_value(subject, Props, ""),
-    Body = proplists:get_value(body, Props, ""),
-    [{welcome_message, {Subject, Body}}].
-
 %% path: (host_config[].)modules.*.riak.*
 -spec riak_opts(path(), toml_section()) -> [option()].
 riak_opts([<<"defaults_bucket_type">>|_], V) ->
@@ -288,10 +272,6 @@ riak_opts([<<"bucket_type">>|_], V) ->
     [{bucket_type, V}];
 riak_opts([<<"search_index">>|_], V) ->
     [{search_index, V}].
-
--spec mod_register_ip_access_rule(path(), toml_section()) -> [option()].
-mod_register_ip_access_rule(_, #{<<"address">> := Addr, <<"policy">> := Policy}) ->
-    [{b2a(Policy), b2l(Addr)}].
 
 -spec mod_extdisco_service(path(), toml_value()) -> [option()].
 mod_extdisco_service([_, <<"service">>|_] = Path, V) ->
@@ -442,11 +422,6 @@ iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
 iqdisc_value(Type, V) ->
     limit_keys([], V),
     Type.
-
-welcome_message([<<"subject">>|_], Value) ->
-    [{subject, b2l(Value)}];
-welcome_message([<<"body">>|_], Value) ->
-    [{body, b2l(Value)}].
 
 %% path: host_config[]
 -spec process_host_item(path(), toml_section()) -> config_list().
@@ -711,7 +686,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_privacy">>,
         Mod =/= <<"mod_private">>,
         Mod =/= <<"mod_pubsub">>,
-        Mod =/= <<"mod_push_service_mongoosepush">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_push_service_mongoosepush">>,
+        Mod =/= <<"mod_register">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -723,12 +699,6 @@ handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
 handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
 handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
-handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
-    fun mod_register_ip_access_rule/2;
-handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
-    fun welcome_message/2;
 handler([_, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
     fun mod_extdisco_service/2;
 handler([_, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
