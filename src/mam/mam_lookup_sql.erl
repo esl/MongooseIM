@@ -61,22 +61,7 @@ lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
             ok
     end,
     Args = filters_to_args(Filters, OffsetLimit),
-    try mongoose_rdbms:execute(Host, StmtName, Args) of
-        {selected, Rs} when is_list(Rs) ->
-            {selected, Rs};
-        Error ->
-            What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Table, Env, Filters, Order, OffsetLimit),
-                     reason => Error, host => Host},
-            ?LOG_ERROR(What),
-            error(What)
-    catch error:Error:Stacktrace ->
-            What = #{what => mam_lookup_failed, statement => StmtName,
-                     sql_query => lookup_sql_binary(QueryType, Table, Env, Filters, Order, OffsetLimit),
-                     stacktrace => Stacktrace, reason => Error, host => Host},
-            ?LOG_ERROR(What),
-            erlang:raise(error, Error, Stacktrace)
-    end.
+    mongoose_rdbms:execute_successfully(Host, StmtName, Args).
 
 lookup_sql_binary(QueryType, Table, Env, Filters, Order, OffsetLimit) ->
     iolist_to_binary(lookup_sql(QueryType, Table, Env, Filters, Order, OffsetLimit)).
@@ -137,12 +122,10 @@ offset_limit_to_id(all) -> "all".
 
 filters_to_sql(Filters) ->
     SQLs = [filter_to_sql(Filter) || Filter <- Filters],
-    case skip_undefined(SQLs) of
+    case SQLs of
         [] -> "";
         Defined -> [" WHERE ", rdbms_queries:join(Defined, " AND ")]
     end.
-
-skip_undefined(List) -> [X || X <- List, X =/= undefined].
 
 -spec filter_to_sql(mam_filter:filter_field()) -> sql_part().
 filter_to_sql({Op, Column, _Value}) -> filter_to_sql(atom_to_list(Column), Op).

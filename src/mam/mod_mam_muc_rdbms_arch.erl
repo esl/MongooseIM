@@ -227,7 +227,7 @@ archive_message(_Result, Host, Params0 = #{local_jid := ArcJID}) ->
 
 do_archive_message(Host, Params, Env) ->
     Row = mam_encoder:encode_message(Params, Env, db_mappings()),
-    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row).
+    {updated, 1} = mongoose_rdbms:execute_successfully(Host, insert_mam_muc_message, Row).
 
 %% Retraction logic
 %% Called after inserting a new message
@@ -261,13 +261,12 @@ make_tombstone(Host, ArcID, OriginID, #{packet := Packet, message_id := MessID},
     execute_make_tombstone(Host, TombstoneData, ArcID, MessID).
 
 execute_select_messages_to_retract(Host, ArcID, SenderID, OriginID) ->
-    mod_mam_utils:success_sql_execute(Host, mam_muc_select_messages_to_retract,
+    mongoose_rdbms:execute_successfully(Host, mam_muc_select_messages_to_retract,
                                       [ArcID, SenderID, OriginID]).
 
 execute_make_tombstone(Host, TombstoneData, ArcID, MessID) ->
-    {updated, _} =
-        mod_mam_utils:success_sql_execute(Host, mam_muc_make_tombstone,
-                                          [TombstoneData, ArcID, MessID]).
+    mongoose_rdbms:execute_successfully(Host, mam_muc_make_tombstone,
+                                      [TombstoneData, ArcID, MessID]).
 
 %% Insert logic
 -spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
@@ -292,11 +291,11 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
     Acc.
 
 remove_archive(Host, ArcID) ->
-    {updated, _} = mod_mam_utils:success_sql_execute(Host, mam_muc_archive_remove, [ArcID]).
+    mongoose_rdbms:execute_successfully(Host, mam_muc_archive_remove, [ArcID]).
 
 %% GDPR logic
 extract_gdpr_messages(Host, SenderID) ->
-    mod_mam_utils:success_sql_execute(Host, mam_muc_extract_gdpr_messages, [SenderID]).
+    mongoose_rdbms:execute_successfully(Host, mam_muc_extract_gdpr_messages, [SenderID]).
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
