@@ -69,7 +69,7 @@
          expand_minified_jid/2]).
 
 %% SQL
--export([success_sql_query/2, success_sql_execute/3]).
+-export([success_sql_query/2]).
 
 %% Other
 -export([maybe_integer/2,
@@ -1098,11 +1098,6 @@ is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,
 success_sql_query(HostOrConn, Query) ->
     Result = mongoose_rdbms:sql_query(HostOrConn, Query),
     error_on_sql_error(HostOrConn, Query, Result).
-
--spec success_sql_execute(atom() | jid:server(), atom(), [term()]) -> any().
-success_sql_execute(HostOrConn, Name, Params) ->
-    Result = mongoose_rdbms:execute(HostOrConn, Name, Params),
-    error_on_sql_error(HostOrConn, Name, Result).
 
 error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
     ?LOG_ERROR(#{what => mam_sql_error,
