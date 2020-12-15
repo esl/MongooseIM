@@ -178,38 +178,6 @@ module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
-module_opt([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_useruid, b2l(V)}];
-module_opt([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_groupattr, b2l(V)}];
-module_opt([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_groupdesc, b2l(V)}];
-module_opt([<<"ldap_userdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_userdesc, b2l(V)}];
-module_opt([<<"ldap_userid">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_userid, b2l(V)}];
-module_opt([<<"ldap_memberattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr, b2l(V)}];
-module_opt([<<"ldap_memberattr_format">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr_format, b2l(V)}];
-module_opt([<<"ldap_memberattr_format_re">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr_format_re, b2l(V)}];
-module_opt([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_auth_check, V}];
-module_opt([<<"ldap_user_cache_validity">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_user_cache_validity, V}];
-module_opt([<<"ldap_group_cache_validity">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_group_cache_validity, V}];
-module_opt([<<"ldap_user_cache_size">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_user_cache_size, V}];
-module_opt([<<"ldap_group_cache_size">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_group_cache_size, V}];
-module_opt([<<"ldap_rfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_rfilter, b2l(V)}];
-module_opt([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_gfilter, b2l(V)}];
-module_opt([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_ufilter, b2l(V)}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"no_buffer">>) ->
     [{buffer_max, no_buffer}];
 module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], V) ->
@@ -742,7 +710,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_pubsub">>,
         Mod =/= <<"mod_push_service_mongoosepush">>,
         Mod =/= <<"mod_register">>,
-        Mod =/= <<"mod_roster">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_roster">>,
+        Mod =/= <<"mod_shared_roster_ldap">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

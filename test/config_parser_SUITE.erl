@@ -2583,79 +2583,70 @@ mod_roster(_Config) ->
 
 mod_shared_roster_ldap(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
-    MBase = [{ldap_pool_tag, default},
-             {ldap_base,  "string"},
-             {ldap_deref, never},
-             %% Options: attributes
-             {ldap_groupattr, "cn"},
-             {ldap_groupdesc, "default"},
-             {ldap_userdesc, "cn"},
-             {ldap_useruid, "cn"},
-             {ldap_memberattr, "memberUid"},
-             {ldap_memberattr_format, "%u"},
-             {ldap_memberattr_format_re,""},
-             %% Options: parameters
-             {ldap_auth_check, true},
-             {ldap_user_cache_validity, 300},
-             {ldap_group_cache_validity, 300},
-             {ldap_user_cache_size, 300},
-             {ldap_group_cache_size, 300},
-             %% Options: LDAP filters
-             {ldap_rfilter, "test"},
-             {ldap_gfilter, "test"},
-             {ldap_ufilter, "test"},
-             {ldap_filter, "test"}
-        ],
-    Base = #{
-            <<"ldap_pool_tag">> => <<"default">>,
-            <<"ldap_base">> => <<"string">>,
-            <<"ldap_deref">> => <<"never">>,
-            %% Options: attributes
-            <<"ldap_groupattr">> => <<"cn">>,
-            <<"ldap_groupdesc">> => <<"default">>,
-            <<"ldap_userdesc">> => <<"cn">>,
-            <<"ldap_useruid">> => <<"cn">>,
-            <<"ldap_memberattr">> => <<"memberUid">>,
-            <<"ldap_memberattr_format">> => <<"%u">>,
-            <<"ldap_memberattr_format_re">> => <<"">>,
-            %% Options: parameters
-            <<"ldap_auth_check">> => true,
-            <<"ldap_user_cache_validity">> => 300,
-            <<"ldap_group_cache_validity">> => 300,
-            <<"ldap_user_cache_size">> => 300,
-            <<"ldap_group_cache_size">> => 300,
-            %% Options: LDAP filters
-            <<"ldap_rfilter">> => <<"test">>,
-            <<"ldap_gfilter">> => <<"test">>,
-            <<"ldap_ufilter">> => <<"test">>,
-            <<"ldap_filter">> => <<"test">>
-        },
-    run_multi(
-      check_one_opts(mod_shared_roster_ldap, MBase, Base, T) ++ [
-            ?_eqf(modopts(mod_shared_roster_ldap, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"ldap_pool_tag">> => 1})),
-            ?_errf(T(#{<<"ldap_base">> => 1})),
-            ?_errf(T(#{<<"ldap_deref">> => 1})),
-            %% Options: attributes
-            ?_errf(T(#{<<"ldap_groupattr">> => 1})),
-            ?_errf(T(#{<<"ldap_groupdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_userdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_useruid">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
-            %% Options: parameters
-            ?_errf(T(#{<<"ldap_auth_check">> => 1})),
-            ?_errf(T(#{<<"ldap_user_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_user_cache_size">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_size">> => -1})),
-            %% Options: LDAP filters
-            ?_errf(T(#{<<"ldap_rfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_gfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_ufilter">> => 1})),
-            ?_errf(T(#{<<"ldap_filter">> => 1}))
-        ]).
+    M = fun(Cfg) -> modopts(mod_shared_roster_ldap, Cfg) end,
+    ?eqf(M([{ldap_pool_tag, default}]),
+       T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base,  "string"}]),
+       T(#{<<"ldap_base">> => <<"string">>})),
+    ?eqf(M([{ldap_deref, never}]),
+       T(#{<<"ldap_deref">> => <<"never">>})),
+    %% Options: attributes
+    ?eqf(M([ {ldap_groupattr, "cn"}]),
+       T(#{<<"ldap_groupattr">> => <<"cn">>})),
+    ?eqf(M([{ldap_groupdesc, "default"}]),
+       T(#{<<"ldap_groupdesc">> => <<"default">>})),
+    ?eqf(M([{ldap_userdesc, "cn"}]),
+       T(#{<<"ldap_userdesc">> => <<"cn">>})),
+    ?eqf(M([{ldap_useruid, "cn"}]),
+       T(#{<<"ldap_useruid">> => <<"cn">>})),
+    ?eqf(M([{ldap_memberattr, "memberUid"}]),
+       T(#{<<"ldap_memberattr">> => <<"memberUid">>})),
+    ?eqf(M([{ldap_memberattr_format, "%u"}]),
+       T(#{<<"ldap_memberattr_format">> => <<"%u">>})),
+    ?eqf(M([{ldap_memberattr_format_re,""}]),
+       T(#{<<"ldap_memberattr_format_re">> => <<"">>})),
+    %% Options: parameters
+    ?eqf(M([ {ldap_auth_check, true}]),
+       T(#{<<"ldap_auth_check">> => true})),
+    ?eqf(M([{ldap_user_cache_validity, 300}]),
+       T(#{<<"ldap_user_cache_validity">> => 300})),
+    ?eqf(M([{ldap_group_cache_validity, 300}]),
+       T(#{<<"ldap_group_cache_validity">> => 300})),
+    ?eqf(M([{ldap_user_cache_size, 300}]),
+       T(#{<<"ldap_user_cache_size">> => 300})),
+    ?eqf(M([{ldap_group_cache_size, 300}]),
+       T(#{<<"ldap_group_cache_size">> => 300})),
+    %% Options: LDAP filters
+    ?eqf(M([{ldap_rfilter, "rfilter_test"}]),
+       T(#{<<"ldap_rfilter">> => <<"rfilter_test">>})),
+    ?eqf(M([{ldap_gfilter, "gfilter_test"}]),
+       T(#{<<"ldap_gfilter">> => <<"gfilter_test">>})),
+    ?eqf(M([{ldap_ufilter, "ufilter_test"}]),
+       T(#{<<"ldap_ufilter">> => <<"ufilter_test">>})),
+   ?eqf(M([{ldap_filter, "filter_test"}]),
+       T(#{<<"ldap_filter">> => <<"filter_test">>})),
+    ?errf(T(#{<<"ldap_pool_tag">> => 1})),
+    ?errf(T(#{<<"ldap_base">> => 1})),
+    ?errf(T(#{<<"ldap_deref">> => 1})),
+    %% Options: attributes
+    ?errf(T(#{<<"ldap_groupattr">> => 1})),
+    ?errf(T(#{<<"ldap_groupdesc">> => 1})),
+    ?errf(T(#{<<"ldap_userdesc">> => 1})),
+    ?errf(T(#{<<"ldap_useruid">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
+    %% Options: parameters
+    ?errf(T(#{<<"ldap_auth_check">> => 1})),
+    ?errf(T(#{<<"ldap_user_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_user_cache_size">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_size">> => -1})),
+    %% Options: LDAP filters
+    ?errf(T(#{<<"ldap_rfilter">> => 1})),
+    ?errf(T(#{<<"ldap_gfilter">> => 1})),
+    ?errf(T(#{<<"ldap_ufilter">> => 1})),
+    ?errf(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
     check_iqdisc(mod_sic).
