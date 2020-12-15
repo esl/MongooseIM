@@ -743,7 +743,8 @@ all_modules() ->
      mod_muc_log,
      mod_offline,
      mod_ping,
-     mod_pubsub].
+     mod_pubsub,
+     mod_push_service_mongoosepush].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

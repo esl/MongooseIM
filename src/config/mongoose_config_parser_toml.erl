@@ -175,12 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"pool_name">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{pool_name, b2a(V)}];
-module_opt([<<"api_version">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{api_version, b2l(V)}];
-module_opt([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{max_http_connections, V}];
 module_opt([<<"access">>, <<"mod_register">>|_], V) ->
     [{access, b2a(V)}];
 module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
@@ -772,7 +766,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_muc_log">>,
         Mod =/= <<"mod_offline">>,
         Mod =/= <<"mod_ping">>,
-        Mod =/= <<"mod_pubsub">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_pubsub">>,
+        Mod =/= <<"mod_push_service_mongoosepush">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().

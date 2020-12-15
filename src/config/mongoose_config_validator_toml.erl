@@ -283,15 +283,6 @@ validate([<<"secret_access_key">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">
 validate([<<"token_bytes">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{token_bytes, V}]) ->
     validate_positive_integer(V);
-validate([<<"api_version">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
-         [{api_version, V}]) ->
-    validate_string(V);
-validate([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
-         [{max_http_connections, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"pool_name">>, <<"mod_push_service_mongoosepush">>, <<"modules">>|_],
-         [{pool_name, V}]) ->
-    validate_pool_name(V);
 validate([<<"backend">>, <<"mod_last">>, <<"modules">>|_],
          [{backend, V}]) ->
     validate_backend(mod_last, V);

@@ -2442,17 +2442,16 @@ mod_pubsub_default_node_config(_Config) ->
 
 mod_push_service_mongoosepush(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_push_service_mongoosepush">> => Opts}} end,
-    Base = #{<<"pool_name">> => <<"test_pool">>,
-             <<"api_version">> => <<"v3">>,
-             <<"max_http_connections">> => 100},
-    MBase = [{pool_name, test_pool},
-             {api_version, "v3"},
-             {max_http_connections, 100}],
-    ?eqf(modopts(mod_push_service_mongoosepush, lists:sort(MBase)), T(Base)),
-    ?errf(T(Base#{<<"pool_name">> => 1})),
-    ?errf(T(Base#{<<"api_version">> => 1})),
-    ?errf(T(Base#{<<"max_http_connections">> => -1})),
-    ok.
+    M = fun(Cfg) -> modopts(mod_push_service_mongoosepush, Cfg) end,
+    ?eqf(M([{pool_name, test_pool}]),
+         T(#{<<"pool_name">> => <<"test_pool">>})),
+    ?eqf(M([{api_version, "v3"}]),
+         T(#{<<"api_version">> => <<"v3">>})),
+    ?eqf(M([{max_http_connections, 100}]),
+         T(#{<<"max_http_connections">> => 100})),
+    ?errf(T(#{<<"pool_name">> => 1})),
+    ?errf(T(#{<<"api_version">> => <<"v4">>})),
+    ?errf(T(#{<<"max_http_connections">> => -1})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
