@@ -148,63 +148,6 @@ validate([<<"geriatric">>, <<"stale_h">>, <<"mod_stream_management">>, <<"module
 validate([<<"repeat_after">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
          [{stale_h_repeat_after, V}]) ->
     validate_positive_integer(V);
-validate([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_auth_check, V}]) ->
-    validate_boolean(V);
-validate([<<"ldap_base">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_base, V}]) ->
-    validate_string(V);
-validate([<<"ldap_deref">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_deref, V}]) ->
-    validate_enum(V, [never,always,finding,searching]);
-validate([<<"ldap_filter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_filter, V}]) ->
-    validate_string(V);
-validate([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_gfilter, V}]) ->
-    validate_string(V);
-validate([<<"ldap_group_cache_size">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_group_cache_size, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"ldap_group_cache_validity">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_group_cache_validity, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_groupattr, V}]) ->
-    validate_string(V);
-validate([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_groupdesc, V}]) ->
-    validate_string(V);
-validate([<<"ldap_memberattr">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_memberattr, V}]) ->
-    validate_string(V);
-validate([<<"ldap_memberattr_format">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_memberattr_format, V}]) ->
-    validate_string(V);
-validate([<<"ldap_memberattr_format_re">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_memberattr_format_re, V}]) ->
-    validate_string(V);
-validate([<<"ldap_pool_tag">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_pool_tag, V}]) ->
-    validate_pool_name(V);
-validate([<<"ldap_rfilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_rfilter, V}]) ->
-    validate_string(V);
-validate([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_ufilter, V}]) ->
-    validate_string(V);
-validate([<<"ldap_user_cache_size">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_user_cache_size, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"ldap_user_cache_validity">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_user_cache_validity, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"ldap_userdesc">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_userdesc, V}]) ->
-    validate_string(V);
-validate([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>, <<"modules">>|_],
-         [{ldap_useruid, V}]) ->
-    validate_string(V);
 validate([<<"iqdisc">>, <<"mod_version">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);

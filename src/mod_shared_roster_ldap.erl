@@ -33,7 +33,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% API
--export([start_link/2, start/2, stop/1]).
+-export([start_link/2, start/2, stop/1, config_spec/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
@@ -48,6 +48,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
+-include("mongoose_config_spec.hrl").
 
 -include("eldap.hrl").
 
@@ -103,6 +104,37 @@ start(Host, Opts) ->
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     ejabberd_sup:stop_child(Proc).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"ldap_pool_tag">> => #option{type = atom,
+                                                validate = pool_name},
+                 <<"ldap_base">> => #option{type = string},
+                 <<"ldap_deref">> => #option{type = atom,
+                                             validate = {enum, [never, always, finding, searching]}},
+                 <<"ldap_groupattr">> => #option{type = string},
+                 <<"ldap_groupdesc">> => #option{type = string},
+                 <<"ldap_userdesc">> => #option{type = string},
+                 <<"ldap_useruid">> => #option{type = string},
+                 <<"ldap_memberattr">> => #option{type = string},
+                 <<"ldap_memberattr_format">> => #option{type = string},
+                 <<"ldap_memberattr_format_re">> => #option{type = string},
+                 <<"ldap_auth_check">> => #option{type = boolean},
+                 <<"ldap_user_cache_validity">> => #option{type = integer,
+                                                           validate = positive},
+                 <<"ldap_group_cache_validity">> => #option{type = integer,
+                                                            validate = positive},
+                 <<"ldap_user_cache_size">> => #option{type = integer,
+                                                       validate = positive},
+                 <<"ldap_group_cache_size">> => #option{type = integer,
+                                                        validate = positive},
+                 <<"ldap_rfilter">> => #option{type = string},
+                 <<"ldap_gfilter">> => #option{type = string},
+                 <<"ldap_ufilter">> => #option{type = string},
+                 <<"ldap_filter">> => #option{type = string}
+                }
+      }.
 
 %%--------------------------------------------------------------------
 %% Hooks
@@ -525,9 +557,7 @@ parse_options(Host, Opts) ->
                                                       MP
                                               end, <<"">>),
     AuthCheck = eldap_utils:get_mod_opt(ldap_auth_check, Opts,
-                                        fun(on) -> true;
-                                           (off) -> false;
-                                           (false) -> false;
+                                        fun(false) -> false;
                                            (true) -> true
                                         end, true),
     UserCacheValidity = eldap_utils:get_mod_opt(
