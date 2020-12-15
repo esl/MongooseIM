@@ -25,6 +25,10 @@ jobs:
       - uses: ErlGang/setup-erlang@v1.0.0
         with:
           otp-version: ${{ matrix.otp }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/rebar3
+          key: rebar3-${{ hashFiles('rebar.lock') }}
       - name: create certificates
         run: make certs
       - name: run test
