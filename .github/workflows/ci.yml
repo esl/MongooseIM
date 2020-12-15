@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  # required for run_common_test.erl
+  KEEP_COVER_RUNNING: '1'
+  SKIP_AUTO_COMPILE: 'true'
+
+jobs:
+  small_tests:
+    name: small_tests on OTP ${{matrix.otp}}
+    strategy:
+      matrix:
+        otp: ['23.0.3', '22.3']
+    runs-on: ubuntu-latest
+    env:
+      PRESET: 'small_tests'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ErlGang/setup-erlang@v1.0.0
+        with:
+          otp-version: ${{ matrix.otp }}
+      - name: create certificates
+        run: make certs
+      - name: run test
+        run: tools/travis-test.sh -p $PRESET -s true -e true
