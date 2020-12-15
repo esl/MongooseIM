@@ -2304,22 +2304,19 @@ mod_ping(_Config) ->
 
 mod_privacy(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
-    Riak = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
-             <<"names_bucket_type">> => <<"privacy_lists_names">>,
-             <<"bucket_type">> => <<"privacy_defaults">>},
-    Base = #{<<"backend">> => <<"mnesia">>,
-             <<"riak">> => Riak},
-    MBase = [{backend, mnesia},
-             %% Riak opts
-             {defaults_bucket_type, <<"privacy_defaults">>},
-             {names_bucket_type, <<"privacy_lists_names">>},
-             {bucket_type, <<"privacy_defaults">>}],
-    ?eqf(modopts(mod_privacy, lists:sort(MBase)), T(Base)),
-    ?errf(T(Base#{<<"backend">> => 1})),
-    ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"defaults_bucket_type">> => 1}})),
-    ?errf(T(Base#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    M = fun(Cfg) -> modopts(mod_privacy, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+         T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{defaults_bucket_type, <<"defaults">>}]),
+         T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
+    ?eqf(M([{names_bucket_type, <<"names">>}]),
+         T(#{<<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
+    ?eqf(M([{bucket_type, <<"bucket">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?errf(T(#{<<"backend">> => <<"mongoddt">>})),
+    ?errf(T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<>>}})),
+    ?errf(T(#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,

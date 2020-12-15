@@ -298,18 +298,6 @@ validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
 validate([item, <<"routes">>, <<"mod_revproxy">>, <<"modules">>|_],
          [V]) ->
     validate_revproxy_route(V);
-validate([<<"backend">>, <<"mod_privacy">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_privacy, V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"defaults_bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
-         [{defaults_bucket_type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"names_bucket_type">>, <<"riak">>, <<"mod_privacy">>, <<"modules">>|_],
-         [{names_bucket_type, V}]) ->
-    validate_non_empty_binary(V);
 validate([<<"archive_chat_markers">>, <<"mod_mam_meta">>, <<"modules">>|_],
          [{archive_chat_markers, V}]) ->
     validate_boolean(V);

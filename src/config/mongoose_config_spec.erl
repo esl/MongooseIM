@@ -743,6 +743,7 @@ all_modules() ->
      mod_muc_log,
      mod_offline,
      mod_ping,
+     mod_privacy,
      mod_pubsub,
      mod_push_service_mongoosepush].
 
