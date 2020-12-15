@@ -631,118 +631,14 @@ validate([<<"remove_on_kicked">>, <<"mod_inbox">>, <<"modules">>|_],
 validate([item, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>|_],
          [V]) ->
     validate_chat_marker_type(V);
-validate([<<"access_createnode">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{access_createnode, V}]) ->
-    validate_access_rule(V);
-validate([<<"backend">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_pubsub_db, V);
-validate([<<"access_model">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{access_model, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"deliver_notifications">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{deliver_notifications, V}]) ->
-    validate_boolean(V);
-validate([<<"deliver_payloads">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{deliver_payloads, V}]) ->
-    validate_boolean(V);
-validate([<<"max_items">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{max_items, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"max_payload_size">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{max_payload_size, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"node_type">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{node_type, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"notification_type">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{notification_type, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"notify_config">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{notify_config, V}]) ->
-    validate_boolean(V);
-validate([<<"notify_delete">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{notify_delete, V}]) ->
-    validate_boolean(V);
-validate([<<"notify_retract">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{notify_retract, V}]) ->
-    validate_boolean(V);
-validate([<<"persist_items">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{persist_items, V}]) ->
-    validate_boolean(V);
-validate([<<"presence_based_delivery">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{presence_based_delivery, V}]) ->
-    validate_boolean(V);
-validate([<<"publish_model">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{publish_model, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"purge_offline">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{purge_offline, V}]) ->
-    validate_boolean(V);
-validate([item, <<"roster_groups_allowed">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [V]) ->
-    validate_non_empty_binary(V);
-validate([<<"send_last_published_item">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{send_last_published_item, V}]) ->
-    validate_non_empty_atom(V);
-validate([<<"subscribe">>, <<"default_node_config">>,
-          <<"mod_pubsub">>, <<"modules">>|_],
-         [{subscribe, V}]) ->
-    validate_boolean(V);
-validate([<<"host">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{host, V}]) ->
-    validate_domain_template(V);
-validate([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{ignore_pep_from_offline, V}]) ->
-    validate_boolean(V);
-validate([<<"iqdisc">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"item_publisher">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{item_publisher, V}]) ->
-    validate_boolean(V);
-validate([<<"last_item_cache">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{last_item_cache, V}]) ->
-    validate_enum(V, [mnesia,rdbms,false]);
-validate([<<"max_items_node">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{max_items_node, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"max_subscriptions_node">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{max_subscriptions_node, V}]) ->
-    validate_non_negative_integer(V);
-validate([<<"nodetree">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{nodetree, V}]) ->
-    validate_pubsub_nodetree(V);
-validate([item, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [V]) ->
-    validate_pubsub_pep_mapping(V);
-validate([item, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [V]) ->
-    validate_pubsub_plugin(V);
-validate([<<"sync_broadcast">>, <<"mod_pubsub">>, <<"modules">>|_],
-         [{sync_broadcast, V}]) ->
-    validate_boolean(V);
+
 validate(_Path, _Value) ->
     ok.
 
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
+validate(V, binary, {module, Prefix}) ->
+    validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);
 validate(V, integer, positive) -> validate_positive_integer(V);
 validate(V, integer, port) -> validate_port(V);
@@ -961,21 +857,6 @@ validate_keystore_key({Name, {file, Path}}) ->
     validate_non_empty_atom(Name),
     validate_filename(Path).
 
-validate_pubsub_nodetree(Value) ->
-    validate_non_empty_binary(Value),
-    validate_backend(nodetree, b2a(Value)).
-
-validate_pubsub_plugin(Value) ->
-    validate_non_empty_binary(Value),
-    validate_backend(node, b2a(Value)).
-
-validate_pubsub_pep_mapping({Namespace, Id}) ->
-    validate_non_empty_string(Namespace),
-    validate_non_empty_string(Id).
-
-b2a(Bin) ->
-    binary_to_atom(Bin, utf8).
-
 validate_revproxy_route({Host, Path, Method, Upstream}) ->
     validate_non_empty_string(Host),
     validate_string(Path),
@@ -1006,7 +887,4 @@ validate_ldap_uids(Attribute) ->
     validate_non_empty_string(Attribute).
 
 validate_pool_name(V) ->
-    validate_non_empty_atom(V).
-
-validate_access_rule(V) ->
     validate_non_empty_atom(V).

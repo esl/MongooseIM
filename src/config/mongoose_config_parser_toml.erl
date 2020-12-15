@@ -175,37 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"host">>, <<"mod_pubsub">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"access_createnode">>, <<"mod_pubsub">>|_], V) ->
-    [{access_createnode, b2a(V)}];
-module_opt([<<"max_items_node">>, <<"mod_pubsub">>|_], V) ->
-    [{max_items_node, V}];
-module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], <<"infinity">>) ->
-    [];
-module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], V) ->
-    [{max_subscriptions_node, V}];
-module_opt([<<"nodetree">>, <<"mod_pubsub">>|_], V) ->
-    [{nodetree, V}];
-module_opt([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>|_], V) ->
-    [{ignore_pep_from_offline, V}];
-module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], false) ->
-    [{last_item_cache, false}];
-module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], V) ->
-    [{last_item_cache, b2a(V)}];
-module_opt([<<"plugins">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Plugs = parse_list(Path, V),
-    [{plugins, Plugs}];
-module_opt([<<"pep_mapping">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Mappings = parse_list(Path, V),
-    [{pep_mapping, Mappings}];
-module_opt([<<"default_node_config">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Config = parse_section(Path, V),
-    [{default_node_config, Config}];
-module_opt([<<"item_publisher">>, <<"mod_pubsub">>|_], V) ->
-    [{item_publisher, V}];
-module_opt([<<"sync_broadcast">>, <<"mod_pubsub">>|_], V) ->
-    [{sync_broadcast, V}];
 module_opt([<<"pool_name">>, <<"mod_push_service_mongoosepush">>|_], V) ->
     [{pool_name, b2a(V)}];
 module_opt([<<"api_version">>, <<"mod_push_service_mongoosepush">>|_], V) ->
@@ -491,50 +460,6 @@ mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
     [{extra_lookup_params, b2a(V)}];
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
-
--spec mod_pubsub_pep_mapping(path(), toml_section()) -> [option()].
-mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
-    [{b2l(Name), b2l(Node)}].
-
--spec mod_pubsub_default_node_config(path(), toml_section()) -> [option()].
-mod_pubsub_default_node_config([<<"access_model">>|_], Value) ->
-    [{access_model, b2a(Value)}];
-mod_pubsub_default_node_config([<<"deliver_notifications">>|_], Value) ->
-    [{deliver_notifications, Value}];
-mod_pubsub_default_node_config([<<"deliver_payloads">>|_], Value) ->
-    [{deliver_payloads, Value}];
-mod_pubsub_default_node_config([<<"max_items">>|_], Value) ->
-    [{max_items, Value}];
-mod_pubsub_default_node_config([<<"max_payload_size">>|_], Value) ->
-    [{max_payload_size, Value}];
-mod_pubsub_default_node_config([<<"node_type">>|_], Value) ->
-    [{node_type, b2a(Value)}];
-mod_pubsub_default_node_config([<<"notification_type">>|_], Value) ->
-    [{notification_type, b2a(Value)}];
-mod_pubsub_default_node_config([<<"notify_config">>|_], Value) ->
-    [{notify_config, Value}];
-mod_pubsub_default_node_config([<<"notify_delete">>|_], Value) ->
-    [{notify_delete, Value}];
-mod_pubsub_default_node_config([<<"notify_retract">>|_], Value) ->
-    [{notify_retract, Value}];
-mod_pubsub_default_node_config([<<"persist_items">>|_], Value) ->
-    [{persist_items, Value}];
-mod_pubsub_default_node_config([<<"presence_based_delivery">>|_], Value) ->
-    [{presence_based_delivery, Value}];
-mod_pubsub_default_node_config([<<"publish_model">>|_], Value) ->
-    [{publish_model, b2a(Value)}];
-mod_pubsub_default_node_config([<<"purge_offline">>|_], Value) ->
-    [{purge_offline, Value}];
-mod_pubsub_default_node_config([<<"roster_groups_allowed">>|_] = Path, Value) ->
-    Groups = parse_list(Path, Value),
-    [{roster_groups_allowed, Groups}];
-mod_pubsub_default_node_config([<<"send_last_published_item">>|_], Value) ->
-    [{send_last_published_item, b2a(Value)}];
-mod_pubsub_default_node_config([<<"subscribe">>|_], Value) ->
-    [{subscribe, Value}].
-
-mod_pubsub_roster_groups_allowed(_, Value) ->
-    [Value].
 
 -spec mod_revproxy_routes(path(), toml_section()) -> [option()].
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
@@ -846,7 +771,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_muc_light">>,
         Mod =/= <<"mod_muc_log">>,
         Mod =/= <<"mod_offline">>,
-        Mod =/= <<"mod_ping">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_ping">>,
+        Mod =/= <<"mod_pubsub">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -892,14 +818,6 @@ handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
-handler([_, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_pep_mapping/2;
-handler([_, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_default_node_config/2;
-handler([_, <<"roster_groups_allowed">>, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_roster_groups_allowed/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
 handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
