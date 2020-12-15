@@ -178,19 +178,6 @@ module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"no_buffer">>) ->
-    [{buffer_max, no_buffer}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], V) ->
-    [{buffer_max, int_or_infinity(V)}];
-module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], <<"never">>) ->
-    [{ack_freq, never}];
-module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], V) ->
-    [{ack_freq, V}];
-module_opt([<<"resume_timeout">>, <<"mod_stream_management">>|_], V) ->
-    [{resume_timeout, V}];
-module_opt([<<"stale_h">>, <<"mod_stream_management">>|_] = Path, V) ->
-    Stale = parse_section(Path, V),
-    [{stale_h, Stale}];
 module_opt([<<"host">>, <<"mod_vcard">>|_], V) ->
     [{host, b2l(V)}];
 module_opt([<<"search">>, <<"mod_vcard">>|_], V) ->
@@ -406,14 +393,6 @@ mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> :=
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"upstream">> := Upstream}) ->
         [{b2l(Host), b2l(Path), b2l(Upstream)}].
 
--spec mod_stream_management_stale_h(path(), toml_value()) -> [option()].
-mod_stream_management_stale_h([<<"enabled">>|_], V) ->
-    [{enabled, V}];
-mod_stream_management_stale_h([<<"repeat_after">>|_], V) ->
-    [{stale_h_repeat_after, V}];
-mod_stream_management_stale_h([<<"geriatric">>|_], V) ->
-    [{stale_h_geriatric, V}].
-
 -spec mod_vcard_ldap_uids(path(), toml_section()) -> [option()].
 mod_vcard_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
     [{b2l(Attr), b2l(Format)}];
@@ -598,6 +577,9 @@ convert(V, string) -> binary_to_list(V);
 convert(V, atom) -> b2a(V);
 convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
 convert(V, int_or_infinity) when is_integer(V) -> V;
+convert(<<"infinity">>, int_or_infinity_or_atom) -> infinity;
+convert(<<"no_buffer">>, int_or_infinity_or_atom) -> no_buffer;
+convert(V, int_or_infinity_or_atom) when is_integer(V)-> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) when is_integer(V) -> V;
@@ -711,7 +693,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_push_service_mongoosepush">>,
         Mod =/= <<"mod_register">>,
         Mod =/= <<"mod_roster">>,
-        Mod =/= <<"mod_shared_roster_ldap">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_shared_roster_ldap">>,
+        Mod =/= <<"mod_stream_management">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -753,8 +736,6 @@ handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
-handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
-    fun mod_stream_management_stale_h/2;
 handler([_, <<"ldap_uids">>, <<"mod_vcard">>, <<"modules">>]) ->
     fun mod_vcard_ldap_uids/2;
 handler([_, <<"ldap_vcard_map">>, <<"mod_vcard">>, <<"modules">>]) ->

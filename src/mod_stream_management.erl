@@ -5,7 +5,9 @@
 
 %% `gen_mod' callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         config_spec/0,
+         process_stale_h_spec/1]).
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
@@ -40,6 +42,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 -record(sm_session,
         {smid :: smid(),
@@ -72,6 +75,39 @@ stop(Host) ->
         false -> ok;
         true -> stream_management_stale_h:stop()
     end.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"buffer_max">> => #option{type = int_or_infinity_or_atom,
+                                             validate = positive},
+                 <<"ack_freq">> => #option{type = int_or_atom,
+                                           validate = positive},
+                 <<"resume_timeout">> => #option{type = integer,
+                                                 validate = positive},
+                 <<"stale_h">> => stale_h_config_spec()
+                }
+      }.
+
+stale_h_config_spec() ->
+    #section{
+        items = #{
+            <<"enabled">> => #option{type = boolean},
+            <<"repeat_after">> => #option{type = integer,
+                                          validate = positive},
+            <<"geriatric">> => #option{type = integer,
+                                       validate = positive}
+        },
+        process = fun ?MODULE:process_stale_h_spec/1
+    }.
+
+process_stale_h_spec(KVs) ->
+    {[[{enabled, Enabled}],
+      [{repeat_after, Repeat}],
+      [{geriatric, Geriatric}]], []} = proplists:split(KVs, [enabled, repeat_after, geriatric]),
+    [{enabled, Enabled},
+     {stale_h_repeat_after, Repeat},
+     {stale_h_geriatric, Geriatric}].
 
 %%
 %% `ejabberd_hooks' handlers
