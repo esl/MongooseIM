@@ -130,24 +130,6 @@ validate([<<"pool">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
 validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
          [{refresh_after, V}]) ->
     validate_non_negative_integer(V);
-validate([<<"ack_freq">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{ack_freq, V}]) ->
-    validate_positive_integer_or_atom(V, never);
-validate([<<"buffer_max">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{buffer_max, V}]) ->
-    validate_positive_integer_or_infinity_or_atom(V, no_buffer);
-validate([<<"resume_timeout">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{resume_timeout, V}]) ->
-    validate_positive_integer(V);
-validate([<<"enabled">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{enabled, V}]) ->
-    validate_boolean(V);
-validate([<<"geriatric">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{stale_h_geriatric, V}]) ->
-    validate_positive_integer(V);
-validate([<<"repeat_after">>, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>|_],
-         [{stale_h_repeat_after, V}]) ->
-    validate_positive_integer(V);
 validate([<<"iqdisc">>, <<"mod_version">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
@@ -324,6 +306,10 @@ validate(V, integer, positive) -> validate_positive_integer(V);
 validate(V, integer, port) -> validate_port(V);
 validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_infinity(V);
 validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
+validate(V, int_or_infinity_or_atom, positive) ->
+    validate_positive_integer_or_infinity_or_atom(V, no_buffer);
+validate(V, int_or_atom, positive) ->
+    validate_positive_integer_or_atom(V, never);
 validate(V, string, url) -> validate_url(V);
 validate(V, string, domain_template) -> validate_domain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);

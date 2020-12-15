@@ -207,6 +207,7 @@ groups() ->
                             mod_shared_roster_ldap,
                             mod_sic,
                             mod_stream_management,
+                            mod_stream_management_stale_h,
                             mod_time,
                             mod_vcard,
                             mod_version]},
@@ -2616,33 +2617,26 @@ mod_sic(_Config) ->
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
-    Base = #{
-        <<"buffer_max">> => 100,
-        <<"ack_freq">> => 1,
-        <<"resume_timeout">> => 600,
-        <<"stale_h">> => #{<<"enabled">> => true,
-                           <<"repeat_after">> => 1800,
-                           <<"geriatric">> => 3600}
-       },
-    MBase = [
-             {buffer_max, 100},
-             {ack_freq, 1},
-             {resume_timeout, 600},
-             {stale_h, [{enabled, true},
-                        {stale_h_geriatric, 3600},
-                        {stale_h_repeat_after, 1800}]}
-       ],
-    ?eqf(modopts(mod_stream_management, lists:sort(MBase)), T(Base)),
-    ?eqf(modopts(mod_stream_management, [{buffer_max, no_buffer}]),
-         T(#{<<"buffer_max">> => <<"no_buffer">>})),
+    M = fun(Cfg) -> modopts(mod_stream_management, Cfg) end,
+    ?eqf(M([{buffer_max, no_buffer}]),  T(#{<<"buffer_max">> => <<"no_buffer">>})),
+    ?eqf(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
+    ?eqf(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
+
     ?errf(T(#{<<"buffer_max">> => -1})),
-    ?errf(T(#{<<"ack_freq">> => -1})),
-    ?errf(T(#{<<"resume_timeout">> => -1})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => <<"true">>}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => 1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"repeat_after">> => -1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"geriatric">> => -1}})),
-    ok.
+    ?errf(T(#{<<"ack_freq">> => <<"one">>})),
+    ?errf(T(#{<<"resume_timeout">> => true})).
+
+mod_stream_management_stale_h(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+        #{<<"mod_stream_management">> => #{<<"stale_h">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_stream_management, [{stale_h, Cfg}]) end,
+    ?eqf(M([{enabled, true}]), T(#{<<"enabled">> => true})),
+    ?eqf(M([{stale_h_repeat_after, 1800}]), T(#{<<"repeat_after">> => 1800})),
+    ?eqf(M([{stale_h_geriatric, 3600}]), T(#{<<"geriatric">> => 3600})),
+
+    ?errf(T(#{<<"enabled">> => <<"true">>})),
+    ?errf(T(#{<<"repeat_after">> => -1})),
+    ?errf(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
     check_iqdisc(mod_time).
