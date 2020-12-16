@@ -16,13 +16,14 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 %%--------------------------------------------------------------------
 %% Exports
 %%--------------------------------------------------------------------
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% Hooks and IQ handlers
 -export([push_notifications/4]).
@@ -68,6 +69,18 @@ stop(Host) ->
     mongoose_wpool:stop(generic, Host, mongoosepush_service),
 
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"pool_name">> => #option{type = atom,
+                                            validate = pool_name},
+                 <<"api_version">> => #option{type = string,
+                                              validate = {enum, ["v2", "v3"]}},
+                 <<"max_http_connections">> => #option{type = integer,
+                                                       validate = non_negative}
+                }
+      }.
 
 %%--------------------------------------------------------------------
 %% Hooks

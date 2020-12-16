@@ -32,6 +32,7 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
          process_iq_set/4,
          process_iq_get/5,
          get_user_list/3,
@@ -44,6 +45,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
+-include("mongoose_config_spec.hrl").
 
 -export_type([list_item/0]).
 
@@ -149,6 +151,25 @@ stop(Host) ->
               ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
         ?MODULE, remove_user, 50).
+
+config_spec() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, mod_privacy}},
+                 <<"riak">> => riak_config_spec()}
+      }.
+
+riak_config_spec() ->
+    #section{
+       items = #{<<"defaults_bucket_type">> => #option{type = binary,
+                                                       validate = non_empty},
+                 <<"names_bucket_type">> => #option{type = binary,
+                                                    validate = non_empty},
+                 <<"bucket_type">> => #option{type = binary,
+                                              validate = non_empty}
+                },
+       format = none
+      }.
 
 %% Handlers
 %% ------------------------------------------------------------------

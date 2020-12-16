@@ -737,7 +737,16 @@ all_modules() ->
      mod_carboncopy,
      mod_csi,
      mod_disco,
-     mod_event_pusher].
+     mod_event_pusher,
+     mod_muc,
+     mod_muc_light,
+     mod_muc_log,
+     mod_offline,
+     mod_ping,
+     mod_privacy,
+     mod_private,
+     mod_pubsub,
+     mod_push_service_mongoosepush].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

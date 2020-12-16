@@ -175,144 +175,6 @@ module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
     [{muc, Muc}];
 module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
     mod_mam_opts(Path, V);
-module_opt([<<"host">>, <<"mod_muc">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"access">>, <<"mod_muc">>|_], V) ->
-    [{access, b2a(V)}];
-module_opt([<<"access_create">>, <<"mod_muc">>|_], V) ->
-    [{access_create, b2a(V)}];
-module_opt([<<"access_admin">>, <<"mod_muc">>|_], V) ->
-    [{access_admin, b2a(V)}];
-module_opt([<<"access_persistent">>, <<"mod_muc">>|_], V) ->
-    [{access_persistent, b2a(V)}];
-module_opt([<<"history_size">>, <<"mod_muc">>|_], V) ->
-    [{history_size, V}];
-module_opt([<<"room_shaper">>, <<"mod_muc">>|_], V) ->
-    [{room_shaper, b2a(V)}];
-module_opt([<<"max_room_id">>, <<"mod_muc">>|_], V) ->
-    [{max_room_id, int_or_infinity(V)}];
-module_opt([<<"max_room_name">>, <<"mod_muc">>|_], V) ->
-    [{max_room_name, int_or_infinity(V)}];
-module_opt([<<"max_room_desc">>, <<"mod_muc">>|_], V) ->
-    [{max_room_desc, int_or_infinity(V)}];
-module_opt([<<"min_message_interval">>, <<"mod_muc">>|_], V) ->
-    [{min_message_interval, V}];
-module_opt([<<"min_presence_interval">>, <<"mod_muc">>|_], V) ->
-    [{min_presence_interval, V}];
-module_opt([<<"max_users">>, <<"mod_muc">>|_], V) ->
-    [{max_users, V}];
-module_opt([<<"max_users_admin_threshold">>, <<"mod_muc">>|_], V) ->
-    [{max_users_admin_threshold, V}];
-module_opt([<<"user_message_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_message_shaper, b2a(V)}];
-module_opt([<<"user_presence_shaper">>, <<"mod_muc">>|_], V) ->
-    [{user_presence_shaper, b2a(V)}];
-module_opt([<<"max_user_conferences">>, <<"mod_muc">>|_], V) ->
-    [{max_user_conferences, V}];
-module_opt([<<"http_auth_pool">>, <<"mod_muc">>|_], V) ->
-    [{http_auth_pool, b2a(V)}];
-module_opt([<<"load_permanent_rooms_at_startup">>, <<"mod_muc">>|_], V) ->
-    [{load_permanent_rooms_at_startup, V}];
-module_opt([<<"hibernate_timeout">>, <<"mod_muc">>|_], V) ->
-    [{hibernate_timeout, V}];
-module_opt([<<"hibernated_room_check_interval">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_check_interval, int_or_infinity(V)}];
-module_opt([<<"hibernated_room_timeout">>, <<"mod_muc">>|_], V) ->
-    [{hibernated_room_timeout, int_or_infinity(V)}];
-module_opt([<<"default_room">>, <<"mod_muc">>|_] = Path, V) ->
-    Defaults = parse_section(Path, V),
-    [{default_room_options, Defaults}];
-module_opt([<<"outdir">>, <<"mod_muc_log">>|_], V) ->
-    [{outdir, b2l(V)}];
-module_opt([<<"access_log">>, <<"mod_muc_log">>|_], V) ->
-    [{access_log, b2a(V)}];
-module_opt([<<"dirtype">>, <<"mod_muc_log">>|_], V) ->
-    [{dirtype, b2a(V)}];
-module_opt([<<"dirname">>, <<"mod_muc_log">>|_], V) ->
-    [{dirname, b2a(V)}];
-module_opt([<<"file_format">>, <<"mod_muc_log">>|_], V) ->
-    [{file_format, b2a(V)}];
-module_opt([<<"css_file">>, <<"mod_muc_log">>|_], <<"false">>) ->
-    [{cssfile, false}];
-module_opt([<<"css_file">>, <<"mod_muc_log">>|_], V) ->
-    [{cssfile, V}];
-module_opt([<<"timezone">>, <<"mod_muc_log">>|_], V) ->
-    [{timezone, b2a(V)}];
-module_opt([<<"top_link">>, <<"mod_muc_log">>|_] = Path, V) ->
-    Link = list_to_tuple(parse_section(Path, V)),
-    [{top_link, Link}];
-module_opt([<<"spam_prevention">>, <<"mod_muc_log">>|_], V) ->
-    [{spam_prevention, V}];
-module_opt([<<"host">>, <<"mod_muc_light">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"equal_occupants">>, <<"mod_muc_light">>|_], V) ->
-    [{equal_occupants, V}];
-module_opt([<<"legacy_mode">>, <<"mod_muc_light">>|_], V) ->
-    [{legacy_mode, V}];
-module_opt([<<"rooms_per_user">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_user, int_or_infinity(V)}];
-module_opt([<<"blocking">>, <<"mod_muc_light">>|_], V) ->
-    [{blocking, V}];
-module_opt([<<"all_can_configure">>, <<"mod_muc_light">>|_], V) ->
-    [{all_can_configure, V}];
-module_opt([<<"all_can_invite">>, <<"mod_muc_light">>|_], V) ->
-    [{all_can_invite, V}];
-module_opt([<<"max_occupants">>, <<"mod_muc_light">>|_], V) ->
-    [{max_occupants, int_or_infinity(V)}];
-module_opt([<<"rooms_per_page">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_per_page, int_or_infinity(V)}];
-module_opt([<<"rooms_in_rosters">>, <<"mod_muc_light">>|_], V) ->
-    [{rooms_in_rosters, V}];
-module_opt([<<"config_schema">>, <<"mod_muc_light">>|_] = Path, V) ->
-    Configs = parse_list(Path, V),
-    [{config_schema, Configs}];
-module_opt([<<"access_max_user_messages">>, <<"mod_offline">>|_], V) ->
-    [{access_max_user_messages, b2a(V)}];
-module_opt([<<"send_pings">>, <<"mod_ping">>|_], V) ->
-    [{send_pings, V}];
-module_opt([<<"ping_interval">>, <<"mod_ping">>|_], V) ->
-    [{ping_interval, V}];
-module_opt([<<"timeout_action">>, <<"mod_ping">>|_], V) ->
-    [{timeout_action, b2a(V)}];
-module_opt([<<"ping_req_timeout">>, <<"mod_ping">>|_], V) ->
-    [{ping_req_timeout, V}];
-module_opt([<<"host">>, <<"mod_pubsub">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"access_createnode">>, <<"mod_pubsub">>|_], V) ->
-    [{access_createnode, b2a(V)}];
-module_opt([<<"max_items_node">>, <<"mod_pubsub">>|_], V) ->
-    [{max_items_node, V}];
-module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], <<"infinity">>) ->
-    [];
-module_opt([<<"max_subscriptions_node">>, <<"mod_pubsub">>|_], V) ->
-    [{max_subscriptions_node, V}];
-module_opt([<<"nodetree">>, <<"mod_pubsub">>|_], V) ->
-    [{nodetree, V}];
-module_opt([<<"ignore_pep_from_offline">>, <<"mod_pubsub">>|_], V) ->
-    [{ignore_pep_from_offline, V}];
-module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], false) ->
-    [{last_item_cache, false}];
-module_opt([<<"last_item_cache">>, <<"mod_pubsub">>|_], V) ->
-    [{last_item_cache, b2a(V)}];
-module_opt([<<"plugins">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Plugs = parse_list(Path, V),
-    [{plugins, Plugs}];
-module_opt([<<"pep_mapping">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Mappings = parse_list(Path, V),
-    [{pep_mapping, Mappings}];
-module_opt([<<"default_node_config">>, <<"mod_pubsub">>|_] = Path, V) ->
-    Config = parse_section(Path, V),
-    [{default_node_config, Config}];
-module_opt([<<"item_publisher">>, <<"mod_pubsub">>|_], V) ->
-    [{item_publisher, V}];
-module_opt([<<"sync_broadcast">>, <<"mod_pubsub">>|_], V) ->
-    [{sync_broadcast, V}];
-module_opt([<<"pool_name">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{pool_name, b2a(V)}];
-module_opt([<<"api_version">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{api_version, b2l(V)}];
-module_opt([<<"max_http_connections">>, <<"mod_push_service_mongoosepush">>|_], V) ->
-    [{max_http_connections, V}];
 module_opt([<<"access">>, <<"mod_register">>|_], V) ->
     [{access, b2a(V)}];
 module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
@@ -593,120 +455,6 @@ mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
 mod_mam_opts([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
--spec mod_muc_default_room(path(), toml_value()) -> [option()].
-mod_muc_default_room([<<"title">>|_], V) ->
-    [{title, V}];
-mod_muc_default_room([<<"description">>|_], V) ->
-    [{description, V}];
-mod_muc_default_room([<<"allow_change_subj">>|_], V) ->
-    [{allow_change_subj, V}];
-mod_muc_default_room([<<"allow_query_users">>|_], V) ->
-    [{allow_query_users, V}];
-mod_muc_default_room([<<"allow_private_messages">>|_], V) ->
-    [{allow_private_messages, V}];
-mod_muc_default_room([<<"allow_visitor_status">>|_], V) ->
-    [{allow_visitor_status, V}];
-mod_muc_default_room([<<"allow_visitor_nickchange">>|_], V) ->
-    [{allow_visitor_nickchange, V}];
-mod_muc_default_room([<<"public">>|_], V) ->
-    [{public, V}];
-mod_muc_default_room([<<"public_list">>|_], V) ->
-    [{public_list, V}];
-mod_muc_default_room([<<"persistent">>|_], V) ->
-    [{persistent, V}];
-mod_muc_default_room([<<"moderated">>|_], V) ->
-    [{moderated, V}];
-mod_muc_default_room([<<"members_by_default">>|_], V) ->
-    [{members_by_default, V}];
-mod_muc_default_room([<<"members_only">>|_], V) ->
-    [{members_only, V}];
-mod_muc_default_room([<<"allow_user_invites">>|_], V) ->
-    [{allow_user_invites, V}];
-mod_muc_default_room([<<"allow_multiple_sessions">>|_], V) ->
-    [{allow_multiple_sessions, V}];
-mod_muc_default_room([<<"password_protected">>|_], V) ->
-    [{password_protected, V}];
-mod_muc_default_room([<<"password">>|_], V) ->
-    [{password, V}];
-mod_muc_default_room([<<"anonymous">>|_], V) ->
-    [{anonymous, V}];
-mod_muc_default_room([<<"max_users">>|_], V) ->
-    [{max_users, V}];
-mod_muc_default_room([<<"logging">>|_], V) ->
-    [{logging, V}];
-mod_muc_default_room([<<"maygetmemberlist">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{maygetmemberlist, List}];
-mod_muc_default_room([<<"affiliations">>|_] = Path, V) ->
-    Affs = parse_list(Path, V),
-    [{affiliations, Affs}];
-mod_muc_default_room([<<"subject">>|_], V) ->
-    [{subject, V}];
-mod_muc_default_room([<<"subject_author">>|_], V) ->
-    [{subject_author, V}].
-
--spec mod_muc_default_room_affiliations(path(), toml_section()) -> [option()].
-mod_muc_default_room_affiliations(_, #{<<"user">> := User, <<"server">> := Server,
-    <<"resource">> := Resource, <<"affiliation">> := Aff}) ->
-    [{{User, Server, Resource}, b2a(Aff)}].
-
--spec mod_muc_log_top_link(path(), toml_value()) -> [option()].
-mod_muc_log_top_link([<<"target">>|_], V) ->
-    [b2l(V)];
-mod_muc_log_top_link([<<"text">>|_], V) ->
-    [b2l(V)].
-
--spec mod_muc_light_config_schema(path(), toml_section()) -> [option()].
-mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val,
-                                 <<"internal_key">> := Key, <<"type">> := Type}) ->
-    [{b2l(Field), Val, b2a(Key), b2a(Type)}];
-mod_muc_light_config_schema(_, #{<<"field">> := Field, <<"value">> := Val}) ->
-    [{b2l(Field), b2l(Val)}].
-
--spec mod_pubsub_pep_mapping(path(), toml_section()) -> [option()].
-mod_pubsub_pep_mapping(_, #{<<"namespace">> := Name, <<"node">> := Node}) ->
-    [{b2l(Name), b2l(Node)}].
-
--spec mod_pubsub_default_node_config(path(), toml_section()) -> [option()].
-mod_pubsub_default_node_config([<<"access_model">>|_], Value) ->
-    [{access_model, b2a(Value)}];
-mod_pubsub_default_node_config([<<"deliver_notifications">>|_], Value) ->
-    [{deliver_notifications, Value}];
-mod_pubsub_default_node_config([<<"deliver_payloads">>|_], Value) ->
-    [{deliver_payloads, Value}];
-mod_pubsub_default_node_config([<<"max_items">>|_], Value) ->
-    [{max_items, Value}];
-mod_pubsub_default_node_config([<<"max_payload_size">>|_], Value) ->
-    [{max_payload_size, Value}];
-mod_pubsub_default_node_config([<<"node_type">>|_], Value) ->
-    [{node_type, b2a(Value)}];
-mod_pubsub_default_node_config([<<"notification_type">>|_], Value) ->
-    [{notification_type, b2a(Value)}];
-mod_pubsub_default_node_config([<<"notify_config">>|_], Value) ->
-    [{notify_config, Value}];
-mod_pubsub_default_node_config([<<"notify_delete">>|_], Value) ->
-    [{notify_delete, Value}];
-mod_pubsub_default_node_config([<<"notify_retract">>|_], Value) ->
-    [{notify_retract, Value}];
-mod_pubsub_default_node_config([<<"persist_items">>|_], Value) ->
-    [{persist_items, Value}];
-mod_pubsub_default_node_config([<<"presence_based_delivery">>|_], Value) ->
-    [{presence_based_delivery, Value}];
-mod_pubsub_default_node_config([<<"publish_model">>|_], Value) ->
-    [{publish_model, b2a(Value)}];
-mod_pubsub_default_node_config([<<"purge_offline">>|_], Value) ->
-    [{purge_offline, Value}];
-mod_pubsub_default_node_config([<<"roster_groups_allowed">>|_] = Path, Value) ->
-    Groups = parse_list(Path, Value),
-    [{roster_groups_allowed, Groups}];
-mod_pubsub_default_node_config([<<"send_last_published_item">>|_], Value) ->
-    [{send_last_published_item, b2a(Value)}];
-mod_pubsub_default_node_config([<<"subscribe">>|_], Value) ->
-    [{subscribe, Value}].
-
-mod_pubsub_roster_groups_allowed(_, Value) ->
-    [Value].
-
 -spec mod_revproxy_routes(path(), toml_section()) -> [option()].
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
     <<"upstream">> := Upstream}) ->
@@ -913,7 +661,8 @@ convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+i
 convert(V, int_or_infinity) when is_integer(V) -> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
-convert(V, integer) when is_integer(V) -> V.
+convert(V, integer) when is_integer(V) -> V;
+convert(V, float) when is_float(V) -> V.
 
 format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
@@ -1011,7 +760,16 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_carboncopy">>,
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
-        Mod =/= <<"mod_event_pusher">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_muc">>,
+        Mod =/= <<"mod_muc_light">>,
+        Mod =/= <<"mod_muc_log">>,
+        Mod =/= <<"mod_offline">>,
+        Mod =/= <<"mod_ping">>,
+        Mod =/= <<"mod_privacy">>,
+        Mod =/= <<"mod_private">>,
+        Mod =/= <<"mod_pubsub">>,
+        Mod =/= <<"mod_push_service_mongoosepush">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -1057,24 +815,6 @@ handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
 handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
-handler([_, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun mod_muc_default_room/2;
-handler([_, <<"maygetmemberlist">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun (_, V) -> [b2a(V)] end;
-handler([_, <<"affiliations">>, <<"default_room">>, <<"mod_muc">>, <<"modules">>]) ->
-    fun mod_muc_default_room_affiliations/2;
-handler([_, <<"top_link">>, <<"mod_muc_log">>, <<"modules">>]) ->
-    fun mod_muc_log_top_link/2;
-handler([_, <<"config_schema">>, <<"mod_muc_light">>, <<"modules">>]) ->
-    fun mod_muc_light_config_schema/2;
-handler([_, <<"plugins">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"pep_mapping">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_pep_mapping/2;
-handler([_, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_default_node_config/2;
-handler([_, <<"roster_groups_allowed">>, <<"default_node_config">>, <<"mod_pubsub">>, <<"modules">>]) ->
-    fun mod_pubsub_roster_groups_allowed/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
 handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
