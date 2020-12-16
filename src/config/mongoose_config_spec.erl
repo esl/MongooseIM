@@ -744,6 +744,7 @@ all_modules() ->
      mod_offline,
      mod_ping,
      mod_privacy,
+     mod_private,
      mod_pubsub,
      mod_push_service_mongoosepush].
 

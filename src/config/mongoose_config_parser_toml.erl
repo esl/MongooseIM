@@ -767,6 +767,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_offline">>,
         Mod =/= <<"mod_ping">>,
         Mod =/= <<"mod_privacy">>,
+        Mod =/= <<"mod_private">>,
         Mod =/= <<"mod_pubsub">>,
         Mod =/= <<"mod_push_service_mongoosepush">>). % TODO temporary, remove with 'handler/1'
 

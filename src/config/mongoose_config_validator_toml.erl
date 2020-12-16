@@ -586,15 +586,6 @@ validate([<<"search_index">>, <<"riak">>, <<"mod_vcard">>, <<"modules">>|_],
 validate([<<"search">>, <<"mod_vcard">>, <<"modules">>|_],
          [{search, V}]) ->
     validate_boolean(V);
-validate([<<"backend">>, <<"mod_private">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_private, V);
-validate([<<"iqdisc">>, <<"mod_private">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_private">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
          [{aff_changes, V}]) ->
     validate_boolean(V);
