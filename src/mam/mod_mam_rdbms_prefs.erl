@@ -192,12 +192,14 @@ set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Rows = prefs_to_rows(UserID, DefaultMode, AlwaysJIDs, NeverJIDs),
-    run_transaction_or_retry_on_abort(Host, fun() ->
+    %% MySQL sometimes aborts transaction with reason:
+    %% "Deadlock found when trying to get lock; try restarting transaction"
+    mongoose_rdbms:transaction_with_delayed_retry(Host, fun() ->
             {updated, _} =
                 mongoose_rdbms:execute(Host, mam_prefs_delete, [UserID]),
             [mongoose_rdbms:execute(Host, mam_prefs_insert, Row) || Row <- Rows],
             ok
-        end, UserID, 5),
+        end, #{user_id => UserID, retries => 5, delay => 100}),
     ok.
 
 -spec get_prefs(mod_mam:preference(), _Host :: jid:server(),
@@ -231,27 +233,6 @@ query_behaviour(Host, UserID, BRemLJID, BRemLBareJID) ->
 
 %% ----------------------------------------------------------------------
 %% Helpers
-
-%% Possible error with mysql
-%% Reason "Deadlock found when trying to get lock; try restarting transaction"
-%% triggered mod_mam_utils:error_on_sql_error
-run_transaction_or_retry_on_abort(Host, F, UserID, Retries) ->
-    Result = mongoose_rdbms:sql_transaction(Host, F),
-    case Result of
-        {atomic, _} ->
-            Result;
-        {aborted, Reason} when Retries > 0 ->
-            ?LOG_WARNING(#{what => mam_transaction_aborted,
-                           text => <<"Transaction aborted. Restart">>,
-                           user_id => UserID, reason => Reason, retries => Retries}),
-            timer:sleep(100),
-            run_transaction_or_retry_on_abort(Host, F, UserID, Retries-1);
-        _ ->
-            ?LOG_ERROR(#{what => mam_transaction_failed,
-                         text => <<"Transaction failed. Do not restart">>,
-                         user_id => UserID, reason => Result, retries => Retries}),
-            erlang:error({transaction_failed, #{user_id => UserID, result => Result}})
-    end.
 
 -spec encode_behaviour(always | never | roster) -> binary().
 encode_behaviour(roster) -> <<"R">>;

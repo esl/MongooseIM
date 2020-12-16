@@ -81,6 +81,7 @@
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
+         transaction_with_delayed_retry/3,
          sql_dirty/2,
          to_bool/1,
          db_engine/1,
@@ -202,6 +203,32 @@ sql_transaction(Host, Queries) when is_list(Queries) ->
 %% SQL transaction, based on a erlang anonymous function (F = fun)
 sql_transaction(Host, F) when is_function(F) ->
     sql_call(Host, {sql_transaction, F}).
+
+%% This function allows to specify delay between retries.
+-spec transaction_with_delayed_retry(server(), fun() | maybe_improper_list(), map()) -> transaction_result().
+transaction_with_delayed_retry(Host, F, Info) ->
+    Retries = maps:get(retries, Info),
+    Delay = maps:get(delay, Info),
+    do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info).
+
+do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info) ->
+    Result = mongoose_rdbms:sql_transaction(Host, F),
+    case Result of
+        {atomic, _} ->
+            Result;
+        {aborted, Reason} when Retries > 0 ->
+            ?LOG_WARNING(Info#{what => rdbms_transaction_aborted,
+                               text => <<"Transaction aborted. Restart">>,
+                               reason => Reason, retries_left => Retries}),
+            timer:sleep(Delay),
+            do_transaction_with_delayed_retry(Host, F, Retries - 1, Delay, Info);
+        _ ->
+            Err = Info#{what => mam_transaction_failed,
+                        text => <<"Transaction failed. Do not restart">>,
+                        reason => Result},
+            ?LOG_ERROR(Err),
+            erlang:error(Err)
+    end.
 
 -spec sql_dirty(server(), fun()) -> any() | no_return().
 sql_dirty(Host, F) when is_function(F) ->
