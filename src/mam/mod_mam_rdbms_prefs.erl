@@ -36,6 +36,7 @@
 
 -spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
+    prepare_queries(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -63,6 +64,40 @@ stop(Host) ->
             stop_muc(Host);
         false ->
             ok
+    end.
+
+
+%% Prepared queries
+prepare_queries(Host) ->
+    mongoose_rdbms:prepare(mam_prefs_insert, mam_config, [user_id, remote_jid, behaviour],
+                           <<"INSERT INTO mam_config(user_id, remote_jid, behaviour) "
+                             "VALUES (?, ?, ?)">>),
+    mongoose_rdbms:prepare(mam_prefs_select, mam_config, [user_id],
+                           <<"SELECT remote_jid, behaviour "
+                             "FROM mam_config WHERE user_id=?">>),
+    mongoose_rdbms:prepare(mam_prefs_select_behaviour, mam_config,
+                           [user_id, remote_jid],
+                           <<"SELECT remote_jid, behaviour "
+                             "FROM mam_config "
+                             "WHERE user_id=? "
+                               "AND (remote_jid='' OR remote_jid=?)">>),
+    mongoose_rdbms:prepare(mam_prefs_select_behaviour2, mam_config,
+                           [user_id, remote_jid, remote_jid],
+                           <<"SELECT remote_jid, behaviour "
+                             "FROM mam_config "
+                             "WHERE user_id=? "
+                               "AND (remote_jid='' OR remote_jid=? OR remote_jid=?)">>),
+    OrdBy = order_by_remote_jid_in_delete(Host),
+    mongoose_rdbms:prepare(mam_prefs_delete, mam_config, [user_id],
+                           <<"DELETE FROM mam_config WHERE user_id=?", OrdBy/binary>>),
+    ok.
+
+order_by_remote_jid_in_delete(Host) ->
+    case mongoose_rdbms:db_engine(Host) of
+        mysql ->
+                <<" ORDER BY remote_jid">>;
+        _ ->
+                <<"">>
     end.
 
 
@@ -119,12 +154,7 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID)
     RemLJID      = jid:to_lower(RemJID),
     BRemLBareJID = jid:to_binary(jid:to_bare(RemLJID)),
     BRemLJID     = jid:to_binary(RemLJID),
-    SRemLBareJID = escape_string(BRemLBareJID),
-    SRemLJID     = escape_string(BRemLJID),
-    SUserID      = escape_integer(UserID),
-    %% CheckBare if resource is not empty
-    CheckBare    = RemJID#jid.lresource =/= <<>>,
-    case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID, CheckBare) of
+    case query_behaviour(Host, UserID, BRemLJID, BRemLBareJID) of
         {selected, []} ->
             DefaultBehaviour;
         {selected, RemoteJid2Behaviour} ->
@@ -160,78 +190,24 @@ set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         {error, Error}
     end.
 
-
-order_by_in_delete(Host) ->
-    case mongoose_rdbms:db_engine(Host) of
-        mysql ->
-                " ORDER BY remote_jid";
-        _ ->
-                ""
-    end.
-
 set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    %% Lock keys in the same order to avoid deadlock
-    SUserID = escape_integer(UserID),
-    EscapedA = escape_string("A"),
-    EscapedN = escape_string("N"),
-    JidBehaviourA = [{JID, EscapedA} || JID <- AlwaysJIDs],
-    JidBehaviourN = [{JID, EscapedN} || JID <- NeverJIDs],
-    JidBehaviour = lists:keysort(1, JidBehaviourA ++ JidBehaviourN),
-    ValuesAN = [encode_config_row(SUserID, SBehaviour, escape_string(JID))
-                || {JID, SBehaviour} <- JidBehaviour],
-    SDefaultMode = escape_string(encode_behaviour(DefaultMode)),
-    DefaultValue = encode_first_config_row(SUserID, SDefaultMode, escape_string("")),
-    Values = [DefaultValue|ValuesAN],
-    DelQuery = ["DELETE FROM mam_config WHERE user_id = ",
-                mongoose_rdbms:use_escaped_integer(SUserID),
-                order_by_in_delete(Host)],
-    InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
-                "VALUES ", Values],
-
-    run_transaction_or_retry_on_abort(fun() ->
-            case sql_transaction_map(Host, [DelQuery, InsQuery]) of
-                {atomic, [{updated, _}, {updated, _}]} ->
-                    {atomic, ok};
-                Other ->
-                    Other
-            end
-        end, UserID, 5),
+    Rows = prefs_to_rows(UserID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    %% MySQL sometimes aborts transaction with reason:
+    %% "Deadlock found when trying to get lock; try restarting transaction"
+    mongoose_rdbms:transaction_with_delayed_retry(Host, fun() ->
+            {updated, _} =
+                mongoose_rdbms:execute(Host, mam_prefs_delete, [UserID]),
+            [mongoose_rdbms:execute(Host, mam_prefs_insert, Row) || Row <- Rows],
+            ok
+        end, #{user_id => UserID, retries => 5, delay => 100}),
     ok.
-
-%% Possible error with mysql
-%% Reason "Deadlock found when trying to get lock; try restarting transaction"
-%% triggered mod_mam_utils:error_on_sql_error
-run_transaction_or_retry_on_abort(F, UserID, Retries) ->
-    Result = F(),
-    case Result of
-        {atomic, _} ->
-            Result;
-        {aborted, Reason} when Retries > 0 ->
-            ?LOG_WARNING(#{what => mam_transaction_aborted,
-                           text => <<"Transaction aborted. Restart">>,
-                           user_id => UserID, reason => Reason, retries => Retries}),
-            timer:sleep(100),
-            run_transaction_or_retry_on_abort(F, UserID, Retries-1);
-        _ ->
-            ?LOG_ERROR(#{what => mam_transaction_failed,
-                         text => <<"Transaction failed. Do not restart">>,
-                         user_id => UserID, reason => Result, retries => Retries}),
-            erlang:error({transaction_failed, #{user_id => UserID, result => Result}})
-    end.
 
 -spec get_prefs(mod_mam:preference(), _Host :: jid:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
             -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
-    SUserID = escape_integer(UserID),
-    {selected, Rows} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT remote_jid, behaviour "
-       "FROM mam_config "
-       "WHERE user_id=", use_escaped_integer(SUserID)]),
+    {selected, Rows} = mongoose_rdbms:execute(Host, mam_prefs_select, [UserID]),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
-
 
 -spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().
@@ -240,77 +216,40 @@ remove_archive(Acc, Host, UserID, _ArcJID) ->
     Acc.
 
 remove_archive(Host, UserID) ->
-    SUserID = escape_integer(UserID),
     {updated, _} =
-    mod_mam_utils:success_sql_query(
-      Host, ["DELETE FROM mam_config WHERE user_id=", use_escaped_integer(SUserID)]).
+        mongoose_rdbms:execute(Host, mam_prefs_delete, [UserID]).
 
 -spec query_behaviour(jid:server(),
-                      SUserID :: mongoose_rdbms:escaped_integer(),
-                      SRemLJID :: mongoose_rdbms:escaped_string(),
-                      SRemLBareJID :: mongoose_rdbms:escaped_string(),
-                      CheckBare :: boolean()
+                      UserID :: non_neg_integer(),
+                      BRemLJID :: binary(),
+                      BRemLBareJID :: binary()
         ) -> any().
-query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID, CheckBare) ->
-    Result =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT remote_jid, behaviour "
-       "FROM mam_config "
-       "WHERE user_id=", use_escaped_integer(SUserID), " "
-         "AND (remote_jid='' OR remote_jid=", use_escaped_string(SRemLJID),
-               case CheckBare of
-                    false ->
-                        "";
-                    true ->
-                       [" OR remote_jid=", use_escaped_string(SRemLBareJID)]
-               end,
-         ")"]),
-    ?LOG_DEBUG(#{what => mam_query_behaviour_result,
-                 user_id => SUserID, result => Result}),
-    Result.
+query_behaviour(Host, UserID, BRemLJID, BRemLJID) ->
+    mongoose_rdbms:execute(Host, mam_prefs_select_behaviour,
+                           [UserID, BRemLJID]); %% check just bare jid
+query_behaviour(Host, UserID, BRemLJID, BRemLBareJID) ->
+    mongoose_rdbms:execute(Host, mam_prefs_select_behaviour2,
+                           [UserID, BRemLJID, BRemLBareJID]).
 
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec encode_behaviour(always | never | roster) -> string().
-encode_behaviour(roster) -> "R";
-encode_behaviour(always) -> "A";
-encode_behaviour(never)  -> "N".
-
+-spec encode_behaviour(always | never | roster) -> binary().
+encode_behaviour(roster) -> <<"R">>;
+encode_behaviour(always) -> <<"A">>;
+encode_behaviour(never)  -> <<"N">>.
 
 -spec decode_behaviour(binary()) -> always | never | roster.
 decode_behaviour(<<"R">>) -> roster;
 decode_behaviour(<<"A">>) -> always;
 decode_behaviour(<<"N">>) -> never.
 
--spec encode_first_config_row(SUserID :: mongoose_rdbms:escaped_integer(),
-                              SBehaviour :: mongoose_rdbms:escaped_string(),
-                              SJID :: mongoose_rdbms:escaped_string()) ->
-    mongoose_rdbms:sql_query_part().
-encode_first_config_row(SUserID, SBehaviour, SJID) ->
-    ["(", use_escaped_integer(SUserID),
-     ", ", use_escaped_string(SBehaviour),
-     ", ", use_escaped_string(SJID), ")"].
-
-
--spec encode_config_row(SUserID :: mongoose_rdbms:escaped_integer(),
-                        SBehaviour :: mongoose_rdbms:escaped_string(),
-                        SJID :: mongoose_rdbms:escaped_string()) ->
-    mongoose_rdbms:sql_query_part().
-encode_config_row(SUserID, SBehaviour, SJID) ->
-    [", (", use_escaped_integer(SUserID),
-     ", ", use_escaped_string(SBehaviour),
-     ", ", use_escaped_string(SJID), ")"].
-
-
--spec sql_transaction_map(jid:server(), [mongoose_rdbms:sql_query()]) -> any().
-sql_transaction_map(LServer, Queries) ->
-    AtomicF = fun() ->
-        [mod_mam_utils:success_sql_query(LServer, Query) || Query <- Queries]
-    end,
-    mongoose_rdbms:sql_transaction(LServer, AtomicF).
-
+prefs_to_rows(UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    AlwaysRows = [[UserID, JID, encode_behaviour(always)] || JID <- AlwaysJIDs],
+    NeverRows  = [[UserID, JID, encode_behaviour(never)] || JID <- NeverJIDs],
+    DefaultRow = [UserID, <<>>, encode_behaviour(DefaultMode)],
+    %% Lock keys in the same order to avoid deadlock
+    [DefaultRow|lists:sort(AlwaysRows ++ NeverRows)].
 
 -spec decode_prefs_rows([{binary() | jid:jid(), binary()}],
         DefaultMode :: mod_mam:archive_behaviour(),

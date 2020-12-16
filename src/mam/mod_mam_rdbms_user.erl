@@ -17,9 +17,6 @@
 -export([archive_id/3,
          remove_archive/4]).
 
-%% gdpr functions
--export([get_archive_id/2]).
-
 %% For debugging ONLY
 -export([create_user_archive/3]).
 
@@ -67,6 +64,7 @@ stop(Host) ->
 
 -spec start_pm(jid:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
+    prepare_queries(),
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
         true ->
@@ -106,7 +104,6 @@ start_muc(Host, _Opts) ->
     end,
     ok.
 
-
 -spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
@@ -119,29 +116,25 @@ stop_muc(Host) ->
     end,
     ok.
 
+%% Preparing queries
+prepare_queries() ->
+    mongoose_rdbms:prepare(mam_user_insert, mam_server_user, [server, user_name],
+                            <<"INSERT INTO mam_server_user (server, user_name) VALUES (?, ?)">>),
+    mongoose_rdbms:prepare(mam_user_select, mam_server_user, [server, user_name],
+                            <<"SELECT id FROM mam_server_user WHERE server=? AND user_name=?">>),
+    mongoose_rdbms:prepare(mam_user_remove, mam_server_user, [server, user_name],
+                            <<"DELETE FROM mam_server_user WHERE server=? AND user_name=?">>),
+    ok.
 
 %%====================================================================
 %% API
 %%====================================================================
 -spec archive_id(undefined | mod_mam:archive_id(), jid:server(),
                  jid:jid()) -> mod_mam:archive_id().
-archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
-    query_archive_id(Host, Server, UserName);
+archive_id(undefined, Host, _ArcJID=#jid{lserver = LServer, luser = LUser}) ->
+    query_archive_id(Host, LServer, LUser);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
-
--spec get_archive_id(jid:server(), jid:user()) -> undefined | mod_mam:archive_id().
-get_archive_id(Host, User) ->
-    #jid{lserver = Server, luser = UserName} = jid:make(User, Host, <<"">>),
-    SServer = mongoose_rdbms:escape_string(Server),
-    SUserName = mongoose_rdbms:escape_string(UserName),
-    DbType = mongoose_rdbms_type:get(),
-    case do_query_archive_id(DbType, Host, SServer, SUserName) of
-        {selected, [{IdBin}]} ->
-            mongoose_rdbms:result_to_integer(IdBin);
-        {selected, []} ->
-            undefined
-    end.
 
 -spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
@@ -150,55 +143,38 @@ remove_archive(Acc, Host, ArcID, ArcJID) ->
     remove_archive(Host, ArcID, ArcJID),
     Acc.
 
-remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
-    SUserName = mongoose_rdbms:escape_string(UserName),
-    SServer   = mongoose_rdbms:escape_string(Server),
+remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = LServer, luser = LUser}) ->
     {updated, _} =
-    mongoose_rdbms:sql_query(
-      Host,
-      ["DELETE FROM mam_server_user "
-       "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
-            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]).
+        mongoose_rdbms:execute(Host, mam_user_remove, [LUser, LServer]).
+
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
 -spec query_archive_id(jid:server(), jid:lserver(), jid:user()) -> integer().
-query_archive_id(Host, Server, UserName) ->
+query_archive_id(Host, LServer, LUser) ->
     Tries = 5,
-    query_archive_id(Host, Server, UserName, Tries).
+    query_archive_id(Host, LServer, LUser, Tries).
 
-query_archive_id(Host, Server, UserName, 0) ->
+query_archive_id(Host, LServer, LUser, 0) ->
     ?LOG_ERROR(#{what => query_archive_id_failed,
-                 host => Host, server => Server, user => UserName}),
+                 host => Host, server => LServer, user => LUser}),
     error(query_archive_id_failed);
-query_archive_id(Host, Server, UserName, Tries) when Tries > 0 ->
-    SServer   = mongoose_rdbms:escape_string(Server),
-    SUserName = mongoose_rdbms:escape_string(UserName),
-    DbType = mongoose_rdbms_type:get(),
-    Result = do_query_archive_id(DbType, Host, SServer, SUserName),
-
+query_archive_id(Host, LServer, LUser, Tries) when Tries > 0 ->
+    Result = mongoose_rdbms:execute(Host, mam_user_select, [LServer, LUser]),
     case Result of
         {selected, [{IdBin}]} ->
             mongoose_rdbms:result_to_integer(IdBin);
         {selected, []} ->
             %% The user is not found
-            create_user_archive(Host, Server, UserName),
-            query_archive_id(Host, Server, UserName, Tries - 1)
+            create_user_archive(Host, LServer, LUser),
+            query_archive_id(Host, LServer, LUser, Tries - 1)
     end.
 
 -spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> ok.
-create_user_archive(Host, Server, UserName) ->
-    SServer   = mongoose_rdbms:escape_string(Server),
-    SUserName = mongoose_rdbms:escape_string(UserName),
-    Res =
-    mongoose_rdbms:sql_query(
-      Host,
-      ["INSERT INTO mam_server_user "
-       "(server, user_name) VALUES (",
-            mongoose_rdbms:use_escaped_string(SServer), ", ",
-            mongoose_rdbms:use_escaped_string(SUserName), ")"]),
+create_user_archive(Host, LServer, LUser) ->
+    Res = mongoose_rdbms:execute(Host, mam_user_insert, [LServer, LUser]),
     case Res of
         {updated, 1} ->
             ok;
@@ -210,17 +186,6 @@ create_user_archive(Host, Server, UserName) ->
             %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
             %% Let's ignore the errors and just retry in query_archive_id
             ?LOG_WARNING(#{what => create_user_archive_failed, reason => Res,
-                           user => UserName, host => Host, server => Server}),
+                           user => LUser, host => Host, server => LServer}),
             ok
     end.
-
-do_query_archive_id(mssql, Host, SServer, SUserName) ->
-    rdbms_queries_mssql:query_archive_id(Host, SServer, SUserName);
-do_query_archive_id(_, Host, SServer, SUserName) ->
-    mongoose_rdbms:sql_query(
-      Host,
-      ["SELECT id "
-       "FROM mam_server_user "
-       "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
-            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName), " "
-       "LIMIT 1"]).
