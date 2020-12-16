@@ -33,3 +33,31 @@ jobs:
         run: make certs
       - name: run test
         run: tools/travis-test.sh -p $PRESET -s true -e true
+
+  internal_mnesia:
+    name: internal_mnesia on OTP 23.0.3
+    runs-on: ubuntu-latest
+    env:
+      PRESET: 'internal_mnesia'
+      DB: 'mnesia minio redis'
+      REL_CONFIG: 'with-all'
+      TLS_DIST: 'true'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ErlGang/setup-erlang@v1.0.0
+        with:
+          otp-version: '23.0.3'
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/rebar3
+          key: rebar3-${{ hashFiles('rebar.lock') }}
+      - name: create certificates
+        run: make certs
+      - name: build releases
+        run: tools/build-releases.sh
+      - name: build big tests
+        run: tools/travis-build-tests.sh
+      - name: start backends
+        run: tools/travis-setup-db.sh
+      - name: run test
+        run: tools/travis-test.sh -p $PRESET -s false -e false
