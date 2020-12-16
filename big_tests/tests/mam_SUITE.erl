@@ -616,7 +616,7 @@ init_per_group(muc_rsm04, Config) ->
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
    B = basic_group(Group),
-   case init_modules(C, B, ConfigIn) of
+   try init_modules(C, B, ConfigIn) of
         skip ->
             {skip, print_configuration_not_supported(C, B)};
         Config0 ->
@@ -624,7 +624,11 @@ init_per_group(Group, ConfigIn) ->
                    [Group, C, B]),
             Config1 = do_init_per_group(C, Config0),
             [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)]
-    end.
+   catch Class:Reason:Stacktrace ->
+             ct:pal("Failed to start configuration=~p basic_group=~p",
+                    [C, B]),
+             erlang:raise(Class, Reason, Stacktrace)
+   end.
 
 backup_module_opts(Module) ->
     {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam_muc])}.
@@ -753,7 +757,11 @@ init_modules(rdbms_mnesia_cache, C, Config) when C =:= muc_all;
     Config;
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
+    case BackendType of
+        cassandra -> ok;
+        elasticsearch -> ok;
+        _ -> init_module(host(), mod_mam_rdbms_user, [muc, pm])
+    end,
     Config1;
 init_modules(rdbms, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
