@@ -226,57 +226,6 @@ validate([item, <<"keys">>, <<"mod_keystore">>, <<"modules">>|_],
 validate([<<"ram_key_size">>, <<"mod_keystore">>, <<"modules">>|_],
          [{ram_key_size, V}]) ->
     validate_non_negative_integer(V);
-validate([<<"backend">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_vcard, V);
-validate([<<"host">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{host, V}]) ->
-    validate_domain_template(V);
-validate([<<"iqdisc">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"ldap_base">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{ldap_base, V}]) ->
-    validate_string(V);
-validate([item, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>|_],
-         [V]) ->
-    validate_non_empty_binary(V);
-validate([<<"ldap_deref">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{ldap_deref, V}]) ->
-    validate_enum(V, [never,always,finding,searching]);
-validate([<<"ldap_filter">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{ldap_filter, V}]) ->
-    validate_string(V);
-validate([<<"ldap_pool_tag">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{ldap_pool_tag, V}]) ->
-    validate_pool_name(V);
-validate([item, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>|_],
-         [V]) ->
-    validate_ldap_search_field(V);
-validate([<<"ldap_search_operator">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{ldap_search_operator, V}]) ->
-    validate_enum(V, ['or','and']);
-validate([item, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>|_],
-         [V]) ->
-    validate_ldap_search_reported(V);
-validate([item, <<"ldap_uids">>, <<"mod_vcard">>, <<"modules">>|_],
-         [V]) ->
-    validate_ldap_uids(V);
-validate([item, <<"ldap_vcard_map">>, <<"mod_vcard">>, <<"modules">>|_],
-         [V]) ->
-    validate_ldap_vcard_map(V);
-validate([<<"matches">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{matches, V}]) ->
-    validate_non_negative_integer_or_infinity(V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"search_index">>, <<"riak">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{search_index, V}]) ->
-    validate_non_empty_binary(V);
-validate([<<"search">>, <<"mod_vcard">>, <<"modules">>|_],
-         [{search, V}]) ->
-    validate_boolean(V);
 validate([<<"aff_changes">>, <<"mod_inbox">>, <<"modules">>|_],
          [{aff_changes, V}]) ->
     validate_boolean(V);
@@ -407,10 +356,6 @@ validate_iqdisc(one_queue) -> ok;
 validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
 
-validate_ip_access({Access, IPMask}) ->
-    validate_enum(Access, [allow, deny]),
-    validate_ip_mask_string(IPMask).
-
 validate_backend(Mod, Backend) ->
     validate_module(backend_module:backend_module(Mod, Backend)).
 
@@ -533,25 +478,6 @@ validate_revproxy_route({Host, Path, Upstream}) ->
     validate_non_empty_string(Host),
     validate_string(Path),
     validate_non_empty_string(Upstream).
-
-validate_ldap_vcard_map({VCardField, LDAPPattern, LDAPFields}) ->
-    validate_non_empty_binary(VCardField),
-    validate_non_empty_binary(LDAPPattern),
-    lists:foreach(fun validate_non_empty_binary/1, LDAPFields).
-
-validate_ldap_search_field({SearchField, LDAPField}) ->
-    validate_non_empty_binary(SearchField),
-    validate_non_empty_binary(LDAPField).
-
-validate_ldap_search_reported({SearchField, VCardField}) ->
-    validate_non_empty_binary(SearchField),
-    validate_non_empty_binary(VCardField).
-
-validate_ldap_uids({Attribute, Format}) ->
-    validate_non_empty_string(Attribute),
-    validate_non_empty_string(Format);
-validate_ldap_uids(Attribute) ->
-    validate_non_empty_string(Attribute).
 
 validate_pool_name(V) ->
     validate_non_empty_atom(V).

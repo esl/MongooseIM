@@ -210,6 +210,10 @@ groups() ->
                             mod_stream_management_stale_h,
                             mod_time,
                             mod_vcard,
+                            mod_vcard_ldap_uids,
+                            mod_vcard_ldap_vcard_map,
+                            mod_vcard_ldap_search_fields,
+                            mod_vcard_ldap_search_reported,
                             mod_version]},
      {services, [parallel], [service_admin_extra,
                              service_mongoose_system_metrics]}
@@ -2642,91 +2646,109 @@ mod_time(_Config) ->
     check_iqdisc(mod_time).
 
 mod_vcard(_Config) ->
+    check_iqdisc(mod_vcard),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
-    MBase = [{iqdisc, one_queue},
-             {host, "vjud.@HOST@"},
-             {search, true},
-             {backend, mnesia},
-             {matches, infinity},
-             %% ldap
-             {ldap_pool_tag, default},
-             {ldap_base, "ou=Users,dc=ejd,dc=com"},
-             {ldap_deref, never},
-             {ldap_uids, [{"mail", "%u@mail.example.org"}, "name"]},
-             {ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
-             %% MIM accepts {"FAMILY", "%s", ["sn", "cn"]} form too
-             {ldap_vcard_map, [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]}]}, %% iolists
-             {ldap_search_fields, [{<<"Full Name">>, <<"cn">>}]}, %% pair of iolists
-             {ldap_search_reported, [{<<"Full Name">>, <<"FN">>}]}, %% iolists
-             {ldap_search_operator, 'or'},
-             {ldap_binary_search_fields, [<<"PHOTO">>]},
-             %% riak
-             {bucket_type, <<"vcard">>},
-             {search_index, <<"vcard">>}
-            ],
-    Riak = #{<<"bucket_type">> => <<"vcard">>,
-             <<"search_index">> => <<"vcard">>},
-    Base = #{
-      <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-      <<"host">> => <<"vjud.@HOST@">>,
-      <<"search">> => true,
-      <<"backend">> => <<"mnesia">>,
-      <<"matches">> => <<"infinity">>,
-      %% ldap
-      <<"ldap_pool_tag">> => <<"default">>,
-      <<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>,
-      <<"ldap_deref">> => <<"never">>,
-      <<"ldap_uids">> => [#{<<"attr">> => <<"mail">>,
-                            <<"format">> => <<"%u@mail.example.org">>},
-                          #{<<"attr">> => <<"name">>}],
-      <<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
-      <<"ldap_vcard_map">> => [#{<<"vcard_field">> => <<"FAMILY">>,
-                                 <<"ldap_pattern">> => <<"%s">>,
-                                 <<"ldap_field">> => <<"sn">>}],
-      <<"ldap_search_fields">> => [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => <<"cn">>}],
-      <<"ldap_search_reported">> => [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => <<"FN">>}],
-      <<"ldap_search_operator">> => <<"or">>, % atom
-      <<"ldap_binary_search_fields">> => [<<"PHOTO">>],
-      <<"riak">> => Riak
-     },
-    run_multi(check_one_opts_with_same_field_name(mod_vcard, MBase, Base, T)
-              ++ [ ?_eqf(modopts(mod_vcard, lists:sort(MBase)), T(Base)),
-                   ?_eqf(modopts(mod_vcard, [{matches, 1}]), T(#{<<"matches">> => 1})) ]
-              ++ generic_bad_opts_cases(T, mod_vcard_bad_opts())),
-    check_iqdisc(mod_vcard).
+    M = fun(Cfg) -> modopts(mod_vcard, Cfg) end,
+    ?eqf(M([{iqdisc, one_queue}]),
+        T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
+    ?eqf(M([{host, "vjud.@HOST@"}]),
+        T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?eqf(M([{search, true}]),
+        T(#{<<"search">> => true})),
+    ?eqf(M([{backend, mnesia}]),
+        T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{matches, infinity}]),
+        T(#{<<"matches">> => <<"infinity">>})),
+    %% ldap
+    ?eqf(M([{ldap_pool_tag, default}]),
+        T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base, "ou=Users,dc=ejd,dc=com"}]),
+        T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
+    ?eqf(M([{ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"}]),
+        T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
+    ?eqf(M([{ldap_deref, never}]),
+        T(#{<<"ldap_deref">> => <<"never">>})),
+    ?eqf(M([{ldap_search_operator, 'or'}]),
+        T(#{<<"ldap_search_operator">> => <<"or">>})),
+    ?eqf(M([{ldap_binary_search_fields, [<<"PHOTO">>]}]),
+        T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
+    %% riak
+    ?eqf(M([{bucket_type, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
+    ?eqf(M([{search_index, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
-mod_vcard_bad_opts() ->
-    M = #{<<"vcard_field">> => <<"FAMILY">>,
-          <<"ldap_pattern">> => <<"%s">>,
-          <<"ldap_field">> => <<"sn">>},
-    [{host, 1},
-     {host, <<"test test">>},
-     {search, 1},
-     {backend, 1},
-     {backend, <<"mememesia">>},
-     {matches, -1},
-     {ldap_pool_tag, -1},
-     {ldap_base, -1},
-     {ldap_deref, <<"nevernever">>},
-     {ldap_deref, -1},
-     {ldap_uids, -1},
-     {ldap_uids, [#{}]},
-     {ldap_uids, [#{<<"attr">> => 1, <<"format">> => <<"ok">>}]},
-     {ldap_uids, [#{<<"attr">> => <<"ok">>, <<"format">> => 1}]},
-     {ldap_uids, [#{<<"format">> => <<"ok">>}]},
-     {ldap_filter, 1},
-     {ldap_vcard_map, [M#{<<"vcard_field">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_search_fields, [#{<<"search_field">> => 1, <<"ldap_field">> => <<"cn">>}]},
-     {ldap_search_fields, [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => 1}]},
-     {ldap_search_reported, [#{<<"search_field">> => 1, <<"vcard_field">> => <<"FN">>}]},
-     {ldap_search_reported, [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => 1}]},
-     {ldap_search_operator, <<"more">>},
-     {ldap_binary_search_fields, [1]},
-     {ldap_binary_search_fields, 1},
-     {riak, #{<<"bucket_type">> => 1}},
-     {riak, #{<<"search_index">> => 1}}].
+    ?errf(T(#{<<"host">> => 1})),
+    ?errf(T(#{<<"search">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"mememesia">>})),
+    ?errf(T(#{<<"matches">> => -1})),
+    %% ldap
+    ?errf(T(#{<<"ldap_pool_tag">> => -1})),
+    ?errf(T(#{<<"ldap_base">> => -1})),
+    ?errf(T(#{<<"ldap_field">> => -1})),
+    ?errf(T(#{<<"ldap_deref">> => <<"nevernever">>})),
+    ?errf(T(#{<<"ldap_search_operator">> => <<"more">>})),
+    ?errf(T(#{<<"ldap_binary_search_fields">> => [1]})),
+    %% riak
+    ?errf(T(#{<<"riak">> =>  #{<<"bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
+
+mod_vcard_ldap_uids(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_uids, Cfg}]) end,
+    RequiredOpts = #{<<"attr">> => <<"name">>},
+    ExpectedCfg = "name",
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    ?eqf(M([{"name", "%u@mail.example.org"}]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}])),
+    ?eqf(M([{"name", "%u@mail.example.org"}, ExpectedCfg]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}, RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"attr">> := 1})),
+    ?errf(T(RequiredOpts#{<<"format">> => true})).
+
+mod_vcard_ldap_vcard_map(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_vcard_map, Cfg}]) end,
+    RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
+                      <<"ldap_pattern">> => <<"%s">>,
+                      <<"ldap_field">> => <<"sn">>},
+    ExpectedCfg = {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_pattern">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_fields(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_fields, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                      <<"ldap_field">> => <<"cn">>},
+    ExpectedCfg = {<<"Full Name">>, <<"cn">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_reported(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_reported, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                      <<"vcard_field">> => <<"FN">>},
+    ExpectedCfg = {<<"Full Name">>, <<"FN">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := -1})).
 
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
