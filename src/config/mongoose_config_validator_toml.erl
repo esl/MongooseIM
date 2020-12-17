@@ -193,9 +193,6 @@ validate([<<"bucket_type">>, <<"riak">>, <<"mod_last">>, <<"modules">>|_],
 validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
-validate([item, <<"routes">>, <<"mod_revproxy">>, <<"modules">>|_],
-         [V]) ->
-    validate_revproxy_route(V);
 validate([<<"listen_port">>, <<"mod_jingle_sip">>, <<"modules">>|_],
          [{listen_port, V}]) ->
     validate_network_port(V);
@@ -462,16 +459,6 @@ validate_keystore_key({Name, ram}) ->
 validate_keystore_key({Name, {file, Path}}) ->
     validate_non_empty_atom(Name),
     validate_filename(Path).
-
-validate_revproxy_route({Host, Path, Method, Upstream}) ->
-    validate_non_empty_string(Host),
-    validate_string(Path),
-    validate_string(Method),
-    validate_non_empty_string(Upstream);
-validate_revproxy_route({Host, Path, Upstream}) ->
-    validate_non_empty_string(Host),
-    validate_string(Path),
-    validate_non_empty_string(Upstream).
 
 validate_pool_name(V) ->
     validate_non_empty_atom(V).

@@ -202,7 +202,6 @@ groups() ->
                             mod_pubsub_default_node_config,
                             mod_push_service_mongoosepush,
                             mod_register,
-                            mod_revproxy,
                             mod_roster,
                             mod_shared_roster_ldap,
                             mod_sic,
@@ -2497,32 +2496,6 @@ invalid_ip_access_register_ipv6() ->
 registration_watchers(JidBins) ->
     Opts = #{<<"registration_watchers">> => JidBins},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
-
-mod_revproxy(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_revproxy">> => Opts}} end,
-    R = fun(Route) -> T(#{<<"routes">> => [Route]}) end,
-    Base = #{<<"routes">> => [R1 = #{
-                 <<"host">> => <<"www.erlang-solutions.com">>,
-                 <<"path">> => <<"/admin">>,
-                 <<"method">> => <<"_">>,
-                 <<"upstream">> => <<"https://www.erlang-solutions.com/">>
-                }, #{
-                 <<"host">> => <<"example.com">>,
-                 <<"path">> => <<"/test">>,
-                 <<"upstream">> => <<"https://example.com/">>
-                }]},
-    MBase = [{routes, [{"www.erlang-solutions.com", "/admin", "_",
-                        "https://www.erlang-solutions.com/"},
-                       {"example.com", "/test", "https://example.com/"}]}],
-    run_multi([
-            ?_eqf(modopts(mod_revproxy, MBase), T(Base)),
-            ?_errf(R(R1#{<<"host">> => 1})),
-            ?_errf(R(R1#{<<"path">> => 1})),
-            ?_errf(R(R1#{<<"method">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => <<>>})),
-            ?_errf(R(R1#{<<"host">> => <<>>}))
-          ]).
 
 mod_roster(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,

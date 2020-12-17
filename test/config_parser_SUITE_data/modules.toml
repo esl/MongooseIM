@@ -242,23 +242,6 @@
   registration_watchers = ["JID1", "JID2"]
   password_strength = 32
 
-  [[modules.mod_revproxy.routes]]
-    host = "www.erlang-solutions.com"
-    path = "/admin"
-    method = "_"
-    upstream = "https://www.erlang-solutions.com/"
-
-  [[modules.mod_revproxy.routes]]
-    host = ":var.com"
-    path = "/:var"
-    upstream = "http://localhost:8080/"
-
-  [[modules.mod_revproxy.routes]]
-    host = ":domain.com"
-    path = "/"
-    method = "_"
-    upstream = "http://localhost:8080/:domain"
-
 [modules.mod_roster]
   versioning = true
   store_current_id = true

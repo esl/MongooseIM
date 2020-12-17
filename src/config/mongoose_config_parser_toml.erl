@@ -164,9 +164,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
-    Routes = parse_list(Path, V),
-    [{routes, Routes}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     {Type, Opts} = maps:take(<<"type">>, V),
@@ -301,13 +298,6 @@ mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"ram">>}) ->
     [{b2a(Name), ram}];
 mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"file">>, <<"path">> := Path}) ->
     [{b2a(Name), {file, b2l(Path)}}].
-
--spec mod_revproxy_routes(path(), toml_section()) -> [option()].
-mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
-    <<"upstream">> := Upstream}) ->
-        [{b2l(Host), b2l(Path), b2l(Method), b2l(Upstream)}];
-mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"upstream">> := Upstream}) ->
-        [{b2l(Host), b2l(Path), b2l(Upstream)}].
 
 -spec iqdisc_value(atom(), toml_section()) -> option().
 iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
@@ -627,8 +617,6 @@ handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>
     fun mod_global_distrib_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
-handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
-    fun mod_revproxy_routes/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
