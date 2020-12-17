@@ -99,9 +99,6 @@ process_module([Mod|_] = Path, Opts) ->
     %% Sort option keys to ensure options could be matched in tests
     post_process_module(b2a(Mod), parse_section(Path, Opts)).
 
-post_process_module(mod_mam_meta, Opts) ->
-    %% Disable the archiving by default
-    [{mod_mam_meta, lists:sort(defined_or_false(muc, defined_or_false(pm, Opts)))}];
 post_process_module(Mod, Opts) ->
     [{Mod, lists:sort(Opts)}].
 
@@ -167,14 +164,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"pm">>, <<"mod_mam_meta">>|_] = Path, V) ->
-    PM = parse_section(Path, V),
-    [{pm, PM}];
-module_opt([<<"muc">>, <<"mod_mam_meta">>|_] = Path, V) ->
-    Muc = parse_section(Path, V),
-    [{muc, Muc}];
-module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
-    mod_mam_opts(Path, V);
 module_opt([<<"access">>, <<"mod_register">>|_], V) ->
     [{access, b2a(V)}];
 module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
@@ -406,54 +395,6 @@ mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"ram">>}) ->
     [{b2a(Name), ram}];
 mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"file">>, <<"path">> := Path}) ->
     [{b2a(Name), {file, b2l(Path)}}].
-
--spec mod_mam_opts(path(), toml_value()) -> [option()].
-mod_mam_opts([<<"backend">>|_], V) ->
-    [{backend, b2a(V)}];
-mod_mam_opts([<<"no_stanzaid_element">>|_], V) ->
-    [{no_stanzaid_element, V}];
-mod_mam_opts([<<"is_archivable_message">>|_], V) ->
-    [{is_archivable_message, b2a(V)}];
-mod_mam_opts([<<"message_retraction">>|_], V) ->
-    [{message_retraction, V}];
-mod_mam_opts([<<"user_prefs_store">>|_], false) ->
-    [{user_prefs_store, false}];
-mod_mam_opts([<<"user_prefs_store">>|_], V) ->
-    [{user_prefs_store, b2a(V)}];
-mod_mam_opts([<<"full_text_search">>|_], V) ->
-    [{full_text_search, V}];
-mod_mam_opts([<<"cache_users">>|_], V) ->
-    [{cache_users, V}];
-mod_mam_opts([<<"rdbms_message_format">>|_], V) ->
-    [{rdbms_message_format, b2a(V)}];
-mod_mam_opts([<<"async_writer">>|_], V) ->
-    [{async_writer, V}];
-mod_mam_opts([<<"flush_interval">>|_], V) ->
-    [{flush_interval, V}];
-mod_mam_opts([<<"max_batch_size">>|_], V) ->
-    [{max_batch_size, V}];
-mod_mam_opts([<<"default_result_limit">>|_], V) ->
-    [{default_result_limit, V}];
-mod_mam_opts([<<"max_result_limit">>|_], V) ->
-    [{max_result_limit, V}];
-mod_mam_opts([<<"archive_chat_markers">>|_], V) ->
-    [{archive_chat_markers, V}];
-mod_mam_opts([<<"archive_groupchats">>|_], V) ->
-    [{archive_groupchats, V}];
-mod_mam_opts([<<"async_writer_rdbms_pool">>|_], V) ->
-    [{async_writer_rdbms_pool, b2a(V)}];
-mod_mam_opts([<<"db_jid_format">>|_], V) ->
-    [{db_jid_format, b2a(V)}];
-mod_mam_opts([<<"db_message_format">>|_], V) ->
-    [{db_message_format, b2a(V)}];
-mod_mam_opts([<<"simple">>|_], V) ->
-    [{simple, V}];
-mod_mam_opts([<<"host">>|_], V) ->
-    [{host, b2l(V)}];
-mod_mam_opts([<<"extra_lookup_params">>|_], V) ->
-    [{extra_lookup_params, b2a(V)}];
-mod_mam_opts([<<"riak">>|_] = Path, V) ->
-    parse_section(Path, V).
 
 -spec mod_revproxy_routes(path(), toml_section()) -> [option()].
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
@@ -761,6 +702,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_mam_meta">>,
         Mod =/= <<"mod_muc">>,
         Mod =/= <<"mod_muc_light">>,
         Mod =/= <<"mod_muc_log">>,
@@ -813,8 +755,6 @@ handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>
     fun mod_global_distrib_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
-handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
-    fun mod_mam_opts/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
 handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
@@ -864,14 +804,6 @@ handler_for_host(Path) ->
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
-
-defined_or_false(Key, Opts) ->
-    case proplists:is_defined(Key, Opts) of
-        true ->
-            [];
-        false ->
-            [{Key, false}]
-    end ++ Opts.
 
 %% Processing of the parsed options
 
