@@ -174,6 +174,13 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
+                            mod_global_config_connections,
+                            mod_global_config_connections_endpoints,
+                            mod_global_config_connections_advertised_endpoints,
+                            mod_global_config_connections_tls,
+                            mod_global_config_redis,
+                            mod_global_config_cache,
+                            mod_global_config_bounce,
                             mod_event_pusher_sns,
                             mod_event_pusher_push,
                             mod_event_pusher_http,
@@ -1499,130 +1506,241 @@ mod_inbox(_Config) ->
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
-    ConnOpts = [
-              {advertised_endpoints, [{"172.16.0.1", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {connections_per_endpoint, 22},
-              {disabled_gc_interval, 60},
-              {endpoint_refresh_interval, 120},
-              {endpoint_refresh_interval_when_empty, 5},
-              {endpoints, [{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {tls_opts, [
-                    {cafile, "/dev/null"},
-                    {certfile, "/dev/null"},
-                    {ciphers, "TLS_AES_256_GCM_SHA384"},
-                    {dhfile, "/dev/null"}
-                   ]}
-             ],
-    CacheOpts = [ {cache_missed, false}, {domain_lifetime_seconds, 60},
-                  {jid_lifetime_seconds, 30}, {max_jids, 9999} ],
-    BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
-    RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
-    TTOpts = #{
-          <<"enabled">> => true,
-          <<"certfile">> => <<"/dev/null">>,
-          <<"cacertfile">> => <<"/dev/null">>,
-          <<"dhfile">> => <<"/dev/null">>,
-          <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>
-         },
-    TConnOpts = #{
-      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"advertised_endpoints">> =>
-                         [#{<<"host">> => <<"172.16.0.1">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"connections_per_endpoint">> => 22,
-      <<"disabled_gc_interval">> => 60,
-      <<"endpoint_refresh_interval">> => 120,
-      <<"endpoint_refresh_interval_when_empty">> => 5,
-      <<"tls">> => TTOpts
-     },
-    TCacheOpts = #{ <<"cache_missed">> => false,
-                    <<"domain_lifetime_seconds">> => 60,
-                    <<"jid_lifetime_seconds">> => 30,
-                    <<"max_jids">> => 9999 },
-    TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
-    TRedisOpts = #{ <<"pool">> => <<"global_distrib">>,
-                    <<"expire_after">> => 120,
-                    <<"refresh_after">> => 60 },
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
-    Base = #{
-           <<"global_host">> => <<"example.com">>,
-           <<"local_host">> => <<"datacenter1.example.com">>,
-           <<"message_ttl">> => 42,
-           <<"hosts_refresh_interval">> => 100,
-           <<"connections">> => TConnOpts,
-           <<"cache">> => TCacheOpts,
-           <<"bounce">> => TBounceOpts,
-           <<"redis">> => TRedisOpts
-          },
-    MBase = [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ],
-    ?eqf(modopts(mod_global_distrib, [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ]), T(Base)),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(bounce, false, MBase)),
-         T(Base#{<<"bounce">> => TBounceOpts#{<<"enabled">> => false}})),
-    %% Global Opts
-    ?errf(T(Base#{<<"global_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})),
-    %% Connection opts
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"enabled">> => <<"yes">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"dhfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"ciphers">> => 42}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => 0}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"endpoint_refresh_interval_when_empty">> => -1}})),
-    %% Redis Opts
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => 0}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
-    %% Cache Opts
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"cache_missed">> => 1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"domain_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"jid_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"max_jids">> => -1}})),
-    %% Bouncing Opts
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"enabled">> => <<"yes">>}})),
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"resend_after_ms">> => -1}})),
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})).
+    M = fun(Opts) -> modopts(mod_global_distrib, Opts) end,
+    RequiredOpts = #{
+        <<"global_host">> => <<"example.com">>,
+        <<"local_host">> => <<"datacenter1.example.com">>,
+        <<"connections">> => #{
+            <<"tls">> => #{
+                <<"enabled">> => true}}},
+    ExpectedCfg = [{connections, [{tls_opts,[]}]},
+                   {global_host, "example.com"},
+                   {local_host, "datacenter1.example.com"}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{message_ttl, 42}]),
+         T(RequiredOpts#{<<"message_ttl">> => 42})),
+    ?eqf(M(ExpectedCfg ++ [{hosts_refresh_interval, 100}]),
+         T(RequiredOpts#{<<"hosts_refresh_interval">> => 100})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"global_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"local_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"message_ttl">> => -1})),
+    ?errf(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})),
+    ?errf(T(RequiredOpts#{<<"connections">> => #{}})).
+
+mod_global_config_connections(_Config) ->
+    RequiredOpts = #{
+        <<"tls">> => #{
+            <<"enabled">> => true}},
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => maps:merge(RequiredOpts, Opts)}}} end,
+    ExpectedCfg = [{tls_opts,[]}],
+    M = fun(Opts) -> modopts(mod_global_distrib, 
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, ExpectedCfg ++ Opts}]) end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{endpoints, [{"172.16.0.2", 5555}, 
+                         {"localhost", 80},
+                         {"example.com", 5555}]}]),
+         T(#{<<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>,
+                                   <<"port">> => 5555},
+                                 #{<<"host">> => <<"localhost">>,
+                                   <<"port">> => 80},
+                                 #{<<"host">> => <<"example.com">>,
+                                   <<"port">> => 5555}]})),
+    ?eqf(M([{advertised_endpoints, [{"172.16.0.1", 5555},
+                                    {"localhost", 80},
+                                    {"example.com", 5555}]}]),
+         T(#{<<"advertised_endpoints">> =>
+             [#{<<"host">> => <<"172.16.0.1">>,
+                <<"port">> => 5555},
+              #{<<"host">> => <<"localhost">>,
+                <<"port">> => 80},
+              #{<<"host">> => <<"example.com">>,
+                <<"port">> => 5555}]})),
+    ?eqf(M([{connections_per_endpoint, 22}]),
+         T(#{<<"connections_per_endpoint">> => 22})),
+    ?eqf(M([{endpoint_refresh_interval, 120}]),
+         T(#{<<"endpoint_refresh_interval">> => 120})),
+    ?eqf(M([{endpoint_refresh_interval_when_empty, 5}]),
+         T(#{<<"endpoint_refresh_interval_when_empty">> => 5})),
+    ?eqf(M([{disabled_gc_interval, 60}]),
+         T(#{<<"disabled_gc_interval">> => 60})),
+    ?errf(T(#{<<"endpoints">> => #{}})),
+    ?errf(T(#{<<"advertised_endpoints">> => #{}})),
+    ?errf(T(#{<<"connections_per_endpoint">> => -1})),
+    ?errf(T(#{<<"endpoint_refresh_interval">> => 0})),
+    ?errf(T(#{<<"endpoint_refresh_interval_when_empty">> => 0})),
+    ?errf(T(#{<<"disabled_gc_interval">> => 0})),
+    ?errf(T(#{<<"tls">> => #{}})),
+    ?errf(#{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{}}}}).
+
+mod_global_config_connections_endpoints(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"endpoints">> => Opts,
+                <<"tls">> => #{
+                    <<"enabled">> => true}}}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib, 
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{endpoints, Opts}, {tls_opts, []}]}]) end,
+    ?eqf(M([{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]),
+         T([#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
+            #{<<"host">> => <<"localhost">>, <<"port">> => 80},
+            #{<<"host">> => <<"example.com">>, <<"port">> => 5555}])),
+    ?errf(T([#{<<"host">> => <<"172.16.0.2">>}])),
+    ?errf(T([#{<<"port">> => 5555}])),
+    ?errf(T([#{<<"host">> => <<"">>}])),
+    ?errf(T([#{<<"port">> => -1}])).
+
+mod_global_config_connections_advertised_endpoints(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"advertised_endpoints">> => Opts,
+                <<"tls">> => #{
+                    <<"enabled">> => true}}}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib, 
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{advertised_endpoints, Opts}, {tls_opts, []}]}]) end,
+    ?eqf(M([{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]),
+         T([#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
+            #{<<"host">> => <<"localhost">>, <<"port">> => 80},
+            #{<<"host">> => <<"example.com">>, <<"port">> => 5555}])),
+    ?errf(T([#{<<"host">> => <<"172.16.0.2">>}])),
+    ?errf(T([#{<<"port">> => 5555}])),
+    ?errf(T([#{<<"host">> => <<"">>}])),
+    ?errf(T([#{<<"port">> => -1}])).
+
+mod_global_config_connections_tls(_Config) ->
+    RequiredOpts = #{<<"enabled">> => true},
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"tls">> => maps:merge(RequiredOpts, Opts)}}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib, 
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{tls_opts, Opts}]}]) end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M(false),
+         T(#{<<"enabled">> => false})),
+    ?eqf(M([{certfile, "/dev/null"}]),
+         T(#{<<"certfile">> => <<"/dev/null">>})),
+    ?eqf(M([{cafile, "/dev/null"}]),
+         T(#{<<"cacertfile">> => <<"/dev/null">>})),
+    ?eqf(M([{dhfile, "/dev/null"}]),
+         T(#{<<"dhfile">> => <<"/dev/null">>})),
+    ?eqf(M([{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?errf(T(#{<<"enabled">> => <<"yes">>})),
+    ?errf(T(#{<<"certfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(#{<<"dhfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(#{<<"ciphers">> => 42})),
+    ?errf(#{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"tls">> => #{}}}}}).
+
+mod_global_config_redis(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"tls">> => #{
+                    <<"enabled">> => true}},
+            <<"redis">> => Opts}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib,
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{tls_opts,[]}]},
+         {redis, Opts}]) end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{pool, global_distrib}]),
+         T(#{<<"pool">> => <<"global_distrib">>})),
+    ?eqf(M([{expire_after, 120}]),
+         T(#{<<"expire_after">> => 120})),
+    ?eqf(M([{refresh_after, 60}]),
+         T(#{<<"refresh_after">> => 60})),
+    ?errf(T(#{<<"pool">> => <<"">>})),
+    ?errf(T(#{<<"expire_after">> => 0})),
+    ?errf(T(#{<<"refresh_after">> => -1})).
+
+mod_global_config_cache(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"tls">> => #{
+                    <<"enabled">> => true}},
+            <<"cache">> => Opts}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib,
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{tls_opts,[]}]},
+         {cache, Opts}]) end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{cache_missed, false}]),
+         T(#{<<"cache_missed">> => false})),
+    ?eqf(M([{domain_lifetime_seconds, 60}]),
+         T(#{<<"domain_lifetime_seconds">> => 60})),
+    ?eqf(M([{jid_lifetime_seconds, 30}]),
+         T(#{<<"jid_lifetime_seconds">> => 30})),
+    ?eqf(M([{max_jids, 9999}]),
+         T(#{<<"max_jids">> => 9999})),
+    ?errf(T(#{<<"cache_missed">> => <<"yes">>})),
+    ?errf(T(#{<<"domain_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"jid_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"max_jids">> => -1})).
+
+mod_global_config_bounce(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{
+        <<"mod_global_distrib">> => #{
+            <<"global_host">> => <<"example.com">>,
+            <<"local_host">> => <<"datacenter1.example.com">>,
+            <<"connections">> => #{
+                <<"tls">> => #{
+                    <<"enabled">> => true}},
+            <<"bounce">> => Opts}}} end,
+    M = fun(Opts) -> modopts(mod_global_distrib,
+        [{global_host, "example.com"},
+         {local_host, "datacenter1.example.com"},
+         {connections, [{tls_opts,[]}]},
+         {bounce, Opts}]) end,
+    ?eqf(M(false),
+         T(#{<<"enabled">> => false})),
+    ?eqf(M([]),
+         T(#{<<"enabled">> => true})),
+    ?eqf(M([{resend_after_ms, 300}]),
+         T(#{<<"resend_after_ms">> => 300})),
+    ?eqf(M([{max_retries, 3}]),
+         T(#{<<"max_retries">> => 3})),
+    ?errf(T(#{<<"enabled">> => <<"">>})),
+    ?errf(T(#{<<"resend_after_ms">> => -1})),
+    ?errf(T(#{<<"max_retries">> => -1})).
 
 mod_event_pusher_sns(_Config) ->
     RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
