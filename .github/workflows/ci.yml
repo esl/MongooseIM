@@ -36,25 +36,31 @@ jobs:
       - name: run test
         run: tools/travis-test.sh -p $PRESET -s true -e true
 
-  internal_mnesia:
-    name: internal_mnesia on OTP 23.0.3
+  big_tests:
+    name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+    strategy:
+      matrix:
+        preset: [internal_mnesia]
+        otp: ['23.0.3']
     runs-on: ubuntu-latest
     env:
-      PRESET: 'internal_mnesia'
-      DB: 'mnesia minio redis'
-      REL_CONFIG: 'with-all'
-      TLS_DIST: 'true'
+      PRESET: ${{matrix.preset}}
     steps:
       - uses: actions/checkout@v2
       - uses: ErlGang/setup-erlang@v1.0.0
         with:
-          otp-version: '23.0.3'
+          otp-version: ${{matrix.otp}}
       - uses: actions/cache@v2
         with:
           path: ~/.cache/rebar3
           key: rebar3-${{ hashFiles('rebar.lock') }}
       - name: create certificates
         run: make certs
+      - if: ${{ matrix.preset == 'internal_mnesia' }}
+        run:
+          echo "DB=mnesia minio redis" >> $GITHUB_ENV
+          echo "REL_CONFIG=with-all" >> $GITHUB_ENV
+          echo "TLS_DIST=true" >> $GITHUB_ENV
       - name: build releases
         run: tools/build-releases.sh
       - name: build big tests
