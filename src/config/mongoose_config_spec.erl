@@ -752,7 +752,8 @@ all_modules() ->
      mod_roster,
      mod_shared_roster_ldap,
      mod_stream_management,
-     mod_vcard].
+     mod_vcard,
+     mod_version].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

@@ -130,12 +130,6 @@ validate([<<"pool">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
 validate([<<"refresh_after">>, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>|_],
          [{refresh_after, V}]) ->
     validate_non_negative_integer(V);
-validate([<<"iqdisc">>, <<"mod_version">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"os_info">>, <<"mod_version">>, <<"modules">>|_],
-         [{os_info, V}]) ->
-    validate_boolean(V);
 validate([<<"type">>, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>|_],
          [{type, V}]) ->
     validate_non_empty_atom(V);
