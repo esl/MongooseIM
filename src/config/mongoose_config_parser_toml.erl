@@ -178,29 +178,6 @@ module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
-module_opt([<<"host">>, <<"mod_vcard">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"search">>, <<"mod_vcard">>|_], V) ->
-    [{search, V}];
-module_opt([<<"matches">>, <<"mod_vcard">>|_], V) ->
-    [{matches, int_or_infinity(V)}];
-module_opt([<<"ldap_vcard_map">>, <<"mod_vcard">>|_] = Path, V) ->
-    Maps = parse_list(Path, V),
-    [{ldap_vcard_map, Maps}];
-module_opt([<<"ldap_uids">>, <<"mod_vcard">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{ldap_uids, List}];
-module_opt([<<"ldap_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
-    Fields = parse_list(Path, V),
-    [{ldap_search_fields, Fields}];
-module_opt([<<"ldap_search_reported">>, <<"mod_vcard">>|_] = Path, V) ->
-    Reported = parse_list(Path, V),
-    [{ldap_search_reported, Reported}];
-module_opt([<<"ldap_search_operator">>, <<"mod_vcard">>|_], V) ->
-    [{ldap_search_operator, b2a(V)}];
-module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{ldap_binary_search_fields, List}];
 module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
     [{os_info, V}];
 % General options
@@ -392,30 +369,6 @@ mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> :=
         [{b2l(Host), b2l(Path), b2l(Method), b2l(Upstream)}];
 mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"upstream">> := Upstream}) ->
         [{b2l(Host), b2l(Path), b2l(Upstream)}].
-
--spec mod_vcard_ldap_uids(path(), toml_section()) -> [option()].
-mod_vcard_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
-    [{b2l(Attr), b2l(Format)}];
-mod_vcard_ldap_uids(_, #{<<"attr">> := Attr}) ->
-    [b2l(Attr)].
-
-
--spec mod_vcard_ldap_vcard_map(path(), toml_section()) -> [option()].
-mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP,
-    <<"ldap_field">> := LF}) ->
-    [{VF, LP, [LF]}].
-
--spec mod_vcard_ldap_search_fields(path(), toml_section()) -> [option()].
-mod_vcard_ldap_search_fields(_, #{<<"search_field">> := SF, <<"ldap_field">> := LF}) ->
-    [{SF, LF}].
-
--spec mod_vcard_ldap_search_reported(path(), toml_section()) -> [option()].
-mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> := VF}) ->
-    [{SF, VF}].
-
--spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
-mod_vcard_ldap_binary_search_fields(_, V) ->
-    [V].
 
 -spec iqdisc_value(atom(), toml_section()) -> option().
 iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
@@ -694,7 +647,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_register">>,
         Mod =/= <<"mod_roster">>,
         Mod =/= <<"mod_shared_roster_ldap">>,
-        Mod =/= <<"mod_stream_management">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_stream_management">>,
+        Mod =/= <<"mod_vcard">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -736,16 +690,6 @@ handler([_, _, <<"mod_mam_meta">>, <<"modules">>]) ->
     fun mod_mam_opts/2;
 handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
     fun mod_revproxy_routes/2;
-handler([_, <<"ldap_uids">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_uids/2;
-handler([_, <<"ldap_vcard_map">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_vcard_map/2;
-handler([_, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_search_fields/2;
-handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_search_reported/2;
-handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_binary_search_fields/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;
