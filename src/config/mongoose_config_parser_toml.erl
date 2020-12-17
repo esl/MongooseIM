@@ -178,8 +178,6 @@ module_opt([_, <<"mod_mam_meta">>|_] = Path, V) ->
 module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
     Routes = parse_list(Path, V),
     [{routes, Routes}];
-module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
-    [{os_info, V}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     {Type, Opts} = maps:take(<<"type">>, V),
@@ -648,7 +646,8 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_roster">>,
         Mod =/= <<"mod_shared_roster_ldap">>,
         Mod =/= <<"mod_stream_management">>,
-        Mod =/= <<"mod_vcard">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_vcard">>,
+        Mod =/= <<"mod_version">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
