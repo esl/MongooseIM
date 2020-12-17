@@ -199,7 +199,7 @@
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats"]
+             "roster", "last", "private", "stanza", "stats", "migration"]
 
 [services.service_mongoose_system_metrics]
   initial_report = 300_000
