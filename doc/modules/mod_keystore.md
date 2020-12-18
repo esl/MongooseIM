@@ -50,9 +50,9 @@ Simple configuration - single tenant (i.e. server hosting just one XMPP domain):
 
 ```toml
 [modules.mod_keystore]
-  keys = [{name = "access_secret, type = "ram"},
-          {name = "access_psk, type = "file", path = "priv/access_psk"},
-          {name = "provision_psk, type = "file", path = "priv/provision_psk"}]
+  keys = [{name = "access_secret", type = "ram"},
+          {name = "access_psk", type = "file", path = "priv/access_psk"},
+          {name = "provision_psk", type = "file", path = "priv/provision_psk"}]
 ```
 
 Multi-tenant setup (`mod_keystore` configured differently
@@ -63,15 +63,15 @@ for each virtual XMPP domain):
   host = "first.com"
   
   [host_config.modules.mod_keystore]
-    keys = [{name = "access_secret, type = "ram"},
-            {name = "access_psk, type = "file", path = "priv/first_access_psk"},
-            {name = "provision_psk, type = "file", path = "priv/first_provision_psk"}]
+    keys = [{name = "access_secret", type = "ram"},
+            {name = "access_psk", type = "file", path = "priv/first_access_psk"},
+            {name = "provision_psk", type = "file", path = "priv/first_provision_psk"}]
 
 [[host_config]]
   host = "second.com"
   
   [host_config.modules.mod_keystore]
     keys = [{name = "access_secret", type = "ram"},
-            {name = "access_psk," type = "file", path = "priv/second_access_psk"},
+            {name = "access_psk", type = "file", path = "priv/second_access_psk"},
             {name = "provision_psk", type = "file", path = "priv/second_provision_psk"}]
 ```

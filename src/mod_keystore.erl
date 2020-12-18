@@ -35,7 +35,7 @@
 %% The name doesn't differentiate between virtual hosts
 %% (i.e. there are multiple keys with the same name,
 %% one per each XMPP domain).
--type key_name() :: any().
+-type key_name() :: atom().
 %% A key ID is used to uniquely identify a key for storage backends.
 %% It's used to maintain separate instances of a key with the same name
 %% for different virtual hosts.
@@ -104,10 +104,12 @@ keys_spec() ->
         process = fun ?MODULE:process_keys/1
     }.
 
-process_keys([{name, Name},{type, ram}]) ->
-    {Name, ram};
-process_keys([{name, Name}, {path, File}, {type, file}]) ->
-    {Name, {file, File}}.
+process_keys(KVs) ->
+    {[[{name, Name}], [{type, Type}]], PathOpts} = proplists:split(KVs, [name, type]),
+    process_key_opts(Name, Type, PathOpts).
+
+process_key_opts(Name, ram, []) -> {Name, ram};
+process_key_opts(Name, file, [{path, Path}]) -> {Name, {file, Path}}.
 
 %%
 %% Hook handlers

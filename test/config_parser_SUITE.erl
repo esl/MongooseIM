@@ -190,6 +190,7 @@ groups() ->
                             mod_http_upload_s3,
                             mod_jingle_sip,
                             mod_keystore,
+                            mod_keystore_keys,
                             mod_last,
                             mod_mam_meta,
                             mod_mam_meta_pm,
@@ -1935,34 +1936,30 @@ mod_jingle_sip(_Config) ->
     ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
 
 mod_keystore(_Config) ->
-    T = fun(Keys, Size) -> #{<<"modules">> =>
-                               #{<<"mod_keystore">> =>
-                                   #{<<"keys">> => Keys,
-                                     <<"ram_key_size">> => Size}}}
-    end,
-    Keys = [#{<<"name">> => <<"access_secret">>,
-              <<"type">> => <<"ram">>},
-            #{<<"name">> => <<"access_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/access_psk">>},
-            #{<<"name">> => <<"provision_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/provision_psk">>}],
-    NotExistingKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"file">>,
-                       <<"path">> => <<"does/not/esit">>},
-    InvalidTypeKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"some_cooool_type">>},
-    Size = 10000,
-    InvalidTypeSize = -1,
-    MKeys = [{access_secret, ram},
-             {access_psk,    {file, "priv/access_psk"}},
-             {provision_psk, {file, "priv/provision_psk"}}],
-    MBase = [{keys, MKeys}, {ram_key_size, Size}],
-    ?eqf(modopts(mod_keystore, MBase), T(Keys, Size)),
-    ?errf(T([NotExistingKey], Size)),
-    ?errf(T([InvalidTypeKey], Size)),
-    ?errf(T(Keys, InvalidTypeSize)).
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
+    M = fun(Cfg) -> modopts(mod_keystore, Cfg) end,
+    ?eqf(M([{ram_key_size, 1024}]),
+         T(#{<<"ram_key_size">> => 1024})),
+    ?errf(T(#{<<"ram_key_size">> => -1})).
+
+mod_keystore_keys(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> =>
+                                              #{<<"keys">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_keystore, [{keys, Cfg}]) end,
+    RequiredOpts = #{<<"name">> => <<"access_secret">>,
+                     <<"type">> => <<"ram">>},
+    ?eqf(M([{access_secret, ram}]),
+         T([RequiredOpts])),
+    ?eqf(M([{access_secret, {file, "priv/access_psk"}}]),
+         T([RequiredOpts#{<<"type">> => <<"file">>,
+                          <<"path">> => <<"priv/access_psk">>}])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"name">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"rampampam">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>,
+                           <<"path">> => <<"does/not/exists">>}])).
 
 mod_last(_Config) ->
     check_iqdisc(mod_last),
