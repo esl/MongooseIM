@@ -50,24 +50,6 @@
          users_number/2,
          get_users_without_scram/2,
          get_users_without_scram_count/1,
-         get_average_roster_size/1,
-         get_average_rostergroup_size/1,
-         clear_rosters/1,
-         get_roster/2,
-         get_roster_jid_groups/2,
-         get_roster_groups/3,
-         del_user_roster_t/2,
-         get_roster_by_jid/3,
-         get_roster_by_jid_t/3,
-         get_rostergroup_by_jid/3,
-         get_rostergroup_by_jid_t/3,
-         del_roster/3,
-         del_roster_sql/2,
-         update_roster/5,
-         update_roster_sql/4,
-         roster_subscribe/4,
-         get_subscription/3,
-         get_subscription_t/3,
          get_default_privacy_list/2,
          get_default_privacy_list_t/1,
          count_privacy_lists/1,
@@ -85,8 +67,6 @@
          set_privacy_list/2,
          del_privacy_lists/3,
          count_records_where/3,
-         get_roster_version/2,
-         set_roster_version/2,
          prepare_offline_message/7,
          push_offline_messages/2,
          pop_offline_messages/4,
@@ -437,153 +417,6 @@ get_users_without_scram_count(LServer) ->
       LServer,
       [<<"select count(*) from users where pass_details is null">>]).
 
-get_average_roster_size(Server) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        [<<"select avg(items) from "
-           "(select count(*) as items from rosterusers group by username) as items;">>]).
-
-get_average_rostergroup_size(Server) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        [<<"select avg(roster) from "
-           "(select count(*) as roster from rostergroups group by username) as roster;">>]).
-
-clear_rosters(Server) ->
-    mongoose_rdbms:sql_transaction(
-      Server,
-      fun() ->
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rosterusers;">>]),
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rostergroups;">>])
-      end).
-
-get_roster(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username, jid, nick, subscription, ask, "
-         "askmessage, server, subscribe, type from rosterusers "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_roster_jid_groups(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select jid, grp from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_roster_groups(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select grp from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]).
-
-del_user_roster_t(LServer, Username) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rosterusers "
-                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rostergroups "
-                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)])
-      end).
-
-q_get_roster(Username, SJID) ->
-    [<<"select username, jid, nick, subscription, "
-    "ask, askmessage, server, subscribe, type from rosterusers "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_roster_by_jid(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(LServer, q_get_roster(Username, SJID)).
-
-get_roster_by_jid_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_roster(Username, SJID)).
-
-q_get_rostergroup(Username, SJID) ->
-    [<<"select grp from rostergroups "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_rostergroup_by_jid(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(LServer, q_get_rostergroup(Username, SJID)).
-
-get_rostergroup_by_jid_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_rostergroup(Username, SJID)).
-
-del_roster(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rosterusers "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
-
-del_roster_sql(Username, SJID) ->
-    [[<<"delete from rosterusers "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
-     [<<"delete from rostergroups "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]].
-
-update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
-    update_t(<<"rosterusers">>,
-             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-             ItemVals,
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    lists:foreach(fun(ItemGroup) ->
-                          mongoose_rdbms:sql_query_t(
-                            [<<"insert into rostergroups(username, jid, grp) "
-                               "values (">>, join_escaped(ItemGroup), ");"])
-                  end,
-                  ItemGroups).
-
-update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
-    [[<<"delete from rosterusers "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
-     [<<"insert into rosterusers("
-        "username, jid, nick, "
-        "subscription, ask, askmessage, "
-        "server, subscribe, type) "
-        " values (">>, join_escaped(ItemVals), ");"],
-     [<<"delete from rostergroups "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]] ++
-        [[<<"insert into rostergroups(username, jid, grp) "
-            "values (">>, join_escaped(ItemGroup), ");"] ||
-            ItemGroup <- ItemGroups].
-
-roster_subscribe(_LServer, Username, SJID, ItemVals) ->
-    update_t(<<"rosterusers">>,
-             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-             ItemVals,
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
-
-q_get_subscription(Username, SJID) ->
-    [<<"select subscription from rosterusers "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_subscription(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query( LServer, q_get_subscription(Username, SJID)).
-
-get_subscription_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
-
 get_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
@@ -704,20 +537,6 @@ count_records_where(LServer, Table, WhereClause) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from ">>, Table, " ", WhereClause, ";"]).
-
-
-get_roster_version(LServer, LUser) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select version from roster_version "
-         "where username=">>, mongoose_rdbms:use_escaped_string(LUser)]).
-
-set_roster_version(LUser, Version) ->
-    update_t(
-      <<"roster_version">>,
-      [<<"username">>, <<"version">>],
-      [LUser, Version],
-      [<<"username = ">>, mongoose_rdbms:use_escaped_string(LUser)]).
 
 
 pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
