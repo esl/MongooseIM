@@ -1914,26 +1914,22 @@ http_upload_s3_expected_cfg() ->
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
-    Base = #{
-      <<"proxy_host">> => <<"proxxxy">>,
-      <<"proxy_port">> => 5600,
-      <<"listen_port">> => 5601,
-      <<"local_host">> => <<"localhost">>,
-      <<"sdp_origin">> => <<"127.0.0.1">>
-    },
-    MBase = [
-      {listen_port, 5601},
-      {local_host, "localhost"},
-      {proxy_host, "proxxxy"},
-      {proxy_port, 5600},
-      {sdp_origin, "127.0.0.1"}
-    ],
-    ?eqf(modopts(mod_jingle_sip, MBase), T(Base)),
-    ?errf(T(Base#{<<"proxy_host">> => -1})),
-    ?errf(T(Base#{<<"listen_port">> => -1})),
-    ?errf(T(Base#{<<"proxy_port">> => 10000000})),
-    ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
-    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
+    M = fun(Cfg) -> modopts(mod_jingle_sip, Cfg) end,
+    ?eqf(M([{proxy_host, "proxxxy"}]),
+         T(#{<<"proxy_host">> => <<"proxxxy">>})),
+    ?eqf(M([{proxy_port, 5601}]),
+         T(#{<<"proxy_port">> => 5601})),
+    ?eqf(M([{listen_port, 5602}]),
+         T(#{<<"listen_port">> => 5602})),
+    ?eqf(M([{local_host, "localhost"}]),
+         T(#{<<"local_host">> => <<"localhost">>})),
+    ?eqf(M([{sdp_origin, "127.0.0.1"}]),
+         T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
+    ?errf(T(#{<<"proxy_host">> => 1})),
+    ?errf(T(#{<<"proxy_port">> => 1000000})),
+    ?errf(T(#{<<"listen_port">> => -1})),
+    ?errf(T(#{<<"local_host">> => <<>>})),
+    ?errf(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
