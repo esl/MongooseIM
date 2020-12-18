@@ -561,6 +561,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_last">>,
         Mod =/= <<"mod_mam_meta">>,
         Mod =/= <<"mod_muc">>,
         Mod =/= <<"mod_muc_light">>,

@@ -1870,17 +1870,16 @@ mod_keystore(_Config) ->
     ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
 
 mod_last(_Config) ->
+    check_iqdisc(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"backend">> => <<"riak">>,
-             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
-    MBase = [{backend, riak},
-             {bucket_type, <<"test">>},
-             {iqdisc, one_queue}],
-    ?eqf(modopts(mod_last, MBase), T(Base)),
-    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_last).
+    M = fun(Cfg) -> modopts(mod_last, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"test">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+
+    ?errf(T(#{<<"backend">> => <<"frontend">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_mam_meta(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,

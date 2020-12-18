@@ -181,15 +181,6 @@ validate([<<"secret_access_key">>, <<"s3">>, <<"mod_http_upload">>, <<"modules">
 validate([<<"token_bytes">>, <<"mod_http_upload">>, <<"modules">>|_],
          [{token_bytes, V}]) ->
     validate_positive_integer(V);
-validate([<<"backend">>, <<"mod_last">>, <<"modules">>|_],
-         [{backend, V}]) ->
-    validate_backend(mod_last, V);
-validate([<<"iqdisc">>, <<"mod_last">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"bucket_type">>, <<"riak">>, <<"mod_last">>, <<"modules">>|_],
-         [{bucket_type, V}]) ->
-    validate_non_empty_binary(V);
 validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);

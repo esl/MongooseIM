@@ -35,6 +35,7 @@
 -export([
          start/2,
          stop/1,
+         config_spec/0,
          process_local_iq/4,
          process_sm_iq/4,
          on_presence_update/5,
@@ -48,6 +49,7 @@
 -export([config_metrics/1]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -include("jlib.hrl").
 
@@ -107,6 +109,27 @@ stop(Host) ->
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_LAST),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_LAST).
+
+%%%
+%%% config_spec
+%%%
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                 <<"backend">> => #option{type = atom,
+                                          validate = {module, mod_last}},
+                 <<"riak">> => riak_config_spec()
+                }
+      }.
+
+riak_config_spec() ->
+    #section{items = #{<<"bucket_type">> => #option{type = binary,
+                                                    validate = non_empty}
+                      },
+             format = none
+            }.
 
 %%%
 %%% Uptime of ejabberd node
@@ -254,4 +277,3 @@ session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
-

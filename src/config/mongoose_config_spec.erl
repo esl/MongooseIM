@@ -738,6 +738,7 @@ all_modules() ->
      mod_csi,
      mod_disco,
      mod_event_pusher,
+     mod_last,
      mod_mam_meta,
      mod_muc,
      mod_muc_light,
