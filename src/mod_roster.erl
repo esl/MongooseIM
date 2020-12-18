@@ -218,11 +218,11 @@ stop(Host) ->
 config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
-                <<"versioning">> => #option{type = boolean},
-                <<"store_current_id">> => #option{type = boolean},
-                <<"backend">> => #option{type = atom,
+                 <<"versioning">> => #option{type = boolean},
+                 <<"store_current_id">> => #option{type = boolean},
+                 <<"backend">> => #option{type = atom,
                                           validate = {module, mod_roster}},
-                <<"riak">> => riak_config_spec()
+                 <<"riak">> => riak_config_spec()
                 }
       }.
 

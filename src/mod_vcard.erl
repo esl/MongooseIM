@@ -51,8 +51,7 @@
 -export([config_spec/0,
          process_map_spec/1,
          process_search_spec/1,
-         process_search_reported_spec/1,
-         process_ldap_uids/1]).
+         process_search_reported_spec/1]).
 
 %% gen_server handlers
 -export([init/1,
@@ -213,16 +212,16 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"host">> => #option{type = string,
-                                       validate = non_empty},
+                                       validate = domain_template},
                  <<"search">> => #option{type = boolean},
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_vcard}},
                  <<"matches">> => #option{type = int_or_infinity,
                                           validate = non_negative},
                  <<"ldap_pool_tag">> => #option{type = atom,
-                                                validate = non_empty},
+                                                validate = pool_name},
                  <<"ldap_base">> => #option{type = string},
-                 <<"ldap_uids">> => #list{items = ldap_uids_spec()},
+                 <<"ldap_uids">> => #list{items = mongoose_config_spec:ldap_uids()},
                  <<"ldap_filter">> => #option{type = string},
                  <<"ldap_deref">> => #option{type = atom,
                                              validate = {enum, [never, always, finding, searching]}},
@@ -232,25 +231,10 @@ config_spec() ->
                  <<"ldap_search_operator">> => #option{type = atom,
                                                        validate = {enum, ['or', 'and']}},
                  <<"ldap_binary_search_fields">> => #list{items = #option{type = binary,
-                                                                         validate = non_empty}},
+                                                                          validate = non_empty}},
                  <<"riak">> => riak_config_spec()
                 }
       }.
-
-ldap_uids_spec() ->
-    #section{
-        items = #{<<"attr">> => #option{type = string},
-                <<"format">> => #option{type = string}},
-        process = fun ?MODULE:process_ldap_uids/1,
-        required = [<<"attr">>]
-}.
-
-process_ldap_uids(KVs) ->
-    {[AttrOpts, FormatOpts], []} = proplists:split(KVs, [attr, format]),
-    case {AttrOpts, FormatOpts} of
-        {[{attr, Attr}], []} -> Attr;
-        {[{attr, Attr}], [{format, Format}]} -> {Attr, Format}
-    end.
 
 ldap_vcard_map_spec() ->
     #section{
@@ -279,7 +263,7 @@ ldap_search_fields_spec() ->
 ldap_search_reported_spec() ->
     #section{
         items = #{<<"search_field">> => #option{type = binary,
-                                               validate = non_empty},
+                                                validate = non_empty},
                   <<"vcard_field">> => #option{type = binary,
                                                validate = non_empty}
                 },

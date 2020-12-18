@@ -335,9 +335,6 @@ b2a(B) -> binary_to_atom(B, utf8).
 
 b2l(B) -> binary_to_list(B).
 
-int_or_infinity(I) when is_integer(I) -> I;
-int_or_infinity(<<"infinity">>) -> infinity.
-
 -spec limit_keys([toml_key()], toml_section()) -> any().
 limit_keys(Keys, Section) ->
     case maps:keys(maps:without(Keys, Section)) of

@@ -7,7 +7,7 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--export([start/2, stop/1, config_spec/0,process_iq/4]).
+-export([start/2, stop/1, config_spec/0, process_iq/4]).
 
 -xep([{xep, 92}, {version, "1.1"}]).
 

@@ -74,7 +74,7 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"access">> => #option{type = atom,
-                                         validate = non_empty},
+                                         validate = access_rule},
                  <<"welcome_message">> => welcome_message_spec(),
                  <<"registration_watchers">> => #list{items = #option{type = binary,
                                                                       validate = jid}},
@@ -86,10 +86,8 @@ config_spec() ->
 
 welcome_message_spec() ->
     #section{
-        items = #{<<"body">> => #option{type = string,
-                                        validate = non_empty},
-                  <<"subject">> => #option{type = string,
-                                           validate = non_empty}},
+        items = #{<<"body">> => #option{type = string},
+                  <<"subject">> => #option{type = string}},
         process = fun ?MODULE:process_welcome_message/1
     }.
 

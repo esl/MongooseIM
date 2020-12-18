@@ -6,7 +6,7 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 ### `modules.mod_vcard.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
