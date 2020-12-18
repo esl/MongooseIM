@@ -62,7 +62,9 @@ jobs:
           echo "REL_CONFIG=with-all" >> $GITHUB_ENV
           echo "TLS_DIST=true" >> $GITHUB_ENV
       - name: build releases
-        run: tools/build-releases.sh
+        run: |
+          ./rebar3 compile
+          tools/build-releases.sh
       - name: build big tests
         run: tools/travis-build-tests.sh
       - name: start backends
