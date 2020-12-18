@@ -48,7 +48,7 @@ transaction(LServer, F) ->
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    case rdbms_queries:get_roster_version(LServer, Username)
+    case get_roster_version(LServer, Username)
     of
         {selected, [{Version}]} -> Version;
         {selected, []} -> error
@@ -59,20 +59,19 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
     EVer = mongoose_rdbms:escape_string(Ver),
     case InTransaction of
         true ->
-            rdbms_queries:set_roster_version(Username, EVer);
+            set_roster_version(Username, EVer);
         _ ->
             rdbms_queries:sql_transaction(LServer,
                                           fun () ->
-                                                  rdbms_queries:set_roster_version(Username,
-                                                                                   EVer)
+                                                  set_roster_version(Username, EVer)
                                           end)
     end.
 
 get_roster(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_roster(LServer, Username) of
+    try get_roster_sql(LServer, Username) of
         {selected, Items} when is_list(Items) ->
-            {selected, JIDGroups} = rdbms_queries:get_roster_jid_groups(LServer, Username),
+            {selected, JIDGroups} = get_roster_jid_groups(LServer, Username),
             GroupsDict = lists:foldl(fun ({J, G}, Acc) ->
                                              dict:append(J, G, Acc)
                                      end,
@@ -113,9 +112,9 @@ do_get_roster_entry(LUser, LServer, LJID, FuncName) ->
     SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     {selected, Res} = case FuncName of
                           get_roster_by_jid ->
-                              rdbms_queries:get_roster_by_jid(LServer, Username, SJID);
+                              get_roster_by_jid(LServer, Username, SJID);
                           get_roster_by_jid_t ->
-                              rdbms_queries:get_roster_by_jid_t(LServer, Username, SJID)
+                              get_roster_by_jid_t(LServer, Username, SJID)
                       end,
     case Res of
         [] ->
@@ -158,7 +157,7 @@ get_roster_entry_t(LUser, LServer, LJID, full) ->
 
 get_subscription_lists(_, LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_roster(LServer, Username) of
+    try get_roster_sql(LServer, Username) of
         {selected, Items} when is_list(Items) ->
             Items;
         Other ->
@@ -176,12 +175,11 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ItemVals = record_to_string(Item),
     Username = mongoose_rdbms:escape_string(LUser),
     SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
-    rdbms_queries:roster_subscribe(LServer, Username, SJID,
-                                  ItemVals).
+    roster_subscribe(LServer, Username, SJID, ItemVals).
 
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:del_user_roster_t(LServer, Username),
+    del_user_roster_t(LServer, Username),
     ok.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
@@ -189,12 +187,12 @@ update_roster_t(LUser, LServer, LJID, Item) ->
     SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     ItemVals = record_to_string(Item),
     ItemGroups = groups_to_string(Item),
-    rdbms_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
+    update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
 
 del_roster_t(LUser, LServer, LJID) ->
     Username = mongoose_rdbms:escape_string(LUser),
     SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
-    rdbms_queries:del_roster(LServer, Username, SJID).
+    del_roster(LServer, Username, SJID).
 
 raw_to_record(LServer,
               {User, SJID, Nick, SSubscription, SAsk, SAskMessage,
@@ -237,9 +235,9 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
     SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     SubResult = case GSFunc of
               get_subscription ->
-                  catch rdbms_queries:get_subscription(LServer, Username, SJID);
+                  catch get_subscription(LServer, Username, SJID);
               get_subscription_t ->
-                  catch rdbms_queries:get_subscription_t(LServer, Username, SJID)
+                  catch get_subscription_t(LServer, Username, SJID)
                 end,
     case SubResult of
         {selected, [{SSubscription}]} ->
@@ -251,9 +249,9 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                            end,
             GRResult = case GRFunc of
                            get_rostergroup_by_jid ->
-                               catch rdbms_queries:get_rostergroup_by_jid(LServer, Username, SJID);
+                               catch get_rostergroup_by_jid(LServer, Username, SJID);
                            get_rostergroup_by_jid_t ->
-                               catch rdbms_queries:get_rostergroup_by_jid_t(LServer, Username, SJID)
+                               catch get_rostergroup_by_jid_t(LServer, Username, SJID)
                        end,
             Groups = case GRResult of
                          {selected, JGrps} when is_list(JGrps) ->
@@ -312,3 +310,114 @@ groups_to_string(#roster{us = {User, _Server},
                         [[Username, SJID, G] | Acc]
                 end,
                 [], Groups).
+
+
+get_roster_version(LServer, LUser) ->
+    mongoose_rdbms:sql_query(
+      LServer,
+      [<<"select version from roster_version "
+         "where username=">>, mongoose_rdbms:use_escaped_string(LUser)]).
+
+set_roster_version(LUser, Version) ->
+    mongoose_rdbms:update_t(
+      <<"roster_version">>,
+      [<<"username">>, <<"version">>],
+      [LUser, Version],
+      [<<"username = ">>, mongoose_rdbms:use_escaped_string(LUser)]).
+
+get_roster_sql(LServer, Username) ->
+    mongoose_rdbms:sql_query(
+      LServer,
+      [<<"select username, jid, nick, subscription, ask, "
+         "askmessage, server, subscribe, type from rosterusers "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
+
+get_roster_jid_groups(LServer, Username) ->
+    mongoose_rdbms:sql_query(
+      LServer,
+      [<<"select jid, grp from rostergroups "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
+
+del_user_roster_t(LServer, Username) ->
+    mongoose_rdbms:sql_transaction(
+      LServer,
+      fun() ->
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rosterusers "
+                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
+              mongoose_rdbms:sql_query_t(
+                [<<"delete from rostergroups "
+                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)])
+      end).
+
+
+q_get_roster(Username, SJID) ->
+    [<<"select username, jid, nick, subscription, "
+    "ask, askmessage, server, subscribe, type from rosterusers "
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
+
+get_roster_by_jid(LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query(LServer, q_get_roster(Username, SJID)).
+
+get_roster_by_jid_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_roster(Username, SJID)).
+
+q_get_rostergroup(Username, SJID) ->
+    [<<"select grp from rostergroups "
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
+
+get_rostergroup_by_jid(LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query(LServer, q_get_rostergroup(Username, SJID)).
+
+get_rostergroup_by_jid_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_rostergroup(Username, SJID)).
+
+del_roster(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(
+      [<<"delete from rosterusers "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
+    mongoose_rdbms:sql_query_t(
+      [<<"delete from rostergroups "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
+
+update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
+    mongoose_rdbms:update_t(<<"rosterusers">>,
+             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
+             ItemVals,
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
+              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
+    mongoose_rdbms:sql_query_t(
+      [<<"delete from rostergroups "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
+    lists:foreach(fun(ItemGroup) ->
+                          mongoose_rdbms:sql_query_t(
+                            [<<"insert into rostergroups(username, jid, grp) "
+                               "values (">>, mongoose_rdbms:join_escaped(ItemGroup), ");"])
+                  end,
+                  ItemGroups).
+
+roster_subscribe(_LServer, Username, SJID, ItemVals) ->
+    mongoose_rdbms:update_t(<<"rosterusers">>,
+             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
+             ItemVals,
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
+              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
+
+q_get_subscription(Username, SJID) ->
+    [<<"select subscription from rosterusers "
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
+
+get_subscription(LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query( LServer, q_get_subscription(Username, SJID)).
+
+get_subscription_t(_LServer, Username, SJID) ->
+    mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
+
