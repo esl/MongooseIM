@@ -7,8 +7,8 @@
 all() -> [
           overrides_general_options,
           sets_rdbms_as_default_backend,
-          assumes_pm_by_default,
-          handles_disabled_pm,
+          handles_only_pm,
+          handles_only_muc,
           disables_sync_writer_on_async_writer,
           disables_sync_muc_writer_on_async_writer,
           produces_valid_configurations,
@@ -44,14 +44,16 @@ sets_rdbms_as_default_backend(_Config) ->
     ?assert(lists:keymember(mod_mam_rdbms_arch, 1, Deps)).
 
 
-assumes_pm_by_default(_Config) ->
-    Deps = deps([]),
-    ?assert(lists:keymember(mod_mam, 1, Deps)).
+handles_only_pm(_Config) ->
+    Deps = deps([{pm, []}]),
+    ?assert(lists:keymember(mod_mam, 1, Deps)),
+    ?assertNot(lists:keymember(mod_mam_muc, 1, Deps)).
 
 
-handles_disabled_pm(_Config) ->
-    Deps = deps([{pm, false}, {muc, []}]),
-    ?assertNot(lists:keymember(mod_mam, 1, Deps)).
+handles_only_muc(_Config) ->
+    Deps = deps([{muc, []}]),
+    ?assertNot(lists:keymember(mod_mam, 1, Deps)),
+    ?assert(lists:keymember(mod_mam_muc, 1, Deps)).
 
 
 disables_sync_writer_on_async_writer(_Config) ->
@@ -61,7 +63,7 @@ disables_sync_writer_on_async_writer(_Config) ->
 
 
 disables_sync_muc_writer_on_async_writer(_Config) ->
-    Deps = deps([{pm, false}, {muc, [async_writer]}]),
+    Deps = deps([{muc, [async_writer]}]),
     {_, Args, _} = lists:keyfind(mod_mam_muc_rdbms_arch, 1, Deps),
     ?assert(lists:member(no_writer, Args)).
 
@@ -133,7 +135,6 @@ example_muc_only_no_pref_good_performance(_Config) ->
     Deps = deps([
                  cache_users,
                  async_writer,
-                 {pm, false},
                  {muc, [{host, "muc.@HOST@"}]}
                 ]),
 
@@ -150,6 +151,7 @@ example_muc_only_no_pref_good_performance(_Config) ->
 
 example_pm_only_good_performance(_Config) ->
     Deps = deps([
+                 {pm, []},
                  cache_users,
                  async_writer,
                  {user_prefs_store, mnesia}
@@ -186,8 +188,7 @@ meck_config() ->
                        [{mod_mam, [here, is, some, config]}];
                    (modules, <<"meta_no_mod_mam_config">>) ->
                        [{mod_mam_meta, [{backend, rdbms},
-                                        {muc, []},
-                                        {pm, false}]}];
+                                        {muc, []}]}];
                    (modules, <<"meta_valid_mod_mam_config">>) ->
                        [{mod_mam_meta, [{backend, rdbms},
                                         cache_users,
