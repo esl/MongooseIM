@@ -738,6 +738,7 @@ all_modules() ->
      mod_csi,
      mod_disco,
      mod_event_pusher,
+     mod_last,
      mod_mam_meta,
      mod_muc,
      mod_muc_light,
@@ -747,7 +748,13 @@ all_modules() ->
      mod_privacy,
      mod_private,
      mod_pubsub,
-     mod_push_service_mongoosepush].
+     mod_push_service_mongoosepush,
+     mod_register,
+     mod_roster,
+     mod_shared_roster_ldap,
+     mod_stream_management,
+     mod_vcard,
+     mod_version].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

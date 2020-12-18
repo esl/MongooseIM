@@ -164,94 +164,6 @@ module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
 module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
     Keys = parse_list(Path, V),
     [{keys, Keys}];
-module_opt([<<"access">>, <<"mod_register">>|_], V) ->
-    [{access, b2a(V)}];
-module_opt([<<"registration_watchers">>, <<"mod_register">>|_] = Path, V) ->
-    [{registration_watchers, parse_list(Path, V)}];
-module_opt([<<"password_strength">>, <<"mod_register">>|_], V) ->
-    [{password_strength, V}];
-module_opt([<<"ip_access">>, <<"mod_register">>|_] = Path, V) ->
-    Rules = parse_list(Path, V),
-    [{ip_access, Rules}];
-module_opt([<<"welcome_message">>, <<"mod_register">>|_] = Path, V) ->
-    parse_section(Path, V, fun process_welcome_message/1);
-module_opt([<<"routes">>, <<"mod_revproxy">>|_] = Path, V) ->
-    Routes = parse_list(Path, V),
-    [{routes, Routes}];
-module_opt([<<"versioning">>, <<"mod_roster">>|_], V) ->
-    [{versioning, V}];
-module_opt([<<"store_current_id">>, <<"mod_roster">>|_], V) ->
-    [{store_current_id, V}];
-module_opt([<<"ldap_useruid">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_useruid, b2l(V)}];
-module_opt([<<"ldap_groupattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_groupattr, b2l(V)}];
-module_opt([<<"ldap_groupdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_groupdesc, b2l(V)}];
-module_opt([<<"ldap_userdesc">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_userdesc, b2l(V)}];
-module_opt([<<"ldap_userid">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_userid, b2l(V)}];
-module_opt([<<"ldap_memberattr">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr, b2l(V)}];
-module_opt([<<"ldap_memberattr_format">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr_format, b2l(V)}];
-module_opt([<<"ldap_memberattr_format_re">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_memberattr_format_re, b2l(V)}];
-module_opt([<<"ldap_auth_check">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_auth_check, V}];
-module_opt([<<"ldap_user_cache_validity">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_user_cache_validity, V}];
-module_opt([<<"ldap_group_cache_validity">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_group_cache_validity, V}];
-module_opt([<<"ldap_user_cache_size">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_user_cache_size, V}];
-module_opt([<<"ldap_group_cache_size">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_group_cache_size, V}];
-module_opt([<<"ldap_rfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_rfilter, b2l(V)}];
-module_opt([<<"ldap_gfilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_gfilter, b2l(V)}];
-module_opt([<<"ldap_ufilter">>, <<"mod_shared_roster_ldap">>|_], V) ->
-    [{ldap_ufilter, b2l(V)}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], <<"no_buffer">>) ->
-    [{buffer_max, no_buffer}];
-module_opt([<<"buffer_max">>, <<"mod_stream_management">>|_], V) ->
-    [{buffer_max, int_or_infinity(V)}];
-module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], <<"never">>) ->
-    [{ack_freq, never}];
-module_opt([<<"ack_freq">>, <<"mod_stream_management">>|_], V) ->
-    [{ack_freq, V}];
-module_opt([<<"resume_timeout">>, <<"mod_stream_management">>|_], V) ->
-    [{resume_timeout, V}];
-module_opt([<<"stale_h">>, <<"mod_stream_management">>|_] = Path, V) ->
-    Stale = parse_section(Path, V),
-    [{stale_h, Stale}];
-module_opt([<<"host">>, <<"mod_vcard">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"search">>, <<"mod_vcard">>|_], V) ->
-    [{search, V}];
-module_opt([<<"matches">>, <<"mod_vcard">>|_], V) ->
-    [{matches, int_or_infinity(V)}];
-module_opt([<<"ldap_vcard_map">>, <<"mod_vcard">>|_] = Path, V) ->
-    Maps = parse_list(Path, V),
-    [{ldap_vcard_map, Maps}];
-module_opt([<<"ldap_uids">>, <<"mod_vcard">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{ldap_uids, List}];
-module_opt([<<"ldap_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
-    Fields = parse_list(Path, V),
-    [{ldap_search_fields, Fields}];
-module_opt([<<"ldap_search_reported">>, <<"mod_vcard">>|_] = Path, V) ->
-    Reported = parse_list(Path, V),
-    [{ldap_search_reported, Reported}];
-module_opt([<<"ldap_search_operator">>, <<"mod_vcard">>|_], V) ->
-    [{ldap_search_operator, b2a(V)}];
-module_opt([<<"ldap_binary_search_fields">>, <<"mod_vcard">>|_] = Path, V) ->
-    List = parse_list(Path, V),
-    [{ldap_binary_search_fields, List}];
-module_opt([<<"os_info">>, <<"mod_version">>|_], V) ->
-    [{os_info, V}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     {Type, Opts} = maps:take(<<"type">>, V),
@@ -271,11 +183,6 @@ module_opt([<<"ldap_deref">>|_], V) ->
 module_opt([<<"riak">>|_] = Path, V) ->
     parse_section(Path, V).
 
-process_welcome_message(Props) ->
-    Subject = proplists:get_value(subject, Props, ""),
-    Body = proplists:get_value(body, Props, ""),
-    [{welcome_message, {Subject, Body}}].
-
 %% path: (host_config[].)modules.*.riak.*
 -spec riak_opts(path(), toml_section()) -> [option()].
 riak_opts([<<"defaults_bucket_type">>|_], V) ->
@@ -288,10 +195,6 @@ riak_opts([<<"bucket_type">>|_], V) ->
     [{bucket_type, V}];
 riak_opts([<<"search_index">>|_], V) ->
     [{search_index, V}].
-
--spec mod_register_ip_access_rule(path(), toml_section()) -> [option()].
-mod_register_ip_access_rule(_, #{<<"address">> := Addr, <<"policy">> := Policy}) ->
-    [{b2a(Policy), b2l(Addr)}].
 
 -spec mod_extdisco_service(path(), toml_value()) -> [option()].
 mod_extdisco_service([_, <<"service">>|_] = Path, V) ->
@@ -396,45 +299,6 @@ mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"ram">>}) ->
 mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"file">>, <<"path">> := Path}) ->
     [{b2a(Name), {file, b2l(Path)}}].
 
--spec mod_revproxy_routes(path(), toml_section()) -> [option()].
-mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"method">> := Method,
-    <<"upstream">> := Upstream}) ->
-        [{b2l(Host), b2l(Path), b2l(Method), b2l(Upstream)}];
-mod_revproxy_routes(_, #{<<"host">> := Host, <<"path">> := Path, <<"upstream">> := Upstream}) ->
-        [{b2l(Host), b2l(Path), b2l(Upstream)}].
-
--spec mod_stream_management_stale_h(path(), toml_value()) -> [option()].
-mod_stream_management_stale_h([<<"enabled">>|_], V) ->
-    [{enabled, V}];
-mod_stream_management_stale_h([<<"repeat_after">>|_], V) ->
-    [{stale_h_repeat_after, V}];
-mod_stream_management_stale_h([<<"geriatric">>|_], V) ->
-    [{stale_h_geriatric, V}].
-
--spec mod_vcard_ldap_uids(path(), toml_section()) -> [option()].
-mod_vcard_ldap_uids(_, #{<<"attr">> := Attr, <<"format">> := Format}) ->
-    [{b2l(Attr), b2l(Format)}];
-mod_vcard_ldap_uids(_, #{<<"attr">> := Attr}) ->
-    [b2l(Attr)].
-
-
--spec mod_vcard_ldap_vcard_map(path(), toml_section()) -> [option()].
-mod_vcard_ldap_vcard_map(_, #{<<"vcard_field">> := VF, <<"ldap_pattern">> := LP,
-    <<"ldap_field">> := LF}) ->
-    [{VF, LP, [LF]}].
-
--spec mod_vcard_ldap_search_fields(path(), toml_section()) -> [option()].
-mod_vcard_ldap_search_fields(_, #{<<"search_field">> := SF, <<"ldap_field">> := LF}) ->
-    [{SF, LF}].
-
--spec mod_vcard_ldap_search_reported(path(), toml_section()) -> [option()].
-mod_vcard_ldap_search_reported(_, #{<<"search_field">> := SF, <<"vcard_field">> := VF}) ->
-    [{SF, VF}].
-
--spec mod_vcard_ldap_binary_search_fields(path(), toml_section()) -> [option()].
-mod_vcard_ldap_binary_search_fields(_, V) ->
-    [V].
-
 -spec iqdisc_value(atom(), toml_section()) -> option().
 iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
     limit_keys([<<"workers">>], V),
@@ -442,11 +306,6 @@ iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
 iqdisc_value(Type, V) ->
     limit_keys([], V),
     Type.
-
-welcome_message([<<"subject">>|_], Value) ->
-    [{subject, b2l(Value)}];
-welcome_message([<<"body">>|_], Value) ->
-    [{body, b2l(Value)}].
 
 %% path: host_config[]
 -spec process_host_item(path(), toml_section()) -> config_list().
@@ -475,9 +334,6 @@ set_overrides(Overrides, State) ->
 b2a(B) -> binary_to_atom(B, utf8).
 
 b2l(B) -> binary_to_list(B).
-
-int_or_infinity(I) when is_integer(I) -> I;
-int_or_infinity(<<"infinity">>) -> infinity.
 
 -spec limit_keys([toml_key()], toml_section()) -> any().
 limit_keys(Keys, Section) ->
@@ -600,6 +456,9 @@ convert(V, string) -> binary_to_list(V);
 convert(V, atom) -> b2a(V);
 convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
 convert(V, int_or_infinity) when is_integer(V) -> V;
+convert(<<"infinity">>, int_or_infinity_or_atom) -> infinity;
+convert(<<"no_buffer">>, int_or_infinity_or_atom) -> no_buffer;
+convert(V, int_or_infinity_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) when is_integer(V) -> V;
@@ -702,6 +561,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_last">>,
         Mod =/= <<"mod_mam_meta">>,
         Mod =/= <<"mod_muc">>,
         Mod =/= <<"mod_muc_light">>,
@@ -711,7 +571,13 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_privacy">>,
         Mod =/= <<"mod_private">>,
         Mod =/= <<"mod_pubsub">>,
-        Mod =/= <<"mod_push_service_mongoosepush">>). % TODO temporary, remove with 'handler/1'
+        Mod =/= <<"mod_push_service_mongoosepush">>,
+        Mod =/= <<"mod_register">>,
+        Mod =/= <<"mod_roster">>,
+        Mod =/= <<"mod_shared_roster_ldap">>,
+        Mod =/= <<"mod_stream_management">>,
+        Mod =/= <<"mod_vcard">>,
+        Mod =/= <<"mod_version">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
@@ -723,12 +589,6 @@ handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
 handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
 handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
-handler([_, <<"ip_access">>, <<"mod_register">>, <<"modules">>]) ->
-    fun mod_register_ip_access_rule/2;
-handler([_, <<"registration_watchers">>, <<"mod_register">>, <<"modules">>]) ->
-    fun(_, V) -> [V] end;
-handler([_, <<"welcome_message">>, <<"mod_register">>, <<"modules">>]) ->
-    fun welcome_message/2;
 handler([_, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
     fun mod_extdisco_service/2;
 handler([_, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
@@ -755,20 +615,6 @@ handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>
     fun mod_global_distrib_tls_option/2;
 handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
     fun mod_keystore_keys/2;
-handler([_, <<"routes">>, <<"mod_revproxy">>, <<"modules">>]) ->
-    fun mod_revproxy_routes/2;
-handler([_, <<"stale_h">>, <<"mod_stream_management">>, <<"modules">>]) ->
-    fun mod_stream_management_stale_h/2;
-handler([_, <<"ldap_uids">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_uids/2;
-handler([_, <<"ldap_vcard_map">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_vcard_map/2;
-handler([_, <<"ldap_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_search_fields/2;
-handler([_, <<"ldap_search_reported">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_search_reported/2;
-handler([_, <<"ldap_binary_search_fields">>, <<"mod_vcard">>, <<"modules">>]) ->
-    fun mod_vcard_ldap_binary_search_fields/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;

@@ -202,13 +202,17 @@ groups() ->
                             mod_pubsub_default_node_config,
                             mod_push_service_mongoosepush,
                             mod_register,
-                            mod_revproxy,
                             mod_roster,
                             mod_shared_roster_ldap,
                             mod_sic,
                             mod_stream_management,
+                            mod_stream_management_stale_h,
                             mod_time,
                             mod_vcard,
+                            mod_vcard_ldap_uids,
+                            mod_vcard_ldap_vcard_map,
+                            mod_vcard_ldap_search_fields,
+                            mod_vcard_ldap_search_reported,
                             mod_version]},
      {services, [parallel], [service_admin_extra,
                              service_mongoose_system_metrics]}
@@ -1866,17 +1870,16 @@ mod_keystore(_Config) ->
     ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
 
 mod_last(_Config) ->
+    check_iqdisc(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"backend">> => <<"riak">>,
-             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
-    MBase = [{backend, riak},
-             {bucket_type, <<"test">>},
-             {iqdisc, one_queue}],
-    ?eqf(modopts(mod_last, MBase), T(Base)),
-    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_last).
+    M = fun(Cfg) -> modopts(mod_last, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"test">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+
+    ?errf(T(#{<<"backend">> => <<"frontend">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_mam_meta(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
@@ -2493,256 +2496,229 @@ registration_watchers(JidBins) ->
     Opts = #{<<"registration_watchers">> => JidBins},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
-mod_revproxy(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_revproxy">> => Opts}} end,
-    R = fun(Route) -> T(#{<<"routes">> => [Route]}) end,
-    Base = #{<<"routes">> => [R1 = #{
-                 <<"host">> => <<"www.erlang-solutions.com">>,
-                 <<"path">> => <<"/admin">>,
-                 <<"method">> => <<"_">>,
-                 <<"upstream">> => <<"https://www.erlang-solutions.com/">>
-                }, #{
-                 <<"host">> => <<"example.com">>,
-                 <<"path">> => <<"/test">>,
-                 <<"upstream">> => <<"https://example.com/">>
-                }]},
-    MBase = [{routes, [{"www.erlang-solutions.com", "/admin", "_",
-                        "https://www.erlang-solutions.com/"},
-                       {"example.com", "/test", "https://example.com/"}]}],
-    run_multi([
-            ?_eqf(modopts(mod_revproxy, MBase), T(Base)),
-            ?_errf(R(R1#{<<"host">> => 1})),
-            ?_errf(R(R1#{<<"path">> => 1})),
-            ?_errf(R(R1#{<<"method">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => <<>>})),
-            ?_errf(R(R1#{<<"host">> => <<>>}))
-          ]).
-
 mod_roster(_Config) ->
-    Riak = #{<<"bucket_type">> => <<"rosters">>,
-             <<"version_bucket_type">> => <<"roster_versions">>},
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"versioning">> => false,
-             <<"store_current_id">> => false,
-             <<"backend">> => <<"mnesia">>,
-             <<"riak">> => Riak},
-    MBase = [{iqdisc, one_queue},
-             {versioning, false},
-             {store_current_id, false},
-             {backend, mnesia},
-             {bucket_type, <<"rosters">>},
-             {version_bucket_type, <<"roster_versions">>}],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
-    run_multi([
-            ?_eqf(modopts(mod_roster, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"versioning">> => 1})),
-            ?_errf(T(#{<<"store_current_id">> => 1})),
-            ?_errf(T(#{<<"backend">> => 1})),
-            ?_errf(T(#{<<"backend">> => <<"iloveyou">>})),
-            ?_errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-            ?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}}))
-          ]),
+    M = fun(Cfg) -> modopts(mod_roster, Cfg) end,
+
+    ?eqf(M([{versioning, false}]),
+        T(#{<<"versioning">> => false})),
+    ?eqf(M([{store_current_id, false}]),
+       T(#{<<"store_current_id">> => false})),
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"rosters">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"rosters">>}})),
+    ?eqf(M([{version_bucket_type, <<"roster_versions">>}]),
+       T(#{<<"riak">> => #{<<"version_bucket_type">> => <<"roster_versions">>}})),
+
+    ?errf(T(#{<<"versioning">> => 1})),
+    ?errf(T(#{<<"store_current_id">> => 1})),
+    ?errf(T(#{<<"backend">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"iloveyou">>})),
+    ?errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_roster).
 
 mod_shared_roster_ldap(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
-    MBase = [{ldap_pool_tag, default},
-             {ldap_base,  "string"},
-             {ldap_deref, never},
-             %% Options: attributes
-             {ldap_groupattr, "cn"},
-             {ldap_groupdesc, "default"},
-             {ldap_userdesc, "cn"},
-             {ldap_useruid, "cn"},
-             {ldap_memberattr, "memberUid"},
-             {ldap_memberattr_format, "%u"},
-             {ldap_memberattr_format_re,""},
-             %% Options: parameters
-             {ldap_auth_check, true},
-             {ldap_user_cache_validity, 300},
-             {ldap_group_cache_validity, 300},
-             {ldap_user_cache_size, 300},
-             {ldap_group_cache_size, 300},
-             %% Options: LDAP filters
-             {ldap_rfilter, "test"},
-             {ldap_gfilter, "test"},
-             {ldap_ufilter, "test"},
-             {ldap_filter, "test"}
-        ],
-    Base = #{
-            <<"ldap_pool_tag">> => <<"default">>,
-            <<"ldap_base">> => <<"string">>,
-            <<"ldap_deref">> => <<"never">>,
-            %% Options: attributes
-            <<"ldap_groupattr">> => <<"cn">>,
-            <<"ldap_groupdesc">> => <<"default">>,
-            <<"ldap_userdesc">> => <<"cn">>,
-            <<"ldap_useruid">> => <<"cn">>,
-            <<"ldap_memberattr">> => <<"memberUid">>,
-            <<"ldap_memberattr_format">> => <<"%u">>,
-            <<"ldap_memberattr_format_re">> => <<"">>,
-            %% Options: parameters
-            <<"ldap_auth_check">> => true,
-            <<"ldap_user_cache_validity">> => 300,
-            <<"ldap_group_cache_validity">> => 300,
-            <<"ldap_user_cache_size">> => 300,
-            <<"ldap_group_cache_size">> => 300,
-            %% Options: LDAP filters
-            <<"ldap_rfilter">> => <<"test">>,
-            <<"ldap_gfilter">> => <<"test">>,
-            <<"ldap_ufilter">> => <<"test">>,
-            <<"ldap_filter">> => <<"test">>
-        },
-    run_multi(
-      check_one_opts(mod_shared_roster_ldap, MBase, Base, T) ++ [
-            ?_eqf(modopts(mod_shared_roster_ldap, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"ldap_pool_tag">> => 1})),
-            ?_errf(T(#{<<"ldap_base">> => 1})),
-            ?_errf(T(#{<<"ldap_deref">> => 1})),
-            %% Options: attributes
-            ?_errf(T(#{<<"ldap_groupattr">> => 1})),
-            ?_errf(T(#{<<"ldap_groupdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_userdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_useruid">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
-            %% Options: parameters
-            ?_errf(T(#{<<"ldap_auth_check">> => 1})),
-            ?_errf(T(#{<<"ldap_user_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_user_cache_size">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_size">> => -1})),
-            %% Options: LDAP filters
-            ?_errf(T(#{<<"ldap_rfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_gfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_ufilter">> => 1})),
-            ?_errf(T(#{<<"ldap_filter">> => 1}))
-        ]).
+    M = fun(Cfg) -> modopts(mod_shared_roster_ldap, Cfg) end,
+    ?eqf(M([{ldap_pool_tag, default}]),
+       T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base,  "string"}]),
+       T(#{<<"ldap_base">> => <<"string">>})),
+    ?eqf(M([{ldap_deref, never}]),
+       T(#{<<"ldap_deref">> => <<"never">>})),
+    %% Options: attributes
+    ?eqf(M([ {ldap_groupattr, "cn"}]),
+       T(#{<<"ldap_groupattr">> => <<"cn">>})),
+    ?eqf(M([{ldap_groupdesc, "default"}]),
+       T(#{<<"ldap_groupdesc">> => <<"default">>})),
+    ?eqf(M([{ldap_userdesc, "cn"}]),
+       T(#{<<"ldap_userdesc">> => <<"cn">>})),
+    ?eqf(M([{ldap_useruid, "cn"}]),
+       T(#{<<"ldap_useruid">> => <<"cn">>})),
+    ?eqf(M([{ldap_memberattr, "memberUid"}]),
+       T(#{<<"ldap_memberattr">> => <<"memberUid">>})),
+    ?eqf(M([{ldap_memberattr_format, "%u"}]),
+       T(#{<<"ldap_memberattr_format">> => <<"%u">>})),
+    ?eqf(M([{ldap_memberattr_format_re,""}]),
+       T(#{<<"ldap_memberattr_format_re">> => <<"">>})),
+    %% Options: parameters
+    ?eqf(M([ {ldap_auth_check, true}]),
+       T(#{<<"ldap_auth_check">> => true})),
+    ?eqf(M([{ldap_user_cache_validity, 300}]),
+       T(#{<<"ldap_user_cache_validity">> => 300})),
+    ?eqf(M([{ldap_group_cache_validity, 300}]),
+       T(#{<<"ldap_group_cache_validity">> => 300})),
+    ?eqf(M([{ldap_user_cache_size, 300}]),
+       T(#{<<"ldap_user_cache_size">> => 300})),
+    ?eqf(M([{ldap_group_cache_size, 300}]),
+       T(#{<<"ldap_group_cache_size">> => 300})),
+    %% Options: LDAP filters
+    ?eqf(M([{ldap_rfilter, "rfilter_test"}]),
+       T(#{<<"ldap_rfilter">> => <<"rfilter_test">>})),
+    ?eqf(M([{ldap_gfilter, "gfilter_test"}]),
+       T(#{<<"ldap_gfilter">> => <<"gfilter_test">>})),
+    ?eqf(M([{ldap_ufilter, "ufilter_test"}]),
+       T(#{<<"ldap_ufilter">> => <<"ufilter_test">>})),
+   ?eqf(M([{ldap_filter, "filter_test"}]),
+       T(#{<<"ldap_filter">> => <<"filter_test">>})),
+    ?errf(T(#{<<"ldap_pool_tag">> => 1})),
+    ?errf(T(#{<<"ldap_base">> => 1})),
+    ?errf(T(#{<<"ldap_deref">> => 1})),
+    %% Options: attributes
+    ?errf(T(#{<<"ldap_groupattr">> => 1})),
+    ?errf(T(#{<<"ldap_groupdesc">> => 1})),
+    ?errf(T(#{<<"ldap_userdesc">> => 1})),
+    ?errf(T(#{<<"ldap_useruid">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
+    %% Options: parameters
+    ?errf(T(#{<<"ldap_auth_check">> => 1})),
+    ?errf(T(#{<<"ldap_user_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_user_cache_size">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_size">> => -1})),
+    %% Options: LDAP filters
+    ?errf(T(#{<<"ldap_rfilter">> => 1})),
+    ?errf(T(#{<<"ldap_gfilter">> => 1})),
+    ?errf(T(#{<<"ldap_ufilter">> => 1})),
+    ?errf(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
     check_iqdisc(mod_sic).
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
-    Base = #{
-        <<"buffer_max">> => 100,
-        <<"ack_freq">> => 1,
-        <<"resume_timeout">> => 600,
-        <<"stale_h">> => #{<<"enabled">> => true,
-                           <<"repeat_after">> => 1800,
-                           <<"geriatric">> => 3600}
-       },
-    MBase = [
-             {buffer_max, 100},
-             {ack_freq, 1},
-             {resume_timeout, 600},
-             {stale_h, [{enabled, true},
-                        {stale_h_geriatric, 3600},
-                        {stale_h_repeat_after, 1800}]}
-       ],
-    ?eqf(modopts(mod_stream_management, lists:sort(MBase)), T(Base)),
-    ?eqf(modopts(mod_stream_management, [{buffer_max, no_buffer}]),
-         T(#{<<"buffer_max">> => <<"no_buffer">>})),
+    M = fun(Cfg) -> modopts(mod_stream_management, Cfg) end,
+    ?eqf(M([{buffer_max, no_buffer}]),  T(#{<<"buffer_max">> => <<"no_buffer">>})),
+    ?eqf(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
+    ?eqf(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
+
     ?errf(T(#{<<"buffer_max">> => -1})),
-    ?errf(T(#{<<"ack_freq">> => -1})),
-    ?errf(T(#{<<"resume_timeout">> => -1})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => <<"true">>}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => 1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"repeat_after">> => -1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"geriatric">> => -1}})),
-    ok.
+    ?errf(T(#{<<"ack_freq">> => <<"one">>})),
+    ?errf(T(#{<<"resume_timeout">> => true})).
+
+mod_stream_management_stale_h(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+        #{<<"mod_stream_management">> => #{<<"stale_h">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_stream_management, [{stale_h, Cfg}]) end,
+    ?eqf(M([{enabled, true}]), T(#{<<"enabled">> => true})),
+    ?eqf(M([{stale_h_repeat_after, 1800}]), T(#{<<"repeat_after">> => 1800})),
+    ?eqf(M([{stale_h_geriatric, 3600}]), T(#{<<"geriatric">> => 3600})),
+
+    ?errf(T(#{<<"enabled">> => <<"true">>})),
+    ?errf(T(#{<<"repeat_after">> => -1})),
+    ?errf(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
     check_iqdisc(mod_time).
 
 mod_vcard(_Config) ->
+    check_iqdisc(mod_vcard),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
-    MBase = [{iqdisc, one_queue},
-             {host, "vjud.@HOST@"},
-             {search, true},
-             {backend, mnesia},
-             {matches, infinity},
-             %% ldap
-             {ldap_pool_tag, default},
-             {ldap_base, "ou=Users,dc=ejd,dc=com"},
-             {ldap_deref, never},
-             {ldap_uids, [{"mail", "%u@mail.example.org"}, "name"]},
-             {ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
-             %% MIM accepts {"FAMILY", "%s", ["sn", "cn"]} form too
-             {ldap_vcard_map, [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]}]}, %% iolists
-             {ldap_search_fields, [{<<"Full Name">>, <<"cn">>}]}, %% pair of iolists
-             {ldap_search_reported, [{<<"Full Name">>, <<"FN">>}]}, %% iolists
-             {ldap_search_operator, 'or'},
-             {ldap_binary_search_fields, [<<"PHOTO">>]},
-             %% riak
-             {bucket_type, <<"vcard">>},
-             {search_index, <<"vcard">>}
-            ],
-    Riak = #{<<"bucket_type">> => <<"vcard">>,
-             <<"search_index">> => <<"vcard">>},
-    Base = #{
-      <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-      <<"host">> => <<"vjud.@HOST@">>,
-      <<"search">> => true,
-      <<"backend">> => <<"mnesia">>,
-      <<"matches">> => <<"infinity">>,
-      %% ldap
-      <<"ldap_pool_tag">> => <<"default">>,
-      <<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>,
-      <<"ldap_deref">> => <<"never">>,
-      <<"ldap_uids">> => [#{<<"attr">> => <<"mail">>,
-                            <<"format">> => <<"%u@mail.example.org">>},
-                          #{<<"attr">> => <<"name">>}],
-      <<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
-      <<"ldap_vcard_map">> => [#{<<"vcard_field">> => <<"FAMILY">>,
-                                 <<"ldap_pattern">> => <<"%s">>,
-                                 <<"ldap_field">> => <<"sn">>}],
-      <<"ldap_search_fields">> => [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => <<"cn">>}],
-      <<"ldap_search_reported">> => [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => <<"FN">>}],
-      <<"ldap_search_operator">> => <<"or">>, % atom
-      <<"ldap_binary_search_fields">> => [<<"PHOTO">>],
-      <<"riak">> => Riak
-     },
-    run_multi(check_one_opts_with_same_field_name(mod_vcard, MBase, Base, T)
-              ++ [ ?_eqf(modopts(mod_vcard, lists:sort(MBase)), T(Base)),
-                   ?_eqf(modopts(mod_vcard, [{matches, 1}]), T(#{<<"matches">> => 1})) ]
-              ++ generic_bad_opts_cases(T, mod_vcard_bad_opts())),
-    check_iqdisc(mod_vcard).
+    M = fun(Cfg) -> modopts(mod_vcard, Cfg) end,
+    ?eqf(M([{iqdisc, one_queue}]),
+        T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
+    ?eqf(M([{host, "vjud.@HOST@"}]),
+        T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?eqf(M([{search, true}]),
+        T(#{<<"search">> => true})),
+    ?eqf(M([{backend, mnesia}]),
+        T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{matches, infinity}]),
+        T(#{<<"matches">> => <<"infinity">>})),
+    %% ldap
+    ?eqf(M([{ldap_pool_tag, default}]),
+        T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base, "ou=Users,dc=ejd,dc=com"}]),
+        T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
+    ?eqf(M([{ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"}]),
+        T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
+    ?eqf(M([{ldap_deref, never}]),
+        T(#{<<"ldap_deref">> => <<"never">>})),
+    ?eqf(M([{ldap_search_operator, 'or'}]),
+        T(#{<<"ldap_search_operator">> => <<"or">>})),
+    ?eqf(M([{ldap_binary_search_fields, [<<"PHOTO">>]}]),
+        T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
+    %% riak
+    ?eqf(M([{bucket_type, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
+    ?eqf(M([{search_index, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
-mod_vcard_bad_opts() ->
-    M = #{<<"vcard_field">> => <<"FAMILY">>,
-          <<"ldap_pattern">> => <<"%s">>,
-          <<"ldap_field">> => <<"sn">>},
-    [{host, 1},
-     {host, <<"test test">>},
-     {search, 1},
-     {backend, 1},
-     {backend, <<"mememesia">>},
-     {matches, -1},
-     {ldap_pool_tag, -1},
-     {ldap_base, -1},
-     {ldap_deref, <<"nevernever">>},
-     {ldap_deref, -1},
-     {ldap_uids, -1},
-     {ldap_uids, [#{}]},
-     {ldap_uids, [#{<<"attr">> => 1, <<"format">> => <<"ok">>}]},
-     {ldap_uids, [#{<<"attr">> => <<"ok">>, <<"format">> => 1}]},
-     {ldap_uids, [#{<<"format">> => <<"ok">>}]},
-     {ldap_filter, 1},
-     {ldap_vcard_map, [M#{<<"vcard_field">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_search_fields, [#{<<"search_field">> => 1, <<"ldap_field">> => <<"cn">>}]},
-     {ldap_search_fields, [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => 1}]},
-     {ldap_search_reported, [#{<<"search_field">> => 1, <<"vcard_field">> => <<"FN">>}]},
-     {ldap_search_reported, [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => 1}]},
-     {ldap_search_operator, <<"more">>},
-     {ldap_binary_search_fields, [1]},
-     {ldap_binary_search_fields, 1},
-     {riak, #{<<"bucket_type">> => 1}},
-     {riak, #{<<"search_index">> => 1}}].
+    ?errf(T(#{<<"host">> => 1})),
+    ?errf(T(#{<<"search">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"mememesia">>})),
+    ?errf(T(#{<<"matches">> => -1})),
+    %% ldap
+    ?errf(T(#{<<"ldap_pool_tag">> => -1})),
+    ?errf(T(#{<<"ldap_base">> => -1})),
+    ?errf(T(#{<<"ldap_field">> => -1})),
+    ?errf(T(#{<<"ldap_deref">> => <<"nevernever">>})),
+    ?errf(T(#{<<"ldap_search_operator">> => <<"more">>})),
+    ?errf(T(#{<<"ldap_binary_search_fields">> => [1]})),
+    %% riak
+    ?errf(T(#{<<"riak">> =>  #{<<"bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
+
+mod_vcard_ldap_uids(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_uids, Cfg}]) end,
+    RequiredOpts = #{<<"attr">> => <<"name">>},
+    ExpectedCfg = "name",
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    ?eqf(M([{"name", "%u@mail.example.org"}]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}])),
+    ?eqf(M([{"name", "%u@mail.example.org"}, ExpectedCfg]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}, RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"attr">> := 1})),
+    ?errf(T(RequiredOpts#{<<"format">> => true})).
+
+mod_vcard_ldap_vcard_map(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_vcard_map, Cfg}]) end,
+    RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
+                     <<"ldap_pattern">> => <<"%s">>,
+                     <<"ldap_field">> => <<"sn">>},
+    ExpectedCfg = {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_pattern">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_fields(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_fields, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                     <<"ldap_field">> => <<"cn">>},
+    ExpectedCfg = {<<"Full Name">>, <<"cn">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_reported(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_reported, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                     <<"vcard_field">> => <<"FN">>},
+    ExpectedCfg = {<<"Full Name">>, <<"FN">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := -1})).
 
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
