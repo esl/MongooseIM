@@ -187,6 +187,7 @@ groups() ->
                             mod_event_pusher_rabbit,
                             mod_extdisco,
                             mod_http_upload,
+                            mod_http_upload_s3,
                             mod_jingle_sip,
                             mod_keystore,
                             mod_last,
@@ -1860,34 +1861,55 @@ mod_event_pusher_rabbit(_Config) ->
     ?errf(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
 
 mod_http_upload(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_http_upload">> => Opts}} end,
-    M = fun(Opts) -> modopts(mod_http_upload, Opts) end,
-    RequiredOpts = #{<<"s3">> => #{
-        <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
-        <<"region">> => <<"antarctica-1">>,
-        <<"access_key_id">> => <<"PLEASE">>,
-        <<"secret_access_key">> => <<"ILOVEU">>
-    }},
-    ExpectedCfg = [{s3, [{access_key_id, "PLEASE"},
-        {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-        {region, "antarctica-1"},
-        {secret_access_key, "ILOVEU"}]}],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
+    M = fun(Cfg) -> modopts(mod_http_upload, Cfg) end,
+    RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
+    ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
     ?eqf(M(ExpectedCfg), T(RequiredOpts)),
     ?eqf(M(ExpectedCfg ++ [{host, "upload.@HOST@"}]),
          T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
     ?eqf(M(ExpectedCfg ++ [{backend, s3}]),
-    T(RequiredOpts#{<<"backend">> => <<"s3">>})),
+         T(RequiredOpts#{<<"backend">> => <<"s3">>})),
     ?eqf(M(ExpectedCfg ++ [{expiration_time, 666}]),
          T(RequiredOpts#{<<"expiration_time">> => 666})),
     ?eqf(M(ExpectedCfg ++ [{token_bytes, 32}]),
          T(RequiredOpts#{<<"token_bytes">> => 32})),
     ?eqf(M(ExpectedCfg ++ [{max_file_size, 42}]),
          T(RequiredOpts#{<<"max_file_size">> => 42})),
-    ?errf(T(#{<<"backend">> => <<"">>})),
-    ?errf(T(#{<<"expiration_time">> => 0})),
-    ?errf(T(#{<<"token_bytes">> => 0})),
-    ?errf(T(#{<<"max_file_size">> => 0})).
+    ?errf(T(#{})), %% missing 's3'
+    ?errf(T(RequiredOpts#{<<"backend">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"expiration_time">> => 0})),
+    ?errf(T(RequiredOpts#{<<"token_bytes">> => 0})),
+    ?errf(T(RequiredOpts#{<<"max_file_size">> => 0})),
+    check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
+
+mod_http_upload_s3(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
+                                              #{<<"s3">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_http_upload, [{s3, Cfg}]) end,
+    RequiredOpts = http_upload_s3_required_opts(),
+    ExpectedCfg = http_upload_s3_expected_cfg(),
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{add_acl, true}]),
+         T(RequiredOpts#{<<"add_acl">> => true})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"bucket_url">> => <<>>})),
+    ?errf(T(RequiredOpts#{<<"region">> => true})),
+    ?errf(T(RequiredOpts#{<<"access_key_id">> => []})),
+    ?errf(T(RequiredOpts#{<<"secret_access_key">> => 3})),
+    ?errf(T(RequiredOpts#{<<"add_acl">> => <<"true">>})).
+
+http_upload_s3_required_opts() ->
+    #{<<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+      <<"region">> => <<"antarctica-1">>,
+      <<"access_key_id">> => <<"PLEASE">>,
+      <<"secret_access_key">> => <<"ILOVEU">>}.
+
+http_upload_s3_expected_cfg() ->
+    [{access_key_id, "PLEASE"},
+     {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
+     {region, "antarctica-1"},
+     {secret_access_key, "ILOVEU"}].
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
@@ -2834,16 +2856,19 @@ service_mongoose_system_metrics(_Config) ->
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
 
-iq_disc_generic(Module, Value) ->
-    Opts = #{<<"iqdisc">> => Value},
+iq_disc_generic(Module, RequiredOpts, Value) ->
+    Opts = RequiredOpts#{<<"iqdisc">> => Value},
     #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
 check_iqdisc(Module) ->
-    ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
-         iq_disc_generic(Module, iqdisc({queues, 10}))),
-    ?eqf(modopts(Module, [{iqdisc, parallel}]),
-         iq_disc_generic(Module, iqdisc(parallel))),
-    ?errf(iq_disc_generic(Module, iqdisc(bad_haha))).
+    check_iqdisc(Module, [], #{}).
+
+check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
+    ?errf(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
     [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
