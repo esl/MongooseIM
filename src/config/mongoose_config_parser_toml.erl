@@ -93,57 +93,6 @@ parse_root(Path, Content) ->
     ensure_keys([<<"general">>], Content),
     parse_section(Path, Content).
 
-%% path: (host_config[].)modules.*
--spec process_module(path(), toml_section()) -> [option()].
-process_module([Mod|_] = Path, Opts) ->
-    %% Sort option keys to ensure options could be matched in tests
-    post_process_module(b2a(Mod), parse_section(Path, Opts)).
-
-post_process_module(Mod, Opts) ->
-    [{Mod, lists:sort(Opts)}].
-
-%% path: (host_config[].)modules.*.*
--spec module_opt(path(), toml_value()) -> [option()].
-% General options
-module_opt([<<"iqdisc">>|_], V) ->
-    {Type, Opts} = maps:take(<<"type">>, V),
-    [{iqdisc, iqdisc_value(b2a(Type), Opts)}];
-module_opt([<<"backend">>|_], V) ->
-    [{backend, b2a(V)}];
-%% LDAP-specific options
-module_opt([<<"ldap_pool_tag">>|_], V) ->
-    [{ldap_pool_tag, b2a(V)}];
-module_opt([<<"ldap_base">>|_], V) ->
-    [{ldap_base, b2l(V)}];
-module_opt([<<"ldap_filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}];
-module_opt([<<"ldap_deref">>|_], V) ->
-    [{ldap_deref, b2a(V)}];
-%% Backend-specific options
-module_opt([<<"riak">>|_] = Path, V) ->
-    parse_section(Path, V).
-
-%% path: (host_config[].)modules.*.riak.*
--spec riak_opts(path(), toml_section()) -> [option()].
-riak_opts([<<"defaults_bucket_type">>|_], V) ->
-    [{defaults_bucket_type, V}];
-riak_opts([<<"names_bucket_type">>|_], V) ->
-    [{names_bucket_type, V}];
-riak_opts([<<"version_bucket_type">>|_], V) ->
-    [{version_bucket_type, V}];
-riak_opts([<<"bucket_type">>|_], V) ->
-    [{bucket_type, V}];
-riak_opts([<<"search_index">>|_], V) ->
-    [{search_index, V}].
-
--spec iqdisc_value(atom(), toml_section()) -> option().
-iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
-    limit_keys([<<"workers">>], V),
-    {queues, Workers};
-iqdisc_value(Type, V) ->
-    limit_keys([], V),
-    Type.
-
 %% path: host_config[]
 -spec process_host_item(path(), toml_section()) -> config_list().
 process_host_item(Path, M) ->
@@ -157,15 +106,6 @@ set_overrides(Overrides, State) ->
 
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
 b2a(B) -> binary_to_atom(B, utf8).
-
-b2l(B) -> binary_to_list(B).
-
--spec limit_keys([toml_key()], toml_section()) -> any().
-limit_keys(Keys, Section) ->
-    case maps:keys(maps:without(Keys, Section)) of
-        [] -> ok;
-        ExtraKeys -> error(#{what => unexpected_keys, unexpected_keys => ExtraKeys})
-    end.
 
 -spec ensure_keys([toml_key()], toml_section()) -> any().
 ensure_keys(Keys, Section) ->
@@ -365,54 +305,12 @@ path_to_string(Path) ->
 
 node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
-node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
-
--define(HAS_NO_SPEC(Mod),
-        Mod =/= <<"mod_adhoc">>,
-        Mod =/= <<"mod_auth_token">>,
-        Mod =/= <<"mod_bosh">>,
-        Mod =/= <<"mod_caps">>,
-        Mod =/= <<"mod_carboncopy">>,
-        Mod =/= <<"mod_csi">>,
-        Mod =/= <<"mod_disco">>,
-        Mod =/= <<"mod_event_pusher">>,
-        Mod =/= <<"mod_extdisco">>,
-        Mod =/= <<"mod_global_distrib">>,
-        Mod =/= <<"mod_http_upload">>,
-        Mod =/= <<"mod_inbox">>,
-        Mod =/= <<"mod_jingle_sip">>,
-        Mod =/= <<"mod_keystore">>,
-        Mod =/= <<"mod_last">>,
-        Mod =/= <<"mod_mam_meta">>,
-        Mod =/= <<"mod_muc">>,
-        Mod =/= <<"mod_muc_light">>,
-        Mod =/= <<"mod_muc_log">>,
-        Mod =/= <<"mod_offline">>,
-        Mod =/= <<"mod_ping">>,
-        Mod =/= <<"mod_privacy">>,
-        Mod =/= <<"mod_private">>,
-        Mod =/= <<"mod_pubsub">>,
-        Mod =/= <<"mod_push_service_mongoosepush">>,
-        Mod =/= <<"mod_register">>,
-        Mod =/= <<"mod_roster">>,
-        Mod =/= <<"mod_shared_roster_ldap">>,
-        Mod =/= <<"mod_sic">>,
-        Mod =/= <<"mod_stream_management">>,
-        Mod =/= <<"mod_time">>,
-        Mod =/= <<"mod_vcard">>,
-        Mod =/= <<"mod_version">>). % TODO temporary, remove with 'handler/1'
 
 -spec handler(path()) ->
           fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
 handler([]) -> fun parse_root/2;
 handler([<<"host_config">>]) -> fun parse_list/2;
-
-%% modules
-handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
-handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
-handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
-    fun riak_opts/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;

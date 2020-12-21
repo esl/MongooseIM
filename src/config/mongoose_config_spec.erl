@@ -711,25 +711,29 @@ tls_items() ->
 
 %% path: (host_config[].)services
 services() ->
-    Services = [{a2b(Service), mongoose_service:config_spec(Service)} || Service <- all_services()],
+    Services = [{a2b(Service), mongoose_service:config_spec(Service)}
+                || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
        format = local_config
       }.
 
-all_services() ->
+configurable_services() ->
     [service_admin_extra,
      service_mongoose_system_metrics].
 
 %% path: (host_config[].)modules
 modules() ->
-    Modules = [{a2b(Module), gen_mod:config_spec(Module)} || Module <- all_modules()],
+    Modules = [{a2b(Module), gen_mod:config_spec(Module)}
+               || Module <- configurable_modules()],
+    Items = maps:from_list(Modules),
     #section{
-       items = maps:from_list(Modules),
+       items = Items#{default => #section{items = #{}}},
+       validate_keys = module,
        format = host_local_config
       }.
 
-all_modules() ->
+configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
      mod_bosh,

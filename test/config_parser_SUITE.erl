@@ -222,7 +222,8 @@ groups() ->
                             mod_vcard_ldap_vcard_map,
                             mod_vcard_ldap_search_fields,
                             mod_vcard_ldap_search_reported,
-                            mod_version]},
+                            mod_version,
+                            modules_without_config]},
      {services, [parallel], [service_admin_extra,
                              service_mongoose_system_metrics]}
     ].
@@ -2738,6 +2739,10 @@ mod_version(_Config) ->
     ?eqf(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
     ?errf(T(#{<<"os_info">> => 1})),
     check_iqdisc(mod_version).
+
+modules_without_config(_Config) ->
+    ?eqf(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?errf(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 %% Services
 
