@@ -162,9 +162,8 @@ handle_step(validate, {ParsedValue, Spec}) ->
             {ParsedValue, Spec}
     end;
 handle_step(validate, ParsedValue) ->
-    fun(Path, _Value) ->
-            mongoose_config_validator_toml:validate(Path, ParsedValue),
-            ParsedValue
+    fun(_Path, _Value) ->
+            ParsedValue %% no validation here, this will be removed very soon
     end;
 handle_step(process, {ParsedValue, Spec}) ->
     fun(Path, _Value) ->
