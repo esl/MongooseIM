@@ -397,6 +397,7 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_register">>,
         Mod =/= <<"mod_roster">>,
         Mod =/= <<"mod_shared_roster_ldap">>,
+        Mod =/= <<"mod_sic">>,
         Mod =/= <<"mod_stream_management">>,
         Mod =/= <<"mod_vcard">>,
         Mod =/= <<"mod_version">>). % TODO temporary, remove with 'handler/1'

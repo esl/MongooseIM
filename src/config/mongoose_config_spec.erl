@@ -758,6 +758,7 @@ all_modules() ->
      mod_register,
      mod_roster,
      mod_shared_roster_ldap,
+     mod_sic,
      mod_stream_management,
      mod_vcard,
      mod_version].

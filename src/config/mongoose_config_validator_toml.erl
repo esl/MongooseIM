@@ -21,9 +21,6 @@ validate(Path, [F]) when is_function(F, 1) ->
 validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
          [{iqdisc, V}]) ->
     validate_iqdisc(V);
-validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
 validate(_Path, _Value) ->
     ok.
 
