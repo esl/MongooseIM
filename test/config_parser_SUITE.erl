@@ -2625,7 +2625,8 @@ mod_stream_management_stale_h(_Config) ->
     ?errf(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc(mod_time).
+    check_iqdisc(mod_time),
+    ?eqf(modopts(mod_time, []), #{<<"modules">> => #{<<"mod_time">> => #{}}}).
 
 mod_vcard(_Config) ->
     check_iqdisc(mod_vcard),
