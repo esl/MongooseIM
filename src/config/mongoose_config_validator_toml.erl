@@ -18,12 +18,6 @@ validate(Path, [F]) when is_function(F, 1) ->
     validate(Path, F(?HOST));
 
 %% Modules
-validate([<<"iqdisc">>, <<"mod_time">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
-validate([<<"iqdisc">>, <<"mod_sic">>, <<"modules">>|_],
-         [{iqdisc, V}]) ->
-    validate_iqdisc(V);
 validate(_Path, _Value) ->
     ok.
 
@@ -131,11 +125,6 @@ validate_jid(Jid) ->
         _ ->
             error(#{what => validate_jid_failed, value => Jid})
     end.
-
-validate_iqdisc(no_queue) -> ok;
-validate_iqdisc(one_queue) -> ok;
-validate_iqdisc(parallel) -> ok;
-validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
 
 validate_domain(Domain) when is_list(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),

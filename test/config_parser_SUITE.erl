@@ -2598,7 +2598,8 @@ mod_shared_roster_ldap(_Config) ->
     ?errf(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
-    check_iqdisc(mod_sic).
+    check_iqdisc(mod_sic),
+    ?eqf(modopts(mod_sic, []), #{<<"modules">> => #{<<"mod_sic">> => #{}}}).
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
@@ -2624,7 +2625,8 @@ mod_stream_management_stale_h(_Config) ->
     ?errf(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc(mod_time).
+    check_iqdisc(mod_time),
+    ?eqf(modopts(mod_time, []), #{<<"modules">> => #{<<"mod_time">> => #{}}}).
 
 mod_vcard(_Config) ->
     check_iqdisc(mod_vcard),

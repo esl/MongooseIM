@@ -6,13 +6,19 @@
 %%%-------------------------------------------------------------------
 -module(mod_time).
 -author('ludwik.bukowski@erlang-solutions.com').
+
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
--export([start/2, stop/1, process_local_iq/4]).
--include("mongoose.hrl").
+
+-export([start/2, stop/1, config_spec/0, process_local_iq/4]).
+
 -include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
+
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).
+
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_TIME),
     IQDisc = gen_mod:get_opt(iqdisc, Opts,
@@ -26,6 +32,10 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
                                      ?NS_TIME).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
 process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};

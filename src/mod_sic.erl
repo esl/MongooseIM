@@ -31,12 +31,14 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
          process_local_iq/4,
          process_sm_iq/4
         ]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
@@ -51,6 +53,10 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_SIC),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_SIC).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
 process_local_iq(#jid{} = JID, _To,
                  Acc, #iq{type = 'get', sub_el = _SubEl} = IQ) ->
