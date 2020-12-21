@@ -29,7 +29,7 @@
 -export([deps/2, start/2, stop/1, config_spec/0]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
 -export([maybe_reroute/1]).
--export([process_endpoints/1, process_tls/1, process_bounce/1]).
+-export([process_endpoints/1, process_bounce/1]).
 %%--------------------------------------------------------------------
 %% gen_mod API
 %% See "gen_mod logic" block below in this file
@@ -64,7 +64,7 @@ config_spec() ->
                   <<"cache">> => cache_spec(),
                   <<"bounce">> => bounce_spec()
         },
-        required = [<<"global_host">>, <<"local_host">>, <<"connections">>]
+        required = [<<"global_host">>, <<"local_host">>]
     }.
 
 connections_spec() ->
@@ -80,8 +80,7 @@ connections_spec() ->
                   <<"disabled_gc_interval">> => #option{type = integer,
                                                         validate = positive},
                   <<"tls">> => tls_spec()
-        },
-        required = [<<"tls">>]
+        }
     }.
 
 endpoints_spec() ->
@@ -97,8 +96,7 @@ endpoints_spec() ->
 
 tls_spec() ->
     #section{
-        items = #{<<"enabled">> => #option{type = boolean},
-                  <<"certfile">> => #option{type = string,
+        items = #{<<"certfile">> => #option{type = string,
                                             validate = filename},
                   <<"cacertfile">> => #option{type = string,
                                               validate = filename,
@@ -107,8 +105,7 @@ tls_spec() ->
                   <<"dhfile">> => #option{type = string,
                                           validate = filename}
         },
-        required = [<<"enabled">>],
-        process = fun ?MODULE:process_tls/1,
+        required = [<<"certfile">>, <<"cacertfile">>],
         format = {kv, tls_opts}
     }.
 
@@ -119,7 +116,7 @@ redis_spec() ->
                   <<"expire_after">> => #option{type = integer,
                                                 validate = positive},
                   <<"refresh_after">> => #option{type = integer,
-                                                 validate = non_negative}                              
+                                                 validate = non_negative}
         }
     }.
 
@@ -147,19 +144,13 @@ bounce_spec() ->
     }.
 
 process_endpoints(KV) ->
-    {[[{host, Host}],[{port, Port}]], []} = proplists:split(KV, [host, port]),
+    {[[{host, Host}], [{port, Port}]], []} = proplists:split(KV, [host, port]),
     {Host, Port}.
-
-process_tls(KV) ->
-    case proplists:get_value(enabled, KV, false) of
-        true -> proplists:delete(enabled, KV);
-        false -> false
-    end.
 
 process_bounce(KVs) ->
     {[EnabledOpts], Opts} = proplists:split(KVs, [enabled]),
     bounce_value(EnabledOpts, Opts).
-  
+
 bounce_value([{enabled, false}], _) -> false;
 bounce_value(_, Opts) -> Opts.
 
@@ -314,7 +305,8 @@ get_bound_connection(Server, GDID, Pid) when is_pid(Pid) ->
 
 -spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Opts) ->
-    ConnectionsOpts = proplists:get_value(connections, Opts, []),
+    ConnectionsOpts =
+        lists:ukeysort(1, proplists:get_value(connections, Opts, []) ++ default_conn_opts()),
     CacheOpts = proplists:get_value(cache, Opts, []),
     BounceOpts = proplists:get_value(bounce, Opts, []),
 
@@ -327,6 +319,9 @@ deps(Opts) ->
         false -> Deps0;
         _ -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
     end.
+
+default_conn_opts() ->
+    [{tls_opts, false}].
 
 -spec start() -> any().
 start() ->

@@ -174,13 +174,13 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
-                            mod_global_config_connections,
-                            mod_global_config_connections_endpoints,
-                            mod_global_config_connections_advertised_endpoints,
-                            mod_global_config_connections_tls,
-                            mod_global_config_redis,
-                            mod_global_config_cache,
-                            mod_global_config_bounce,
+                            mod_global_distrib_connections,
+                            mod_global_distrib_connections_endpoints,
+                            mod_global_distrib_connections_advertised_endpoints,
+                            mod_global_distrib_connections_tls,
+                            mod_global_distrib_redis,
+                            mod_global_distrib_cache,
+                            mod_global_distrib_bounce,
                             mod_event_pusher_sns,
                             mod_event_pusher_push,
                             mod_event_pusher_http,
@@ -1509,16 +1509,9 @@ mod_inbox(_Config) ->
 
 mod_global_distrib(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib, Opts) end,
-    RequiredOpts = #{
-        <<"global_host">> => <<"example.com">>,
-        <<"local_host">> => <<"datacenter1.example.com">>,
-        <<"connections">> => #{
-            <<"tls">> => #{
-                <<"enabled">> => true}}},
-    ExpectedCfg = [{connections, [{tls_opts,[]}]},
-                   {global_host, "example.com"},
-                   {local_host, "datacenter1.example.com"}],
+    M = fun(Cfg) -> modopts(mod_global_distrib, Cfg) end,
+    RequiredOpts = global_distrib_required_opts(),
+    ExpectedCfg = global_distrib_expected_config(),
     ?eqf(M(ExpectedCfg), T(RequiredOpts)),
     ?eqf(M(ExpectedCfg ++ [{message_ttl, 42}]),
          T(RequiredOpts#{<<"message_ttl">> => 42})),
@@ -1528,43 +1521,18 @@ mod_global_distrib(_Config) ->
     ?errf(T(RequiredOpts#{<<"global_host">> => <<"">>})),
     ?errf(T(RequiredOpts#{<<"local_host">> => <<"">>})),
     ?errf(T(RequiredOpts#{<<"message_ttl">> => -1})),
-    ?errf(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})),
-    ?errf(T(RequiredOpts#{<<"connections">> => #{}})).
+    ?errf(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})).
 
-mod_global_config_connections(_Config) ->
-    RequiredOpts = #{
-        <<"tls">> => #{
-            <<"enabled">> => true}},
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => maps:merge(RequiredOpts, Opts)}}} end,
-    ExpectedCfg = [{tls_opts,[]}],
-    M = fun(Opts) -> modopts(mod_global_distrib, 
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, ExpectedCfg ++ Opts}]) end,
+mod_global_distrib_connections(_Config) ->
+    RequiredOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredOpts#{<<"connections">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{connections, Cfg}])
+        end,
     ?eqf(M([]), T(#{})),
-    ?eqf(M([{endpoints, [{"172.16.0.2", 5555}, 
-                         {"localhost", 80},
-                         {"example.com", 5555}]}]),
-         T(#{<<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>,
-                                   <<"port">> => 5555},
-                                 #{<<"host">> => <<"localhost">>,
-                                   <<"port">> => 80},
-                                 #{<<"host">> => <<"example.com">>,
-                                   <<"port">> => 5555}]})),
-    ?eqf(M([{advertised_endpoints, [{"172.16.0.1", 5555},
-                                    {"localhost", 80},
-                                    {"example.com", 5555}]}]),
-         T(#{<<"advertised_endpoints">> =>
-             [#{<<"host">> => <<"172.16.0.1">>,
-                <<"port">> => 5555},
-              #{<<"host">> => <<"localhost">>,
-                <<"port">> => 80},
-              #{<<"host">> => <<"example.com">>,
-                <<"port">> => 5555}]})),
     ?eqf(M([{connections_per_endpoint, 22}]),
          T(#{<<"connections_per_endpoint">> => 22})),
     ?eqf(M([{endpoint_refresh_interval, 120}]),
@@ -1573,112 +1541,69 @@ mod_global_config_connections(_Config) ->
          T(#{<<"endpoint_refresh_interval_when_empty">> => 5})),
     ?eqf(M([{disabled_gc_interval, 60}]),
          T(#{<<"disabled_gc_interval">> => 60})),
-    ?errf(T(#{<<"endpoints">> => #{}})),
-    ?errf(T(#{<<"advertised_endpoints">> => #{}})),
     ?errf(T(#{<<"connections_per_endpoint">> => -1})),
     ?errf(T(#{<<"endpoint_refresh_interval">> => 0})),
     ?errf(T(#{<<"endpoint_refresh_interval_when_empty">> => 0})),
-    ?errf(T(#{<<"disabled_gc_interval">> => 0})),
-    ?errf(T(#{<<"tls">> => #{}})),
-    ?errf(#{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{}}}}).
+    ?errf(T(#{<<"disabled_gc_interval">> => 0})).
 
-mod_global_config_connections_endpoints(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"endpoints">> => Opts,
-                <<"tls">> => #{
-                    <<"enabled">> => true}}}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib, 
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{endpoints, Opts}, {tls_opts, []}]}]) end,
-    ?eqf(M([{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]),
-         T([#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
-            #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-            #{<<"host">> => <<"example.com">>, <<"port">> => 5555}])),
-    ?errf(T([#{<<"host">> => <<"172.16.0.2">>}])),
-    ?errf(T([#{<<"port">> => 5555}])),
-    ?errf(T([#{<<"host">> => <<"">>}])),
-    ?errf(T([#{<<"port">> => -1}])).
+mod_global_distrib_connections_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"endpoints">>).
 
-mod_global_config_connections_advertised_endpoints(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"advertised_endpoints">> => Opts,
-                <<"tls">> => #{
-                    <<"enabled">> => true}}}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib, 
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{advertised_endpoints, Opts}, {tls_opts, []}]}]) end,
-    ?eqf(M([{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]),
-         T([#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
-            #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-            #{<<"host">> => <<"example.com">>, <<"port">> => 5555}])),
-    ?errf(T([#{<<"host">> => <<"172.16.0.2">>}])),
-    ?errf(T([#{<<"port">> => 5555}])),
-    ?errf(T([#{<<"host">> => <<"">>}])),
-    ?errf(T([#{<<"port">> => -1}])).
+mod_global_distrib_connections_advertised_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"advertised_endpoints">>).
 
-mod_global_config_connections_tls(_Config) ->
-    RequiredOpts = #{<<"enabled">> => true},
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"tls">> => maps:merge(RequiredOpts, Opts)}}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib, 
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{tls_opts, Opts}]}]) end,
-    ?eqf(M([]), T(#{})),
-    ?eqf(M(false),
-         T(#{<<"enabled">> => false})),
-    ?eqf(M([{certfile, "/dev/null"}]),
-         T(#{<<"certfile">> => <<"/dev/null">>})),
-    ?eqf(M([{cafile, "/dev/null"}]),
-         T(#{<<"cacertfile">> => <<"/dev/null">>})),
-    ?eqf(M([{dhfile, "/dev/null"}]),
-         T(#{<<"dhfile">> => <<"/dev/null">>})),
-    ?eqf(M([{ciphers, "TLS_AES_256_GCM_SHA384"}]),
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?errf(T(#{<<"enabled">> => <<"yes">>})),
-    ?errf(T(#{<<"certfile">> => <<"/this/does/not/exist">>})),
-    ?errf(T(#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
-    ?errf(T(#{<<"dhfile">> => <<"/this/does/not/exist">>})),
-    ?errf(T(#{<<"ciphers">> => 42})),
-    ?errf(#{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"tls">> => #{}}}}}).
+check_mod_global_distrib_endpoints(OptKey) ->
+    CfgKey = binary_to_atom(OptKey, utf8),
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{OptKey => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{CfgKey, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"host">> => <<"172.16.0.2">>,
+                     <<"port">> => 5555},
+    ?eqf(M([{"172.16.0.2", 5555}]), T([RequiredOpts])),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"host">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"port">> => -1}])).
 
-mod_global_config_redis(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"tls">> => #{
-                    <<"enabled">> => true}},
-            <<"redis">> => Opts}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib,
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{tls_opts,[]}]},
-         {redis, Opts}]) end,
+mod_global_distrib_connections_tls(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{<<"tls">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{tls_opts, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"certfile">> => <<"priv/cert.pem">>,
+                     <<"cacertfile">> => <<"priv/ca.pem">>},
+    ExpectedCfg = [{certfile, "priv/cert.pem"},
+                   {cafile, "priv/ca.pem"}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+         T(RequiredOpts#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?eqf(M(ExpectedCfg ++ [{dhfile, "priv/cert.pem"}]),
+         T(RequiredOpts#{<<"dhfile">> => <<"priv/cert.pem">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"certfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"dhfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"ciphers">> => 42})).
+
+mod_global_distrib_redis(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"redis">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{redis, Cfg}])
+        end,
     ?eqf(M([]), T(#{})),
     ?eqf(M([{pool, global_distrib}]),
          T(#{<<"pool">> => <<"global_distrib">>})),
@@ -1690,20 +1615,15 @@ mod_global_config_redis(_Config) ->
     ?errf(T(#{<<"expire_after">> => 0})),
     ?errf(T(#{<<"refresh_after">> => -1})).
 
-mod_global_config_cache(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"tls">> => #{
-                    <<"enabled">> => true}},
-            <<"cache">> => Opts}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib,
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{tls_opts,[]}]},
-         {cache, Opts}]) end,
+mod_global_distrib_cache(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"cache">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{cache, Cfg}])
+        end,
     ?eqf(M([]), T(#{})),
     ?eqf(M([{cache_missed, false}]),
          T(#{<<"cache_missed">> => false})),
@@ -1718,20 +1638,15 @@ mod_global_config_cache(_Config) ->
     ?errf(T(#{<<"jid_lifetime_seconds">> => -1})),
     ?errf(T(#{<<"max_jids">> => -1})).
 
-mod_global_config_bounce(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{
-        <<"mod_global_distrib">> => #{
-            <<"global_host">> => <<"example.com">>,
-            <<"local_host">> => <<"datacenter1.example.com">>,
-            <<"connections">> => #{
-                <<"tls">> => #{
-                    <<"enabled">> => true}},
-            <<"bounce">> => Opts}}} end,
-    M = fun(Opts) -> modopts(mod_global_distrib,
-        [{global_host, "example.com"},
-         {local_host, "datacenter1.example.com"},
-         {connections, [{tls_opts,[]}]},
-         {bounce, Opts}]) end,
+mod_global_distrib_bounce(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"bounce">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{bounce, Cfg}])
+        end,
     ?eqf(M(false),
          T(#{<<"enabled">> => false})),
     ?eqf(M([]),
@@ -1743,6 +1658,14 @@ mod_global_config_bounce(_Config) ->
     ?errf(T(#{<<"enabled">> => <<"">>})),
     ?errf(T(#{<<"resend_after_ms">> => -1})),
     ?errf(T(#{<<"max_retries">> => -1})).
+
+global_distrib_required_opts() ->
+    #{<<"global_host">> => <<"example.com">>,
+      <<"local_host">> => <<"datacenter1.example.com">>}.
+
+global_distrib_expected_config() ->
+    [{global_host, "example.com"},
+     {local_host, "datacenter1.example.com"}].
 
 mod_event_pusher_sns(_Config) ->
     RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,

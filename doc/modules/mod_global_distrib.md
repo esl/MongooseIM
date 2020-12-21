@@ -136,8 +136,6 @@ The interval telling how often Redis should be asked if new hosts appeared.
 
 ### Connections' options
 
-**Note:** This section is mandatory.
-
 #### `modules.mod_global_distrib.connections.endpoints`
  * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
  * **Default:** `[{host = "LocalHost", port = 5555}]`
@@ -186,17 +184,10 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 
 ### TLS options
 
-**Note:** This section is mandatory.
+**Note:** By default `tls` is disabled and all data will be sent via standard TCP connections.
 
-#### `modules.mod_global_distrib.connections.tls.enabled`
-* **Syntax:** boolean
-* **Default:** `false`, this option is mandatory
-* **Example:** `enabled = true`
-
-To enable TLS support the `cacertfile` and `certfile` options have to be present.
+To enable TLS support, the `cacertfile` and `certfile` options have to be present.
 These options will be passed to the `fast_tls` driver.
-
-If `tls` is disabled, all data will be sent via standard TCP connections.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -319,7 +310,6 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
-  connections.tls.enabled = true
   connections.tls.certfile = "priv/dc1.pem"
   connections.tls.cacertfile = "priv/ca.pem"
   connections.connections_per_endpoint = 30
