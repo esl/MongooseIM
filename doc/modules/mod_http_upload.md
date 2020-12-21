@@ -1,5 +1,5 @@
 ## Module Description
-This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html). 
+This module implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.html), version 0.3.0+. 
 It enables a service that on user request creates an upload "slot". 
 A slot is a pair of URLs, one of which can be used with a `PUT` method to upload a user's file, the other with a `GET` method to retrieve such file.
 
