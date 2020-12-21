@@ -40,7 +40,7 @@ jobs:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        preset: [internal_mnesia, odbc_mssql_mnesia, mysql_redis, riak_mnesia,
+        preset: [internal_mnesia, mysql_redis, riak_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: ['23.0.3']
     runs-on: ubuntu-latest
