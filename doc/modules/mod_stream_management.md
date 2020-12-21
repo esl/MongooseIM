@@ -7,12 +7,26 @@ while the management of the session tables and configuration is implemented in
 
 ## Options
 
+### `modules.mod_stream_management.buffer`
+* **Syntax:** boolean
+* **Default:** true
+* **Example:** `buffer = false`
+
+Enables buffer for messages to be acknowledged.
+
 ### `modules.mod_stream_management.buffer_max`
 * **Syntax:** positive integer or string `"infinity"` or string `"no_buffer"`
 * **Default:** `100`
 * **Example:** `buffer_max = "no_buffer"`
 
 Buffer size for messages yet to be acknowledged.
+
+### `modules.mod_stream_management.ack`
+* **Syntax:** boolean
+* **Default:** true
+* **Example:** `ack = false`
+
+Enables ack requests to be sent from the server to the client.
 
 ### `modules.mod_stream_management.ack_freq`
 * **Syntax:** positive integer or string `"never"`
