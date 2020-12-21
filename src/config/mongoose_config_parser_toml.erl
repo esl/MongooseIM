@@ -174,15 +174,6 @@ ensure_keys(Keys, Section) ->
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
     end.
 
-%% Parse with post-processing, this needs to be eliminated by fixing the internal config structure
--spec parse_section(path(), toml_section(), fun(([option()]) -> option())) -> option().
-parse_section(Path, V, PostProcessF) ->
-    L = parse_section(Path, V),
-    case extract_errors(L) of
-        [] -> PostProcessF(L);
-        Errors -> Errors
-    end.
-
 -spec parse_section(path(), toml_section()) -> [option()].
 parse_section(Path, M) ->
     lists:flatmap(fun({K, V}) ->

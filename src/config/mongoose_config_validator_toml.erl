@@ -80,8 +80,6 @@ validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
     L = length(Items).
 
-validate_boolean(Value) when is_boolean(Value) -> ok.
-
 validate_module(Mod) ->
     case code:ensure_loaded(Mod) of
         {module, _} ->
@@ -138,9 +136,6 @@ validate_iqdisc(no_queue) -> ok;
 validate_iqdisc(one_queue) -> ok;
 validate_iqdisc(parallel) -> ok;
 validate_iqdisc({queues, N}) when is_integer(N), N > 0 -> ok.
-
-validate_backend(Mod, Backend) ->
-    validate_module(backend_module:backend_module(Mod, Backend)).
 
 validate_domain(Domain) when is_list(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),
@@ -236,6 +231,3 @@ validate_dirname(Dirname) ->
         Reason ->
             error(#{what => invalid_dirname, dirname => Dirname, reason => Reason})
     end.
-
-validate_pool_name(V) ->
-    validate_non_empty_atom(V).
