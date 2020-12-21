@@ -174,14 +174,23 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
+                            mod_global_distrib_connections,
+                            mod_global_distrib_connections_endpoints,
+                            mod_global_distrib_connections_advertised_endpoints,
+                            mod_global_distrib_connections_tls,
+                            mod_global_distrib_redis,
+                            mod_global_distrib_cache,
+                            mod_global_distrib_bounce,
                             mod_event_pusher_sns,
                             mod_event_pusher_push,
                             mod_event_pusher_http,
                             mod_event_pusher_rabbit,
                             mod_extdisco,
                             mod_http_upload,
+                            mod_http_upload_s3,
                             mod_jingle_sip,
                             mod_keystore,
+                            mod_keystore_keys,
                             mod_last,
                             mod_mam_meta,
                             mod_mam_meta_pm,
@@ -1453,208 +1462,210 @@ mod_disco(_Config) ->
     ?errf(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
-    Service = #{
+    T = fun(Opts) -> #{<<"modules">> =>
+                         #{<<"mod_extdisco">> =>
+                             #{<<"service">> => [Opts]}}}
+        end,
+    M = fun(Opts) -> modopts(mod_extdisco, [Opts]) end,
+    RequiredOpts = #{
         <<"type">> => <<"stun">>,
-        <<"host">> => <<"stun1">>,
-        <<"port">> => 3478,
-        <<"transport">> => <<"udp">>,
-        <<"username">> => <<"username">>,
-        <<"password">> => <<"password">>},
-    Base = #{<<"service">> => [Service]},
-    MBase = [{host, "stun1"},
-             {password, "password"},
-             {port, 3478},
-             {transport, "udp"},
-             {type, stun},
-             {username, "username"}],
-    ?eqf(modopts(mod_extdisco, [MBase]), T(Base)),
-    %% Invalid service type
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => ["stun"]}]})),
-    %% Invalid host
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => [1]}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => true}]})),
-    %% Invalid port
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => 9999999}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => "port"}]})),
-    %% Invalid transport
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => ""}]})),
-    %% Invalid username
-    ?errf(T(Base#{<<"service">> => [Base#{<<"username">> => -2}]})),
-    %% Invalid password
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => 1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => [<<"test">>]}]})).
+        <<"host">> => <<"stun1">>},
+    ExpectedCfg = [{host, "stun1"},
+                   {type, stun}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{port, 3478}]),
+         T(RequiredOpts#{<<"port">> => 3478})),
+    ?eqf(M(ExpectedCfg ++ [{transport, "udp"}]),
+         T(RequiredOpts#{<<"transport">> => <<"udp">>})),
+    ?eqf(M(ExpectedCfg ++ [{username, "username"}]),
+         T(RequiredOpts#{<<"username">> => <<"username">>})),
+    ?eqf(M(ExpectedCfg ++ [{password, "password"}]),
+         T(RequiredOpts#{<<"password">> => <<"password">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"type">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"port">> => -1})),
+    ?errf(T(RequiredOpts#{<<"transport">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"username">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"password">> => <<"">>})).
 
 mod_inbox(_Config) ->
-    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,
-    ?eqf(modopts(mod_inbox, [{reset_markers, [displayed, received, acknowledged]}]),
-         T(<<"reset_markers">>, [<<"displayed">>, <<"received">>, <<"acknowledged">>])),
-    ?eqf(modopts(mod_inbox, [{reset_markers, []}]),
-         T(<<"reset_markers">>, [])),
-    ?eqf(modopts(mod_inbox, [{groupchat, [muc, muclight]}]),
-         T(<<"groupchat">>, [<<"muc">>, <<"muclight">>])),
-    ?eqf(modopts(mod_inbox, [{groupchat, []}]),
-         T(<<"groupchat">>, [])),
-    ?eqf(modopts(mod_inbox, [{aff_changes, true}]),
-         T(<<"aff_changes">>, true)),
-    ?eqf(modopts(mod_inbox, [{aff_changes, false}]),
-         T(<<"aff_changes">>, false)),
-    ?eqf(modopts(mod_inbox, [{remove_on_kicked, true}]),
-         T(<<"remove_on_kicked">>, true)),
-    ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
-         T(<<"remove_on_kicked">>, false)),
-    ?errf(T(<<"reset_markers">>, 1)),
-    ?errf(T(<<"reset_markers">>, <<"test">>)),
-    ?errf(T(<<"reset_markers">>, [<<"test">>])),
-    ?errf(T(<<"groupchat">>, [<<"test">>])),
-    ?errf(T(<<"groupchat">>, <<"test">>)),
-    ?errf(T(<<"groupchat">>, true)),
-    ?errf(T(<<"aff_changes">>, 1)),
-    ?errf(T(<<"aff_changes">>, <<"true">>)),
-    ?errf(T(<<"remove_on_kicked">>, 1)),
-    ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
+    M = fun(Opts) -> modopts(mod_inbox, Opts) end,
+    ?eqf(M([{reset_markers, [displayed, received, acknowledged]}]),
+         T(#{<<"reset_markers">> => [<<"displayed">>, <<"received">>, <<"acknowledged">>]})),
+    ?eqf(M([{groupchat, [muc, muclight]}]),
+         T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
+    ?eqf(M([{aff_changes, true}]),
+         T(#{<<"aff_changes">> => true})),
+    ?eqf(M([{remove_on_kicked, false}]),
+         T(#{<<"remove_on_kicked">> => false})),
+    ?errf(T(#{<<"reset_markers">> => 1})),
+    ?errf(T(#{<<"groupchat">> => [<<"test">>]})),
+    ?errf(T(#{<<"aff_changes">> => 1})),
+    ?errf(T(#{<<"remove_on_kicked">> => 1})),
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
-    ConnOpts = [
-              {advertised_endpoints, [{"172.16.0.1", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {connections_per_endpoint, 22},
-              {disabled_gc_interval, 60},
-              {endpoint_refresh_interval, 120},
-              {endpoint_refresh_interval_when_empty, 5},
-              {endpoints, [{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {tls_opts, [
-                    {cafile, "/dev/null"},
-                    {certfile, "/dev/null"},
-                    {ciphers, "TLS_AES_256_GCM_SHA384"},
-                    {dhfile, "/dev/null"}
-                   ]}
-             ],
-    CacheOpts = [ {cache_missed, false}, {domain_lifetime_seconds, 60},
-                  {jid_lifetime_seconds, 30}, {max_jids, 9999} ],
-    BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
-    RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
-    TTOpts = #{
-          <<"enabled">> => true,
-          <<"certfile">> => <<"/dev/null">>,
-          <<"cacertfile">> => <<"/dev/null">>,
-          <<"dhfile">> => <<"/dev/null">>,
-          <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>
-         },
-    TConnOpts = #{
-      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"advertised_endpoints">> =>
-                         [#{<<"host">> => <<"172.16.0.1">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"connections_per_endpoint">> => 22,
-      <<"disabled_gc_interval">> => 60,
-      <<"endpoint_refresh_interval">> => 120,
-      <<"endpoint_refresh_interval_when_empty">> => 5,
-      <<"tls">> => TTOpts
-     },
-    TCacheOpts = #{ <<"cache_missed">> => false,
-                    <<"domain_lifetime_seconds">> => 60,
-                    <<"jid_lifetime_seconds">> => 30,
-                    <<"max_jids">> => 9999 },
-    TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
-    TRedisOpts = #{ <<"pool">> => <<"global_distrib">>,
-                    <<"expire_after">> => 120,
-                    <<"refresh_after">> => 60 },
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
-    Base = #{
-           <<"global_host">> => <<"example.com">>,
-           <<"local_host">> => <<"datacenter1.example.com">>,
-           <<"message_ttl">> => 42,
-           <<"hosts_refresh_interval">> => 100,
-           <<"connections">> => TConnOpts,
-           <<"cache">> => TCacheOpts,
-           <<"bounce">> => TBounceOpts,
-           <<"redis">> => TRedisOpts
-          },
-    MBase = [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ],
-    ?eqf(modopts(mod_global_distrib, [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ]), T(Base)),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(advertised_endpoints, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> => false}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
-    %% Connection opts
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"dhfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"ciphers">> => 42}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => <<"kek">>}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval_when_empty">> => -1}})),
-    %% Redis Opts
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
-    %% Cache Opts
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"cache_missed">> => 1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"domain_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"jid_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"max_jids">> => -1}})),
-    %% Bouncing Opts
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"resend_after_ms">> => -1}})),
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})),
-    %% Global Opts
-    ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"global_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
-    ?errf(T(Base#{<<"message_ttl">> => -1})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
+    M = fun(Cfg) -> modopts(mod_global_distrib, Cfg) end,
+    RequiredOpts = global_distrib_required_opts(),
+    ExpectedCfg = global_distrib_expected_config(),
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{message_ttl, 42}]),
+         T(RequiredOpts#{<<"message_ttl">> => 42})),
+    ?eqf(M(ExpectedCfg ++ [{hosts_refresh_interval, 100}]),
+         T(RequiredOpts#{<<"hosts_refresh_interval">> => 100})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"global_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"local_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"message_ttl">> => -1})),
+    ?errf(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})).
+
+mod_global_distrib_connections(_Config) ->
+    RequiredOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredOpts#{<<"connections">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{connections, Cfg}])
+        end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{connections_per_endpoint, 22}]),
+         T(#{<<"connections_per_endpoint">> => 22})),
+    ?eqf(M([{endpoint_refresh_interval, 120}]),
+         T(#{<<"endpoint_refresh_interval">> => 120})),
+    ?eqf(M([{endpoint_refresh_interval_when_empty, 5}]),
+         T(#{<<"endpoint_refresh_interval_when_empty">> => 5})),
+    ?eqf(M([{disabled_gc_interval, 60}]),
+         T(#{<<"disabled_gc_interval">> => 60})),
+    ?errf(T(#{<<"connections_per_endpoint">> => -1})),
+    ?errf(T(#{<<"endpoint_refresh_interval">> => 0})),
+    ?errf(T(#{<<"endpoint_refresh_interval_when_empty">> => 0})),
+    ?errf(T(#{<<"disabled_gc_interval">> => 0})).
+
+mod_global_distrib_connections_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"endpoints">>).
+
+mod_global_distrib_connections_advertised_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"advertised_endpoints">>).
+
+check_mod_global_distrib_endpoints(OptKey) ->
+    CfgKey = binary_to_atom(OptKey, utf8),
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{OptKey => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{CfgKey, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"host">> => <<"172.16.0.2">>,
+                     <<"port">> => 5555},
+    ?eqf(M([{"172.16.0.2", 5555}]), T([RequiredOpts])),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"host">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"port">> => -1}])).
+
+mod_global_distrib_connections_tls(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{<<"tls">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{tls_opts, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"certfile">> => <<"priv/cert.pem">>,
+                     <<"cacertfile">> => <<"priv/ca.pem">>},
+    ExpectedCfg = [{certfile, "priv/cert.pem"},
+                   {cafile, "priv/ca.pem"}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+         T(RequiredOpts#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?eqf(M(ExpectedCfg ++ [{dhfile, "priv/cert.pem"}]),
+         T(RequiredOpts#{<<"dhfile">> => <<"priv/cert.pem">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"certfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"dhfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"ciphers">> => 42})).
+
+mod_global_distrib_redis(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"redis">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{redis, Cfg}])
+        end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{pool, global_distrib}]),
+         T(#{<<"pool">> => <<"global_distrib">>})),
+    ?eqf(M([{expire_after, 120}]),
+         T(#{<<"expire_after">> => 120})),
+    ?eqf(M([{refresh_after, 60}]),
+         T(#{<<"refresh_after">> => 60})),
+    ?errf(T(#{<<"pool">> => <<"">>})),
+    ?errf(T(#{<<"expire_after">> => 0})),
+    ?errf(T(#{<<"refresh_after">> => -1})).
+
+mod_global_distrib_cache(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"cache">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{cache, Cfg}])
+        end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{cache_missed, false}]),
+         T(#{<<"cache_missed">> => false})),
+    ?eqf(M([{domain_lifetime_seconds, 60}]),
+         T(#{<<"domain_lifetime_seconds">> => 60})),
+    ?eqf(M([{jid_lifetime_seconds, 30}]),
+         T(#{<<"jid_lifetime_seconds">> => 30})),
+    ?eqf(M([{max_jids, 9999}]),
+         T(#{<<"max_jids">> => 9999})),
+    ?errf(T(#{<<"cache_missed">> => <<"yes">>})),
+    ?errf(T(#{<<"domain_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"jid_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"max_jids">> => -1})).
+
+mod_global_distrib_bounce(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"bounce">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{bounce, Cfg}])
+        end,
+    ?eqf(M(false),
+         T(#{<<"enabled">> => false})),
+    ?eqf(M([]),
+         T(#{<<"enabled">> => true})),
+    ?eqf(M([{resend_after_ms, 300}]),
+         T(#{<<"resend_after_ms">> => 300})),
+    ?eqf(M([{max_retries, 3}]),
+         T(#{<<"max_retries">> => 3})),
+    ?errf(T(#{<<"enabled">> => <<"">>})),
+    ?errf(T(#{<<"resend_after_ms">> => -1})),
+    ?errf(T(#{<<"max_retries">> => -1})).
+
+global_distrib_required_opts() ->
+    #{<<"global_host">> => <<"example.com">>,
+      <<"local_host">> => <<"datacenter1.example.com">>}.
+
+global_distrib_expected_config() ->
+    [{global_host, "example.com"},
+     {local_host, "datacenter1.example.com"}].
 
 mod_event_pusher_sns(_Config) ->
     RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
@@ -1775,99 +1786,99 @@ mod_event_pusher_rabbit(_Config) ->
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
-    S3 = #{
-      <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
-      <<"add_acl">> => true,
+    M = fun(Cfg) -> modopts(mod_http_upload, Cfg) end,
+    RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
+    ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{host, "upload.@HOST@"}]),
+         T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
+    ?eqf(M(ExpectedCfg ++ [{backend, s3}]),
+         T(RequiredOpts#{<<"backend">> => <<"s3">>})),
+    ?eqf(M(ExpectedCfg ++ [{expiration_time, 666}]),
+         T(RequiredOpts#{<<"expiration_time">> => 666})),
+    ?eqf(M(ExpectedCfg ++ [{token_bytes, 32}]),
+         T(RequiredOpts#{<<"token_bytes">> => 32})),
+    ?eqf(M(ExpectedCfg ++ [{max_file_size, 42}]),
+         T(RequiredOpts#{<<"max_file_size">> => 42})),
+    ?errf(T(#{})), %% missing 's3'
+    ?errf(T(RequiredOpts#{<<"backend">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"expiration_time">> => 0})),
+    ?errf(T(RequiredOpts#{<<"token_bytes">> => 0})),
+    ?errf(T(RequiredOpts#{<<"max_file_size">> => 0})),
+    check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
+
+mod_http_upload_s3(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
+                                              #{<<"s3">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_http_upload, [{s3, Cfg}]) end,
+    RequiredOpts = http_upload_s3_required_opts(),
+    ExpectedCfg = http_upload_s3_expected_cfg(),
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{add_acl, true}]),
+         T(RequiredOpts#{<<"add_acl">> => true})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"bucket_url">> => <<>>})),
+    ?errf(T(RequiredOpts#{<<"region">> => true})),
+    ?errf(T(RequiredOpts#{<<"access_key_id">> => []})),
+    ?errf(T(RequiredOpts#{<<"secret_access_key">> => 3})),
+    ?errf(T(RequiredOpts#{<<"add_acl">> => <<"true">>})).
+
+http_upload_s3_required_opts() ->
+    #{<<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
       <<"region">> => <<"antarctica-1">>,
       <<"access_key_id">> => <<"PLEASE">>,
-      <<"secret_access_key">> => <<"ILOVEU">>
-     },
-    Base = #{
-           <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-           <<"host">> => <<"upload.@HOST@">>,
-           <<"backend">> => <<"s3">>,
-           <<"expiration_time">> => 666,
-           <<"token_bytes">> => 32,
-           <<"max_file_size">> => 42,
-           <<"s3">> => S3
-          },
-    MS3 = [{access_key_id, "PLEASE"},
-           {add_acl, true},
-           {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-           {region, "antarctica-1"},
-           {secret_access_key, "ILOVEU"}],
-    MBase = [{backend, s3},
-             {expiration_time, 666},
-             {host, "upload.@HOST@"},
-             {iqdisc, one_queue},
-             {max_file_size, 42},
-             {s3, MS3},
-             {token_bytes, 32}],
-    ?eqf(modopts(mod_http_upload, MBase), T(Base)),
-    ?errf(T(Base#{<<"host">> => -1})),
-    ?errf(T(Base#{<<"host">> => <<" f g ">>})),
-    ?errf(T(Base#{<<"backend">> => <<"dev_null_as_a_service">>})),
-    ?errf(T(Base#{<<"expiration_time">> => <<>>})),
-    ?errf(T(Base#{<<"expiration_time">> => -1})),
-    ?errf(T(Base#{<<"token_bytes">> => -1})),
-    ?errf(T(Base#{<<"max_file_size">> => -1})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"access_key_id">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"add_acl">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"bucket_url">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"region">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"secret_access_key">> => -1}})),
-    check_iqdisc(mod_http_upload).
+      <<"secret_access_key">> => <<"ILOVEU">>}.
+
+http_upload_s3_expected_cfg() ->
+    [{access_key_id, "PLEASE"},
+     {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
+     {region, "antarctica-1"},
+     {secret_access_key, "ILOVEU"}].
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
-    Base = #{
-      <<"proxy_host">> => <<"proxxxy">>,
-      <<"proxy_port">> => 5600,
-      <<"listen_port">> => 5601,
-      <<"local_host">> => <<"localhost">>,
-      <<"sdp_origin">> => <<"127.0.0.1">>
-     },
-    MBase = [
-      {listen_port, 5601},
-      {local_host, "localhost"},
-      {proxy_host, "proxxxy"},
-      {proxy_port, 5600},
-      {sdp_origin, "127.0.0.1"}
-     ],
-    ?eqf(modopts(mod_jingle_sip, MBase), T(Base)),
-    ?errf(T(Base#{<<"proxy_host">> => -1})),
-    ?errf(T(Base#{<<"proxy_host">> => <<"test test">>})),
-    ?errf(T(Base#{<<"listen_port">> => -1})),
-    ?errf(T(Base#{<<"listen_port">> => 10000000})),
-    ?errf(T(Base#{<<"proxy_port">> => -1})),
-    ?errf(T(Base#{<<"proxy_port">> => 10000000})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
-    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
+    M = fun(Cfg) -> modopts(mod_jingle_sip, Cfg) end,
+    ?eqf(M([{proxy_host, "proxxxy"}]),
+         T(#{<<"proxy_host">> => <<"proxxxy">>})),
+    ?eqf(M([{proxy_port, 5601}]),
+         T(#{<<"proxy_port">> => 5601})),
+    ?eqf(M([{listen_port, 5602}]),
+         T(#{<<"listen_port">> => 5602})),
+    ?eqf(M([{local_host, "localhost"}]),
+         T(#{<<"local_host">> => <<"localhost">>})),
+    ?eqf(M([{sdp_origin, "127.0.0.1"}]),
+         T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
+    ?errf(T(#{<<"proxy_host">> => 1})),
+    ?errf(T(#{<<"proxy_port">> => 1000000})),
+    ?errf(T(#{<<"listen_port">> => -1})),
+    ?errf(T(#{<<"local_host">> => <<>>})),
+    ?errf(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
-    Keys = [#{<<"name">> => <<"access_secret">>,
-              <<"type">> => <<"ram">>},
-            #{<<"name">> => <<"access_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/access_psk">>},
-            #{<<"name">> => <<"provision_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/provision_psk">>}],
-    NotExistingKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"file">>,
-                       <<"path">> => <<"does/not/esit">>},
-    InvalidTypeKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"some_cooool_type">>},
-    MKeys = [{access_secret, ram},
-             {access_psk,    {file, "priv/access_psk"}},
-             {provision_psk, {file, "priv/provision_psk"}}],
-    Base = #{<<"keys">> => Keys, <<"ram_key_size">> => 10000},
-    MBase = [{keys, MKeys}, {ram_key_size, 10000}],
-    ?eqf(modopts(mod_keystore, MBase), T(Base)),
-    ?errf(T(Base#{<<"keys">> => [NotExistingKey]})),
-    ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
+    M = fun(Cfg) -> modopts(mod_keystore, Cfg) end,
+    ?eqf(M([{ram_key_size, 1024}]),
+         T(#{<<"ram_key_size">> => 1024})),
+    ?errf(T(#{<<"ram_key_size">> => -1})).
+
+mod_keystore_keys(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> =>
+                                              #{<<"keys">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_keystore, [{keys, Cfg}]) end,
+    RequiredOpts = #{<<"name">> => <<"access_secret">>,
+                     <<"type">> => <<"ram">>},
+    ?eqf(M([{access_secret, ram}]),
+         T([RequiredOpts])),
+    ?eqf(M([{access_secret, {file, "priv/access_psk"}}]),
+         T([RequiredOpts#{<<"type">> => <<"file">>,
+                          <<"path">> => <<"priv/access_psk">>}])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"name">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"rampampam">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>,
+                           <<"path">> => <<"does/not/exists">>}])).
 
 mod_last(_Config) ->
     check_iqdisc(mod_last),
@@ -2761,16 +2772,19 @@ service_mongoose_system_metrics(_Config) ->
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
 
-iq_disc_generic(Module, Value) ->
-    Opts = #{<<"iqdisc">> => Value},
+iq_disc_generic(Module, RequiredOpts, Value) ->
+    Opts = RequiredOpts#{<<"iqdisc">> => Value},
     #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
 check_iqdisc(Module) ->
-    ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
-         iq_disc_generic(Module, iqdisc({queues, 10}))),
-    ?eqf(modopts(Module, [{iqdisc, parallel}]),
-         iq_disc_generic(Module, iqdisc(parallel))),
-    ?errf(iq_disc_generic(Module, iqdisc(bad_haha))).
+    check_iqdisc(Module, [], #{}).
+
+check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
+    ?errf(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
     [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
@@ -2900,6 +2914,8 @@ compare_values({auth_opts, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_auth_opt/2);
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
+compare_values({modules, _}, [{mod_extdisco, V1}], [{mod_extdisco, V2}]) ->
+    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
 compare_values({modules, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_modules/2);
 compare_values({services, _}, V1, V2) ->

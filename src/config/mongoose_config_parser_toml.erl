@@ -104,66 +104,6 @@ post_process_module(Mod, Opts) ->
 
 %% path: (host_config[].)modules.*.*
 -spec module_opt(path(), toml_value()) -> [option()].
-module_opt([<<"service">>, <<"mod_extdisco">>|_] = Path, V) ->
-    parse_list(Path, V);
-module_opt([<<"host">>, <<"mod_http_upload">>|_], V) ->
-    [{host, b2l(V)}];
-module_opt([<<"backend">>, <<"mod_http_upload">>|_], V) ->
-    [{backend, b2a(V)}];
-module_opt([<<"expiration_time">>, <<"mod_http_upload">>|_], V) ->
-    [{expiration_time, V}];
-module_opt([<<"token_bytes">>, <<"mod_http_upload">>|_], V) ->
-    [{token_bytes, V}];
-module_opt([<<"max_file_size">>, <<"mod_http_upload">>|_], V) ->
-    [{max_file_size, V}];
-module_opt([<<"s3">>, <<"mod_http_upload">>|_] = Path, V) ->
-    S3Opts = parse_section(Path, V),
-    [{s3, S3Opts}];
-module_opt([<<"reset_markers">>, <<"mod_inbox">>|_] = Path, V) ->
-    Markers = parse_list(Path, V),
-    [{reset_markers, Markers}];
-module_opt([<<"groupchat">>, <<"mod_inbox">>|_] = Path, V) ->
-    GChats = parse_list(Path, V),
-    [{groupchat, GChats}];
-module_opt([<<"aff_changes">>, <<"mod_inbox">>|_], V) ->
-    [{aff_changes, V}];
-module_opt([<<"remove_on_kicked">>, <<"mod_inbox">>|_], V) ->
-    [{remove_on_kicked, V}];
-module_opt([<<"global_host">>, <<"mod_global_distrib">>|_], V) ->
-    [{global_host, b2l(V)}];
-module_opt([<<"local_host">>, <<"mod_global_distrib">>|_], V) ->
-    [{local_host, b2l(V)}];
-module_opt([<<"message_ttl">>, <<"mod_global_distrib">>|_], V) ->
-    [{message_ttl, V}];
-module_opt([<<"connections">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Conns = parse_section(Path, V),
-    [{connections, Conns}];
-module_opt([<<"cache">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Cache = parse_section(Path, V),
-    [{cache, Cache}];
-module_opt([<<"bounce">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Bounce = parse_section(Path, V, fun format_global_distrib_bounce/1),
-    [{bounce, Bounce}];
-module_opt([<<"redis">>, <<"mod_global_distrib">>|_] = Path, V) ->
-    Redis = parse_section(Path, V),
-    [{redis, Redis}];
-module_opt([<<"hosts_refresh_interval">>, <<"mod_global_distrib">>|_], V) ->
-    [{hosts_refresh_interval, V}];
-module_opt([<<"proxy_host">>, <<"mod_jingle_sip">>|_], V) ->
-    [{proxy_host, b2l(V)}];
-module_opt([<<"proxy_port">>, <<"mod_jingle_sip">>|_], V) ->
-    [{proxy_port, V}];
-module_opt([<<"listen_port">>, <<"mod_jingle_sip">>|_], V) ->
-    [{listen_port, V}];
-module_opt([<<"local_host">>, <<"mod_jingle_sip">>|_], V) ->
-    [{local_host, b2l(V)}];
-module_opt([<<"sdp_origin">>, <<"mod_jingle_sip">>|_], V) ->
-    [{sdp_origin, b2l(V)}];
-module_opt([<<"ram_key_size">>, <<"mod_keystore">>|_], V) ->
-    [{ram_key_size, V}];
-module_opt([<<"keys">>, <<"mod_keystore">>|_] = Path, V) ->
-    Keys = parse_list(Path, V),
-    [{keys, Keys}];
 % General options
 module_opt([<<"iqdisc">>|_], V) ->
     {Type, Opts} = maps:take(<<"type">>, V),
@@ -196,109 +136,6 @@ riak_opts([<<"bucket_type">>|_], V) ->
 riak_opts([<<"search_index">>|_], V) ->
     [{search_index, V}].
 
--spec mod_extdisco_service(path(), toml_value()) -> [option()].
-mod_extdisco_service([_, <<"service">>|_] = Path, V) ->
-    [parse_section(Path, V)];
-mod_extdisco_service([<<"type">>|_], V) ->
-    [{type, b2a(V)}];
-mod_extdisco_service([<<"host">>|_], V) ->
-    [{host, b2l(V)}];
-mod_extdisco_service([<<"port">>|_], V) ->
-    [{port, V}];
-mod_extdisco_service([<<"transport">>|_], V) ->
-    [{transport, b2l(V)}];
-mod_extdisco_service([<<"username">>|_], V) ->
-    [{username, b2l(V)}];
-mod_extdisco_service([<<"password">>|_], V) ->
-    [{password, b2l(V)}].
-
--spec mod_http_upload_s3(path(), toml_value()) -> [option()].
-mod_http_upload_s3([<<"bucket_url">>|_], V) ->
-    [{bucket_url, b2l(V)}];
-mod_http_upload_s3([<<"add_acl">>|_], V) ->
-    [{add_acl, V}];
-mod_http_upload_s3([<<"region">>|_], V) ->
-    [{region, b2l(V)}];
-mod_http_upload_s3([<<"access_key_id">>|_], V) ->
-    [{access_key_id, b2l(V)}];
-mod_http_upload_s3([<<"secret_access_key">>|_], V) ->
-    [{secret_access_key, b2l(V)}].
-
--spec mod_global_distrib_connections(path(), toml_value()) -> [option()].
-mod_global_distrib_connections([<<"endpoints">>|_] = Path, V) ->
-    Endpoints = parse_list(Path, V),
-    [{endpoints, Endpoints}];
-mod_global_distrib_connections([<<"advertised_endpoints">>|_], false) ->
-    [{advertised_endpoints, false}];
-mod_global_distrib_connections([<<"advertised_endpoints">>|_] = Path, V) ->
-    Endpoints = parse_list(Path, V),
-    [{advertised_endpoints, Endpoints}];
-mod_global_distrib_connections([<<"connections_per_endpoint">>|_], V) ->
-    [{connections_per_endpoint, V}];
-mod_global_distrib_connections([<<"endpoint_refresh_interval">>|_], V) ->
-    [{endpoint_refresh_interval, V}];
-mod_global_distrib_connections([<<"endpoint_refresh_interval_when_empty">>|_], V) ->
-    [{endpoint_refresh_interval_when_empty, V}];
-mod_global_distrib_connections([<<"disabled_gc_interval">>|_], V) ->
-    [{disabled_gc_interval, V}];
-mod_global_distrib_connections([<<"tls">>|_] = Path, V) ->
-    TLSOpts = parse_section(Path, V, fun format_global_distrib_tls/1),
-    [{tls_opts, TLSOpts}].
-
--spec format_global_distrib_tls([option()]) -> option().
-format_global_distrib_tls(Opts) ->
-    case proplists:lookup(enabled, Opts) of
-        {enabled, true} -> proplists:delete(enabled, Opts);
-        _ -> false
-    end.
-
--spec mod_global_distrib_cache(path(), toml_value()) -> [option()].
-mod_global_distrib_cache([<<"cache_missed">>|_], V) ->
-    [{cache_missed, V}];
-mod_global_distrib_cache([<<"domain_lifetime_seconds">>|_], V) ->
-    [{domain_lifetime_seconds, V}];
-mod_global_distrib_cache([<<"jid_lifetime_seconds">>|_], V) ->
-    [{jid_lifetime_seconds, V}];
-mod_global_distrib_cache([<<"max_jids">>|_], V) ->
-    [{max_jids, V}].
-
--spec mod_global_distrib_redis(path(), toml_value()) -> [option()].
-mod_global_distrib_redis([<<"pool">>|_], V) ->
-    [{pool, b2a(V)}];
-mod_global_distrib_redis([<<"expire_after">>|_], V) ->
-    [{expire_after, V}];
-mod_global_distrib_redis([<<"refresh_after">>|_], V) ->
-    [{refresh_after, V}].
-
--spec mod_global_distrib_bounce(path(), toml_value()) -> [option()].
-mod_global_distrib_bounce([<<"resend_after_ms">>|_], V) ->
-    [{resend_after_ms, V}];
-mod_global_distrib_bounce([<<"max_retries">>|_], V) ->
-    [{max_retries, V}];
-mod_global_distrib_bounce([<<"enabled">>|_], V) ->
-    [{enabled, V}].
-
--spec format_global_distrib_bounce([option()]) -> option().
-format_global_distrib_bounce(Opts) ->
-    case proplists:lookup(enabled, Opts) of
-        {enabled, false} -> false;
-        _ -> proplists:delete(enabled, Opts)
-    end.
-
--spec mod_global_distrib_connections_endpoints(path(), toml_section()) -> [option()].
-mod_global_distrib_connections_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
-    [{b2l(Host), Port}].
-
--spec mod_global_distrib_connections_advertised_endpoints(path(), toml_section()) -> [option()].
-mod_global_distrib_connections_advertised_endpoints(_, #{<<"host">> := Host, <<"port">> := Port}) ->
-    [{b2l(Host), Port}].
-
--spec mod_keystore_keys(path(), toml_section()) -> [option()].
-mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"ram">>}) ->
-    [{b2a(Name), ram}];
-mod_keystore_keys(_, #{<<"name">> := Name, <<"type">> := <<"file">>, <<"path">> := Path}) ->
-    [{b2a(Name), {file, b2l(Path)}}].
-
 -spec iqdisc_value(atom(), toml_section()) -> option().
 iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
     limit_keys([<<"workers">>], V),
@@ -312,18 +149,6 @@ iqdisc_value(Type, V) ->
 process_host_item(Path, M) ->
     {_Host, Sections} = maps:take(<<"host">>, M),
     parse_section(Path, Sections).
-
-%% path: (host_config[].)modules.mod_global_distrib.connections.tls.*
--spec fast_tls_option(path(), toml_value()) -> [option()].
-fast_tls_option([<<"certfile">>|_], V) -> [{certfile, b2l(V)}];
-fast_tls_option([<<"cacertfile">>|_], V) -> [{cafile, b2l(V)}];
-fast_tls_option([<<"dhfile">>|_], V) -> [{dhfile, b2l(V)}];
-fast_tls_option([<<"ciphers">>|_], V) -> [{ciphers, b2l(V)}].
-
-mod_global_distrib_tls_option([<<"enabled">>|_], V) ->
-    [{enabled, V}];
-mod_global_distrib_tls_option(P, V) ->
-    fast_tls_option(P, V).
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -347,15 +172,6 @@ ensure_keys(Keys, Section) ->
     case lists:filter(fun(Key) -> not maps:is_key(Key, Section) end, Keys) of
         [] -> ok;
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
-    end.
-
-%% Parse with post-processing, this needs to be eliminated by fixing the internal config structure
--spec parse_section(path(), toml_section(), fun(([option()]) -> option())) -> option().
-parse_section(Path, V, PostProcessF) ->
-    L = parse_section(Path, V),
-    case extract_errors(L) of
-        [] -> PostProcessF(L);
-        Errors -> Errors
     end.
 
 -spec parse_section(path(), toml_section()) -> [option()].
@@ -561,6 +377,12 @@ node_to_string(Node) -> [binary_to_list(Node)].
         Mod =/= <<"mod_csi">>,
         Mod =/= <<"mod_disco">>,
         Mod =/= <<"mod_event_pusher">>,
+        Mod =/= <<"mod_extdisco">>,
+        Mod =/= <<"mod_global_distrib">>,
+        Mod =/= <<"mod_http_upload">>,
+        Mod =/= <<"mod_inbox">>,
+        Mod =/= <<"mod_jingle_sip">>,
+        Mod =/= <<"mod_keystore">>,
         Mod =/= <<"mod_last">>,
         Mod =/= <<"mod_mam_meta">>,
         Mod =/= <<"mod_muc">>,
@@ -589,32 +411,6 @@ handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
 handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
 handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
     fun riak_opts/2;
-handler([_, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
-    fun mod_extdisco_service/2;
-handler([_, _, <<"service">>, <<"mod_extdisco">>, <<"modules">>]) ->
-    fun mod_extdisco_service/2;
-handler([_, <<"s3">>, <<"mod_http_upload">>, <<"modules">>]) ->
-    fun mod_http_upload_s3/2;
-handler([_, <<"reset_markers">>, <<"mod_inbox">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
-handler([_, <<"groupchat">>, <<"mod_inbox">>, <<"modules">>]) ->
-    fun(_, V) -> [b2a(V)] end;
-handler([_, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_connections/2;
-handler([_, <<"cache">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_cache/2;
-handler([_, <<"bounce">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_bounce/2;
-handler([_, <<"redis">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_redis/2;
-handler([_,<<"endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_connections_endpoints/2;
-handler([_,<<"advertised_endpoints">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_connections_advertised_endpoints/2;
-handler([_,<<"tls">>, <<"connections">>, <<"mod_global_distrib">>, <<"modules">>]) ->
-    fun mod_global_distrib_tls_option/2;
-handler([_, <<"keys">>, <<"mod_keystore">>, <<"modules">>]) ->
-    fun mod_keystore_keys/2;
 
 %% host_config
 handler([_, <<"host_config">>]) -> fun process_host_item/2;

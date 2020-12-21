@@ -8,16 +8,20 @@
 %%%-------------------------------------------------------------------
 -module(mod_inbox).
 -author("ludwikbukowski").
+
+-behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
--include("mod_inbox.hrl").
+
 -include("jlib.hrl").
--include("mongoose_ns.hrl").
+-include("mod_inbox.hrl").
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
+-include("mongoose_ns.hrl").
 
 -export([get_personal_data/2]).
 
--export([start/2, stop/1, deps/2]).
+-export([start/2, stop/1, deps/2, config_spec/0]).
 -export([process_iq/4,
          process_iq_conversation/4,
          user_send_packet/4,
@@ -148,6 +152,20 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"reset_markers">> => #list{items = #option{type = atom,
+                                                               validate = {enum, [displayed,
+                                                                                  received,
+                                                                                  acknowledged]}}},
+                  <<"groupchat">> => #list{items = #option{type = atom,
+                                                           validate = {enum, [muc, muclight]}}},
+                  <<"aff_changes">> => #option{type = boolean},
+                  <<"remove_on_kicked">> => #option{type = boolean},
+                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
+        }
+    }.
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ

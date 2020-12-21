@@ -20,12 +20,13 @@
 -behaviour(gen_mod).
 
 %% gen_mod callbacks.
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 -export([process_iq/4]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -spec start(jid:server(), list()) -> ok.
 start(Host, Opts) ->
@@ -38,6 +39,31 @@ start(Host, Opts) ->
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_EXTDISCO),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_EXTDISCO).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"service">> => #list{items = service_config_spec(),
+                                         format = none}}
+        }.
+
+service_config_spec() ->
+    #section{
+        items = #{<<"type">> => #option{type = atom,
+                                        validate = non_empty},
+                  <<"host">> => #option{type = string,
+                                        validate = non_empty},
+                  <<"port">> => #option{type = integer,
+                                        validate = port},
+                  <<"transport">> => #option{type = string,
+                                             validate = {enum, ["udp", "tcp"]}},
+                  <<"username">> => #option{type = string,
+                                            validate = non_empty},
+                  <<"password">> => #option{type = string,
+                                            validate = non_empty}
+            },
+        required = [<<"type">>, <<"host">>]
+    }.
 
 -spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.

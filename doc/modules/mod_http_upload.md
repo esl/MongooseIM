@@ -29,7 +29,7 @@ Subdomain for the upload service to reside under. `@HOST@` is replaced with each
 Backend to use for generating slots. Currently only `"s3"` can be used.
 
 ### `modules.mod_http_upload.expiration_time`
-* **Syntax:** non-negative integer
+* **Syntax:** positive integer
 * **Default:** `60`
 * **Example:** `expiration_time = 120`
 
@@ -44,11 +44,11 @@ Number of random bytes of a token that will be used in a generated URL.
 The text representation of the token will be twice as long as the number of bytes, e.g. for the default value the token in the URL will be 64 characters long.
 
 ### `modules.mod_http_upload.max_file_size`
-* **Syntax:** non-negative integer
+* **Syntax:** positive integer
 * **Default:** not set - no size limit
 * **Example:** `max_file_size = 10485760`
 
-Maximum file size (in bytes) accepted by the module. Disabled if set to `"undefined"`.
+Maximum file size (in bytes) accepted by the module.
 
 ### `modules.mod_http_upload.s3`
 * **Syntax:** Array of TOML tables. See description.
@@ -56,6 +56,8 @@ Maximum file size (in bytes) accepted by the module. Disabled if set to `"undefi
 * **Example:** see description
 
 Options specific to [S3][s3] backend.
+
+**Note:** this section is mandatory.
 
 ### [S3][s3] backend options
 
@@ -76,21 +78,21 @@ This allows users to read the uploaded files even if the bucket is private. The 
 
 #### `s3.region`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** `""`, this option is mandatory
 * **Example:** `s3.region = "https://s3-eu-west-1.amazonaws.com/mybucket"`
 
 The [AWS region][aws-region] to use for requests.
 
 #### `s3.access_key_id`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** `""`, this option is mandatory
 * **Example:** `s3.access_key_id = "AKIAIOSFODNN7EXAMPLE"`
 
 [ID of the access key][aws-keys] to use for authorization.
 
 #### `s3.secret_access_key`
 * **Syntax:** string
-* **Default:** `""`
+* **Default:** `""`, this option is mandatory
 * **Example:** `s3.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`
 
 [Secret access key][aws-keys] to use for authorization.
