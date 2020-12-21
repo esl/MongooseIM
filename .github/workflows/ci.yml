@@ -40,7 +40,8 @@ jobs:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        preset: [internal_mnesia]
+        preset: [internal_mnesia, odbc_mssql_mnesia, mysql_redis, riak_mnesia,
+                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: ['23.0.3']
     runs-on: ubuntu-latest
     env:
@@ -56,11 +57,8 @@ jobs:
           key: rebar3-${{ hashFiles('rebar.lock') }}
       - name: create certificates
         run: make certs
-      - if: ${{ matrix.preset == 'internal_mnesia' }}
-        run:
-          echo "DB=mnesia minio redis" >> $GITHUB_ENV
-          echo "REL_CONFIG=with-all" >> $GITHUB_ENV
-          echo "TLS_DIST=true" >> $GITHUB_ENV
+      - name: set required env variables for preset
+        run: tools/gh-actions-configure-preset.sh "$PRESET"
       - name: build releases
         run: |
           ./rebar3 compile
@@ -74,13 +72,5 @@ jobs:
       - name: report coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEBUG: '1'
         run: |
-          ls -ahl _build/test/cover || true
-          cp _build/test/cover/*.coverdata /tmp || true
-          ls -ahl /tmp/*.coverdata || true
-          ./rebar3 coveralls send || {
-            echo --rebar3.crashdump--
-            cat rebar3.crashdump
-            exit 1
-          }
+          ./rebar3 coveralls send
