@@ -1,6 +1,5 @@
 -module(mod_http_upload_SUITE).
 
--compile(export_all).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -29,6 +28,32 @@
             {secret_access_key, "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"}
         ]}
     ]).
+
+-export([all/0, groups/0, suite/0,
+	 init_per_suite/1, end_per_suite/1,
+	 init_per_group/2, end_per_group/2,
+	 init_per_testcase/2, end_per_testcase/2]).
+
+-export([
+	 does_not_advertise_max_size_if_unset/1,
+
+	 test_minio_upload_without_content_type/1,
+	 test_minio_upload_with_content_type/1,
+
+	 http_upload_item_discovery/1,
+	 http_upload_feature_discovery/1,
+	 advertises_max_file_size/1,
+	 request_slot/1,
+	 rejects_set_iq/1,
+	 get_url_ends_with_filename/1,
+	 urls_contain_s3_hostname/1,
+	 rejects_empty_filename/1,
+	 rejects_negative_filesize/1,
+	 rejects_invalid_size_type/1,
+	 denies_slots_over_max_file_size/1,
+	 sends_different_put_and_get_urls/1,
+	 escapes_urls_once/1
+	]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
