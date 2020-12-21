@@ -348,10 +348,10 @@ has_put_and_get_fields(_Elem) ->
 
 path_ends_with(UrlType, Filename, Result) ->
     Url = extract_url(Result, UrlType),
-    {ok, {_, _, _, _, PathList, _}} = http_uri:parse(binary_to_list(Url)),
+    #{ path := Path } = uri_string:parse(Url),
     FilenameSize = byte_size(Filename),
     ReverseFilename = reverse(Filename),
-    case reverse(PathList) of
+    case reverse(Path) of
         <<ReverseFilename:FilenameSize/binary, _/binary>> -> true;
         _ -> false
     end.
