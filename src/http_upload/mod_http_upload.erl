@@ -19,7 +19,6 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--xep([{xep, 363}, {version, "0.2.5"}]).
 -xep([{xep, 363}, {version, "0.3.0"}]).
 
 -include("jlib.hrl").
@@ -59,8 +58,6 @@ start(Host, Opts) ->
     ejabberd_hooks:add(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
     ejabberd_hooks:add(disco_info, SubHost, ?MODULE, get_disco_info, 90),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90),
-    gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_025, ?MODULE,
-                                  iq_handler, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030, ?MODULE,
                                   iq_handler, IQDisc),
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
@@ -70,7 +67,6 @@ start(Host, Opts) ->
 stop(Host) ->
     SubHost = subhost(Host),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_025),
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 90),
     ejabberd_hooks:delete(disco_info, SubHost, ?MODULE, get_disco_info, 90),
     ejabberd_hooks:delete(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
@@ -87,7 +83,7 @@ iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
 iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     Res = case parse_request(Request) of
-        {Filename, Size, ContentType, Namespace} ->
+        {Filename, Size, ContentType} ->
             MaxFileSize = max_file_size(Host),
             case MaxFileSize =:= undefined orelse Size =< MaxFileSize of
                 true ->
@@ -99,10 +95,10 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
                         mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
                                                             ContentType, Size, Opts),
 
-                    compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers);
+                    compose_iq_reply(IQ, PutUrl, GetUrl, Headers);
 
                 false ->
-                    IQ#iq{type = error, sub_el = [file_too_large_error(MaxFileSize, Namespace)]}
+                    IQ#iq{type = error, sub_el = [file_too_large_error(MaxFileSize)]}
             end;
 
         bad_request ->
@@ -150,7 +146,7 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 -spec get_disco_features(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
-    {result, [?NS_HTTP_UPLOAD_025, ?NS_HTTP_UPLOAD_030 | Nodes]};
+    {result, [?NS_HTTP_UPLOAD_030 | Nodes]};
 get_disco_features(empty, From, To, Node, Lang) ->
     get_disco_features({result, []}, From, To, Node, Lang);
 get_disco_features(Acc, _From, _To, _Node, _Lang) ->
@@ -165,8 +161,7 @@ get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
         undefined -> Acc;
         MaxFileSize ->
             MaxFileSizeBin = integer_to_binary(MaxFileSize),
-            [get_disco_info_form(?NS_HTTP_UPLOAD_025, MaxFileSizeBin),
-             get_disco_info_form(?NS_HTTP_UPLOAD_030, MaxFileSizeBin) | Acc]
+            [get_disco_info_form(MaxFileSizeBin) | Acc]
     end;
 get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
     Acc.
@@ -185,16 +180,17 @@ my_disco_name(Lang) ->
     translate:translate(Lang, <<"HTTP File Upload">>).
 
 
--spec compose_iq_reply(IQ :: jlib:iq(), Namespace :: binary(),
-                       PutUrl :: binary(), GetUrl :: binary(),
+-spec compose_iq_reply(IQ :: jlib:iq(),
+		       PutUrl :: binary(),
+		       GetUrl :: binary(),
                        Headers :: #{binary() => binary()}) ->
-                              Reply :: jlib:iq().
-compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
+    Reply :: jlib:iq().
+compose_iq_reply(IQ, PutUrl, GetUrl, Headers) ->
     Slot = #xmlel{
               name     = <<"slot">>,
-              attrs    = [{<<"xmlns">>, Namespace}],
-              children = [create_url_xmlel(<<"put">>, PutUrl, Headers, Namespace),
-                          create_url_xmlel(<<"get">>, GetUrl, #{}, Namespace)]},
+              attrs    = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030}],
+              children = [create_url_xmlel(<<"put">>, PutUrl, Headers),
+                          create_url_xmlel(<<"get">>, GetUrl, #{})]},
     IQ#iq{type = result, sub_el =[Slot]}.
 
 
@@ -226,42 +222,35 @@ generate_token(Host) ->
     base16:encode(crypto:strong_rand_bytes(token_bytes(Host))).
 
 
--spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> exml:element().
-file_too_large_error(MaxFileSize, Namespace) ->
+-spec file_too_large_error(MaxFileSize :: non_neg_integer()) -> exml:element().
+file_too_large_error(MaxFileSize) ->
     MaxFileSizeBin = integer_to_binary(MaxFileSize),
     MaxSizeEl = #xmlel{name = <<"max-file-size">>,
                        children = [#xmlcdata{content = MaxFileSizeBin}]},
     FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
-                            attrs = [{<<"xmlns">>, Namespace}],
+                            attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030}],
                             children = [MaxSizeEl]},
     Error0 = mongoose_xmpp_errors:not_acceptable(),
     Error0#xmlel{children = [FileTooLargeEl | Error0#xmlel.children]}.
 
 
 -spec parse_request(Request :: exml:element()) ->
-                           {Filename :: binary(), Size :: integer(),
-                            ContentType :: binary() | undefined, Namespace :: binary()} |
-                           bad_request.
+    {Filename :: binary(), Size :: integer(), ContentType :: binary() | undefined} | bad_request.
 parse_request(Request) ->
-    Namespace = exml_query:attr(Request, <<"xmlns">>),
     Keys = [<<"filename">>, <<"size">>, <<"content-type">>],
-    [Filename, SizeBin, ContentType] =
-        case Namespace of
-            ?NS_HTTP_UPLOAD_025 -> [exml_query:path(Request, [{element, K}, cdata]) || K <- Keys];
-            ?NS_HTTP_UPLOAD_030 -> [exml_query:attr(Request, K) || K <- Keys]
-        end,
+    [Filename, SizeBin, ContentType] = [exml_query:attr(Request, K) || K <- Keys],
     Size = (catch erlang:binary_to_integer(SizeBin)),
     case is_nonempty_binary(Filename) andalso is_positive_integer(Size) of
         false -> bad_request;
-        true -> {Filename, Size, ContentType, Namespace}
+        true -> {Filename, Size, ContentType}
     end.
 
 
--spec get_disco_info_form(Namespace :: binary(), MaxFileSizeBin :: binary()) -> exml:element().
-get_disco_info_form(Namespace, MaxFileSizeBin) ->
+-spec get_disco_info_form(MaxFileSizeBin :: binary()) -> exml:element().
+get_disco_info_form(MaxFileSizeBin) ->
     #xmlel{name     = <<"x">>,
            attrs    = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-           children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, Namespace}),
+           children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_HTTP_UPLOAD_030}),
                        jlib:form_field({<<"max-file-size">>, MaxFileSizeBin})]}.
 
 
@@ -272,11 +261,9 @@ header_to_xmlel({Key, Value}) ->
            children = [#xmlcdata{content = Value}]}.
 
 
--spec create_url_xmlel(Name :: binary(), Url :: binary(), Headers :: #{binary() => binary()},
-                       Namespace :: binary()) -> exml:element().
-create_url_xmlel(Name, Url, _Headers, ?NS_HTTP_UPLOAD_025) ->
-    #xmlel{name = Name, children = [#xmlcdata{content = Url}]};
-create_url_xmlel(Name, Url, Headers, ?NS_HTTP_UPLOAD_030) ->
+-spec create_url_xmlel(Name :: binary(), Url :: binary(), Headers :: #{binary() => binary()}) ->
+    exml:element().
+create_url_xmlel(Name, Url, Headers) ->
     HeadersXml = [header_to_xmlel(H) || H <- maps:to_list(Headers)],
     #xmlel{name = Name, attrs = [{<<"url">>, Url}], children = HeadersXml}.
 
@@ -293,3 +280,4 @@ is_positive_integer(_) -> false.
 config_metrics(Host) ->
     OptsToReport = [{backend, s3}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
