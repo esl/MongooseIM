@@ -31,10 +31,6 @@ validate(V, integer, positive) -> validate_positive_integer(V);
 validate(V, integer, port) -> validate_port(V);
 validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_infinity(V);
 validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
-validate(V, int_or_infinity_or_atom, positive) ->
-    validate_positive_integer_or_infinity_or_atom(V, no_buffer);
-validate(V, int_or_atom, positive) ->
-    validate_positive_integer_or_atom(V, never);
 validate(V, string, url) -> validate_url(V);
 validate(V, string, domain) -> validate_domain(V);
 validate(V, string, domain_template) -> validate_domain_template(V);
@@ -91,13 +87,6 @@ validate_non_negative_integer_or_infinity(infinity) -> ok.
 
 validate_positive_integer_or_infinity(Value) when is_integer(Value), Value > 0 -> ok;
 validate_positive_integer_or_infinity(infinity) -> ok.
-
-validate_positive_integer_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok;
-validate_positive_integer_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok.
-
-validate_positive_integer_or_infinity_or_atom(Value, _) when is_integer(Value), Value > 0 -> ok;
-validate_positive_integer_or_infinity_or_atom(infinity, _) -> ok;
-validate_positive_integer_or_infinity_or_atom(Value, Atom) when is_atom(Value), Value == Atom -> ok.
 
 validate_enum(Value, Values) ->
     case lists:member(Value, Values) of

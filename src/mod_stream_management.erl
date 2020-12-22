@@ -6,7 +6,8 @@
 %% `gen_mod' callbacks
 -export([start/2,
          stop/1,
-         config_spec/0]).
+         config_spec/0,
+         process_buffer_and_ack/1]).
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
@@ -78,15 +79,33 @@ stop(Host) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"buffer_max">> => #option{type = int_or_infinity_or_atom,
-                                             validate = positive},
-                 <<"ack_freq">> => #option{type = int_or_atom,
-                                           validate = positive},
-                 <<"resume_timeout">> => #option{type = integer,
-                                                 validate = positive},
-                 <<"stale_h">> => stale_h_config_spec()
-                }
+        items = #{<<"buffer">> => #option{type = boolean},
+                  <<"buffer_max">> => #option{type = int_or_infinity,
+                                              validate = positive},
+                  <<"ack">> => #option{type = boolean},
+                  <<"ack_freq">> => #option{type = integer,
+                                            validate = positive},
+                  <<"resume_timeout">> => #option{type = integer,
+                                                  validate = positive},
+                  <<"stale_h">> => stale_h_config_spec()
+                 },
+        process = fun ?MODULE:process_buffer_and_ack/1
       }.
+
+process_buffer_and_ack(KVs) ->
+    {[Buffer, Ack], Opts} = proplists:split(KVs, [buffer, ack]),
+    OptsWithBuffer = check_buffer(Buffer, Opts),
+    check_ack(Ack, OptsWithBuffer).
+
+check_buffer([{buffer, false}], Opts) ->
+    lists:ukeysort(1, [{buffer_max, no_buffer}] ++ Opts);
+check_buffer(_, Opts) ->
+    Opts.
+
+check_ack([{ack, false}], Opts) ->
+    lists:ukeysort(1, [{ack_freq, never}] ++ Opts);
+check_ack(_, Opts) ->
+    Opts.
 
 stale_h_config_spec() ->
     #section{

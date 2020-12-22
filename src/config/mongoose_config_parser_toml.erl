@@ -272,9 +272,6 @@ convert(V, string) -> binary_to_list(V);
 convert(V, atom) -> b2a(V);
 convert(<<"infinity">>, int_or_infinity) -> infinity; %% TODO maybe use TOML '+inf'
 convert(V, int_or_infinity) when is_integer(V) -> V;
-convert(<<"infinity">>, int_or_infinity_or_atom) -> infinity;
-convert(<<"no_buffer">>, int_or_infinity_or_atom) -> no_buffer;
-convert(V, int_or_infinity_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) when is_integer(V) -> V;
 convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) when is_integer(V) -> V;
