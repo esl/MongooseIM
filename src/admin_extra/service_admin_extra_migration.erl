@@ -157,6 +157,9 @@ try_migrate({Act, Table}) when is_atom(Table) ->
 
 try_migrate({Act, Table, TableData}) ->
     case TableData of
+        {ok, [_] = Data, '$end_of_table'} ->
+            ?MODULE:(list_to_existing_atom("migrate_" ++ binary_to_list(Act)))(Data),
+            {ok, io_lib:format("Completed the migration of the table: '~s'", [Act])};
         {ok, _, '$end_of_table'} ->
             {ok, io_lib:format("Completed the migration of the table: '~s'", [Act])};
         {ok, Data, NextKey} ->
@@ -276,7 +279,7 @@ migrate_pubsub_items([H|_]) ->
     Cols = ["nidx", "itemid", "created_luser", "created_lserver", "created_at",
             "modified_luser", "modified_lserver", "modified_lresource", "modified_at", "payload"],
     Vals = [NodeIdx, IID, JID#jid.luser, JID#jid.lserver, CT, JID#jid.lserver,
-    JID#jid.lserver, JID#jid.lresource, CT, XMLB],
+            JID#jid.lserver, JID#jid.lresource, CT, XMLB],
     Q = ["INSERT INTO pubsub_items ", expand_sql_vals(Cols, Vals), ";"],
     case mongoose_rdbms:sql_query(?MYNAME, Q) of
         {error, Reason} ->

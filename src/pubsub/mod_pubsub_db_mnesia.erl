@@ -17,7 +17,7 @@
 
 -export([start/0, stop/0]).
 % Funs execution
--export([transaction/2, dirty/2]).
+-export([clear_table/1, transaction/1, transaction/2, dirty/2]).
 % Direct #pubsub_state access
 -export([del_node/1, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
@@ -133,6 +133,16 @@ maybe_fill_subnode_table(_Other) ->
     ok.
 
 %% ------------------------ Fun execution ------------------------
+
+-spec clear_table(atom()) ->
+    {atomic, ok} | {aborted, term()}.
+clear_table(Tab) ->
+    mnesia:clear_table(Tab).
+
+-spec transaction(map()) ->
+    {result | error, any()}.
+transaction(#{name := Name, args := Args}) ->
+    transaction(fun() -> apply(?MODULE, Name, Args) end, #{}).
 
 -spec transaction(Fun :: fun(() -> {result | error, any()}),
                   ErrorDebug :: map()) ->
