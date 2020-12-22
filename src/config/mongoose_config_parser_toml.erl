@@ -114,40 +114,32 @@ parse_list(Path, L, #list{items = ItemSpec}) ->
 handle(Path, Value, Spec) ->
     lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
                         Error;
-                   (StepName, AccIn) ->
-                        try_call(handle_step(StepName, AccIn), StepName, Path, Value, Spec)
+                   (StepName, Acc) ->
+                        try_step(StepName, Path, Value, Acc, Spec)
                 end, Value, [parse, validate, process, format]).
 
-handle_step(parse, Value) ->
-    fun(Path, Spec) ->
-            ParsedValue = case Spec of
-                              #section{} = Spec when is_map(Value) ->
-                                  check_required_keys(Spec, Value),
-                                  validate_keys(Spec, Value),
-                                  parse_section(Path, Value, Spec);
-                              #list{} when is_list(Value) ->
-                                  parse_list(Path, Value, Spec);
-                              #option{type = Type} when not is_list(Value), not is_map(Value) ->
-                                  convert(Value, Type)
-                          end,
-            case extract_errors(ParsedValue) of
-                [] -> ParsedValue;
-                Errors -> Errors
-            end
+handle_step(parse, Path, Value, Spec) ->
+    ParsedValue = case Spec of
+                      #section{} = Spec when is_map(Value) ->
+                          check_required_keys(Spec, Value),
+                          validate_keys(Spec, Value),
+                          parse_section(Path, Value, Spec);
+                      #list{} when is_list(Value) ->
+                          parse_list(Path, Value, Spec);
+                      #option{type = Type} when not is_list(Value), not is_map(Value) ->
+                          convert(Value, Type)
+                  end,
+    case extract_errors(ParsedValue) of
+        [] -> ParsedValue;
+        Errors -> Errors
     end;
-handle_step(validate, ParsedValue) ->
-    fun(_Path, Spec) ->
-            validate(ParsedValue, Spec),
-            ParsedValue
-    end;
-handle_step(process, ParsedValue) ->
-    fun(Path, Spec) ->
-            process(Path, ParsedValue, process_spec(Spec))
-    end;
-handle_step(format, ProcessedValue) ->
-    fun(Path, Spec) ->
-            format(Path, ProcessedValue, format_spec(Spec))
-    end.
+handle_step(validate, _Path, ParsedValue, Spec) ->
+    validate(ParsedValue, Spec),
+    ParsedValue;
+handle_step(process, Path, ParsedValue, Spec) ->
+    process(Path, ParsedValue, process_spec(Spec));
+handle_step(format, Path, ProcessedValue, Spec) ->
+    format(Path, ProcessedValue, format_spec(Spec)).
 
 check_required_keys(#section{required = all, items = Items}, Section) ->
     ensure_keys(maps:keys(Items), Section);
@@ -243,12 +235,11 @@ get_host(Path) ->
         _ -> global
     end.
 
--spec try_call(fun((path(), any()) -> option()),
-               atom(), path(), toml_value(),
+-spec try_step(atom(), path(), toml_value(), term(),
                mongoose_config_spec:config_node()) -> option().
-try_call(F, StepName, Path, Value, Spec) ->
+try_step(StepName, Path, Value, Acc, Spec) ->
     try
-        F(Path, Spec)
+        handle_step(StepName, Path, Acc, Spec)
     catch error:Reason:Stacktrace ->
             BasicFields = #{what => toml_processing_failed,
                             class => error,
