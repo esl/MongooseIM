@@ -66,10 +66,9 @@ process(Content) ->
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
 
-%% root path
 -spec parse(toml_section()) -> config_list().
 parse(Content) ->
-    handle([], Content).
+    handle([], Content, mongoose_config_spec:root()).
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -86,59 +85,68 @@ ensure_keys(Keys, Section) ->
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
     end.
 
--spec parse_section(path(), toml_section()) -> [option()].
-parse_section(Path, M) ->
+-spec parse_section(path(), toml_section(), mongoose_config_spec:config_section()) -> [option()].
+parse_section(Path, M, #section{items = Items}) ->
     lists:flatmap(fun({K, V}) ->
-                          handle([K|Path], V)
+                          handle([K|Path], V, get_spec_for_key(K, Items))
                   end, lists:sort(maps:to_list(M))).
 
--spec parse_list(path(), [toml_value()]) -> [option()].
-parse_list(Path, L) ->
+-spec get_spec_for_key(toml_key(), map()) -> mongoose_config_spec:config_node().
+get_spec_for_key(Key, Items) ->
+    case maps:is_key(Key, Items) of
+        true ->
+            maps:get(Key, Items);
+        false ->
+            case maps:find(default, Items) of
+                {ok, Spec} -> Spec;
+                error -> error(#{what => unexpected_key, key => Key})
+            end
+    end.
+
+-spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [option()].
+parse_list(Path, L, #list{items = ItemSpec}) ->
     lists:flatmap(fun(Elem) ->
                           Key = item_key(Path, Elem),
-                          handle([Key|Path], Elem)
+                          handle([Key|Path], Elem, ItemSpec)
                   end, L).
 
--spec handle(path(), toml_value()) -> option().
-handle(Path, Value) ->
+-spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> option().
+handle(Path, Value, Spec) ->
     lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
                         Error;
                    (StepName, AccIn) ->
-                        try_call(handle_step(StepName, AccIn), StepName, Path, Value)
-                end, Path, [handle, parse, validate, process, format]).
+                        try_call(handle_step(StepName, AccIn), StepName, Path, Value, Spec)
+                end, Value, [parse, validate, process, format]).
 
-handle_step(handle, _) ->
-    fun(Path, _Value) -> handler(Path) end;
-handle_step(parse, Spec) when is_tuple(Spec) ->
-    fun(Path, Value) ->
+handle_step(parse, Value) ->
+    fun(Path, Spec) ->
             ParsedValue = case Spec of
                               #section{} = Spec when is_map(Value) ->
                                   check_required_keys(Spec, Value),
                                   validate_keys(Spec, Value),
-                                  parse_section(Path, Value);
+                                  parse_section(Path, Value, Spec);
                               #list{} when is_list(Value) ->
-                                  parse_list(Path, Value);
+                                  parse_list(Path, Value, Spec);
                               #option{type = Type} when not is_list(Value), not is_map(Value) ->
                                   convert(Value, Type)
                           end,
             case extract_errors(ParsedValue) of
-                [] -> {ParsedValue, Spec};
+                [] -> ParsedValue;
                 Errors -> Errors
             end
     end;
-handle_step(validate, {ParsedValue, Spec}) ->
-    fun(_Path, _Value) ->
+handle_step(validate, ParsedValue) ->
+    fun(_Path, Spec) ->
             validate(ParsedValue, Spec),
-            {ParsedValue, Spec}
+            ParsedValue
     end;
-handle_step(process, {ParsedValue, Spec}) ->
-    fun(Path, _Value) ->
-            ProcessedValue = process(Path, ParsedValue, process_spec(Spec)),
-            {ProcessedValue, Spec}
+handle_step(process, ParsedValue) ->
+    fun(Path, Spec) ->
+            process(Path, ParsedValue, process_spec(Spec))
     end;
-handle_step(format, {ParsedValue, Spec}) ->
-    fun(Path, _Value) ->
-            format(Path, ParsedValue, format_spec(Spec))
+handle_step(format, ProcessedValue) ->
+    fun(Path, Spec) ->
+            format(Path, ProcessedValue, format_spec(Spec))
     end.
 
 check_required_keys(#section{required = all, items = Items}, Section) ->
@@ -235,10 +243,12 @@ get_host(Path) ->
         _ -> global
     end.
 
--spec try_call(fun((path(), any()) -> option()), atom(), path(), toml_value()) -> option().
-try_call(F, StepName, Path, Value) ->
+-spec try_call(fun((path(), any()) -> option()),
+               atom(), path(), toml_value(),
+               mongoose_config_spec:config_node()) -> option().
+try_call(F, StepName, Path, Value, Spec) ->
     try
-        F(Path, Value)
+        F(Path, Spec)
     catch error:Reason:Stacktrace ->
             BasicFields = #{what => toml_processing_failed,
                             class => error,
@@ -251,7 +261,6 @@ try_call(F, StepName, Path, Value) ->
     end.
 
 -spec error_text(atom()) -> string().
-error_text(handle) -> "Unexpected option in the TOML configuration file";
 error_text(parse) -> "Malformed option in the TOML configuration file";
 error_text(validate) -> "Incorrect option value in the TOML configuration file";
 error_text(process) -> "Unable to process a value the TOML configuration file";
@@ -269,13 +278,6 @@ path_to_string(Path) ->
 node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
 node_to_string(Node) -> [binary_to_list(Node)].
-
-handler(Path) ->
-    SimplePath = lists:reverse(lists:map(fun simplify_node/1, Path)),
-    mongoose_config_spec:handler(SimplePath).
-
-simplify_node({host, _}) -> item;
-simplify_node(Node) -> Node.
 
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};

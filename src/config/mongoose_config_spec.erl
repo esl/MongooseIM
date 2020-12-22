@@ -11,20 +11,6 @@
 
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0]).
 
-handler(Path) ->
-    handler(Path, root()).
-
-handler([Node|Rest], #section{items = Items}) when is_binary(Node) ->
-    Item = case maps:is_key(Node, Items) of
-               true -> maps:get(Node, Items);
-               false -> maps:get(default, Items)
-           end,
-    handler(Rest, Item);
-handler([item|Rest], #list{items = Item}) ->
-    handler(Rest, Item);
-handler([], Node) ->
-    Node.
-
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
 %%   - '[]' denotes an element in a list
