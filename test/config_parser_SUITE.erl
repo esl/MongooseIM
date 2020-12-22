@@ -2605,13 +2605,15 @@ mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
     M = fun(Cfg) -> modopts(mod_stream_management, Cfg) end,
     ?eqf(M([{buffer_max, no_buffer}]),  T(#{<<"buffer">> => false})),
-    ?eqf(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
     ?eqf(M([{buffer_max, 10}]),  T(#{<<"buffer_max">> => 10})),
+    ?eqf(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
     ?eqf(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
     ?eqf(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
 
+    ?errf(T(#{<<"buffer">> => 0})),
     ?errf(T(#{<<"buffer_max">> => -1})),
-    ?errf(T(#{<<"ack_freq">> => false})),
+    ?errf(T(#{<<"ack">> => <<"false">>})),
+    ?errf(T(#{<<"ack_freq">> => 0})),
     ?errf(T(#{<<"resume_timeout">> => true})).
 
 mod_stream_management_stale_h(_Config) ->
