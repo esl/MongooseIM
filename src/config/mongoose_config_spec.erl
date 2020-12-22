@@ -11,28 +11,27 @@
 
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0]).
 
-handler(Path) ->
-    handler(Path, root()).
-
-handler([Node], #section{items = Items}) when is_binary(Node) ->
-    case maps:is_key(Node, Items) of
-        true -> maps:get(Node, Items);
-        false -> maps:get(default, Items)
-    end;
-handler([item], #list{items = Item}) ->
-    Item;
-handler([Node|Rest], #section{items = Items}) when is_binary(Node) ->
-    Item = case maps:is_key(Node, Items) of
-               true -> maps:get(Node, Items);
-               false -> maps:get(default, Items)
-           end,
-    handler(Rest, Item);
-handler([item|Rest], #list{items = Items}) ->
-    handler(Rest, Items).
+%% Config processing functions are annotated with TOML paths
+%% Path syntax: dotted, like TOML keys with the following additions:
+%%   - '[]' denotes an element in a list
+%%   - '( ... )' encloses an optional prefix
+%%   - '*' is a wildcard for names - usually that name is passed as an argument
+%% If the path is the same as for the previous function, it is not repeated.
+%%
+%% Example: (host_config[].)access.*
+%% Meaning: either a key in the 'access' section, e.g.
+%%            [access]
+%%              local = ...
+%%          or the same, but prefixed for a specific host, e.g.
+%%            [[host_config]]
+%%              host = "myhost"
+%%              host_config.access
+%%                local = ...
 
 root() ->
+    General = general(),
     #section{
-       items = #{<<"general">> => general(),
+       items = #{<<"general">> => General#section{required = [<<"hosts">>]},
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
@@ -41,9 +40,38 @@ root() ->
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
-                 <<"s2s">> => s2s()
+                 <<"s2s">> => s2s(),
+                 <<"host_config">> => #list{items = host_config(),
+                                            format = none}
                 },
        required = [<<"general">>],
+       format = none
+      }.
+
+%% path: host_config[]
+host_config() ->
+    #section{
+       items = #{%% Host is only validated here - it is stored in the path,
+                 %%   see mongoose_config_parser_toml:item_key/1
+                 <<"host">> => #option{type = binary,
+                                       validate = non_empty,
+                                       format = skip},
+
+                 %% Sections below are allowed in host_config,
+                 %% but only options with these formats are accepted:
+                 %%  - host_local_config
+                 %%  - host_or_global_config
+                 %%  - host_or_global_acl
+                 %% Any other options would be caught by
+                 %%   mongoose_config_parser_toml:format/3
+                 <<"general">> => general(),
+                 <<"auth">> => auth(),
+                 <<"modules">> => modules(),
+                 <<"shaper">> => shaper(),
+                 <<"acl">> => acl(),
+                 <<"access">> => access(),
+                 <<"s2s">> => s2s()
+                },
        format = none
       }.
 
@@ -100,7 +128,6 @@ general() ->
                  <<"hide_service_name">> => #option{type = boolean,
                                                     format = host_local_config}
                 },
-       required = [<<"hosts">>],
        format = none
       }.
 
@@ -711,25 +738,29 @@ tls_items() ->
 
 %% path: (host_config[].)services
 services() ->
-    Services = [{a2b(Service), mongoose_service:config_spec(Service)} || Service <- all_services()],
+    Services = [{a2b(Service), mongoose_service:config_spec(Service)}
+                || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
        format = local_config
       }.
 
-all_services() ->
+configurable_services() ->
     [service_admin_extra,
      service_mongoose_system_metrics].
 
 %% path: (host_config[].)modules
 modules() ->
-    Modules = [{a2b(Module), gen_mod:config_spec(Module)} || Module <- all_modules()],
+    Modules = [{a2b(Module), gen_mod:config_spec(Module)}
+               || Module <- configurable_modules()],
+    Items = maps:from_list(Modules),
     #section{
-       items = maps:from_list(Modules),
+       items = Items#{default => #section{items = #{}}},
+       validate_keys = module,
        format = host_local_config
       }.
 
-all_modules() ->
+configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
      mod_bosh,

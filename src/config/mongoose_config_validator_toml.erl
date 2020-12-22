@@ -1,25 +1,12 @@
 -module(mongoose_config_validator_toml).
 
--export([validate/2,
-         validate/3,
+-export([validate/3,
          validate_section/2,
          validate_list/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include_lib("jid/include/jid.hrl").
-
--define(HOST, 'HOST').
-
--spec validate(mongoose_config_parser_toml:path(),
-               mongoose_config_parser_toml:option() | mongoose_config_parser_toml:config_list()) ->
-          any().
-validate(Path, [F]) when is_function(F, 1) ->
-    validate(Path, F(?HOST));
-
-%% Modules
-validate(_Path, _Value) ->
-    ok.
 
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);

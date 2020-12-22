@@ -66,89 +66,9 @@ process(Content) ->
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
 
-%% Config processing functions are annotated with TOML paths
-%% Path syntax: dotted, like TOML keys with the following additions:
-%%   - '[]' denotes an element in a list
-%%   - '( ... )' encloses an optional prefix
-%%   - '*' is a wildcard for names - usually that name is passed as an argument
-%% If the path is the same as for the previous function, it is not repeated.
-%%
-%% Example: (host_config[].)access.*
-%% Meaning: either a key in the 'access' section, e.g.
-%%            [access]
-%%              local = ...
-%%          or the same, but prefixed for a specific host, e.g.
-%%            [[host_config]]
-%%              host = "myhost"
-%%              host_config.access
-%%                local = ...
-
-%% root path
 -spec parse(toml_section()) -> config_list().
 parse(Content) ->
-    handle([], Content).
-
--spec parse_root(path(), toml_section()) -> config_list().
-parse_root(Path, Content) ->
-    ensure_keys([<<"general">>], Content),
-    parse_section(Path, Content).
-
-%% path: (host_config[].)modules.*
--spec process_module(path(), toml_section()) -> [option()].
-process_module([Mod|_] = Path, Opts) ->
-    %% Sort option keys to ensure options could be matched in tests
-    post_process_module(b2a(Mod), parse_section(Path, Opts)).
-
-post_process_module(Mod, Opts) ->
-    [{Mod, lists:sort(Opts)}].
-
-%% path: (host_config[].)modules.*.*
--spec module_opt(path(), toml_value()) -> [option()].
-% General options
-module_opt([<<"iqdisc">>|_], V) ->
-    {Type, Opts} = maps:take(<<"type">>, V),
-    [{iqdisc, iqdisc_value(b2a(Type), Opts)}];
-module_opt([<<"backend">>|_], V) ->
-    [{backend, b2a(V)}];
-%% LDAP-specific options
-module_opt([<<"ldap_pool_tag">>|_], V) ->
-    [{ldap_pool_tag, b2a(V)}];
-module_opt([<<"ldap_base">>|_], V) ->
-    [{ldap_base, b2l(V)}];
-module_opt([<<"ldap_filter">>|_], V) ->
-    [{ldap_filter, b2l(V)}];
-module_opt([<<"ldap_deref">>|_], V) ->
-    [{ldap_deref, b2a(V)}];
-%% Backend-specific options
-module_opt([<<"riak">>|_] = Path, V) ->
-    parse_section(Path, V).
-
-%% path: (host_config[].)modules.*.riak.*
--spec riak_opts(path(), toml_section()) -> [option()].
-riak_opts([<<"defaults_bucket_type">>|_], V) ->
-    [{defaults_bucket_type, V}];
-riak_opts([<<"names_bucket_type">>|_], V) ->
-    [{names_bucket_type, V}];
-riak_opts([<<"version_bucket_type">>|_], V) ->
-    [{version_bucket_type, V}];
-riak_opts([<<"bucket_type">>|_], V) ->
-    [{bucket_type, V}];
-riak_opts([<<"search_index">>|_], V) ->
-    [{search_index, V}].
-
--spec iqdisc_value(atom(), toml_section()) -> option().
-iqdisc_value(queues, #{<<"workers">> := Workers} = V) ->
-    limit_keys([<<"workers">>], V),
-    {queues, Workers};
-iqdisc_value(Type, V) ->
-    limit_keys([], V),
-    Type.
-
-%% path: host_config[]
--spec process_host_item(path(), toml_section()) -> config_list().
-process_host_item(Path, M) ->
-    {_Host, Sections} = maps:take(<<"host">>, M),
-    parse_section(Path, Sections).
+    handle([], Content, mongoose_config_spec:root()).
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -158,15 +78,6 @@ set_overrides(Overrides, State) ->
 %% TODO replace with binary_to_existing_atom where possible, prevent atom leak
 b2a(B) -> binary_to_atom(B, utf8).
 
-b2l(B) -> binary_to_list(B).
-
--spec limit_keys([toml_key()], toml_section()) -> any().
-limit_keys(Keys, Section) ->
-    case maps:keys(maps:without(Keys, Section)) of
-        [] -> ok;
-        ExtraKeys -> error(#{what => unexpected_keys, unexpected_keys => ExtraKeys})
-    end.
-
 -spec ensure_keys([toml_key()], toml_section()) -> any().
 ensure_keys(Keys, Section) ->
     case lists:filter(fun(Key) -> not maps:is_key(Key, Section) end, Keys) of
@@ -174,71 +85,61 @@ ensure_keys(Keys, Section) ->
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
     end.
 
--spec parse_section(path(), toml_section()) -> [option()].
-parse_section(Path, M) ->
+-spec parse_section(path(), toml_section(), mongoose_config_spec:config_section()) -> [option()].
+parse_section(Path, M, #section{items = Items}) ->
     lists:flatmap(fun({K, V}) ->
-                          handle([K|Path], V)
+                          handle([K|Path], V, get_spec_for_key(K, Items))
                   end, lists:sort(maps:to_list(M))).
 
--spec parse_list(path(), [toml_value()]) -> [option()].
-parse_list(Path, L) ->
+-spec get_spec_for_key(toml_key(), map()) -> mongoose_config_spec:config_node().
+get_spec_for_key(Key, Items) ->
+    case maps:is_key(Key, Items) of
+        true ->
+            maps:get(Key, Items);
+        false ->
+            case maps:find(default, Items) of
+                {ok, Spec} -> Spec;
+                error -> error(#{what => unexpected_key, key => Key})
+            end
+    end.
+
+-spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [option()].
+parse_list(Path, L, #list{items = ItemSpec}) ->
     lists:flatmap(fun(Elem) ->
                           Key = item_key(Path, Elem),
-                          handle([Key|Path], Elem)
+                          handle([Key|Path], Elem, ItemSpec)
                   end, L).
 
--spec handle(path(), toml_value()) -> option().
-handle(Path, Value) ->
+-spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> option().
+handle(Path, Value, Spec) ->
     lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
                         Error;
-                   (StepName, AccIn) ->
-                        try_call(handle_step(StepName, AccIn), StepName, Path, Value)
-                end, Path, [handle, parse, validate, process, format]).
+                   (StepName, Acc) ->
+                        try_step(StepName, Path, Value, Acc, Spec)
+                end, Value, [parse, validate, process, format]).
 
-handle_step(handle, _) ->
-    fun(Path, _Value) -> handler(Path) end;
-handle_step(parse, Spec) when is_tuple(Spec) ->
-    fun(Path, Value) ->
-            ParsedValue = case Spec of
-                              #section{} = Spec when is_map(Value) ->
-                                  check_required_keys(Spec, Value),
-                                  validate_keys(Spec, Value),
-                                  parse_section(Path, Value);
-                              #list{} when is_list(Value) ->
-                                  parse_list(Path, Value);
-                              #option{type = Type} when not is_list(Value), not is_map(Value) ->
-                                  convert(Value, Type)
-                          end,
-            case extract_errors(ParsedValue) of
-                [] -> {ParsedValue, Spec};
-                Errors -> Errors
-            end
+handle_step(parse, Path, Value, Spec) ->
+    ParsedValue = case Spec of
+                      #section{} = Spec when is_map(Value) ->
+                          check_required_keys(Spec, Value),
+                          validate_keys(Spec, Value),
+                          parse_section(Path, Value, Spec);
+                      #list{} when is_list(Value) ->
+                          parse_list(Path, Value, Spec);
+                      #option{type = Type} when not is_list(Value), not is_map(Value) ->
+                          convert(Value, Type)
+                  end,
+    case extract_errors(ParsedValue) of
+        [] -> ParsedValue;
+        Errors -> Errors
     end;
-handle_step(parse, Handler) ->
-    Handler;
-handle_step(validate, {ParsedValue, Spec}) ->
-    fun(_Path, _Value) ->
-            validate(ParsedValue, Spec),
-            {ParsedValue, Spec}
-    end;
-handle_step(validate, ParsedValue) ->
-    fun(Path, _Value) ->
-            mongoose_config_validator_toml:validate(Path, ParsedValue),
-            ParsedValue
-    end;
-handle_step(process, {ParsedValue, Spec}) ->
-    fun(Path, _Value) ->
-            ProcessedValue = process(Path, ParsedValue, process_spec(Spec)),
-            {ProcessedValue, Spec}
-    end;
-handle_step(process, V) ->
-    fun(_, _) -> V end;
-handle_step(format, {ParsedValue, Spec}) ->
-    fun(Path, _Value) ->
-            format(Path, ParsedValue, format_spec(Spec))
-    end;
-handle_step(format, V) ->
-    fun(_, _) -> V end.
+handle_step(validate, _Path, ParsedValue, Spec) ->
+    validate(ParsedValue, Spec),
+    ParsedValue;
+handle_step(process, Path, ParsedValue, Spec) ->
+    process(Path, ParsedValue, process_spec(Spec));
+handle_step(format, Path, ProcessedValue, Spec) ->
+    format(Path, ProcessedValue, format_spec(Spec)).
 
 check_required_keys(#section{required = all, items = Items}, Section) ->
     ensure_keys(maps:keys(Items), Section);
@@ -317,6 +218,8 @@ format(_Path, V, {kv, Key}) ->
     [{Key, V}];
 format(_Path, V, item) ->
     [V];
+format(_Path, _V, skip) ->
+    [];
 format([Key|_], V, prepend_key) ->
     L = [b2a(Key) | tuple_to_list(V)],
     [list_to_tuple(L)];
@@ -329,10 +232,11 @@ get_host(Path) ->
         _ -> global
     end.
 
--spec try_call(fun((path(), any()) -> option()), atom(), path(), toml_value()) -> option().
-try_call(F, StepName, Path, Value) ->
+-spec try_step(atom(), path(), toml_value(), term(),
+               mongoose_config_spec:config_node()) -> option().
+try_step(StepName, Path, Value, Acc, Spec) ->
     try
-        F(Path, Value)
+        handle_step(StepName, Path, Acc, Spec)
     catch error:Reason:Stacktrace ->
             BasicFields = #{what => toml_processing_failed,
                             class => error,
@@ -345,7 +249,6 @@ try_call(F, StepName, Path, Value) ->
     end.
 
 -spec error_text(atom()) -> string().
-error_text(handle) -> "Unexpected option in the TOML configuration file";
 error_text(parse) -> "Malformed option in the TOML configuration file";
 error_text(validate) -> "Incorrect option value in the TOML configuration file";
 error_text(process) -> "Unable to process a value the TOML configuration file";
@@ -362,85 +265,7 @@ path_to_string(Path) ->
 
 node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
-node_to_string({tls, TLSAtom}) -> [atom_to_list(TLSAtom)];
 node_to_string(Node) -> [binary_to_list(Node)].
-
--define(HAS_NO_SPEC(Mod),
-        Mod =/= <<"mod_adhoc">>,
-        Mod =/= <<"mod_auth_token">>,
-        Mod =/= <<"mod_bosh">>,
-        Mod =/= <<"mod_caps">>,
-        Mod =/= <<"mod_carboncopy">>,
-        Mod =/= <<"mod_csi">>,
-        Mod =/= <<"mod_disco">>,
-        Mod =/= <<"mod_event_pusher">>,
-        Mod =/= <<"mod_extdisco">>,
-        Mod =/= <<"mod_global_distrib">>,
-        Mod =/= <<"mod_http_upload">>,
-        Mod =/= <<"mod_inbox">>,
-        Mod =/= <<"mod_jingle_sip">>,
-        Mod =/= <<"mod_keystore">>,
-        Mod =/= <<"mod_last">>,
-        Mod =/= <<"mod_mam_meta">>,
-        Mod =/= <<"mod_muc">>,
-        Mod =/= <<"mod_muc_light">>,
-        Mod =/= <<"mod_muc_log">>,
-        Mod =/= <<"mod_offline">>,
-        Mod =/= <<"mod_ping">>,
-        Mod =/= <<"mod_privacy">>,
-        Mod =/= <<"mod_private">>,
-        Mod =/= <<"mod_pubsub">>,
-        Mod =/= <<"mod_push_service_mongoosepush">>,
-        Mod =/= <<"mod_register">>,
-        Mod =/= <<"mod_roster">>,
-        Mod =/= <<"mod_shared_roster_ldap">>,
-        Mod =/= <<"mod_sic">>,
-        Mod =/= <<"mod_stream_management">>,
-        Mod =/= <<"mod_time">>,
-        Mod =/= <<"mod_vcard">>,
-        Mod =/= <<"mod_version">>). % TODO temporary, remove with 'handler/1'
-
--spec handler(path()) ->
-          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
-handler([]) -> fun parse_root/2;
-handler([<<"host_config">>]) -> fun parse_list/2;
-
-%% modules
-handler([Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun process_module/2;
-handler([_, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) -> fun module_opt/2;
-handler([_, <<"riak">>, Mod, <<"modules">>]) when ?HAS_NO_SPEC(Mod) ->
-    fun riak_opts/2;
-
-%% host_config
-handler([_, <<"host_config">>]) -> fun process_host_item/2;
-handler([<<"auth">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([<<"modules">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([<<"general">>, _, <<"host_config">>]) -> fun parse_section/2;
-handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler(Path) ->
-    reverse_handler(lists:reverse(Path)).
-
-reverse_handler([<<"host_config">>, {host, _} | Subtree]) ->
-    handler(lists:reverse(Subtree));
-reverse_handler(Path) ->
-    mongoose_config_spec:handler(Path).
-
-%% 1. Strip host_config, choose the handler for the remaining path
-%% 2. Wrap the handler in a fun that calls the resulting function F for the current host
--spec handler_for_host(path()) ->
-          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
-handler_for_host(Path) ->
-    [<<"host_config">>, {host, Host} | Rest] = lists:reverse(Path),
-    case handler(lists:reverse(Rest)) of
-        Handler when is_function(Handler) ->
-            fun(PathArg, ValueArg) ->
-                    ConfigFunctions = Handler(PathArg, ValueArg),
-                    lists:flatmap(fun(F) -> F(Host) end, ConfigFunctions)
-            end;
-        Spec ->
-            Spec
-    end.
 
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
