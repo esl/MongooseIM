@@ -66,38 +66,10 @@ process(Content) ->
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
 
-%% Config processing functions are annotated with TOML paths
-%% Path syntax: dotted, like TOML keys with the following additions:
-%%   - '[]' denotes an element in a list
-%%   - '( ... )' encloses an optional prefix
-%%   - '*' is a wildcard for names - usually that name is passed as an argument
-%% If the path is the same as for the previous function, it is not repeated.
-%%
-%% Example: (host_config[].)access.*
-%% Meaning: either a key in the 'access' section, e.g.
-%%            [access]
-%%              local = ...
-%%          or the same, but prefixed for a specific host, e.g.
-%%            [[host_config]]
-%%              host = "myhost"
-%%              host_config.access
-%%                local = ...
-
 %% root path
 -spec parse(toml_section()) -> config_list().
 parse(Content) ->
     handle([], Content).
-
--spec parse_root(path(), toml_section()) -> config_list().
-parse_root(Path, Content) ->
-    ensure_keys([<<"general">>], Content),
-    parse_section(Path, Content).
-
-%% path: host_config[]
--spec process_host_item(path(), toml_section()) -> config_list().
-process_host_item(Path, M) ->
-    {_Host, Sections} = maps:take(<<"host">>, M),
-    parse_section(Path, Sections).
 
 set_overrides(Overrides, State) ->
     lists:foldl(fun({override, Scope}, CurrentState) ->
@@ -154,30 +126,20 @@ handle_step(parse, Spec) when is_tuple(Spec) ->
                 Errors -> Errors
             end
     end;
-handle_step(parse, Handler) ->
-    Handler;
 handle_step(validate, {ParsedValue, Spec}) ->
     fun(_Path, _Value) ->
             validate(ParsedValue, Spec),
             {ParsedValue, Spec}
-    end;
-handle_step(validate, ParsedValue) ->
-    fun(_Path, _Value) ->
-            ParsedValue %% no validation here, this will be removed very soon
     end;
 handle_step(process, {ParsedValue, Spec}) ->
     fun(Path, _Value) ->
             ProcessedValue = process(Path, ParsedValue, process_spec(Spec)),
             {ProcessedValue, Spec}
     end;
-handle_step(process, V) ->
-    fun(_, _) -> V end;
 handle_step(format, {ParsedValue, Spec}) ->
     fun(Path, _Value) ->
             format(Path, ParsedValue, format_spec(Spec))
-    end;
-handle_step(format, V) ->
-    fun(_, _) -> V end.
+    end.
 
 check_required_keys(#section{required = all, items = Items}, Section) ->
     ensure_keys(maps:keys(Items), Section);
@@ -259,6 +221,8 @@ format(_Path, V, {kv, Key}) ->
     [{Key, V}];
 format(_Path, V, item) ->
     [V];
+format(_Path, _V, skip) ->
+    [];
 format([Key|_], V, prepend_key) ->
     L = [b2a(Key) | tuple_to_list(V)],
     [list_to_tuple(L)];
@@ -306,41 +270,12 @@ node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
 node_to_string(Node) -> [binary_to_list(Node)].
 
--spec handler(path()) ->
-          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
-handler([]) -> fun parse_root/2;
-handler([<<"host_config">>]) -> fun parse_list/2;
-
-%% host_config
-handler([_, <<"host_config">>]) -> fun process_host_item/2;
-handler([<<"auth">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([<<"modules">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([<<"general">>, _, <<"host_config">>]) -> fun parse_section/2;
-handler([_, <<"general">>, _, <<"host_config">>] = P) -> handler_for_host(P);
-handler([_, <<"s2s">>, _, <<"host_config">>] = P) -> handler_for_host(P);
 handler(Path) ->
-    reverse_handler(lists:reverse(Path)).
+    SimplePath = lists:reverse(lists:map(fun simplify_node/1, Path)),
+    mongoose_config_spec:handler(SimplePath).
 
-reverse_handler([<<"host_config">>, {host, _} | Subtree]) ->
-    handler(lists:reverse(Subtree));
-reverse_handler(Path) ->
-    mongoose_config_spec:handler(Path).
-
-%% 1. Strip host_config, choose the handler for the remaining path
-%% 2. Wrap the handler in a fun that calls the resulting function F for the current host
--spec handler_for_host(path()) ->
-          fun((path(), toml_value()) -> option()) | mongoose_config_spec:config_node().
-handler_for_host(Path) ->
-    [<<"host_config">>, {host, Host} | Rest] = lists:reverse(Path),
-    case handler(lists:reverse(Rest)) of
-        Handler when is_function(Handler) ->
-            fun(PathArg, ValueArg) ->
-                    ConfigFunctions = Handler(PathArg, ValueArg),
-                    lists:flatmap(fun(F) -> F(Host) end, ConfigFunctions)
-            end;
-        Spec ->
-            Spec
-    end.
+simplify_node({host, _}) -> item;
+simplify_node(Node) -> Node.
 
 -spec item_key(path(), toml_value()) -> tuple() | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
