@@ -46,7 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRESET: ${{matrix.preset}}
+      GITHUB_JOB_ID: ${{github.run_id}}.${{matrix.preset}}.${{matrix.otp}}
     steps:
+      - run: |
+          echo "!!! job id: $GITHUB_JOB_ID"
+          echo "!!! run id: $GITHUB_RUN_ID"
       - uses: actions/checkout@v2
       - uses: ErlGang/setup-erlang@v1.0.0
         with:
@@ -76,3 +80,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./rebar3 coveralls send
+
+  finish:
+    needs: big_tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Finish coveralls parallel build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          curl -vk "https://coveralls.io/webhook?repo_token=${GITHUB_TOKEN}"
+          -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          echo
+          curl -vk "https://coveralls.io/webhook?repo_token=${GITHUB_TOKEN}"
+          -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
