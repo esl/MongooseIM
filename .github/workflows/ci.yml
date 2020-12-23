@@ -34,7 +34,17 @@ jobs:
       - name: create certificates
         run: make certs
       - name: run test
-        run: tools/travis-test.sh -p $PRESET -s true -e true
+        run: |
+          ./rebar3 compile #required for coverage reporting
+          tools/travis-test.sh -p $PRESET -s true -e true
+      - name: report coverage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_JOB_ID: ${{github.run_id}}.small_tests.${{matrix.otp}}
+          DEBUG: 1
+        run: |
+          cp _build/test/cover/*.coverdata /tmp
+          ./rebar3 coveralls send
 
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -46,11 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRESET: ${{matrix.preset}}
-      GITHUB_JOB_ID: ${{github.run_id}}.${{matrix.preset}}.${{matrix.otp}}
     steps:
-      - run: |
-          echo "!!! job id: $GITHUB_JOB_ID"
-          echo "!!! run id: $GITHUB_RUN_ID"
       - uses: actions/checkout@v2
       - uses: ErlGang/setup-erlang@v1.0.0
         with:
@@ -67,7 +73,7 @@ jobs:
         run: sudo apt-get install -y tdsodbc
       - name: build releases
         run: |
-          ./rebar3 compile
+          ./rebar3 compile #required for coverage reporting
           tools/build-releases.sh
       - name: build big tests
         run: tools/travis-build-tests.sh
@@ -78,11 +84,11 @@ jobs:
       - name: report coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ./rebar3 coveralls send
+          GITHUB_JOB_ID: ${{github.run_id}}.${{matrix.preset}}.${{matrix.otp}}
+        run: ./rebar3 coveralls send
 
-  finish:
-    needs: big_tests
+  coveralls_webhook:
+    needs: [big_tests, small_tests]
     runs-on: ubuntu-latest
     steps:
       - name: Finish coveralls parallel build
