@@ -88,9 +88,8 @@ MaybeConfigureCoveralls = fun(CONFIG) ->
     case {os:getenv("GITHUB_ACTIONS"), os:getenv("GITHUB_TOKEN")} of
         {"true", Token} when is_list(Token) ->
             CONFIG1 = [{coveralls_repo_token, Token},
-                       {coveralls_service_job_id, os:getenv("GITHUB_JOB_ID")},
-                       {coveralls_commit_sha, os:getenv("GITHUB_SHA")},
-                       {coveralls_service_number, os:getenv("GITHUB_RUN_ID")} | CONFIG],
+                       {coveralls_service_job_id, os:getenv("GITHUB_RUN_ID")},
+                       {coveralls_commit_sha, os:getenv("GITHUB_SHA")} | CONFIG],
             case os:getenv("GITHUB_EVENT_NAME") =:= "pull_request" andalso
                  string:tokens(os:getenv("GITHUB_REF"), "/") of
                 [_, "pull", PRNO, _] ->

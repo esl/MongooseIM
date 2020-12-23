@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         otp: ['23.0.3', '22.3']
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       PRESET: 'small_tests'
     steps:
@@ -40,8 +40,6 @@ jobs:
       - name: report coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_JOB_ID: ${{github.run_id}}.small_tests.${{matrix.otp}}
-          DEBUG: 1
         run: |
           cp _build/test/cover/*.coverdata /tmp
           ./rebar3 coveralls send
@@ -53,7 +51,7 @@ jobs:
         preset: [internal_mnesia, odbc_mssql_mnesia, mysql_redis, riak_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: ['23.0.3']
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       PRESET: ${{matrix.preset}}
     steps:
@@ -84,16 +82,13 @@ jobs:
       - name: report coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_JOB_ID: ${{github.run_id}}.${{matrix.preset}}.${{matrix.otp}}
         run: ./rebar3 coveralls send
 
   coveralls_webhook:
     needs: [big_tests, small_tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Finish coveralls parallel build
-        env:
-          REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: >
-          curl -k "https://coveralls.io/webhook?repo_token=${REPO_TOKEN}"
+          curl -k "https://coveralls.io/webhook?repo_token=${{secrets.GITHUB_TOKEN}}&repo_name=${{github.repository}}"
           -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
