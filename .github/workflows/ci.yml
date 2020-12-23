@@ -87,13 +87,7 @@ jobs:
     steps:
       - name: Finish coveralls parallel build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: >
-          curl -vk "https://coveralls.io/webhook?repo_token=${GITHUB_TOKEN}"
-          -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
-      - env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          echo
-          curl -vk "https://coveralls.io/webhook?repo_token=${GITHUB_TOKEN}"
+          curl -k "https://coveralls.io/webhook?repo_token=${REPO_TOKEN}"
           -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
