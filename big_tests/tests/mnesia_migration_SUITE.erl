@@ -113,14 +113,14 @@ end_per_testcase(CaseName, Config) ->
 %%% ==================================================================
 
 migrate_pubsub_nodes(_Config) ->
-    Nidx = create_migration_node(),
+    _ = create_migration_node(),
     {ok, _} = ?RPC_MIGRATE(<<"pubsub_nodes">>),
     SqlData = #{table => <<"pubsub_nodes">>, where => <<"name='", ?NODE_NAME/binary, "'">>},
-    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"nidx">>}) of
-        {selected, [{Nidx}]} ->
+    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"name">>}) of
+        {selected, [{?NODE_NAME}]} ->
             {updated, 1} = sql_to_rdbms(SqlData#{act => <<"DELETE">>, column => <<"">>}),
             _ = clear_tables(),
-            ct:comment("Migration of 'pubsub_nodes' is successful for Nidx: ~p", [Nidx]);
+            ct:comment("Migration of 'pubsub_nodes' is successful for 'name': ~p", [?NODE_NAME]);
         Any ->
             ct:fail("Unexpected result of 'pubsub_nodes' migration ~p~n", [Any])
     end.
@@ -133,12 +133,12 @@ migrate_pubsub_subscriptions(_Config) ->
     Nidx = create_migration_node(),
     ok = mongoose_helper:successful_rpc(mod_pubsub_db_mnesia, transaction, [#{name => add_subscription, args => [Nidx, ?JID, 'subscribed', <<"0000-0000-0000000">>, []]}]),
     {ok, _} = ?RPC_MIGRATE(<<"pubsub_subscriptions">>),
-    SqlData = #{table => <<"pubsub_subscriptions">>, where => <<"nidx=", (list_to_binary(integer_to_list(Nidx)))/binary>>},
-    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"nidx">>}) of
-        {selected, [{Nidx}]} ->
+    SqlData = #{table => <<"pubsub_subscriptions">>, where => <<"luser='", ?USERNAME/binary, "'">>},
+    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"luser">>}) of
+        {selected, [{?USERNAME}]} ->
             {updated, 1} = sql_to_rdbms(SqlData#{act => <<"DELETE">>, column => <<"">>}),
             _ = clear_tables(),
-            ct:comment("Migration of 'pubsub_subscriptions' is successful for Nidx: ~p", [Nidx]);
+            ct:comment("Migration of 'pubsub_subscriptions' is successful for 'luser': ~p", [?USERNAME]);
         Any ->
             ct:fail("Unexpected result of 'pubsub_subscriptions' migration ~p~n", [Any])
     end.
@@ -148,14 +148,14 @@ migrate_pubsub_subscriptions(_Config) ->
 %%% ==================================================================
 
 migrate_pubsub_affiliations(_Config) ->
-    Nidx = create_migration_node(),
+    _ = create_migration_node(),
     {ok, _} = ?RPC_MIGRATE(<<"pubsub_affiliations">>),
-    SqlData = #{table => <<"pubsub_affiliations">>, where => <<"nidx=", (list_to_binary(integer_to_list(Nidx)))/binary>>},
-    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"nidx">>}) of
-        {selected, [{Nidx}]} ->
+    SqlData = #{table => <<"pubsub_affiliations">>, where => <<"luser='", ?USERNAME/binary, "'">>},
+    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"luser">>}) of
+        {selected, [{?USERNAME}]} ->
             {updated, 1} = sql_to_rdbms(SqlData#{act => <<"DELETE">>, column => <<"">>}),
             _ = clear_tables(),
-            ct:comment("Migration of 'pubsub_affiliations' is successful for Nidx: ~p", [Nidx]);
+            ct:comment("Migration of 'pubsub_affiliations' is successful for 'pubsub_affiliations': ~p", [?USERNAME]);
         Any ->
             ct:fail("Unexpected result of 'pubsub_affiliations' migration ~p~n", [Any])
     end.
@@ -168,12 +168,12 @@ migrate_pubsub_items(_Config) ->
     Nidx = create_migration_node(),
     ok = mongoose_helper:successful_rpc(mod_pubsub_db_mnesia, transaction, [#{name => add_item, args => [Nidx, ?JID, ?BASE_ITEM(Nidx)]}]),
     {ok, _} = ?RPC_MIGRATE(<<"pubsub_items">>),
-    SqlData = #{table => <<"pubsub_items">>, where => <<"nidx=", (list_to_binary(integer_to_list(Nidx)))/binary>>},
-    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"nidx">>}) of
-        {selected, [{Nidx}]} ->
+    SqlData = #{table => <<"pubsub_items">>, where => <<"created_luser='", ?USERNAME/binary, "'">>},
+    case sql_to_rdbms(SqlData#{act => <<"SELECT">>, column => <<"created_luser">>}) of
+        {selected, [{?USERNAME}]} ->
             {updated, 1} = sql_to_rdbms(SqlData#{act => <<"DELETE">>, column => <<"">>}),
             _ = clear_tables(),
-            ct:comment("Migration of 'pubsub_items' is successful for Nidx: ~p", [Nidx]);
+            ct:comment("Migration of 'pubsub_items' is successful for 'created_luser': ~p", [?USERNAME]);
         Any ->
             ct:fail("Unexpected result of 'pubsub_items' migration ~p~n", [Any])
     end.
@@ -216,7 +216,7 @@ migrate_vcard_search(_Config) ->
 %%% Test case for migrate vcard
 %%% ==================================================================
 
-migrate_vcard(Config) ->
+migrate_vcard(_Config) ->
     ok = set_vcard(),
     {ok, _} = ?RPC_MIGRATE(<<"vcard">>),
     SqlData = #{table => <<"vcard">>, where => <<"username='", ?USERNAME/binary, "'">>},
@@ -233,7 +233,7 @@ migrate_vcard(Config) ->
 %%% Test case for migrate event_pusher_push_subscription
 %%% ==================================================================
 
-migrate_event_pusher_push_subscription(Config) ->
+migrate_event_pusher_push_subscription(_Config) ->
     PubsubNode = <<"migration_pub_sub_node">>,
     ok = mongoose_helper:successful_rpc(mod_event_pusher_push_mnesia, enable, [?JID, ?JID, PubsubNode, [{<<"name">>, <<"value">>}]]),
     {ok, _} = ?RPC_MIGRATE(<<"event_pusher_push_subscription">>),
@@ -251,7 +251,7 @@ migrate_event_pusher_push_subscription(Config) ->
 %%% Test case for migrate rosterusers @TODO
 %%% ==================================================================
 
-migrate_rosterusers(Config) ->
+migrate_rosterusers(_Config) ->
     ?RPC_MIGRATE(<<"rosterusers">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -259,7 +259,7 @@ migrate_rosterusers(Config) ->
 %%% Test case for migrate roster_version @TODO
 %%% ==================================================================
 
-migrate_roster_version(Config) ->
+migrate_roster_version(_Config) ->
     ?RPC_MIGRATE(<<"roster_version">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -267,7 +267,7 @@ migrate_roster_version(Config) ->
 %%% Test case for migrate rostergroups @TODO
 %%% ==================================================================
 
-migrate_rostergroups(Config) ->
+migrate_rostergroups(_Config) ->
     ?RPC_MIGRATE(<<"rostergroups">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -275,7 +275,7 @@ migrate_rostergroups(Config) ->
 %%% Test case for migrate last @TODO
 %%% ==================================================================
 
-migrate_last(Config) ->
+migrate_last(_Config) ->
     ?RPC_MIGRATE(<<"last">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -283,7 +283,7 @@ migrate_last(Config) ->
 %%% Test case for migrate private_storage @TODO
 %%% ==================================================================
 
-migrate_private_storage(Config) ->
+migrate_private_storage(_Config) ->
     ?RPC_MIGRATE(<<"private_storage">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -291,7 +291,7 @@ migrate_private_storage(Config) ->
 %%% Test case for migrate offline_message @TODO
 %%% ==================================================================
 
-migrate_offline_message(Config) ->
+migrate_offline_message(_Config) ->
     ?RPC_MIGRATE(<<"offline_message">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -299,7 +299,7 @@ migrate_offline_message(Config) ->
 %%% Test case for migrate muc_light_rooms @TODO
 %%% ==================================================================
 
-migrate_muc_light_rooms(Config) ->
+migrate_muc_light_rooms(_Config) ->
     ?RPC_MIGRATE(<<"muc_light_rooms">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -307,7 +307,7 @@ migrate_muc_light_rooms(Config) ->
 %%% Test case for migrate all @TODO
 %%% ==================================================================
 
-migrate_all(Config) ->
+migrate_all(_Config) ->
     ?RPC_MIGRATE(<<"all">>),
     ct:comment("TEST CASE ~p", [?FUNCTION_NAME]).
 
@@ -331,7 +331,7 @@ slow_rpc(M, F, A) ->
 
 sql_to_rdbms(#{act := Act, column := Column, table := Table, where := Where}) ->
     SelectQuery = <<Act/binary, " ", Column/binary, " FROM ", Table/binary, " WHERE ", Where/binary>>,
-    SelectResult = sql_query(SelectQuery).
+    sql_query(SelectQuery).
 
 clear_tables() ->
     Tables = [pubsub_state, pubsub_item, pubsub_node,
@@ -346,4 +346,4 @@ create_migration_node() ->
     Nidx.
 
 set_vcard() ->
-    mongoose_helper:successful_rpc(mod_vcard_mnesia, set_vcard, [?USERNAME, <<"localhost">>, ?BASE_VCARD, ?BASE_SEARCH_VCARD]).    
+    mongoose_helper:successful_rpc(mod_vcard_mnesia, set_vcard, [?USERNAME, <<"localhost">>, ?BASE_VCARD, ?BASE_SEARCH_VCARD]).

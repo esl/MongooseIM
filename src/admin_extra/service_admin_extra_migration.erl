@@ -184,8 +184,8 @@ migrate_pubsub_nodes([H|_]) ->
     {Host, ID} = H#pubsub_node.nodeid,
     Owners = jiffy:encode([jid:to_binary(O) || O <- H#pubsub_node.owners]),
     Ops = jiffy:encode({H#pubsub_node.options}),
-    Cols = ["nidx", "p_key", "name", "type", "owners", "options"],
-    Vals = [H#pubsub_node.id, Host, ID, H#pubsub_node.type, Owners, Ops],
+    Cols = ["p_key", "name", "type", "owners", "options"], % "nidx"
+    Vals = [Host, ID, H#pubsub_node.type, Owners, Ops],    % H#pubsub_node.id
     Q = ["INSERT INTO pubsub_nodes ", expand_sql_vals(Cols, Vals), ";"],
     case mongoose_rdbms:sql_query(?MYNAME, Q) of
         {error, Reason} ->
@@ -271,15 +271,15 @@ migrate_pubsub_items([]) ->
 migrate_pubsub_items([H|_]) ->
     {IID, NodeIdx} = H#pubsub_item.itemid,
     {CTime, CJID} = H#pubsub_item.creation,
-    [Payload] = H#pubsub_item.payload,
+    Payload = H#pubsub_item.payload,
     CT = to_unixtime(CTime),
     JidBIn = jid:to_binary(CJID),
     JID = jid:from_binary(JidBIn),
-    XMLB = <<"<item>", (exml:to_binary(Payload))/binary, "</item>">>,
+    XMLB = exml:to_binary(#xmlel{name = <<"item">>, children = Payload}),
     Cols = ["nidx", "itemid", "created_luser", "created_lserver", "created_at",
             "modified_luser", "modified_lserver", "modified_lresource", "modified_at", "payload"],
     Vals = [NodeIdx, IID, JID#jid.luser, JID#jid.lserver, CT, JID#jid.lserver,
-            JID#jid.lserver, JID#jid.lresource, CT, XMLB],
+            JID#jid.lserver, JID#jid.lresource, CT, {XMLB, escape_binary}],
     Q = ["INSERT INTO pubsub_items ", expand_sql_vals(Cols, Vals), ";"],
     case mongoose_rdbms:sql_query(?MYNAME, Q) of
         {error, Reason} ->
@@ -558,10 +558,12 @@ migrate_muc_light_rooms([H|_]) ->
         {selected, [{null}]} ->
             1;
         {selected, [{N}]} when is_integer(N) ->
-            N + 1
+            N + 1;
+        {selected, [{N}]} when is_binary(N) ->
+            list_to_integer(binary_to_list(N)) + 1
     end,
-    Cols = ["id", "luser", "lserver", "version"],
-    Vals = [ID, LUser, LServer, mod_muc_light_db_mnesia:get_room_version(H)],
+    Cols = ["luser", "lserver", "version"],                                  % ---"id"
+    Vals = [LUser, LServer, mod_muc_light_db_mnesia:get_room_version(H)],    % --- ID
     Q = ["INSERT INTO muc_light_rooms ", expand_sql_vals(Cols, Vals), ";"],
     case mongoose_rdbms:sql_query(?MYNAME, Q) of
         {error, Reason} ->
@@ -688,6 +690,9 @@ join([H|T], Sep) ->
 %% @end
 %% -------------------------------------------------------------------
 -spec escape(Data :: any()) -> Res :: binary() | list() | any().
+
+escape({Data, Escape}) ->
+    mongoose_rdbms_odbc:Escape(Data);
 
 escape(Data) when is_integer(Data) ->
     integer_to_binary(Data);
