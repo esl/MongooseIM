@@ -5,6 +5,9 @@
 -define(eq(E, I), ?assertEqual(E, I)).
 -define(PORT, 5280).
 -define(IP, {127, 0, 0, 1}).
+-define(CUSTOM_HEADERS,
+        [{<<"strict-transport-security">>, <<"max-age=31536000; includeSubDomains">>},
+         {<<"access-control-allow-origin">>, <<"*">>}]).
 -define(FAST_PING_RATE, 500).
 -define(NEW_TIMEOUT, 1200).
 %The timeout is long enough to pass all test cases for ping interval settings
@@ -14,7 +17,7 @@
 
 
 all() ->
-    ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
+    ping_tests() ++ subprotocol_header_tests() ++ custom_headers_tests() ++ timeout_tests().
 
 ping_tests() ->
     [ping_test,
@@ -28,6 +31,9 @@ subprotocol_header_tests() ->
      agree_to_xmpp_subprotocol_from_many,
      do_not_agree_to_missing_subprotocol,
      do_not_agree_to_other_subprotocol].
+
+custom_headers_tests() ->
+    [verify_custom_headers].
 
 timeout_tests() ->
     [connection_is_closed_after_idle_timeout,
@@ -69,7 +75,8 @@ setup() ->
             {modules, [{"_", "/http-bind", mod_bosh},
                        {"_", "/ws-xmpp", mod_websockets,
                         [{timeout, ?IDLE_TIMEOUT},
-                         {ping_rate, ?FAST_PING_RATE}]}]}],
+                         {ping_rate, ?FAST_PING_RATE},
+                         {custom_headers, ?CUSTOM_HEADERS}]}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 
@@ -295,6 +302,43 @@ do_not_agree_to_missing_subprotocol(_) ->
 do_not_agree_to_other_subprotocol(_) ->
     check_subprotocol("Subprotocol is not xmpp", ["other"], undefined).
 
+%% ---------------------------------------------------------------------
+%% custom_headers_tests test functions
+%% ---------------------------------------------------------------------
+
+verify_custom_headers(_) ->
+    #{headers := RespHeaders, socket := Socket} = ws_handshake(),
+    gen_tcp:close(Socket),
+    wait_for_no_ranch_connections(10),
+    NormalizedRespHeaders = normalize_resp_headers_to_set(RespHeaders),
+    ExpectedCustomHdrs = sets:from_list(?CUSTOM_HEADERS),
+    case sets:is_subset(ExpectedCustomHdrs, NormalizedRespHeaders) of
+        true ->
+            ok;
+        false ->
+            Info = #{reason => verify_custom_headers_failed,
+                     comment => "Custom HTTP headers not passed to client",
+                     expected_extra_headers => ?CUSTOM_HEADERS},
+            ct:fail(Info)
+    end.
+
+%% ---------------------------------------------------------------------
+%% custom_headers_tests helper functions
+%% ---------------------------------------------------------------------
+
+%% The Erlang HTTP parser can return header keys as atoms ('Connection') or
+%% strings "Strict-Transport-Security". Here we convert the keys to lowercase
+%% binaries and values to binaries and return them as a set.
+normalize_resp_headers_to_set(Headers) ->
+    normalize_resp_headers_to_set(Headers, []).
+
+normalize_resp_headers_to_set([], Acc) ->
+    sets:from_list(Acc);
+normalize_resp_headers_to_set([{Key, Value} | Rest], Acc) when is_atom(Key) ->
+    normalize_resp_headers_to_set([{atom_to_list(Key), Value} | Rest], Acc);
+normalize_resp_headers_to_set([{Key, Value} | Rest], Acc) when is_list(Key) ->
+    LowerKey = list_to_binary(string:to_lower(Key)),
+    normalize_resp_headers_to_set(Rest, [{LowerKey, list_to_binary(Value)} | Acc]).
 
 %% ---------------------------------------------------------------------
 %% subprotocol_header_tests helper functions

@@ -67,10 +67,10 @@ init(Req, Opts) ->
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets request">>,
                  req => Req, opts => Opts}),
     Timeout = gen_mod:get_opt(timeout, Opts, 60000),
-
+    Req2 = maybe_add_custom_headers(Req1, Opts),
     AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
     %% upgrade protocol
-    {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
+    {cowboy_websocket, Req2, AllModOpts, #{idle_timeout => Timeout}}.
 
 terminate(_Reason, _Req, _State) ->
     ok.
@@ -360,6 +360,11 @@ should_have_jabber_client(#xmlel{name = <<"iq">>}) -> true;
 should_have_jabber_client(#xmlel{name = <<"message">>}) -> true;
 should_have_jabber_client(#xmlel{name = <<"presence">>}) -> true;
 should_have_jabber_client(_) -> false.
+
+maybe_add_custom_headers(Req, Opts) ->
+    CustomHeaders = gen_mod:get_opt(custom_headers, Opts, []),
+    CustomHeadersMap = maps:from_list(CustomHeaders),
+    cowboy_req:set_resp_headers(CustomHeadersMap, Req).
 
 send_ping_request(PingRate) ->
     Dest = self(),
