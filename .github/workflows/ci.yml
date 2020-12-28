@@ -89,6 +89,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Finish coveralls parallel build
-        run: >
-          curl -k "https://coveralls.io/webhook?repo_token=${{secrets.GITHUB_TOKEN}}&repo_name=${{github.repository}}"
-          -d "payload[build_num]=${GITHUB_RUN_ID}&payload[status]=done"
+        uses: coverallsapp/github-action@v1.1.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
