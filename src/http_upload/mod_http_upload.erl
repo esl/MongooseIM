@@ -278,6 +278,5 @@ is_positive_integer(X) when is_integer(X) -> X > 0;
 is_positive_integer(_) -> false.
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, s3}], %list of tuples {option, defualt_value}
+    OptsToReport = [{backend, s3}], % list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
-
