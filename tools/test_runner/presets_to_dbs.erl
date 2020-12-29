@@ -14,8 +14,9 @@ main(Opts) ->
 -spec presets_to_dbs(atom()) -> [atom()].
 presets_to_dbs(PresetNames) ->
     {ok, Config} = file:consult("big_tests/test.config"),
-    Presets = proplists:get_value(ejabberd_presets, Config, []),
-    Presets2 = lists:filter(fun({Name,_}) -> lists:member(Name, PresetNames) end, Presets),
+    Presets = proplists:get_value(presets, Config, []),
+    Toml = proplists:get_value(toml, Presets, []),
+    Presets2 = lists:filter(fun({Name,_}) -> lists:member(Name, PresetNames) end, Toml),
     Dbs = lists:flatmap(fun({_,Opts}) -> proplists:get_value(dbs, Opts, []) end, Presets2),
     lists:usort(Dbs).
 
