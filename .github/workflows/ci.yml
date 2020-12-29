@@ -48,8 +48,8 @@ jobs:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        preset: [internal_mnesia, odbc_mssql_mnesia, mysql_redis, riak_mnesia,
-                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
+        preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
+                 ldap_mnesia, riak_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: ['23.0.3']
     runs-on: ubuntu-20.04
     env:
@@ -93,3 +93,29 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
+
+  dialyzer:
+    name: dialyzer on OTP ${{matrix.otp}}
+    strategy:
+      matrix:
+        otp: [ '23.0.3']
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ErlGang/setup-erlang@v1.0.0
+        with:
+          otp-version: ${{matrix.otp}}
+      - run: tools/travis-test.sh -p dialyzer_only
+
+  pkg:
+    name: ${{matrix.pkg}} package
+    strategy:
+      matrix:
+        pkg: [centos_7, debian_stretch]
+    runs-on: ubuntu-20.04
+    env:
+      ESL_ERLANG_PKG_VER: "22.3.4.9-1"
+      pkg_PLATFORM: ${{matrix.pkg}}
+    steps:
+      - uses: actions/checkout@v2
+      - run: tools/travis-test.sh -p pkg
