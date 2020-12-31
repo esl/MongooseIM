@@ -32,15 +32,16 @@ jobs:
       - name: create certificates
         run: make certs
       - name: run test
-        run: |
-          ./rebar3 compile #required for coverage reporting
-          tools/travis-test.sh -p $PRESET -s true -e true
+        run: tools/travis-test.sh -p $PRESET -s true -e true
+      - name: prepare coverage report
+        run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cp _build/test/cover/*.coverdata /tmp
-          ./rebar3 coveralls send
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: small_tests on OTP ${{matrix.otp}}
+          path-to-lcov: ./lcov.info
+          parallel: true
 
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -68,19 +69,22 @@ jobs:
       - if: ${{ matrix.preset == 'odbc_mssql_mnesia' }}
         run: sudo apt-get install -y tdsodbc
       - name: build releases
-        run: |
-          ./rebar3 compile #required for coverage reporting
-          tools/build-releases.sh
+        run: tools/build-releases.sh
       - name: build big tests
         run: tools/travis-build-tests.sh
       - name: start backends
         run: tools/travis-setup-db.sh
       - name: run test
         run: tools/travis-test.sh -p $PRESET -s false -e false
+      - name: prepare coverage report
+        run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./rebar3 coveralls send
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+          path-to-lcov: ./lcov.info
+          parallel: true
 
   coveralls_webhook:
     needs: [big_tests, small_tests]
