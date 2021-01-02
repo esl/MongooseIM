@@ -1,7 +1,7 @@
 ## Module Description
 
 This module implements an offline messages storage compliant with [XEP-0160: Best Practices for Handling Offline Messages](http://xmpp.org/extensions/xep-0160.html). 
-It stores one-to-one messages only when the recipient has no online resources. 
+It can store one-to-one and groupchat messages only when the recipient has no online resources. 
 It is not well suited for applications supporting multiple user devices, because anything saved in the DB can be retrieved only once, so the message history is not synchronised between devices. 
 Although `mod_offline` may be sufficient in some cases, it is preferable to use [mod_mam](mod_mam.md).
 
@@ -20,6 +20,13 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
  * **Example:** `backend = "rdbms"`
 
  Storage backend.
+
+### `modules.mod_offline.store_groupchat_messages`
+ * **Syntax:** boolean
+ * **Default:** `false`
+ * **Example:** `store_groupchat_messages = true`
+
+ Specifies whether or not we should store groupchat messages.
 
 ### Riak-specific options
 
