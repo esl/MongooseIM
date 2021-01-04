@@ -800,8 +800,7 @@ roster_groups(LServer, Acc) ->
 %%% @doc The `roster_get_jid_info' hook is called to determine the subscription state between a given pair of users.
 %%% The hook handlers need to expect following arguments:
 %%% * Acc with an initial value of {none, []},
-%%% * LUser, a stringprepd username part of the roster's owner,
-%%% * LServer, a stringprepd server part of the roster's owner (same value as HookServer),
+%%% * ToJID, a stringprepped roster's owner's jid
 %%% * RemoteBareJID, a bare JID of the other user.
 %%%
 %%% The arguments and the return value types correspond to the following spec.
@@ -822,7 +821,7 @@ roster_get_jid_info(LServer, InitialValue, ToJID, RemBareJID) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 roster_get_subscription_lists(Server, Acc, JID) ->
-    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [JID]).
+    ejabberd_hooks:run_fold(roster_get_subscription_lists, Server, Acc, [jid:to_bare(JID)]).
 
 %%% @doc The `roster_get_versioning_feature' hook is called to determine if roster versioning is enabled.
 -spec roster_get_versioning_feature(Server, Acc) -> Result when
@@ -847,7 +846,7 @@ roster_in_subscription(LServer, Acc, To, From, Type, Reason) ->
         roster_in_subscription,
         LServer,
         Acc,
-        [To, From, Type, Reason]).
+        [jid:to_bare(To), From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called when a user sends out subscription.
 -spec roster_out_subscription(Server, Acc, From, To, Type) -> Result when
@@ -861,7 +860,7 @@ roster_out_subscription(Server, Acc, From, To, Type) ->
     ejabberd_hooks:run_fold(roster_out_subscription,
                             Server,
                             Acc,
-                            [From, To, Type]).
+                            [jid:to_bare(From), To, Type]).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
 -spec roster_process_item(LServer, Item) -> Result when

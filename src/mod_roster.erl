@@ -51,8 +51,7 @@
          set_items/2,
          set_roster_entry/4,
          remove_from_roster/2,
-         item_to_xml/1,
-         roster_version/2
+         item_to_xml/1
         ]).
 
 % Main hooks
@@ -69,13 +68,18 @@
         ]).
 
 % Deprecated Hooks
+-deprecated({in_subscription, 6, eventually}).
+-deprecated({out_subscription, 5, eventually}).
+-deprecated({get_subscription_lists, 3, eventually}).
+-deprecated({get_jid_info, 4, eventually}).
 -export([
          % get_user_roster/2,
+             % This means that the clause of get_user_roster/2
+             % accepting a tuple of binaries is to be deprecated.
          in_subscription/6,
          out_subscription/5,
          get_subscription_lists/3,
-         get_jid_info/4,
-         remove_user/3
+         get_jid_info/4
         ]).
 
 -export([remove_test_user/2,
@@ -199,9 +203,6 @@
  get_jid_info(Acc, U, S, JID) ->
      ?DEPRECATE_FUNCTION,
      get_jid_info(Acc, jid:make(U, S, <<>>), JID).
- remove_user(Acc, U, S) ->
-     ?DEPRECATE_FUNCTION,
-     remove_user(Acc, jid:make(U, S, <<>>)).
 %====================================================================
 % Deprecated API
 %====================================================================
@@ -331,7 +332,7 @@ get_versioning_feature(Acc, Host) ->
         false -> []
     end.
 
-roster_version(LServer, LUser) ->
+roster_version(#jid{luser = LUser, lserver = LServer} = JID) ->
     case roster_version_on_db(LServer) of
         true ->
             case read_roster_version(LUser, LServer) of
@@ -339,7 +340,7 @@ roster_version(LServer, LUser) ->
                 V -> V
             end;
         false ->
-            R = get_roster_old(jid:make(LUser, LServer, <<>>)),
+            R = get_roster_old(JID),
             roster_hash(R)
     end.
 
@@ -592,12 +593,12 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
-push_item(#jid{luser = LUser, lserver = LServer} = JID, From, Item) ->
+push_item(#jid{lserver = LServer} = JID, From, Item) ->
     ejabberd_sm:route(jid:make_noprep(<<>>, <<>>, <<>>), JID,
                       {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(LServer) of
         true ->
-            push_item_version(JID, From, Item, roster_version(LServer, LUser));
+            push_item_version(JID, From, Item, roster_version(JID));
         false ->
             lists:foreach(fun(Resource) ->
                                   push_item_without_version(JID, Resource, From, Item)
@@ -934,7 +935,7 @@ send_unsubscription_to_rosteritems(Acc, JID) ->
 %% @spec (From::jid(), Item::roster()) -> any()
 send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
     BareFrom = jid:to_bare(From),
-    ContactJID = jid:make(Item#roster.jid),
+    ContactJID = jid:make_noprep(Item#roster.jid),
     IsTo = Subscription == both orelse Subscription == to,
     IsFrom = Subscription == both orelse Subscription == from,
     case IsTo of
@@ -1080,8 +1081,7 @@ get_roster_old(DestServer, JID) ->
 
 -spec item_to_map(roster()) -> map().
 item_to_map(#roster{} = Roster) ->
-    {Name, Host, _} = Roster#roster.jid,
-    ContactJid = jid:make(Name, Host, <<"">>),
+    ContactJid = jid:make_noprep(jid:to_bare(Roster#roster.jid)),
     ContactName = Roster#roster.name,
     Subs = Roster#roster.subscription,
     Groups = Roster#roster.groups,
