@@ -13,6 +13,7 @@
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 -include("mongoose.hrl").
+-include("mongoose_logger.hrl").
 
 -behaviour(mod_roster).
 
@@ -154,6 +155,7 @@ decode_roster_entry_rows(LUser, LServer, LJID, [Row]) ->
     case Rec of
         %% Bad JID in database:
         error ->
+            ?LOG_ERROR(#{what => roster_parse_failed, row => io_lib:format("~0p", [Row])}),
             #roster{usj = USJ, us = US, jid = LJID};
         _ ->
             Rec#roster{usj = USJ, us = US, jid = LJID}
@@ -176,7 +178,8 @@ get_roster_entry_t(LUser, LServer, LJID, full) ->
 get_subscription_lists(_, LUser, LServer) ->
     try execute_roster_get(LServer, LUser) of
         {selected, Rows} ->
-            Rows;
+            Rows; %% The only allowed usage of these rows is to pass them
+                  %% into mod_roster_backend:raw_to_record/2
         Other ->
             ?LOG_ERROR(#{what => get_subscription_lists_failed, reason => Other,
                         user => LUser, host => LServer}),
@@ -243,22 +246,26 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
 %% Helper functions
 %%==============================================================================
 
-decode_subscription(<<"B">>) -> both;
-decode_subscription(<<"T">>) -> to;
-decode_subscription(<<"F">>) -> from;
-decode_subscription(_) -> none.
+%% PgSQL returns CHAR as an integer
+%% MySQL returns CHAR as a string
+decode_subscription(<<X>>) -> decode_subscription(X);
+decode_subscription($B) -> both;
+decode_subscription($T) -> to;
+decode_subscription($F) -> from;
+decode_subscription($N) -> none.
 
 encode_subscription(both) -> <<"B">>;
 encode_subscription(to)   -> <<"T">>;
 encode_subscription(from) -> <<"F">>;
 encode_subscription(none) -> <<"N">>.
 
-decode_ask(<<"S">>) -> subscribe;
-decode_ask(<<"U">>) -> unsubscribe;
-decode_ask(<<"B">>) -> both;
-decode_ask(<<"O">>) -> out;
-decode_ask(<<"I">>) -> in;
-decode_ask(_) -> none.
+decode_ask(<<X>>) -> decode_ask(X);
+decode_ask($S) -> subscribe;
+decode_ask($U) -> unsubscribe;
+decode_ask($B) -> both;
+decode_ask($O) -> out;
+decode_ask($I) -> in;
+decode_ask($N) -> none.
 
 encode_ask(subscribe) -> <<"S">>;
 encode_ask(unsubscribe) -> <<"U">>;
@@ -284,9 +291,11 @@ groups_to_rows(#roster{us = {LUser, _LServer}, jid = JID, groups = Groups}) ->
 
 raw_to_record(LServer,
               {User, SJID, Nick, ExtSubscription, ExtAsk, AskMessage,
-               _Server, _ExtSubscribe, _Type}) ->
+               _Server, _ExtSubscribe, _Type} = I) ->
     case jid:from_binary(SJID) of
-        error -> error;
+        error ->
+            ?LOG_ERROR(#{what => roster_parse_failed, row => io_lib:format("~0p", [I])}),
+            error;
         JID ->
             LJID = jid:to_lower(JID),
             Subscription = decode_subscription(ExtSubscription),
