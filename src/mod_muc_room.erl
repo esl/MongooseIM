@@ -3574,7 +3574,7 @@ maxusers_field(Lang, StateData) ->
                                               children = [#xmlcdata{content = <<"none">>}]}]}]
            end ++
            [#xmlel{name = <<"option">>,
-                   attrs = [{<<"label">>, list_to_binary(integer_to_list(N))}],
+                   attrs = [{<<"label">>, integer_to_binary(N)}],
                    children = [#xmlel{name = <<"value">>,
                                       children = [#xmlcdata{content = integer_to_binary(N)}]}]} ||
             N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
@@ -4007,7 +4007,7 @@ iq_disco_info_extras(Lang, StateData) ->
                         rfield(<<"Room description">>, <<"muc#roominfo_description">>,
                             RoomDescription, Lang),
                         rfield(<<"Number of occupants">>, <<"muc#roominfo_occupants">>,
-                            (list_to_binary(integer_to_list(Len))), Lang)
+                            (integer_to_binary(Len)), Lang)
                        ]}].
 
 

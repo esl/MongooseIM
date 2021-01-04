@@ -2278,11 +2278,10 @@ get_priority_from_presence(PresencePacket) ->
         false ->
             0;
         SubEl ->
-            case catch list_to_integer(binary_to_list(xml:get_tag_cdata(SubEl))) of
-                P when is_integer(P) ->
-                    P;
-                _ ->
-                    0
+            try binary_to_integer(xml:get_tag_cdata(SubEl)) of
+                P when is_integer(P) -> P
+            catch
+                error:badarg -> 0
             end
     end.
 
