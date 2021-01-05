@@ -126,7 +126,7 @@ start_module(Host, Module, Opts) ->
 
 start_module_for_host(Host, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
-    Opts = clear_opts(Module, Opts0),
+    Opts = proplists:unfold(Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try
@@ -472,20 +472,6 @@ get_module_proc(Host, Base) ->
 -spec is_loaded(Host :: binary(), Module :: atom()) -> boolean().
 is_loaded(Host, Module) ->
     ets:member(ejabberd_modules, {Module, Host}).
-
-
--spec clear_opts(atom(), list()) -> list().
-clear_opts(Module, Opts0) ->
-    Opts = proplists:unfold(Opts0),
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, clean_opts, 1) of
-        true ->
-            Module:clean_opts(Opts);
-        _ ->
-            Opts
-    end.
 
 -spec get_deps(Host :: jid:server(), Module :: module(),
                Opts :: proplists:proplist()) -> module_deps_list().

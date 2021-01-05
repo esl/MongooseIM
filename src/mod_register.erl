@@ -32,7 +32,6 @@
 -export([start/2,
          stop/1,
          config_spec/0,
-         clean_opts/1,
          stream_feature_register/2,
          unauthenticated_iq_register/4,
          try_register/5,
@@ -110,15 +109,6 @@ process_welcome_message(KVs) ->
     Body = proplists:get_value(body, KVs, ""),
     Subject = proplists:get_value(subject, KVs, ""),
     {Subject, Body}.
-
-clean_opts(Opts) ->
-    lists:map(fun clean_opt/1, Opts).
-
-clean_opt({registration_watchers, Watchers}) ->
-    CleanWatchers = lists:map(fun mongoose_bin:string_to_binary/1, Watchers),
-    {registration_watchers, CleanWatchers};
-clean_opt(Item) ->
-    Item.
 
 stream_feature_register(Acc, _Host) ->
     [#xmlel{name = <<"register">>,
