@@ -1,6 +1,46 @@
 -module(mongoose_config_spec).
 
--compile(export_all).
+%% entry point - returns the entire spec
+-export([root/0]).
+
+%% spec parts used by modules and services
+-export([wpool_items/0,
+         iqdisc/0,
+         ldap_uids/0]).
+
+%% callbacks for the 'process' step
+-export([process_host/1,
+         process_sm_backend/1,
+         process_ctl_access_rule/1,
+         process_ip_version/1,
+         process_listener/2,
+         process_verify_peer/1,
+         process_sni/1,
+         process_xmpp_tls/1,
+         process_fast_tls/1,
+         process_http_handler/2,
+         process_sasl_external/1,
+         process_sasl_mechanism/1,
+         process_auth/1,
+         process_auth_password/1,
+         process_jwt_secret/1,
+         process_ldap_uids/1,
+         process_ldap_dn_filter/1,
+         process_ldap_local_filter/1,
+         process_pool/2,
+         process_cassandra_auth/1,
+         process_rdbms_connection/1,
+         process_riak_tls/1,
+         process_cassandra_server/1,
+         process_riak_credentials/1,
+         process_iqdisc/1,
+         process_shaper/1,
+         process_acl_item/1,
+         process_access_rule_item/1,
+         process_s2s_address_family/1,
+         process_s2s_host_policy/1,
+         process_s2s_address/1,
+         process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -128,7 +168,7 @@ general() ->
                                            format = local_config},
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
-                                                      process = fun ?MODULE:prepare_host/1},
+                                                      process = fun ?MODULE:process_host/1},
                                       validate = unique_non_empty,
                                       format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
@@ -848,10 +888,10 @@ iqdisc() ->
                  <<"workers">> => #option{type = integer,
                                           validate = positive}},
        required = [<<"type">>],
-       process = fun ?MODULE:format_iqdisc/1
+       process = fun ?MODULE:process_iqdisc/1
       }.
 
-format_iqdisc(KVs) ->
+process_iqdisc(KVs) ->
     {[[{type, Type}]], WorkersOpts} = proplists:split(KVs, [type]),
     iqdisc(Type, WorkersOpts).
 
@@ -1033,16 +1073,13 @@ process_ctl_access_rule(KVs) ->
 process_sm_backend(Backend) ->
     {Backend, []}.
 
-prepare_host(Host) ->
+process_host(Host) ->
     Node = jid:nodeprep(Host),
     true = Node =/= error,
     Node.
 
 process_sni(false) ->
     disable.
-
-process_lasse_handler([{module, Module}]) ->
-    [Module].
 
 process_verify_peer(false) -> verify_none;
 process_verify_peer(true) -> verify_peer.
