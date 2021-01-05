@@ -149,15 +149,15 @@ check_required_keys(#section{required = Required}, Section) ->
 validate_keys(#section{validate_keys = undefined}, _Section) -> ok;
 validate_keys(#section{validate_keys = Validator}, Section) ->
     lists:foreach(fun(Key) ->
-                          mongoose_config_validator_toml:validate(b2a(Key), atom, Validator)
+                          mongoose_config_validator:validate(b2a(Key), atom, Validator)
                   end, maps:keys(Section)).
 
 validate(Value, #section{validate = Validator}) ->
-    mongoose_config_validator_toml:validate_section(Value, Validator);
+    mongoose_config_validator:validate_section(Value, Validator);
 validate(Value, #list{validate = Validator}) ->
-    mongoose_config_validator_toml:validate_list(Value, Validator);
+    mongoose_config_validator:validate_list(Value, Validator);
 validate(Value, #option{type = Type, validate = Validator}) ->
-    mongoose_config_validator_toml:validate(Value, Type, Validator).
+    mongoose_config_validator:validate(Value, Type, Validator).
 
 process_spec(#section{process = Process}) -> Process;
 process_spec(#list{process = Process}) -> Process;
@@ -184,7 +184,7 @@ format_spec(#option{format = Format}) -> Format.
 
 format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
     Keys = lists:map(fun({K, _}) -> K end, KVs),
-    mongoose_config_validator_toml:validate_list(Keys, unique),
+    mongoose_config_validator:validate_list(Keys, unique),
     lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, KVs);
 format([Key|_] = Path, V, host_local_config) ->
     format(Path, V, {host_local_config, b2a(Key)});

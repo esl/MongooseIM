@@ -1,4 +1,4 @@
--module(mongoose_config_validator_toml).
+-module(mongoose_config_validator).
 
 -export([validate/3,
          validate_section/2,

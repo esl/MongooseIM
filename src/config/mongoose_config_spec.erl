@@ -1098,7 +1098,7 @@ process_sasl_external(V) when V =:= standard;
                               V =:= auth_id ->
     V;
 process_sasl_external(M) ->
-    mongoose_config_validator_toml:validate(M, atom, module),
+    mongoose_config_validator:validate(M, atom, module),
     {mod, M}.
 
 process_sasl_mechanism(V) ->
