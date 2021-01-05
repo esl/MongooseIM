@@ -9,7 +9,52 @@
 -type config_list() :: #list{}.
 -type config_option() :: #option{}.
 
--export_type([config_node/0, config_section/0, config_list/0, config_option/0]).
+-type option_type() :: boolean | binary | string | atom | int_or_infinity
+                     | int_or_atom | integer | float.
+
+%% The format describes how the TOML Key and the parsed and processed Value
+%% are packed into the resulting list of configuration options.
+-type format() :: top_level_config_format() | config_part_format().
+
+%% The value becomes a top-level config record, acl record or 'override' tuple
+-type top_level_config_format() ::
+      % {override, Value}
+        override
+
+      % Config records, see the type below for details
+      | config_record_format()
+
+      % Config record for each {K, V} in Value, which has to be a list
+      | {foreach, config_record_format()}
+
+      % Config record, the key is replaced with NewKey
+      | {config_record_format(), NewKey :: term()}
+
+      % #config{} with either key = {Tag, Key, Host} - inside host_config
+      %                or key = {Tag, Key, global} - at the top level
+      | {host_or_global_config, Tag :: term()}
+
+      % Like above, but for an acl record
+      | host_or_global_acl.
+
+%% The value becomes a top-level config record: #config{} or #local_config{}
+-type config_record_format() ::
+        config % #config{}
+      | local_config % #local_config{}
+      | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
+                           % Otherwise: one such record for each configured host
+
+%% The value becomes a nested config part - key-value pair or just a value
+-type config_part_format() ::
+        default      % {Key, Value} for section items, Value for list items
+      | item         % only Value
+      | skip         % nothing - the item is ignored
+      | none         % no formatting - Value must be a list and is injected into the parent list
+      | {kv, NewKey :: term()} % {NewKey, Value} - replaces the key with NewKey
+      | prepend_key. % {Key, V1, ..., Vn} when Value = {V1, ..., Vn}
+
+-export_type([config_node/0, config_section/0, config_list/0, config_option/0,
+              format/0, option_type/0]).
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:

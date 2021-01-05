@@ -23,18 +23,29 @@
 -type toml_section() :: tomerl:section().
 
 %% Output: list of config records, containing key-value pairs
--type option() :: term(). % a part of a config value OR a list of them, may contain config errors
--type top_level_option() :: #config{} | #local_config{} | acl:acl().
+-type option_value() :: atom() | binary() | string() | float(). % parsed leaf value
+-type config_part() :: term(). % any part of a top-level option value, may contain config errors
+-type top_level_config() :: #config{} | #local_config{} | acl:acl().
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type override() :: {override, atom()}.
--type config() :: top_level_option() | config_error() | override().
--type config_list() :: [config() | fun((ejabberd:server()) -> [config()])]. % see HOST_F
+-type config() :: top_level_config() | config_error() | override().
+-type config_list() :: [config() | fun((jid:server()) -> [config()])]. % see HOST_F
+
+-type list_processor() :: fun((path(), [config_part()]) -> config_part())
+                        | fun(([config_part()]) -> config_part()).
+
+-type processor() :: fun((path(), config_part()) -> config_part())
+                   | fun((config_part()) -> config_part()).
+
+-type step() :: parse | validate | process | format.
 
 %% Path from the currently processed config node to the root
 %%   - toml_key(): key in a toml_section()
 %%   - item: item in a list
-%%   - tuple(): item in a list, tagged with data from the item, e.g. host name
--type path() :: [toml_key() | item | tuple()].
+%%   - {host, Host}: item in the list of hosts in host_config
+-type path() :: [toml_key() | item | {host, jid:server()}].
+
+-export_type([toml_key/0, option_value/0, config_part/0, list_processor/0, processor/0]).
 
 -spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
 parse_file(FileName) ->
@@ -85,7 +96,8 @@ ensure_keys(Keys, Section) ->
         MissingKeys -> error(#{what => missing_mandatory_keys, missing_keys => MissingKeys})
     end.
 
--spec parse_section(path(), toml_section(), mongoose_config_spec:config_section()) -> [option()].
+-spec parse_section(path(), toml_section(), mongoose_config_spec:config_section()) ->
+          [config_part()].
 parse_section(Path, M, #section{items = Items}) ->
     lists:flatmap(fun({K, V}) ->
                           handle([K|Path], V, get_spec_for_key(K, Items))
@@ -103,21 +115,23 @@ get_spec_for_key(Key, Items) ->
             end
     end.
 
--spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [option()].
+-spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [config_part()].
 parse_list(Path, L, #list{items = ItemSpec}) ->
     lists:flatmap(fun(Elem) ->
                           Key = item_key(Path, Elem),
                           handle([Key|Path], Elem, ItemSpec)
                   end, L).
 
--spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> option().
+-spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> config_part().
 handle(Path, Value, Spec) ->
     lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
                         Error;
-                   (StepName, Acc) ->
-                        try_step(StepName, Path, Value, Acc, Spec)
+                   (Step, Acc) ->
+                        try_step(Step, Path, Value, Acc, Spec)
                 end, Value, [parse, validate, process, format]).
 
+-spec handle_step(step(), path(), toml_value(), mongoose_config_spec:config_node()) ->
+          config_part().
 handle_step(parse, Path, Value, Spec) ->
     ParsedValue = case Spec of
                       #section{} = Spec when is_map(Value) ->
@@ -141,17 +155,19 @@ handle_step(process, Path, ParsedValue, Spec) ->
 handle_step(format, Path, ProcessedValue, Spec) ->
     format(Path, ProcessedValue, format_spec(Spec)).
 
+-spec check_required_keys(mongoose_config_spec:config_section(), toml_section()) -> any().
 check_required_keys(#section{required = all, items = Items}, Section) ->
     ensure_keys(maps:keys(Items), Section);
 check_required_keys(#section{required = Required}, Section) ->
     ensure_keys(Required, Section).
 
-validate_keys(#section{validate_keys = undefined}, _Section) -> ok;
+-spec validate_keys(mongoose_config_spec:config_section(), toml_section()) -> any().
 validate_keys(#section{validate_keys = Validator}, Section) ->
     lists:foreach(fun(Key) ->
                           mongoose_config_validator:validate(b2a(Key), atom, Validator)
                   end, maps:keys(Section)).
 
+-spec validate(config_part(), mongoose_config_spec:config_node()) -> any().
 validate(Value, #section{validate = Validator}) ->
     mongoose_config_validator:validate_section(Value, Validator);
 validate(Value, #list{validate = Validator}) ->
@@ -159,14 +175,19 @@ validate(Value, #list{validate = Validator}) ->
 validate(Value, #option{type = Type, validate = Validator}) ->
     mongoose_config_validator:validate(Value, Type, Validator).
 
+-spec process_spec(mongoose_config_spec:config_section() |
+                   mongoose_config_spec:config_list()) -> undefined | list_processor();
+                  (mongoose_config_spec:config_option()) -> undefined | processor().
 process_spec(#section{process = Process}) -> Process;
 process_spec(#list{process = Process}) -> Process;
 process_spec(#option{process = Process}) -> Process.
 
+-spec process(path(), config_part(), undefined | processor()) -> config_part().
 process(_Path, V, undefined) -> V;
 process(_Path, V, F) when is_function(F, 1) -> F(V);
 process(Path, V, F) when is_function(F, 2) -> F(Path, V).
 
+-spec convert(toml_value(), mongoose_config_spec:option_type()) -> option_value().
 convert(V, boolean) when is_boolean(V) -> V;
 convert(V, binary) when is_binary(V) -> V;
 convert(V, string) -> binary_to_list(V);
@@ -178,10 +199,12 @@ convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) when is_integer(V) -> V;
 convert(V, float) when is_float(V) -> V.
 
+-spec format_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:format().
 format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
 format_spec(#option{format = Format}) -> Format.
 
+-spec format(path(), config_part(), mongoose_config_spec:format()) -> config_part().
 format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
     Keys = lists:map(fun({K, _}) -> K end, KVs),
     mongoose_config_validator:validate_list(Keys, unique),
@@ -223,32 +246,33 @@ format(_Path, _V, skip) ->
 format([Key|_], V, prepend_key) ->
     L = [b2a(Key) | tuple_to_list(V)],
     [list_to_tuple(L)];
-format(_Path, V, none) ->
+format(_Path, V, none) when is_list(V) ->
     V.
 
+-spec get_host(path()) -> jid:server() | global.
 get_host(Path) ->
     case lists:reverse(Path) of
         [<<"host_config">>, {host, Host} | _] -> Host;
         _ -> global
     end.
 
--spec try_step(atom(), path(), toml_value(), term(),
-               mongoose_config_spec:config_node()) -> option().
-try_step(StepName, Path, Value, Acc, Spec) ->
+-spec try_step(step(), path(), toml_value(), term(),
+               mongoose_config_spec:config_node()) -> config_part().
+try_step(Step, Path, Value, Acc, Spec) ->
     try
-        handle_step(StepName, Path, Acc, Spec)
+        handle_step(Step, Path, Acc, Spec)
     catch error:Reason:Stacktrace ->
             BasicFields = #{what => toml_processing_failed,
                             class => error,
                             stacktrace => Stacktrace,
-                            text => error_text(StepName),
+                            text => error_text(Step),
                             toml_path => path_to_string(Path),
                             toml_value => Value},
             ErrorFields = error_fields(Reason),
             [maps:merge(BasicFields, ErrorFields)]
     end.
 
--spec error_text(atom()) -> string().
+-spec error_text(step()) -> string().
 error_text(parse) -> "Malformed option in the TOML configuration file";
 error_text(validate) -> "Incorrect option value in the TOML configuration file";
 error_text(process) -> "Unable to process a value the TOML configuration file";
@@ -267,13 +291,13 @@ node_to_string(item) -> [];
 node_to_string({host, _}) -> [];
 node_to_string(Node) -> [binary_to_list(Node)].
 
--spec item_key(path(), toml_value()) -> tuple() | item.
+-spec item_key(path(), toml_value()) -> {host, jid:server()} | item.
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
 
 %% Processing of the parsed options
 
--spec get_hosts(config_list()) -> [ejabberd:server()].
+-spec get_hosts(config_list()) -> [jid:server()].
 get_hosts(Config) ->
     case lists:filter(fun(#config{key = hosts}) -> true;
                          (_) -> false
@@ -282,7 +306,7 @@ get_hosts(Config) ->
         [#config{value = Hosts}] -> Hosts
     end.
 
--spec build_state([ejabberd:server()], [top_level_option()], [override()]) ->
+-spec build_state([jid:server()], [top_level_config()], [override()]) ->
           mongoose_config_parser:state().
 build_state(Hosts, Opts, Overrides) ->
     lists:foldl(fun(F, StateIn) -> F(StateIn) end,
@@ -293,21 +317,21 @@ build_state(Hosts, Opts, Overrides) ->
                  fun mongoose_config_parser:add_dep_modules/1,
                  fun(S) -> set_overrides(Overrides, S) end]).
 
-%% Any nested option() may be a config_error() - this function extracts them all recursively
+%% Any nested config_part() may be a config_error() - this function extracts them all recursively
 -spec extract_errors([config()]) -> [config_error()].
 extract_errors(Config) ->
     extract(fun(#{what := _, class := error}) -> true;
                (_) -> false
             end, Config).
 
--spec extract(fun((option()) -> boolean()), option()) -> [option()].
+-spec extract(fun((config_part()) -> boolean()), config_part()) -> [config_part()].
 extract(Pred, Data) ->
     case Pred(Data) of
         true -> [Data];
         false -> extract_items(Pred, Data)
     end.
 
--spec extract_items(fun((option()) -> boolean()), option()) -> [option()].
+-spec extract_items(fun((config_part()) -> boolean()), config_part()) -> [config_part()].
 extract_items(Pred, L) when is_list(L) -> lists:flatmap(fun(El) -> extract(Pred, El) end, L);
 extract_items(Pred, T) when is_tuple(T) -> extract_items(Pred, tuple_to_list(T));
 extract_items(Pred, M) when is_map(M) -> extract_items(Pred, maps:to_list(M));
