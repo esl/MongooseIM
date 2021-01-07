@@ -40,6 +40,7 @@
 -export([set_store_password/1]).
 -export([get_listener_opts/2]).
 -export([restart_listener_with_opts/3]).
+-export([should_minio_be_running/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -466,4 +467,13 @@ restart_listener_with_opts(Spec, Listener, NewOpts) ->
     {PortIPProto, Module, _Opts} = Listener,
     rpc(Spec, ejabberd_listener, stop_listener, [PortIPProto, Module]),
     rpc(Spec, ejabberd_listener, start_listener, [PortIPProto, Module, NewOpts]).
+
+should_minio_be_running(Config) ->
+    case proplists:get_value(preset, Config, undefined) of
+        undefined -> false;
+        Preset ->
+            PresetAtom = list_to_existing_atom(Preset),
+            DBs = ct:get_config({presets, toml, PresetAtom, dbs}, []),
+            lists:member(minio, DBs)
+    end.
 
