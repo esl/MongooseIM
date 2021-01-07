@@ -295,7 +295,7 @@ init_per_testcase(delete_old_users, Config) ->
     end;
 init_per_testcase(CaseName, Config) when CaseName == real_upload_without_content_type;
                                          CaseName == real_upload_with_content_type ->
-    case is_minio_running(Config) of
+    case mongoose_helper:should_minio_be_running(Config) of
         true -> escalus:init_per_testcase(CaseName, Config);
         false -> {skip, "minio is not running"}
     end;
@@ -391,15 +391,6 @@ signed_headers_regex(false, "") -> ?S3_SIGNED_HEADERS;
 signed_headers_regex(false, _)  -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE;
 signed_headers_regex(true, "")  -> ?S3_SIGNED_HEADERS_WITH_ACL;
 signed_headers_regex(true, _)   -> ?S3_SIGNED_HEADERS_WITH_CONTENT_TYPE_AND_ACL.
-
-is_minio_running(Config) ->
-    case proplists:get_value(preset, Config, undefined) of
-        undefined -> false;
-        Preset ->
-            PresetAtom = list_to_existing_atom(Preset),
-            DBs = ct:get_config({ejabberd_presets, PresetAtom, dbs}, []),
-            lists:member(minio, DBs)
-    end.
 
 real_upload(Config, ContentType) ->
     #{node := Node} = mim(),
