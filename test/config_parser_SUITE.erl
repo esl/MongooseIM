@@ -1724,6 +1724,8 @@ mod_event_pusher_push(_Config) ->
          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
     ?eqf(M([{virtual_pubsub_hosts, ["host1", "host2"]}]),
          T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
+    ?eqf(M([{virtual_pubsub_hosts, ["pubsub.@HOSTS@"]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOSTS@">>]})),
     ?errf(T(#{<<"backend">> => <<"redis">>})),
     ?errf(T(#{<<"wpool">> => true})),
     ?errf(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),

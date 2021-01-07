@@ -427,7 +427,7 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
             vcard_error(IQ, mongoose_xmpp_errors:not_allowed())
     end,
     {Acc, Res};
-process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_sm_iq(_, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     #jid{luser = LUser, lserver = LServer} = To,
     Res = try mod_vcard_backend:get_vcard(LUser, LServer) of
         {ok, VCARD} ->
