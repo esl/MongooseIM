@@ -120,6 +120,8 @@
 -export([result_to_integer/1,
          selected_to_integer/1]).
 
+-export([character_to_integer/1]).
+
 %% gen_server callbacks
 -export([init/1,
          handle_call/3,
@@ -476,6 +478,12 @@ result_to_integer(Bin) when is_binary(Bin) ->
 
 selected_to_integer({selected, [{BInt}]}) ->
     result_to_integer(BInt).
+
+%% Converts a value from a CHAR field to integer
+%% PgSQL returns CHAR as an integer
+%% %% MySQL returns CHAR as a string
+character_to_integer(<<X>>) -> X;
+character_to_integer(X) when is_integer(X) -> X.
 
 %% pgsql returns booleans as "t" or "f"
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
