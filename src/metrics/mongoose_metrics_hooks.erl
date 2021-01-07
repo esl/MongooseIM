@@ -32,7 +32,7 @@
          remove_user/3,
          privacy_iq_get/5,
          privacy_iq_set/4,
-         privacy_check_packet/6,
+         privacy_check_packet/5,
          privacy_list_push/5
         ]).
 
@@ -230,10 +230,9 @@ privacy_list_push(Acc, _From, #jid{server = Server} = _To, _Broadcast, SessionCo
 
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
-                          binary(),
-                          Server :: jid:server(),
+                          JID :: jid:jid(),
                           term(), term(), term()) -> mongoose_acc:t().
-privacy_check_packet(Acc, _, Server, _, {_, _, _, _}, _) ->
+privacy_check_packet(Acc, #jid{lserver = Server}, _, {_, _, _, _}, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
     case mongoose_acc:get(privacy, check, allow, Acc) of
         deny ->

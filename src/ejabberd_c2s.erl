@@ -2108,7 +2108,7 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
 privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
                                           StateData#state.server,
-                                          StateData#state.user,
+                                          StateData#state.jid,
                                           StateData#state.privacy_list,
                                           To,
                                           Dir).
@@ -2122,7 +2122,7 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet({Acc, Packet},
                                           StateData#state.server,
-                                          StateData#state.user,
+                                          StateData#state.jid,
                                           StateData#state.privacy_list,
                                           From,
                                           To,

@@ -35,7 +35,7 @@
          process_iq_set/4,
          process_iq_get/5,
          get_user_list/2,
-         check_packet/6,
+         check_packet/5,
          remove_user/3,
          updated_list/3]).
 
@@ -308,9 +308,9 @@ get_user_list(_, #jid{luser = LUser, lserver = LServer}) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(Acc, _User, _Server, #userlist{list = []}, _, _Dir) ->
+check_packet(Acc, _JID, #userlist{list = []}, _, _Dir) ->
     mongoose_acc:set(hook, result, allow, Acc);
-check_packet(Acc, User, Server,
+check_packet(Acc, #jid{lserver = LServer} = JID,
              #userlist{list = List, needdb = NeedDb},
              {From, To, Name, Type}, Dir) ->
     PType = packet_directed_type(Dir, packet_type(Name, Type)),
@@ -321,7 +321,7 @@ check_packet(Acc, User, Server,
     {Subscription, Groups} =
         case NeedDb of
             true ->
-                roster_get_jid_info(Server, jid:make(User, Server, <<>>), LJID);
+                roster_get_jid_info(LServer, JID, LJID);
             false ->
                 {[], []}
         end,

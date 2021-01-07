@@ -147,7 +147,6 @@ get_node_uptime() ->
 process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
-    User = To#jid.luser,
     Server = To#jid.lserver,
     {Subscription, _Groups} =
         mongoose_hooks:roster_get_jid_info(Server, {none, []}, To, From),
@@ -161,7 +160,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
                                                                   #userlist{},
                                                                   To),
             ok,
-            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
+            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, To,
                                                              UserListRecord, To, From,
                                                              out),
             {Acc1, make_response(IQ, SubEl, To, Res)};

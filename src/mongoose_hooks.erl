@@ -617,18 +617,17 @@ session_opening_allowed_for_user(Server, Allow, JID) ->
 
 %% Privacy related hooks
 
--spec privacy_check_packet(LServer, Acc, User, PrivacyList, FromToNameType, Dir) -> Result when
-    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), User :: jid:luser(),
+-spec privacy_check_packet(LServer, Acc, JID, PrivacyList, FromToNameType, Dir) -> Result when
+    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), JID :: jid:jid(),
     PrivacyList :: mongoose_privacy:userlist(),
     FromToNameType :: {jid:jid(), jid:jid(), binary(), binary()},
     Dir :: in | out,
     Result :: mongoose_acc:t().
-privacy_check_packet(LServer, Acc, User, PrivacyList, FromToNameType, Dir) ->
+privacy_check_packet(LServer, Acc, JID, PrivacyList, FromToNameType, Dir) ->
     ejabberd_hooks:run_fold(privacy_check_packet,
                             LServer,
                             mongoose_acc:set(hook, result, allow, Acc),
-                            [User,
-                             LServer,
+                            [JID,
                              PrivacyList,
                              FromToNameType,
                              Dir]).
