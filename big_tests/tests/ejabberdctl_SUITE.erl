@@ -46,7 +46,7 @@
 -define(HTTP_UPLOAD_FILESIZE_ERROR, ?CTL_ERROR("size must be positive integer")).
 -define(HTTP_UPLOAD_TIMEOUT_ERROR, ?CTL_ERROR("timeout must be positive integer")).
 
--define(S3_BUCKET_URL, "http://localhost:9000/mybucket/").
+-define(S3_BUCKET_URL, "http://127.0.0.1:9000/mybucket/").
 -define(S3_REGION, "eu-east-25").
 -define(S3_ACCESS_KEY_ID, "AKIAIAOAONIULXQGMOUA").
 -define(MINIO_OPTS(AddAcl),
