@@ -20,6 +20,10 @@ FILE_COUNT=$(find "${CT_REPORTS}" -type f | wc -l)
 echo "Uploading $FILE_COUNT files"
 ls $CT_REPORTS
 
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.0.30.zip" -o "awscliv2.zip"
+unzip -q awscliv2.zip
+sudo ./aws/install
+
 aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
 aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
 aws configure set default.region $AWS_DEFAULT_REGION
