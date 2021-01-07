@@ -30,5 +30,5 @@ Specifies the SASL mechanisms supported by the `anonymous` authentication method
 
   [auth.anonymous]
     allow_multiple_connections = true
-    anonymous_protocol = "both"
+    protocol = "both"
 ```
