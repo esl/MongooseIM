@@ -71,9 +71,10 @@ prepare_queries(Host) ->
     prepare_version_upsert(Host),
     ok.
 
+
+%% We don't care about `server, subscribe, type' fields
 roster_fields() ->
-    <<"username, jid, nick, subscription, ask, "
-      "askmessage, server, subscribe, type">>.
+    <<"username, jid, nick, subscription, ask, askmessage">>.
 
 prepare_roster_upsert(Host) ->
     Fields = [<<"nick">>, <<"subscription">>, <<"ask">>,
@@ -91,7 +92,7 @@ prepare_version_upsert(Host) ->
 %% Query Helpers
 
 execute_roster_get(LServer, LUser) ->
-    mongoose_rdbms:execute(LServer, roster_get, [LUser]).
+    mongoose_rdbms:execute_successfully(LServer, roster_get, [LUser]).
 
 roster_upsert(Host, LUser, BinJID, RosterRow) ->
     [_LUser, _BinJID|Rest] = RosterRow,
@@ -115,7 +116,7 @@ transaction(LServer, F) ->
 
 -spec read_roster_version(jid:luser(), jid:lserver()) -> binary() | error.
 read_roster_version(LUser, LServer) ->
-    case mongoose_rdbms:execute(LServer, roster_version_get, [LUser]) of
+    case mongoose_rdbms:execute_successfully(LServer, roster_version_get, [LUser]) of
         {selected, [{Version}]} -> Version;
         {selected, []} -> error
     end.
@@ -124,39 +125,24 @@ write_roster_version(LUser, LServer, _InTransaction, Ver) ->
     version_upsert(LServer, LUser, Ver).
 
 get_roster(LUser, LServer) ->
-    try execute_roster_get(LServer, LUser) of
-        {selected, Rows} ->
-            {selected, GroupRows} = mongoose_rdbms:execute(LServer, roster_group_get, [LUser]),
-            decode_roster_rows(LServer, Rows, GroupRows);
-        _ -> []
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_roster_failed, class => Class, reason => Reason,
-                     stacktrace => StackTrace, user => LUser, host => LServer}),
-        []
-    end.
+    {selected, Rows} = execute_roster_get(LServer, LUser),
+    {selected, GroupRows} = mongoose_rdbms:execute_successfully(LServer, roster_group_get, [LUser]),
+    decode_roster_rows(LServer, Rows, GroupRows).
 
 get_roster_entry_t(LUser, LServer, LJID) ->
+    %% `mongoose_rdbms:execute' automatically detects if we are in a transaction or not.
     get_roster_entry(LUser, LServer, LJID).
 
 get_roster_entry(LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
-    {selected, Rows} = mongoose_rdbms:execute(LServer, roster_get_by_jid, [LUser, BinJID]),
-    decode_roster_entry_rows(LUser, LServer, LJID, Rows).
-
-decode_roster_entry_rows(_LUser, _LServer, _LJID, []) ->
-    does_not_exist;
-decode_roster_entry_rows(LUser, LServer, LJID, [Row]) ->
-    Rec = raw_to_record(LServer, Row),
-    USJ = {LUser, LServer, LJID},
-    US = {LUser, LServer},
-    case Rec of
-        %% Bad JID in database:
-        error ->
-            ?LOG_ERROR(#{what => roster_parse_failed, row => format_term(Row)}),
-            #roster{usj = USJ, us = US, jid = LJID};
-        _ ->
-            Rec#roster{usj = USJ, us = US, jid = LJID}
+    {selected, Rows} = mongoose_rdbms:execute_successfully(LServer, roster_get_by_jid, [LUser, BinJID]),
+    case Rows of
+        [] -> does_not_exist;
+        [Row] -> row_to_record(LServer, Row)
     end.
+
+get_roster_entry_t(LUser, LServer, LJID, full) ->
+    get_roster_entry(LUser, LServer, LJID, full).
 
 %% full means we should query for groups too
 get_roster_entry(LUser, LServer, LJID, full) ->
@@ -164,27 +150,12 @@ get_roster_entry(LUser, LServer, LJID, full) ->
         does_not_exist -> does_not_exist;
         Rec ->
             Groups = get_groups_by_jid(LUser, LServer, LJID),
-            Rec#roster{groups = Groups}
+            record_with_groups(Rec, Groups)
     end.
-
-get_roster_entry_t(LUser, LServer, LJID, full) ->
-    get_roster_entry(LUser, LServer, LJID, full).
 
 get_subscription_lists(_, LUser, LServer) ->
-    try execute_roster_get(LServer, LUser) of
-        {selected, Rows} ->
-            Rows; %% The only allowed usage of these rows is to pass them
-                  %% into mod_roster_backend:raw_to_record/2
-        Other ->
-            ?LOG_ERROR(#{what => get_subscription_lists_failed, reason => Other,
-                        user => LUser, host => LServer}),
-            []
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_subscription_lists_failed, class => Class,
-                     reason => Reason, stacktrace => StackTrace,
-                     user => LUser, host => LServer}),
-        []
-    end.
+    {selected, Rows} = execute_roster_get(LServer, LUser),
+    [row_to_record(LServer, Row) || Row <- Rows].
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     BinJID = jid:to_binary(LJID),
@@ -193,8 +164,8 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
 
 remove_user(LUser, LServer) ->
     F = fun() ->
-            mongoose_rdbms:execute(LServer, roster_delete, [LUser]),
-            mongoose_rdbms:execute(LServer, roster_group_delete, [LUser])
+            mongoose_rdbms:execute_successfully(LServer, roster_delete, [LUser]),
+            mongoose_rdbms:execute_successfully(LServer, roster_group_delete, [LUser])
         end,
     mongoose_rdbms:sql_transaction(LServer, F),
     ok.
@@ -204,15 +175,15 @@ update_roster_t(LUser, LServer, LJID, Item) ->
     RosterRow = record_to_row(Item),
     GroupRows = groups_to_rows(Item),
     roster_upsert(LServer, LUser, BinJID, RosterRow),
-    mongoose_rdbms:execute(LServer, roster_group_delete_by_jid, [LUser, BinJID]),
-    [mongoose_rdbms:execute(LServer, roster_group_insert, GroupRow)
+    mongoose_rdbms:execute_successfully(LServer, roster_group_delete_by_jid, [LUser, BinJID]),
+    [mongoose_rdbms:execute_successfully(LServer, roster_group_insert, GroupRow)
      || GroupRow <- GroupRows],
     ok.
 
 del_roster_t(LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
-    mongoose_rdbms:execute(LServer, roster_delete_by_jid, [LUser, BinJID]),
-    mongoose_rdbms:execute(LServer, roster_group_delete_by_jid, [LUser, BinJID]).
+    mongoose_rdbms:execute_successfully(LServer, roster_delete_by_jid, [LUser, BinJID]),
+    mongoose_rdbms:execute_successfully(LServer, roster_group_delete_by_jid, [LUser, BinJID]).
 
 get_groups_by_jid(LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
@@ -263,45 +234,52 @@ groups_to_rows(#roster{us = {LUser, _LServer}, jid = JID, groups = Groups}) ->
                     (Group, Acc) -> [[LUser, BinJID, Group] | Acc]
                 end, [], Groups).
 
-raw_to_record(LServer,
-              {User, SJID, Nick, ExtSubscription, ExtAsk, AskMessage,
-               _Server, _ExtSubscribe, _Type} = I) ->
-    case jid:from_binary(SJID) of
+%% We must not leak our external RDBMS format representation into MongooseIM
+raw_to_record(_LServer, Rec) -> Rec.
+
+%% Decode fields from `roster_fields()' into a record
+row_to_record(LServer,
+              {User, BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}) ->
+    JID = parse_jid(BinJID),
+    LJID = jid:to_lower(JID), %% Convert to tuple {U,S,R}
+    Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
+    Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
+    USJ = {User, LServer, LJID},
+    US = {User, LServer},
+    #roster{usj = USJ, us = US, jid = LJID, name = Nick,
+            subscription = Subscription, ask = Ask, askmessage = AskMessage}.
+
+row_to_binary_jid(Row) -> element(2, Row).
+
+record_with_groups(Rec, Groups) ->
+    Rec#roster{groups = Groups}.
+
+%% We require all DB jids to be parsable.
+%% They should be lowered too.
+parse_jid(BinJID) ->
+    case jid:from_binary(BinJID) of
         error ->
-            ?LOG_ERROR(#{what => roster_parse_failed, row => io_lib:format("~0p", [I])}),
-            error;
+            error(#{what => parse_jid_failed, jid => BinJID});
         JID ->
-            LJID = jid:to_lower(JID),
-            Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
-            Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
-            #roster{usj = {User, LServer, LJID},
-                    us = {User, LServer}, jid = LJID, name = Nick,
-                    subscription = Subscription, ask = Ask,
-                    askmessage = AskMessage}
+            JID
     end.
 
 decode_roster_rows(LServer, Rows, JIDGroups) ->
     GroupsDict = pairs_to_dict(JIDGroups),
-    F = fun (Row) -> raw_to_record_with_group(LServer, Row, GroupsDict) end,
-    lists:flatmap(F, Rows).
+    [raw_to_record_with_group(LServer, Row, GroupsDict) || Row <- Rows].
 
 pairs_to_dict(Pairs) ->
     F = fun ({K, V}, Acc) -> dict:append(K, V, Acc) end,
     lists:foldl(F, dict:new(), Pairs).
 
-raw_to_record_with_group(LServer, I, GroupsDict) ->
-    case raw_to_record(LServer, I) of
-        %% Bad JID in database:
-        error -> [];
-        R ->
-            BinJID = jid:to_binary(R#roster.jid),
-            [R#roster{groups = dict_find(BinJID, GroupsDict, [])}]
-    end.
+raw_to_record_with_group(LServer, Row, GroupsDict) ->
+    Rec = row_to_record(LServer, Row),
+    BinJID = row_to_binary_jid(Row),
+    Groups = dict_get(BinJID, GroupsDict, []),
+    record_with_groups(Rec, Groups).
 
-dict_find(K, Dict, Default) ->
+dict_get(K, Dict, Default) ->
     case dict:find(K, Dict) of
         {ok, Values} -> Values;
         error -> Default
     end.
-
-format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
