@@ -802,9 +802,8 @@ do_route_offline(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
-    User = To#jid.user,
     Server = To#jid.server,
-    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, User),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, To),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 

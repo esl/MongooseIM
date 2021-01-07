@@ -159,7 +159,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
         true ->
             UserListRecord = mongoose_hooks:privacy_get_user_list(Server,
                                                                   #userlist{},
-                                                                  User),
+                                                                  To),
             ok,
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, User,
                                                              UserListRecord, To, From,

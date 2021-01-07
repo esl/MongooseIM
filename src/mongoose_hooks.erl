@@ -633,14 +633,14 @@ privacy_check_packet(LServer, Acc, User, PrivacyList, FromToNameType, Dir) ->
                              FromToNameType,
                              Dir]).
 
--spec privacy_get_user_list(Server, UserList, User) -> Result when
+-spec privacy_get_user_list(Server, UserList, JID) -> Result when
     Server :: jid:server(),
     UserList :: mongoose_privacy:userlist(),
-    User :: jid:user(),
+    JID :: jid:jid(),
     Result :: mongoose_privacy:userlist().
-privacy_get_user_list(Server, UserList, User) ->
+privacy_get_user_list(Server, UserList, JID) ->
     ejabberd_hooks:run_fold(privacy_get_user_list, Server,
-                            UserList, [User, Server]).
+                            UserList, [JID]).
 
 -spec privacy_iq_get(Server, Acc, From, To, IQ, PrivList) -> Result when
     Server :: jid:server(),

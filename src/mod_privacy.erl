@@ -34,7 +34,7 @@
          stop/1,
          process_iq_set/4,
          process_iq_get/5,
-         get_user_list/3,
+         get_user_list/2,
          check_packet/6,
          remove_user/3,
          updated_list/3]).
@@ -296,9 +296,7 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+get_user_list(_, #jid{luser = LUser, lserver = LServer}) ->
     case mod_privacy_backend:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
