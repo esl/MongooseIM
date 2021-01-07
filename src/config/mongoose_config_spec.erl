@@ -1,6 +1,46 @@
 -module(mongoose_config_spec).
 
--compile(export_all).
+%% entry point - returns the entire spec
+-export([root/0]).
+
+%% spec parts used by modules and services
+-export([wpool_items/0,
+         iqdisc/0,
+         ldap_uids/0]).
+
+%% callbacks for the 'process' step
+-export([process_host/1,
+         process_sm_backend/1,
+         process_ctl_access_rule/1,
+         process_ip_version/1,
+         process_listener/2,
+         process_verify_peer/1,
+         process_sni/1,
+         process_xmpp_tls/1,
+         process_fast_tls/1,
+         process_http_handler/2,
+         process_sasl_external/1,
+         process_sasl_mechanism/1,
+         process_auth/1,
+         process_auth_password/1,
+         process_jwt_secret/1,
+         process_ldap_uids/1,
+         process_ldap_dn_filter/1,
+         process_ldap_local_filter/1,
+         process_pool/2,
+         process_cassandra_auth/1,
+         process_rdbms_connection/1,
+         process_riak_tls/1,
+         process_cassandra_server/1,
+         process_riak_credentials/1,
+         process_iqdisc/1,
+         process_shaper/1,
+         process_acl_item/1,
+         process_access_rule_item/1,
+         process_s2s_address_family/1,
+         process_s2s_host_policy/1,
+         process_s2s_address/1,
+         process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -9,7 +49,52 @@
 -type config_list() :: #list{}.
 -type config_option() :: #option{}.
 
--export_type([config_node/0, config_section/0, config_list/0, config_option/0]).
+-type option_type() :: boolean | binary | string | atom | int_or_infinity
+                     | int_or_atom | integer | float.
+
+%% The format describes how the TOML Key and the parsed and processed Value
+%% are packed into the resulting list of configuration options.
+-type format() :: top_level_config_format() | config_part_format().
+
+%% The value becomes a top-level config record, acl record or 'override' tuple
+-type top_level_config_format() ::
+      % {override, Value}
+        override
+
+      % Config records, see the type below for details
+      | config_record_format()
+
+      % Config record for each {K, V} in Value, which has to be a list
+      | {foreach, config_record_format()}
+
+      % Config record, the key is replaced with NewKey
+      | {config_record_format(), NewKey :: term()}
+
+      % #config{} with either key = {Tag, Key, Host} - inside host_config
+      %                or key = {Tag, Key, global} - at the top level
+      | {host_or_global_config, Tag :: term()}
+
+      % Like above, but for an acl record
+      | host_or_global_acl.
+
+%% The value becomes a top-level config record: #config{} or #local_config{}
+-type config_record_format() ::
+        config % #config{}
+      | local_config % #local_config{}
+      | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
+                           % Otherwise: one such record for each configured host
+
+%% The value becomes a nested config part - key-value pair or just a value
+-type config_part_format() ::
+        default      % {Key, Value} for section items, Value for list items
+      | item         % only Value
+      | skip         % nothing - the item is ignored
+      | none         % no formatting - Value must be a list and is injected into the parent list
+      | {kv, NewKey :: term()} % {NewKey, Value} - replaces the key with NewKey
+      | prepend_key. % {Key, V1, ..., Vn} when Value = {V1, ..., Vn}
+
+-export_type([config_node/0, config_section/0, config_list/0, config_option/0,
+              format/0, option_type/0]).
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
@@ -83,7 +168,7 @@ general() ->
                                            format = local_config},
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
-                                                      process = fun ?MODULE:prepare_host/1},
+                                                      process = fun ?MODULE:process_host/1},
                                       validate = unique_non_empty,
                                       format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
@@ -803,10 +888,10 @@ iqdisc() ->
                  <<"workers">> => #option{type = integer,
                                           validate = positive}},
        required = [<<"type">>],
-       process = fun ?MODULE:format_iqdisc/1
+       process = fun ?MODULE:process_iqdisc/1
       }.
 
-format_iqdisc(KVs) ->
+process_iqdisc(KVs) ->
     {[[{type, Type}]], WorkersOpts} = proplists:split(KVs, [type]),
     iqdisc(Type, WorkersOpts).
 
@@ -988,16 +1073,13 @@ process_ctl_access_rule(KVs) ->
 process_sm_backend(Backend) ->
     {Backend, []}.
 
-prepare_host(Host) ->
+process_host(Host) ->
     Node = jid:nodeprep(Host),
     true = Node =/= error,
     Node.
 
 process_sni(false) ->
     disable.
-
-process_lasse_handler([{module, Module}]) ->
-    [Module].
 
 process_verify_peer(false) -> verify_none;
 process_verify_peer(true) -> verify_peer.
@@ -1098,7 +1180,7 @@ process_sasl_external(V) when V =:= standard;
                               V =:= auth_id ->
     V;
 process_sasl_external(M) ->
-    mongoose_config_validator_toml:validate(M, atom, module),
+    mongoose_config_validator:validate(M, atom, module),
     {mod, M}.
 
 process_sasl_mechanism(V) ->

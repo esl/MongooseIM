@@ -1,4 +1,4 @@
--module(mongoose_config_validator_toml).
+-module(mongoose_config_validator).
 
 -export([validate/3,
          validate_section/2,
@@ -8,6 +8,19 @@
 -include("mongoose_config_spec.hrl").
 -include_lib("jid/include/jid.hrl").
 
+-type validator() ::
+        any | non_empty | non_negative | positive | module | {module, Prefix :: atom()}
+      | jid | domain | domain_template | url | ip_address | ip_mask | network_address | port
+      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
+
+-type section_validator() :: any | non_empty.
+
+-type list_validator() :: any | non_empty | unique | unique_non_empty.
+
+-export_type([validator/0, section_validator/0, list_validator/0]).
+
+-spec validate(mongoose_config_parser_toml:option_value(),
+               mongoose_config_spec:option_type(), validator()) -> any().
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, binary, {module, Prefix}) ->
@@ -38,11 +51,13 @@ validate(V, atom, non_empty) -> validate_non_empty_atom(V);
 validate(V, _, {enum, Values}) -> validate_enum(V, Values);
 validate(_V, _, any) -> ok.
 
+-spec validate_list([mongoose_config_parser_toml:config_part()], list_validator()) -> any().
 validate_list([_|_], non_empty) -> ok;
 validate_list(L = [_|_], unique_non_empty) -> validate_unique_items(L);
 validate_list(L, unique) -> validate_unique_items(L);
 validate_list(L, any) when is_list(L) -> ok.
 
+-spec validate_section([mongoose_config_parser_toml:config_part()], section_validator()) -> any().
 validate_section([_|_], non_empty) -> ok;
 validate_section(L, any) when is_list(L) -> ok.
 
