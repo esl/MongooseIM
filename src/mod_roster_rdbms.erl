@@ -56,9 +56,6 @@ prepare_queries(Host) ->
            " FROM rosterusers WHERE username=? AND jid=?">>),
     mongoose_rdbms:prepare(roster_group_get, rostergroups, [username],
         <<"SELECT jid, grp FROM rostergroups WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_sub_get_by_jid, rosterusers, [username, jid],
-        <<"SELECT subscription FROM rosterusers "
-          "WHERE username=? AND jid=?">>),
     mongoose_rdbms:prepare(roster_group_get_by_jid, rostergroups, [username, jid],
         <<"SELECT grp FROM rostergroups "
           "WHERE username=? AND jid=?">>),
@@ -155,21 +152,19 @@ decode_roster_entry_rows(LUser, LServer, LJID, [Row]) ->
     case Rec of
         %% Bad JID in database:
         error ->
-            ?LOG_ERROR(#{what => roster_parse_failed, row => io_lib:format("~0p", [Row])}),
+            ?LOG_ERROR(#{what => roster_parse_failed, row => format_term(Row)}),
             #roster{usj = USJ, us = US, jid = LJID};
         _ ->
             Rec#roster{usj = USJ, us = US, jid = LJID}
     end.
 
+%% full means we should query for groups too
 get_roster_entry(LUser, LServer, LJID, full) ->
     case get_roster_entry(LUser, LServer, LJID) of
         does_not_exist -> does_not_exist;
-        Rentry ->
-            case read_subscription_and_groups(LUser, LServer, LJID) of
-                error -> error;
-                {Subscription, Groups} ->
-                    Rentry#roster{subscription = Subscription, groups = Groups}
-            end
+        Rec ->
+            Groups = get_groups_by_jid(LUser, LServer, LJID),
+            Rec#roster{groups = Groups}
     end.
 
 get_roster_entry_t(LUser, LServer, LJID, full) ->
@@ -219,36 +214,16 @@ del_roster_t(LUser, LServer, LJID) ->
     mongoose_rdbms:execute(LServer, roster_delete_by_jid, [LUser, BinJID]),
     mongoose_rdbms:execute(LServer, roster_group_delete_by_jid, [LUser, BinJID]).
 
-read_subscription_and_groups(LUser, LServer, LJID) ->
+get_groups_by_jid(LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
-    SubResult = mongoose_rdbms:execute(LServer, roster_sub_get_by_jid, [LUser, BinJID]),
-    case SubResult of
-        {selected, [{ExtSubscription}]} ->
-            GroupResult = mongoose_rdbms:execute(LServer, roster_group_get_by_jid, [LUser, BinJID]),
-            Subscription = decode_subscription(ExtSubscription),
-            case GroupResult of
-                {selected, GroupRows} ->
-                    Groups = [JGrp || {JGrp} <- GroupRows],
-                    {Subscription, Groups};
-                _ ->
-                    ?LOG_ERROR(#{what => read_subscription_and_groups_failed,
-                                 reason => GroupResult, user => LUser,
-                                 host => LServer}),
-                    error
-            end;
-        E ->
-           ?LOG_ERROR(#{what => read_subscription_and_groups_failed,
-                        reason => E, user => LUser, host => LServer}),
-            error
-    end.
+    {selected, Rows} = mongoose_rdbms:execute_successfully(
+                         LServer, roster_group_get_by_jid, [LUser, BinJID]),
+    [Group || {Group} <- Rows].
 
 %%==============================================================================
 %% Helper functions
 %%==============================================================================
 
-%% PgSQL returns CHAR as an integer
-%% MySQL returns CHAR as a string
-decode_subscription(<<X>>) -> decode_subscription(X);
 decode_subscription($B) -> both;
 decode_subscription($T) -> to;
 decode_subscription($F) -> from;
@@ -259,7 +234,6 @@ encode_subscription(to)   -> <<"T">>;
 encode_subscription(from) -> <<"F">>;
 encode_subscription(none) -> <<"N">>.
 
-decode_ask(<<X>>) -> decode_ask(X);
 decode_ask($S) -> subscribe;
 decode_ask($U) -> unsubscribe;
 decode_ask($B) -> both;
@@ -298,8 +272,8 @@ raw_to_record(LServer,
             error;
         JID ->
             LJID = jid:to_lower(JID),
-            Subscription = decode_subscription(ExtSubscription),
-            Ask = decode_ask(ExtAsk),
+            Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
+            Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
             #roster{usj = {User, LServer, LJID},
                     us = {User, LServer}, jid = LJID, name = Nick,
                     subscription = Subscription, ask = Ask,
@@ -321,11 +295,13 @@ raw_to_record_with_group(LServer, I, GroupsDict) ->
         error -> [];
         R ->
             BinJID = jid:to_binary(R#roster.jid),
-            [R#roster{groups = dict_find_list(BinJID, GroupsDict)}]
+            [R#roster{groups = dict_find(BinJID, GroupsDict, [])}]
     end.
 
-dict_find_list(K, Dict) ->
+dict_find(K, Dict, Default) ->
     case dict:find(K, Dict) of
         {ok, Values} -> Values;
-        error -> []
+        error -> Default
     end.
+
+format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
