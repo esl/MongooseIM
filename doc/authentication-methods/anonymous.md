@@ -14,7 +14,7 @@ When set to true, allows multiple connections from the same JID using the `anony
 ### `auth.anonymous.protocol`
 * **Syntax:** string, one of `"sasl_anon"`, `"login_anon"`, `"both"`
 * **Default:** `sasl_anon`
-* **Example:** `anonymous_protocol = "both"`
+* **Example:** `protocol = "both"`
 
 Specifies the SASL mechanisms supported by the `anonymous` authentication method:
 
