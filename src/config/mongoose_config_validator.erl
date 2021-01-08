@@ -11,7 +11,8 @@
 -type validator() ::
         any | non_empty | non_negative | positive | module | {module, Prefix :: atom()}
       | jid | domain | domain_template | url | ip_address | ip_mask | network_address | port
-      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
+      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}
+      | {domain_template, string()}.
 
 -type section_validator() :: any | non_empty.
 
@@ -33,7 +34,8 @@ validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_i
 validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
 validate(V, string, url) -> validate_url(V);
 validate(V, string, domain) -> validate_domain(V);
-validate(V, string, domain_template) -> validate_domain_template(V);
+validate(V, string, {domain_template, Pattern}) -> validate_domain_template(V, Pattern);
+validate(V, string, domain_template) -> validate_domain_template(V, "@HOST@");
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, ip_mask) -> validate_ip_mask_string(V);
 validate(V, string, network_address) -> validate_network_address(V);
@@ -141,8 +143,8 @@ validate_binary_domain(Domain) when is_binary(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain),
     validate_domain_res(binary_to_list(Domain)).
 
-validate_domain_template(Domain) ->
-    validate_binary_domain(gen_mod:make_subhost(Domain, <<"example.com">>)).
+validate_domain_template(Domain, Pattern) ->
+    validate_binary_domain(re:replace(Domain, Pattern, <<"example.com">>, [{return, binary}])).
 
 validate_url(Url) ->
     validate_non_empty_string(Url).

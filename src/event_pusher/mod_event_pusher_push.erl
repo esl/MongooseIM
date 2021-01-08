@@ -118,7 +118,7 @@ config_spec() ->
                  <<"plugin_module">> => #option{type = atom,
                                                 validate = module},
                  <<"virtual_pubsub_hosts">> => #list{items = #option{type = string,
-                                                                     validate = domain_template}}
+                                                                     validate = {domain_template, "@HOSTS@"}}}
                 }
       }.
 
