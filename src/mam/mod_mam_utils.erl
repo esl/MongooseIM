@@ -68,9 +68,6 @@
 -export([jid_to_opt_binary/2,
          expand_minified_jid/2]).
 
-%% SQL
--export([success_sql_query/2]).
-
 %% Other
 -export([maybe_integer/2,
          maybe_min/2,
@@ -1092,19 +1089,6 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     RemBareJID = jid:to_bare(RemJID),
     {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, LUser, RemBareJID),
     Subscription == from orelse Subscription == both.
-
-
--spec success_sql_query(atom() | jid:server(), mongoose_rdbms:sql_query()) -> any().
-success_sql_query(HostOrConn, Query) ->
-    Result = mongoose_rdbms:sql_query(HostOrConn, Query),
-    error_on_sql_error(HostOrConn, Query, Result).
-
-error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
-    ?LOG_ERROR(#{what => mam_sql_error,
-                 host => HostOrConn, query => Query, reason => Reason}),
-    error({sql_error, Reason});
-error_on_sql_error(_HostOrConn, _Query, Result) ->
-    Result.
 
 %% @doc Returns a UUIDv4 canonical form binary.
 -spec wrapper_id() -> binary().
