@@ -479,9 +479,7 @@ result_to_integer(Bin) when is_binary(Bin) ->
 selected_to_integer({selected, [{BInt}]}) ->
     result_to_integer(BInt).
 
-%% Converts a value from a CHAR field to integer
-%% PgSQL returns CHAR as an integer
-%% %% MySQL returns CHAR as a string
+%% Converts a value from a CHAR(1) field to integer
 character_to_integer(<<X>>) -> X;
 character_to_integer(X) when is_integer(X) -> X.
 
