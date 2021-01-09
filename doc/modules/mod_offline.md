@@ -27,6 +27,7 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
  * **Example:** `store_groupchat_messages = true`
 
  Specifies whether or not we should store groupchat messages.
+ **Warning:** This option can work only with MUC-light and is not expected to work with MUC.
 
 ### Riak-specific options
 
