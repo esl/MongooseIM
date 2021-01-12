@@ -44,8 +44,61 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
-init(_Host, _Opts) ->
+init(Host, _Opts) ->
+    prepare_queries(Host),
     ok.
+
+prepare_queries(Host) ->
+    %% Queries to privacy_list table
+    mongoose_rdbms:prepare(privacy_list_get_id, privacy_list, [username, name],
+                           <<"SELECT id FROM privacy_list where username=? AND name=?">>),
+    mongoose_rdbms:prepare(privacy_list_get_names, privacy_list, [username],
+                           <<"SELECT name FROM privacy_list WHERE username=?">>),
+    mongoose_rdbms:prepare(privacy_list_delete_by_name, privacy_list, [username, name],
+                           <<"DELETE FROM privacy_list WHERE username=? AND name=?">>),
+    mongoose_rdbms:prepare(privacy_list_delete_multiple, privacy_list, [username],
+                           <<"DELETE FROM privacy_list WHERE username=?">>),
+    mongoose_rdbms:prepare(privacy_list_insert, privacy_list, [username, name],
+                           <<"INSERT INTO privacy_list(username, name) VALUES (?, ?)">>),
+    %% Queries to privacy_default_list table
+    mongoose_rdbms:prepare(privacy_default_get_name, privacy_default_list, [username],
+                           <<"SELECT name FROM privacy_default_list WHERE username=?">>),
+    mongoose_rdbms:prepare(privacy_default_delete, privacy_default_list, [username],
+                           <<"DELETE from privacy_default_list WHERE username=?">>),
+    prepare_default_list_upsert(Host),
+    %% Queries to privacy_list_data table
+    mongoose_rdbms:prepare(privacy_data_get_by_id, privacy_list_data, [id],
+                           <<"SELECT t, value, action, ord, match_all, match_iq, "
+                             "match_message, match_presence_in, match_presence_out "
+                             "FROM privacy_list_data "
+                             "WHERE id=? ORDER BY ord">>),
+    mongoose_rdbms:prepare(delete_data_by_id, privacy_list_data, [id],
+                           <<"DELETE FROM privacy_list_data WHERE id=?">>),
+    mongoose_rdbms:prepare(privacy_data_insert, privacy_list_data,
+                           [id, t, value, action, ord, match_all, match_iq,
+                            match_message, match_presence_in, match_presence_out],
+                           <<"INSERT INTO privacy_list_data("
+                              "id, t, value, action, ord, match_all, match_iq, "
+                              "match_message, match_presence_in, match_presence_out) "
+                              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)">>),
+    %% This query uses multiple tables
+    mongoose_rdbms:prepare(privacy_data_delete_user, privacy_list, [username],
+                           <<"DELETE FROM privacy_list_data WHERE id IN "
+                             "(SELECT id FROM privacy_list WHERE username=?)">>),
+    ok.
+
+prepare_default_list_upsert(Host) ->
+    Fields = [<<"name">>],
+    Filter = [<<"username">>],
+    rdbms_queries:prepare_upsert(Host, privacy_default_upsert, privacy_default_list,
+                                 Filter ++ Fields, Fields, Filter).
+
+default_list_upsert(Host, LUser, Name) ->
+    InsertParams = [LUser, Name],
+    UpdateParams = [Name],
+    UniqueKeyValues = [LUser],
+    rdbms_queries:execute_upsert(Host, privacy_default_upsert,
+                                 InsertParams, UpdateParams, UniqueKeyValues).
 
 get_default_list(LUser, LServer) ->
     case get_default_list_name(LUser, LServer) of
@@ -66,7 +119,7 @@ get_list_names(LUser, LServer) ->
     {ok, {Default, Names}}.
 
 get_default_list_name(LUser, LServer) ->
-    try sql_get_default_privacy_list(LUser, LServer) of
+    try execute_privacy_default_get_name(LServer, LUser) of
         {selected, []} ->
             none;
         {selected, [{DefName}]} ->
@@ -84,7 +137,7 @@ get_default_list_name(LUser, LServer) ->
     end.
 
 get_list_names_only(LUser, LServer) ->
-    try sql_get_privacy_list_names(LUser, LServer) of
+    try execute_privacy_list_get_names(LServer, LUser) of
         {selected, Names} ->
             [Name || {Name} <- Names];
         Other ->
@@ -99,9 +152,8 @@ get_list_names_only(LUser, LServer) ->
             []
     end.
 
-
 get_privacy_list(LUser, LServer, Name) ->
-    try sql_get_privacy_list_id(LUser, LServer, Name) of
+    try execute_privacy_list_get_id(LServer, LUser, Name) of
         {selected, []} ->
             {error, not_found};
         {selected, [{ID}]} ->
@@ -121,10 +173,9 @@ get_privacy_list(LUser, LServer, Name) ->
     end.
 
 get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
-    try sql_get_privacy_list_data_by_id(ID, LServer) of
-        {selected, RItems} ->
-            Items = raw_to_items(RItems),
-            {ok, Items};
+    try execute_privacy_data_get_by_id(LServer, ID) of
+        {selected, Rows} ->
+            {ok, raw_to_items(Rows)};
         Other ->
             ?LOG_ERROR(#{what => privacy_get_privacy_list_by_id_failed,
                          user => LUser, server => LServer, list_name => Name, list_id => ID,
@@ -138,12 +189,9 @@ get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
             {error, Reason}
     end.
 
-raw_to_items(RItems) ->
-    lists:map(fun raw_to_item/1, RItems).
-
 %% @doc Set no default list for user.
 forget_default_list(LUser, LServer) ->
-    try sql_unset_default_privacy_list(LUser, LServer) of
+    try execute_privacy_default_delete(LServer, LUser) of
         {updated, _} ->
             ok;
         Other ->
@@ -159,8 +207,8 @@ forget_default_list(LUser, LServer) ->
     end.
 
 set_default_list(LUser, LServer, Name) ->
-    case rdbms_queries:sql_transaction(
-           LServer, fun() -> set_default_list_t(LUser, Name) end) of
+    F = fun() -> set_default_list_t(LServer, LUser, Name) end,
+    case rdbms_queries:sql_transaction(LServer, F) of
         {atomic, ok} ->
             ok;
         {atomic, {error, Reason}} ->
@@ -171,15 +219,14 @@ set_default_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
--spec set_default_list_t(LUser :: jid:luser(), Name :: binary()) -> ok | {error, not_found}.
-set_default_list_t(LUser, Name) ->
-    case sql_get_privacy_list_names_t(LUser) of
+set_default_list_t(LServer, LUser, Name) ->
+    case execute_privacy_list_get_names(LServer, LUser) of
         {selected, []} ->
             {error, not_found};
         {selected, Names} ->
             case lists:member({Name}, Names) of
                 true ->
-                    sql_set_default_privacy_list(LUser, Name),
+                    default_list_upsert(LServer, LUser, Name),
                     ok;
                 false ->
                     {error, not_found}
@@ -188,14 +235,12 @@ set_default_list_t(LUser, Name) ->
 
 remove_privacy_list(LUser, LServer, Name) ->
      F = fun() ->
-            case sql_get_default_privacy_list_t(LUser) of
-                {selected, []} ->
-                    sql_remove_privacy_list(LUser, Name),
-                    ok;
-                {selected, [{Name}]} ->
+            case execute_privacy_default_get_name(LServer, LUser) of
+                {selected, [{Name}]} -> %% Matches Name variable
                     {error, conflict};
-                {selected, [{_Default}]} ->
-                    sql_remove_privacy_list(LUser, Name)
+                {selected, _} ->
+                    execute_privacy_list_delete_by_name(LServer, LUser, Name),
+                    ok
             end
         end,
     case rdbms_queries:sql_transaction(LServer, F) of
@@ -210,18 +255,18 @@ remove_privacy_list(LUser, LServer, Name) ->
     end.
 
 replace_privacy_list(LUser, LServer, Name, List) ->
-    RItems = lists:map(fun item_to_raw/1, List),
+    Rows = lists:map(fun item_to_raw/1, List),
     F = fun() ->
-        ID = case sql_get_privacy_list_id_t(LUser, Name) of
+        ResultID = case execute_privacy_list_get_id(LServer, LUser, Name) of
             {selected, []} ->
-                sql_add_privacy_list(LUser, Name),
-                {selected, [{I}]} =
-                sql_get_privacy_list_id_t(LUser, Name),
+                execute_privacy_list_insert(LServer, LUser, Name),
+                {selected, [{I}]} = execute_privacy_list_get_id(LServer, LUser, Name),
                 I;
             {selected, [{I}]} ->
                 I
             end,
-        sql_set_privacy_list(mongoose_rdbms:result_to_integer(ID), RItems),
+        ID = mongoose_rdbms:result_to_integer(ResultID),
+        replace_data_rows(LServer, ID, Rows),
         ok
     end,
     case rdbms_queries:sql_transaction(LServer, F) of
@@ -234,58 +279,65 @@ replace_privacy_list(LUser, LServer, Name, List) ->
     end.
 
 remove_user(LUser, LServer) ->
-    sql_del_privacy_lists(LUser, LServer).
+    F = fun() -> remove_user_t(LUser, LServer) end,
+    rdbms_queries:sql_transaction(LServer, F).
 
+remove_user_t(LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_data_delete_user, [LUser]),
+    mongoose_rdbms:execute_successfully(LServer, privacy_list_delete_multiple, [LUser]),
+    mongoose_rdbms:execute_successfully(LServer, privacy_default_delete, [LUser]).
 
-raw_to_item({BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
-         BMatchMessage, BMatchPresenceIn, BMatchPresenceOut}) ->
-    {Type, Value} =
-    case BType of
-        <<"n">> ->
-        {none, none};
-        <<"j">> ->
-        case jid:from_binary(BValue) of
-            #jid{} = JID ->
-            {jid, jid:to_lower(JID)}
-        end;
-        <<"g">> ->
-        {group, BValue};
-        <<"s">> ->
-        case BValue of
-            <<"none">> ->
-            {subscription, none};
-            <<"both">> ->
-            {subscription, both};
-            <<"from">> ->
-            {subscription, from};
-            <<"to">> ->
-            {subscription, to}
-        end
-    end,
-    Action =
-    case BAction of
-        <<"a">> -> allow;
-        <<"d">> -> deny;
-        <<"b">> -> block
-    end,
-    Order = mongoose_rdbms:result_to_integer(BOrder),
-    MatchAll = mongoose_rdbms:to_bool(BMatchAll),
-    MatchIQ = mongoose_rdbms:to_bool(BMatchIQ),
-    MatchMessage = mongoose_rdbms:to_bool(BMatchMessage),
-    MatchPresenceIn = mongoose_rdbms:to_bool(BMatchPresenceIn),
-    MatchPresenceOut =  mongoose_rdbms:to_bool(BMatchPresenceOut),
+execute_privacy_list_get_id(LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_list_get_id, [LUser, Name]).
+
+execute_privacy_default_get_name(LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_default_get_name, [LUser]).
+
+execute_privacy_list_get_names(LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_list_get_names, [LUser]).
+
+execute_privacy_data_get_by_id(LServer, ID) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_data_get_by_id, [ID]).
+
+execute_privacy_default_delete(LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_default_delete, [LUser]).
+
+execute_privacy_list_delete_by_name(LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_list_delete_by_name, [LUser, Name]).
+
+execute_privacy_list_insert(LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(LServer, privacy_list_insert, [LUser, Name]).
+
+execute_delete_data_by_id(LServer, ID) ->
+    mongoose_rdbms:execute_successfully(LServer, delete_data_by_id, [ID]).
+
+replace_data_rows(LServer, ID, Rows) when is_integer(ID)->
+    execute_delete_data_by_id(LServer, ID),
+    [mongoose_rdbms:execute_successfully(LServer, privacy_data_insert, [ID|Args])
+     || Args <- Rows],
+    ok.
+
+%% Encoding/decoding pure functions
+
+raw_to_items(Rows) ->
+    [raw_to_item(Row) || Row <- Rows].
+
+raw_to_item({ExtType, ExtValue, ExtAction, ExtOrder,
+             ExtMatchAll, ExtMatchIQ, ExtMatchMessage,
+             ExtMatchPresenceIn, ExtMatchPresenceOut}) ->
+    Type = decode_type(mongoose_rdbms:character_to_integer(ExtType)),
     #listitem{type = Type,
-          value = Value,
-          action = Action,
-          order = Order,
-          match_all = MatchAll,
-          match_iq = MatchIQ,
-          match_message = MatchMessage,
-          match_presence_in = MatchPresenceIn,
-          match_presence_out = MatchPresenceOut
-         }.
+          value = decode_value(Type, ExtValue),
+          action = decode_action(mongoose_rdbms:character_to_integer(ExtAction)),
+          order = mongoose_rdbms:result_to_integer(ExtOrder),
+          match_all = mongoose_rdbms:to_bool(ExtMatchAll),
+          match_iq = mongoose_rdbms:to_bool(ExtMatchIQ),
+          match_message = mongoose_rdbms:to_bool(ExtMatchMessage),
+          match_presence_in = mongoose_rdbms:to_bool(ExtMatchPresenceIn),
+          match_presence_out = mongoose_rdbms:to_bool(ExtMatchPresenceOut)}.
 
--spec item_to_raw(mod_privacy:list_item()) -> list(mongoose_rdbms:escaped_value()).
+%% Encodes for privacy_data_insert query (but without ID)
+-spec item_to_raw(mod_privacy:list_item()) -> list(term()).
 item_to_raw(#listitem{type = Type,
               value = Value,
               action = Action,
@@ -294,98 +346,51 @@ item_to_raw(#listitem{type = Type,
               match_iq = MatchIQ,
               match_message = MatchMessage,
               match_presence_in = MatchPresenceIn,
-              match_presence_out = MatchPresenceOut
-             }) ->
-    {BType, BValue} =
-    case Type of
-        none ->
-        {<<"n">>, <<>>};
-        jid ->
-        {<<"j">>, jid:to_binary(Value)};
-        group ->
-        {<<"g">>, Value};
-        subscription ->
-        case Value of
-            none ->
-            {<<"s">>, <<"none">>};
-            both ->
-            {<<"s">>, <<"both">>};
-            from ->
-            {<<"s">>, <<"from">>};
-            to ->
-            {<<"s">>, <<"to">>}
-        end
-    end,
-    SType = mongoose_rdbms:escape_string(BType),
-    SValue = mongoose_rdbms:escape_string(BValue),
-    BAction =
-    case Action of
-        allow -> <<"a">>;
-        deny -> <<"d">>;
-        block -> <<"b">>
-    end,
-    SAction = mongoose_rdbms:escape_string(BAction),
-    SOrder = mongoose_rdbms:escape_integer(Order),
-    SMatchAll = mongoose_rdbms:escape_boolean(MatchAll),
-    SMatchIQ = mongoose_rdbms:escape_boolean(MatchIQ),
-    SMatchMessage = mongoose_rdbms:escape_boolean(MatchMessage),
-    SMatchPresenceIn = mongoose_rdbms:escape_boolean(MatchPresenceIn),
-    SMatchPresenceOut = mongoose_rdbms:escape_boolean(MatchPresenceOut),
-    [SType, SValue, SAction, SOrder, SMatchAll, SMatchIQ,
-     SMatchMessage, SMatchPresenceIn, SMatchPresenceOut].
+              match_presence_out = MatchPresenceOut}) ->
+    ExtType = encode_type(Type),
+    ExtValue = encode_value(Type, Value),
+    ExtAction = encode_action(Action),
+    Bools = [MatchAll, MatchIQ, MatchMessage, MatchPresenceIn, MatchPresenceOut],
+    ExtBools = [encode_boolean(X) || X <- Bools],
+    [ExtType, ExtValue, ExtAction, Order | ExtBools].
 
-sql_get_default_privacy_list(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:get_default_privacy_list(LServer, Username).
+encode_boolean(true) -> 1;
+encode_boolean(false) -> 0.
 
-sql_get_default_privacy_list_t(LUser) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:get_default_privacy_list_t(Username).
+encode_action(allow) -> <<"a">>;
+encode_action(deny)  -> <<"d">>;
+encode_action(block) -> <<"b">>.
 
-sql_get_privacy_list_names(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:get_privacy_list_names(LServer, Username).
+decode_action($a) -> allow;
+decode_action($d) -> deny;
+decode_action($b) -> block.
 
-sql_get_privacy_list_names_t(LUser) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:get_privacy_list_names_t(Username).
+encode_subscription(none) -> <<"none">>;
+encode_subscription(both) -> <<"both">>;
+encode_subscription(from) -> <<"from">>;
+encode_subscription(to)   -> <<"to">>.
 
-sql_get_privacy_list_id(LUser, LServer, Name) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    SName = mongoose_rdbms:escape_string(Name),
-    rdbms_queries:get_privacy_list_id(LServer, Username, SName).
+decode_subscription(<<"none">>) -> none;
+decode_subscription(<<"both">>) -> both;
+decode_subscription(<<"from">>) -> from;
+decode_subscription(<<"to">>)   -> to.
 
-sql_get_privacy_list_id_t(LUser, Name) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    SName = mongoose_rdbms:escape_string(Name),
-    rdbms_queries:get_privacy_list_id_t(Username, SName).
+encode_type(none)         -> <<"n">>;
+encode_type(jid)          -> <<"j">>;
+encode_type(group)        -> <<"g">>;
+encode_type(subscription) -> <<"s">>.
 
-sql_get_privacy_list_data_by_id(ID, LServer) when is_integer(ID) ->
-    rdbms_queries:get_privacy_list_data_by_id(LServer, mongoose_rdbms:escape_integer(ID)).
+decode_type($n) -> none;
+decode_type($j) -> jid;
+decode_type($g) -> group;
+decode_type($s) -> subscription.
 
-sql_set_default_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    SName = mongoose_rdbms:escape_string(Name),
-    rdbms_queries:set_default_privacy_list(Username, SName).
+encode_value(none, _Value)          -> <<>>;
+encode_value(jid, Value)            -> jid:to_binary(Value);
+encode_value(group, Value)          -> Value;
+encode_value(subscription, Value)   -> encode_subscription(Value).
 
-sql_unset_default_privacy_list(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    rdbms_queries:unset_default_privacy_list(LServer, Username).
-
-sql_remove_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    SName = mongoose_rdbms:escape_string(Name),
-    rdbms_queries:remove_privacy_list(Username, SName).
-
-sql_add_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    SName = mongoose_rdbms:escape_string(Name),
-    rdbms_queries:add_privacy_list(Username, SName).
-
-sql_set_privacy_list(ID, RItems) when is_integer(ID)->
-    rdbms_queries:set_privacy_list(mongoose_rdbms:escape_integer(ID), RItems).
-
-sql_del_privacy_lists(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    Server = mongoose_rdbms:escape_string(LServer),
-    rdbms_queries:del_privacy_lists(LServer, Server, Username).
+decode_value(none, _)               -> none;
+decode_value(jid, BinJid)           -> jid:to_lower(jid:from_binary(BinJid));
+decode_value(group, Group)          -> Group;
+decode_value(subscription, ExtSub)  -> decode_subscription(ExtSub).
