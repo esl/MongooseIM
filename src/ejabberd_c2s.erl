@@ -772,9 +772,9 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{user = U, server = S} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{jid = JID, user = U, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, U),
+    Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, JID),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
@@ -1978,7 +1978,7 @@ presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData)
                   Acc3 = mongoose_hooks:roster_get_subscription_lists(
                                                  StateData#state.server,
                                                  Acc2,
-                                                 StateData#state.user),
+                                                 StateData#state.jid),
                   {_, _, Pending} = mongoose_acc:get(roster, subscription_lists,
                                                      {[], [], []}, Acc3),
                   Acc4 = resend_offline_messages(Acc3, StateData),
@@ -2054,12 +2054,10 @@ presence_track(Acc, StateData) ->
                                               StateData :: state()) -> mongoose_acc:t().
 process_presence_subscription_and_route(Acc, Type, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    User = StateData#state.user,
     Server = StateData#state.server,
     To = mongoose_acc:to_jid(Acc),
-    Acc1 = mongoose_hooks:roster_out_subscription(Server,
-                                                  Acc,
-                                                  User, To, Type),
+    Acc1 = mongoose_hooks:roster_out_subscription(
+             Server, Acc, From, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),

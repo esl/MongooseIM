@@ -337,13 +337,12 @@ parse_from_to(F, T) ->
     end.
 
 list_contacts(Caller) ->
-    CallerJID = jid:from_binary(Caller),
+    CallerJID = #jid{lserver = LServer} = jid:from_binary(Caller),
     Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                               lserver => CallerJID#jid.lserver,
+                               lserver => LServer,
                                element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    {User, Host} = jid:to_lus(CallerJID),
-    Acc2 = mongoose_hooks:roster_get(Host, Acc1, User, Host),
+    Acc2 = mongoose_hooks:roster_get(LServer, Acc1, CallerJID),
     Res = mongoose_acc:get(roster, items, Acc2),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
@@ -495,17 +494,15 @@ decode_action(_) -> error.
 run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
     El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
+    LServer = CallerJid#jid.lserver,
     Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
                                from_jid => CallerJid,
                                to_jid => OtherJid,
-                               lserver => CallerJid#jid.lserver,
+                               lserver => LServer,
                                element => El }),
     % set subscription to
-    Server = CallerJid#jid.server,
-    LUser = CallerJid#jid.luser,
-    Acc2 = mongoose_hooks:roster_out_subscription(Server,
-                                                  Acc1,
-                                                  LUser, OtherJid, Type),
+    Acc2 = mongoose_hooks:roster_out_subscription(
+             LServer, Acc1, CallerJid, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

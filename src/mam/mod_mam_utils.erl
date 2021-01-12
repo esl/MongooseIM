@@ -1083,10 +1083,10 @@ send_message(From, To, Mess) ->
 
 
 -spec is_jid_in_user_roster(jid:jid(), jid:jid()) -> boolean().
-is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
+is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,
                       #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
-    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, LUser, RemBareJID),
+    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, ToJID, RemBareJID),
     Subscription == from orelse Subscription == both.
 
 

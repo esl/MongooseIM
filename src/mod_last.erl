@@ -150,9 +150,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     User = To#jid.luser,
     Server = To#jid.lserver,
     {Subscription, _Groups} =
-    mongoose_hooks:roster_get_jid_info(Server,
-                                       {none, []},
-                                       User, From),
+        mongoose_hooks:roster_get_jid_info(Server, {none, []}, To, From),
     MutualSubscription = Subscription == both,
     RequesterSubscribedToTarget = Subscription == from,
     QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and

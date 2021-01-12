@@ -39,9 +39,9 @@
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--export([get_user_roster/2, get_subscription_lists/3,
-         get_jid_info/4, process_item/2, in_subscription/6,
-         out_subscription/5]).
+-export([get_user_roster/2, get_subscription_lists/2,
+         get_jid_info/3, process_item/2, in_subscription/5,
+         out_subscription/4]).
 
 -export([config_change/4]).
 
@@ -107,7 +107,8 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 %% Hooks
 %%--------------------------------------------------------------------
-get_user_roster(Acc, {U, S} = US) ->
+get_user_roster(Acc, #jid{luser = U, lserver = S} = JID) ->
+    US = jid:to_lus(JID),
     Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
@@ -148,11 +149,9 @@ process_item(RosterItem, _Host) ->
         _ -> RosterItem#roster{subscription = both, ask = none}
     end.
 
-get_subscription_lists(Acc, User, Server) ->
+get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
     {F, T, P} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc),
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    US = {LUser, LServer},
+    US = jid:to_lus(JID),
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(fun (Group) ->
                                                 get_group_users(LServer, Group)
@@ -162,13 +161,10 @@ get_subscription_lists(Acc, User, Server) ->
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
     mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
 
-get_jid_info({Subscription, Groups}, User, Server, JID) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    US = {LUser, LServer},
-    {U1, S1, _} = jid:to_lower(JID),
-    US1 = {U1, S1},
-    SRUsers = get_user_to_groups_map(US, false),
+get_jid_info({Subscription, Groups}, ToJID, JID) ->
+    ToUS = jid:to_lus(ToJID),
+    US1 = jid:to_lus(JID),
+    SRUsers = get_user_to_groups_map(ToUS, false),
     case dict:find(US1, SRUsers) of
         {ok, GroupNames} ->
             NewGroups = case Groups of
@@ -180,14 +176,13 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
     end.
 
 -spec in_subscription(Acc:: mongoose_acc:t(),
-                      User :: binary(),
-                      Server :: binary(),
-                      JID ::jid:jid(),
+                      ToJID :: jid:jid(),
+                      FromJID :: jid:jid(),
                       Type :: mod_roster:sub_presence(),
                       _Reason :: any()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
-in_subscription(Acc, User, Server, JID, Type, _Reason) ->
-    case process_subscription(in, User, Server, JID, Type) of
+in_subscription(Acc, ToJID, FromJID, Type, _Reason) ->
+    case process_subscription(in, ToJID, FromJID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
@@ -196,13 +191,12 @@ in_subscription(Acc, User, Server, JID, Type, _Reason) ->
     end.
 
 -spec out_subscription(Acc:: mongoose_acc:t(),
-                      User :: binary(),
-                      Server :: binary(),
-                      JID ::jid:jid(),
-                      Type :: mod_roster:sub_presence()) ->
+                       FromJID :: jid:jid(),
+                       ToJID ::jid:jid(),
+                       Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
-out_subscription(Acc, User, Server, JID, Type) ->
-    case process_subscription(out, User, Server, JID, Type) of
+out_subscription(Acc, FromJID, ToJID, Type) ->
+    case process_subscription(out, FromJID, ToJID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
@@ -210,11 +204,9 @@ out_subscription(Acc, User, Server, JID, Type) ->
          false -> Acc
     end.
 
-process_subscription(Direction, User, Server, JID, _Type) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+process_subscription(Direction, #jid{luser = LUser, lserver = LServer}, ToJID, _Type) ->
     US = {LUser, LServer},
-    {U1, S1, _} = jid:to_lower(jid:to_bare(JID)),
+    {U1, S1, _} = jid:to_lower(jid:to_bare(ToJID)),
     US1 = {U1, S1},
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(
