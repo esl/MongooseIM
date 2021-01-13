@@ -86,10 +86,10 @@ gen_user() ->
 
 old_password_to_scram(Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(16),
-    SaltedPassword = mongoose_scram:salted_password(sha, Password, Salt, IterationCount),
-    ClientKey = mongoose_scram:client_key(sha, SaltedPassword),
-    StoredKey = mongoose_scram:stored_key(sha, ClientKey),
-    ServerKey = mongoose_scram:server_key(sha, SaltedPassword),
+    SaltedPassword = fast_scram:salted_password(sha, jid:resourceprep(Password), Salt, IterationCount),
+    ClientKey = fast_scram:client_key(sha, SaltedPassword),
+    StoredKey = fast_scram:stored_key(sha, ClientKey),
+    ServerKey = fast_scram:server_key(sha, SaltedPassword),
     #scram{storedkey = base64:encode(StoredKey),
            serverkey = base64:encode(ServerKey),
            salt = base64:encode(Salt),
