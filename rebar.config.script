@@ -84,5 +84,5 @@ MaybeFIPSSupport = fun(Config) ->
     end
 end,
 
-Config1 = SetupIncludedApps(CONFIG, EnvApps),
-MaybeFIPSSupport(Config1).
+Config0 = SetupIncludedApps(CONFIG, EnvApps),
+MaybeFIPSSupport(Config0).

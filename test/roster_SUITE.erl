@@ -139,7 +139,7 @@ get_roster_old(User) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
                               element => undefined }),
-    Acc1 = mod_roster:get_user_roster(Acc, {User, host()}),
+    Acc1 = mod_roster:get_user_roster(Acc, jid:make(User, host(), <<>>)),
     mongoose_acc:get(roster, items, Acc1).
 
 get_full_roster() ->
@@ -147,7 +147,7 @@ get_full_roster() ->
                               lserver => <<"localhost">>,
                               element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Acc2 = mod_roster:get_user_roster(Acc1, {a(), host()}),
+    Acc2 = mod_roster:get_user_roster(Acc1, alice_jid()),
     mongoose_acc:get(roster, items, Acc2).
 
 assert_state_old(Subscription, Ask) ->

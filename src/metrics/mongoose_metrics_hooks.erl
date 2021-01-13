@@ -27,7 +27,7 @@
          roster_get/2,
          roster_set/4,
          roster_push/3,
-         roster_in_subscription/6,
+         roster_in_subscription/5,
          register_user/3,
          remove_user/3,
          privacy_iq_get/5,
@@ -156,9 +156,9 @@ xmpp_send_element(Acc, _El) ->
 
 %% Roster
 
--spec roster_get(list(), {_, jid:server()}) -> list().
-roster_get(Acc, {_, Server}) ->
-    mongoose_metrics:update(Server, modRosterGets, 1),
+-spec roster_get(list(), jid:jid()) -> list().
+roster_get(Acc, #jid{lserver = LServer}) ->
+    mongoose_metrics:update(LServer, modRosterGets, 1),
     Acc.
 
 -spec roster_set(Acc :: map(), JID :: jid:jid(), tuple(), tuple()) ->
@@ -167,14 +167,14 @@ roster_set(Acc, #jid{server = Server}, _, _) ->
     mongoose_metrics:update(Server, modRosterSets, 1),
     Acc.
 
--spec roster_in_subscription(term(), binary(), binary(), tuple(), atom(), term()) -> term().
-roster_in_subscription(Acc, _, Server, _, subscribed, _) ->
-    mongoose_metrics:update(Server, modPresenceSubscriptions, 1),
+-spec roster_in_subscription(term(), jid:jid(), jid:jid(), atom(), term()) -> term().
+roster_in_subscription(Acc, #jid{lserver = LServer}, _, subscribed, _) ->
+    mongoose_metrics:update(LServer, modPresenceSubscriptions, 1),
     Acc;
-roster_in_subscription(Acc, _, Server, _, unsubscribed, _) ->
-    mongoose_metrics:update(Server, modPresenceUnsubscriptions, 1),
+roster_in_subscription(Acc, #jid{lserver = LServer}, _, unsubscribed, _) ->
+    mongoose_metrics:update(LServer, modPresenceUnsubscriptions, 1),
     Acc;
-roster_in_subscription(Acc, _, _, _, _, _) ->
+roster_in_subscription(Acc, _, _, _, _) ->
     Acc.
 
 -spec roster_push(map(), jid:jid(), term()) -> metrics_notify_return().

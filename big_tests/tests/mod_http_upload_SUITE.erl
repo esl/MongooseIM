@@ -1,6 +1,5 @@
 -module(mod_http_upload_SUITE).
 
--compile(export_all).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -8,7 +7,6 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(NS_XDATA, <<"jabber:x:data">>).
--define(NS_HTTP_UPLOAD_025, <<"urn:xmpp:http:upload">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
 
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
@@ -30,6 +28,32 @@
             {secret_access_key, "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"}
         ]}
     ]).
+
+-export([all/0, groups/0, suite/0,
+	 init_per_suite/1, end_per_suite/1,
+	 init_per_group/2, end_per_group/2,
+	 init_per_testcase/2, end_per_testcase/2]).
+
+-export([
+	 does_not_advertise_max_size_if_unset/1,
+
+	 test_minio_upload_without_content_type/1,
+	 test_minio_upload_with_content_type/1,
+
+	 http_upload_item_discovery/1,
+	 http_upload_feature_discovery/1,
+	 advertises_max_file_size/1,
+	 request_slot/1,
+	 rejects_set_iq/1,
+	 get_url_ends_with_filename/1,
+	 urls_contain_s3_hostname/1,
+	 rejects_empty_filename/1,
+	 rejects_negative_filesize/1,
+	 rejects_invalid_size_type/1,
+	 denies_slots_over_max_file_size/1,
+	 sends_different_put_and_get_urls/1,
+	 escapes_urls_once/1
+	]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -81,14 +105,14 @@ init_per_group(unset_size, Config) ->
     dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(real_upload_without_acl, Config) ->
-    case is_minio_running(Config) of
+    case mongoose_helper:should_minio_be_running(Config) of
         true ->
             dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(false)),
             escalus:create_users(Config, escalus:get_users([bob]));
         false -> {skip, "minio is not running"}
     end;
 init_per_group(real_upload_with_acl, Config) ->
-    case is_minio_running(Config) of
+    case mongoose_helper:should_minio_be_running(Config) of
         true ->
             dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(true)),
             [{with_acl, true} | escalus:create_users(Config, escalus:get_users([bob]))];
@@ -123,26 +147,26 @@ http_upload_item_discovery(Config) ->
       end).
 
 http_upload_feature_discovery(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = escalus_client:server(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-              escalus:assert(fun has_no_feature/2, [Namespace], Result),
+              escalus:assert(fun has_no_feature/2, [ns()], Result),
               SubServJID = upload_service(Bob),
               SubResult = escalus:send_and_wait(Bob, escalus_stanza:disco_info(SubServJID)),
-              escalus:assert(has_feature, [Namespace], SubResult)
+              escalus:assert(has_feature, [ns()], SubResult)
       end).
 
 advertises_max_file_size(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
               Forms = exml_query:paths(Result, [{element, <<"query">>}, {element, <<"x">>}]),
               [Form] = lists:filter(
-                         fun(F) -> has_field(<<"FORM_TYPE">>, <<"hidden">>, Namespace, F) end,
+                         fun(F) -> has_field(<<"FORM_TYPE">>, <<"hidden">>, ns(), F) end,
                          Forms),
 
               escalus:assert(has_type, [<<"result">>], Form),
@@ -160,50 +184,48 @@ does_not_advertise_max_size_if_unset(Config) ->
       end).
 
 rejects_set_iq(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              IQ = escalus_stanza:iq_set(Namespace, []),
+              IQ = escalus_stanza:iq_set(ns(), []),
               Request = escalus_stanza:to(IQ, ServJID),
               Result = escalus:send_and_wait(Bob, Request),
               escalus_assert:is_error(Result, <<"cancel">>, <<"not-allowed">>)
       end).
 
 request_slot(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
-                                                   undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus:assert(is_iq_result, Result),
-              escalus:assert(fun has_namespace/2, [Namespace], Result),
-              escalus:assert(fun has_put_and_get_fields/2, [Namespace], Result)
+              escalus:assert(fun has_upload_namespace/1, Result),
+              escalus:assert(fun has_put_and_get_fields/1, Result)
       end).
 
 get_url_ends_with_filename(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
               Filename = <<"filename.jpg">>,
-              Request = create_slot_request_stanza(ServJID, Filename, 123, undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, Filename, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun path_ends_with/4, [<<"get">>, Filename, Namespace], Result)
+              escalus:assert(fun path_ends_with/3, [<<"get">>, Filename], Result)
       end).
 
 urls_contain_s3_hostname(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
-                                                   undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun url_contains/4, [<<"get">>, <<?S3_HOSTNAME>>, Namespace], Result),
-              escalus:assert(fun url_contains/4, [<<"put">>, <<?S3_HOSTNAME>>, Namespace], Result)
+              escalus:assert(fun url_contains/3, [<<"get">>, <<?S3_HOSTNAME>>], Result),
+              escalus:assert(fun url_contains/3, [<<"put">>, <<?S3_HOSTNAME>>], Result)
       end).
 
 test_minio_upload_without_content_type(Config) ->
@@ -213,16 +235,15 @@ test_minio_upload_with_content_type(Config) ->
     test_minio_upload(Config, <<"text/plain">>).
 
 test_minio_upload(Config, ContentType) ->
-    namespaced_story(
+    escalus:story(
         Config, [{bob, 1}],
-        fun(Namespace, Bob) ->
+        fun(Bob) ->
             ServJID = upload_service(Bob),
             FileSize = length(?MINIO_TEST_DATA),
-            Request = create_slot_request_stanza(ServJID, <<"somefile.txt">>, FileSize,
-                                                 ContentType, Namespace),
+            Request = create_slot_request_stanza(ServJID, <<"file.txt">>, FileSize, ContentType),
             Result = escalus:send_and_wait(Bob, Request),
-            GetUrl = binary_to_list(extract_url(Result, <<"get">>, Namespace)),
-            PutUrl = binary_to_list(extract_url(Result, <<"put">>, Namespace)),
+            GetUrl = binary_to_list(extract_url(Result, <<"get">>)),
+            PutUrl = binary_to_list(extract_url(Result, <<"put">>)),
             Header = generate_header(Config, ContentType),
             PutRetValue = ibrowse:send_req(PutUrl, Header, put, ?MINIO_TEST_DATA),
             ?assertMatch({ok, "200", _, []}, PutRetValue),
@@ -241,44 +262,41 @@ generate_header(Config, ContentType) ->
     [{<<"Content-Type">>, ContentType} | generate_header(Config, undefined)].
 
 rejects_empty_filename(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<>>, 123, undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<>>, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
       end).
 
 rejects_negative_filesize(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, -1,
-                                                   undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, -1, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
       end).
 
 rejects_invalid_size_type(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>,
-                                                   <<"filesize">>, undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"a.jpg">>, <<"filesize">>, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus_assert:is_error(Result, <<"modify">>, <<"bad-request">>)
       end).
 
 denies_slots_over_max_file_size(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 54321,
-                                                   undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 54321, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Result),
               <<"1234">> = exml_query:path(Result, [{element, <<"error">>},
@@ -288,105 +306,79 @@ denies_slots_over_max_file_size(Config) ->
       end).
 
 sends_different_put_and_get_urls(Config) ->
-    namespaced_story(
+    escalus:story(
      Config, [{bob, 1}],
-     fun(Namespace, Bob) ->
+     fun(Bob) ->
              ServJID = upload_service(Bob),
-             Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
-                                                  undefined, Namespace),
+             Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123, undefined),
              Result = escalus:send_and_wait(Bob, Request),
-             escalus:assert(fun urls_not_equal/2, [Namespace], Result)
+             escalus:assert(fun urls_not_equal/1, Result)
      end).
 
 escapes_urls_once(Config) ->
-    namespaced_story(
+    escalus:story(
       Config, [{bob, 1}],
-      fun(Namespace, Bob) ->
+      fun(Bob) ->
               ServJID = upload_service(Bob),
-              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123,
-                                                   undefined, Namespace),
+              Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun url_contains/4, [<<"put">>, <<"%3Bx-amz-acl">>, Namespace], Result)
+              escalus:assert(fun url_contains/3, [<<"put">>, <<"%3Bx-amz-acl">>], Result)
       end).
 
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
-is_minio_running(Config) ->
-    case proplists:get_value(preset, Config, undefined) of
-        undefined -> false;
-        Preset ->
-            PresetAtom = list_to_existing_atom(Preset),
-            DBs = ct:get_config({ejabberd_presets, PresetAtom, dbs}, []),
-            lists:member(minio, DBs)
-    end.
-
-create_slot_request_stanza(Server, Filename, Size, ContentType, Namespace) when is_integer(Size) ->
-    create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType, Namespace);
-create_slot_request_stanza(Server, Filename, BinSize, ContentType, Namespace) ->
+create_slot_request_stanza(Server, Filename, Size, ContentType) when is_integer(Size) ->
+    create_slot_request_stanza(Server, Filename, integer_to_binary(Size), ContentType);
+create_slot_request_stanza(Server, Filename, BinSize, ContentType) ->
     #xmlel{name     = <<"iq">>,
            attrs    = [{<<"type">>, <<"get">>}, {<<"to">>, Server}],
-           children = [create_request_for_namespace(Filename, BinSize, ContentType, Namespace)]}.
+           children = [create_request_element(Filename, BinSize, ContentType)]}.
 
-create_request_for_namespace(Filename, BinSize, ContentType, Namespace = ?NS_HTTP_UPLOAD_025) ->
-    ContentTypeEl =
-        case ContentType of
-            undefined -> [];
-            _ -> [#xmlel{name = <<"content-type">>, children = [#xmlcdata{content = ContentType}]}]
-        end,
-    #xmlel{name     = <<"request">>,
-           attrs    = [{<<"xmlns">>, Namespace}],
-           children =
-               [#xmlel{name = <<"filename">>, children = [#xmlcdata{content = Filename}]},
-                #xmlel{name = <<"size">>, children = [#xmlcdata{content = BinSize}]}
-                | ContentTypeEl]};
-create_request_for_namespace(Filename, BinSize, ContentType, Namespace = ?NS_HTTP_UPLOAD_030) ->
+create_request_element(Filename, BinSize, ContentType) ->
     ContentTypeEl = case ContentType of
                         undefined -> [];
                         _ -> [{<<"content-type">>, ContentType}]
                     end,
     #xmlel{name  = <<"request">>,
-           attrs = [{<<"xmlns">>, Namespace},
+           attrs = [{<<"xmlns">>, ?NS_HTTP_UPLOAD_030},
                     {<<"filename">>, Filename},
                     {<<"size">>, BinSize}
                     | ContentTypeEl]}.
 
-has_namespace(Namespace, #xmlel{name = <<"iq">>, children = [Slot]}) ->
-    case Slot of
-        #xmlel{name = <<"slot">>, attrs = [{<<"xmlns">>, Namespace}]} -> true;
-        _ -> false
-    end;
-has_namespace(_Namespace, _) ->
+has_upload_namespace(#xmlel{name = <<"iq">>, children = [#xmlel{ name = <<"slot">> } = Slot]}) ->
+    ?NS_HTTP_UPLOAD_030 == exml_query:attr(Slot, <<"xmlns">>);
+has_upload_namespace(_) ->
     false.
 
 has_no_feature(Feature, Stanza) ->
     not escalus_pred:has_feature(Feature, Stanza).
 
-has_put_and_get_fields(Namespace, Elem = #xmlel{name = <<"iq">>}) ->
-    PutUrl = extract_url(Elem, <<"put">>, Namespace),
-    GetUrl = extract_url(Elem, <<"get">>, Namespace),
+has_put_and_get_fields(Elem = #xmlel{name = <<"iq">>}) ->
+    PutUrl = extract_url(Elem, <<"put">>),
+    GetUrl = extract_url(Elem, <<"get">>),
     is_binary(PutUrl) andalso is_binary(GetUrl)
         andalso byte_size(PutUrl) > 0 andalso byte_size(GetUrl) > 0;
-has_put_and_get_fields(_Namespace, _Elem) ->
+has_put_and_get_fields(_Elem) ->
     false.
 
-path_ends_with(UrlType, Filename, Namespace, Result) ->
-    Url = extract_url(Result, UrlType, Namespace),
-    {ok, {_, _, _, _, PathList, _}} = http_uri:parse(binary_to_list(Url)),
+path_ends_with(UrlType, Filename, Result) ->
+    Url = extract_url(Result, UrlType),
+    #{ path := Path } = uri_string:parse(Url),
     FilenameSize = byte_size(Filename),
     ReverseFilename = reverse(Filename),
-    case reverse(PathList) of
+    case reverse(Path) of
         <<ReverseFilename:FilenameSize/binary, _/binary>> -> true;
         _ -> false
     end.
 
-url_contains(UrlType, Filename, Namespace, Result) ->
-    Url = extract_url(Result, UrlType, Namespace),
+url_contains(UrlType, Filename, Result) ->
+    Url = extract_url(Result, UrlType),
     binary:match(Url, Filename) =/= nomatch.
 
-urls_not_equal(Namespace, Result) ->
-    Get = extract_url(Result, <<"get">>, Namespace),
-    Put = extract_url(Result, <<"put">>, Namespace),
+urls_not_equal(Result) ->
+    Get = extract_url(Result, <<"get">>),
+    Put = extract_url(Result, <<"put">>),
     Get =/= Put.
 
 reverse(List) when is_list(List) ->
@@ -412,14 +404,8 @@ has_field(Var, Type, Value, Form) ->
 host() ->
     ct:get_config({hosts, mim, domain}).
 
-extract_url(Result, UrlType, ?NS_HTTP_UPLOAD_025) ->
-    exml_query:path(Result, [{element, <<"slot">>}, {element, UrlType}, cdata]);
-extract_url(Result, UrlType, ?NS_HTTP_UPLOAD_030) ->
+extract_url(Result, UrlType) ->
     exml_query:path(Result, [{element, <<"slot">>}, {element, UrlType}, {attr, <<"url">>}]).
 
-namespaced_story(Config, Users, Story) ->
-    lists:foreach(
-      fun(Namespace) ->
-              escalus:story(Config, Users, fun(User) -> Story(Namespace, User) end)
-      end,
-      [?NS_HTTP_UPLOAD_025, ?NS_HTTP_UPLOAD_030]).
+ns() -> ?NS_HTTP_UPLOAD_030.
+

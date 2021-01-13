@@ -9,7 +9,8 @@
     acc_is_preserved/1,
     chars_limited/1,
     format_depth_limited/1,
-    json_depth_limited/1
+    json_depth_limited/1,
+    large_event_dont_crash_formatter/1
 ]).
 
 -import(logger_helper, [filter_out_non_matching/2, get_at_least_n_log_lines/3, get_log/1]).
@@ -29,7 +30,8 @@ all() ->
         acc_is_preserved,
         chars_limited,
         format_depth_limited,
-        json_depth_limited
+        json_depth_limited,
+        large_event_dont_crash_formatter
     ].
 
 init_per_testcase(acc_is_preserved, Config) ->
@@ -328,6 +330,17 @@ json_depth_limited(Config) ->
                    <<"deep_list">> := ShortenedList},
                  Decoded).
 
+large_event_dont_crash_formatter(_Config) ->
+
+    ?LOG_INFO(#{what => large_log,
+                large_log_msg => large_log_msg()}),
+
+    DidFormatterCrash = is_in_file(?LOGFILE,
+                                   "[0-9\\+\\-T:\\.]* info: FORMATTER CRASH: .*",
+                                   timer:seconds(1)),
+
+    ?assertMatch(DidFormatterCrash, false).
+
 %%
 %% Helpers
 %%
@@ -386,3 +399,76 @@ deep_list(1, Content) ->
     [Content];
 deep_list(N, Content) ->
     [deep_list(N-1, Content)].
+
+is_in_file(FileName, Pattern, Time) when Time > 0 ->
+    case file:read_file(FileName) of
+        {ok, Bin} ->
+            case re:run(Bin,Pattern,[{capture,none}]) of
+                match ->
+                    true;
+                _ ->
+                    timer:sleep(100),
+                    is_in_file(FileName, Pattern, Time-100)
+            end;
+        Error ->
+            erlang:error(Error)
+    end;
+is_in_file(_FileName, _Pattern, _Time) ->
+    false.
+
+large_log_msg() ->
+    "These violent delights have violent ends " ++
+    "And in their triumph die, like fire and powder, " ++
+    "Which, as they kiss, consume. The sweetest honey" ++
+    "Is loathsome in his own deliciousness " ++
+    "And in the taste confounds the appetite. " ++
+    "Therefore love moderately: long love doth so; " ++
+    "Too swift arrives as tardy as too slow. " ++
+    "Rom. In faith, I will. Let me peruse this face. " ++
+    "Mercutio's kinsman, noble County Paris! " ++
+    "What said my man when my betossed soul " ++
+    "Did not attend him as we rode? I think " ++
+    "He told me Paris should have married Juliet. " ++
+    "Said he not so? or did I dream it so? " ++
+    "Or am I mad, hearing him talk of Juliet " ++
+    "To think it was so? O, give me thy hand, " ++
+    "One writ with me in sour misfortune's book! " ++
+    "I'll bury thee in a triumphant grave. " ++
+    "A grave? O, no, a lanthorn, slaught'red youth, " ++
+    "For here lies Juliet, and her beauty makes " ++
+    "This vault a feasting presence full of light. " ++
+    "Death, lie thou there, by a dead man interr'd. " ++
+    "                                     [Lays him in the tomb.]" ++
+    "How oft when men are at the point of death " ++
+    "Have they been merry! which their keepers call " ++
+    "A lightning before death. O, how may I " ++
+    "Call this a lightning? O my love! my wife! " ++
+    "Death, that hath suck'd the honey of thy breath," ++
+    "Hath had no power yet upon thy beauty. " ++
+    "Thou art not conquer'd. Beauty's ensign yet " ++
+    "Is crimson in thy lips and in thy cheeks, " ++
+    "And death's pale flag is not advanced there. " ++
+    "Tybalt, liest thou there in thy bloody sheet? " ++
+    "O, what more favour can I do to thee " ++
+    "Than with that hand that cut thy youth in twain " ++
+    "To sunder his that was thine enemy? " ++
+    "Forgive me, cousin.' Ah, dear Juliet, " ++
+    "Why art thou yet so fair? Shall I believe " ++
+    "That unsubstantial Death is amorous, " ++
+    "And that the lean abhorred monster keeps " ++
+    "Thee here in dark to be his paramour? " ++
+    "For fear of that I still will stay with thee " ++
+    "And never from this palace of dim night " ++
+    "Depart again. Here, here will I remain " ++
+    "With worms that are thy chambermaids. O, here " ++
+    "Will I set up my everlasting rest " ++
+    "And shake the yoke of inauspicious stars " ++
+    "From this world-wearied flesh. Eyes, look your last!" ++
+    "Arms, take your last embrace! and, lips, O you " ++
+    "The doors of breath, seal with a righteous kiss " ++
+    "A dateless bargain to engrossing death! " ++
+    "Come, bitter conduct; come, unsavoury guide! " ++
+    "Thou desperate pilot, now at once run on " ++
+    "The dashing rocks thy seasick weary bark! " ++
+    "Here's to my love! [Drinks.] O true apothecary! " ++
+    "Thy drugs are quick. Thus with a kiss I die.".
