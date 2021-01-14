@@ -36,6 +36,7 @@ nav:
       - '3.6.0 to 3.7.0': 'migrations/3.6.0_3.7.0.md'
       - '3.7.0 to 4.0.0': 'migrations/3.7.0_4.0.0.md'
       - '4.0.0 to 4.0.1': 'migrations/4.0.0_4.0.1.md'
+      - '4.0.1 to 4.x.x': 'migrations/4.0.1_4.x.x.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - Platform:
       - 'Contributions to ecosystem': 'Contributions.md'
