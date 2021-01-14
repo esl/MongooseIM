@@ -509,7 +509,7 @@ is_finished(_Req = #request{action = #read_action{}}, Result) ->
                         {abort, AbortReason :: term(), worker_state()} |
                         {retry, Timeout :: non_neg_integer(), worker_state()}.
 retry_info(_, _, #request{retry_left = 0} = _Req, State) ->
-    {abort, retry_limit_exeeded, State};
+    {abort, retry_limit_exceeded, State};
 retry_info({down, cqerl_client}, _Reason, _Req, State) ->
     {retry, 5 + rand:uniform(20), State};
 retry_info(cqerl_error, {16#1100 = _WriteTimout, _, _}, _Req, State) ->
