@@ -13,7 +13,9 @@ start(Host, Tag, WpoolOptsIn, CqerlOpts) ->
     PoolSize = proplists:get_value(workers, WpoolOptsIn, 20),
     application:set_env(cqerl, num_clients, PoolSize),
     ExtConfig = extend_config(CqerlOpts),
-    Res = cqerl_cluster:add_nodes(Tag, proplists:get_value(servers, ExtConfig), ExtConfig),
+    Servers = proplists:get_value(servers, ExtConfig),
+    set_cluster_config(Tag, Servers, ExtConfig),
+    Res = cqerl_cluster:add_nodes(Tag, Servers, ExtConfig),
     case lists:keyfind(error, 1, Res) of
         false ->
             ok;
@@ -38,3 +40,9 @@ extend_config(PoolConfig) ->
     ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
     maps:to_list(ConfigMap).
 
+%% make the config survive the restart of 'cqerl_cluster' in case of a network failure
+set_cluster_config(Tag, Servers, ExtConfig) ->
+    Clusters = application:get_env(cqerl, cassandra_clusters, []),
+    ClusterConfig = {Tag, {Servers, ExtConfig}},
+    NewClusters = lists:keystore(Tag, 1, Clusters, ClusterConfig),
+    application:set_env(cqerl, cassandra_clusters, NewClusters).
