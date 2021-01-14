@@ -771,14 +771,14 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{jid = JID, user = U, server = S} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{jid = JID, server = S} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, JID),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
-    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, U),
+    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, JID),
     SID = ejabberd_sm:make_new_sid(),
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
@@ -2107,7 +2107,7 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
 privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
                                           StateData#state.server,
-                                          StateData#state.user,
+                                          StateData#state.jid,
                                           StateData#state.privacy_list,
                                           To,
                                           Dir).
@@ -2121,7 +2121,7 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet({Acc, Packet},
                                           StateData#state.server,
-                                          StateData#state.user,
+                                          StateData#state.jid,
                                           StateData#state.privacy_list,
                                           From,
                                           To,

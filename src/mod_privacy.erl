@@ -34,8 +34,8 @@
          stop/1,
          process_iq_set/4,
          process_iq_get/5,
-         get_user_list/3,
-         check_packet/6,
+         get_user_list/2,
+         check_packet/5,
          remove_user/3,
          updated_list/3]).
 
@@ -200,19 +200,18 @@ process_list_get(_LUser, _LServer, false) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
 process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
-    #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els} = SubEl,
     Res = case xml:remove_cdata(Els) of
               [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
                   ListName = xml:get_attr(<<"name">>, Attrs),
                   case Name of
                       <<"list">> ->
-                          process_list_set(LUser, LServer, ListName,
+                          process_list_set(From, ListName,
                                    xml:remove_cdata(SubEls));
                       <<"active">> ->
-                          process_active_set(LUser, LServer, ListName);
+                          process_active_set(From, ListName);
                       <<"default">> ->
-                          process_default_set(LUser, LServer, ListName);
+                          process_default_set(From, ListName);
                       _ ->
                           {error, mongoose_xmpp_errors:bad_request()}
                   end;
@@ -223,7 +222,7 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
 process_iq_set(Val, _, _, _) ->
     Val.
 
-process_default_set(LUser, LServer, {value, Name}) ->
+process_default_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
     case mod_privacy_backend:set_default_list(LUser, LServer, Name) of
         ok ->
             {result, []};
@@ -232,7 +231,7 @@ process_default_set(LUser, LServer, {value, Name}) ->
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_default_set(LUser, LServer, false) ->
+process_default_set(#jid{luser = LUser, lserver = LServer}, false) ->
     case mod_privacy_backend:forget_default_list(LUser, LServer) of
         ok ->
             {result, []};
@@ -240,7 +239,7 @@ process_default_set(LUser, LServer, false) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-process_active_set(LUser, LServer, {value, Name}) ->
+process_active_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
     case mod_privacy_backend:get_privacy_list(LUser, LServer, Name) of
         {ok, List} ->
             NeedDb = is_list_needdb(List),
@@ -250,26 +249,26 @@ process_active_set(LUser, LServer, {value, Name}) ->
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_active_set(_LUser, _LServer, false) ->
+process_active_set(_UserJID, false) ->
     {result, [], #userlist{}}.
 
-process_list_set(LUser, LServer, {value, Name}, Els) ->
+process_list_set(UserJID, {value, Name}, Els) ->
     case parse_items(Els) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
         remove ->
-            remove_privacy_list(LUser, LServer, Name);
+            remove_privacy_list(UserJID, Name);
         List ->
-            replace_privacy_list(LUser, LServer, Name, List)
+            replace_privacy_list(UserJID, Name, List)
     end;
-process_list_set(_LUser, _LServer, false, _Els) ->
+process_list_set(_UserJID, false, _Els) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
-remove_privacy_list(LUser, LServer, Name) ->
+remove_privacy_list(#jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
     case mod_privacy_backend:remove_privacy_list(LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
-            broadcast_privacy_list(LUser, LServer, Name, UserList),
+            broadcast_privacy_list(UserJID, Name, UserList),
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
@@ -278,12 +277,12 @@ remove_privacy_list(LUser, LServer, Name) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-replace_privacy_list(LUser, LServer, Name, List) ->
+replace_privacy_list(#jid{luser = LUser, lserver = LServer} = UserJID, Name, List) ->
     case mod_privacy_backend:replace_privacy_list(LUser, LServer, Name, List) of
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
-            broadcast_privacy_list(LUser, LServer, Name, UserList),
+            broadcast_privacy_list(UserJID, Name, UserList),
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -296,9 +295,7 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+get_user_list(_, #jid{luser = LUser, lserver = LServer}) ->
     case mod_privacy_backend:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
@@ -310,9 +307,9 @@ get_user_list(_, User, Server) ->
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(Acc, _User, _Server, #userlist{list = []}, _, _Dir) ->
+check_packet(Acc, _JID, #userlist{list = []}, _, _Dir) ->
     mongoose_acc:set(hook, result, allow, Acc);
-check_packet(Acc, User, Server,
+check_packet(Acc, #jid{lserver = LServer} = JID,
              #userlist{list = List, needdb = NeedDb},
              {From, To, Name, Type}, Dir) ->
     PType = packet_directed_type(Dir, packet_type(Name, Type)),
@@ -323,7 +320,7 @@ check_packet(Acc, User, Server,
     {Subscription, Groups} =
         case NeedDb of
             true ->
-                roster_get_jid_info(Server, jid:make(User, Server, <<>>), LJID);
+                roster_get_jid_info(LServer, JID, LJID);
             false ->
                 {[], []}
         end,
@@ -658,9 +655,9 @@ binary_to_order_s(Order) ->
 %% Ejabberd
 %% ------------------------------------------------------------------
 
-broadcast_privacy_list(LUser, LServer, Name, UserList) ->
-    UserJID = jid:make(LUser, LServer, <<>>),
-    ejabberd_sm:route(UserJID, UserJID, broadcast_privacy_list_packet(Name, UserList)).
+broadcast_privacy_list(UserJID, Name, UserList) ->
+    JID = jid:to_bare(UserJID),
+    ejabberd_sm:route(JID, JID, broadcast_privacy_list_packet(Name, UserList)).
 
 %% TODO this is dirty
 broadcast_privacy_list_packet(Name, UserList) ->
