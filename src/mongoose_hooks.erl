@@ -342,16 +342,16 @@ register_user(LServer, Acc, LUser) ->
 remove_user(LServer, Acc, LUser) ->
     ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]).
 
--spec resend_offline_messages_hook(Server, Acc, User) -> Result when
+-spec resend_offline_messages_hook(Server, Acc, JID) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
-    User :: jid:user(),
+    JID :: jid:jid(),
     Result :: mongoose_acc:t().
-resend_offline_messages_hook(Server, Acc, User) ->
+resend_offline_messages_hook(Server, Acc, JID) ->
     ejabberd_hooks:run_fold(resend_offline_messages_hook,
                             Server,
                             Acc,
-                            [User, Server]).
+                            [JID]).
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends a message using the REST API.
 -spec rest_user_send_packet(LServer, Acc, From, To, Packet) -> Result when

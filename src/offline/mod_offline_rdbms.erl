@@ -26,8 +26,8 @@
 -module(mod_offline_rdbms).
 -behaviour(mod_offline).
 -export([init/2,
-         pop_messages/2,
-         fetch_messages/2,
+         pop_messages/1,
+         fetch_messages/1,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
@@ -43,9 +43,8 @@
 init(_Host, _Opts) ->
     ok.
 
-pop_messages(LUser, LServer) ->
-    US = {LUser, LServer},
-    To = jid:make(LUser, LServer, <<>>),
+pop_messages(#jid{} = To) ->
+    US = {LUser, LServer} = jid:to_lus(To),
     SUser = mongoose_rdbms:escape_string(LUser),
     SServer = mongoose_rdbms:escape_string(LServer),
     TimeStamp = erlang:timestamp(),
@@ -59,11 +58,8 @@ pop_messages(LUser, LServer) ->
             {error, Reason}
     end.
 
-fetch_messages(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
-    US = {LUser, LServer},
-    To = jid:make(User, LServer, <<>>),
+fetch_messages(#jid{} = To) ->
+    US = {LUser, LServer} = jid:to_lus(To),
     TimeStamp = erlang:timestamp(),
     SUser = mongoose_rdbms:escape_string(LUser),
     SServer = mongoose_rdbms:escape_string(LServer),

@@ -2343,7 +2343,7 @@ resend_offline_messages(Acc, StateData) ->
     Acc1 = mongoose_hooks:resend_offline_messages_hook(
                                    StateData#state.server,
                                    Acc,
-                                   StateData#state.user),
+                                   StateData#state.jid),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(
                        fun({route, From, To, MsgAcc}, A) ->

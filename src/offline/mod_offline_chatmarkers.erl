@@ -40,7 +40,7 @@
 %% Hook handlers
 -export([inspect_packet/4,
          remove_user/3,
-         pop_offline_messages/3]).
+         pop_offline_messages/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -97,8 +97,8 @@ remove_user(Acc, User, Server) ->
     mod_offline_chatmarkers_backend:remove_user(jid:make(User, Server, <<"">>)),
     Acc.
 
-pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline, messages, offline_chatmarkers(Acc, User, Server), Acc).
+pop_offline_messages(Acc, JID) ->
+    mongoose_acc:append(offline, messages, offline_chatmarkers(Acc, JID), Acc).
 
 inspect_packet(Acc, From, To, Packet) ->
     case maybe_store_chat_marker(Acc, From, To, Packet) of
@@ -130,8 +130,7 @@ get_thread(El) ->
         _ -> undefined
     end.
 
-offline_chatmarkers(Acc, User, Server) ->
-    JID = jid:make(User, Server, <<"">>),
+offline_chatmarkers(Acc, JID) ->
     {ok, Rows} = mod_offline_chatmarkers_backend:get(JID),
     mod_offline_chatmarkers_backend:remove_user(JID),
     lists:concat([process_row(Acc, JID, R) || R <- Rows]).
