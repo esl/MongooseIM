@@ -84,6 +84,7 @@ nav:
       - 'Logging configuration': 'operation-and-maintenance/Logging.md'
       - 'Logging with Humio': 'operation-and-maintenance/Humio.md'
       - 'Logging fields': 'operation-and-maintenance/Logging-fields.md'
+      - 'Cluster restart': 'operation-and-maintenance/Cluster-restart.md'
       - 'Metrics': 'operation-and-maintenance/MongooseIM-metrics.md'
       - 'System Metrics Privacy Policy': 'operation-and-maintenance/System-Metrics-Privacy-Policy.md'
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
