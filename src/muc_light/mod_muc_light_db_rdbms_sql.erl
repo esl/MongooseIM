@@ -25,8 +25,7 @@
 
 -include("mod_muc_light.hrl").
 
--export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
-        delete_config/1]).
+-export([insert_config/3, update_config/3, delete_config/1]).
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
@@ -35,21 +34,6 @@
 %%====================================================================
 %% Config
 %%====================================================================
-
--spec select_config(RoomID :: integer() | binary()) -> iolist().
-select_config(RoomID) ->
-    ["SELECT opt, val FROM muc_light_config WHERE room_id = ", bin(RoomID)].
-
--spec select_config(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
-select_config(RoomU, RoomS) ->
-    ["SELECT version, opt, val",
-     " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_config AS c ON r.id = c.room_id"
-     " WHERE r.luser = ", ?ESC(RoomU), " AND r.lserver = ", ?ESC(RoomS)].
-
--spec select_config(RoomU :: jid:luser(), RoomS :: jid:lserver(), Key :: binary()) ->
-    iolist().
-select_config(RoomU, RoomS, Key) ->
-    [ select_config(RoomU, RoomS), " AND key = '", Key, "'" ].
 
 -spec insert_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
 insert_config(RoomID, Key, Val) ->

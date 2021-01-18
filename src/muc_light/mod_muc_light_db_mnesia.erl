@@ -36,7 +36,6 @@
          remove_user/2,
 
          get_config/1,
-         get_config/2,
          set_config/3,
          set_config/4,
 
@@ -140,19 +139,6 @@ get_config(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
         [#muc_light_room{ config = Config, version = Version }] -> {ok, Config, Version}
-    end.
-
--spec get_config(RoomUS :: jid:simple_bare_jid(), Key :: atom()) ->
-    {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
-get_config(RoomUS, Option) ->
-    case get_config(RoomUS) of
-        {ok, Config, Version} ->
-            case lists:keyfind(Option, 1, Config) of
-                {_, Value} -> {ok, Value, Version};
-                false -> {error, invalid_opt}
-            end;
-        Error ->
-            Error
     end.
 
 -spec set_config(RoomUS :: jid:simple_bare_jid(),
