@@ -105,6 +105,14 @@ prepare_queries(_Host) ->
                            [luser, lserver, version],
                            <<"INSERT INTO muc_light_rooms (luser, lserver, version)"
                              " VALUES (?, ?, ?)">>),
+    mongoose_rdbms:prepare(muc_light_update_room_version, muc_light_rooms,
+                           [luser, lserver, version],
+                           <<"UPDATE muc_light_rooms SET version = ? "
+                             " WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_delete_room, muc_light_rooms,
+                           [luser, lserver],
+                           <<"DELETE FROM muc_light_rooms"
+                             " WHERE luser = ? AND lserver = ?">>),
 
     %% This query uses multiple table
     mongoose_rdbms:prepare(muc_light_select_user_rooms, muc_light_occupants,
@@ -141,6 +149,14 @@ select_user_rooms_count(MainHost, LUser, LServer) ->
 insert_room(MainHost, RoomU, RoomS, Version) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_insert_room, [RoomU, RoomS, Version]).
+
+update_room_version(MainHost, RoomU, RoomS, Version) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_update_room_version, [Version, RoomU, RoomS]).
+
+delete_room(MainHost, RoomU, RoomS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_room, [RoomU, RoomS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -458,8 +474,7 @@ destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
                              mod_muc_light_db_rdbms_sql:delete_affs(RoomID)),
             {updated, _} = mongoose_rdbms:sql_query_t(
                              mod_muc_light_db_rdbms_sql:delete_config(RoomID)),
-            {updated, _} = mongoose_rdbms:sql_query_t(
-                             mod_muc_light_db_rdbms_sql:delete_room(RoomU, RoomS)),
+            {updated, _} = delete_room(MainHost, RoomU, RoomS),
             ok;
         {selected, []} ->
             {error, not_exists}
@@ -489,8 +504,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, PrevVersion}]} ->
-            {updated, _} = mongoose_rdbms:sql_query_t(
-                             mod_muc_light_db_rdbms_sql:update_room_version(RoomU, RoomS, Version)),
+            {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
             lists:foreach(
               fun({Key, Val}) ->
                       {updated, _}
@@ -542,7 +556,8 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
             case CheckFun(RoomUS, NewAffUsers) of
                 ok ->
                     apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers),
-                    update_room_version_transaction(RoomUS, Version),
+                    {RoomU, RoomS} = RoomUS,
+                    {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
                     {ok, AffUsers, NewAffUsers, AffUsersChanged, PrevVersion};
                 Error ->
                     Error
@@ -571,12 +586,6 @@ apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers) ->
                                          RoomID, UserU, UserS, Aff))
               end
       end, AffUsersChanged).
-
--spec update_room_version_transaction(RoomUS :: jid:simple_bare_jid(), Version :: binary()) ->
-    {updated, integer()}.
-update_room_version_transaction({RoomU, RoomS}, Version) ->
-    {updated, _} = mongoose_rdbms:sql_query_t(
-                     mod_muc_light_db_rdbms_sql:update_room_version(RoomU, RoomS, Version)).
 
 %% ------------------------ Common ------------------------
 
