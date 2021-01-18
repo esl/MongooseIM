@@ -86,6 +86,7 @@ prepare_queries(Host) ->
     prepare_room_queries(Host),
     prepare_affiliation_queries(Host),
     prepare_config_queries(Host),
+    prepare_blocking_queries(Host),
     ok.
 
 prepare_cleaning_queries(Host) ->
@@ -191,6 +192,36 @@ prepare_config_queries(_Host) ->
                            <<"DELETE FROM muc_light_config WHERE room_id = ?">>),
    ok.
 
+prepare_blocking_queries(_Host) ->
+    mongoose_rdbms:prepare(muc_light_select_blocking, muc_light_config,
+                           [luser, lserver],
+                           <<"SELECT what, who FROM muc_light_blocking "
+                             "WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_blocking_cnt, muc_light_config,
+                           [luser, lserver, what, who],
+                           <<"SELECT COUNT(*) FROM muc_light_blocking "
+                             "WHERE luser = ? AND lserver = ? AND "
+                             "what = ? AND who = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_blocking_cnt2, muc_light_config,
+                           [luser, lserver, what, who, what, who],
+                           <<"SELECT COUNT(*) FROM muc_light_blocking "
+                             "WHERE luser = ? AND lserver = ? AND "
+                             "((what = ? AND who = ?) OR (what = ? AND who = ?))">>),
+    mongoose_rdbms:prepare(muc_light_insert_blocking, muc_light_blocking,
+                           [luser, lserver, what, who],
+                           <<"INSERT INTO muc_light_blocking"
+                             " (luser, lserver, what, who)"
+                             " VALUES (?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(muc_light_delete_blocking1, muc_light_blocking,
+                           [luser, lserver, what, who],
+                           <<"DELETE FROM muc_light_blocking "
+                             "WHERE luser = ? AND lserver = ? AND what = ? AND who = ?">>),
+    mongoose_rdbms:prepare(muc_light_delete_blocking, muc_light_blocking,
+                           [luser, lserver],
+                           <<"DELETE FROM muc_light_blocking"
+                             " WHERE luser = ? AND lserver = ?">>),
+    ok.
+
 %% ------------------------ Room SQL functions ------------------------
 
 select_room_id(MainHost, RoomU, RoomS) ->
@@ -271,6 +302,45 @@ update_config(MainHost, RoomID, Key, Val) ->
 delete_config(MainHost, RoomID) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_delete_config, [RoomID]).
+
+%% ------------------------ Blocking SQL functions -------------------------
+
+select_blocking(MainHost, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_blocking, [LUser, LServer]).
+
+select_blocking_cnt(MainHost, LUser, LServer, [{What, Who}]) ->
+    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWho = jid:to_binary(Who),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_blocking_cnt,
+        [LUser, LServer, DbWhat, DbWho]);
+select_blocking_cnt(MainHost, LUser, LServer, [{What1, Who1}, {What2, Who2}]) ->
+    DbWhat1 = mod_muc_light_db_rdbms:what_atom2db(What1),
+    DbWhat2 = mod_muc_light_db_rdbms:what_atom2db(What2),
+    DbWho1 = jid:to_binary(Who1),
+    DbWho2 = jid:to_binary(Who2),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_blocking_cnt2,
+        [LUser, LServer, DbWhat1, DbWho1, DbWhat2, DbWho2]).
+
+insert_blocking(MainHost, LUser, LServer, What, Who) ->
+    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWho = jid:to_binary(Who),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_insert_blocking,
+        [LUser, LServer, DbWhat, DbWho]).
+
+delete_blocking1(MainHost, LUser, LServer, What, Who) ->
+    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWho = jid:to_binary(Who),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_blocking1,
+        [LUser, LServer, DbWhat, DbWho]).
+
+delete_blocking(MainHost, UserU, UserS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_blocking, [UserU, UserS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -402,9 +472,8 @@ set_config(RoomJID, Key, Val, Version) ->
     [blocking_item()].
 get_blocking({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
-    SQL = mod_muc_light_db_rdbms_sql:select_blocking(LUser, LServer),
-    {selected, WhatWhos} = mongoose_rdbms:sql_query(MainHost, SQL),
-    [ {what_db2atom(What), deny, jid:to_lus(jid:from_binary(Who))} || {What, Who} <- WhatWhos ].
+    {selected, WhatWhos} = select_blocking(MainHost, LUser, LServer),
+    decode_blocking(WhatWhos).
 
 -spec get_blocking(UserUS :: jid:simple_bare_jid(),
                    MUCServer :: jid:lserver(),
@@ -412,8 +481,7 @@ get_blocking({LUser, LServer}, MUCServer) ->
     blocking_action().
 get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
     MainHost = main_host(MUCServer),
-    SQL = mod_muc_light_db_rdbms_sql:select_blocking_cnt(LUser, LServer, WhatWhos),
-    {selected, [{Count}]} = mongoose_rdbms:sql_query(MainHost, SQL),
+    {selected, [{Count}]} = select_blocking_cnt(MainHost, LUser, LServer, WhatWhos),
     case mongoose_rdbms:result_to_integer(Count) of
         0 -> allow;
         _ -> deny
@@ -422,18 +490,20 @@ get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
 -spec set_blocking(UserUS :: jid:simple_bare_jid(),
                    MUCServer :: jid:lserver(),
                    BlockingItems :: [blocking_item()]) -> ok.
-set_blocking(_UserUS, _MUCServer, []) ->
+set_blocking(UserUS, MUCServer, BlockingItems) ->
+    MainHost = main_host(MUCServer),
+    set_blocking_loop(MainHost, UserUS, MUCServer, BlockingItems).
+
+set_blocking_loop(_MainHost, _UserUS, _MUCServer, []) ->
     ok;
-set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, deny, Who} | RBlockingItems]) ->
-    {updated, _} =
-    mongoose_rdbms:sql_query(
-      main_host(MUCServer), mod_muc_light_db_rdbms_sql:insert_blocking(LUser, LServer, What, Who)),
-    set_blocking(UserUS, MUCServer, RBlockingItems);
-set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, allow, Who} | RBlockingItems]) ->
-    {updated, _} =
-    mongoose_rdbms:sql_query(
-      main_host(MUCServer), mod_muc_light_db_rdbms_sql:delete_blocking(LUser, LServer, What, Who)),
-    set_blocking(UserUS, MUCServer, RBlockingItems).
+set_blocking_loop(MainHost, {LUser, LServer} = UserUS, MUCServer,
+             [{What, deny, Who} | RBlockingItems]) ->
+    {updated, _} = insert_blocking(MainHost, LUser, LServer, What, Who),
+    set_blocking_loop(MainHost, UserUS, MUCServer, RBlockingItems);
+set_blocking_loop(MainHost, {LUser, LServer} = UserUS, MUCServer,
+             [{What, allow, Who} | RBlockingItems]) ->
+    {updated, _} = delete_blocking1(MainHost, LUser, LServer, What, Who),
+    set_blocking_loop(MainHost, UserUS, MUCServer, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
@@ -494,6 +564,10 @@ decode_affs_with_versions(AffUsersDB) ->
     US2Aff = [{{UserU, UserS}, aff_db2atom(Aff)}
               || {_Version, UserU, UserS, Aff} <- AffUsersDB],
     lists:sort(US2Aff).
+
+decode_blocking(WhatWhos) ->
+    [ {what_db2atom(What), deny, jid:to_lus(jid:from_binary(Who))}
+      || {What, Who} <- WhatWhos ].
 
 -spec what_db2atom(binary() | pos_integer()) -> blocking_what().
 what_db2atom(1) -> room;
@@ -577,8 +651,7 @@ destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
     mod_muc_light_db:remove_user_return().
 remove_user_transaction(MainHost, {UserU, UserS} = UserUS, Version) ->
     Rooms = get_user_rooms(UserUS, undefined),
-    {updated, _} = mongoose_rdbms:sql_query_t(
-                     mod_muc_light_db_rdbms_sql:delete_blocking(UserU, UserS)),
+    {updated, _} = delete_blocking(MainHost, UserU, UserS),
     lists:map(
       fun(RoomUS) ->
               {RoomUS, modify_aff_users_transaction(MainHost,
