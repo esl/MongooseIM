@@ -72,12 +72,43 @@
 %% ------------------------ Backend start/stop ------------------------
 
 -spec start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-start(_Host, _MUCHost) ->
+start(Host, _MUCHost) ->
+    prepare_queries(Host),
     ok.
 
 -spec stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
 stop(_Host, _MUCHost) ->
     ok.
+
+%% ------------------------ SQL -------------------------------------------
+
+prepare_queries(_Host) ->
+    mongoose_rdbms:prepare(muc_light_config_delete_all, muc_light_config, [],
+                           <<"DELETE FROM muc_light_config">>),
+    mongoose_rdbms:prepare(muc_light_occupants_delete_all, muc_light_occupants, [],
+                           <<"DELETE FROM muc_light_occupants">>),
+    mongoose_rdbms:prepare(muc_light_rooms_delete_all, muc_light_rooms, [],
+                           <<"DELETE FROM muc_light_rooms">>),
+    mongoose_rdbms:prepare(muc_light_blocking_delete_all, muc_light_blocking, [],
+                           <<"DELETE FROM muc_light_blocking">>),
+
+    mongoose_rdbms:prepare(muc_light_select_room_id, muc_light_rooms,
+                           [luser, lserver],
+                           <<"SELECT id FROM muc_light_rooms "
+                             "WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_room_id_and_version, muc_light_rooms,
+                           [luser, lserver],
+                           <<"SELECT id, version FROM muc_light_rooms "
+                             "WHERE luser = ? AND lserver = ?">>),
+    ok.
+
+select_room_id(MainHost, RoomU, RoomS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_room_id, [RoomU, RoomS]).
+
+select_room_id_and_version(MainHost, RoomU, RoomS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_room_id_and_version, [RoomU, RoomS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -86,23 +117,21 @@ stop(_Host, _MUCHost) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room(RoomUS, Config, AffUsers, Version) ->
     MainHost = main_host(RoomUS),
-    {atomic, Res}
-    = mongoose_rdbms:sql_transaction(
-        MainHost, fun() -> create_room_transaction(RoomUS, Config, AffUsers, Version) end),
+    F = fun() -> create_room_transaction(MainHost, RoomUS, Config, AffUsers, Version) end,
+    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
     Res.
 
 -spec destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room(RoomUS) ->
     MainHost = main_host(RoomUS),
-    {atomic, Res}
-    = mongoose_rdbms:sql_transaction(MainHost, fun() -> destroy_room_transaction(RoomUS) end),
+    F = fun() -> destroy_room_transaction(MainHost, RoomUS) end,
+    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
     Res.
 
 -spec room_exists(RoomUS :: jid:simple_bare_jid()) -> boolean().
 room_exists({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
-    {selected, Res} = mongoose_rdbms:sql_query(
-                           MainHost, mod_muc_light_db_rdbms_sql:select_room_id(RoomU, RoomS)),
+    {selected, Res} = select_room_id(MainHost, RoomU, RoomS),
     Res /= [].
 
 -spec get_user_rooms(UserUS :: jid:simple_bare_jid(),
@@ -134,8 +163,8 @@ get_user_rooms_count({LUser, LServer}, MUCServer) ->
 -spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.
 remove_user({_, UserS} = UserUS, Version) ->
-    {atomic, Res}
-    = mongoose_rdbms:sql_transaction(UserS, fun() -> remove_user_transaction(UserUS, Version) end),
+    F = fun() -> remove_user_transaction(UserS, UserUS, Version) end,
+    {atomic, Res} = mongoose_rdbms:sql_transaction(UserS, F),
     Res.
 
 %% ------------------------ Configuration manipulation ------------------------
@@ -261,10 +290,9 @@ get_aff_users({RoomU, RoomS} = RoomUS) ->
     mod_muc_light_db:modify_aff_users_return().
 modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     MainHost = main_host(RoomUS),
-    {atomic, Res}
-    = mongoose_rdbms:sql_transaction(
-        MainHost, fun() -> modify_aff_users_transaction(
-                             RoomUS, AffUsersChanges, ExternalCheck, Version) end),
+    F = fun() -> modify_aff_users_transaction(MainHost, RoomUS, AffUsersChanges,
+                                              ExternalCheck, Version) end,
+    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
     Res.
 
 %% ------------------------ Misc ------------------------
@@ -274,8 +302,7 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     | {error, not_exists}.
 get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
-    case mongoose_rdbms:sql_query(
-           MainHost, mod_muc_light_db_rdbms_sql:select_room_id_and_version(RoomU, RoomS)) of
+    case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, Version}]} ->
             {selected, AffUsersDB} = mongoose_rdbms:sql_query(
                                           MainHost, mod_muc_light_db_rdbms_sql:select_affs(RoomID)),
@@ -315,15 +342,17 @@ aff_db2atom(Bin) -> aff_db2atom(mongoose_rdbms:result_to_integer(Bin)).
 %% API for tests
 %%====================================================================
 
+force_clear_statements() ->
+    [muc_light_config_delete_all,
+     muc_light_occupants_delete_all,
+     muc_light_rooms_delete_all,
+     muc_light_blocking_delete_all].
+
 -spec force_clear() -> ok.
 force_clear() ->
-    lists:foreach(
-      fun(Host) ->
-              mongoose_rdbms:sql_query(Host, ["DELETE FROM muc_light_config"]),
-              mongoose_rdbms:sql_query(Host, ["DELETE FROM muc_light_occupants"]),
-              mongoose_rdbms:sql_query(Host, ["DELETE FROM muc_light_rooms"]),
-              mongoose_rdbms:sql_query(Host, ["DELETE FROM muc_light_blocking"])
-      end, ?MYHOSTS).
+    [mongoose_rdbms:execute_successfully(Host, Statement, [])
+     || Host <- ?MYHOSTS, Statement <- force_clear_statements()],
+    ok.
 
 %%====================================================================
 %% Internal functions
@@ -332,12 +361,13 @@ force_clear() ->
 %% ------------------------ General room management ------------------------
 
 %% Expects config to have unique fields!
--spec create_room_transaction(RoomUS :: jid:simple_bare_jid(),
+-spec create_room_transaction(MainHost :: jid:lserver(),
+                              RoomUS :: jid:simple_bare_jid(),
                               Config :: mod_muc_light_room_config:kv(),
                               AffUsers :: aff_users(),
                               Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
-create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
+create_room_transaction(MainHost, {NodeCandidate, RoomS}, Config, AffUsers, Version) ->
     RoomU = case NodeCandidate of
                 <<>> -> mongoose_bin:gen_from_timestamp();
                 _ -> NodeCandidate
@@ -349,18 +379,16 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
             mongoose_rdbms:sql_query_t("ROLLBACK;"),
             mongoose_rdbms:sql_query_t(rdbms_queries:begin_trans()),
 
-            case {mongoose_rdbms:sql_query_t(
-                    mod_muc_light_db_rdbms_sql:select_room_id(RoomU, RoomS)), NodeCandidate} of
+            case {select_room_id(MainHost, RoomU, RoomS), NodeCandidate} of
                 {{selected, []}, _} ->
                     throw({aborted, Reason});
                 {{selected, [_]}, <<>>} ->
-                    create_room_transaction({<<>>, RoomS}, Config, AffUsers, Version);
+                    create_room_transaction(MainHost, {<<>>, RoomS}, Config, AffUsers, Version);
                 {{selected, [_]}, _} ->
                     {error, exists}
             end;
         {updated, _} ->
-            {selected, [{RoomID} | Rest] = AllIds} = mongoose_rdbms:sql_query_t(
-                                          mod_muc_light_db_rdbms_sql:select_room_id(RoomU, RoomS)),
+            {selected, [{RoomID} | Rest] = AllIds} = select_room_id(MainHost, RoomU, RoomS),
             case Rest of
                 [] ->
                     ok;
@@ -385,9 +413,11 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
             {ok, {RoomU, RoomS}}
     end.
 
--spec destroy_room_transaction(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
-destroy_room_transaction({RoomU, RoomS}) ->
-    case mongoose_rdbms:sql_query_t(mod_muc_light_db_rdbms_sql:select_room_id(RoomU, RoomS)) of
+-spec destroy_room_transaction(MainHost :: jid:lserver(),
+                               RoomUS :: jid:simple_bare_jid()) ->
+    ok | {error, not_exists}.
+destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
+    case select_room_id(MainHost, RoomU, RoomS) of
         {selected, [{RoomID}]} ->
             {updated, _} = mongoose_rdbms:sql_query_t(
                              mod_muc_light_db_rdbms_sql:delete_affs(RoomID)),
@@ -400,15 +430,17 @@ destroy_room_transaction({RoomU, RoomS}) ->
             {error, not_exists}
     end.
 
--spec remove_user_transaction(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
+-spec remove_user_transaction(MainHost :: jid:lserver(),
+                              UserUS :: jid:simple_bare_jid(),
+                              Version :: binary()) ->
     mod_muc_light_db:remove_user_return().
-remove_user_transaction({UserU, UserS} = UserUS, Version) ->
+remove_user_transaction(MainHost, {UserU, UserS} = UserUS, Version) ->
     Rooms = get_user_rooms(UserUS, undefined),
     {updated, _} = mongoose_rdbms:sql_query_t(
                      mod_muc_light_db_rdbms_sql:delete_blocking(UserU, UserS)),
     lists:map(
       fun(RoomUS) ->
-              {RoomUS, modify_aff_users_transaction(
+              {RoomUS, modify_aff_users_transaction(MainHost,
                          RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, Rooms).
 
@@ -420,8 +452,7 @@ remove_user_transaction({UserU, UserS} = UserUS, Version) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
-    case mongoose_rdbms:sql_query_t(
-           mod_muc_light_db_rdbms_sql:select_room_id_and_version(RoomU, RoomS)) of
+    case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, PrevVersion}]} ->
             {updated, _} = mongoose_rdbms:sql_query_t(
                              mod_muc_light_db_rdbms_sql:update_room_version(RoomU, RoomS, Version)),
@@ -441,29 +472,32 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec modify_aff_users_transaction(RoomUS :: jid:simple_bare_jid(),
+-spec modify_aff_users_transaction(MainHost :: jid:lserver(),
+                                   RoomUS :: jid:simple_bare_jid(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
                                    Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
-modify_aff_users_transaction({RoomU, RoomS} = RoomUS, AffUsersChanges, CheckFun, Version) ->
-    case mongoose_rdbms:sql_query_t(
-           mod_muc_light_db_rdbms_sql:select_room_id_and_version(RoomU, RoomS)) of
+modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
+                             AffUsersChanges, CheckFun, Version) ->
+    case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, PrevVersion}]} ->
-            modify_aff_users_transaction(
+            modify_aff_users_transaction(MainHost,
               RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version);
         {selected, []} ->
             {error, not_exists}
     end.
 
--spec modify_aff_users_transaction(RoomUS :: jid:simple_bare_jid(),
+-spec modify_aff_users_transaction(MainHost :: jid:lserver(),
+                                   RoomUS :: jid:simple_bare_jid(),
                                    RoomID :: binary(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
                                    PrevVersion :: binary(),
                                    Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
-modify_aff_users_transaction(RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version) ->
+modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
+                             CheckFun, PrevVersion, Version) ->
     {selected, AffUsersDB}
     = mongoose_rdbms:sql_query_t(mod_muc_light_db_rdbms_sql:select_affs(RoomID)),
     AffUsers = lists:sort(
