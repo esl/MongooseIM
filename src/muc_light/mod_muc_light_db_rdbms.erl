@@ -82,7 +82,7 @@ stop(_Host, _MUCHost) ->
 
 %% ------------------------ SQL -------------------------------------------
 
-prepare_queries(_Host) ->
+prepare_queries(Host) ->
     mongoose_rdbms:prepare(muc_light_config_delete_all, muc_light_config, [],
                            <<"DELETE FROM muc_light_config">>),
     mongoose_rdbms:prepare(muc_light_occupants_delete_all, muc_light_occupants, [],
@@ -91,7 +91,11 @@ prepare_queries(_Host) ->
                            <<"DELETE FROM muc_light_rooms">>),
     mongoose_rdbms:prepare(muc_light_blocking_delete_all, muc_light_blocking, [],
                            <<"DELETE FROM muc_light_blocking">>),
+    prepare_room_queries(Host),
+    prepare_affiliation_queries(Host),
+    ok.
 
+prepare_room_queries(_Host) ->
     %% Returns maximum 1 record
     mongoose_rdbms:prepare(muc_light_select_room_id, muc_light_rooms,
                            [luser, lserver],
@@ -113,7 +117,6 @@ prepare_queries(_Host) ->
                            [luser, lserver],
                            <<"DELETE FROM muc_light_rooms"
                              " WHERE luser = ? AND lserver = ?">>),
-
     %% This query uses multiple table
     mongoose_rdbms:prepare(muc_light_select_user_rooms, muc_light_occupants,
                            [luser, lserver],
@@ -127,8 +130,19 @@ prepare_queries(_Host) ->
                              " FROM muc_light_occupants AS o "
                              " INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
                              " WHERE o.luser = ? AND o.lserver = ?">>),
-
     ok.
+
+prepare_affiliation_queries(Host) ->
+    %% This query uses multiple table
+    mongoose_rdbms:prepare(muc_light_select_affs_by_us, muc_light_rooms,
+                           [luser, lserver],
+                           <<"SELECT version, o.luser, o.lserver, aff"
+                             " FROM muc_light_rooms AS r "
+                             " LEFT OUTER JOIN muc_light_occupants AS o ON r.id = o.room_id"
+                             " WHERE r.luser = ? AND r.lserver = ?">>),
+   ok.
+
+%% ------------------------ Room SQL functions ------------------------
 
 select_room_id(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
@@ -157,6 +171,12 @@ update_room_version(MainHost, RoomU, RoomS, Version) ->
 delete_room(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_delete_room, [RoomU, RoomS]).
+
+%% ------------------------ Affiliation SQL functions ------------------------
+
+select_affs_by_us(MainHost, RoomU, RoomS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_affs_by_us, [RoomU, RoomS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -197,7 +217,7 @@ create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version) ->
             case room_exists(RoomUS) of
                 true ->
                     {error, exists};
-                false -> %% Something unknown
+                false -> %% Some unknown error condition
                     {RoomU, RoomS} = RoomUS,
                     ?LOG_ERROR(#{what => muc_create_room_with_specified_name_failed,
                                  room => RoomU, sub_host => RoomS, reason => Other}),
@@ -353,7 +373,7 @@ set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, allow, Who} | RBlocki
     {ok, aff_users(), Version :: binary()} | {error, not_exists}.
 get_aff_users({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
-    case mongoose_rdbms:sql_query(MainHost, mod_muc_light_db_rdbms_sql:select_affs(RoomU, RoomS)) of
+    case select_affs_by_us(MainHost, RoomU, RoomS) of
         {selected, []} ->
             {error, not_exists};
         {selected, [{Version, null, null, null}]} ->
