@@ -25,7 +25,7 @@
 
 -include("mod_muc_light.hrl").
 
--export([insert_aff/4, update_aff/4, delete_affs/1, delete_aff/3]).
+-export([update_aff/4, delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
         delete_config/1]).
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
@@ -36,13 +36,6 @@
 %%====================================================================
 %% Affiliations
 %%====================================================================
-
--spec insert_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
-                 UserS :: jid:lserver(), Aff :: aff()) -> iolist().
-insert_aff(RoomID, UserU, UserS, Aff) ->
-    ["INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
-     " VALUES(", bin(RoomID), ", ", ?ESC(UserU), ", ", ?ESC(UserS), ", ",
-              mod_muc_light_db_rdbms:aff_atom2db(Aff), ")"].
 
 -spec update_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
                  UserS :: jid:lserver(), Aff :: aff()) -> iolist().
