@@ -145,6 +145,10 @@ prepare_affiliation_queries(Host) ->
                            [room_id],
                            <<"SELECT luser, lserver, aff "
                              "FROM muc_light_occupants WHERE room_id = ?">>),
+    mongoose_rdbms:prepare(muc_light_insert_aff, muc_light_occupants,
+                           [room_id, luser, lserver, aff],
+                           <<"INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
+                              " VALUES(?, ?, ?, ?)">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -188,6 +192,11 @@ select_affs_by_us(MainHost, RoomU, RoomS) ->
 select_affs_by_room_id(MainHost, RoomID) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_affs_by_room_id, [RoomID]).
+
+insert_aff(MainHost, RoomID, UserU, UserS, Aff) ->
+    DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_insert_aff, [RoomID, UserU, UserS, DbAff]).
 
 %% ------------------------ General room management ------------------------
 
@@ -491,8 +500,7 @@ create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     {selected, [{RoomID}]} = select_room_id(MainHost, RoomU, RoomS),
     lists:foreach(
       fun({{UserU, UserS}, Aff}) ->
-              Query = mod_muc_light_db_rdbms_sql:insert_aff(RoomID, UserU, UserS, Aff),
-              {updated, _} = mongoose_rdbms:sql_query_t(Query)
+              {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff)
       end, AffUsers),
     ConfigFields = mod_muc_light_room_config:to_binary_kv(
                      Config, mod_muc_light:config_schema(RoomS)),
@@ -592,7 +600,7 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
         {ok, NewAffUsers, AffUsersChanged, JoiningUsers, _LeavingUsers} ->
             case CheckFun(RoomUS, NewAffUsers) of
                 ok ->
-                    apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers),
+                    apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers),
                     {RoomU, RoomS} = RoomUS,
                     {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
                     {ok, AffUsers, NewAffUsers, AffUsersChanged, PrevVersion};
@@ -603,10 +611,11 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
             Error
     end.
 
--spec apply_aff_users_transaction(RoomID :: binary(),
+-spec apply_aff_users_transaction(MainHost :: jid:lserver(),
+                                  RoomID :: binary(),
                                   AffUsersChanges :: aff_users(),
                                   JoiningUsers :: [jid:simple_bare_jid()]) -> ok.
-apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers) ->
+apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers) ->
     lists:foreach(
       fun({{UserU, UserS}, none}) ->
               {updated, _} = mongoose_rdbms:sql_query_t(
@@ -614,9 +623,7 @@ apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers) ->
          ({{UserU, UserS} = UserUS, Aff}) ->
               case lists:member(UserUS, JoiningUsers) of
                   true ->
-                      {updated, _} = mongoose_rdbms:sql_query_t(
-                                       mod_muc_light_db_rdbms_sql:insert_aff(
-                                         RoomID, UserU, UserS, Aff));
+                      {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff);
                   false ->
                       {updated, _} = mongoose_rdbms:sql_query_t(
                                        mod_muc_light_db_rdbms_sql:update_aff(
