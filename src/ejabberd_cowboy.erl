@@ -289,7 +289,7 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% @doc
 %% Store trails, this need for generate swagger documentation
 %% Add to Trails each of modules where used trails behaviour
-%% The modules must be added into `mongooseim.cfg`in `swagger` section
+%% The modules must be added into `mongooseim.toml` in `swagger` section
 %% @end
 %% -------------------------------------------------------------------
 trails_store(Modules) ->

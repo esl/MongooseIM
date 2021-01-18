@@ -52,13 +52,11 @@ Specifies the format of output files:
 
 ### `modules.mod_muc_log.css_file`
 * **Syntax:** non-empty string
-* **Default:** `"false"`
+* **Default:** not set - the default styles for HTML logs are used
 * **Example:** `css_file = "path/to/css/file"`
 
-Specifies the css file used for logs rendering:
-
-* `"false"`: Uses default styles for HTML logs.
-* `path to custom CSS file`: Links custom CSS inside HTML logs. Please note it won't be copied to the logs directory but the given path will be linked in HTML files instead.
+Specifies the css file used for logs rendering.
+Please note it won't be copied to the logs directory but the given path will be linked in HTML files instead.
 
 ### `modules.mod_muc_log.timezone`
 * **Syntax:** string, one of `"local"`, `"universal"`
@@ -71,9 +69,9 @@ Specifies the timezone to be used in timestamps written into the logs:
 * `universal`: Uses GMT.
 
 ### `modules.mod_muc_log.top_link`
-* **Syntax:** TOML table with the following keys: `"target"`, `"text"` and string values.
-* **Default:** `[target = "", text = ""]`
-* **Example:** `top_link = [target = "/", text = "Home"]`
+* **Syntax:** TOML table with the following mandatory keys: `"target"`, `"text"` and string values.
+* **Default:** `{target = "/", text = "Home"}`
+* **Example:** `top_link = {target = "/top", text = "Top page"}`
 
 Allows setting a custom link at the top of the HTML log file. 
 First tuple element is the link target and the second one is the text to be displayed. 

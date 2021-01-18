@@ -23,6 +23,7 @@
 
 -include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
+-include("mongoose_config_spec.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
@@ -50,7 +51,7 @@
 %%%===================================================================
 
 %% MIM module callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% API
 -export([push_event/3]).
@@ -68,6 +69,28 @@ start(Host, _Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(_Host) ->
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"presence_exchange">> => #section{items = exch_items()},
+                 <<"chat_msg_exchange">> => #section{items = msg_exch_items()},
+                 <<"groupchat_msg_exchange">> => #section{items = msg_exch_items()}
+                }
+      }.
+
+msg_exch_items() ->
+    ExchItems = exch_items(),
+    ExchItems#{<<"sent_topic">> => #option{type = binary,
+                                           validate = non_empty},
+               <<"recv_topic">> => #option{type = binary,
+                                           validate = non_empty}}.
+
+exch_items() ->
+    #{<<"name">> => #option{type = binary,
+                            validate = non_empty},
+      <<"type">> => #option{type = binary,
+                            validate = non_empty}}.
 
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
     handle_user_presence_change(UserJID, Status),

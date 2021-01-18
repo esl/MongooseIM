@@ -19,7 +19,7 @@ It must be defined in [outgoing_pools setting](../advanced-configuration/outgoin
 The name of the pool to use (as defined in `outgoing_pools`).
 
 ### `modules.mod_push_service_mongoosepush.api_version`
-* **Syntax:** string
+* **Syntax:** string, `"v2"` or `"v3"`
 * **Default:** `"v3"`
 * **Example:** `api_version = "v3"`
 

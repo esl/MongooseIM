@@ -392,8 +392,5 @@ enable_watcher(Config, Watcher) ->
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
 
-watcher(Watcher) ->
-    {registration_watchers, [binary_to_list(Watcher)]}.
-
 domain() ->
     ct:get_config({hosts, mim, domain}).

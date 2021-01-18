@@ -146,8 +146,8 @@ A list of endpoints on which the server will listen for connections.
 The endpoint list will be shared with other datacenters via the replicated backend.
 
 #### `modules.mod_global_distrib.connections.advertised_endpoints`
-* **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`} **or** `false`
-* **Default:** `false`
+* **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
+* **Default:** not set
 * **Example:** `advertised_endpoints = [{host = "172.16.0.2", port = 5555}]`
 
 A list of endpoints which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
@@ -175,7 +175,7 @@ A separate timer is maintained for every remote domain.
 Endpoint refresh interval, when array of endpoints is empty.
 
 #### `modules.mod_global_distrib.connections.disabled_gc_interval`
-* **Syntax:** non-negative integer, value given in seconds
+* **Syntax:** positive integer, value given in seconds
 * **Default:** `60`
 * **Example:** `disabled_gc_interval = 60`
 
@@ -184,15 +184,10 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 
 ### TLS options
 
-#### `modules.mod_global_distrib.connections.tls.enabled`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `enabled = true`
+**Note:** By default `tls` is disabled and all data will be sent via standard TCP connections.
 
-To enable TLS support the `cacertfile` and `certfile` options have to be present.
+To enable TLS support, the `cacertfile` and `certfile` options have to be present.
 These options will be passed to the `fast_tls` driver.
-
-If `tls` is disabled, all data will be sent via standard TCP connections.
 
 #### `modules.mod_global_distrib.connections.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -226,7 +221,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
 
 #### `modules.mod_global_distrib.redis.expire_after`
-* **Syntax:** non-negative integer
+* **Syntax:** positive integer
 * **Default:** `120`
 * **Example:** `expire_after = 120`
 
@@ -315,7 +310,6 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
   local_host = "datacenter1.example.com"
   connections.endpoints = [{host = "172.16.0.2", port = 5555}]
   connections.advertised_endpoints = [{host = "172.16.0.2", port = 5555}]
-  connections.tls.enabled = true
   connections.tls.certfile = "priv/dc1.pem"
   connections.tls.cacertfile = "priv/ca.pem"
   connections.connections_per_endpoint = 30

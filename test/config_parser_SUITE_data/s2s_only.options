@@ -1,0 +1,22 @@
+{config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
+{local_config,outgoing_s2s_families,[ipv4,ipv6]}.
+{local_config,outgoing_s2s_port,5299}.
+{local_config,outgoing_s2s_timeout,10000}.
+{local_config,s2s_certfile,"tools/ssl/mongooseim/server.pem"}.
+{local_config,s2s_ciphers,"TLSv1.2:TLSv1.3"}.
+{local_config,s2s_dns_options,[{retries,1},{timeout,30}]}.
+{local_config,s2s_use_starttls,optional}.
+{local_config,{domain_certfile,"example.com"},"/path/to/example_com.pem"}.
+{local_config,{domain_certfile,"example.org"},"/path/to/example_org.pem"}.
+{local_config,{s2s_addr,<<"fed1">>},"127.0.0.1"}.
+{local_config,{s2s_addr,<<"fed2">>},{"127.0.0.1", 8765}}.
+{local_config,{s2s_default_policy,<<"dummy_host">>},allow}.
+{local_config,{s2s_default_policy,<<"localhost">>},allow}.
+{local_config,{s2s_max_retry_delay,<<"dummy_host">>},30}.
+{local_config,{s2s_max_retry_delay,<<"localhost">>},30}.
+{local_config,{s2s_shared,<<"dummy_host">>},<<"shared secret">>}.
+{local_config,{s2s_shared,<<"localhost">>},<<"shared secret">>}.
+{local_config,{{s2s_host,<<"fed1">>},<<"dummy_host">>},allow}.
+{local_config,{{s2s_host,<<"fed1">>},<<"localhost">>},allow}.
+{local_config,{{s2s_host,<<"reg1">>},<<"dummy_host">>},deny}.
+{local_config,{{s2s_host,<<"reg1">>},<<"localhost">>},deny}.

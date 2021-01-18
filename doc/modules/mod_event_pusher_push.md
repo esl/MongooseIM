@@ -33,12 +33,11 @@ with 100 asynchronous workers that will handle all push notification related wor
 Backend to use for storing the registrations.
 
 ### `modules.mod_event_pusher_push.wpool`
-* **Syntax:** Array of TOML tables. See description.
-* **Default:** `[]`
-* **Example:** `wpool = [workers = 200]`
+* **Syntax:** TOML table with worker pool options
+* **Default:** `{}`
+* **Example:** `wpool.workers = 200`
 
-List of options that will be passed to the `worker_pool` library that handles all the requests.
-Please refer to the [Project Site](https://github.com/inaka/worker_pool) for more details.
+Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../../advanced-configuration/outgoing-connections#worker-pool-options).
 
 ### `modules.mod_event_pusher_push.plugin_module`
 * **Syntax:** non-empty string
@@ -50,7 +49,7 @@ See the [relevant section](#plugin-module) for more details.
 
 ### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
-* **Default:** `["pubsub.@HOSTS@"]`
+* **Default:** `[]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
 
 The list of "simulated" Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name.

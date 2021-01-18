@@ -3,8 +3,7 @@
 %%% Author  : Eric Cestari <ecestari@process-one.net>
 %%% Purpose : Message Carbons XEP-0280 0.8
 %%% Created : 5 May 2008 by Mickael Remond <mremond@process-one.net>
-%%% Usage   : Add the following line in the `modules` section of mongooseim.cfg:
-%%%              {mod_carboncopy, []}
+%%% Usage   : Add `mod_carboncopy` to the `modules` section of mongooseim.toml
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -33,6 +32,7 @@
 %% API
 -export([start/2,
          stop/1,
+         config_spec/0,
          is_carbon_copy/1,
          classify_packet/1]).
 
@@ -52,7 +52,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("session.hrl").
-
+-include("mongoose_config_spec.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
 
@@ -86,6 +86,10 @@ stop(Host) ->
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
     ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
 iq_handler2(From, To, Acc, IQ) ->
     iq_handler(From, To, Acc, IQ, ?NS_CC_2).

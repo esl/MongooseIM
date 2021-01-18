@@ -38,6 +38,10 @@
          add_to_log/5,
          set_room_occupants/4]).
 
+%% Config callbacks
+-export([config_spec/0,
+         process_top_link/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -45,6 +49,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(T(Text), translate:translate(Lang, Text)).
 -define(PROCNAME, ejabberd_mod_muc_log).
@@ -72,7 +77,7 @@
                    dir_type     :: dir_type(),
                    dir_name     :: dir_name(),
                    file_format  :: file_format(),
-                   css_file     :: file:filename() | false,
+                   css_file     :: binary() | false,
                    access,
                    lang         :: ejabberd:lang(),
                    timezone,
@@ -116,6 +121,42 @@ stop(Host) ->
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"outdir">> => #option{type = string,
+                                         validate = dirname},
+                 <<"access_log">> => #option{type = atom,
+                                             validate = access_rule},
+                 <<"dirtype">> => #option{type = atom,
+                                          validate = {enum, [subdirs, plain]}},
+                 <<"dirname">> => #option{type = atom,
+                                          validate = {enum, [room_jid, room_name]}},
+                 <<"file_format">> => #option{type = atom,
+                                              validate = {enum, [html, plaintext]}},
+                 <<"css_file">> => #option{type = binary,
+                                           validate = non_empty,
+                                           format = {kv, cssfile}},
+                 <<"timezone">> => #option{type = atom,
+                                           validate = {enum, [local, universal]}},
+                 <<"top_link">> => top_link_config_spec(),
+                 <<"spam_prevention">> => #option{type = boolean}
+                }
+      }.
+
+top_link_config_spec() ->
+    #section{
+       items = #{<<"target">> => #option{type = string,
+                                         validate = url},
+                 <<"text">> => #option{type = string,
+                                       validate = non_empty}},
+       required = all,
+       process = fun ?MODULE:process_top_link/1
+      }.
+
+process_top_link(KVs) ->
+    {[[{target, Target}], [{text, Text}]], []} = proplists:split(KVs, [target, text]),
+    {Target, Text}.
 
 -spec add_to_log(jid:server(), Type :: any(), Data :: any(), mod_muc:room(),
                  list()) -> 'ok'.
@@ -767,7 +808,7 @@ fw(F, S, FileFormat) ->
 
 
 -spec put_header(file:io_device(), Room :: room(), Date :: binary(),
-        CSSFile :: boolean(), Lang :: ejabberd:lang(), HourOffset :: integer(),
+        CSSFile :: false | binary(), Lang :: ejabberd:lang(), HourOffset :: integer(),
         DatePrev :: binary(), DateNext :: binary(), TopLink :: tuple(),
         file_format(), OccupantsMap :: #{binary() => [jid_nick_role()]}) -> 'ok'.
 put_header(_, _, _, _, _, _, _, _, _, plaintext, _) ->
@@ -858,8 +899,7 @@ put_header_css(F, false) ->
             " font-family: monospace; letter-spacing: 1px;}">>),
     fw(F, <<"//-->">>),
     fw(F, <<"</style>">>);
-put_header_css(F, CSSFileStr) ->
-    CSSFile = list_to_binary(CSSFileStr),
+put_header_css(F, CSSFile) ->
     fw(F, <<"<link rel=\"stylesheet\" type=\"text/css\" href=\"",
             CSSFile/binary, "\" media=\"all\">">>).
 

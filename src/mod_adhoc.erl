@@ -30,6 +30,7 @@
 
 -export([start/2,
          stop/1,
+         config_spec/0,
          process_local_iq/4,
          process_sm_iq/4,
          get_local_commands/5,
@@ -44,6 +45,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
+-include("mongoose_config_spec.hrl").
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -69,6 +71,14 @@ hooks(Host) ->
      {disco_sm_items, Host, ?MODULE, get_sm_commands, 99},
      {adhoc_local_items, Host, ?MODULE, ping_item, 100},
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"report_commands_node">> => #option{type = boolean},
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()}
+      }.
+
 %%-------------------------------------------------------------------------
 
 -spec get_local_commands(Acc :: {result, [exml:element()]} | {error, any()} | empty,

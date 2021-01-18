@@ -20,9 +20,12 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
+-export([start/2, stop/1, config_spec/0,
+         deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
 
 -export([config_metrics/1]).
+
+-include("mongoose_config_spec.hrl").
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,13 +40,78 @@ start(_Host, _Opts) ->
 stop(_Host) ->
     ok.
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    Items = config_items(),
+    #section{
+       items = Items#{<<"pm">> => #section{items = maps:merge(Items, pm_config_items())},
+                      <<"muc">> => #section{items = maps:merge(Items, muc_config_items())},
+                      <<"riak">> => riak_config_spec()}
+      }.
+
+config_items() ->
+    #{%% General options
+      <<"backend">> => #option{type = atom,
+                               validate = {enum, [rdbms, riak, cassandra, elasticsearch]}},
+      <<"no_stanzaid_element">> => #option{type = boolean},
+      <<"is_archivable_message">> => #option{type = atom,
+                                             validate = module},
+      <<"archive_chat_markers">> => #option{type = boolean},
+      <<"message_retraction">> => #option{type = boolean},
+
+      %% RDBMS-specific options
+      <<"cache_users">> => #option{type = boolean},
+      <<"rdbms_message_format">> => #option{type = atom,
+                                            validate = {enum, [simple, internal]}},
+      <<"async_writer">> => #option{type = boolean},
+      <<"flush_interval">> => #option{type = integer,
+                                      validate = non_negative},
+      <<"max_batch_size">> => #option{type = integer,
+                                      validate = non_negative},
+
+      %% Common backend options
+      <<"user_prefs_store">> => #option{type = atom,
+                                        validate = {enum, [rdbms, cassandra, mnesia]}},
+      <<"full_text_search">> => #option{type = boolean},
+
+      %% Undocumented low-level options
+      <<"default_result_limit">> => #option{type = integer,
+                                            validate = non_negative},
+      <<"max_result_limit">> => #option{type = integer,
+                                        validate = non_negative},
+      <<"async_writer_rdbms_pool">> => #option{type = atom,
+                                               validate = pool_name},
+      <<"db_jid_format">> => #option{type = atom,
+                                     validate = module},
+      <<"db_message_format">> => #option{type = atom,
+                                         validate = module},
+      <<"simple">> => #option{type = boolean},
+      <<"extra_lookup_params">> => #option{type = atom,
+                                           validate = module}
+     }.
+
+pm_config_items() ->
+    #{<<"archive_groupchats">> => #option{type = boolean}}.
+
+muc_config_items() ->
+    #{<<"host">> => #option{type = string,
+                            validate = domain_template}}.
+
+riak_config_spec() ->
+    #section{
+       items = #{<<"search_index">> => #option{type = binary,
+                                               validate = non_empty},
+                 <<"bucket_type">> => #option{type = binary,
+                                              validate = non_empty}},
+       format = none
+      }.
 
 -spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) ->
                   gen_mod:deps_list().
 deps(_Host, Opts0) ->
     Opts = normalize(Opts0),
 
-    DepsWithPm = handle_nested_opts(pm, Opts, [], #{}),
+    DepsWithPm = handle_nested_opts(pm, Opts, false, #{}),
     DepsWithPmAndMuc = handle_nested_opts(muc, Opts, false, DepsWithPm),
 
     [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].

@@ -7,10 +7,15 @@
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
+-include("mongoose_config_spec.hrl").
 
 %% gen_mod callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         config_spec/0]).
+
+%% Config spec callbacks
+-export([process_validity_period/1]).
 
 %% Hook handlers
 -export([clean_tokens/3]).
@@ -91,6 +96,33 @@ stop(Domain) ->
     [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"validity_period">> => #list{items = validity_period_spec(),
+                                                format = none},
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()
+                }
+      }.
+
+validity_period_spec() ->
+    #section{
+       items = #{<<"token">> => #option{type = atom,
+                                        validate = {enum, [access, refresh, provision]}},
+                 <<"value">> => #option{type = integer,
+                                        validate = non_negative},
+                 <<"unit">> => #option{type = atom,
+                                       validate = {enum, [days, hours, minutes, seconds]}}
+                },
+       required = all,
+       process = fun ?MODULE:process_validity_period/1
+      }.
+
+process_validity_period(KVs) ->
+    {[[{token, Token}], [{value, Value}], [{unit, Unit}]], []} =
+        proplists:split(KVs, [token, value, unit]),
+    {{validity_period, Token}, {Value, Unit}}.
 
 default_opts(Opts) ->
     [{backend, rdbms} || not proplists:is_defined(backend, Opts)] ++ Opts.

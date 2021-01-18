@@ -51,6 +51,7 @@
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
+         config_spec/1,
          % Get/set opts by host or from a list
          get_opt/2,
          get_opt/3,
@@ -93,6 +94,8 @@
 %%     undefined.
 -callback start(Host :: jid:server(), Opts :: list()) -> any().
 -callback stop(Host :: jid:server()) -> any().
+-callback config_spec() -> mongoose_config_spec:config_section().
+-optional_callbacks([config_spec/0]).
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -123,7 +126,7 @@ start_module(Host, Module, Opts) ->
 
 start_module_for_host(Host, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
-    Opts = clear_opts(Module, Opts0),
+    Opts = proplists:unfold(Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try
@@ -249,6 +252,10 @@ stop_module_keep_config(Host, Module) ->
 reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
+
+-spec config_spec(module()) -> mongoose_config_spec:config_section().
+config_spec(Module) ->
+    Module:config_spec().
 
 -spec wait_for_process(atom() | pid() | {atom(), atom()}) -> 'ok'.
 wait_for_process(Process) ->
@@ -465,20 +472,6 @@ get_module_proc(Host, Base) ->
 -spec is_loaded(Host :: binary(), Module :: atom()) -> boolean().
 is_loaded(Host, Module) ->
     ets:member(ejabberd_modules, {Module, Host}).
-
-
--spec clear_opts(atom(), list()) -> list().
-clear_opts(Module, Opts0) ->
-    Opts = proplists:unfold(Opts0),
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, clean_opts, 1) of
-        true ->
-            Module:clean_opts(Opts);
-        _ ->
-            Opts
-    end.
 
 -spec get_deps(Host :: jid:server(), Module :: module(),
                Opts :: proplists:proplist()) -> module_deps_list().

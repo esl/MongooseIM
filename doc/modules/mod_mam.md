@@ -207,11 +207,11 @@ If the buffer is full, messages are flushed to a database immediately and the fl
 ### Common backend options
 
 #### `modules.mod_mam_meta.user_prefs_store`
-* **Syntax:** one of `false`, `"rdbms"`, `"cassandra"`, `"mnesia"`
-* **Default:** `false`
-* **Example:** `modules.mod_mam_meta.user_prefs_store = 30`
+* **Syntax:** one of `"rdbms"`, `"cassandra"`, `"mnesia"`
+* **Default:** not set
+* **Example:** `modules.mod_mam_meta.user_prefs_store = "rdbms"`
 
-Leaving this option as `false` will prevent users from setting their archiving preferences.
+Leaving this option unset will prevent users from setting their archiving preferences.
 It will also increase performance.
 The possible values are:
 
@@ -258,14 +258,14 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 #### Riak-specific options
 
-##### `modules.mod_mam_meta.riak.bucket_type`
+#### `modules.mod_mam_meta.riak.bucket_type`
 * **Syntax:** non-empty string
 * **Default:** `"mam_yz"`
 * **Example:** `modules.mod_mam_meta.riak.bucket_type = "mam_yz"`
 
 Riak bucket type.
 
-##### `modules.mod_mam_meta.riak.search_index`
+#### `modules.mod_mam_meta.riak.search_index`
 * **Syntax:** non-empty string
 * **Default:** `"mam"`
 * **Example:** `modules.mod_mam_meta.riak.search_index = "mam"`

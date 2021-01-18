@@ -195,7 +195,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 * **Type:** parameter
 * **Option:** [`general.sm_backend`](../../advanced-configuration/general#generalsm_backend)
 * **Syntax:** string
-* **Example:** `{sm_backend, \""redis\""}.`
+* **Example:** `{sm_backend, "\"redis\""}.`
 
 ### tls_config
 
@@ -220,7 +220,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 
 ### zlib
 
-* **Type:** block
+* **Type:** parameter
 * **Option:** [`listen.c2s.zlib`](../../advanced-configuration/listen#listenc2szlib)
-* **Syntax:** TOML key-value pair
-* **Example:** `{zlib, "zlib = 10_000"}.`
+* **Syntax:** positive integer
+* **Example:** `{zlib, "10_000"}.`

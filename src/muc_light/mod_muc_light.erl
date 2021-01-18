@@ -17,6 +17,7 @@
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose_config_spec.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -27,12 +28,15 @@
 -export([config_schema/1, default_config/1]).
 
 %% For Administration API
--export([try_to_create_room/3, 
+-export([try_to_create_room/3,
          change_room_config/4,
          delete_room/1]).
 
 %% gen_mod callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
+
+%% config processing callback
+-export([process_config_schema/1]).
 
 %% Packet handler export
 -export([process_packet/5]).
@@ -191,6 +195,54 @@ stop(Host) ->
     ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 1),
 
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, mod_muc_light_db}},
+                 <<"host">> => #option{type = string,
+                                       validate = domain_template},
+                 <<"equal_occupants">> => #option{type = boolean},
+                 <<"legacy_mode">> => #option{type = boolean},
+                 <<"rooms_per_user">> => #option{type = int_or_infinity,
+                                                 validate = positive},
+                 <<"blocking">> => #option{type = boolean},
+                 <<"all_can_configure">> => #option{type = boolean},
+                 <<"all_can_invite">> => #option{type = boolean},
+                 <<"max_occupants">> => #option{type = int_or_infinity,
+                                                validate = positive},
+                 <<"rooms_per_page">> => #option{type = int_or_infinity,
+                                                 validate = positive},
+                 <<"rooms_in_rosters">> => #option{type = boolean},
+                 <<"config_schema">> => #list{items = config_schema_spec()}
+                }
+      }.
+
+config_schema_spec() ->
+    #section{
+       items = #{<<"field">> => #option{type = string,
+                                        validate = non_empty},
+                 <<"string_value">> => #option{type = binary},
+                 <<"integer_value">> => #option{type = integer},
+                 <<"float_value">> => #option{type = float},
+                 <<"internal_key">> => #option{type = atom,
+                                               validate = non_empty}
+                },
+       required = [<<"field">>],
+       process = fun ?MODULE:process_config_schema/1
+      }.
+
+process_config_schema(KVs) ->
+    {[[{field, FieldName}], InternalKeyOpts], ValueOpts} =
+        proplists:split(KVs, [field, internal_key]),
+    {Value, Type} = process_config_schema_value(ValueOpts),
+    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, list_to_atom(FieldName)),
+    {FieldName, Value, InternalKey, Type}.
+
+process_config_schema_value([{string_value, Val}]) -> {Val, binary};
+process_config_schema_value([{integer_value, Val}]) -> {Val, integer};
+process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
 hooks(Host, MUCHost) ->
     [{is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50},

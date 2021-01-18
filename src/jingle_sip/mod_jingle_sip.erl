@@ -21,17 +21,17 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+-include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
+-include_lib("nklib/include/nklib.hrl").
 -include_lib("nksip/include/nksip.hrl").
 -include_lib("nksip/include/nksip_call.hrl").
--include("mongoose.hrl").
--include("jlib.hrl").
-
--include_lib("nklib/include/nklib.hrl").
 
 -define(SERVICE, "mim_sip").
 
 %% gen_mod callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 -export([intercept_jingle_stanza/2]).
 
@@ -85,6 +85,21 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     ok.
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"proxy_host">> => #option{type = string,
+                                              validate = network_address},
+                  <<"proxy_port">> => #option{type = integer,
+                                              validate = port},
+                  <<"listen_port">> => #option{type = integer,
+                                               validate = port},
+                  <<"local_host">> => #option{type = string,
+                                              validate = network_address},
+                  <<"sdp_origin">> => #option{type = string,
+                                              validate = ip_address}
+        }
+    }.
 hooks(Host) ->
     [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
 

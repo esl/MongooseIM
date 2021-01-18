@@ -34,7 +34,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_spec/0]).
 
 %% Hook handlers
 -export([inspect_packet/4,
@@ -66,6 +66,7 @@
 -include("jlib.hrl").
 -include("amp.hrl").
 -include("mod_offline.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(PROCNAME, ejabberd_offline).
 
@@ -143,6 +144,23 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     stop_worker(Host),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"access_max_user_messages">> => #option{type = atom,
+                                                           validate = access_rule},
+                 <<"backend">> => #option{type = atom,
+                                          validate = {module, mod_offline}},
+                 <<"riak">> => riak_config_spec()
+                }
+      }.
+
+riak_config_spec() ->
+    #section{items = #{<<"bucket_type">> => #option{type = binary,
+                                                     validate = non_empty}},
+             format = none
+            }.
 
 hooks(Host) ->
     DefaultHooks = [

@@ -21,7 +21,6 @@
 {suites, "tests", cluster_commands_SUITE}.
 {suites, "tests", component_SUITE}.
 {suites, "tests", conf_reload_SUITE}.
-{suites, "tests", config_format_SUITE}.
 {suites, "tests", connect_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.

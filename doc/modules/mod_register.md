@@ -6,7 +6,7 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 
 ### `modules.mod_register.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
@@ -44,15 +44,17 @@ The entropy calculation algorithm is described in a section below.
 
 ### `modules.mod_register.ip_access`
 * **Syntax:** Array of TOML tables with the following mandatory content:
-  - `address` - string, IP address
-  - `policy` - string, one of: `"allow"`, `"deny"`.
+
+    - `address` - string, IP address
+    - `policy` - string, one of: `"allow"`, `"deny"`.
+
 * **Default:** `[]`
 * **Example:** `ip_access = [
   {address = "127.0.0.0/8", policy = "allow"},
 {address = "0.0.0.0/0", policy = "deny"}
 ]`
 
-Access list for specified IPs or networks. 
+Access list for specified IPs or networks.
 Default value allows registration from every IP.
 
 ## Example configuration

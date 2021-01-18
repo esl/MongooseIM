@@ -36,40 +36,50 @@
     request_timeout = 2000
 
 [outgoing_pools.riak.default]
-    scope = "global"
-    workers = 20
-    strategy = "next_worker"
-    connection.address = "127.0.0.1"
-    connection.port = 8087
-    connection.credentials = {user = "username", password = "pass"}
-    connection.cacertfile = "path/to/cacert.pem"
+  scope = "global"
+  workers = 20
+  strategy = "next_worker"
+
+  [outgoing_pools.riak.default.connection]
+    address = "127.0.0.1"
+    port = 8087
+    credentials = {user = "username", password = "pass"}
+    tls.certfile = "path/to/cert.pem"
+    tls.keyfile = "path/to/key.pem"
+    tls.cacertfile = "path/to/cacert.pem"
+    tls.verify_peer = true
 
 [outgoing_pools.cassandra.default]
-    scope = "global"
-    connection.servers = [
-        {ip_address = "cassandra_server1.example.com", port = 9042}, 
-        {ip_address = "cassandra_server2.example.com", port =  9042}
-        ]
-    connection.keyspace = "big_mongooseim"
+  scope = "global"
 
+  [outgoing_pools.cassandra.default.connection]
+    servers = [
+      {ip_address = "cassandra_server1.example.com", port = 9042},
+      {ip_address = "cassandra_server2.example.com", port = 9042}
+    ]
+    keyspace = "big_mongooseim"
 
 [outgoing_pools.elastic.default]
-    scope = "global"
-    connection.host = "localhost"
+  scope = "global"
+  connection.host = "localhost"
 
 [outgoing_pools.rabbit.event_pusher]
-    scope = "host"
-    workers = 20
-    connection.amqp_host = "localhost"
-    connection.amqp_port = 5672
-    connection.amqp_username = "guest"
-    connection.amqp_password = "guest"
-    connection.confirms_enabled = true
-    connection.max_worker_queue_len = 100
+  scope = "host"
+  workers = 20
+
+  [outgoing_pools.rabbit.event_pusher.connection]
+    amqp_host = "localhost"
+    amqp_port = 5672
+    amqp_username = "guest"
+    amqp_password = "guest"
+    confirms_enabled = true
+    max_worker_queue_len = 100
 
 [outgoing_pools.ldap.default]
-    scope = "host"
-    workers = 5
-    connection.servers = ["ldap-server.example.com"]
-    connection.rootdn = "cn=admin,dc=example,dc=com"
-    connection.password = "ldap-admin-password"
+  scope = "host"
+  workers = 5
+
+  [outgoing_pools.ldap.default.connection]
+    servers = ["ldap-server.example.com"]
+    rootdn = "cn=admin,dc=example,dc=com"
+    password = "ldap-admin-password"

@@ -30,10 +30,10 @@ Please note that a long-polling request is not considered to be an inactivity.
  
 Enables/disables [acks](http://xmpp.org/extensions/xep-0124.html#ack-request) sent by server.
 
-### `modules.mod_bosh.maxpause`
+### `modules.mod_bosh.max_pause`
  * **Syntax:** positive integer
  * **Default:** `120`
- * **Example:** `maxpause = 30`
+ * **Example:** `max_pause = 30`
 
 Maximum allowed pause in seconds (e.g. to switch between pages and then resume connection) to request by client-side.
 
@@ -58,5 +58,5 @@ In the module section:
   inactivity = 20
   max_wait = "infinity"
   server_acks = true
-  maxpause = 120 
+  max_pause = 120
 ```

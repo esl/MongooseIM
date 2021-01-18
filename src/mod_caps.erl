@@ -39,7 +39,7 @@
          disco_features/5, disco_identity/5, disco_info/5]).
 
 %% gen_mod callbacks
--export([start/2, start_link/2, stop/1]).
+-export([start/2, start_link/2, stop/1, config_spec/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_info/2, handle_call/3,
@@ -53,6 +53,7 @@
 -export([delete_caps/1, make_disco_hash/2]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -include("jlib.hrl").
 
@@ -95,6 +96,16 @@ stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"cache_size">> => #option{type = integer,
+                                             validate = positive},
+                 <<"cache_life_time">> => #option{type = integer,
+                                                  validate = positive}
+                }
+      }.
 
 get_features_list(Host, Caps) ->
     case get_features(Host, Caps) of

@@ -6,7 +6,7 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 
 ### `modules.mod_version.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
@@ -18,7 +18,7 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 Determines whether information about the operating system will be included.
 
-## Example configuration 
+## Example configuration
 
 ```toml
 [modules.mod_version]

@@ -16,8 +16,7 @@
 -define(add_loc(X), {X, #{line => ?LINE}}).
 
 -define(eqf(Expected, Actual), eq_host_config(Expected, Actual)).
--define(errf(Config),
-        begin ?err(parse_with_host(Config)), ?err(parse_host_config(Config)) end).
+-define(errf(Config), err_host_config(Config)).
 
 %% Constructs HOF to pass into run_multi/1 function
 %% It's a HOF, so it would always pass if not passed into run_multi/1
@@ -25,7 +24,7 @@
 -define(_errf(Config), ?add_loc(fun() -> ?errf(Config) end)).
 
 all() ->
-    [{group, equivalence},
+    [{group, file},
      {group, general},
      {group, listen},
      {group, auth},
@@ -36,11 +35,11 @@ all() ->
      {group, services}].
 
 groups() ->
-    [{equivalence, [parallel], [sample_pgsql,
-                                miscellaneous,
-                                s2s,
-                                modules,
-                                outgoing_pools]},
+    [{file, [parallel], [sample_pgsql,
+                         miscellaneous,
+                         s2s,
+                         modules,
+                         outgoing_pools]},
      {general, [parallel], [loglevel,
                             hosts,
                             registration_timeout,
@@ -136,8 +135,6 @@ groups() ->
                          pool_riak_port,
                          pool_riak_credentials,
                          pool_riak_cacertfile,
-                         pool_riak_certfile,
-                         pool_riak_keyfile,
                          pool_riak_tls,
                          pool_cassandra_servers,
                          pool_cassandra_keyspace,
@@ -177,31 +174,56 @@ groups() ->
                             mod_disco,
                             mod_inbox,
                             mod_global_distrib,
-                            mod_event_pusher,
+                            mod_global_distrib_connections,
+                            mod_global_distrib_connections_endpoints,
+                            mod_global_distrib_connections_advertised_endpoints,
+                            mod_global_distrib_connections_tls,
+                            mod_global_distrib_redis,
+                            mod_global_distrib_cache,
+                            mod_global_distrib_bounce,
+                            mod_event_pusher_sns,
+                            mod_event_pusher_push,
+                            mod_event_pusher_http,
+                            mod_event_pusher_rabbit,
                             mod_extdisco,
                             mod_http_upload,
+                            mod_http_upload_s3,
                             mod_jingle_sip,
                             mod_keystore,
+                            mod_keystore_keys,
                             mod_last,
                             mod_mam_meta,
+                            mod_mam_meta_pm,
+                            mod_mam_meta_muc,
                             mod_muc,
+                            mod_muc_default_room,
+                            mod_muc_default_room_affiliations,
                             mod_muc_log,
+                            mod_muc_log_top_link,
                             mod_muc_light,
+                            mod_muc_light_config_schema,
                             mod_offline,
                             mod_ping,
                             mod_privacy,
                             mod_private,
                             mod_pubsub,
+                            mod_pubsub_pep_mapping,
+                            mod_pubsub_default_node_config,
                             mod_push_service_mongoosepush,
                             mod_register,
-                            mod_revproxy,
                             mod_roster,
                             mod_shared_roster_ldap,
                             mod_sic,
                             mod_stream_management,
+                            mod_stream_management_stale_h,
                             mod_time,
                             mod_vcard,
-                            mod_version]},
+                            mod_vcard_ldap_uids,
+                            mod_vcard_ldap_vcard_map,
+                            mod_vcard_ldap_search_fields,
+                            mod_vcard_ldap_search_reported,
+                            mod_version,
+                            modules_without_config]},
      {services, [parallel], [service_admin_extra,
                              service_mongoose_system_metrics]}
     ].
@@ -215,19 +237,19 @@ end_per_suite(_Config) ->
     ok.
 
 sample_pgsql(Config) ->
-    test_equivalence_between_files(Config,  "mongooseim-pgsql.cfg",  "mongooseim-pgsql.toml").
+    test_config_file(Config,  "mongooseim-pgsql").
 
 miscellaneous(Config) ->
-    test_equivalence_between_files(Config,  "miscellaneous.cfg",  "miscellaneous.toml").
+    test_config_file(Config,  "miscellaneous").
 
 s2s(Config) ->
-    test_equivalence_between_files(Config,  "s2s_only.cfg",  "s2s_only.toml").
+    test_config_file(Config,  "s2s_only").
 
 modules(Config) ->
-    test_equivalence_between_files(Config,  "modules.cfg",  "modules.toml").
+    test_config_file(Config,  "modules").
 
 outgoing_pools(Config) ->
-    test_equivalence_between_files(Config,  "outgoing_pools.cfg",  "outgoing_pools.toml").
+    test_config_file(Config,  "outgoing_pools").
 
 %% tests: general
 loglevel(_Config) ->
@@ -312,18 +334,26 @@ mongooseimctl_access_commands(_Config) ->
         parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
                                        #{<<"local">> => AccessRule}}})),
     ?eq([#local_config{key = mongooseimctl_access_commands,
-                       value = [{local, all, []}]
+                       value = [{local, all, [{node, "mim1@host1"}]}]
                       }],
         parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                       #{<<"local">> => #{<<"commands">> => <<"all">>}}}})),
-    ?err(parse(#{<<"general">> =>
-                     #{<<"mongooseimctl_access_commands">> =>
-                           #{<<"local">> => #{<<"argument_restrictions">> =>
-                                                  #{<<"node">> => <<"mim1@host1">>}}}
-                      }})),
+                                       #{<<"local">> => maps:remove(<<"commands">>,
+                                                                    AccessRule)}}})),
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, ["join_cluster"], []}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                       #{<<"local">> => maps:remove(<<"argument_restrictions">>,
+                                                                    AccessRule)}}})),
+    ?eq([#local_config{key = mongooseimctl_access_commands,
+                       value = [{local, all, []}]
+                      }],
+        parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> => #{<<"local">> => #{}}}})),
     ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                        #{<<"local">> => #{<<"commands">> => <<"none">>}}
-                                   }})).
+                                        #{<<"local">> => #{<<"commands">> => <<"all">>}}}})),
+    ?err(parse(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
+                                        #{<<"local">> => #{<<"argument_restrictions">> =>
+                                                               [<<"none">>]}}}})).
 
 routing_modules(_Config) ->
     ?eq([#local_config{key = routing_modules, value = [mongoose_router_global,
@@ -363,9 +393,7 @@ listen_proto(_Config) ->
     ?eq([#local_config{key = listen,
                        value = [{{5222, {0, 0, 0, 0}, udp}, ejabberd_c2s, [{proto, udp}]}]}],
         parse_listener(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
-    %% 'ejabberd_listener:normalize_proto/1' shows a warning message and falls back to 'tcp'
-    ?eq(listener_config(ejabberd_c2s, [{proto, pigeon}]),
-        parse_listener(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
+    ?err(parse_listener(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
 
 listen_ip_version(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [inet]),
@@ -545,35 +573,23 @@ listen_tls_dhfile(_Config) ->
         parse_listener(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
     ?err(parse_listener(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<>>}})).
 
-
 listen_tls_ciphers(_Config) ->
-    %% fast_tls ciphers may contain versions as well
-    ?eq(listener_config(ejabberd_c2s, [{ciphers, "TLSv1.2:TLSv1.3"}]),
+    ?eq(listener_config(ejabberd_c2s, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
         parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}})),
-    ?eq(listener_config(ejabberd_s2s_in, [{ciphers, "TLSv1.2:TLSv1.3"}]),
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
+                                       {ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+        parse_listener(<<"c2s">>,
+                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                        <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_s2s_in, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
         parse_listener(<<"s2s">>,
-                       #{<<"tls">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}})),
-    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                       {ssl_options, [{ciphers, ["TLS_AES_256_GCM_SHA384"]}]}]),
-        parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                        <<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})),
-    ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                       {ssl_options, [{ciphers, [#{cipher => aes_256_gcm,
-                                                                   key_exchange => any,
-                                                                   mac => aead,
-                                                                   prf => sha384}]}]}]),
-        parse_listener(<<"c2s">>,
-                       #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                        <<"ciphers">> => [#{<<"cipher">> => <<"aes_256_gcm">>,
-                                                            <<"key_exchange">> => <<"any">>,
-                                                            <<"mac">> => <<"aead">>,
-                                                            <<"prf">> => <<"sha384">>}]}})),
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?eq(listener_config(ejabberd_cowboy, [{ssl, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+        parse_listener(<<"http">>,
+                       #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?err(parse_listener(<<"c2s">>,
-                        #{<<"tls">> =>
-                              #{<<"module">> => <<"just_tls">>,
-                                <<"ciphers">> => [#{<<"cipher">> => <<"aes_256_gcm">>}]}})).
+                        #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
 
 listen_tls_versions(_Config) ->
     ?eq(listener_config(ejabberd_c2s, [{tls_module, just_tls},
@@ -1053,34 +1069,30 @@ pool_riak_credentials(_Config) ->
         parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
             #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"">>, <<"password">> => 011001}})).
+    ?err(parse_pool_conn(<<"riak">>, #{<<"credentials">> =>
+                                           #{<<"user">> => <<"">>, <<"password">> => 011001}})).
 
 pool_riak_cacertfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{cacertfile, "path/to/cacert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"path/to/cacert.pem">>}})),
+    ?eq(pool_config({riak, global, default, [], [{cacertfile, "cacert.pem"}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
-pool_riak_certfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{certfile, "path/to/cert.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"certfile">> => <<"">>})).
-
-pool_riak_keyfile(_Config) ->
-    ?eq(pool_config({riak, global, default, [], [{keyfile, "path/to/key.pem"}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"keyfile">> => <<"path/to/key.pem">>}})),
-    ?err(parse_pool_conn(<<"riak">>, #{<<"keyfile">> => <<"">>})).
-
 pool_riak_tls(_Config) ->
-    %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{dhfile, "cert.pem"}
-        ]}]}),
-        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => <<"cert.pem">>}})),
+    %% make sure these options are not extracted out of 'ssl_opts'
+    %% all the TLS options are checked by 'listen_tls_*' tests
+    ?eq(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "path/to/cert.pem"},
+                                                             {dhfile, "cert.pem"},
+                                                             {keyfile, "path/to/key.pem"}]}]}),
+        parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
+                                                     <<"dhfile">> => <<"cert.pem">>,
+                                                     <<"keyfile">> => <<"path/to/key.pem">>}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
     ?err(parse_pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
     ?eq(pool_config({cassandra, global, default, [],
-        [{servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}]}]}),
+        [{servers, [{"cassandra_server1.example.com", 9042},
+                    {"cassandra_server2.example.com", 9042}]}]}),
         parse_pool_conn(<<"cassandra">>, #{<<"servers">> => [
             #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
             #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
@@ -1094,7 +1106,9 @@ pool_cassandra_keyspace(_Config) ->
     ?err(parse_pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
-    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler, [{<<"auser">>, <<"secretpass">>}]}}]}),
+    ?eq(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler,
+                                                              [{<<"auser">>, <<"secretpass">>}]
+                                                             }}]}),
         parse_pool_conn(<<"cassandra">>,
                         #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
                                                            <<"password">> => <<"secretpass">>}}})),
@@ -1298,7 +1312,9 @@ s2s_host_policy(_Config) ->
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"policy">>], Policy)]}}),
     err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"host">> => <<>>}]}}),
-    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}).
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy#{<<"policy">> => <<"huh">>}]}}),
+    err_host_config(#{<<"s2s">> => #{<<"host_policy">> => [Policy,
+                                                           Policy#{<<"policy">> => <<"deny">>}]}}).
 
 s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
@@ -1312,7 +1328,8 @@ s2s_address(_Config) ->
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}})),
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}})),
     ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}})),
-    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}})).
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}})),
+    ?err(parse(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}})).
 
 s2s_ciphers(_Config) ->
     ?eq([#local_config{key = s2s_ciphers, value = "TLSv1.2:TLSv1.3"}],
@@ -1327,7 +1344,8 @@ s2s_domain_certfile(_Config) ->
     [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}}))
      || K <- maps:keys(DomCert)],
     [?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}}))
-     || K <- maps:keys(DomCert)].
+     || K <- maps:keys(DomCert)],
+    ?err(parse(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert, DomCert]}})).
 
 s2s_shared(_Config) ->
     eq_host_config([#local_config{key = {s2s_shared, ?HOST}, value = <<"secret">>}],
@@ -1343,84 +1361,72 @@ s2s_max_retry_delay(_Config) ->
 
 mod_adhoc(_Config) ->
     check_iqdisc(mod_adhoc),
-    run_multi(mod_adhoc_cases()).
-
-mod_adhoc_cases() ->
     M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    [?_eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
-     ?_eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
-     %% not boolean
-     ?_errf(T(<<"report_commands_node">>, <<"hello">>))].
+    ?eqf(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
+    ?eqf(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+    %% not boolean
+    ?errf(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
     check_iqdisc(mod_auth_token),
-    run_multi(mod_auth_token_cases()).
-
-mod_auth_token_cases() ->
     P = fun(X) ->
-                     Opts = #{<<"validity_period">> => X},
-                     #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
-             end,
-    [?_eqf(modopts(mod_auth_token, [{{validity_period,access},  {13,minutes}},
-                                    {{validity_period,refresh}, {31,days}}]),
-           P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>},
-              #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => <<"13">>, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-     ?_errf(P([#{<<"token">> => <<"Access">>,  <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"unit">> => <<"minutes">>}])),
-     ?_errf(P([#{<<"token">> => <<"access">>,  <<"value">> => 13}]))].
-
+                Opts = #{<<"validity_period">> => X},
+                #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
+        end,
+    ?eqf(modopts(mod_auth_token, [{{validity_period, access}, {13, minutes}},
+                                  {{validity_period, refresh}, {31, days}}]),
+         P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>},
+            #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => <<"13">>,
+               <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minute">>}])),
+    ?errf(P([#{<<"token">> => <<"Access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"unit">> => <<"minutes">>}])),
+    ?errf(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
 
 mod_bosh(_Config) ->
-    run_multi(mod_bosh_cases()).
-
-mod_bosh_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
-    [?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
-     ?_eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
-     ?_eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
-     ?_eqf(M(server_acks, true), T(<<"server_acks">>, true)),
-     ?_eqf(M(server_acks, false), T(<<"server_acks">>, false)),
-     ?errf(T(<<"inactivity">>, -1)),
-     ?errf(T(<<"inactivity">>, <<"10">>)),
-     ?errf(T(<<"inactivity">>, <<"inactivity">>)),
-     ?errf(T(<<"max_wait">>, <<"10">>)),
-     ?errf(T(<<"max_wait">>, -1)),
-     ?errf(T(<<"server_acks">>, -1))].
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
+    ?eqf(M(inactivity, 10), T(<<"inactivity">>, 10)),
+    ?eqf(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
+    ?eqf(M(server_acks, true), T(<<"server_acks">>, true)),
+    ?eqf(M(server_acks, false), T(<<"server_acks">>, false)),
+    ?eqf(M(maxpause, 10), T(<<"max_pause">>, 10)),
+    ?errf(T(<<"inactivity">>, -1)),
+    ?errf(T(<<"inactivity">>, <<"10">>)),
+    ?errf(T(<<"inactivity">>, <<"inactivity">>)),
+    ?errf(T(<<"max_wait">>, <<"10">>)),
+    ?errf(T(<<"max_wait">>, -1)),
+    ?errf(T(<<"server_acks">>, -1)),
+    ?errf(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
-    run_multi(mod_caps_cases()).
-
-mod_caps_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
-    [?_eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
-     ?_eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
-     ?_errf(T(<<"cache_size">>, -1)),
-     ?_errf(T(<<"cache_size">>, <<"infinity">>)),
-     ?_errf(T(<<"cache_life_time">>, -1)),
-     ?_errf(T(<<"cache_life_time">>, <<"cache_life_time">>))].
+    ?eqf(M(cache_size, 10), T(<<"cache_size">>, 10)),
+    ?eqf(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+    ?errf(T(<<"cache_size">>, 0)),
+    ?errf(T(<<"cache_size">>, <<"infinity">>)),
+    ?errf(T(<<"cache_life_time">>, 0)),
+    ?errf(T(<<"cache_life_time">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
-    run_multi(mod_csi_cases()).
-
-mod_csi_cases() ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
-    [?_eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
-     ?_eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
-     ?_errf(T(<<"buffer_max">>, -1))].
+    ?eqf(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
+    ?eqf(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+    ?errf(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
+    check_iqdisc(mod_disco),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?eqf(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
          T(<<"users_can_see_hidden_services">>, true)),
@@ -1431,1114 +1437,995 @@ mod_disco(_Config) ->
          T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
     ?eqf(modopts(mod_disco, [{extra_domains, []}]),
          T(<<"extra_domains">>, [])),
+    Info = #{<<"name">> => <<"abuse-address">>,
+             <<"urls">> => [<<"admin@example.com">>]},
     ?eqf(modopts(mod_disco, [{server_info, [{all, "abuse-address", ["admin@example.com"]},
                                             {[mod_muc, mod_disco], "friendly-spirits",
-                                             ["spirit1@localhost", "spirit2@localhost"]}]} ]),
-         T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]},
-                               #{<<"module">> => [<<"mod_muc">>, <<"mod_disco">>],
-                                 <<"name">> => <<"friendly-spirits">>,
-                                 <<"urls">> => [<<"spirit1@localhost">>, <<"spirit2@localhost">>]} ])),
-    %% Correct version, used as a prototype to make invalid versions
-%%  ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => <<"abuse-address">>,
-%%                               <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>, <<"name">> => 1,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Mising name
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"roll">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid module
-    ?errf(T(<<"server_info">>, [#{<<"module">> => [<<"meow_meow_meow">>],
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Missing urls
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>}])),
-    %% Missing module
-    ?errf(T(<<"server_info">>, [#{<<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [<<"admin@example.com">>]}])),
-    %% Invalid url
-    ?errf(T(<<"server_info">>, [#{<<"module">> => <<"all">>,
-                                  <<"name">> => <<"abuse-address">>,
-                                 <<"urls">> => [1]}])),
+                                             ["spirit1@localhost", "spirit2@localhost"]}]}
+                            ]),
+         T(<<"server_info">>, [Info, #{<<"modules">> => [<<"mod_muc">>, <<"mod_disco">>],
+                                       <<"name">> => <<"friendly-spirits">>,
+                                       <<"urls">> => [<<"spirit1@localhost">>,
+                                                      <<"spirit2@localhost">>]}
+                              ])),
     ?errf(T(<<"users_can_see_hidden_services">>, 1)),
     ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),
     ?errf(T(<<"extra_domains">>, [<<"user@localhost">>])),
     ?errf(T(<<"extra_domains">>, [1])),
-    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)).
+    ?errf(T(<<"extra_domains">>, <<"domains domains domains">>)),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => 1}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"name">> => <<"">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => <<"roll">>}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"modules">> => [<<"meow_meow_meow">>]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [1]}])),
+    ?errf(T(<<"server_info">>, [Info#{<<"urls">> => [<<"">>]}])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"name">>, Info)])),
+    ?errf(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_extdisco">> => Opts}} end,
-    Service = #{
+    T = fun(Opts) -> #{<<"modules">> =>
+                         #{<<"mod_extdisco">> =>
+                             #{<<"service">> => [Opts]}}}
+        end,
+    M = fun(Opts) -> modopts(mod_extdisco, [Opts]) end,
+    RequiredOpts = #{
         <<"type">> => <<"stun">>,
-        <<"host">> => <<"stun1">>,
-        <<"port">> => 3478,
-        <<"transport">> => <<"udp">>,
-        <<"username">> => <<"username">>,
-        <<"password">> => <<"password">>},
-    Base = #{<<"service">> => [Service]},
-    MBase = [{host, "stun1"},
-             {password, "password"},
-             {port, 3478},
-             {transport, "udp"},
-             {type, stun},
-             {username, "username"}],
-    ?eqf(modopts(mod_extdisco, [MBase]), T(Base)),
-    %% Invalid service type
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"type">> => ["stun"]}]})),
-    %% Invalid host
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => [1]}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"host">> => true}]})),
-    %% Invalid port
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => 9999999}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"port">> => "port"}]})),
-    %% Invalid transport
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => -1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"transport">> => ""}]})),
-    %% Invalid username
-    ?errf(T(Base#{<<"service">> => [Base#{<<"username">> => -2}]})),
-    %% Invalid password
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => 1}]})),
-    ?errf(T(Base#{<<"service">> => [Base#{<<"password">> => [<<"test">>]}]})).
+        <<"host">> => <<"stun1">>},
+    ExpectedCfg = [{host, "stun1"},
+                   {type, stun}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{port, 3478}]),
+         T(RequiredOpts#{<<"port">> => 3478})),
+    ?eqf(M(ExpectedCfg ++ [{transport, "udp"}]),
+         T(RequiredOpts#{<<"transport">> => <<"udp">>})),
+    ?eqf(M(ExpectedCfg ++ [{username, "username"}]),
+         T(RequiredOpts#{<<"username">> => <<"username">>})),
+    ?eqf(M(ExpectedCfg ++ [{password, "password"}]),
+         T(RequiredOpts#{<<"password">> => <<"password">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"type">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"port">> => -1})),
+    ?errf(T(RequiredOpts#{<<"transport">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"username">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"password">> => <<"">>})).
 
 mod_inbox(_Config) ->
-    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_inbox">> => #{K => V}}} end,
-    ?eqf(modopts(mod_inbox, [{reset_markers, [displayed, received, acknowledged]}]),
-         T(<<"reset_markers">>, [<<"displayed">>, <<"received">>, <<"acknowledged">>])),
-    ?eqf(modopts(mod_inbox, [{reset_markers, []}]),
-         T(<<"reset_markers">>, [])),
-    ?eqf(modopts(mod_inbox, [{groupchat, [muc, muclight]}]),
-         T(<<"groupchat">>, [<<"muc">>, <<"muclight">>])),
-    ?eqf(modopts(mod_inbox, [{groupchat, []}]),
-         T(<<"groupchat">>, [])),
-    ?eqf(modopts(mod_inbox, [{aff_changes, true}]),
-         T(<<"aff_changes">>, true)),
-    ?eqf(modopts(mod_inbox, [{aff_changes, false}]),
-         T(<<"aff_changes">>, false)),
-    ?eqf(modopts(mod_inbox, [{remove_on_kicked, true}]),
-         T(<<"remove_on_kicked">>, true)),
-    ?eqf(modopts(mod_inbox, [{remove_on_kicked, false}]),
-         T(<<"remove_on_kicked">>, false)),
-    ?errf(T(<<"reset_markers">>, 1)),
-    ?errf(T(<<"reset_markers">>, <<"test">>)),
-    ?errf(T(<<"reset_markers">>, [<<"test">>])),
-    ?errf(T(<<"groupchat">>, [<<"test">>])),
-    ?errf(T(<<"groupchat">>, <<"test">>)),
-    ?errf(T(<<"groupchat">>, true)),
-    ?errf(T(<<"aff_changes">>, 1)),
-    ?errf(T(<<"aff_changes">>, <<"true">>)),
-    ?errf(T(<<"remove_on_kicked">>, 1)),
-    ?errf(T(<<"remove_on_kicked">>, <<"true">>)),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
+    M = fun(Opts) -> modopts(mod_inbox, Opts) end,
+    ?eqf(M([{reset_markers, [displayed, received, acknowledged]}]),
+         T(#{<<"reset_markers">> => [<<"displayed">>, <<"received">>, <<"acknowledged">>]})),
+    ?eqf(M([{groupchat, [muc, muclight]}]),
+         T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
+    ?eqf(M([{aff_changes, true}]),
+         T(#{<<"aff_changes">> => true})),
+    ?eqf(M([{remove_on_kicked, false}]),
+         T(#{<<"remove_on_kicked">> => false})),
+    ?errf(T(#{<<"reset_markers">> => 1})),
+    ?errf(T(#{<<"groupchat">> => [<<"test">>]})),
+    ?errf(T(#{<<"aff_changes">> => 1})),
+    ?errf(T(#{<<"remove_on_kicked">> => 1})),
     check_iqdisc(mod_inbox).
 
 mod_global_distrib(_Config) ->
-    ConnOpts = [
-              {advertised_endpoints, [{"172.16.0.1", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {connections_per_endpoint, 22},
-              {disabled_gc_interval, 60},
-              {endpoint_refresh_interval, 120},
-              {endpoint_refresh_interval_when_empty, 5},
-              {endpoints, [{"172.16.0.2", 5555}, {"localhost", 80}, {"example.com", 5555}]},
-              {tls_opts, [
-                    {cafile, "/dev/null"},
-                    {certfile, "/dev/null"},
-                    {ciphers, "TLS_AES_256_GCM_SHA384"},
-                    {dhfile, "/dev/null"}
-                   ]}
-             ],
-    CacheOpts = [ {cache_missed, false}, {domain_lifetime_seconds, 60},
-                  {jid_lifetime_seconds, 30}, {max_jids, 9999} ],
-    BounceOpts = [ {max_retries, 3}, {resend_after_ms, 300} ],
-    RedisOpts = [ {expire_after, 120}, {pool, global_distrib}, {refresh_after, 60} ],
-    TTOpts = #{
-          <<"enabled">> => true,
-          <<"certfile">> => <<"/dev/null">>,
-          <<"cacertfile">> => <<"/dev/null">>,
-          <<"dhfile">> => <<"/dev/null">>,
-          <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>
-         },
-    TConnOpts = #{
-      <<"endpoints">> => [#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"advertised_endpoints">> =>
-                         [#{<<"host">> => <<"172.16.0.1">>, <<"port">> => 5555},
-                          #{<<"host">> => <<"localhost">>, <<"port">> => 80},
-                          #{<<"host">> => <<"example.com">>, <<"port">> => 5555}],
-      <<"connections_per_endpoint">> => 22,
-      <<"disabled_gc_interval">> => 60,
-      <<"endpoint_refresh_interval">> => 120,
-      <<"endpoint_refresh_interval_when_empty">> => 5,
-      <<"tls">> => TTOpts
-     },
-    TCacheOpts = #{ <<"cache_missed">> => false,
-                    <<"domain_lifetime_seconds">> => 60,
-                    <<"jid_lifetime_seconds">> => 30,
-                    <<"max_jids">> => 9999 },
-    TBounceOpts = #{ <<"resend_after_ms">> => 300, <<"max_retries">> => 3 },
-    TRedisOpts = #{ <<"pool">> => <<"global_distrib">>,
-                    <<"expire_after">> => 120,
-                    <<"refresh_after">> => 60 },
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
-    Base = #{
-           <<"global_host">> => <<"example.com">>,
-           <<"local_host">> => <<"datacenter1.example.com">>,
-           <<"message_ttl">> => 42,
-           <<"hosts_refresh_interval">> => 100,
-           <<"connections">> => TConnOpts,
-           <<"cache">> => TCacheOpts,
-           <<"bounce">> => TBounceOpts,
-           <<"redis">> => TRedisOpts
-          },
-    MBase = [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ],
-    ?eqf(modopts(mod_global_distrib, [
-        {bounce, BounceOpts},
-        {cache, CacheOpts},
-        {connections, ConnOpts},
-        {global_host, "example.com"},
-        {hosts_refresh_interval, 100},
-        {local_host, "datacenter1.example.com"},
-        {message_ttl, 42},
-        {redis, RedisOpts}
-       ]), T(Base)),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(advertised_endpoints, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> => false}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
-    ?eqf(modopts(mod_global_distrib,
-                 set_pl(connections,
-                        set_pl(tls_opts, false, ConnOpts),
-                        MBase)),
-         T(Base#{<<"connections">> => TConnOpts#{<<"tls">> => #{<<"enabled">> => false}}})),
-    %% Connection opts
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"certfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"dhfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-            <<"tls">> =>TTOpts#{<<"ciphers">> => 42}}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"advertised_endpoints">> =>[#{<<"host">> => 234, <<"port">> => 5555}]}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{
-        <<"connections_per_endpoint">> => <<"kek">>}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"connections_per_endpoint">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"disabled_gc_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval">> => -1}})),
-    ?errf(T(Base#{<<"connections">> => TConnOpts#{<<"endpoint_refresh_interval_when_empty">> => -1}})),
-    %% Redis Opts
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"pool">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"expire_after">> => -1}})),
-    ?errf(T(Base#{<<"redis">> => TRedisOpts#{<<"refresh_after">> => -1}})),
-    %% Cache Opts
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"cache_missed">> => 1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"domain_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"jid_lifetime_seconds">> => -1}})),
-    ?errf(T(Base#{<<"cache">> => TCacheOpts#{<<"max_jids">> => -1}})),
-    %% Bouncing Opts
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"resend_after_ms">> => -1}})),
-    ?errf(T(Base#{<<"bounce">> => TCacheOpts#{<<"max_retries">> => -1}})),
-    %% Global Opts
-    ?errf(T(Base#{<<"global_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"global_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => <<"example omm omm omm">>})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"message_ttl">> => <<"kek">>})),
-    ?errf(T(Base#{<<"message_ttl">> => -1})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => <<"kek">>})),
-    ?errf(T(Base#{<<"hosts_refresh_interval">> => -1})).
+    M = fun(Cfg) -> modopts(mod_global_distrib, Cfg) end,
+    RequiredOpts = global_distrib_required_opts(),
+    ExpectedCfg = global_distrib_expected_config(),
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{message_ttl, 42}]),
+         T(RequiredOpts#{<<"message_ttl">> => 42})),
+    ?eqf(M(ExpectedCfg ++ [{hosts_refresh_interval, 100}]),
+         T(RequiredOpts#{<<"hosts_refresh_interval">> => 100})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"global_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"local_host">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"message_ttl">> => -1})),
+    ?errf(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})).
 
-mod_event_pusher(_Config) ->
-    T = fun(Backend, Opt, Value) ->
-                Opts = #{<<"backend">> => #{
-                             atom_to_binary(Backend, utf8) =>
-                                 #{atom_to_binary(Opt, utf8) => Value}}},
-                #{<<"modules">> => #{<<"mod_event_pusher">> => Opts}}
+mod_global_distrib_connections(_Config) ->
+    RequiredOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredOpts#{<<"connections">> => Opts}}}
         end,
-    M = fun(Backend, Opt, Value) ->
-                Backends = [{Backend, [{Opt, Value}]}],
-                modopts(mod_event_pusher, [{backends, Backends}])
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{connections, Cfg}])
         end,
-    [?eqf(M(Backend, Opt, Mim), T(Backend, Opt, Toml))
-     || {Backend, Opt, Toml, Mim} <- mod_event_pusher_valid_opts()],
-    [begin
-         FullToml = T(Backend, Opt, Toml),
-         try
-             ?errf(FullToml)
-         catch Class:Error:Stacktrace ->
-                   erlang:raise(Class, #{what => passed_but_shouldnt,
-                                         backend => Backend, opt => Opt,
-                                         full_toml => FullToml,
-                                         toml => Toml, reason => Error},
-                                Stacktrace)
-         end
-     end
-     || {Backend, Opt, Toml} <- mod_event_pusher_ivalid_opts()],
-    ok.
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{connections_per_endpoint, 22}]),
+         T(#{<<"connections_per_endpoint">> => 22})),
+    ?eqf(M([{endpoint_refresh_interval, 120}]),
+         T(#{<<"endpoint_refresh_interval">> => 120})),
+    ?eqf(M([{endpoint_refresh_interval_when_empty, 5}]),
+         T(#{<<"endpoint_refresh_interval_when_empty">> => 5})),
+    ?eqf(M([{disabled_gc_interval, 60}]),
+         T(#{<<"disabled_gc_interval">> => 60})),
+    ?errf(T(#{<<"connections_per_endpoint">> => -1})),
+    ?errf(T(#{<<"endpoint_refresh_interval">> => 0})),
+    ?errf(T(#{<<"endpoint_refresh_interval_when_empty">> => 0})),
+    ?errf(T(#{<<"disabled_gc_interval">> => 0})).
 
-mod_event_pusher_valid_opts() ->
-    %% {BackendName, BackendOptionName, TomlValue, MongooseValue}
-    [%% sns
-     {sns, access_key_id, <<"AKIAIOSFODNN7EXAMPLE">>,"AKIAIOSFODNN7EXAMPLE"},
-     {sns, secret_access_key, <<"KEY">>, "KEY"},
-     {sns, region, <<"eu-west-1">>, "eu-west-1"},
-     {sns, account_id, <<"123456789012">>, "123456789012"},
-     {sns, sns_host, <<"sns.eu-west-1.amazonaws.com">>, "sns.eu-west-1.amazonaws.com"},
-     {sns, muc_host, <<"conference.HOST">>, "conference.HOST"},
-     {sns, plugin_module, <<"mod_event_pusher_sns_defaults">>, mod_event_pusher_sns_defaults},
-     {sns, presence_updates_topic, <<"user_presence_updated">>, "user_presence_updated"},
-     {sns, pm_messages_topic, <<"user_message_sent">>, "user_message_sent"},
-     {sns, muc_messages_topic, <<"user_messagegroup_sent">>, "user_messagegroup_sent"},
-     {sns, pool_size, 100, 100},
-     {sns, publish_retry_count, 2, 2},
-     {sns, publish_retry_time_ms, 50, 50},
-     %% push
-     {push, plugin_module, <<"mod_event_pusher_push_plugin_defaults">>, mod_event_pusher_push_plugin_defaults},
-     {push, virtual_pubsub_hosts, [<<"host1">>, <<"host2">>], ["host1", "host2"]},
-     {push, backend, <<"mnesia">>, mnesia},
-     {push, wpool, #{<<"workers">> => 200}, [{workers, 200}]},
-     %% http
-     {http, pool_name, <<"http_pool">>, http_pool},
-     {http, path, <<"/notifications">>, "/notifications"},
-     {http, callback_module, <<"mod_event_pusher_http_defaults">>, mod_event_pusher_http_defaults},
-     %% rabbit
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"type">> => <<"topic">>},
-          [{name, <<"presence">>}, {type, <<"topic">>}]},
-     {rabbit, chat_msg_exchange,
-          #{<<"name">> => <<"chat_msg">>,
-            <<"recv_topic">> => <<"chat_msg_recv">>,
-            <<"sent_topic">> => <<"chat_msg_sent">>},
-          [{name, <<"chat_msg">>},
-           {recv_topic, <<"chat_msg_recv">>},
-           {sent_topic, <<"chat_msg_sent">>}]},
-     {rabbit, groupchat_msg_exchange,
-          #{<<"name">> => <<"groupchat_msg">>,
-            <<"sent_topic">> => <<"groupchat_msg_sent">>,
-            <<"recv_topic">> => <<"groupchat_msg_recv">>},
-          [{name, <<"groupchat_msg">>},
-           {recv_topic, <<"groupchat_msg_recv">>},
-           {sent_topic, <<"groupchat_msg_sent">>}]}].
+mod_global_distrib_connections_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"endpoints">>).
 
-mod_event_pusher_ivalid_opts() ->
-    %% {BackendName, BackendOptionName, TomlValue}
-    [%% sns
-     {sns, access_key_id, 1},
-     {sns, secret_access_key, 1},
-     {sns, region, 1},
-     {sns, account_id, 1},
-     {sns, sns_host, 1},
-     {sns, muc_host, 1},
-     {sns, muc_host, <<"kek kek">>},
-     {sns, plugin_module, <<"wow_cool_but_missing">>},
-     {sns, plugin_module, 1},
-     {sns, presence_updates_topic, 1},
-     {sns, pm_messages_topic, 1},
-     {sns, muc_messages_topic, 1},
-     {sns, pool_size, <<"1">>},
-     {sns, publish_retry_count, <<"1">>},
-     {sns, publish_retry_time_ms, <<"1">>},
-     %% push
-     {push, plugin_module, <<"wow_cool_but_missing">>},
-     {push, plugin_module, 1},
-     {push, virtual_pubsub_hosts, [<<"host with whitespace">>]},
-     {push, backend, <<"mnesiAD">>},
-     {push, wpool, #{<<"workers">> => <<"500">>}},
-     %% http
-     {http, pool_name, 1},
-     {http, path, 1},
-     {http, callback_module, <<"wow_cool_but_missing">>},
-     {http, callback_module, 1},
-     %% rabbit
-     {rabbit, presence_exchange,
-          #{<<"namesss">> => <<"presence">>, <<"type">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"typessss">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => 1, <<"type">> => <<"topic">>}},
-     {rabbit, presence_exchange,
-          #{<<"name">> => <<"presence">>, <<"type">> => 1}}
-    ] ++ make_chat_exchange_invalid_opts(chat_msg_exchange)
-      ++ make_chat_exchange_invalid_opts(groupchat_msg_exchange).
+mod_global_distrib_connections_advertised_endpoints(_Config) ->
+    check_mod_global_distrib_endpoints(<<"advertised_endpoints">>).
 
-make_chat_exchange_invalid_opts(Exchange) ->
-    [{rabbit, Exchange, Val} || Val <- chat_exchange_invalid_opts()].
+check_mod_global_distrib_endpoints(OptKey) ->
+    CfgKey = binary_to_atom(OptKey, utf8),
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{OptKey => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{CfgKey, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"host">> => <<"172.16.0.2">>,
+                     <<"port">> => 5555},
+    ?eqf(M([{"172.16.0.2", 5555}]), T([RequiredOpts])),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"host">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"port">> => -1}])).
 
-chat_exchange_invalid_opts() ->
-     [#{<<"names4">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topicsss">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topics33">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topics444">> => <<"chat_msg_sent">>},
-      #{<<"name">> => 1,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => 1,
-        <<"sent_topic">> => <<"chat_msg_sent">>},
-      #{<<"name">> => <<"chat_msg">>,
-        <<"recv_topic">> => <<"chat_msg_recv">>,
-        <<"sent_topic">> => 1}].
+mod_global_distrib_connections_tls(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{<<"tls">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++
+                                [{connections, [{tls_opts, Cfg}]}])
+        end,
+    RequiredOpts = #{<<"certfile">> => <<"priv/cert.pem">>,
+                     <<"cacertfile">> => <<"priv/ca.pem">>},
+    ExpectedCfg = [{certfile, "priv/cert.pem"},
+                   {cafile, "priv/ca.pem"}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+         T(RequiredOpts#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?eqf(M(ExpectedCfg ++ [{dhfile, "priv/cert.pem"}]),
+         T(RequiredOpts#{<<"dhfile">> => <<"priv/cert.pem">>})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"certfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"dhfile">> => <<"/this/does/not/exist">>})),
+    ?errf(T(RequiredOpts#{<<"ciphers">> => 42})).
+
+mod_global_distrib_redis(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"redis">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{redis, Cfg}])
+        end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{pool, global_distrib}]),
+         T(#{<<"pool">> => <<"global_distrib">>})),
+    ?eqf(M([{expire_after, 120}]),
+         T(#{<<"expire_after">> => 120})),
+    ?eqf(M([{refresh_after, 60}]),
+         T(#{<<"refresh_after">> => 60})),
+    ?errf(T(#{<<"pool">> => <<"">>})),
+    ?errf(T(#{<<"expire_after">> => 0})),
+    ?errf(T(#{<<"refresh_after">> => -1})).
+
+mod_global_distrib_cache(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"cache">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{cache, Cfg}])
+        end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{cache_missed, false}]),
+         T(#{<<"cache_missed">> => false})),
+    ?eqf(M([{domain_lifetime_seconds, 60}]),
+         T(#{<<"domain_lifetime_seconds">> => 60})),
+    ?eqf(M([{jid_lifetime_seconds, 30}]),
+         T(#{<<"jid_lifetime_seconds">> => 30})),
+    ?eqf(M([{max_jids, 9999}]),
+         T(#{<<"max_jids">> => 9999})),
+    ?errf(T(#{<<"cache_missed">> => <<"yes">>})),
+    ?errf(T(#{<<"domain_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"jid_lifetime_seconds">> => -1})),
+    ?errf(T(#{<<"max_jids">> => -1})).
+
+mod_global_distrib_bounce(_Config) ->
+    RequiredModOpts = global_distrib_required_opts(),
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"bounce">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_global_distrib,
+                            global_distrib_expected_config() ++ [{bounce, Cfg}])
+        end,
+    ?eqf(M(false),
+         T(#{<<"enabled">> => false})),
+    ?eqf(M([]),
+         T(#{<<"enabled">> => true})),
+    ?eqf(M([{resend_after_ms, 300}]),
+         T(#{<<"resend_after_ms">> => 300})),
+    ?eqf(M([{max_retries, 3}]),
+         T(#{<<"max_retries">> => 3})),
+    ?errf(T(#{<<"enabled">> => <<"">>})),
+    ?errf(T(#{<<"resend_after_ms">> => -1})),
+    ?errf(T(#{<<"max_retries">> => -1})).
+
+global_distrib_required_opts() ->
+    #{<<"global_host">> => <<"example.com">>,
+      <<"local_host">> => <<"datacenter1.example.com">>}.
+
+global_distrib_expected_config() ->
+    [{global_host, "example.com"},
+     {local_host, "datacenter1.example.com"}].
+
+mod_event_pusher_sns(_Config) ->
+    RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
+                     <<"secret_access_key">> => <<"KEY">>,
+                     <<"region">> => <<"eu-west-1">>,
+                     <<"account_id">> => <<"123456789012">>,
+                     <<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>},
+    ExpectedCfg = [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
+                   {secret_access_key, "KEY"},
+                   {region, "eu-west-1"},
+                   {account_id, "123456789012"},
+                   {sns_host, "sns.eu-west-1.amazonaws.com"}],
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"sns">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{sns, Cfg}]}]) end,
+    ?eqf(M(ExpectedCfg),
+         T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{presence_updates_topic, "pres"}]),
+         T(RequiredOpts#{<<"presence_updates_topic">> => <<"pres">>})),
+    ?eqf(M(ExpectedCfg ++ [{pm_messages_topic, "pm"}]),
+         T(RequiredOpts#{<<"pm_messages_topic">> => <<"pm">>})),
+    ?eqf(M(ExpectedCfg ++ [{muc_messages_topic, "muc"}]),
+         T(RequiredOpts#{<<"muc_messages_topic">> => <<"muc">>})),
+    ?eqf(M(ExpectedCfg ++ [{plugin_module, mod_event_pusher_sns_defaults}]),
+         T(RequiredOpts#{<<"plugin_module">> => <<"mod_event_pusher_sns_defaults">>})),
+    ?eqf(M(ExpectedCfg ++ [{pool_size, 10}]),
+         T(RequiredOpts#{<<"pool_size">> => 10})),
+    ?eqf(M(ExpectedCfg ++ [{publish_retry_count, 1}]),
+         T(RequiredOpts#{<<"publish_retry_count">> => 1})),
+    ?eqf(M(ExpectedCfg ++ [{publish_retry_time_ms, 100}]),
+         T(RequiredOpts#{<<"publish_retry_time_ms">> => 100})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"presence_updates_topic">> => #{}})),
+    ?errf(T(RequiredOpts#{<<"pm_messages_topic">> => true})),
+    ?errf(T(RequiredOpts#{<<"muc_messages_topic">> => [1, 2]})),
+    ?errf(T(RequiredOpts#{<<"plugin_module">> => <<"plug_and_play">>})),
+    ?errf(T(RequiredOpts#{<<"pool_size">> => 0})),
+    ?errf(T(RequiredOpts#{<<"publish_retry_count">> => -1})),
+    ?errf(T(RequiredOpts#{<<"publish_retry_time_ms">> => -1})).
+
+mod_event_pusher_push(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"push">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{push, Cfg}]}]) end,
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{wpool, [{workers, 200}]}]),
+         T(#{<<"wpool">> => #{<<"workers">> => 200}})),
+    ?eqf(M([{plugin_module, mod_event_pusher_push_plugin_defaults}]),
+         T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
+    ?eqf(M([{virtual_pubsub_hosts, ["host1", "host2"]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
+    ?eqf(M([{virtual_pubsub_hosts, ["pubsub.@HOSTS@"]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOSTS@">>]})),
+    ?errf(T(#{<<"backend">> => <<"redis">>})),
+    ?errf(T(#{<<"wpool">> => true})),
+    ?errf(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
+    ?errf(T(#{<<"plugin_module">> => <<"wow_cool_but_missing">>})),
+    ?errf(T(#{<<"plugin_module">> => 1})),
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})).
+
+mod_event_pusher_http(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"http">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{http, Cfg}]}]) end,
+    ?eqf(M([{pool_name, http_pool}]),
+         T(#{<<"pool_name">> => <<"http_pool">>})),
+    ?eqf(M([{path, "/notifications"}]),
+         T(#{<<"path">> => <<"/notifications">>})),
+    ?eqf(M([{callback_module, mod_event_pusher_http_defaults}]),
+         T(#{<<"callback_module">> => <<"mod_event_pusher_http_defaults">>})),
+    ?errf(T(#{<<"pool_name">> => <<>>})),
+    ?errf(T(#{<<"path">> => true})),
+    ?errf(T(#{<<"callback_module">> => <<"wow_cool_but_missing">>})),
+    ?errf(T(#{<<"callback_module">> => 1})).
+
+mod_event_pusher_rabbit(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_event_pusher">> =>
+                                 #{<<"backend">> => #{<<"rabbit">> => Opts}}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{rabbit, Cfg}]}]) end,
+    ?eqf(M([{presence_exchange, [{name, <<"pres">>}]}]),
+         T(#{<<"presence_exchange">> => #{<<"name">> => <<"pres">>}})),
+    ?eqf(M([{presence_exchange, [{type, <<"topic">>}]}]),
+         T(#{<<"presence_exchange">> => #{<<"type">> => <<"topic">>}})),
+
+    %% first two keys are the same as before, test them together
+    ?eqf(M([{chat_msg_exchange, [{name, <<"pres1">>},
+                                 {type, <<"topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"name">> => <<"pres1">>,
+                                          <<"type">> => <<"topic1">>}})),
+    ?eqf(M([{chat_msg_exchange, [{sent_topic, <<"sent_topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"sent_topic">> => <<"sent_topic1">>}})),
+    ?eqf(M([{chat_msg_exchange, [{recv_topic, <<"recv_topic1">>}]}]),
+         T(#{<<"chat_msg_exchange">> => #{<<"recv_topic">> => <<"recv_topic1">>}})),
+
+    %% all keys are the same as before, test them together
+    ?eqf(M([{groupchat_msg_exchange, [{name, <<"pres2">>},
+                                      {type, <<"topic2">>},
+                                      {sent_topic, <<"sent_topic2">>},
+                                      {recv_topic, <<"recv_topic2">>}]}]),
+         T(#{<<"groupchat_msg_exchange">> => #{<<"name">> => <<"pres2">>,
+                                               <<"type">> => <<"topic2">>,
+                                               <<"sent_topic">> => <<"sent_topic2">>,
+                                               <<"recv_topic">> => <<"recv_topic2">>}})),
+
+    Exchanges = [<<"presence_exchange">>, <<"chat_msg_exchange">>, <<"groupchat_msg_exchange">>],
+    Keys = [<<"name">>, <<"topic">>, <<"sent_topic">>, <<"recv_topic">>],
+    [?errf(T(#{Exch => #{Key => <<>>}})) || Exch <- Exchanges, Key <- Keys],
+    [?errf(T(#{Exch => #{<<"badkey">> => <<"goodvalue">>}})) || Exch <- Exchanges],
+    ?errf(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
-    S3 = #{
-      <<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
-      <<"add_acl">> => true,
+    M = fun(Cfg) -> modopts(mod_http_upload, Cfg) end,
+    RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
+    ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{host, "upload.@HOST@"}]),
+         T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
+    ?eqf(M(ExpectedCfg ++ [{backend, s3}]),
+         T(RequiredOpts#{<<"backend">> => <<"s3">>})),
+    ?eqf(M(ExpectedCfg ++ [{expiration_time, 666}]),
+         T(RequiredOpts#{<<"expiration_time">> => 666})),
+    ?eqf(M(ExpectedCfg ++ [{token_bytes, 32}]),
+         T(RequiredOpts#{<<"token_bytes">> => 32})),
+    ?eqf(M(ExpectedCfg ++ [{max_file_size, 42}]),
+         T(RequiredOpts#{<<"max_file_size">> => 42})),
+    ?errf(T(#{})), %% missing 's3'
+    ?errf(T(RequiredOpts#{<<"backend">> => <<"">>})),
+    ?errf(T(RequiredOpts#{<<"expiration_time">> => 0})),
+    ?errf(T(RequiredOpts#{<<"token_bytes">> => 0})),
+    ?errf(T(RequiredOpts#{<<"max_file_size">> => 0})),
+    check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
+
+mod_http_upload_s3(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
+                                              #{<<"s3">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_http_upload, [{s3, Cfg}]) end,
+    RequiredOpts = http_upload_s3_required_opts(),
+    ExpectedCfg = http_upload_s3_expected_cfg(),
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    ?eqf(M(ExpectedCfg ++ [{add_acl, true}]),
+         T(RequiredOpts#{<<"add_acl">> => true})),
+    [?errf(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"bucket_url">> => <<>>})),
+    ?errf(T(RequiredOpts#{<<"region">> => true})),
+    ?errf(T(RequiredOpts#{<<"access_key_id">> => []})),
+    ?errf(T(RequiredOpts#{<<"secret_access_key">> => 3})),
+    ?errf(T(RequiredOpts#{<<"add_acl">> => <<"true">>})).
+
+http_upload_s3_required_opts() ->
+    #{<<"bucket_url">> => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
       <<"region">> => <<"antarctica-1">>,
       <<"access_key_id">> => <<"PLEASE">>,
-      <<"secret_access_key">> => <<"ILOVEU">>
-     },
-    Base = #{
-           <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-           <<"host">> => <<"upload.@HOST@">>,
-           <<"backend">> => <<"s3">>,
-           <<"expiration_time">> => 666,
-           <<"token_bytes">> => 32,
-           <<"max_file_size">> => 42,
-           <<"s3">> => S3
-          },
-    MS3 = [{access_key_id, "PLEASE"},
-           {add_acl, true},
-           {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-           {region, "antarctica-1"},
-           {secret_access_key, "ILOVEU"}],
-    MBase = [{backend, s3},
-             {expiration_time, 666},
-             {host, "upload.@HOST@"},
-             {iqdisc, one_queue},
-             {max_file_size, 42},
-             {s3, MS3},
-             {token_bytes, 32}],
-    ?eqf(modopts(mod_http_upload, MBase), T(Base)),
-    ?errf(T(Base#{<<"host">> => -1})),
-    ?errf(T(Base#{<<"host">> => <<" f g ">>})),
-    ?errf(T(Base#{<<"backend">> => <<"dev_null_as_a_service">>})),
-    ?errf(T(Base#{<<"expiration_time">> => <<>>})),
-    ?errf(T(Base#{<<"expiration_time">> => -1})),
-    ?errf(T(Base#{<<"token_bytes">> => -1})),
-    ?errf(T(Base#{<<"max_file_size">> => -1})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"access_key_id">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"add_acl">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"bucket_url">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"region">> => -1}})),
-    ?errf(T(Base#{<<"s3">> => S3#{<<"secret_access_key">> => -1}})),
-    check_iqdisc(mod_http_upload).
+      <<"secret_access_key">> => <<"ILOVEU">>}.
+
+http_upload_s3_expected_cfg() ->
+    [{access_key_id, "PLEASE"},
+     {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
+     {region, "antarctica-1"},
+     {secret_access_key, "ILOVEU"}].
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
-    Base = #{
-      <<"proxy_host">> => <<"proxxxy">>,
-      <<"proxy_port">> => 5600,
-      <<"listen_port">> => 5601,
-      <<"local_host">> => <<"localhost">>,
-      <<"sdp_origin">> => <<"127.0.0.1">>
-     },
-    MBase = [
-      {listen_port, 5601},
-      {local_host, "localhost"},
-      {proxy_host, "proxxxy"},
-      {proxy_port, 5600},
-      {sdp_origin, "127.0.0.1"}
-     ],
-    ?eqf(modopts(mod_jingle_sip, MBase), T(Base)),
-    ?errf(T(Base#{<<"proxy_host">> => -1})),
-    ?errf(T(Base#{<<"proxy_host">> => <<"test test">>})),
-    ?errf(T(Base#{<<"listen_port">> => -1})),
-    ?errf(T(Base#{<<"listen_port">> => 10000000})),
-    ?errf(T(Base#{<<"proxy_port">> => -1})),
-    ?errf(T(Base#{<<"proxy_port">> => 10000000})),
-    ?errf(T(Base#{<<"local_host">> => 1})),
-    ?errf(T(Base#{<<"local_host">> => <<"ok ok">>})),
-    ?errf(T(Base#{<<"sdp_origin">> => <<"aaaaaaaaa">>})).
+    M = fun(Cfg) -> modopts(mod_jingle_sip, Cfg) end,
+    ?eqf(M([{proxy_host, "proxxxy"}]),
+         T(#{<<"proxy_host">> => <<"proxxxy">>})),
+    ?eqf(M([{proxy_port, 5601}]),
+         T(#{<<"proxy_port">> => 5601})),
+    ?eqf(M([{listen_port, 5602}]),
+         T(#{<<"listen_port">> => 5602})),
+    ?eqf(M([{local_host, "localhost"}]),
+         T(#{<<"local_host">> => <<"localhost">>})),
+    ?eqf(M([{sdp_origin, "127.0.0.1"}]),
+         T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
+    ?errf(T(#{<<"proxy_host">> => 1})),
+    ?errf(T(#{<<"proxy_port">> => 1000000})),
+    ?errf(T(#{<<"listen_port">> => -1})),
+    ?errf(T(#{<<"local_host">> => <<>>})),
+    ?errf(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
-    Keys = [#{<<"name">> => <<"access_secret">>,
-              <<"type">> => <<"ram">>},
-            #{<<"name">> => <<"access_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/access_psk">>},
-            #{<<"name">> => <<"provision_psk">>,
-              <<"type">> => <<"file">>,
-              <<"path">> => <<"priv/provision_psk">>}],
-    NotExistingKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"file">>,
-                       <<"path">> => <<"does/not/esit">>},
-    InvalidTypeKey = #{<<"name">> => <<"provision_psk">>,
-                       <<"type">> => <<"some_cooool_type">>},
-    MKeys = [{access_secret, ram},
-             {access_psk,    {file, "priv/access_psk"}},
-             {provision_psk, {file, "priv/provision_psk"}}],
-    Base = #{<<"keys">> => Keys, <<"ram_key_size">> => 10000},
-    MBase = [{keys, MKeys}, {ram_key_size, 10000}],
-    ?eqf(modopts(mod_keystore, MBase), T(Base)),
-    ?errf(T(Base#{<<"keys">> => [NotExistingKey]})),
-    ?errf(T(Base#{<<"keys">> => [InvalidTypeKey]})).
+    M = fun(Cfg) -> modopts(mod_keystore, Cfg) end,
+    ?eqf(M([{ram_key_size, 1024}]),
+         T(#{<<"ram_key_size">> => 1024})),
+    ?errf(T(#{<<"ram_key_size">> => -1})).
+
+mod_keystore_keys(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> =>
+                                              #{<<"keys">> => Opts}}}
+        end,
+    M = fun(Cfg) -> modopts(mod_keystore, [{keys, Cfg}]) end,
+    RequiredOpts = #{<<"name">> => <<"access_secret">>,
+                     <<"type">> => <<"ram">>},
+    ?eqf(M([{access_secret, ram}]),
+         T([RequiredOpts])),
+    ?eqf(M([{access_secret, {file, "priv/access_psk"}}]),
+         T([RequiredOpts#{<<"type">> => <<"file">>,
+                          <<"path">> => <<"priv/access_psk">>}])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"name">> => <<>>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"rampampam">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>}])),
+    ?errf(T([RequiredOpts#{<<"type">> => <<"file">>,
+                           <<"path">> => <<"does/not/exists">>}])).
 
 mod_last(_Config) ->
+    check_iqdisc(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"backend">> => <<"riak">>,
-             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
-    MBase = [{backend, riak},
-             {bucket_type, <<"test">>},
-             {iqdisc, one_queue}],
-    ?eqf(modopts(mod_last, MBase), T(Base)),
-    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_last).
+    M = fun(Cfg) -> modopts(mod_last, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"test">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+
+    ?errf(T(#{<<"backend">> => <<"frontend">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_mam_meta(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
-    %% You can define options in mod_mam and they would work.
-    %%
-    %% We _could_ validate that `host' option does not exist in the PM
-    %% section, but it would just make everything harder.
-    %%
-    %% Same with `no_stanzaid_element' for PM.
-    Common = #{<<"archive_chat_markers">> => true,
-               <<"archive_groupchats">> => true,
-               <<"async_writer">> => true,
-               <<"async_writer_rdbms_pool">> => <<"poop">>,
-               <<"backend">> => <<"riak">>,
-               <<"cache_users">> => true,
-               <<"db_jid_format">> => <<"mam_jid_rfc">>, % module
-               <<"db_message_format">> => <<"mam_message_xml">>, % module
-               <<"default_result_limit">> => 50,
-               <<"extra_lookup_params">> => <<"mod_mam_utils">>,
-               <<"host">> => <<"conf.localhost">>,
-               <<"flush_interval">> => 500,
-               <<"full_text_search">> => true,
-               <<"max_batch_size">> => 50,
-               <<"max_result_limit">> => 50,
-               <<"message_retraction">> => true,
-               <<"rdbms_message_format">> => <<"simple">>,
-               <<"simple">> => true,
-               <<"no_stanzaid_element">> => true,
-               <<"is_archivable_message">> => <<"mod_mam_utils">>,
-               <<"user_prefs_store">> => false}, %% or rdbms. but not true
-    MCommon = [{archive_chat_markers, true},
-               {archive_groupchats, true},
-               {async_writer, true},
-               {async_writer_rdbms_pool, poop},
-               {backend, riak},
-               {cache_users, true},
-               {db_jid_format, mam_jid_rfc},
-               {db_message_format, mam_message_xml},
-               {default_result_limit, 50},
-               {extra_lookup_params, mod_mam_utils},
-               {flush_interval, 500},
-               {full_text_search, true},
-               %% While applied just for MUC, it could be specified as root option
-               %% Still, it probably should've been called muc_host from the
-               %% beginning
-               {host, "conf.localhost"},
-               {is_archivable_message, mod_mam_utils},
-               {max_batch_size, 50},
-               {max_result_limit, 50},
-               {message_retraction, true},
-               {no_stanzaid_element, true},
-               {rdbms_message_format, simple},
-               {simple, true},
-               {user_prefs_store, false}],
-    ensure_sorted(MCommon),
-    Riak = #{<<"bucket_type">> => <<"mam_yz">>, <<"search_index">> => <<"mam">>},
-    MRiak = [{bucket_type, <<"mam_yz">>}, {search_index, <<"mam">>}],
-    Base = Common#{
-             <<"pm">> => Common,
-             <<"muc">> => Common,
-             %% Separate section for riak. We don't need it in pm or in muc,
-             %% because there is no separate riak module for muc.
-             <<"riak">> => Riak},
-    MBase0 = [{muc, MCommon},
-              {pm, MCommon}]
-              ++ MRiak, %% This one is flatten into mim opts
-    MBase = pl_merge(MCommon, MBase0),
-    %% It's not easy to test riak options with check_one_opts function,
-    %% so skip it.
-    %% We also skip single muc/pm options on this step.
-    KeysForOneOpts = binaries_to_atoms(maps:keys(Common)),
-    TPM = fun(Map) -> T(#{<<"pm">> => Map}) end,
-    TMuc = fun(Map) -> T(#{<<"muc">> => Map}) end,
-    TB = fun(Map) -> T(maps:merge(Base, Map)) end,
-    %% by default parser adds pm and muc keys set to false
-    Hook = fun(Mim, Toml) -> {lists:sort([{pm, false}, {muc, false}|Mim]), Toml} end,
-    run_multi(
-      %% Test configurations with one option only
-      check_one_opts(mod_mam_meta, MBase, Base, T, KeysForOneOpts, Hook) ++ [
-        ?_eqf(modopts(mod_mam_meta, [{muc, false}, {pm, false}]), T(#{})),
-        ?_eqf(modopts(mod_mam_meta, MBase), T(Base)),
-        %% Second format for user_prefs_store
-        ?_eqf(modopts(mod_mam_meta, pl_merge(MBase, [{user_prefs_store, rdbms}])),
-            T(Base#{<<"user_prefs_store">> => <<"rdbms">>}))
-        ]
-      ++ mam_failing_cases(T)
-      ++ mam_failing_cases(TPM)
-      ++ mam_failing_cases(TMuc)
-      ++ mam_failing_cases(TB)
-      ++ mam_failing_riak_cases(T)
-     ).
+    M = fun(Cfg) -> modopts(mod_mam_meta, Cfg) end,
+    test_mod_mam_meta(T, M),
+    ?eqf(M([{bucket_type, <<"mam_bucket">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"mam_bucket">>}})),
+    ?eqf(M([{search_index, <<"mam_index">>}]),
+         T(#{<<"riak">> => #{<<"search_index">> => <<"mam_index">>}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => <<>>}})),
+    ?errf(T(#{<<"riak">> => #{<<"search_index">> => <<>>}})).
 
-mam_failing_cases(T) ->
-    [?_errf(T(#{<<"pm">> => false})), % should be a section
-     ?_errf(T(#{<<"muc">> => false})), % should be a section
-     ?_errf(T(#{<<"archive_chat_markers">> => 1})),
-     ?_errf(T(#{<<"archive_groupchats">> => 1})),
-     ?_errf(T(#{<<"async_writer">> => 1})),
-     ?_errf(T(#{<<"async_writer_rdbms_pool">> => 1})),
-     ?_errf(T(#{<<"backend">> => 1})),
-     ?_errf(T(#{<<"cache_users">> => 1})),
-     ?_errf(T(#{<<"db_jid_format">> => 1})),
-     ?_errf(T(#{<<"db_jid_format">> => <<"does_not_exist_mod">>})),
-     ?_errf(T(#{<<"db_message_format">> => 1})),
-     ?_errf(T(#{<<"db_message_format">> => <<"does_not_exist_mod">>})),
-     ?_errf(T(#{<<"default_result_limit">> => <<"meow">>})),
-     ?_errf(T(#{<<"default_result_limit">> => -20})),
-     ?_errf(T(#{<<"extra_lookup_params">> => -1})),
-     ?_errf(T(#{<<"extra_lookup_params">> => <<"aaaaaaa_not_exist">>})),
-     ?_errf(T(#{<<"host">> => <<"meow meow">>})),
-     ?_errf(T(#{<<"flush_interval">> => <<"meow">>})),
-     ?_errf(T(#{<<"flush_interval">> => -20})),
-     ?_errf(T(#{<<"full_text_search">> => -1})),
-     ?_errf(T(#{<<"max_batch_size">> => -1})),
-     ?_errf(T(#{<<"max_result_limit">> => -1})),
-     ?_errf(T(#{<<"message_retraction">> => -1})),
-     ?_errf(T(#{<<"rdbms_message_format">> => <<"verysimple">>})),
-     ?_errf(T(#{<<"simple">> => 1})),
-     ?_errf(T(#{<<"no_stanzaid_element">> => -1})),
-     ?_errf(T(#{<<"is_archivable_message">> => -1})),
-     ?_errf(T(#{<<"user_prefs_store">> => 1}))].
+mod_mam_meta_pm(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"pm">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_mam_meta, [{pm, Cfg}]) end,
+    test_mod_mam_meta(T, M),
+    ?eqf(M([{archive_groupchats, true}]),
+         T(#{<<"archive_groupchats">> => true})),
+    ?errf(T(#{<<"archive_groupchats">> => <<"not really">>})).
 
-mam_failing_riak_cases(T) ->
-    [?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-     ?_errf(T(#{<<"riak">> => #{<<"search_index">> => 1}}))].
+mod_mam_meta_muc(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_mam_meta, [{muc, Cfg}]) end,
+    test_mod_mam_meta(T, M),
+    ?eqf(M([{host, "muc.@HOST@"}]),
+         T(#{<<"host">> => <<"muc.@HOST@">>})),
+    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})).
+
+test_mod_mam_meta(T, M) ->
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{no_stanzaid_element, true}]),
+         T(#{<<"no_stanzaid_element">> => true})),
+    ?eqf(M([{is_archivable_message, mod_mam_utils}]),
+         T(#{<<"is_archivable_message">> => <<"mod_mam_utils">>})),
+    ?eqf(M([{archive_chat_markers, false}]),
+         T(#{<<"archive_chat_markers">> => false})),
+    ?eqf(M([{message_retraction, true}]),
+         T(#{<<"message_retraction">> => true})),
+    ?eqf(M([{cache_users, false}]),
+         T(#{<<"cache_users">> => false})),
+    ?eqf(M([{rdbms_message_format, simple}]),
+         T(#{<<"rdbms_message_format">> => <<"simple">>})),
+    ?eqf(M([{async_writer, true}]),
+         T(#{<<"async_writer">> => true})),
+    ?eqf(M([{flush_interval, 1500}]),
+         T(#{<<"flush_interval">> => 1500})),
+    ?eqf(M([{max_batch_size, 50}]),
+         T(#{<<"max_batch_size">> => 50})),
+    ?eqf(M([{user_prefs_store, rdbms}]),
+         T(#{<<"user_prefs_store">> => <<"rdbms">>})),
+    ?eqf(M([{full_text_search, false}]),
+         T(#{<<"full_text_search">> => false})),
+    ?eqf(M([{default_result_limit, 100}]),
+         T(#{<<"default_result_limit">> => 100})),
+    ?eqf(M([{max_result_limit, 1000}]),
+         T(#{<<"max_result_limit">> => 1000})),
+    ?eqf(M([{async_writer_rdbms_pool, async_pool}]),
+         T(#{<<"async_writer_rdbms_pool">> => <<"async_pool">>})),
+    ?eqf(M([{db_jid_format, mam_jid_rfc}]),
+         T(#{<<"db_jid_format">> => <<"mam_jid_rfc">>})),
+    ?eqf(M([{db_message_format, mam_message_xml}]),
+         T(#{<<"db_message_format">> => <<"mam_message_xml">>})),
+    ?eqf(M([{simple, false}]),
+         T(#{<<"simple">> => false})),
+    ?eqf(M([{extra_lookup_params, mod_mam_utils}]),
+         T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
+    ?errf(T(#{<<"backend">> => <<"notepad">>})),
+    ?errf(T(#{<<"no_stanzaid_element">> => <<"true">>})),
+    ?errf(T(#{<<"is_archivable_message">> => <<"mod_mam_fake">>})),
+    ?errf(T(#{<<"archive_chat_markers">> => <<"maybe">>})),
+    ?errf(T(#{<<"message_retraction">> => 1})),
+    ?errf(T(#{<<"cache_users">> => []})),
+    ?errf(T(#{<<"rdbms_message_format">> => <<"complex">>})),
+    ?errf(T(#{<<"async_writer">> => #{}})),
+    ?errf(T(#{<<"flush_interval">> => -1})),
+    ?errf(T(#{<<"max_batch_size">> => -1})),
+    ?errf(T(#{<<"user_prefs_store">> => <<"textfile">>})),
+    ?errf(T(#{<<"full_text_search">> => <<"disabled">>})),
+    ?errf(T(#{<<"default_result_limit">> => -1})),
+    ?errf(T(#{<<"max_result_limit">> => -2})),
+    ?errf(T(#{<<"async_writer_rdbms_pool">> => <<>>})),
+    ?errf(T(#{<<"db_jid_format">> => <<"not_a_module">>})),
+    ?errf(T(#{<<"db_message_format">> => <<"not_a_module">>})),
+    ?errf(T(#{<<"simple">> => <<"yes">>})),
+    ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
-    Base = #{
-      <<"access">> => <<"all">>,
-      <<"access_admin">> => <<"none">>,
-      <<"access_create">> => <<"all">>,
-      <<"access_persistent">> => <<"all">>,
-      <<"backend">> => <<"mnesia">>,
-      <<"hibernated_room_check_interval">> => <<"infinity">>,
-      <<"hibernated_room_timeout">> => <<"infinity">>,
-      <<"history_size">> => 20,
-      <<"host">> => <<"conference.@HOST@">>,
-      <<"http_auth_pool">> => <<"none">>,
-      <<"load_permanent_rooms_at_startup">> => false,
-      <<"max_room_desc">> => <<"infinity">>,
-      <<"max_room_id">> => <<"infinity">>,
-      <<"max_room_name">> => <<"infinity">>,
-      <<"max_user_conferences">> => 0,
-      <<"max_users">> => 200,
-      <<"max_users_admin_threshold">> => 5,
-      <<"min_message_interval">> => 0,
-      <<"min_presence_interval">> => 0,
-      <<"room_shaper">> => <<"none">>,
-      <<"user_message_shaper">> => <<"none">>,
-      <<"user_presence_shaper">> => <<"none">>
-     },
-    MBase = [{access,all},
-             {access_admin,none},
-             {access_create,all},
-             {access_persistent,all},
-             {backend,mnesia},
-             {hibernated_room_check_interval,infinity},
-             {hibernated_room_timeout,infinity},
-             {history_size,20},
-             {host,"conference.@HOST@"},
-             {http_auth_pool,none},
-             {load_permanent_rooms_at_startup,false},
-             {max_room_desc,infinity},
-             {max_room_id,infinity},
-             {max_room_name,infinity},
-             {max_user_conferences,0},
-             {max_users,200},
-             {max_users_admin_threshold,5},
-             {min_message_interval,0},
-             {min_presence_interval,0},
-             {room_shaper,none},
-             {user_message_shaper,none},
-             {user_presence_shaper,none}],
-    ensure_sorted(MBase),
-    run_multi(
-      %% Test configurations with one option only
-      check_one_opts(mod_muc, MBase, Base, T) ++ [
-        ?_eqf(modopts(mod_muc, MBase), T(Base)),
-        ?_eqf(modopts(mod_muc, [{default_room_options,[]}]),
-                               T(#{<<"default_room">> => #{}}))
-        ] ++ some_muc_opts_cases(T)
-          ++ some_room_opts_cases(T)
-          ++ bad_muc_opts_cases(T)
-          ++ bad_room_opts_cases(T)
-    ).
+    M = fun(Cfg) -> modopts(mod_muc, Cfg) end,
+    ?eqf(M([{host, "conference.@HOST@"}]),
+         T(#{<<"host">> => <<"conference.@HOST@">>})),
+    ?eqf(M([{backend, mnesia}]),
+         T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{access, all}]),
+         T(#{<<"access">> => <<"all">>})),
+    ?eqf(M([{access_create, admin}]),
+         T(#{<<"access_create">> => <<"admin">>})),
+    ?eqf(M([{access_admin, none}]),
+         T(#{<<"access_admin">> => <<"none">>})),
+    ?eqf(M([{access_persistent, all}]),
+         T(#{<<"access_persistent">> => <<"all">>})),
+    ?eqf(M([{history_size, 20}]),
+         T(#{<<"history_size">> => 20})),
+    ?eqf(M([{room_shaper, muc_room_shaper}]),
+         T(#{<<"room_shaper">> => <<"muc_room_shaper">>})),
+    ?eqf(M([{max_room_id, infinity}]),
+         T(#{<<"max_room_id">> => <<"infinity">>})),
+    ?eqf(M([{max_room_name, 30}]),
+         T(#{<<"max_room_name">> => 30})),
+    ?eqf(M([{max_room_desc, 0}]),
+         T(#{<<"max_room_desc">> => 0})),
+    ?eqf(M([{min_message_interval, 10}]),
+         T(#{<<"min_message_interval">> => 10})),
+    ?eqf(M([{min_presence_interval, 0}]),
+         T(#{<<"min_presence_interval">> => 0})),
+    ?eqf(M([{max_users, 30}]),
+         T(#{<<"max_users">> => 30})),
+    ?eqf(M([{max_users_admin_threshold, 2}]),
+         T(#{<<"max_users_admin_threshold">> => 2})),
+    ?eqf(M([{user_message_shaper, muc_msg_shaper}]),
+         T(#{<<"user_message_shaper">> => <<"muc_msg_shaper">>})),
+    ?eqf(M([{user_presence_shaper, muc_pres_shaper}]),
+         T(#{<<"user_presence_shaper">> => <<"muc_pres_shaper">>})),
+    ?eqf(M([{max_user_conferences, 10}]),
+         T(#{<<"max_user_conferences">> => 10})),
+    ?eqf(M([{http_auth_pool, external_auth}]),
+         T(#{<<"http_auth_pool">> => <<"external_auth">>})),
+    ?eqf(M([{load_permanent_rooms_at_startup, true}]),
+         T(#{<<"load_permanent_rooms_at_startup">> => true})),
+    ?eqf(M([{hibernate_timeout, infinity}]),
+         T(#{<<"hibernate_timeout">> => <<"infinity">>})),
+    ?eqf(M([{hibernated_room_check_interval, 5000}]),
+         T(#{<<"hibernated_room_check_interval">> => 5000})),
+    ?eqf(M([{hibernated_room_timeout, 0}]),
+         T(#{<<"hibernated_room_timeout">> => 0})),
+    ?errf(T(#{<<"host">> => <<>>})),
+    ?errf(T(#{<<"backend">> => <<"amnesia">>})),
+    ?errf(T(#{<<"access">> => <<>>})),
+    ?errf(T(#{<<"access_create">> => 1})),
+    ?errf(T(#{<<"access_admin">> => []})),
+    ?errf(T(#{<<"access_persistent">> => true})),
+    ?errf(T(#{<<"history_size">> => <<"20">>})),
+    ?errf(T(#{<<"room_shaper">> => <<>>})),
+    ?errf(T(#{<<"max_room_id">> => #{}})),
+    ?errf(T(#{<<"max_room_name">> => <<"infinite!">>})),
+    ?errf(T(#{<<"max_room_desc">> => -1})),
+    ?errf(T(#{<<"min_message_interval">> => -10})),
+    ?errf(T(#{<<"min_presence_interval">> => <<"infinity">>})),
+    ?errf(T(#{<<"max_users">> => 0})),
+    ?errf(T(#{<<"max_users_admin_threshold">> => 0})),
+    ?errf(T(#{<<"user_message_shaper">> => []})),
+    ?errf(T(#{<<"user_presence_shaper">> => <<>>})),
+    ?errf(T(#{<<"max_user_conferences">> => -1})),
+    ?errf(T(#{<<"http_auth_pool">> => <<>>})),
+    ?errf(T(#{<<"load_permanent_rooms_at_startup">> => <<"true">>})),
+    ?errf(T(#{<<"hibernate_timeout">> => <<"really big">>})),
+    ?errf(T(#{<<"hibernated_room_check_interval">> => -1})),
+    ?errf(T(#{<<"hibernated_room_timeout">> => false})).
 
-some_muc_opts_cases(T) ->
-    [some_muc_opts_case(T, K, Toml, Mim) || {K, Toml, Mim} <- some_muc_opts()].
+mod_muc_default_room(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_muc">> => #{<<"default_room">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_muc, [{default_room_options, Cfg}]) end,
+    ?eqf(M([]), T(#{})),
+    ?eqf(M([{title, <<"living room">>}]),
+         T(#{<<"title">> => <<"living room">>})),
+    ?eqf(M([{description, <<"a room that is alive">>}]),
+         T(#{<<"description">> => <<"a room that is alive">>})),
+    ?eqf(M([{allow_change_subj, true}]),
+         T(#{<<"allow_change_subj">> => true})),
+    ?eqf(M([{allow_query_users, false}]),
+         T(#{<<"allow_query_users">> => false})),
+    ?eqf(M([{allow_private_messages, true}]),
+         T(#{<<"allow_private_messages">> => true})),
+    ?eqf(M([{allow_visitor_status, false}]),
+         T(#{<<"allow_visitor_status">> => false})),
+    ?eqf(M([{allow_visitor_nickchange, true}]),
+         T(#{<<"allow_visitor_nickchange">> => true})),
+    ?eqf(M([{public, false}]),
+         T(#{<<"public">> => false})),
+    ?eqf(M([{public_list, true}]),
+         T(#{<<"public_list">> => true})),
+    ?eqf(M([{persistent, true}]),
+         T(#{<<"persistent">> => true})),
+    ?eqf(M([{moderated, false}]),
+         T(#{<<"moderated">> => false})),
+    ?eqf(M([{members_by_default, true}]),
+         T(#{<<"members_by_default">> => true})),
+    ?eqf(M([{members_only, false}]),
+         T(#{<<"members_only">> => false})),
+    ?eqf(M([{allow_user_invites, true}]),
+         T(#{<<"allow_user_invites">> => true})),
+    ?eqf(M([{allow_multiple_sessions, false}]),
+         T(#{<<"allow_multiple_sessions">> => false})),
+    ?eqf(M([{password_protected, true}]),
+         T(#{<<"password_protected">> => true})),
+    ?eqf(M([{password, <<"secret">>}]),
+         T(#{<<"password">> => <<"secret">>})),
+    ?eqf(M([{anonymous, true}]),
+         T(#{<<"anonymous">> => true})),
+    ?eqf(M([{max_users, 100}]),
+         T(#{<<"max_users">> => 100})),
+    ?eqf(M([{logging, false}]),
+         T(#{<<"logging">> => false})),
+    ?eqf(M([{maygetmemberlist, [moderator]}]),
+         T(#{<<"maygetmemberlist">> => [<<"moderator">>]})),
+    ?eqf(M([{subject, <<"Lambda days">>}]),
+         T(#{<<"subject">> => <<"Lambda days">>})),
+    ?eqf(M([{subject_author, <<"Alice">>}]),
+         T(#{<<"subject_author">> => <<"Alice">>})),
+    ?errf(T(<<"bad value">>)),
+    ?errf(T(#{<<"title">> => true})),
+    ?errf(T(#{<<"description">> => 1})),
+    ?errf(T(#{<<"allow_change_subj">> => <<"true">>})),
+    ?errf(T(#{<<"allow_query_users">> => <<>>})),
+    ?errf(T(#{<<"allow_private_messages">> => 1})),
+    ?errf(T(#{<<"allow_visitor_status">> => []})),
+    ?errf(T(#{<<"allow_visitor_nickchange">> => #{}})),
+    ?errf(T(#{<<"public">> => 0})),
+    ?errf(T(#{<<"public_list">> => [false]})),
+    ?errf(T(#{<<"persistent">> => 1})),
+    ?errf(T(#{<<"moderated">> => <<"yes">>})),
+    ?errf(T(#{<<"members_by_default">> => 0})),
+    ?errf(T(#{<<"members_only">> => [true]})),
+    ?errf(T(#{<<"allow_user_invites">> => <<>>})),
+    ?errf(T(#{<<"allow_multiple_sessions">> => []})),
+    ?errf(T(#{<<"password_protected">> => #{}})),
+    ?errf(T(#{<<"password">> => false})),
+    ?errf(T(#{<<"anonymous">> => <<"maybe">>})),
+    ?errf(T(#{<<"max_users">> => 0})),
+    ?errf(T(#{<<"logging">> => [true, false]})),
+    ?errf(T(#{<<"maygetmemberlist">> => <<"moderator">>})),
+    ?errf(T(#{<<"maygetmemberlist">> => [<<>>]})),
+    ?errf(T(#{<<"subject">> => [<<"subjective">>]})),
+    ?errf(T(#{<<"subject_author">> => 1})).
 
-some_muc_opts_case(T, K, Toml, Mim) ->
-    ?_eqf(modopts(mod_muc, [{K, Mim}]), T(#{a2b(K) => Toml})).
-
-bad_muc_opts_cases(T) ->
-    [bad_muc_opts_case(T, K, Toml) || {K, Toml} <- bad_muc_opts()].
-
-bad_muc_opts_case(T, K, Toml) ->
-    ?_errf(T(#{a2b(K) => Toml})).
-
-some_room_opts_cases(T) ->
-    [some_room_opts_case(T, K, Toml, Mim) || {K, Toml, Mim} <- some_room_opts()].
-
-some_room_opts_case(T, K, Toml, Mim) ->
-    ?_eqf(modopts(mod_muc, [{default_room_options, [{K, Mim}]}]),
-                           T(#{<<"default_room">> => #{a2b(K) => Toml}})).
-
-bad_room_opts_cases(T) ->
-    [bad_room_opts_case(T, K, Toml) || {K, Toml} <- bad_room_opts()].
-
-bad_room_opts_case(T, K, Toml) ->
-    ?_errf(T(#{<<"default_room">> => #{a2b(K) => Toml}})).
-
-some_muc_opts() ->
-    %% name toml mim
-    [{hibernated_room_check_interval, 1, 1},
-     {hibernated_room_timeout, 1, 1},
-     {history_size, 0, 0},
-     {host, <<"good">>, "good"},
-     {http_auth_pool, <<"deadpool">>, deadpool},
-     {load_permanent_rooms_at_startup, true, true},
-     {max_room_desc, 10, 10},
-     {max_room_id, 10, 10},
-     {max_room_name, 10, 10},
-     {max_user_conferences, 10, 10},
-     {max_users, 10, 10},
-     {max_users_admin_threshold, 10, 10},
-     {min_message_interval, 10, 10},
-     {min_presence_interval, 10, 10},
-     {room_shaper, <<"good">>, good},
-     {user_message_shaper, <<"good">>, good},
-     {user_presence_shaper, <<"good">>, good}].
-
-bad_muc_opts() ->
-    %% name toml
-    [{access, 1},
-     {access_admin, 1},
-     {access_create, 1},
-     {access_persistent, 1},
-     {backend, 1},
-     {backend, <<"meowmoew">>},
-     {hibernated_room_check_interval, -1},
-     {hibernated_room_timeout, -1},
-     {history_size, -1},
-     {host, 1},
-     {host, <<"bad bad bad">>},
-     {http_auth_pool, 1},
-     {load_permanent_rooms_at_startup, 1},
-     {max_room_desc, -1},
-     {max_room_id, -1},
-     {max_room_name, -1},
-     {max_user_conferences, -1},
-     {max_users, -1},
-     {max_users_admin_threshold, -1},
-     {min_message_interval, -1},
-     {min_presence_interval, -1},
-     {room_shaper, 1},
-     {user_message_shaper, 1},
-     {user_presence_shaper, 1}].
-
-some_room_opts() ->
-    [{title, <<"Test">>, <<"Test">>},
-     {description, <<"Test">>, <<"Test">>},
-     {allow_change_subj, true, true},
-     {allow_query_users, true, true},
-     {allow_private_messages, true, true},
-     {allow_visitor_status, true, true},
-     {allow_visitor_nickchange, true, true},
-     {public, true, true},
-     {public_list, true, true},
-     {moderated, true, true},
-     {members_by_default, true, true},
-     {members_only, true, true},
-     {allow_user_invites, true, true},
-     {allow_multiple_sessions, true, true},
-     {password_protected, true, true},
-     {password, <<"secret">>, <<"secret">>},
-     {anonymous, true, true},
-     {max_users, 10, 10},
-     {logging, true, true},
-     {maygetmemberlist, [<<"moderator">>, <<"user">>], [moderator, user]},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}],
-                    [{{<<"Alice">>, <<"home">>, <<>>}, member}]},
-     {subject, <<"Fight">>, <<"Fight">>},
-     {subject_author, <<"meow">>, <<"meow">>}
-    ].
-
-bad_room_opts() ->
-    [{title, 1},
-     {description, 1},
-     {allow_change_subj, 1},
-     {allow_query_users, 1},
-     {allow_private_messages, 1},
-     {allow_visitor_status, 1},
-     {allow_visitor_nickchange, 1},
-     {public, 1},
-     {public_list, 1},
-     {persistent, 1},
-     {moderated, 1},
-     {members_by_default, 1},
-     {members_only, 1},
-     {allow_user_invites, 1},
-     {allow_multiple_sessions, 1},
-     {password_protected, 1},
-     {password, 1},
-     {anonymous, 1},
-     {max_users, -1},
-     {logging, 1},
-     {maygetmemberlist, 1},
-     {maygetmemberlist, [1]},
-     {maygetmemberlist, #{}},
-     {subject, 1},
-     {subject_author, 1},
-     {affiliations, [1]},
-     {affiliations, 1},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home home">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => 1, <<"server">> => <<"home">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => 1,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
-                       <<"resource">> => 1, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => 1}]},
-     {affiliations, [#{<<"server">> => <<"home">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => <<"Alice">>,
-                       <<"resource">> => <<>>, <<"affiliation">> => <<"member">>}]},
-     {affiliations, [#{<<"user">> => <<"Alice">>, <<"server">> => <<"home">>,
-                       <<"affiliation">> => <<"member">>}]} %% Resource required
-    ].
+mod_muc_default_room_affiliations(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_muc">> =>
+                                 #{<<"default_room">> => #{<<"affiliations">> => Opts}}}} end,
+    M = fun(Cfg) -> modopts(mod_muc, [{default_room_options, [{affiliations, Cfg}]}]) end,
+    RequiredOpts = #{<<"user">> => <<"alice">>,
+                     <<"server">> => <<"localhost">>,
+                     <<"resource">> => <<"phone">>,
+                     <<"affiliation">> => <<"moderator">>},
+    ExpectedCfg = {{<<"alice">>, <<"localhost">>, <<"phone">>}, moderator},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T([RequiredOpts#{<<"user">> := <<>>}])),
+    ?errf(T([RequiredOpts#{<<"server">> := <<"domain? not really!">>}])),
+    ?errf(T([RequiredOpts#{<<"resource">> := false}])),
+    ?errf(T([RequiredOpts#{<<"affiliation">> := <<>>}])).
 
 mod_muc_log(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => Opts}} end,
-    run_multi(
-        generic_opts_cases(mod_muc_log, T, mod_muc_log_opts()) ++
-        generic_renamed_opts_cases(mod_muc_log, T, mod_muc_log_renamed_opts()) ++
-        generic_bad_opts_cases(T, mod_muc_log_bad_opts())
-      ).
+    M = fun(Cfg) -> modopts(mod_muc_log, Cfg) end,
+    ?eqf(M([{outdir, "www/muc"}]),
+         T(#{<<"outdir">> => <<"www/muc">>})),
+    ?eqf(M([{access_log, muc_admin}]),
+         T(#{<<"access_log">> => <<"muc_admin">>})),
+    ?eqf(M([{dirtype, subdirs}]),
+         T(#{<<"dirtype">> => <<"subdirs">>})),
+    ?eqf(M([{dirname, room_name}]),
+         T(#{<<"dirname">> => <<"room_name">>})),
+    ?eqf(M([{file_format, html}]),
+         T(#{<<"file_format">> => <<"html">>})),
+    ?eqf(M([{cssfile, <<"path/to/css_file">>}]),
+         T(#{<<"css_file">> => <<"path/to/css_file">>})),
+    ?eqf(M([{timezone, local}]),
+         T(#{<<"timezone">> => <<"local">>})),
+    ?eqf(M([{spam_prevention, false}]),
+         T(#{<<"spam_prevention">> => false})),
+    ?errf(T(#{<<"outdir">> => <<"does/not/exist">>})),
+    ?errf(T(#{<<"access_log">> => 1})),
+    ?errf(T(#{<<"dirtype">> => <<"imaginary">>})),
+    ?errf(T(#{<<"dirname">> => <<"dyrektory">>})),
+    ?errf(T(#{<<"file_format">> => <<"none">>})),
+    ?errf(T(#{<<"css_file">> => <<>>})),
+    ?errf(T(#{<<"timezone">> => <<"yes">>})),
+    ?errf(T(#{<<"spam_prevention">> => <<"spam and eggs and spam">>})).
 
-mod_muc_log_renamed_opts() ->
-    %% toml-name mim-name toml mim
-    [{css_file, cssfile, <<"path/to/css_file">>, <<"path/to/css_file">>},
-     {css_file, cssfile, false, false}].
-
-mod_muc_log_opts() ->
-    %% name toml mim
-    [{outdir, <<"www/muc">>, "www/muc"},
-     {access_log, <<"muc_admin">>, muc_admin},
-     {dirtype, <<"subdirs">>, subdirs},
-     {dirtype, <<"plain">>, plain},
-     {file_format, <<"html">>, html},
-     {file_format, <<"plaintext">>, plaintext},
-     {timezone, <<"local">>, local},
-     {timezone, <<"universal">>, universal},
-     {spam_prevention, true, true},
-     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/">>,
-                  <<"text">> => <<"docs">>},
-                {"https://esl.github.io/MongooseDocs/latest/modules/mod_muc_log/", "docs"}}].
-
-mod_muc_log_bad_opts() ->
-    %% toml-name toml
-    [{outdir, 1},
-     {outdir, <<"does/not/exist">>},
-     {access_log, 1},
-     {dirtype, <<"subways">>},
-     {file_format, <<"haskelencodedlove">>},
-     {timezone, <<"galactive">>},
-     {spam_prevention, 69},
-     {top_link, #{<<"target">> => 1, <<"text">> => <<"docs">>}},
-     {top_link, #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>, <<"text">> => <<>>}}
-    ].
+mod_muc_log_top_link(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => #{<<"top_link">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_muc_log, [{top_link, Cfg}]) end,
+    RequiredOpts = #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>,
+                     <<"text">> => <<"Docs">>},
+    ExpectedCfg = {"https://esl.github.io/MongooseDocs/", "Docs"},
+    ?eqf(M(ExpectedCfg), T(RequiredOpts)),
+    [?errf(T(maps:remove(K, RequiredOpts))) || K <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"target">> => true})),
+    ?errf(T(RequiredOpts#{<<"text">> => <<"">>})).
 
 mod_muc_light(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
-    run_multi(
-        generic_opts_cases(mod_muc_light, T, mod_muc_light_opts()) ++
-        generic_bad_opts_cases(T, mod_muc_light_bad_opts())
-      ).
+    M = fun(Cfg) -> modopts(mod_muc_light, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+         T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{host, "muclight.@HOST@"}]),
+         T(#{<<"host">> => <<"muclight.@HOST@">>})),
+    ?eqf(M([{equal_occupants, true}]),
+         T(#{<<"equal_occupants">> => true})),
+    ?eqf(M([{legacy_mode, false}]),
+         T(#{<<"legacy_mode">> => false})),
+    ?eqf(M([{rooms_per_user, 100}]),
+         T(#{<<"rooms_per_user">> => 100})),
+    ?eqf(M([{blocking, false}]),
+         T(#{<<"blocking">> => false})),
+    ?eqf(M([{all_can_configure, true}]),
+         T(#{<<"all_can_configure">> => true})),
+    ?eqf(M([{all_can_invite, false}]),
+         T(#{<<"all_can_invite">> => false})),
+    ?eqf(M([{max_occupants, infinity}]),
+         T(#{<<"max_occupants">> => <<"infinity">>})),
+    ?eqf(M([{rooms_per_page, 10}]),
+         T(#{<<"rooms_per_page">> => 10})),
+    ?eqf(M([{rooms_in_rosters, true}]),
+         T(#{<<"rooms_in_rosters">> => true})),
+    ?errf(T(#{<<"backend">> => <<"frontend">>})),
+    ?errf(T(#{<<"host">> => <<"what is a domain?!">>})),
+    ?errf(T(#{<<"equal_occupants">> => <<"true">>})),
+    ?errf(T(#{<<"legacy_mode">> => 1234})),
+    ?errf(T(#{<<"rooms_per_user">> => 0})),
+    ?errf(T(#{<<"blocking">> => <<"true">>})),
+    ?errf(T(#{<<"all_can_configure">> => []})),
+    ?errf(T(#{<<"all_can_invite">> => #{}})),
+    ?errf(T(#{<<"max_occupants">> => <<"seven">>})),
+    ?errf(T(#{<<"rooms_per_page">> => false})),
+    ?errf(T(#{<<"rooms_in_rosters">> => [1, 2, 3]})).
 
-mod_muc_light_opts() ->
-    [{host, <<"muclight.@HOST@">>, "muclight.@HOST@"},
-     {backend, <<"mnesia">>, mnesia},
-     {equal_occupants, true, true},
-     {legacy_mode, true, true},
-     {rooms_per_user, 1, 1},
-     {rooms_per_user, <<"infinity">>, infinity},
-     {blocking, true, true},
-     {all_can_configure, true, true},
-     {all_can_invite, true, true},
-     {max_occupants, 1, 1},
-     {max_occupants, <<"infinity">>, infinity},
-     {rooms_per_page, 1, 1},
-     {rooms_per_page, <<"infinity">>, infinity},
-     {rooms_in_rosters, true, true},
-     {config_schema, [
-          #{<<"field">> => <<"roomname">>, <<"value">> => <<"My Room">>},
-          #{<<"field">> => <<"subject">>, <<"value">> => <<"Hi">>},
-          #{<<"field">> => <<"priority">>, <<"value">> => 0,
-            <<"internal_key">> => <<"priority">>, <<"type">> => <<"integer">>}
-      ],
-      [{"roomname", "My Room"}, {"subject", "Hi"},
-       {"priority", 0, priority, integer}]}
-    ].
-
-mod_muc_light_bad_opts() ->
-    [{host, 1},
-     {host, <<"test test">>},
-     {equal_occupants, 1},
-     {equal_occupants, #{}},
-     {legacy_mode, 1},
-     {rooms_per_user, true},
-     {blocking, 1},
-     {all_can_configure, 1},
-     {all_can_invite, 1},
-     {max_occupants, true},
-     {rooms_per_page, false},
-     {rooms_in_rosters, 1},
-     {config_schema, [ #{<<"field">> => 1, <<"value">> => <<"ok">>} ]},
-     {config_schema, [ #{<<"field">> => <<"subject">>} ]},
-     {config_schema, [ #{<<"field">> => <<"priority">>, <<"value">> => 0,
-            <<"internal_key">> => <<"priority">>, <<"type">> => <<"bad_integer">>} ]}
-    ].
+mod_muc_light_config_schema(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_muc_light">> => #{<<"config_schema">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_muc_light, [{config_schema, Cfg}]) end,
+    Field = #{<<"field">> => <<"my_field">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([{"my_field", <<"My Room">>, my_field, binary}]),
+         T([Field#{<<"string_value">> => <<"My Room">>}])),
+    ?eqf(M([{"my_field", 1, my_field, integer}]),
+         T([Field#{<<"integer_value">> => 1}])),
+    ?eqf(M([{"my_field", 0.5, my_field, float}]),
+         T([Field#{<<"float_value">> => 0.5}])),
+    ?eqf(M([{"my_field", 0, your_field, integer}]),
+         T([Field#{<<"integer_value">> => 0,
+                   <<"internal_key">> => <<"your_field">>}])),
+    ?errf(T([#{<<"string_value">> => <<"My Room">>}])),
+    ?errf(T([#{<<"field">> => <<>>,
+               <<"string_value">> => <<"My Room">>}])),
+    ?errf(T([Field#{<<"string_value">> => 0}])),
+    ?errf(T([Field#{<<"integer_value">> => 1.5}])),
+    ?errf(T([Field#{<<"float_value">> => 1}])),
+    ?errf(T([Field#{<<"integer_value">> => 0,
+                    <<"string_value">> => <<"My Room">>}])),
+    ?errf(T([Field#{<<"integer_value">> => 0,
+                    <<"internal_key">> => <<>>}])).
 
 mod_offline(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
-    Base = #{<<"access_max_user_messages">> => <<"max_user_offline_messages">>,
-             <<"backend">> => <<"riak">>,
-             <<"riak">> => #{<<"bucket_type">> => <<"test">>}},
-    MBase = [{access_max_user_messages, max_user_offline_messages},
-             {backend, riak},
-             {bucket_type, <<"test">>}],
-    ?eqf(modopts(mod_offline, MBase), T(Base)),
-    ?errf(T(Base#{<<"access_max_user_messages">> => 1})),
-    ?errf(T(Base#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    M = fun(Cfg) -> modopts(mod_offline, Cfg) end,
+    ?eqf(M([{access_max_user_messages, max_user_offline_messages}]),
+         T(#{<<"access_max_user_messages">> => <<"max_user_offline_messages">>})),
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{bucket_type, <<"test">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+    ?errf(T(#{<<"access_max_user_messages">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"riak_is_the_best">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket">> => <<"leaky">>}})).
 
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"no_queue">>},
-             <<"ping_req_timeout">> => 32,
-             <<"send_pings">> => true,
-             <<"timeout_action">> => <<"none">>},
-    MBase = [{iqdisc, no_queue},
-             {ping_req_timeout, 32},
-             {send_pings, true},
-             {timeout_action, none}],
-    ensure_sorted(MBase),
-    ?eqf(modopts(mod_ping, MBase), T(Base)),
-    ?errf(T(Base#{<<"send_pings">> => 1})),
-    ?errf(T(Base#{<<"ping_interval">> => -1})),
-    ?errf(T(Base#{<<"timeout_action">> => 1})),
-    ?errf(T(Base#{<<"timeout_action">> => <<"kill_them_all">>})),
-    ?errf(T(Base#{<<"ping_req_timeout">> => -1})),
-    ?errf(T(Base#{<<"ping_req_timeout">> => <<"32">>})),
+    M = fun(Cfg) -> modopts(mod_ping, Cfg) end,
+    ?eqf(M([{send_pings, true}]),
+         T(#{<<"send_pings">> => true})),
+    ?eqf(M([{ping_interval, 10}]),
+         T(#{<<"ping_interval">> => 10})),
+    ?eqf(M([{timeout_action, kill}]),
+         T(#{<<"timeout_action">> => <<"kill">>})),
+    ?eqf(M([{ping_req_timeout, 20}]),
+         T(#{<<"ping_req_timeout">> => 20})),
+    ?errf(T(#{<<"send_pings">> => 1})),
+    ?errf(T(#{<<"ping_interval">> => 0})),
+    ?errf(T(#{<<"timeout_action">> => <<"kill_them_all">>})),
+    ?errf(T(#{<<"ping_req_timeout">> => 0})),
     check_iqdisc(mod_ping).
 
 mod_privacy(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
-    Riak = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
-             <<"names_bucket_type">> => <<"privacy_lists_names">>,
-             <<"bucket_type">> => <<"privacy_defaults">>},
-    Base = #{<<"backend">> => <<"mnesia">>,
-             <<"riak">> => Riak},
-    MBase = [{backend, mnesia},
-             %% Riak opts
-             {defaults_bucket_type, <<"privacy_defaults">>},
-             {names_bucket_type, <<"privacy_lists_names">>},
-             {bucket_type, <<"privacy_defaults">>}],
-    ?eqf(modopts(mod_privacy, lists:sort(MBase)), T(Base)),
-    ?errf(T(Base#{<<"backend">> => 1})),
-    ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"defaults_bucket_type">> => 1}})),
-    ?errf(T(Base#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    M = fun(Cfg) -> modopts(mod_privacy, Cfg) end,
+    ?eqf(M([{backend, mnesia}]),
+         T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{defaults_bucket_type, <<"defaults">>}]),
+         T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
+    ?eqf(M([{names_bucket_type, <<"names">>}]),
+         T(#{<<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
+    ?eqf(M([{bucket_type, <<"bucket">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?errf(T(#{<<"backend">> => <<"mongoddt">>})),
+    ?errf(T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<>>}})),
+    ?errf(T(#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
-    Riak = #{<<"bucket_type">> => <<"private_stuff">>},
-    Base = #{<<"backend">> => <<"riak">>,
-             <<"riak">> => Riak},
-    MBase = [{backend, riak},
-             %% Riak opts
-             {bucket_type, <<"private_stuff">>}],
-    ?eqf(modopts(mod_private, lists:sort(MBase)), T(Base)),
-    ?errf(T(Base#{<<"backend">> => 1})),
-    ?errf(T(Base#{<<"backend">> => <<"mongoddt">>})),
-    ?errf(T(Base#{<<"riak">> => #{<<"bucket_type">> => 1}})),
+    M = fun(Cfg) -> modopts(mod_private, Cfg) end,
+    ?eqf(M([{backend, riak}]),
+         T(#{<<"backend">> => <<"riak">>})),
+    ?eqf(M([{bucket_type, <<"private_stuff">>}]),
+         T(#{<<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
+    ?errf(T(#{<<"backend">> => <<"mssql">>})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_private).
 
 mod_pubsub(_Config) ->
-    %% TODO default_node_config
+    check_iqdisc(mod_pubsub),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
-    Base = #{<<"backend">> => <<"mnesia">>,
-             <<"host">> => <<"pubsub.@HOST@">>,
-             <<"access_createnode">> => <<"all">>,
-             <<"max_items_node">> => 10,
-             <<"max_subscriptions_node">> => 10,
-             <<"nodetree">> => <<"tree">>,
-             <<"ignore_pep_from_offline">> => true,
-             <<"last_item_cache">> => false,
-             <<"plugins">> => [<<"flat">>],
-             <<"pep_mapping">> => [#{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
-                                     <<"node">> => <<"mb">>}],
-             <<"item_publisher">> => false,
-             <<"sync_broadcast">> => true},
-    MBase = [{backend, mnesia},
-             {access_createnode, all},
-             {host, "pubsub.@HOST@"},
-             {max_items_node, 10},
-             {max_subscriptions_node, 10},
-             {nodetree, <<"tree">>},
-             {ignore_pep_from_offline, true},
-             {last_item_cache, false},
-             {plugins, [<<"flat">>]},
-             {pep_mapping, [{"urn:xmpp:microblog:0", "mb"}]},
-             {item_publisher, false},
-             {sync_broadcast, true}],
-    ?eqf(modopts(mod_pubsub, lists:sort(MBase)), T(Base)),
-    ?eqf(modopts(mod_pubsub, [{last_item_cache, mnesia}]),
-                 T(#{<<"last_item_cache">> => <<"mnesia">>})),
-    ?eqf(modopts(mod_pubsub, []), %% The option is undefined, i.e. parser just removes it
-                 T(#{<<"max_subscriptions_node">> => <<"infinity">>})),
-    run_multi(
-        good_default_node_config_opts(T) ++
-        bad_default_node_config_opts(T) ++
-        generic_bad_opts_cases(T, mod_pubsub_bad_opts())),
-    check_iqdisc(mod_pubsub).
+    M = fun(Cfg) -> modopts(mod_pubsub, Cfg) end,
+    ?eqf(M([{host, "pub.@HOST@"}]),
+         T(#{<<"host">> => <<"pub.@HOST@">>})),
+    ?eqf(M([{backend, rdbms}]),
+         T(#{<<"backend">> => <<"rdbms">>})),
+    ?eqf(M([{access_createnode, all}]),
+         T(#{<<"access_createnode">> => <<"all">>})),
+    ?eqf(M([{max_items_node, 20}]),
+         T(#{<<"max_items_node">> => 20})),
+    ?eqf(M([{max_subscriptions_node, 30}]),
+         T(#{<<"max_subscriptions_node">> => 30})),
+    ?eqf(M([{nodetree, <<"tree">>}]),
+         T(#{<<"nodetree">> => <<"tree">>})),
+    ?eqf(M([{ignore_pep_from_offline, false}]),
+         T(#{<<"ignore_pep_from_offline">> => false})),
+    ?eqf(M([{last_item_cache, rdbms}]),
+         T(#{<<"last_item_cache">> => <<"rdbms">>})),
+    ?eqf(M([{plugins, [<<"flat">>, <<"dag">>]}]),
+         T(#{<<"plugins">> => [<<"flat">>, <<"dag">>]})),
+    ?eqf(M([{item_publisher, true}]),
+         T(#{<<"item_publisher">> => true})),
+    ?eqf(M([{sync_broadcast, false}]),
+         T(#{<<"sync_broadcast">> => false})),
+    ?errf(T(#{<<"host">> => <<"">>})),
+    ?errf(T(#{<<"backend">> => <<"amnesia">>})),
+    ?errf(T(#{<<"access_createnode">> => <<"">>})),
+    ?errf(T(#{<<"max_items_node">> => -1})),
+    ?errf(T(#{<<"max_subscriptions_node">> => 3.1415})),
+    ?errf(T(#{<<"nodetree">> => <<"christmas_tree">>})),
+    ?errf(T(#{<<"ignore_pep_from_offline">> => <<"maybe">>})),
+    ?errf(T(#{<<"last_item_cache">> => false})),
+    ?errf(T(#{<<"plugins">> => [<<"deep">>]})),
+    ?errf(T(#{<<"item_publisher">> => 1})),
+    ?errf(T(#{<<"sync_broadcast">> => []})).
 
-good_default_node_config_opts(T) ->
-    [good_default_node_config_opt(T, K, Toml, Mim)
-     || {K, Toml, Mim} <- default_node_config_opts()].
+mod_pubsub_pep_mapping(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
+                                              #{<<"pep_mapping">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_pubsub, [{pep_mapping, Cfg}]) end,
+    RequiredOpts = #{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
+                     <<"node">> => <<"mb">>},
+    ?eqf(M([{<<"urn:xmpp:microblog:0">>, <<"mb">>}]),
+         T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    [?errf(T([RequiredOpts#{Key => <<>>}])) || Key <- maps:keys(RequiredOpts)].
 
-good_default_node_config_opt(T, K, Toml, Mim) ->
-    MBase = [{default_node_config, [{K, Mim}]}],
-    Base = #{<<"default_node_config">> => #{a2b(K) => Toml}},
-    ?_eqf(modopts(mod_pubsub, MBase), T(Base)).
-
-bad_default_node_config_opts(T) ->
-    [bad_default_node_config_opt(T, K, Toml)
-     || {K, Toml} <- default_node_config_bad_opts()].
-
-bad_default_node_config_opt(T, K, Toml) ->
-    Base = #{<<"default_node_config">> => #{a2b(K) => Toml}},
-    ?_errf(T(Base)).
-
-default_node_config_opts() ->
-    [{access_model, <<"open">>, open},
-     {deliver_notifications, true, true},
-     {deliver_payloads, true, true},
-     {max_items, 10, 10},
-     {max_payload_size, 10000, 10000},
-     {node_type, <<"leaf">>, leaf},
-     {notification_type, <<"headline">>, headline},
-     {notify_config, false, false},
-     {notify_delete, false, false},
-     {notify_retract, false, false},
-     {persist_items, true, true},
-     {presence_based_delivery, true, true},
-     {publish_model, <<"open">>, open},
-     {purge_offline, false, false},
-     {roster_groups_allowed, [<<"friends">>], [<<"friends">>]},
-     {send_last_published_item, <<"on_sub_and_presence">>, on_sub_and_presence},
-     {subscribe, true, true}].
-
-default_node_config_bad_opts() ->
-    [{access_model, 1},
-     {deliver_notifications, 1},
-     {deliver_payloads, 1},
-     {max_items, -1},
-     {max_payload_size, -1},
-     {node_type, 1},
-     {notification_type, 1},
-     {notify_config, 1},
-     {notify_delete, 1},
-     {notify_retract, 1},
-     {persist_items, 1},
-     {presence_based_delivery, 1},
-     {publish_model, 1},
-     {purge_offline, 1},
-     {roster_groups_allowed, [1]},
-     {roster_groups_allowed, 1},
-     {send_last_published_item, 1},
-     {subscribe, 1}].
-
-mod_pubsub_bad_opts() ->
-    [{backend, 1},
-     {access_createnode, 1},
-     {host, 1},
-     {host, <<"aaa aaa">>},
-     {max_items_node, -1},
-     {max_subscriptions_node, -1},
-     {nodetree, -1},
-     {nodetree, <<"oops">>},
-     {ignore_pep_from_offline, 1},
-     {last_item_cache, 1},
-     {plugins, [<<"fat">>]},
-     {pep_mapping, [#{<<"namespace">> => 1, <<"node">> => <<"mb">>}]},
-     {pep_mapping, [#{<<"namespace">> => <<"urn:xmpp:microblog:0">>, <<"node">> => 1}]},
-     {item_publisher, 1},
-     {sync_broadcast, 1}].
+mod_pubsub_default_node_config(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
+                                              #{<<"default_node_config">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_pubsub, [{default_node_config, Cfg}]) end,
+    ?eqf(M([{access_model, open}]),
+         T(#{<<"access_model">> => <<"open">>})),
+    ?eqf(M([{deliver_notifications, true}]),
+         T(#{<<"deliver_notifications">> => true})),
+    ?eqf(M([{deliver_payloads, false}]),
+         T(#{<<"deliver_payloads">> => false})),
+    ?eqf(M([{max_items, 1000}]),
+         T(#{<<"max_items">> => 1000})),
+    ?eqf(M([{max_payload_size, 1000}]),
+         T(#{<<"max_payload_size">> => 1000})),
+    ?eqf(M([{node_type, dag}]),
+         T(#{<<"node_type">> => <<"dag">>})),
+    ?eqf(M([{notification_type, headline}]),
+         T(#{<<"notification_type">> => <<"headline">>})),
+    ?eqf(M([{notify_config, true}]),
+         T(#{<<"notify_config">> => true})),
+    ?eqf(M([{notify_delete, false}]),
+         T(#{<<"notify_delete">> => false})),
+    ?eqf(M([{notify_retract, true}]),
+         T(#{<<"notify_retract">> => true})),
+    ?eqf(M([{persist_items, false}]),
+         T(#{<<"persist_items">> => false})),
+    ?eqf(M([{presence_based_delivery, true}]),
+         T(#{<<"presence_based_delivery">> => true})),
+    ?eqf(M([{publish_model, open}]),
+         T(#{<<"publish_model">> => <<"open">>})),
+    ?eqf(M([{purge_offline, false}]),
+         T(#{<<"purge_offline">> => false})),
+    ?eqf(M([{roster_groups_allowed, [<<"friends">>]}]),
+         T(#{<<"roster_groups_allowed">> => [<<"friends">>]})),
+    ?eqf(M([{send_last_published_item, on_sub_and_presence}]),
+         T(#{<<"send_last_published_item">> => <<"on_sub_and_presence">>})),
+    ?eqf(M([{subscribe, true}]),
+         T(#{<<"subscribe">> => true})),
+    ?errf(T(#{<<"access_model">> => <<>>})),
+    ?errf(T(#{<<"deliver_notifications">> => <<"yes">>})),
+    ?errf(T(#{<<"deliver_payloads">> => 0})),
+    ?errf(T(#{<<"max_items">> => -1})),
+    ?errf(T(#{<<"max_payload_size">> => -1})),
+    ?errf(T(#{<<"node_type">> => [<<"dag">>]})),
+    ?errf(T(#{<<"notification_type">> => <<>>})),
+    ?errf(T(#{<<"notify_config">> => <<"false">>})),
+    ?errf(T(#{<<"notify_delete">> => [true]})),
+    ?errf(T(#{<<"notify_retract">> => #{}})),
+    ?errf(T(#{<<"persist_items">> => 1})),
+    ?errf(T(#{<<"presence_based_delivery">> => []})),
+    ?errf(T(#{<<"publish_model">> => <<"">>})),
+    ?errf(T(#{<<"purge_offline">> => 1})),
+    ?errf(T(#{<<"roster_groups_allowed">> => [<<>>]})),
+    ?errf(T(#{<<"send_last_published_item">> => <<>>})),
+    ?errf(T(#{<<"subscribe">> => <<"never">>})).
 
 mod_push_service_mongoosepush(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_push_service_mongoosepush">> => Opts}} end,
-    Base = #{<<"pool_name">> => <<"test_pool">>,
-             <<"api_version">> => <<"v3">>,
-             <<"max_http_connections">> => 100},
-    MBase = [{pool_name, test_pool},
-             {api_version, "v3"},
-             {max_http_connections, 100}],
-    ?eqf(modopts(mod_push_service_mongoosepush, lists:sort(MBase)), T(Base)),
-    ?errf(T(Base#{<<"pool_name">> => 1})),
-    ?errf(T(Base#{<<"api_version">> => 1})),
-    ?errf(T(Base#{<<"max_http_connections">> => -1})),
-    ok.
+    M = fun(Cfg) -> modopts(mod_push_service_mongoosepush, Cfg) end,
+    ?eqf(M([{pool_name, test_pool}]),
+         T(#{<<"pool_name">> => <<"test_pool">>})),
+    ?eqf(M([{api_version, "v3"}]),
+         T(#{<<"api_version">> => <<"v3">>})),
+    ?eqf(M([{max_http_connections, 100}]),
+         T(#{<<"max_http_connections">> => 100})),
+    ?errf(T(#{<<"pool_name">> => 1})),
+    ?errf(T(#{<<"api_version">> => <<"v4">>})),
+    ?errf(T(#{<<"max_http_connections">> => -1})).
 
 mod_register(_Config) ->
     ?eqf(modopts(mod_register,
@@ -2623,262 +2510,245 @@ registration_watchers(JidBins) ->
     Opts = #{<<"registration_watchers">> => JidBins},
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
-mod_revproxy(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_revproxy">> => Opts}} end,
-    R = fun(Route) -> T(#{<<"routes">> => [Route]}) end,
-    Base = #{<<"routes">> => [R1 = #{
-                 <<"host">> => <<"www.erlang-solutions.com">>,
-                 <<"path">> => <<"/admin">>,
-                 <<"method">> => <<"_">>,
-                 <<"upstream">> => <<"https://www.erlang-solutions.com/">>
-                }, #{
-                 <<"host">> => <<"example.com">>,
-                 <<"path">> => <<"/test">>,
-                 <<"upstream">> => <<"https://example.com/">>
-                }]},
-    MBase = [{routes, [{"www.erlang-solutions.com", "/admin", "_",
-                        "https://www.erlang-solutions.com/"},
-                       {"example.com", "/test", "https://example.com/"}]}],
-    run_multi([
-            ?_eqf(modopts(mod_revproxy, MBase), T(Base)),
-            ?_errf(R(R1#{<<"host">> => 1})),
-            ?_errf(R(R1#{<<"path">> => 1})),
-            ?_errf(R(R1#{<<"method">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => 1})),
-            ?_errf(R(R1#{<<"upstream">> => <<>>})),
-            ?_errf(R(R1#{<<"host">> => <<>>}))
-          ]).
-
 mod_roster(_Config) ->
-    Riak = #{<<"bucket_type">> => <<"rosters">>,
-             <<"version_bucket_type">> => <<"roster_versions">>},
-    Base = #{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-             <<"versioning">> => false,
-             <<"store_current_id">> => false,
-             <<"backend">> => <<"mnesia">>,
-             <<"riak">> => Riak},
-    MBase = [{iqdisc, one_queue},
-             {versioning, false},
-             {store_current_id, false},
-             {backend, mnesia},
-             {bucket_type, <<"rosters">>},
-             {version_bucket_type, <<"roster_versions">>}],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
-    run_multi([
-            ?_eqf(modopts(mod_roster, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"versioning">> => 1})),
-            ?_errf(T(#{<<"store_current_id">> => 1})),
-            ?_errf(T(#{<<"backend">> => 1})),
-            ?_errf(T(#{<<"backend">> => <<"iloveyou">>})),
-            ?_errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-            ?_errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}}))
-          ]),
+    M = fun(Cfg) -> modopts(mod_roster, Cfg) end,
+
+    ?eqf(M([{versioning, false}]),
+        T(#{<<"versioning">> => false})),
+    ?eqf(M([{store_current_id, false}]),
+       T(#{<<"store_current_id">> => false})),
+    ?eqf(M([{backend, mnesia}]),
+       T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{bucket_type, <<"rosters">>}]),
+       T(#{<<"riak">> => #{<<"bucket_type">> => <<"rosters">>}})),
+    ?eqf(M([{version_bucket_type, <<"roster_versions">>}]),
+       T(#{<<"riak">> => #{<<"version_bucket_type">> => <<"roster_versions">>}})),
+
+    ?errf(T(#{<<"versioning">> => 1})),
+    ?errf(T(#{<<"store_current_id">> => 1})),
+    ?errf(T(#{<<"backend">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"iloveyou">>})),
+    ?errf(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     check_iqdisc(mod_roster).
 
 mod_shared_roster_ldap(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
-    MBase = [{ldap_pool_tag, default},
-             {ldap_base,  "string"},
-             {ldap_deref, never},
-             %% Options: attributes
-             {ldap_groupattr, "cn"},
-             {ldap_groupdesc, "default"},
-             {ldap_userdesc, "cn"},
-             {ldap_useruid, "cn"},
-             {ldap_memberattr, "memberUid"},
-             {ldap_memberattr_format, "%u"},
-             {ldap_memberattr_format_re,""},
-             %% Options: parameters
-             {ldap_auth_check, true},
-             {ldap_user_cache_validity, 300},
-             {ldap_group_cache_validity, 300},
-             {ldap_user_cache_size, 300},
-             {ldap_group_cache_size, 300},
-             %% Options: LDAP filters
-             {ldap_rfilter, "test"},
-             {ldap_gfilter, "test"},
-             {ldap_ufilter, "test"},
-             {ldap_filter, "test"}
-        ],
-    Base = #{
-            <<"ldap_pool_tag">> => <<"default">>,
-            <<"ldap_base">> => <<"string">>,
-            <<"ldap_deref">> => <<"never">>,
-            %% Options: attributes
-            <<"ldap_groupattr">> => <<"cn">>,
-            <<"ldap_groupdesc">> => <<"default">>,
-            <<"ldap_userdesc">> => <<"cn">>,
-            <<"ldap_useruid">> => <<"cn">>,
-            <<"ldap_memberattr">> => <<"memberUid">>,
-            <<"ldap_memberattr_format">> => <<"%u">>,
-            <<"ldap_memberattr_format_re">> => <<"">>,
-            %% Options: parameters
-            <<"ldap_auth_check">> => true,
-            <<"ldap_user_cache_validity">> => 300,
-            <<"ldap_group_cache_validity">> => 300,
-            <<"ldap_user_cache_size">> => 300,
-            <<"ldap_group_cache_size">> => 300,
-            %% Options: LDAP filters
-            <<"ldap_rfilter">> => <<"test">>,
-            <<"ldap_gfilter">> => <<"test">>,
-            <<"ldap_ufilter">> => <<"test">>,
-            <<"ldap_filter">> => <<"test">>
-        },
-    run_multi(
-      check_one_opts(mod_shared_roster_ldap, MBase, Base, T) ++ [
-            ?_eqf(modopts(mod_shared_roster_ldap, lists:sort(MBase)), T(Base)),
-            ?_errf(T(#{<<"ldap_pool_tag">> => 1})),
-            ?_errf(T(#{<<"ldap_base">> => 1})),
-            ?_errf(T(#{<<"ldap_deref">> => 1})),
-            %% Options: attributes
-            ?_errf(T(#{<<"ldap_groupattr">> => 1})),
-            ?_errf(T(#{<<"ldap_groupdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_userdesc">> => 1})),
-            ?_errf(T(#{<<"ldap_useruid">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format">> => 1})),
-            ?_errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
-            %% Options: parameters
-            ?_errf(T(#{<<"ldap_auth_check">> => 1})),
-            ?_errf(T(#{<<"ldap_user_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_validity">> => -1})),
-            ?_errf(T(#{<<"ldap_user_cache_size">> => -1})),
-            ?_errf(T(#{<<"ldap_group_cache_size">> => -1})),
-            %% Options: LDAP filters
-            ?_errf(T(#{<<"ldap_rfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_gfilter">> => 1})),
-            ?_errf(T(#{<<"ldap_ufilter">> => 1})),
-            ?_errf(T(#{<<"ldap_filter">> => 1}))
-        ]).
+    M = fun(Cfg) -> modopts(mod_shared_roster_ldap, Cfg) end,
+    ?eqf(M([{ldap_pool_tag, default}]),
+       T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base,  "string"}]),
+       T(#{<<"ldap_base">> => <<"string">>})),
+    ?eqf(M([{ldap_deref, never}]),
+       T(#{<<"ldap_deref">> => <<"never">>})),
+    %% Options: attributes
+    ?eqf(M([ {ldap_groupattr, "cn"}]),
+       T(#{<<"ldap_groupattr">> => <<"cn">>})),
+    ?eqf(M([{ldap_groupdesc, "default"}]),
+       T(#{<<"ldap_groupdesc">> => <<"default">>})),
+    ?eqf(M([{ldap_userdesc, "cn"}]),
+       T(#{<<"ldap_userdesc">> => <<"cn">>})),
+    ?eqf(M([{ldap_useruid, "cn"}]),
+       T(#{<<"ldap_useruid">> => <<"cn">>})),
+    ?eqf(M([{ldap_memberattr, "memberUid"}]),
+       T(#{<<"ldap_memberattr">> => <<"memberUid">>})),
+    ?eqf(M([{ldap_memberattr_format, "%u"}]),
+       T(#{<<"ldap_memberattr_format">> => <<"%u">>})),
+    ?eqf(M([{ldap_memberattr_format_re,""}]),
+       T(#{<<"ldap_memberattr_format_re">> => <<"">>})),
+    %% Options: parameters
+    ?eqf(M([ {ldap_auth_check, true}]),
+       T(#{<<"ldap_auth_check">> => true})),
+    ?eqf(M([{ldap_user_cache_validity, 300}]),
+       T(#{<<"ldap_user_cache_validity">> => 300})),
+    ?eqf(M([{ldap_group_cache_validity, 300}]),
+       T(#{<<"ldap_group_cache_validity">> => 300})),
+    ?eqf(M([{ldap_user_cache_size, 300}]),
+       T(#{<<"ldap_user_cache_size">> => 300})),
+    ?eqf(M([{ldap_group_cache_size, 300}]),
+       T(#{<<"ldap_group_cache_size">> => 300})),
+    %% Options: LDAP filters
+    ?eqf(M([{ldap_rfilter, "rfilter_test"}]),
+       T(#{<<"ldap_rfilter">> => <<"rfilter_test">>})),
+    ?eqf(M([{ldap_gfilter, "gfilter_test"}]),
+       T(#{<<"ldap_gfilter">> => <<"gfilter_test">>})),
+    ?eqf(M([{ldap_ufilter, "ufilter_test"}]),
+       T(#{<<"ldap_ufilter">> => <<"ufilter_test">>})),
+   ?eqf(M([{ldap_filter, "filter_test"}]),
+       T(#{<<"ldap_filter">> => <<"filter_test">>})),
+    ?errf(T(#{<<"ldap_pool_tag">> => 1})),
+    ?errf(T(#{<<"ldap_base">> => 1})),
+    ?errf(T(#{<<"ldap_deref">> => 1})),
+    %% Options: attributes
+    ?errf(T(#{<<"ldap_groupattr">> => 1})),
+    ?errf(T(#{<<"ldap_groupdesc">> => 1})),
+    ?errf(T(#{<<"ldap_userdesc">> => 1})),
+    ?errf(T(#{<<"ldap_useruid">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format">> => 1})),
+    ?errf(T(#{<<"ldap_memberattr_format_re">> => 1})),
+    %% Options: parameters
+    ?errf(T(#{<<"ldap_auth_check">> => 1})),
+    ?errf(T(#{<<"ldap_user_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_validity">> => -1})),
+    ?errf(T(#{<<"ldap_user_cache_size">> => -1})),
+    ?errf(T(#{<<"ldap_group_cache_size">> => -1})),
+    %% Options: LDAP filters
+    ?errf(T(#{<<"ldap_rfilter">> => 1})),
+    ?errf(T(#{<<"ldap_gfilter">> => 1})),
+    ?errf(T(#{<<"ldap_ufilter">> => 1})),
+    ?errf(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
-    check_iqdisc(mod_sic).
+    check_iqdisc(mod_sic),
+    ?eqf(modopts(mod_sic, []), #{<<"modules">> => #{<<"mod_sic">> => #{}}}).
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
-    Base = #{
-        <<"buffer_max">> => 100,
-        <<"ack_freq">> => 1,
-        <<"resume_timeout">> => 600,
-        <<"stale_h">> => #{<<"enabled">> => true,
-                           <<"repeat_after">> => 1800,
-                           <<"geriatric">> => 3600}
-       },
-    MBase = [
-             {buffer_max, 100},
-             {ack_freq, 1},
-             {resume_timeout, 600},
-             {stale_h, [{enabled, true},
-                        {stale_h_geriatric, 3600},
-                        {stale_h_repeat_after, 1800}]}
-       ],
-    ?eqf(modopts(mod_stream_management, lists:sort(MBase)), T(Base)),
-    ?eqf(modopts(mod_stream_management, [{buffer_max, no_buffer}]),
-         T(#{<<"buffer_max">> => <<"no_buffer">>})),
+    M = fun(Cfg) -> modopts(mod_stream_management, Cfg) end,
+    ?eqf(M([{buffer_max, no_buffer}]),  T(#{<<"buffer">> => false})),
+    ?eqf(M([{buffer_max, 10}]),  T(#{<<"buffer_max">> => 10})),
+    ?eqf(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
+    ?eqf(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
+    ?eqf(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
+
+    ?errf(T(#{<<"buffer">> => 0})),
     ?errf(T(#{<<"buffer_max">> => -1})),
-    ?errf(T(#{<<"ack_freq">> => -1})),
-    ?errf(T(#{<<"resume_timeout">> => -1})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => <<"true">>}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"enabled">> => 1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"repeat_after">> => -1}})),
-    ?errf(T(#{<<"stale_h">> => #{<<"geriatric">> => -1}})),
-    ok.
+    ?errf(T(#{<<"ack">> => <<"false">>})),
+    ?errf(T(#{<<"ack_freq">> => 0})),
+    ?errf(T(#{<<"resume_timeout">> => true})).
+
+mod_stream_management_stale_h(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+        #{<<"mod_stream_management">> => #{<<"stale_h">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_stream_management, [{stale_h, Cfg}]) end,
+    ?eqf(M([{enabled, true}]), T(#{<<"enabled">> => true})),
+    ?eqf(M([{stale_h_repeat_after, 1800}]), T(#{<<"repeat_after">> => 1800})),
+    ?eqf(M([{stale_h_geriatric, 3600}]), T(#{<<"geriatric">> => 3600})),
+
+    ?errf(T(#{<<"enabled">> => <<"true">>})),
+    ?errf(T(#{<<"repeat_after">> => -1})),
+    ?errf(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc(mod_time).
+    check_iqdisc(mod_time),
+    ?eqf(modopts(mod_time, []), #{<<"modules">> => #{<<"mod_time">> => #{}}}).
 
 mod_vcard(_Config) ->
+    check_iqdisc(mod_vcard),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
-    MBase = [{iqdisc, one_queue},
-             {host, "vjud.@HOST@"},
-             {search, true},
-             {backend, mnesia},
-             {matches, infinity},
-             %% ldap
-             {ldap_pool_tag, default},
-             {ldap_base, "ou=Users,dc=ejd,dc=com"},
-             {ldap_deref, never},
-             {ldap_uids, [{"mail", "%u@mail.example.org"}, "name"]},
-             {ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
-             %% MIM accepts {"FAMILY", "%s", ["sn", "cn"]} form too
-             {ldap_vcard_map, [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]}]}, %% iolists
-             {ldap_search_fields, [{<<"Full Name">>, <<"cn">>}]}, %% pair of iolists
-             {ldap_search_reported, [{<<"Full Name">>, <<"FN">>}]}, %% iolists
-             {ldap_search_operator, 'or'},
-             {ldap_binary_search_fields, [<<"PHOTO">>]},
-             %% riak
-             {bucket_type, <<"vcard">>},
-             {search_index, <<"vcard">>}
-            ],
-    Riak = #{<<"bucket_type">> => <<"vcard">>,
-             <<"search_index">> => <<"vcard">>},
-    Base = #{
-      <<"iqdisc">> => #{<<"type">> => <<"one_queue">>},
-      <<"host">> => <<"vjud.@HOST@">>,
-      <<"search">> => true,
-      <<"backend">> => <<"mnesia">>,
-      <<"matches">> => <<"infinity">>,
-      %% ldap
-      <<"ldap_pool_tag">> => <<"default">>,
-      <<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>,
-      <<"ldap_deref">> => <<"never">>,
-      <<"ldap_uids">> => [#{<<"attr">> => <<"mail">>,
-                            <<"format">> => <<"%u@mail.example.org">>},
-                          #{<<"attr">> => <<"name">>}],
-      <<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
-      <<"ldap_vcard_map">> => [#{<<"vcard_field">> => <<"FAMILY">>,
-                                 <<"ldap_pattern">> => <<"%s">>,
-                                 <<"ldap_field">> => <<"sn">>}],
-      <<"ldap_search_fields">> => [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => <<"cn">>}],
-      <<"ldap_search_reported">> => [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => <<"FN">>}],
-      <<"ldap_search_operator">> => <<"or">>, % atom
-      <<"ldap_binary_search_fields">> => [<<"PHOTO">>],
-      <<"riak">> => Riak
-     },
-    run_multi(check_one_opts_with_same_field_name(mod_vcard, MBase, Base, T)
-              ++ [ ?_eqf(modopts(mod_vcard, lists:sort(MBase)), T(Base)),
-                   ?_eqf(modopts(mod_vcard, [{matches, 1}]), T(#{<<"matches">> => 1})) ]
-              ++ generic_bad_opts_cases(T, mod_vcard_bad_opts())),
-    check_iqdisc(mod_vcard).
+    M = fun(Cfg) -> modopts(mod_vcard, Cfg) end,
+    ?eqf(M([{iqdisc, one_queue}]),
+        T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
+    ?eqf(M([{host, "vjud.@HOST@"}]),
+        T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?eqf(M([{search, true}]),
+        T(#{<<"search">> => true})),
+    ?eqf(M([{backend, mnesia}]),
+        T(#{<<"backend">> => <<"mnesia">>})),
+    ?eqf(M([{matches, infinity}]),
+        T(#{<<"matches">> => <<"infinity">>})),
+    %% ldap
+    ?eqf(M([{ldap_pool_tag, default}]),
+        T(#{<<"ldap_pool_tag">> => <<"default">>})),
+    ?eqf(M([{ldap_base, "ou=Users,dc=ejd,dc=com"}]),
+        T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
+    ?eqf(M([{ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"}]),
+        T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
+    ?eqf(M([{ldap_deref, never}]),
+        T(#{<<"ldap_deref">> => <<"never">>})),
+    ?eqf(M([{ldap_search_operator, 'or'}]),
+        T(#{<<"ldap_search_operator">> => <<"or">>})),
+    ?eqf(M([{ldap_binary_search_fields, [<<"PHOTO">>]}]),
+        T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
+    %% riak
+    ?eqf(M([{bucket_type, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
+    ?eqf(M([{search_index, <<"vcard">>}]),
+        T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
-mod_vcard_bad_opts() ->
-    M = #{<<"vcard_field">> => <<"FAMILY">>,
-          <<"ldap_pattern">> => <<"%s">>,
-          <<"ldap_field">> => <<"sn">>},
-    [{host, 1},
-     {host, <<"test test">>},
-     {search, 1},
-     {backend, 1},
-     {backend, <<"mememesia">>},
-     {matches, -1},
-     {ldap_pool_tag, -1},
-     {ldap_base, -1},
-     {ldap_deref, <<"nevernever">>},
-     {ldap_deref, -1},
-     {ldap_uids, -1},
-     {ldap_uids, [#{}]},
-     {ldap_uids, [#{<<"attr">> => 1, <<"format">> => <<"ok">>}]},
-     {ldap_uids, [#{<<"attr">> => <<"ok">>, <<"format">> => 1}]},
-     {ldap_uids, [#{<<"format">> => <<"ok">>}]},
-     {ldap_filter, 1},
-     {ldap_vcard_map, [M#{<<"vcard_field">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_vcard_map, [M#{<<"ldap_pattern">> => 1}]},
-     {ldap_search_fields, [#{<<"search_field">> => 1, <<"ldap_field">> => <<"cn">>}]},
-     {ldap_search_fields, [#{<<"search_field">> => <<"Full Name">>, <<"ldap_field">> => 1}]},
-     {ldap_search_reported, [#{<<"search_field">> => 1, <<"vcard_field">> => <<"FN">>}]},
-     {ldap_search_reported, [#{<<"search_field">> => <<"Full Name">>, <<"vcard_field">> => 1}]},
-     {ldap_search_operator, <<"more">>},
-     {ldap_binary_search_fields, [1]},
-     {ldap_binary_search_fields, 1},
-     {riak, #{<<"bucket_type">> => 1}},
-     {riak, #{<<"search_index">> => 1}}].
+    ?errf(T(#{<<"host">> => 1})),
+    ?errf(T(#{<<"search">> => 1})),
+    ?errf(T(#{<<"backend">> => <<"mememesia">>})),
+    ?errf(T(#{<<"matches">> => -1})),
+    %% ldap
+    ?errf(T(#{<<"ldap_pool_tag">> => -1})),
+    ?errf(T(#{<<"ldap_base">> => -1})),
+    ?errf(T(#{<<"ldap_field">> => -1})),
+    ?errf(T(#{<<"ldap_deref">> => <<"nevernever">>})),
+    ?errf(T(#{<<"ldap_search_operator">> => <<"more">>})),
+    ?errf(T(#{<<"ldap_binary_search_fields">> => [1]})),
+    %% riak
+    ?errf(T(#{<<"riak">> =>  #{<<"bucket_type">> => 1}})),
+    ?errf(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
+
+mod_vcard_ldap_uids(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_uids, Cfg}]) end,
+    RequiredOpts = #{<<"attr">> => <<"name">>},
+    ExpectedCfg = "name",
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    ?eqf(M([{"name", "%u@mail.example.org"}]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}])),
+    ?eqf(M([{"name", "%u@mail.example.org"}, ExpectedCfg]),
+        T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}, RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"attr">> := 1})),
+    ?errf(T(RequiredOpts#{<<"format">> => true})).
+
+mod_vcard_ldap_vcard_map(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_vcard_map, Cfg}]) end,
+    RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
+                     <<"ldap_pattern">> => <<"%s">>,
+                     <<"ldap_field">> => <<"sn">>},
+    ExpectedCfg = {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_pattern">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_fields(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_fields, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                     <<"ldap_field">> => <<"cn">>},
+    ExpectedCfg = {<<"Full Name">>, <<"cn">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"ldap_field">> := -1})).
+
+mod_vcard_ldap_search_reported(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> =>
+                        #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
+    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_reported, Cfg}]) end,
+    RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
+                     <<"vcard_field">> => <<"FN">>},
+    ExpectedCfg = {<<"Full Name">>, <<"FN">>},
+    ?eqf(M([]), T([])),
+    ?eqf(M([ExpectedCfg]), T([RequiredOpts])),
+    [?errf(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
+    ?errf(T(RequiredOpts#{<<"search_field">> := false})),
+    ?errf(T(RequiredOpts#{<<"vcard_field">> := -1})).
 
 mod_version(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
     ?eqf(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
     ?errf(T(#{<<"os_info">> => 1})),
     check_iqdisc(mod_version).
+
+modules_without_config(_Config) ->
+    ?eqf(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?errf(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 %% Services
 
@@ -2900,6 +2770,8 @@ service_mongoose_system_metrics(_Config) ->
         parse(T(#{<<"periodic_report">> => 5000}))),
     ?eq(servopts(M, [{tracking_id, "UA-123456789"}]),
         parse(T(#{<<"tracking_id">> => <<"UA-123456789">>}))),
+    ?eq(servopts(M, [no_report]),
+        parse(T(#{<<"report">> => false}))),
     %% error cases
     ?err(parse(T(#{<<"initial_report">> => <<"forever">>}))),
     ?err(parse(T(#{<<"periodic_report">> => <<"forever">>}))),
@@ -2913,16 +2785,19 @@ service_mongoose_system_metrics(_Config) ->
 iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
 iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
 
-iq_disc_generic(Module, Value) ->
-    Opts = #{<<"iqdisc">> => Value},
+iq_disc_generic(Module, RequiredOpts, Value) ->
+    Opts = RequiredOpts#{<<"iqdisc">> => Value},
     #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
 check_iqdisc(Module) ->
-    ?eqf(modopts(Module, [{iqdisc, {queues, 10}}]),
-         iq_disc_generic(Module, iqdisc({queues, 10}))),
-    ?eqf(modopts(Module, [{iqdisc, parallel}]),
-         iq_disc_generic(Module, iqdisc(parallel))),
-    ?errf(iq_disc_generic(Module, iqdisc(bad_haha))).
+    check_iqdisc(Module, [], #{}).
+
+check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
+    ?eqf(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
+         iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
+    ?errf(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
     [#local_config{key = {modules, ?HOST}, value = [{Mod, Opts}]}].
@@ -3012,14 +2887,28 @@ parse(M) ->
                     (_) -> true
                  end, Config).
 
-%% helpers for 'equivalence' tests
+%% helpers for file tests
+
+test_config_file(Config, File) ->
+    OptionsPath = ejabberd_helper:data(Config, File ++ ".options"),
+    {ok, ExpectedOpts} = file:consult(OptionsPath),
+
+    TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
+    State = mongoose_config_parser_toml:parse_file(TOMLPath),
+    TOMLOpts = mongoose_config_parser:state_to_opts(State),
+
+    %% Save the parsed TOML options
+    %% - for debugging
+    %% - to update tests after a config change - always check the diff!
+    save_opts(OptionsPath ++ ".parsed", TOMLOpts),
+    compare_config(ExpectedOpts, TOMLOpts).
+
+save_opts(Path, Opts) ->
+    FormattedOpts = [io_lib:format("~p.~n", [Opt]) || Opt <- lists:sort(Opts)],
+    file:write_file(Path, FormattedOpts).
 
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
-
-filter_config(#config{key = required_files}) ->
-    false; % not supported yet in TOML
-filter_config(_) -> true.
 
 handle_config_option(#config{key = K1, value = V1},
                      #config{key = K2, value = V2}) ->
@@ -3038,6 +2927,8 @@ compare_values({auth_opts, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_auth_opt/2);
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
+compare_values({modules, _}, [{mod_extdisco, V1}], [{mod_extdisco, V2}]) ->
+    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
 compare_values({modules, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_modules/2);
 compare_values({services, _}, V1, V2) ->
@@ -3144,24 +3035,6 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
-
-test_equivalence_between_files(Config, File1, File2) ->
-    CfgPath = ejabberd_helper:data(Config, File1),
-    State1 = mongoose_config_parser_cfg:parse_file(CfgPath),
-    Hosts1 = mongoose_config_parser:state_to_host_opts(State1),
-    Opts1 = mongoose_config_parser:state_to_opts(State1),
-
-    TOMLPath = ejabberd_helper:data(Config, File2),
-    State2 = mongoose_config_parser_toml:parse_file(TOMLPath),
-    Hosts2 = mongoose_config_parser:state_to_host_opts(State2),
-    Opts2 = mongoose_config_parser:state_to_opts(State2),
-    ?eq(Hosts1, Hosts2),
-    compare_unordered_lists(lists:filter(fun filter_config/1, Opts1), Opts2,
-                            fun handle_config_option/2).
-
-parse_with_host(Config) ->
-    [F] = parse(Config),
-    apply(F, [?HOST]).
 
 set_pl(K, V, List) ->
     lists:keyreplace(K, 1, List, {K, V}).

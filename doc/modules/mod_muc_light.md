@@ -97,51 +97,34 @@ When enabled, rooms the user occupies are included in their roster.
   * **Default:**
 
 ```toml
-        [[modules.mod_muc_light.config_schema]] 
+        [[modules.mod_muc_light.config_schema]]
           field = "roomname"
-          value = "Untitled"
-        
-        [[modules.mod_muc_light.config_schema]] 
+          string_value = "Untitled"
+
+        [[modules.mod_muc_light.config_schema]]
           field = "subject"
-          value = ""
+          string_value = ""
 ```
 
-  * **Example:** 
+  * **Example:**
 
 ```toml
-        [[modules.mod_muc_light.config_schema]] 
+        [[modules.mod_muc_light.config_schema]]
           field = "display-lines"
-          value = 30
+          integer_value = 30
           internal_key = "display_lines"
-          type = "integer"
 ```
 
 Defines fields allowed in the room configuration.
-  
-Allowed `config_schema` items are (may be mixed):
 
-* Field name and a default value. The value has to be a string. An example:
+Each `config_schema` item is a TOML table with the following keys:
 
-```toml
-field = "field_name"
-value = "default_value"
-```
-
-* Field name, a default value, an internal key representation string and a type.
-  Valid config field types are:
-
-    * `binary` (i.e. any valid XML CDATA)
-    * `integer`
-    * `float`
-
-Useful only for debugging or custom applications. An example:
-
-```toml
-field = "display-lines"
-value = 30
-internal_key = "display_lines"
-type = "integer"
-```
+* `field` - mandatory, non-empty string - field name.
+* `string_value`, `integer_value`, `float_value` - exactly one of them has to be present, depending on the type of the field:
+    * `string_value` - string,
+    * `integer_value` - integer,
+    * `float_value` - floating-point number.
+* `internal_key` - optional, non-empty string - field name used in the internal representation, useful only for debugging or custom applications. By default it is the same as `field`.
 
 **WARNING!** Lack of the `roomname` field will cause room names in Disco results
 and Roster items be set to the room username.
@@ -163,13 +146,12 @@ and Roster items be set to the room username.
   
   [[modules.mod_muc_light.config_schema]] 
     field = "roomname"
-    value = "The Room"
+    string_value = "The Room"
   
   [[modules.mod_muc_light.config_schema]] 
     field = "display-lines"
-    value = 30
+    integer_value = 30
     internal_key = "display_lines"
-    type = "integer"
 ```
 
 ## Metrics

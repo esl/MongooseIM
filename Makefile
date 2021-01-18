@@ -16,7 +16,6 @@ clean:
 	-rm -rf asngen
 	-rm configure.out
 	-rm rel/configure.vars.config
-	-rm rel/vars.config
 	-rm rel/vars-toml.config
 
 # REBAR_CT_EXTRA_ARGS comes from a test runner
@@ -28,7 +27,7 @@ ct:
 eunit:
 	@$(RUN) $(REBAR) eunit
 
-rel: certs configure.out rel/vars.config rel/vars-toml.config
+rel: certs configure.out rel/vars-toml.config
 	. ./configure.out && $(REBAR) as prod release
 
 shell: certs etc/mongooseim.cfg
@@ -40,9 +39,6 @@ rock:
 	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
 	elif [ "$(BRANCH)" ]; then tools/rock_changed.sh $(BRANCH); \
 	else tools/rock_changed.sh; fi
-
-rel/vars.config: rel/vars.config.in rel/configure.vars.config
-	cat $^ > $@
 
 rel/vars-toml.config: rel/vars-toml.config.in rel/configure.vars.config
 	cat $^ > $@
@@ -60,7 +56,7 @@ devrel: $(DEVNODES)
 print_devnodes:
 	@echo $(DEVNODES)
 
-$(DEVNODES): certs configure.out rel/vars.config rel/vars-toml.config
+$(DEVNODES): certs configure.out rel/vars-toml.config
 	@echo "building $@"
 	(. ./configure.out && \
 	DEVNODE=true $(RUN) $(REBAR) as $@ release)

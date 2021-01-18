@@ -45,8 +45,7 @@ config_vars_path(File, Config) ->
 ctl_path(Node, Config) ->
     filename:join([cwd(Node, Config), "bin", "mongooseimctl"]).
 
-config_file_name(toml) -> "mongooseim.toml";
-config_file_name(cfg) -> "mongooseim.cfg".
+config_file_name(toml) -> "mongooseim.toml".
 
 -type ct_config() :: list({Key :: term(), Value :: term()}).
 
@@ -133,12 +132,12 @@ file_exists(Filename) ->
 file_exists(Node, Filename) ->
     call_fun(Node, filelib, is_file, [Filename]).
 
-%% @doc Modifies default ejabberd config file: `etc/mongooseim.cfg'.
+%% @doc Modifies default ejabberd config file: `etc/mongooseim.toml'.
 %%
 %% This function assumes that the config file was generated from template
-%% file in `rel/files/mongooseim.cfg' using variables from `rel/vars.config'.
+%% file in `rel/files/mongooseim.toml' using variables from `rel/vars-toml.config'.
 %% The modification procedure overrides given variables provided in
-%% `rel/vars.config'.
+%% `rel/vars-toml.config'.
 %%
 %% For example to change `hosts' value in the configuration file one
 %% has to call the function as follows:
@@ -150,7 +149,7 @@ file_exists(Node, Filename) ->
 modify_config_file(CfgVarsToChange, Config) ->
     modify_config_file(mim, CfgVarsToChange, Config, toml).
 
--spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml | cfg) -> ok when
+-spec modify_config_file(Host, [{ConfigVariable, Value}], ct_config(), toml) -> ok when
       Host :: atom(),
       ConfigVariable :: atom(),
       Value :: string().
@@ -173,7 +172,7 @@ modify_config_file(Host, VarsToChange, Config, Format) ->
     ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [NewCfgPath, TemplatedConfig]).
 
 template_config(Template, Vars) ->
-    MergedVars = merge_vars(Vars),
+    MergedVars = ensure_binary_strings(merge_vars(Vars)),
     %% Render twice to replace variables in variables
     Tmp = bbmustache:render(Template, MergedVars, [{key_type, atom}]),
     bbmustache:render(Tmp, MergedVars, [{key_type, atom}]).
@@ -184,6 +183,13 @@ merge_vars([Vars1, Vars2|Rest]) ->
                        end, Vars1, Vars2),
     merge_vars([Vars|Rest]);
 merge_vars([Vars]) -> Vars.
+
+%% bbmustache tries to iterate over lists, so we need to make them binaries
+ensure_binary_strings(Vars) ->
+    lists:map(fun({dbs, V}) -> {dbs, V};
+                 ({K, V}) when is_list(V) -> {K, list_to_binary(V)};
+                 ({K, V}) -> {K, V}
+              end, Vars).
 
 update_config_path(RPCSpec, Format) ->
     CurrentCfgPath = get_config_path(RPCSpec),
@@ -203,8 +209,7 @@ get_config_path(RPCSpec) ->
 set_config_path(RPCSpec, Path) ->
     ejabberd_node_utils:call_fun(RPCSpec, os, putenv, ["EJABBERD_CONFIG_PATH", Path]).
 
-vars_file(toml) -> "vars-toml.config";
-vars_file(cfg) -> "vars.config".
+vars_file(toml) -> "vars-toml.config".
 
 preset_vars(Config, Format) ->
     case proplists:get_value(preset, Config) of

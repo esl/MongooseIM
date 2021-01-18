@@ -1,5 +1,5 @@
 %% @doc Parsing and processing of MongooseIM config files
-%%   - parser backends: 'cfg' and 'toml'
+%%   - parser backends: only 'toml'
 %%   - config state management
 -module(mongoose_config_parser).
 
@@ -60,10 +60,16 @@
 -spec parse_file(FileName :: string()) -> state().
 parse_file(FileName) ->
     ParserModule = parser_module(filename:extension(FileName)),
-    ParserModule:parse_file(FileName).
+    try
+        ParserModule:parse_file(FileName)
+    catch
+        error:{config_error, ExitMsg, Errors} ->
+            [?LOG_ERROR(Error) || Error <- Errors],
+            mongoose_config_utils:exit_or_halt(ExitMsg)
+    end.
 
-parser_module(".toml") -> mongoose_config_parser_toml;
-parser_module(".cfg") -> mongoose_config_parser_cfg.
+%% Only the TOML format is supported
+parser_module(".toml") -> mongoose_config_parser_toml.
 
 %% State API
 

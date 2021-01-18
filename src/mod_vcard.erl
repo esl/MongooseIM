@@ -42,9 +42,16 @@
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose_config_spec.hrl").
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
+
+%% config_spec
+-export([config_spec/0,
+         process_map_spec/1,
+         process_search_spec/1,
+         process_search_reported_spec/1]).
 
 %% gen_server handlers
 -export([init/1,
@@ -197,6 +204,99 @@ stop(VHost) ->
     ejabberd_sup:stop_child(Proc).
 
 %%--------------------------------------------------------------------
+%% config_spec
+%%--------------------------------------------------------------------
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                 <<"host">> => #option{type = string,
+                                       validate = domain_template},
+                 <<"search">> => #option{type = boolean},
+                 <<"backend">> => #option{type = atom,
+                                          validate = {module, mod_vcard}},
+                 <<"matches">> => #option{type = int_or_infinity,
+                                          validate = non_negative},
+                 <<"ldap_pool_tag">> => #option{type = atom,
+                                                validate = pool_name},
+                 <<"ldap_base">> => #option{type = string},
+                 <<"ldap_uids">> => #list{items = mongoose_config_spec:ldap_uids()},
+                 <<"ldap_filter">> => #option{type = string},
+                 <<"ldap_deref">> => #option{type = atom,
+                                             validate = {enum, [never, always, finding, searching]}},
+                 <<"ldap_vcard_map">> => #list{items = ldap_vcard_map_spec()},
+                 <<"ldap_search_fields">> => #list{items = ldap_search_fields_spec()},
+                 <<"ldap_search_reported">> => #list{items = ldap_search_reported_spec()},
+                 <<"ldap_search_operator">> => #option{type = atom,
+                                                       validate = {enum, ['or', 'and']}},
+                 <<"ldap_binary_search_fields">> => #list{items = #option{type = binary,
+                                                                          validate = non_empty}},
+                 <<"riak">> => riak_config_spec()
+                }
+      }.
+
+ldap_vcard_map_spec() ->
+    #section{
+        items = #{<<"vcard_field">> => #option{type = binary,
+                                               validate = non_empty},
+                  <<"ldap_pattern">> => #option{type = binary,
+                                                validate = non_empty},
+                  <<"ldap_field">> => #option{type = binary,
+                                              validate = non_empty}
+                },
+        required = all,
+        process = fun ?MODULE:process_map_spec/1
+    }.
+
+ldap_search_fields_spec() ->
+    #section{
+        items = #{<<"search_field">> => #option{type = binary,
+                                                validate = non_empty},
+                  <<"ldap_field">> => #option{type = binary,
+                                              validate = non_empty}
+                },
+        required = all,
+        process = fun ?MODULE:process_search_spec/1
+    }.
+
+ldap_search_reported_spec() ->
+    #section{
+        items = #{<<"search_field">> => #option{type = binary,
+                                                validate = non_empty},
+                  <<"vcard_field">> => #option{type = binary,
+                                               validate = non_empty}
+                },
+        required = all,
+        process = fun ?MODULE:process_search_reported_spec/1
+    }.
+
+riak_config_spec() ->
+    #section{
+        items = #{<<"bucket_type">> => #option{type = binary,
+                                               validate = non_empty},
+                  <<"search_index">> => #option{type = binary,
+                                                validate = non_empty}
+                },
+        format = none
+    }.
+
+process_map_spec(KVs) ->
+    {[[{vcard_field, VF}], [{ldap_pattern, LP}], [{ldap_field, LF}]], []} =
+        proplists:split(KVs, [vcard_field, ldap_pattern, ldap_field]),
+    {VF, LP, [LF]}.
+
+process_search_spec(KVs) ->
+    {[[{search_field, SF}], [{ldap_field, LF}]], []} =
+        proplists:split(KVs, [search_field, ldap_field]),
+    {SF, LF}.
+
+process_search_reported_spec(KVs) ->
+    {[[{search_field, SF}], [{vcard_field, VF}]], []} =
+        proplists:split(KVs, [search_field, vcard_field]),
+    {SF, VF}.
+
+%%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks
 %%--------------------------------------------------------------------
 
@@ -327,7 +427,7 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
             vcard_error(IQ, mongoose_xmpp_errors:not_allowed())
     end,
     {Acc, Res};
-process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_sm_iq(_, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     #jid{luser = LUser, lserver = LServer} = To,
     Res = try mod_vcard_backend:get_vcard(LUser, LServer) of
         {ok, VCARD} ->

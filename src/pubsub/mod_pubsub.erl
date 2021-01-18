@@ -56,6 +56,7 @@
 -include("adhoc.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(STDTREE, <<"tree">>).
 -define(STDNODE, <<"flat">>).
@@ -93,6 +94,10 @@
 -export([start_link/2, start/2, stop/1, deps/2, init/1,
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% Config callbacks
+-export([config_spec/0, process_pep_mapping/1]).
+
 -export([default_host/0]).
 
 -export([get_personal_data/2]).
@@ -239,6 +244,78 @@ stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                 <<"host">> => #option{type = string,
+                                       validate = domain_template},
+                 <<"backend">> => #option{type = atom,
+                                          validate = {module, mod_pubsub_db}},
+                 <<"access_createnode">> => #option{type = atom,
+                                                    validate = access_rule},
+                 <<"max_items_node">> => #option{type = integer,
+                                                 validate = non_negative},
+                 <<"max_subscriptions_node">> => #option{type = integer,
+                                                         validate = non_negative},
+                 <<"nodetree">> => #option{type = binary,
+                                           validate = {module, nodetree}},
+                 <<"ignore_pep_from_offline">> => #option{type = boolean},
+                 <<"last_item_cache">> => #option{type = atom,
+                                                  validate = {enum, [mnesia, rdbms, false]}},
+                 <<"plugins">> => #list{items = #option{type = binary,
+                                                        validate = {module, node}}},
+                 <<"pep_mapping">> => #list{items = pep_mapping_config_spec()},
+                 <<"default_node_config">> => default_node_config_spec(),
+                 <<"item_publisher">> => #option{type = boolean},
+                 <<"sync_broadcast">> => #option{type = boolean}
+                }
+      }.
+
+pep_mapping_config_spec() ->
+    #section{
+       items = #{<<"namespace">> => #option{type = binary,
+                                            validate = non_empty},
+                 <<"node">> => #option{type = binary,
+                                       validate = non_empty}},
+       required = all,
+       process = fun ?MODULE:process_pep_mapping/1
+      }.
+
+default_node_config_spec() ->
+    #section{
+       items = #{<<"access_model">> => #option{type = atom,
+                                               validate = non_empty},
+                 <<"deliver_notifications">> => #option{type = boolean},
+                 <<"deliver_payloads">> => #option{type = boolean},
+                 <<"max_items">> => #option{type = integer,
+                                            validate = non_negative},
+                 <<"max_payload_size">> => #option{type = integer,
+                                                   validate = non_negative},
+                 <<"node_type">> => #option{type = atom,
+                                            validate = non_empty},
+                 <<"notification_type">> => #option{type = atom,
+                                                    validate = non_empty},
+                 <<"notify_config">> => #option{type = boolean},
+                 <<"notify_delete">> => #option{type = boolean},
+                 <<"notify_retract">> => #option{type = boolean},
+                 <<"persist_items">> => #option{type = boolean},
+                 <<"presence_based_delivery">> => #option{type = boolean},
+                 <<"publish_model">> => #option{type = atom,
+                                                validate = non_empty},
+                 <<"purge_offline">> => #option{type = boolean},
+                 <<"roster_groups_allowed">> => #list{items = #option{type = binary,
+                                                                      validate = non_empty}},
+                 <<"send_last_published_item">> => #option{type = atom,
+                                                           validate = non_empty},
+                 <<"subscribe">> => #option{type = boolean}
+                }
+      }.
+
+process_pep_mapping(KVs) ->
+    {[[{namespace, NameSpace}], [{node, Node}]], []} = proplists:split(KVs, [namespace, node]),
+    {NameSpace, Node}.
 
 -spec default_host() -> binary().
 default_host() ->

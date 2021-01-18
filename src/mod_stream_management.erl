@@ -5,14 +5,16 @@
 
 %% `gen_mod' callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         config_spec/0,
+         process_buffer_and_ack/1]).
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
          remove_smid/5,
          session_cleanup/5]).
 
-%% `mongooseim.cfg' options (don't use outside of tests)
+%% `mongooseim.toml' options (don't use outside of tests)
 -export([get_buffer_max/1,
          set_buffer_max/1,
          get_ack_freq/1,
@@ -40,6 +42,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
 
 -record(sm_session,
         {smid :: smid(),
@@ -72,6 +75,49 @@ stop(Host) ->
         false -> ok;
         true -> stream_management_stale_h:stop()
     end.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"buffer">> => #option{type = boolean},
+                  <<"buffer_max">> => #option{type = int_or_infinity,
+                                              validate = positive},
+                  <<"ack">> => #option{type = boolean},
+                  <<"ack_freq">> => #option{type = integer,
+                                            validate = positive},
+                  <<"resume_timeout">> => #option{type = integer,
+                                                  validate = positive},
+                  <<"stale_h">> => stale_h_config_spec()
+                 },
+        process = fun ?MODULE:process_buffer_and_ack/1
+      }.
+
+process_buffer_and_ack(KVs) ->
+    {[Buffer, Ack], Opts} = proplists:split(KVs, [buffer, ack]),
+    OptsWithBuffer = check_buffer(Buffer, Opts),
+    check_ack(Ack, OptsWithBuffer).
+
+check_buffer([{buffer, false}], Opts) ->
+    lists:ukeysort(1, [{buffer_max, no_buffer}] ++ Opts);
+check_buffer(_, Opts) ->
+    Opts.
+
+check_ack([{ack, false}], Opts) ->
+    lists:ukeysort(1, [{ack_freq, never}] ++ Opts);
+check_ack(_, Opts) ->
+    Opts.
+
+stale_h_config_spec() ->
+    #section{
+        items = #{<<"enabled">> => #option{type = boolean},
+                  <<"repeat_after">> => #option{type = integer,
+                                                validate = positive,
+                                                format = {kv, stale_h_repeat_after}},
+                  <<"geriatric">> => #option{type = integer,
+                                             validate = positive,
+                                             format = {kv, stale_h_geriatric}}
+        }
+    }.
 
 %%
 %% `ejabberd_hooks' handlers
@@ -118,7 +164,7 @@ do_remove_smid(Acc, SID) ->
     mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
 %%
-%% `mongooseim.cfg' options (don't use outside of tests)
+%% `mongooseim.toml' options (don't use outside of tests)
 %%
 
 -spec get_buffer_max(pos_integer() | infinity | no_buffer)
