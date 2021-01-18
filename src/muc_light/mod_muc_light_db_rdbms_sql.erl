@@ -25,8 +25,7 @@
 
 -include("mod_muc_light.hrl").
 
--export([select_user_rooms/2, select_user_rooms_count/2,
-         insert_room/3, update_room_version/3, delete_room/2]).
+-export([update_room_version/3, delete_room/2]).
 -export([select_affs/2, select_affs/1, insert_aff/4, update_aff/4, delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
         delete_config/1]).
@@ -38,28 +37,6 @@
 %%====================================================================
 %% General room queries
 %%====================================================================
-
--spec select_user_rooms(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
-select_user_rooms(LUser, LServer) ->
-    select_user_rooms(LUser, LServer, "r.luser, r.lserver").
-
--spec select_user_rooms_count(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
-select_user_rooms_count(LUser, LServer) ->
-    select_user_rooms(LUser, LServer, "COUNT(*)").
-
--spec select_user_rooms(LUser :: jid:luser(),
-                        LServer :: jid:lserver(),
-                        ReturnStatement :: iodata()) -> iolist().
-select_user_rooms(LUser, LServer, ReturnStatement) ->
-    ["SELECT ", ReturnStatement,
-     " FROM muc_light_occupants AS o INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
-     " WHERE o.luser = ", ?ESC(LUser), " AND o.lserver = ", ?ESC(LServer)].
-
--spec insert_room(
-        RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
-insert_room(RoomU, RoomS, Version) ->
-    ["INSERT INTO muc_light_rooms (luser, lserver, version)"
-     " VALUES (", ?ESC(RoomU), ", ", ?ESC(RoomS), ", ", ?ESC(Version), ")"].
 
 -spec update_room_version(
         RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
