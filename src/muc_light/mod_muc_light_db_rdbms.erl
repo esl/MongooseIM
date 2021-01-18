@@ -140,6 +140,10 @@ prepare_affiliation_queries(Host) ->
                              " FROM muc_light_rooms AS r "
                              " LEFT OUTER JOIN muc_light_occupants AS o ON r.id = o.room_id"
                              " WHERE r.luser = ? AND r.lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_affs_by_room_id, muc_light_occupants,
+                           [room_id],
+                           <<"SELECT luser, lserver, aff "
+                             "FROM muc_light_occupants WHERE room_id = ?">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -177,6 +181,10 @@ delete_room(MainHost, RoomU, RoomS) ->
 select_affs_by_us(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_affs_by_us, [RoomU, RoomS]).
+
+select_affs_by_room_id(MainHost, RoomID) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_affs_by_room_id, [RoomID]).
 
 %% ------------------------ General room management ------------------------
 
@@ -404,8 +412,7 @@ get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, Version}]} ->
-            {selected, AffUsersDB} = mongoose_rdbms:sql_query(
-                                          MainHost, mod_muc_light_db_rdbms_sql:select_affs(RoomID)),
+            {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
             AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB],
 
             {selected, ConfigDB} = mongoose_rdbms:sql_query(
@@ -567,8 +574,7 @@ modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
     mod_muc_light_db:modify_aff_users_return().
 modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
                              CheckFun, PrevVersion, Version) ->
-    {selected, AffUsersDB}
-    = mongoose_rdbms:sql_query_t(mod_muc_light_db_rdbms_sql:select_affs(RoomID)),
+    {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
     AffUsers = lists:sort(
                  [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB]),
     case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
