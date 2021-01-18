@@ -25,8 +25,7 @@
 
 -include("mod_muc_light.hrl").
 
--export([select_room_id/2, select_room_id_and_version/2,
-         select_user_rooms/2, select_user_rooms_count/2,
+-export([select_user_rooms/2, select_user_rooms_count/2,
          insert_room/3, update_room_version/3, delete_room/2]).
 -export([select_affs/2, select_affs/1, insert_aff/4, update_aff/4, delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
@@ -39,17 +38,6 @@
 %%====================================================================
 %% General room queries
 %%====================================================================
-
--spec select_room_id(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
-select_room_id(RoomU, RoomS) ->
-    ["SELECT id FROM muc_light_rooms WHERE luser = ", ?ESC(RoomU),
-                                     " AND lserver = ", ?ESC(RoomS)].
-
--spec select_room_id_and_version(
-        RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
-select_room_id_and_version(RoomU, RoomS) ->
-    ["SELECT id, version FROM muc_light_rooms WHERE luser = ", ?ESC(RoomU),
-                                              " AND lserver = ", ?ESC(RoomS)].
 
 -spec select_user_rooms(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_user_rooms(LUser, LServer) ->
