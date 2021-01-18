@@ -36,7 +36,6 @@
          remove_user/2,
 
          get_config/1,
-         get_config/2,
          set_config/3,
          set_config/4,
 
@@ -83,6 +82,13 @@ stop(_Host, _MUCHost) ->
 %% ------------------------ SQL -------------------------------------------
 
 prepare_queries(Host) ->
+    prepare_cleaning_queries(Host),
+    prepare_room_queries(Host),
+    prepare_affiliation_queries(Host),
+    prepare_config_queries(Host),
+    ok.
+
+prepare_cleaning_queries(Host) ->
     mongoose_rdbms:prepare(muc_light_config_delete_all, muc_light_config, [],
                            <<"DELETE FROM muc_light_config">>),
     mongoose_rdbms:prepare(muc_light_occupants_delete_all, muc_light_occupants, [],
@@ -91,8 +97,6 @@ prepare_queries(Host) ->
                            <<"DELETE FROM muc_light_rooms">>),
     mongoose_rdbms:prepare(muc_light_blocking_delete_all, muc_light_blocking, [],
                            <<"DELETE FROM muc_light_blocking">>),
-    prepare_room_queries(Host),
-    prepare_affiliation_queries(Host),
     ok.
 
 prepare_room_queries(_Host) ->
@@ -132,7 +136,7 @@ prepare_room_queries(_Host) ->
                              " WHERE o.luser = ? AND o.lserver = ?">>),
     ok.
 
-prepare_affiliation_queries(Host) ->
+prepare_affiliation_queries(_Host) ->
     %% This query uses multiple table
     %% Also returns a room version
     mongoose_rdbms:prepare(muc_light_select_affs_by_us, muc_light_rooms,
@@ -147,7 +151,8 @@ prepare_affiliation_queries(Host) ->
                              "FROM muc_light_occupants WHERE room_id = ?">>),
     mongoose_rdbms:prepare(muc_light_insert_aff, muc_light_occupants,
                            [room_id, luser, lserver, aff],
-                           <<"INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
+                           <<"INSERT INTO muc_light_occupants"
+                              " (room_id, luser, lserver, aff)"
                               " VALUES(?, ?, ?, ?)">>),
     mongoose_rdbms:prepare(muc_light_update_aff, muc_light_occupants,
                            [aff, room_id, luser, lserver],
@@ -160,6 +165,18 @@ prepare_affiliation_queries(Host) ->
                            [room_id, luser, lserver],
                            <<"DELETE FROM muc_light_occupants "
                              "WHERE room_id = ? AND luser = ? AND lserver = ?">>),
+   ok.
+
+prepare_config_queries(_Host) ->
+    mongoose_rdbms:prepare(muc_light_select_config_by_room_id, muc_light_config,
+                           [room_id],
+                           <<"SELECT opt, val FROM muc_light_config WHERE room_id = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_config_by_us, muc_light_rooms,
+                           [luser, lserver],
+                           <<"SELECT version, opt, val "
+                             "FROM muc_light_rooms AS r "
+                             "LEFT OUTER JOIN muc_light_config AS c ON r.id = c.room_id "
+                             "WHERE r.luser = ? AND r.lserver = ?">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -221,6 +238,15 @@ delete_affs(MainHost, RoomID) ->
 delete_aff(MainHost, RoomID, UserU, UserS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_delete_aff, [RoomID, UserU, UserS]).
+
+%% ------------------------ Config SQL functions ---------------------------
+select_config_by_room_id(MainHost, RoomID) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_config_by_room_id, [RoomID]).
+
+select_config_by_us(MainHost, RoomU, RoomS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_config_by_us, [RoomU, RoomS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -317,10 +343,7 @@ remove_user({_, UserS} = UserUS, Version) ->
     {ok, mod_muc_light_room_config:kv(), Version :: binary()} | {error, not_exists}.
 get_config({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
-
-    SQL = mod_muc_light_db_rdbms_sql:select_config(RoomU, RoomS),
-    {selected, Result} = mongoose_rdbms:sql_query(MainHost, SQL),
-
+    {selected, Result} = select_config_by_us(MainHost, RoomU, RoomS),
     case Result of
         [] ->
             {error, not_exists};
@@ -332,29 +355,6 @@ get_config({RoomU, RoomS} = RoomUS) ->
                              RawConfig, [], mod_muc_light:config_schema(RoomS)),
             {ok, Config, Version}
     end.
-
--spec get_config(RoomUS :: jid:simple_bare_jid(), Key :: atom()) ->
-    {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
-get_config({RoomU, RoomS} = RoomUS, Key) ->
-    MainHost = main_host(RoomUS),
-    ConfigSchema = mod_muc_light:config_schema(RoomS),
-    {ok, KeyDB} = mod_muc_light_room_config:schema_reverse_find(Key, ConfigSchema),
-
-    SQL = mod_muc_light_db_rdbms_sql:select_config(RoomU, RoomS, KeyDB),
-    {selected, Result} = mongoose_rdbms:sql_query(MainHost, SQL),
-
-    case Result of
-        [] ->
-            {error, not_exists};
-        [{_Version, null, null}] ->
-            {error, invalid_opt};
-        [{Version, _, ValDB}] ->
-            RawConfig = [{KeyDB, ValDB}],
-            {ok, [{_, Val}]} = mod_muc_light_room_config:apply_binary_kv(
-                                 RawConfig, [], ConfigSchema),
-            {ok, Val, Version}
-    end.
-
 
 -spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                  Version :: binary()) ->
@@ -450,8 +450,7 @@ get_info({RoomU, RoomS} = RoomUS) ->
         {selected, [{RoomID, Version}]} ->
             {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
             AffUsers = decode_affs(AffUsersDB),
-            {selected, ConfigDB} = mongoose_rdbms:sql_query(
-                                        MainHost, mod_muc_light_db_rdbms_sql:select_config(RoomID)),
+            {selected, ConfigDB} = select_config_by_room_id(MainHost, RoomID),
             {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
