@@ -25,29 +25,10 @@
 
 -include("mod_muc_light.hrl").
 
--export([insert_config/3, update_config/3, delete_config/1]).
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
 -define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
-
-%%====================================================================
-%% Config
-%%====================================================================
-
--spec insert_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
-insert_config(RoomID, Key, Val) ->
-    ["INSERT INTO muc_light_config (room_id, opt, val)"
-     " VALUES(", bin(RoomID), ", ", ?ESC(Key), ", ", ?ESC(Val), ")"].
-
--spec update_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
-update_config(RoomID, Key, Val) ->
-    ["UPDATE muc_light_config SET val = ", ?ESC(Val),
-     " WHERE room_id = ", bin(RoomID), " AND opt = ", ?ESC(Key)].
-
--spec delete_config(RoomID :: integer() | binary()) -> iolist().
-delete_config(RoomID) ->
-    ["DELETE FROM muc_light_config WHERE room_id = ", bin(RoomID)].
 
 %%====================================================================
 %% Blocking
@@ -89,11 +70,3 @@ delete_blocking(LUser, LServer, What, Who) ->
 delete_blocking(UserU, UserS) ->
     ["DELETE FROM muc_light_blocking"
      " WHERE luser = ", ?ESC(UserU), " AND lserver = ", ?ESC(UserS)].
-
-%%====================================================================
-%% Helpers
-%%====================================================================
-
--spec bin(integer() | binary()) -> binary().
-bin(Int) when is_integer(Int) -> integer_to_binary(Int);
-bin(Bin) when is_binary(Bin) -> Bin.
