@@ -134,6 +134,7 @@ prepare_room_queries(_Host) ->
 
 prepare_affiliation_queries(Host) ->
     %% This query uses multiple table
+    %% Also returns a room version
     mongoose_rdbms:prepare(muc_light_select_affs_by_us, muc_light_rooms,
                            [luser, lserver],
                            <<"SELECT version, o.luser, o.lserver, aff"
@@ -178,10 +179,12 @@ delete_room(MainHost, RoomU, RoomS) ->
 
 %% ------------------------ Affiliation SQL functions ------------------------
 
+%% Returns affiliations with a version
 select_affs_by_us(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_affs_by_us, [RoomU, RoomS]).
 
+%% Returns affiliations without a version
 select_affs_by_room_id(MainHost, RoomID) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_affs_by_room_id, [RoomID]).
@@ -387,8 +390,8 @@ get_aff_users({RoomU, RoomS} = RoomUS) ->
         {selected, [{Version, null, null, null}]} ->
             {ok, [], Version};
         {selected, [{Version, _, _, _} | _] = Res} ->
-            AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {_, UserU, UserS, Aff} <- Res],
-            {ok, lists:sort(AffUsers), Version}
+            AffUsers = decode_affs_with_versions(Res),
+            {ok, AffUsers, Version}
     end.
 
 -spec modify_aff_users(RoomUS :: jid:simple_bare_jid(),
@@ -413,19 +416,28 @@ get_info({RoomU, RoomS} = RoomUS) ->
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
         {selected, [{RoomID, Version}]} ->
             {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
-            AffUsers = [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB],
-
+            AffUsers = decode_affs(AffUsersDB),
             {selected, ConfigDB} = mongoose_rdbms:sql_query(
                                         MainHost, mod_muc_light_db_rdbms_sql:select_config(RoomID)),
             {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
-            {ok, Config, lists:sort(AffUsers), Version};
+            {ok, Config, AffUsers, Version};
         {selected, []} ->
             {error, not_exists}
     end.
 
 %% ------------------------ Conversions ------------------------
+
+decode_affs(AffUsersDB) ->
+    US2Aff = [{{UserU, UserS}, aff_db2atom(Aff)}
+              || {UserU, UserS, Aff} <- AffUsersDB],
+    lists:sort(US2Aff).
+
+decode_affs_with_versions(AffUsersDB) ->
+    US2Aff = [{{UserU, UserS}, aff_db2atom(Aff)}
+              || {_Version, UserU, UserS, Aff} <- AffUsersDB],
+    lists:sort(US2Aff).
 
 -spec what_db2atom(binary() | pos_integer()) -> blocking_what().
 what_db2atom(1) -> room;
@@ -575,8 +587,7 @@ modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
 modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
                              CheckFun, PrevVersion, Version) ->
     {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
-    AffUsers = lists:sort(
-                 [{{UserU, UserS}, aff_db2atom(Aff)} || {UserU, UserS, Aff} <- AffUsersDB]),
+    AffUsers = decode_affs(AffUsersDB),
     case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
         {ok, NewAffUsers, AffUsersChanged, JoiningUsers, _LeavingUsers} ->
             case CheckFun(RoomUS, NewAffUsers) of
