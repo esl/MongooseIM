@@ -92,6 +92,7 @@ prepare_queries(_Host) ->
     mongoose_rdbms:prepare(muc_light_blocking_delete_all, muc_light_blocking, [],
                            <<"DELETE FROM muc_light_blocking">>),
 
+    %% Returns maximum 1 record
     mongoose_rdbms:prepare(muc_light_select_room_id, muc_light_rooms,
                            [luser, lserver],
                            <<"SELECT id FROM muc_light_rooms "
@@ -100,6 +101,25 @@ prepare_queries(_Host) ->
                            [luser, lserver],
                            <<"SELECT id, version FROM muc_light_rooms "
                              "WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_insert_room, muc_light_rooms,
+                           [luser, lserver, version],
+                           <<"INSERT INTO muc_light_rooms (luser, lserver, version)"
+                             " VALUES (?, ?, ?)">>),
+
+    %% This query uses multiple table
+    mongoose_rdbms:prepare(muc_light_select_user_rooms, muc_light_occupants,
+                           [luser, lserver],
+                           <<"SELECT r.luser, r.lserver "
+                             " FROM muc_light_occupants AS o "
+                             " INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
+                             " WHERE o.luser = ? AND o.lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_select_user_rooms_count, muc_light_occupants,
+                           [luser, lserver],
+                           <<"SELECT count(*) "
+                             " FROM muc_light_occupants AS o "
+                             " INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
+                             " WHERE o.luser = ? AND o.lserver = ?">>),
+
     ok.
 
 select_room_id(MainHost, RoomU, RoomS) ->
@@ -110,16 +130,64 @@ select_room_id_and_version(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_room_id_and_version, [RoomU, RoomS]).
 
+select_user_rooms(MainHost, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_user_rooms, [LUser, LServer]).
+
+select_user_rooms_count(MainHost, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_select_user_rooms_count, [LUser, LServer]).
+
+insert_room(MainHost, RoomU, RoomS, Version) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_insert_room, [RoomU, RoomS, Version]).
+
 %% ------------------------ General room management ------------------------
 
 -spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
+create_room({<<>>, RoomS} = RoomUS, Config, AffUsers, Version) ->
+    MainHost = main_host(RoomUS),
+    create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, 10);
 create_room(RoomUS, Config, AffUsers, Version) ->
     MainHost = main_host(RoomUS),
+    create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version).
+
+create_room_with_random_name(_MainHost, RoomS, _Config, _AffUsers, _Version, 0) ->
+    ?LOG_ERROR(#{what => muc_create_room_with_random_name_failed,
+                 sub_host => RoomS}),
+    error(create_room_with_random_name_failed);
+create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, Retries)
+    when Retries > 0 ->
+    RoomU = mongoose_bin:gen_from_timestamp(),
+    RoomUS = {RoomU, RoomS},
     F = fun() -> create_room_transaction(MainHost, RoomUS, Config, AffUsers, Version) end,
-    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
-    Res.
+    case mongoose_rdbms:sql_transaction(MainHost, F) of
+        {atomic, ok} ->
+            {ok, RoomUS};
+        Other ->
+            ?LOG_ERROR(#{what => muc_create_room_with_random_name_retry,
+                         candidate_room => RoomU, sub_host => RoomS, reason => Other}),
+            create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, Retries-1)
+    end.
+
+create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version) ->
+    F = fun() -> create_room_transaction(MainHost, RoomUS, Config, AffUsers, Version) end,
+    case mongoose_rdbms:sql_transaction(MainHost, F) of
+        {atomic, ok} ->
+            {ok, RoomUS};
+        Other ->
+            case room_exists(RoomUS) of
+                true ->
+                    {error, exists};
+                false -> %% Something unknown
+                    {RoomU, RoomS} = RoomUS,
+                    ?LOG_ERROR(#{what => muc_create_room_with_specified_name_failed,
+                                 room => RoomU, sub_host => RoomS, reason => Other}),
+                    error(create_room_with_specified_name_failed)
+            end
+    end.
 
 -spec destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room(RoomUS) ->
@@ -138,16 +206,14 @@ room_exists({RoomU, RoomS} = RoomUS) ->
                      MUCServer :: jid:lserver() | undefined) ->
     [RoomUS :: jid:simple_bare_jid()].
 get_user_rooms({LUser, LServer}, undefined) ->
-    SQL = mod_muc_light_db_rdbms_sql:select_user_rooms(LUser, LServer),
     lists:usort(lists:flatmap(
                   fun(Host) ->
-                          {selected, Rooms} = mongoose_rdbms:sql_query(Host, SQL),
+                          {selected, Rooms} = select_user_rooms(Host, LUser, LServer),
                           Rooms
                   end, ?MYHOSTS));
 get_user_rooms({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
-    {selected, Rooms} = mongoose_rdbms:sql_query(
-                             MainHost, mod_muc_light_db_rdbms_sql:select_user_rooms(LUser, LServer)),
+    {selected, Rooms} = select_user_rooms(MainHost, LUser, LServer),
     Rooms.
 
 -spec get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
@@ -155,9 +221,7 @@ get_user_rooms({LUser, LServer}, MUCServer) ->
     non_neg_integer().
 get_user_rooms_count({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
-    {selected, [{Cnt}]}
-    = mongoose_rdbms:sql_query(
-        MainHost, mod_muc_light_db_rdbms_sql:select_user_rooms_count(LUser, LServer)),
+    {selected, [{Cnt}]} = select_user_rooms_count(MainHost, LUser, LServer),
     mongoose_rdbms:result_to_integer(Cnt).
 
 -spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
@@ -366,52 +430,23 @@ force_clear() ->
                               Config :: mod_muc_light_room_config:kv(),
                               AffUsers :: aff_users(),
                               Version :: binary()) ->
-    {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
-create_room_transaction(MainHost, {NodeCandidate, RoomS}, Config, AffUsers, Version) ->
-    RoomU = case NodeCandidate of
-                <<>> -> mongoose_bin:gen_from_timestamp();
-                _ -> NodeCandidate
-            end,
-    case catch mongoose_rdbms:sql_query_t(
-                 mod_muc_light_db_rdbms_sql:insert_room(RoomU, RoomS, Version)) of
-        {aborted, Reason} ->
-            %% At this point the transaction is broken because of failed INSERT query
-            mongoose_rdbms:sql_query_t("ROLLBACK;"),
-            mongoose_rdbms:sql_query_t(rdbms_queries:begin_trans()),
-
-            case {select_room_id(MainHost, RoomU, RoomS), NodeCandidate} of
-                {{selected, []}, _} ->
-                    throw({aborted, Reason});
-                {{selected, [_]}, <<>>} ->
-                    create_room_transaction(MainHost, {<<>>, RoomS}, Config, AffUsers, Version);
-                {{selected, [_]}, _} ->
-                    {error, exists}
-            end;
-        {updated, _} ->
-            {selected, [{RoomID} | Rest] = AllIds} = select_room_id(MainHost, RoomU, RoomS),
-            case Rest of
-                [] ->
-                    ok;
-                _ ->
-                    Details = <<"Many IDs returned for PK select query, most probably MSSQL deadlock">>,
-                    ?LOG_ERROR(#{what => muc_many_ids_for_pk_select, text => Details,
-                                 room => RoomU, sub_host => RoomS, all_room_ids => AllIds}),
-                    throw({aborted, Details})
-            end,
-            lists:foreach(
-              fun({{UserU, UserS}, Aff}) ->
-                      Query = mod_muc_light_db_rdbms_sql:insert_aff(RoomID, UserU, UserS, Aff),
-                      {updated, _} = mongoose_rdbms:sql_query_t(Query)
-              end, AffUsers),
-            ConfigFields = mod_muc_light_room_config:to_binary_kv(
-                             Config, mod_muc_light:config_schema(RoomS)),
-            lists:foreach(
-              fun({Key, Val}) ->
-                      Query = mod_muc_light_db_rdbms_sql:insert_config(RoomID, Key, Val),
-                      {updated, _} = mongoose_rdbms:sql_query_t(Query)
-              end, ConfigFields),
-            {ok, {RoomU, RoomS}}
-    end.
+    ok | {error, exists}.
+create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
+    insert_room(MainHost, RoomU, RoomS, Version),
+    {selected, [{RoomID}]} = select_room_id(MainHost, RoomU, RoomS),
+    lists:foreach(
+      fun({{UserU, UserS}, Aff}) ->
+              Query = mod_muc_light_db_rdbms_sql:insert_aff(RoomID, UserU, UserS, Aff),
+              {updated, _} = mongoose_rdbms:sql_query_t(Query)
+      end, AffUsers),
+    ConfigFields = mod_muc_light_room_config:to_binary_kv(
+                     Config, mod_muc_light:config_schema(RoomS)),
+    lists:foreach(
+      fun({Key, Val}) ->
+              Query = mod_muc_light_db_rdbms_sql:insert_config(RoomID, Key, Val),
+              {updated, _} = mongoose_rdbms:sql_query_t(Query)
+      end, ConfigFields),
+      ok.
 
 -spec destroy_room_transaction(MainHost :: jid:lserver(),
                                RoomUS :: jid:simple_bare_jid()) ->
