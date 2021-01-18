@@ -25,29 +25,12 @@
 
 -include("mod_muc_light.hrl").
 
--export([delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
         delete_config/1]).
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
 -define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
-
-%%====================================================================
-%% Affiliations
-%%====================================================================
-
--spec delete_affs(RoomID :: integer() | binary()) -> iolist().
-delete_affs(RoomID) ->
-    ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID)].
-
--spec delete_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
-                 UserS :: jid:lserver()) ->
-    iolist().
-delete_aff(RoomID, UserU, UserS) ->
-    ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID),
-                                      " AND luser = ", ?ESC(UserU),
-                                      " AND lserver = ", ?ESC(UserS)].
 
 %%====================================================================
 %% Config
