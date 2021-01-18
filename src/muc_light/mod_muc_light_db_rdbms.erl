@@ -149,6 +149,10 @@ prepare_affiliation_queries(Host) ->
                            [room_id, luser, lserver, aff],
                            <<"INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
                               " VALUES(?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(muc_light_update_aff, muc_light_occupants,
+                           [aff, room_id, luser, lserver],
+                           <<"UPDATE muc_light_occupants SET aff = ? "
+                             "WHERE room_id = ? AND luser = ? AND lserver = ?">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -197,6 +201,11 @@ insert_aff(MainHost, RoomID, UserU, UserS, Aff) ->
     DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_insert_aff, [RoomID, UserU, UserS, DbAff]).
+
+update_aff(MainHost, RoomID, UserU, UserS, Aff) ->
+    DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_update_aff, [DbAff, RoomID, UserU, UserS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -625,9 +634,7 @@ apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers) ->
                   true ->
                       {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff);
                   false ->
-                      {updated, _} = mongoose_rdbms:sql_query_t(
-                                       mod_muc_light_db_rdbms_sql:update_aff(
-                                         RoomID, UserU, UserS, Aff))
+                      {updated, _} = update_aff(MainHost, RoomID, UserU, UserS, Aff)
               end
       end, AffUsersChanged).
 
