@@ -153,6 +153,13 @@ prepare_affiliation_queries(Host) ->
                            [aff, room_id, luser, lserver],
                            <<"UPDATE muc_light_occupants SET aff = ? "
                              "WHERE room_id = ? AND luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_delete_affs, muc_light_occupants,
+                           [room_id],
+                           <<"DELETE FROM muc_light_occupants WHERE room_id = ?">>),
+    mongoose_rdbms:prepare(muc_light_delete_aff, muc_light_occupants,
+                           [room_id, luser, lserver],
+                           <<"DELETE FROM muc_light_occupants "
+                             "WHERE room_id = ? AND luser = ? AND lserver = ?">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -206,6 +213,14 @@ update_aff(MainHost, RoomID, UserU, UserS, Aff) ->
     DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_update_aff, [DbAff, RoomID, UserU, UserS]).
+
+delete_affs(MainHost, RoomID) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_affs, [RoomID]).
+
+delete_aff(MainHost, RoomID, UserU, UserS) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_aff, [RoomID, UserU, UserS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -526,8 +541,7 @@ create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
 destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
     case select_room_id(MainHost, RoomU, RoomS) of
         {selected, [{RoomID}]} ->
-            {updated, _} = mongoose_rdbms:sql_query_t(
-                             mod_muc_light_db_rdbms_sql:delete_affs(RoomID)),
+            {updated, _} = delete_affs(MainHost, RoomID),
             {updated, _} = mongoose_rdbms:sql_query_t(
                              mod_muc_light_db_rdbms_sql:delete_config(RoomID)),
             {updated, _} = delete_room(MainHost, RoomU, RoomS),
@@ -627,8 +641,7 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
 apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers) ->
     lists:foreach(
       fun({{UserU, UserS}, none}) ->
-              {updated, _} = mongoose_rdbms:sql_query_t(
-                               mod_muc_light_db_rdbms_sql:delete_aff(RoomID, UserU, UserS));
+              {updated, _} = delete_aff(MainHost, RoomID, UserU, UserS);
          ({{UserU, UserS} = UserUS, Aff}) ->
               case lists:member(UserUS, JoiningUsers) of
                   true ->
