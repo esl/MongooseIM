@@ -121,7 +121,7 @@ prepare_room_queries(_Host) ->
                            [luser, lserver],
                            <<"DELETE FROM muc_light_rooms"
                              " WHERE luser = ? AND lserver = ?">>),
-    %% This query uses multiple table
+    %% This query uses multiple tables
     mongoose_rdbms:prepare(muc_light_select_user_rooms, muc_light_occupants,
                            [luser, lserver],
                            <<"SELECT r.luser, r.lserver "
@@ -137,7 +137,7 @@ prepare_room_queries(_Host) ->
     ok.
 
 prepare_affiliation_queries(_Host) ->
-    %% This query uses multiple table
+    %% This query uses multiple tables
     %% Also returns a room version
     mongoose_rdbms:prepare(muc_light_select_affs_by_us, muc_light_rooms,
                            [luser, lserver],
@@ -171,12 +171,24 @@ prepare_config_queries(_Host) ->
     mongoose_rdbms:prepare(muc_light_select_config_by_room_id, muc_light_config,
                            [room_id],
                            <<"SELECT opt, val FROM muc_light_config WHERE room_id = ?">>),
+    %% This query uses multiple tables
     mongoose_rdbms:prepare(muc_light_select_config_by_us, muc_light_rooms,
                            [luser, lserver],
                            <<"SELECT version, opt, val "
                              "FROM muc_light_rooms AS r "
                              "LEFT OUTER JOIN muc_light_config AS c ON r.id = c.room_id "
                              "WHERE r.luser = ? AND r.lserver = ?">>),
+    mongoose_rdbms:prepare(muc_light_insert_config, muc_light_config,
+                           [room_id, opt, val],
+                           <<"INSERT INTO muc_light_config (room_id, opt, val)"
+                             " VALUES(?, ?, ?)">>),
+    mongoose_rdbms:prepare(muc_light_update_config, muc_light_config,
+                           [val, room_id, opt],
+                           <<"UPDATE muc_light_config SET val = ? "
+                             "WHERE room_id = ? AND opt = ?">>),
+    mongoose_rdbms:prepare(muc_light_delete_config, muc_light_config,
+                           [room_id],
+                           <<"DELETE FROM muc_light_config WHERE room_id = ?">>),
    ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -247,6 +259,18 @@ select_config_by_room_id(MainHost, RoomID) ->
 select_config_by_us(MainHost, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_config_by_us, [RoomU, RoomS]).
+
+insert_config(MainHost, RoomID, Key, Val) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_insert_config, [RoomID, Key, Val]).
+
+update_config(MainHost, RoomID, Key, Val) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_update_config, [Val, RoomID, Key]).
+
+delete_config(MainHost, RoomID) ->
+    mongoose_rdbms:execute_successfully(
+        MainHost, muc_light_delete_config, [RoomID]).
 
 %% ------------------------ General room management ------------------------
 
@@ -529,8 +553,7 @@ create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
                      Config, mod_muc_light:config_schema(RoomS)),
     lists:foreach(
       fun({Key, Val}) ->
-              Query = mod_muc_light_db_rdbms_sql:insert_config(RoomID, Key, Val),
-              {updated, _} = mongoose_rdbms:sql_query_t(Query)
+              {updated, _} = insert_config(MainHost, RoomID, Key, Val)
       end, ConfigFields),
       ok.
 
@@ -541,8 +564,7 @@ destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
     case select_room_id(MainHost, RoomU, RoomS) of
         {selected, [{RoomID}]} ->
             {updated, _} = delete_affs(MainHost, RoomID),
-            {updated, _} = mongoose_rdbms:sql_query_t(
-                             mod_muc_light_db_rdbms_sql:delete_config(RoomID)),
+            {updated, _} = delete_config(MainHost, RoomID),
             {updated, _} = delete_room(MainHost, RoomU, RoomS),
             ok;
         {selected, []} ->
@@ -576,9 +598,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
             {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
             lists:foreach(
               fun({Key, Val}) ->
-                      {updated, _}
-                      = mongoose_rdbms:sql_query(
-                          MainHost, mod_muc_light_db_rdbms_sql:update_config(RoomID, Key, Val))
+                      {updated, _} = update_config(MainHost, RoomID, Key, Val)
               end, mod_muc_light_room_config:to_binary_kv(
                      ConfigChanges, mod_muc_light:config_schema(RoomS))),
             {ok, PrevVersion};
