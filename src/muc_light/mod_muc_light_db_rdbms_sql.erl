@@ -25,7 +25,6 @@
 
 -include("mod_muc_light.hrl").
 
--export([update_room_version/3, delete_room/2]).
 -export([select_affs/2, select_affs/1, insert_aff/4, update_aff/4, delete_affs/1, delete_aff/3]).
 -export([select_config/1, select_config/2, select_config/3, insert_config/3, update_config/3,
         delete_config/1]).
@@ -33,21 +32,6 @@
          delete_blocking/4, delete_blocking/2]).
 
 -define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
-
-%%====================================================================
-%% General room queries
-%%====================================================================
-
--spec update_room_version(
-        RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
-update_room_version(RoomU, RoomS, Version) ->
-    ["UPDATE muc_light_rooms SET version = ", ?ESC(Version),
-     " WHERE luser = ", ?ESC(RoomU), " AND lserver = ", ?ESC(RoomS)].
-
--spec delete_room(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
-delete_room(RoomU, RoomS) ->
-    ["DELETE FROM muc_light_rooms"
-     " WHERE luser = ", ?ESC(RoomU), " AND lserver = ", ?ESC(RoomS)].
 
 %%====================================================================
 %% Affiliations
