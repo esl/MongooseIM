@@ -61,6 +61,7 @@ groups() ->
                                              pm_no_msg_notifications_if_user_online,
                                              pm_msg_notify_if_user_offline,
                                              pm_msg_notify_if_user_offline_with_publish_options,
+                                             pm_msg_notify_if_user_offline_with_publish_options_multi_device,
                                              pm_msg_notify_stops_after_disabling
                                             ]},
          {muclight_msg_notifications, [parallel], [
@@ -558,6 +559,80 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
             ok
         end).
 
+pm_msg_notify_if_user_offline_with_publish_options_multi_device(Config) ->
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            PubsubJID1 = pubsub_jid(Config, 1),
+            PubsubJID2 = pubsub_jid(Config, 2),
+
+            PublishOpts1 = lists:usort([
+                {<<"field1">>, <<"value1">>}, {<<"field2">>, <<"value2">>}
+            ]),
+            PublishOpts2 = lists:usort([
+                {<<"field1">>, <<"value2">>}, {<<"field4">>, <<"value4">>}
+            ]),
+            PublishOpts3 = lists:usort([
+                {<<"field1">>, <<"value1_updated">>},
+                {<<"field2">>, <<"value2_updated">>}
+            ]),
+            PublishOpts4 = lists:usort([
+                {<<"field1">>, <<"value5">>},
+                {<<"field2">>, <<"value6">>}
+            ]),
+
+            Devices = #{
+                1 => % New device
+                    #{pubsub => PubsubJID1, opts => PublishOpts1, node => <<"NodeId1">>},
+                2 => % New device (different pubsub node)
+                    #{pubsub => PubsubJID1, opts => PublishOpts2, node => <<"NodeId2">>},
+                3 => % Updated device 1
+                    #{pubsub => PubsubJID1, opts => PublishOpts3, node => <<"NodeId1">>},
+                4 => % New device (different pubsub addr)
+                    #{pubsub => PubsubJID2, opts => PublishOpts4, node => <<"NodeId1">>}
+            },
+
+            lists:foreach(fun({N, #{pubsub := PubsubJID, opts := PublishOpts, node := Node}}) ->
+                escalus:send(Bob, enable_stanza(PubsubJID, Node, [{<<"id">>, N} | PublishOpts])),
+                escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob))
+                          end, maps:to_list(Devices)),
+
+            become_unavailable(Bob),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+            Published1 = received_route(),
+            Published2 = received_route(),
+            Published3 = received_route(),
+            Published4 = received_route(),
+
+            ?assertMatch(false, Published4),
+
+            lists:foreach(fun(Published) ->
+                ?assertMatch(#route{}, Published),
+
+                #route{to = RealPubsubJID, packet = Packet} = Published,
+                Form = exml_query:path(Packet, [{element, <<"pubsub">>},
+                    {element, <<"publish-options">>},
+                    {element, <<"x">>}]),
+                Fields = parse_form(Form),
+                NS = push_helper:ns_pubsub_pub_options(),
+                ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+
+                TestDevice = maps:get(proplists:get_value(<<"id">>, Fields), Devices),
+                PubsubJID = maps:get(pubsub, TestDevice),
+                PublishOpts = maps:get(opts, TestDevice),
+                Value1 = proplists:get_value(<<"field1">>, PublishOpts),
+                Value2 = proplists:get_value(<<"field2">>, PublishOpts),
+
+                ?assertMatch(PubsubJID, rpc(jid, to_binary, [RealPubsubJID])),
+                ?assertMatch(Value1, proplists:get_value(<<"field1">>, Fields)),
+                ?assertMatch(Value2, proplists:get_value(<<"field2">>, Fields))
+
+                          end, [Published1, Published2, Published3]),
+
+            ok
+        end).
+
 pm_msg_notify_stops_after_disabling(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
@@ -819,6 +894,11 @@ pubsub_jid(Config) ->
         virtual -> <<CaseNameBin/binary, ".hyperion">>;
         _ -> <<"pubsub@", CaseNameBin/binary>>
     end.
+
+pubsub_jid(Config, N) ->
+    CaseName = proplists:get_value(case_name, Config),
+    <<"pubsub@", (atom_to_binary(CaseName, utf8))/binary, "_",
+        (integer_to_binary(N, utf8))/binary>>.
 
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
