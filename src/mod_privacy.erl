@@ -627,10 +627,10 @@ action_to_binary(Action) ->
     end.
 
 order_to_binary(Order) ->
-    list_to_binary(integer_to_list(Order)).
+    integer_to_binary(Order).
 
 binary_to_order(Binary) ->
-    list_to_integer(binary_to_list(Binary)).
+    binary_to_integer(Binary).
 
 type_to_binary(Type) ->
     case Type of

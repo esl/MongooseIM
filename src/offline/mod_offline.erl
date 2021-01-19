@@ -482,9 +482,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     case exml_query:attr(El, <<"xmlns">>, <<>>) of
         ?NS_EXPIRE ->
             Val = exml_query:attr(El, <<"seconds">>, <<>>),
-            case catch list_to_integer(binary_to_list(Val)) of
-                {'EXIT', _} ->
-                    never;
+            try binary_to_integer(Val) of
                 Int when Int > 0 ->
                     {MegaSecs, Secs, MicroSecs} = TimeStamp,
                     S = MegaSecs * 1000000 + Secs + Int,
@@ -493,6 +491,8 @@ find_x_expire(TimeStamp, [El | Els]) ->
                     {MegaSecs1, Secs1, MicroSecs};
                 _ ->
                     never
+            catch
+                error:badarg -> never
             end;
         _ ->
             find_x_expire(TimeStamp, Els)
