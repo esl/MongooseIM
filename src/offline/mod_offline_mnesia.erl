@@ -28,8 +28,8 @@
 -module(mod_offline_mnesia).
 -behaviour(mod_offline).
 -export([init/2,
-         pop_messages/2,
-         fetch_messages/2,
+         pop_messages/1,
+         fetch_messages/1,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
@@ -51,8 +51,8 @@ init(_Host, _Opts) ->
     upgrade_table(),
     ok.
 
-pop_messages(LUser, LServer) ->
-    US = {LUser, LServer},
+pop_messages(To) ->
+    US = jid:to_lus(To),
     F = fun() ->
                 Rs = mnesia:wread({offline_msg, US}),
                 mnesia:delete({offline_msg, US}),
@@ -65,10 +65,8 @@ pop_messages(LUser, LServer) ->
             {error, Reason}
     end.
 
-fetch_messages(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
-    US = {LUser, LServer},
+fetch_messages(To) ->
+    US = jid:to_lus(To),
     F = fun() -> mnesia:wread({offline_msg, US}) end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->

@@ -28,8 +28,8 @@
 -behaviour(mod_offline).
 
 -export([init/2]).
--export([pop_messages/2]).
--export([fetch_messages/2]).
+-export([pop_messages/1]).
+-export([fetch_messages/1]).
 -export([write_messages/3]).
 -export([remove_expired_messages/1]).
 -export([remove_old_messages/2]).
@@ -51,14 +51,12 @@
 init(_Host, _Opts) ->
     ok.
 
--spec pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
+-spec pop_messages(To) -> {ok, Result} | {error, Reason} when
+    To :: jid:jid(),
     Reason :: term(),
     Result :: list(mod_offline:msg()).
-pop_messages(LUser, LServer) ->
+pop_messages(To = #jid{luser = LUser, lserver = LServer}) ->
     Keys = read_user_idx(LUser, LServer),
-    To = jid:make(LUser, LServer, <<>>),
     Msgs = [pop_msg(Key, LUser, LServer, To) || Key <- Keys],
     {ok, lists:flatten(Msgs)}.
 
@@ -200,11 +198,9 @@ maybe_decode_timestamp(TS) ->
     usec:to_now(TS).
 
 
-fetch_messages(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
+fetch_messages(To) ->
+    {LUser, LServer} = jid:to_lus(To),
     Keys = read_user_idx(LUser, LServer),
-    To = jid:make({User, LServer, <<>>}),
     {ok, [fetch_msg(Key, LUser, LServer, To) || Key <- Keys]}.
 
 fetch_msg(Key, LUser, LServer, To) ->

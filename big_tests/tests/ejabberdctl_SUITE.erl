@@ -1207,7 +1207,7 @@ remove_old_messages_test(Config) ->
         rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
         {_, 0} = ejabberdctl("delete_old_messages", ["1"], Config),
-        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),
+        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [JidRecordBob]),
         %% then
         1 = length(SecondList)
     end).
@@ -1248,7 +1248,7 @@ remove_expired_messages_test(Config) ->
         rpc_call(mod_offline_backend, write_messages, [LUser, LServer, Args]),
         %% when
         {_, 0} = ejabberdctl("delete_expired_messages", [], Config),
-        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),
+        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [JidRecordKate]),
         %% then
         2 = length(SecondList)
     end).

@@ -38,7 +38,7 @@
 
 %% Hook handlers
 -export([inspect_packet/4,
-         pop_offline_messages/3,
+         pop_offline_messages/2,
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
@@ -95,14 +95,12 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
--callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
+-callback pop_messages(JID) -> {ok, Result} | {error, Reason} when
+    JID :: jid:jid(),
     Reason :: term(),
     Result :: list(#offline_msg{}).
--callback fetch_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
+-callback fetch_messages(JID) -> {ok, Result} | {error, Reason} when
+    JID :: jid:jid(),
     Reason :: term(),
     Result :: list(#offline_msg{}).
 -callback write_messages(LUser, LServer, Msgs) ->
@@ -230,7 +228,7 @@ is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) ->
 
 
 get_max_user_messages(AccessRule, LUser, Host) ->
-    case acl:match_rule(Host, AccessRule, jid:make(LUser, Host, <<>>)) of
+    case acl:match_rule(Host, AccessRule, jid:make_noprep(LUser, Host, <<>>)) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_MESSAGES
@@ -302,9 +300,9 @@ init([Host, AccessMaxOfflineMsgs]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({pop_offline_messages, LUser, LServer}, {Pid, _}, State) ->
-    Result = mod_offline_backend:pop_messages(LUser, LServer),
-    NewPoppers = monitored_map:put({LUser, LServer}, Pid, Pid, State#state.message_poppers),
+handle_call({pop_offline_messages, JID}, {Pid, _}, State) ->
+    Result = mod_offline_backend:pop_messages(JID),
+    NewPoppers = monitored_map:put(jid:to_lus(JID), Pid, Pid, State#state.message_poppers),
     {reply, Result, State#state{message_poppers = NewPoppers}};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
@@ -500,16 +498,14 @@ find_x_expire(TimeStamp, [El | Els]) ->
             find_x_expire(TimeStamp, Els)
     end.
 
-pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline, messages, offline_messages(Acc, User, Server), Acc).
+pop_offline_messages(Acc, JID) ->
+    mongoose_acc:append(offline, messages, offline_messages(Acc, JID), Acc).
 
-offline_messages(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    case pop_messages(LUser, LServer) of
+offline_messages(Acc, #jid{lserver = LServer} = JID) ->
+    case pop_messages(JID) of
         {ok, Rs} ->
             lists:map(fun(R) ->
-                Packet = resend_offline_message_packet(Server, R),
+                Packet = resend_offline_message_packet(LServer, R),
                 compose_offline_message(R, Packet, Acc)
               end, Rs);
         {error, Reason} ->
@@ -517,8 +513,8 @@ offline_messages(Acc, User, Server) ->
             []
     end.
 
-pop_messages(LUser, LServer) ->
-    case gen_server:call(srv_name(LServer), {pop_offline_messages, LUser, LServer}) of
+pop_messages(#jid{lserver = LServer} = JID) ->
+    case gen_server:call(srv_name(LServer), {pop_offline_messages, jid:to_bare(JID)}) of
         {ok, RsAll} ->
             TimeStamp = os:timestamp(),
             Rs = skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, RsAll)),
@@ -527,8 +523,8 @@ pop_messages(LUser, LServer) ->
             Other
     end.
 
-get_personal_data(Acc, #jid{ user = User, server = Server }) ->
-    {ok, Messages} = mod_offline_backend:fetch_messages(User, Server),
+get_personal_data(Acc, #jid{} = JID) ->
+    {ok, Messages} = mod_offline_backend:fetch_messages(JID),
     [ {offline, ["timestamp", "from", "to", "packet"],
        offline_messages_to_gdpr_format(Messages)} | Acc].
 
@@ -556,19 +552,19 @@ compose_offline_message(#offline_msg{from = From, to = To, permanent_fields = Pe
     Acc = mongoose_acc:update_stanza(#{element => Packet, from_jid => From, to_jid => To}, Acc1),
     {route, From, To, Acc}.
 
-resend_offline_message_packet(Server,
+resend_offline_message_packet(LServer,
         #offline_msg{timestamp=TimeStamp, packet = Packet}) ->
-    add_timestamp(TimeStamp, Server, Packet).
+    add_timestamp(TimeStamp, LServer, Packet).
 
-add_timestamp(undefined, _Server, Packet) ->
+add_timestamp(undefined, _LServer, Packet) ->
     Packet;
-add_timestamp(TimeStamp, Server, Packet) ->
+add_timestamp(TimeStamp, LServer, Packet) ->
     Time = usec:from_now(TimeStamp),
-    TimeStampXML = timestamp_xml(Server, Time),
+    TimeStampXML = timestamp_xml(LServer, Time),
     xml:append_subtags(Packet, [TimeStampXML]).
 
-timestamp_xml(Server, Time) ->
-    FromJID = jid:make(<<>>, Server, <<>>),
+timestamp_xml(LServer, Time) ->
+    FromJID = jid:make_noprep(<<>>, LServer, <<>>),
     TS = calendar:system_time_to_rfc3339(Time, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, FromJID, <<"Offline Storage">>).
 
