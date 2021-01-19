@@ -101,6 +101,28 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 Overrides the default node configuration, regardless of the node plugin.
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 
+The possible options, altogether with their default values for each node plugin, are listed in the table below:
+
+|  | syntax | node_flat / node_hometree | node_pep | node_dag | node_push |
+|  | ---------|-----------|--------- |------|-----|
+| `access_model`| non-empty string | `open` | `presence` | `open` | `whitelist` |
+| `deliver_notifications` | boolean | `true` | `true` | `true` | `true` |
+| `deliver_payloads` | boolean | `true` | `true` | `true` | `true` |
+| `max_items` | non-negative integer | `10` | `1` | `10` | `1` |
+| `max_payload_size` | non-negative integer | `60000` | `60000` | `60000` | `60000` |
+| `node_type` | non-empty string | N/A | N/A | `leaf` | N/A |
+| `notification_type` | non-empty string | `headline` | `headline` | `headline` | `headline` |
+| `notify_config` | boolean | `false` | `false` | `false` | `false` |
+| `notify_delete` | boolean | `false` | `false` | `false` | `false` |
+| `notify_retract` | boolean | `false` | `false` | `false` | `false` |
+| `persist_items` | boolean | `true` | `true` | `true` | `false` |
+| `presence_based_delivery` | boolean | `false` | `true` | `false` | `true` |
+| `publish_model` | non-empty string | `publishers` | `publishers` | `publishers` | `open` |
+| `purge_offline` | boolean | `false` | `false` | `false` | `false` |
+| `roster_groups_allowed` | non-empty string | `[]` | `[]` | `[]` | `[]` |
+| `send_last_published_item` | non-empty string | `never` | `on_sub_and_presence` | `never` | `on_sub_and_presence` |
+| `subscribe` | boolean | `true` | `true` | `true` | `true` |
+
 ### `modules.mod_pubsub.item_publisher`
 * **Syntax:** boolean
 * **Default:** `false`
