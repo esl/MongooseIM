@@ -54,6 +54,8 @@
          force_clear/0
         ]).
 
+-type room_id() :: non_neg_integer().
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -187,16 +189,16 @@ prepare_config_queries(_Host) ->
    ok.
 
 prepare_blocking_queries(_Host) ->
-    mongoose_rdbms:prepare(muc_light_select_blocking, muc_light_config,
+    mongoose_rdbms:prepare(muc_light_select_blocking, muc_light_blocking,
                            [luser, lserver],
                            <<"SELECT what, who FROM muc_light_blocking "
                              "WHERE luser = ? AND lserver = ?">>),
-    mongoose_rdbms:prepare(muc_light_select_blocking_cnt, muc_light_config,
+    mongoose_rdbms:prepare(muc_light_select_blocking_cnt, muc_light_blocking,
                            [luser, lserver, what, who],
                            <<"SELECT COUNT(*) FROM muc_light_blocking "
                              "WHERE luser = ? AND lserver = ? AND "
                              "what = ? AND who = ?">>),
-    mongoose_rdbms:prepare(muc_light_select_blocking_cnt2, muc_light_config,
+    mongoose_rdbms:prepare(muc_light_select_blocking_cnt2, muc_light_blocking,
                            [luser, lserver, what, who, what, who],
                            <<"SELECT COUNT(*) FROM muc_light_blocking "
                              "WHERE luser = ? AND lserver = ? AND "
@@ -471,7 +473,7 @@ get_blocking({LUser, LServer}, MUCServer) ->
 
 -spec get_blocking(UserUS :: jid:simple_bare_jid(),
                    MUCServer :: jid:lserver(),
-                   WhatWhos :: [{blocking_who(), jid:simple_bare_jid()}]) ->
+                   WhatWhos :: [{blocking_what(), jid:simple_bare_jid()}]) ->
     blocking_action().
 get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
     MainHost = main_host(MUCServer),
@@ -535,7 +537,8 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
 get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
-        {selected, [{RoomID, Version}]} ->
+        {selected, [{DbRoomID, Version}]} ->
+            RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
             {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
             AffUsers = decode_affs(AffUsersDB),
             {selected, ConfigDB} = select_config_by_room_id(MainHost, RoomID),
@@ -612,7 +615,7 @@ force_clear() ->
     ok | {error, exists}.
 create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     insert_room(MainHost, RoomU, RoomS, Version),
-    {selected, [{RoomID}]} = select_room_id(MainHost, RoomU, RoomS),
+    RoomID = mongoose_rdbms:selected_to_integer(select_room_id(MainHost, RoomU, RoomS)),
     lists:foreach(
       fun({{UserU, UserS}, Aff}) ->
               {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff)
@@ -630,7 +633,8 @@ create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     ok | {error, not_exists}.
 destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
     case select_room_id(MainHost, RoomU, RoomS) of
-        {selected, [{RoomID}]} ->
+        {selected, [{DbRoomID}]} ->
+            RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
             {updated, _} = delete_affs(MainHost, RoomID),
             {updated, _} = delete_config(MainHost, RoomID),
             {updated, _} = delete_room(MainHost, RoomU, RoomS),
@@ -661,7 +665,8 @@ remove_user_transaction(MainHost, {UserU, UserS} = UserUS, Version) ->
 set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
-        {selected, [{RoomID, PrevVersion}]} ->
+        {selected, [{DbRoomID, PrevVersion}]} ->
+            RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
             {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
             lists:foreach(
               fun({Key, Val}) ->
@@ -686,7 +691,8 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
 modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
                              AffUsersChanges, CheckFun, Version) ->
     case select_room_id_and_version(MainHost, RoomU, RoomS) of
-        {selected, [{RoomID, PrevVersion}]} ->
+        {selected, [{DbRoomID, PrevVersion}]} ->
+            RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
             modify_aff_users_transaction(MainHost,
               RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version);
         {selected, []} ->
@@ -695,7 +701,7 @@ modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
 
 -spec modify_aff_users_transaction(MainHost :: jid:lserver(),
                                    RoomUS :: jid:simple_bare_jid(),
-                                   RoomID :: binary(),
+                                   RoomID :: room_id(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
                                    PrevVersion :: binary(),
@@ -721,7 +727,7 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
     end.
 
 -spec apply_aff_users_transaction(MainHost :: jid:lserver(),
-                                  RoomID :: binary(),
+                                  RoomID :: room_id(),
                                   AffUsersChanges :: aff_users(),
                                   JoiningUsers :: [jid:simple_bare_jid()]) -> ok.
 apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers) ->
