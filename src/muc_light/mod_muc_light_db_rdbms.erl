@@ -49,12 +49,6 @@
          get_info/1
         ]).
 
-%% Conversions
--export([
-         what_db2atom/1, what_atom2db/1,
-         aff_db2atom/1, aff_atom2db/1
-        ]).
-
 %% Extra API for testing
 -export([
          force_clear/0
@@ -265,12 +259,12 @@ select_affs_by_room_id(MainHost, RoomID) ->
         MainHost, muc_light_select_affs_by_room_id, [RoomID]).
 
 insert_aff(MainHost, RoomID, UserU, UserS, Aff) ->
-    DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
+    DbAff = aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_insert_aff, [RoomID, UserU, UserS, DbAff]).
 
 update_aff(MainHost, RoomID, UserU, UserS, Aff) ->
-    DbAff = mod_muc_light_db_rdbms:aff_atom2db(Aff),
+    DbAff = aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_update_aff, [DbAff, RoomID, UserU, UserS]).
 
@@ -310,14 +304,14 @@ select_blocking(MainHost, LUser, LServer) ->
         MainHost, muc_light_select_blocking, [LUser, LServer]).
 
 select_blocking_cnt(MainHost, LUser, LServer, [{What, Who}]) ->
-    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_select_blocking_cnt,
         [LUser, LServer, DbWhat, DbWho]);
 select_blocking_cnt(MainHost, LUser, LServer, [{What1, Who1}, {What2, Who2}]) ->
-    DbWhat1 = mod_muc_light_db_rdbms:what_atom2db(What1),
-    DbWhat2 = mod_muc_light_db_rdbms:what_atom2db(What2),
+    DbWhat1 = what_atom2db(What1),
+    DbWhat2 = what_atom2db(What2),
     DbWho1 = jid:to_binary(Who1),
     DbWho2 = jid:to_binary(Who2),
     mongoose_rdbms:execute_successfully(
@@ -325,14 +319,14 @@ select_blocking_cnt(MainHost, LUser, LServer, [{What1, Who1}, {What2, Who2}]) ->
         [LUser, LServer, DbWhat1, DbWho1, DbWhat2, DbWho2]).
 
 insert_blocking(MainHost, LUser, LServer, What, Who) ->
-    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_insert_blocking,
         [LUser, LServer, DbWhat, DbWho]).
 
 delete_blocking1(MainHost, LUser, LServer, What, Who) ->
-    DbWhat = mod_muc_light_db_rdbms:what_atom2db(What),
+    DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
         MainHost, muc_light_delete_blocking1,
@@ -574,13 +568,13 @@ what_db2atom(1) -> room;
 what_db2atom(2) -> user;
 what_db2atom(Bin) -> what_db2atom(mongoose_rdbms:result_to_integer(Bin)).
 
--spec what_atom2db(blocking_what()) -> string().
-what_atom2db(room) -> "1";
-what_atom2db(user) -> "2".
+-spec what_atom2db(blocking_what()) -> non_neg_integer().
+what_atom2db(room) -> 1;
+what_atom2db(user) -> 2.
 
--spec aff_atom2db(aff()) -> string().
-aff_atom2db(owner) -> "1";
-aff_atom2db(member) -> "2".
+-spec aff_atom2db(aff()) -> non_neg_integer().
+aff_atom2db(owner) -> 1;
+aff_atom2db(member) -> 2.
 
 -spec aff_db2atom(binary() | pos_integer()) -> aff().
 aff_db2atom(1) -> owner;
