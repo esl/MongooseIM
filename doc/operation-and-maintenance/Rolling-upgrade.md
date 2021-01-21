@@ -1,7 +1,7 @@
 ## Rolling upgrade
 For all MongooseIM production deployments we recommend running multiple server nodes connected in a cluster behind a load-balancer.
 Rolling upgrade is a process of upgrading MongooseIM cluster, one node at a time.
-During the process, at least one MongooseIM node is available to handle incoming requests to guarantee availability and minimise the downtime.
+Make sure you have at least the number of nodes able to handle your traffic plus one before the rolling upgrade to guarantee the availability and minimise the downtime.
 Running different MongooseIM versions at the same time beyond the duration of the upgrade is not recommended and not supported.
 
 Rolling upgrade procedure is recommended over configuration reload which is not supported since version 4.1.
@@ -25,18 +25,23 @@ A healthy cluster should list all nodes that are part of the cluster.
 
 Should you have any issues related to node clustering, please refer to [Cluster configuration and node management](Cluster-configuration-and-node-management.md) section.
 
-### 2. Apply the changes from the migration guide.
+### 2. Copy the configuration file.
+
+Make a copy of the configuration file before the upgrade, as some package managers might override your custom configuration with the default one.
+Please note that since version 4.1 `*.cfg` MongooseIM configuration format is no longer supported and needs to be rewritten to the new `*.toml` format.
+
+### 3. Apply the changes from the migration guide.
 
 All modifications of the configuration file or updates of the database schema, that are required to perform version upgrade, can be found in the Migration Guide section.
-When upgrading more than one version, please make sure to go over all consecutive, migration guides.
+When upgrading more than one version, please make sure to go over all consecutive migration guides.
 
-For example, when migrating from MongooseIM 3.7 to 4.1, please familiarize yourself and apply all necessary changes described in the following pages of the Migration Guide section.
+For example, when migrating from MongooseIM 3.7 to 4.1, please familiarize yourself with and apply all necessary changes described in the following pages of the Migration Guide section.
 
 * 3.7.0 to 4.0.0
 * 4.0.0 to 4.0.1
 * 4.0.1 to 4.1.0
 
-### 3. Stop the running node.
+### 4. Stop the running node.
 
 Use the following command to stop the MognooseIM node:
 
@@ -44,11 +49,11 @@ Use the following command to stop the MognooseIM node:
 mongooseimctl stop
 ```
 
-### 4. Install new MongooseIM version.
+### 5. Install new MongooseIM version.
 
-You can get the new version of the MongooseIM by either [building MongooseIM from source code](../user-guide/How-to-build.md) or [downloading and upgrading from package](../../user-guide/Getting-started/#download-a-package).
+You can get the new version of MongooseIM by either [building MongooseIM from source code](../user-guide/How-to-build.md) or [downloading and upgrading from package](../../user-guide/Getting-started/#download-a-package).
 
-### 5. Start the node.
+### 6. Start the node.
 
 Use the following command to start and check the status of the MognooseIM node and the cluster:
 
@@ -59,12 +64,12 @@ mongooseimctl status
 mongooseimctl mnesia info | grep "running db nodes"
 ```
 
-### 6. Test the cluster.
+### 7. Test the cluster.
 
 Please verify that the nodes are running and part of the same cluster.
 If the cluster is working as expected, the migration of the node is complete.
 
-### 7. Upgrade the remaining nodes.
+### 8. Upgrade the remaining nodes.
 
 Once all the prior steps are completed successfully, repeat the process for all nodes that are part of the MongooseIM cluster.
 
@@ -73,7 +78,7 @@ Once all the prior steps are completed successfully, repeat the process for all 
 Another way to perform a cluster upgrade with minimising possible downtime would be to setup a parallel MongooseIM cluster running newer version.
 You can redirect the incoming traffic to the new cluster with use of a load-balancer.
 
-Once no connections are handled by the old cluster it can by safely stopped and the migration is complete.
+Once no connections are handled by the old cluster, it can by safely stopped and the migration is complete.
 
 We highly recommend testing new software release in staging environment before it is deployed on production.
 
