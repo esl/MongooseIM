@@ -25,6 +25,9 @@ groups() ->
 suite() ->
     escalus:suite().
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -32,13 +35,15 @@ suite() ->
 init_per_suite(Config) ->
     dynamic_modules:ensure_modules(required_modules()),
     update_rules(),
-    escalus:init_per_suite(Config).
+    escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
+    dynamic_modules:ensure_modules(domain(), required_modules()),
     escalus:create_users(Config, escalus:get_users([alice, bob, astrid, kate])).
 
 end_per_group(_GroupName, Config) ->
