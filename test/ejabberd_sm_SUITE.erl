@@ -165,8 +165,8 @@ session_is_updated_when_created_twice(C) ->
     given_session_opened(Sid, USR, 20),
     verify_session_opened(C, Sid, USR),
 
-    [{USR, Sid, 20, _}] = ?B(C):get_sessions(),
-    [{USR, Sid, 20, _}] = ?B(C):get_sessions(S),
+    [#session{usr = USR, sid = Sid, priority = 20}] = ?B(C):get_sessions(),
+    [#session{usr = USR, sid = Sid, priority = 20}] = ?B(C):get_sessions(S),
     [#session{priority = 20}] = ?B(C):get_sessions(U, S).
 
 session_info_is_stored(C) ->

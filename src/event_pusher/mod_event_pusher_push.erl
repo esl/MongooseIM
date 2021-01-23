@@ -310,11 +310,10 @@ find_and_remove_push_node(From, [RawSession | Rest], PubSubJid, Node) ->
 
 -spec my_push_node(ejabberd_sm:session(), jid:jid(), pubsub_node()) -> boolean().
 my_push_node(RawSession, PubSubJid, Node) ->
-    SInfo = mongoose_session:get_info(RawSession),
-    case maps:get(?SESSION_KEY, SInfo, undefined) of
-        {PubSubJid, Node, _} ->
+    case mongoose_session:get_info(RawSession, ?SESSION_KEY, undefined) of
+        {?SESSION_KEY, {PubSubJid, Node, _}} ->
             true;
-        {PubSubJid, _, _} when Node =:= undefined ->
+        {?SESSION_KEY, {PubSubJid, _, _}} when Node =:= undefined ->
             %% The node is undefined which means that a user wants to
             %% disable all the push nodes for the specified service
             true;

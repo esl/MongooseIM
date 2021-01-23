@@ -1,26 +1,29 @@
 -module(ejabberd_gen_sm).
 
--callback start(list()) -> any().
--callback get_sessions() -> [ejabberd_sm:ses_tuple()].
--callback get_sessions(jid:server()) -> [ejabberd_sm:ses_tuple()].
+-callback start(list()) ->
+    any().
+-callback get_sessions() ->
+    [ejabberd_sm:session()].
+-callback get_sessions(jid:server()) ->
+    [ejabberd_sm:session()].
 -callback get_sessions(jid:user(), jid:server()) ->
     [ejabberd_sm:session()].
--callback get_sessions(jid:user(), jid:server(), jid:resource()
-                      ) -> [ejabberd_sm:session()].
--callback create_session(_User :: jid:luser(),
-                         _Server :: jid:lserver(),
-                         _Resource :: jid:lresource(),
-                         Session :: ejabberd_sm:session()) ->
+-callback get_sessions(jid:user(), jid:server(), jid:resource()) ->
+    [ejabberd_sm:session()].
+-callback create_session(jid:luser(),
+                         jid:lserver(),
+                         jid:lresource(),
+                         ejabberd_sm:session()) ->
     ok | {error, term()}.
--callback update_session(_User :: jid:luser(),
-                         _Server :: jid:lserver(),
-                         _Resource :: jid:lresource(),
-                         Session :: ejabberd_sm:session()) ->
+-callback update_session(jid:luser(),
+                         jid:lserver(),
+                         jid:lresource(),
+                         ejabberd_sm:session()) ->
     ok | {error, term()}.
 -callback delete_session(ejabberd_sm:sid(),
-                         _User :: jid:user(),
-                         _Server :: jid:server(),
-                         _Resource :: jid:resource()) -> ok.
+                         jid:user(),
+                         jid:server(),
+                         jid:resource()) -> ok.
 -callback cleanup(Node :: atom()) -> any().
 -callback total_count() -> integer().
 -callback unique_count() -> integer().
@@ -33,11 +36,11 @@
 start(Mod, Opts) ->
     Mod:start(Opts).
 
--spec get_sessions(module()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(module()) -> [ejabberd_sm:sessions()].
 get_sessions(Mod) ->
     Mod:get_sessions().
 
--spec get_sessions(module(), jid:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(module(), jid:server()) -> [ejabberd_sm:sessions()].
 get_sessions(Mod, Server) ->
     Mod:get_sessions(Server).
 

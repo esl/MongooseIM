@@ -300,29 +300,33 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-get_cc_enabled_resources(JID)->
+get_cc_enabled_resources(JID) ->
     AllSessions = ejabberd_sm:get_raw_sessions(JID),
-    CCs = cat_maybes([maybe_cc_resource(S) || S <- AllSessions]),
-    Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
+    CCs = filter_cc_enabled_resources(AllSessions),
+    Prios = filter_priority_resources(AllSessions),
     {Prios, CCs}.
 
-maybe_cc_resource(#session{usr = {_, _, R}, info = I}) ->
-    case maps:get(?CC_KEY, I, undefined) of
-        V when is_integer(V) andalso V =/= ?CC_DISABLED ->
-            {{cc_ver_from_int(V), R}};
-        _ ->
-            {}
-    end.
+filter_cc_enabled_resources(AllSessions) ->
+    lists:filtermap(
+      fun(Session = #session{usr = {_, _, R}}) ->
+              case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
+                  {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
+                      {true, {cc_ver_from_int(V), R}};
+                  _ ->
+                      false
+              end
+      end,
+      AllSessions).
 
-maybe_prio_resource(#session{usr = {_, _, R}, priority = P})
-  when is_integer(P) -> {{P, R}};
-maybe_prio_resource(_) -> {}.
+filter_priority_resources(AllSessions) ->
+    lists:filtermap(
+      fun(#session{usr = {_, _, R}, priority = P}) when is_integer(P) -> {true, {P, R}};
+         (_) -> false
+      end,
+     AllSessions).
 
 cc_ver_to_int(?NS_CC_1) -> 1;
 cc_ver_to_int(?NS_CC_2) -> 2.
 
 cc_ver_from_int(1) -> ?NS_CC_1;
 cc_ver_from_int(2) -> ?NS_CC_2.
-
--spec cat_maybes([({A}|{})]) -> [A].
-cat_maybes(L) -> [ Elem || {Elem} <- L ].

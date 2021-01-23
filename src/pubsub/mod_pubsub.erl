@@ -57,6 +57,7 @@
 -include("jlib.hrl").
 -include("pubsub.hrl").
 -include("mongoose_config_spec.hrl").
+-include("session.hrl").
 
 -define(STDTREE, <<"tree">>).
 -define(STDNODE, <<"flat">>).
@@ -3404,7 +3405,7 @@ presence_can_deliver({User, Server, <<>>}, true) ->
 presence_can_deliver({User, Server, Resource}, true) ->
     JID = jid:make_noprep(User, Server, Resource),
     case ejabberd_sm:get_session(JID) of
-        {_SUser, _SID, SPriority, _SInfo} when SPriority /= undefined -> true;
+        #session{priority = SPriority} when SPriority /= undefined -> true;
         _ -> false
     end.
 

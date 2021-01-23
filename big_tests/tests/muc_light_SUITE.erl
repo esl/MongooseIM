@@ -768,7 +768,7 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
             Resource = <<"res1">>,
             JID = mongoose_helper:make_jid(AUsername, Host, Resource),
             SessionRecPid = rpc(ejabberd_sm, get_session, [JID]),
-            {{AUsername, Host, Resource}, {_, Pid}, _, _} = SessionRecPid,
+            {session, {_,Pid}, {AUsername, Host, Resource}, _, _, _} = SessionRecPid,
             %% maybe throws exception
             assert_process_memory_not_growing(Pid, 0, 2),
             escalus:wait_for_stanzas(Alice, 2)

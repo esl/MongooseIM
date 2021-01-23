@@ -35,34 +35,28 @@ start(_Opts) ->
     mnesia:add_table_copy(session, node(), ram_copies).
 
 
--spec get_sessions() -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->
     mnesia:activity(transaction,
         fun() ->
-            mnesia:foldl(fun(#session{ usr = Usr, sid = Sid, priority = Pri, info = Inf}, AccIn) ->
-                           [{Usr, Sid, Pri, Inf}|AccIn]
-                         end,
-                [],
-                session)
+            mnesia:foldl(fun(Session, AccIn) -> [Session | AccIn] end,
+                [], session)
         end).
 
-
--spec get_sessions(jid:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(jid:lserver()) -> [ejabberd_sm:session()].
 get_sessions(Server) ->
-    Sessions = mnesia:dirty_select(
+    mnesia:dirty_select(
         session,
           [{#session{usr = '$1', sid='$2', priority='$3', info='$4', _ = '_' },
           [{'==', {element, 2, '$1'}, Server}],
-          ['$$']}]),
-    [ {USR, SID, Pri, Info} || [USR, SID, Pri, Info] <- Sessions ].
+          ['$_']}]).
 
-
--spec get_sessions(jid:user(), jid:server()) -> [ejabberd_sm:session()].
+-spec get_sessions(jid:luser(), jid:lserver()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     mnesia:dirty_index_read(session, {User, Server}, #session.us).
 
 
--spec get_sessions(jid:user(), jid:server(), jid:resource()
+-spec get_sessions(jid:luser(), jid:lserver(), jid:lresource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
@@ -92,9 +86,9 @@ update_session(_User, _Server, _Resource, Session) ->
     mnesia:sync_dirty(fun() -> mnesia:write(Session) end).
 
 -spec delete_session(ejabberd_sm:sid(),
-                     _User :: jid:user(),
-                     _Server :: jid:server(),
-                     _Resource :: jid:resource()) -> ok.
+                     _User :: jid:luser(),
+                     _Server :: jid:lserver(),
+                     _Resource :: jid:lresource()) -> ok.
 delete_session(SID, _User, _Server, _Resource) ->
     mnesia:sync_dirty(fun() ->
                               mnesia:delete({session, SID})
