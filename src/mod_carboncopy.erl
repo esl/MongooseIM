@@ -51,7 +51,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("session.hrl").
+-include("session.hrl").
 -include("mongoose_config_spec.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
@@ -307,8 +307,8 @@ get_cc_enabled_resources(JID)->
     {Prios, CCs}.
 
 maybe_cc_resource(#session{usr = {_, _, R}, info = I}) ->
-    case lists:keyfind(?CC_KEY, 1, I) of
-        {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
+    case maps:get(?CC_KEY, I, undefined) of
+        V when is_integer(V) andalso V =/= ?CC_DISABLED ->
             {{cc_ver_from_int(V), R}};
         _ ->
             {}

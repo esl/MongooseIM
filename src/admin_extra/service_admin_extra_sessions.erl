@@ -63,7 +63,7 @@
 -type usr_sid_prio_info() :: {jid:simple_jid(),
                               ejabberd_sm:sid(),
                               Prio :: ejabberd_sm:priority(),
-                              Info :: string()}.
+                              Info :: ejabberd_sm:info()}.
 
 %%%
 %%% Register commands
@@ -297,8 +297,8 @@ user_sessions_info(User, Host) ->
 
 -spec format_user_info(usr_sid_prio_info()) -> formatted_user_info().
 format_user_info({{U, S, R}, {Microseconds, Pid}, Priority, Info}) ->
-    Conn = proplists:get_value(conn, Info),
-    {Ip, Port} = proplists:get_value(ip, Info),
+    Conn = maps:get(conn, Info, undefined),
+    {Ip, Port} = maps:get(ip, Info, undefined),
     IPS = inet_parse:ntoa(Ip),
     NodeS = atom_to_list(node(Pid)),
     Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,

@@ -128,7 +128,7 @@
                       priority :: priority(),
                       info     :: info()
                      }.
--type info() :: [info_item()].
+-type info() :: #{info_key() => any()}.
 
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: jid:simple_jid(),
@@ -263,7 +263,7 @@ close_session(Acc, SID, JID, Reason) ->
 
 -spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.
-store_info(JID, {Key, _Value} = KV) ->
+store_info(JID, {Key, Value} = KV) ->
     case get_session(JID) of
         offline -> {error, offline};
         {_SUser, SID, SPriority, SInfo} ->
@@ -271,7 +271,7 @@ store_info(JID, {Key, _Value} = KV) ->
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update its own record
                     update_session(SID, JID, SPriority,
-                                   lists:keystore(Key, 1, SInfo, KV)),
+                                   maps:put(Key, Value, SInfo)),
                     {ok, KV};
                 {_, Pid} ->
                     %% Ask the process to update its record itself
@@ -287,11 +287,9 @@ get_info(JID, Key) ->
     case get_session(JID) of
         offline -> {error, offline};
         {_SUser, _SID, _SPriority, SInfo} ->
-            case lists:keyfind(Key, 1, SInfo) of
-                {Key, Value} ->
-                    {ok, Value};
-                _ ->
-                    {error, not_set}
+            case maps:is_key(Key, SInfo) of
+                true -> {ok, maps:get(Key, SInfo)};
+                false -> {error, not_set}
             end
     end.
 
@@ -305,7 +303,7 @@ remove_info(JID, Key) ->
                 {_, Pid} when self() =:= Pid ->
                     %% It's safe to allow process update its own record
                     update_session(SID, JID, SPriority,
-                                   lists:keydelete(Key, 1, SInfo)),
+                                   maps:remove(Key, SInfo)),
                     ok;
                 {_, Pid} ->
                     %% Ask the process to update its record itself
@@ -360,7 +358,7 @@ get_user_resources(JID) ->
 get_session_ip(JID) ->
     case get_session(JID) of
         offline -> undefined;
-        {_, _, _, Info} -> proplists:get_value(ip, Info)
+        {_, _, _, SInfo} -> maps:get(ip, SInfo, undefined)
     end.
 
 -spec get_session(JID) -> offline | ses_tuple() when

@@ -806,7 +806,7 @@ maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
 
     Fun2 = fun() ->
                    Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-                   lists:keyfind(?SESSION_KEY, 1, Info)
+                   maps:get(?SESSION_KEY, Info, false)
            end,
     mongoose_helper:wait_until(Fun2, false).
 
@@ -893,7 +893,7 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
 
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
-    {?SESSION_KEY, {_JID, NodeName, Details}} = lists:keyfind(?SESSION_KEY, 1, Info),
+    {_JID, NodeName, Details} = maps:get(?SESSION_KEY, Info),
     ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
     ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
 

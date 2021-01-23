@@ -416,13 +416,13 @@ disable_node_enabled_in_session_removes_it_from_session_info(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
-            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+            {_JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
 
             escalus:send(Bob, disable_stanza(PubsubJID, NodeId)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob),
-            false = lists:keyfind(?SESSION_KEY, 1, Info2)
+            false = maps:get(?SESSION_KEY, Info2, false)
         end).
 
 disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
@@ -440,10 +440,10 @@ disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
 
             Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+            {_JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            {?SESSION_KEY, {_JID, NodeId2, _}} = lists:keyfind(?SESSION_KEY, 1, Info2),
+            {_JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
 
             %% Now Bob1 disables all nodes
             escalus:send(Bob1, disable_stanza(PubsubJID)),
@@ -451,10 +451,10 @@ disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
 
             %% And we check if Bob1 and Bob2 have push notifications cleared from session info
             Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            false = lists:keyfind(?SESSION_KEY, 1, Info3),
+            false = maps:get(?SESSION_KEY, Info3, false),
 
             Info4 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            false = lists:keyfind(?SESSION_KEY, 1, Info4)
+            false = maps:get(?SESSION_KEY, Info4, false)
         end).
 
 disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
@@ -472,10 +472,10 @@ disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
 
             Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            {?SESSION_KEY, {_JID, NodeId, _}} = lists:keyfind(?SESSION_KEY, 1, Info),
+            {_JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            {?SESSION_KEY, {_JID, NodeId2, _}} = lists:keyfind(?SESSION_KEY, 1, Info2),
+            {_JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
 
             %% Now Bob1 disables the node registered by Bob2
             escalus:send(Bob1, disable_stanza(PubsubJID, NodeId)),
@@ -483,7 +483,7 @@ disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
 
             %% And we check if Bob1 still has its own Node in the session info
             Info3 = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            false = lists:keyfind(?SESSION_KEY, 1, Info3)
+            false = maps:get(?SESSION_KEY, Info3, false)
         end).
 
 %%--------------------------------------------------------------------

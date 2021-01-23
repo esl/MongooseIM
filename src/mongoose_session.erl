@@ -8,14 +8,8 @@
 -include("session.hrl").
 
 -spec merge_info(ejabberd_sm:session(), ejabberd_sm:session()) -> ejabberd_sm:session().
-merge_info(New, Old) ->
-    NewInfo = orddict:from_list(New#session.info),
-    OldInfo = orddict:from_list(Old#session.info),
-    MergedInfo = orddict:to_list(orddict:merge(fun merger/3, NewInfo, OldInfo)),
-    New#session{info = MergedInfo}.
-
-merger(_Key, NewVal, _OldVal) ->
-    NewVal.
+merge_info(New = #session{info = NewInfo}, #session{info = OldInfo}) ->
+    New#session{info = maps:merge(OldInfo, NewInfo)}.
 
 -spec get_info(ejabberd_sm:session()) -> ejabberd_sm:info().
 get_info(#session{info = Info}) ->
