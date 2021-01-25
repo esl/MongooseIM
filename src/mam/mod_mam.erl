@@ -197,12 +197,6 @@ archive_id(Server, User)
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?LOG_INFO(#{what => mam_starting}),
-    ?LOG_IF(warning, gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
-                    #{what => mam_configuration, text =>
-     <<"mod_mam is enabled without explicit archive_groupchats option value."
-       " It will default to `false` in one of future releases."
-       " Please check the mod_mam documentation for more details.">>,
-     host => Host, mam_opts => Opts}),
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
