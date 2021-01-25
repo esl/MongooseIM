@@ -8,6 +8,10 @@ Rolling upgrade procedure is recommended over configuration reload which is not 
 
 Please note that more complex upgrades that involve schema updates, customisations or have functional changes might require more specific and specially crafted migration procedure.
 
+If you want just to make the changes to the configuration file, please follow steps 1, 3, 4, 6, 7, 8.
+This type of change can also be done one node at a time.
+It would require you to check the cluster status, modify the configuration file and restart the node.
+
 The usual MongooseIM cluster upgrade can be achieved with the following steps:
 
 ### 1. Check the cluster status.
@@ -28,7 +32,7 @@ Should you have any issues related to node clustering, please refer to [Cluster 
 ### 2. Copy the configuration file.
 
 Make a copy of the configuration file before the upgrade, as some package managers might override your custom configuration with the default one.
-Please note that since version 4.1 `*.cfg` MongooseIM configuration format is no longer supported and needs to be rewritten to the new `*.toml` format.
+Please note that since version 4.1 `*.cfg` MongooseIM configuration format is no longer supported and needs to be rewritten in the new `*.toml` format.
 
 ### 3. Apply the changes from the migration guide.
 
