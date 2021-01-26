@@ -85,7 +85,7 @@ prepare_queries(Host) ->
     prepare_blocking_queries(Host),
     ok.
 
-prepare_cleaning_queries(Host) ->
+prepare_cleaning_queries(_Host) ->
     mongoose_rdbms:prepare(muc_light_config_delete_all, muc_light_config, [],
                            <<"DELETE FROM muc_light_config">>),
     mongoose_rdbms:prepare(muc_light_occupants_delete_all, muc_light_occupants, [],
@@ -615,17 +615,13 @@ force_clear() ->
 create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     insert_room(MainHost, RoomU, RoomS, Version),
     RoomID = mongoose_rdbms:selected_to_integer(select_room_id(MainHost, RoomU, RoomS)),
-    lists:foreach(
-      fun({{UserU, UserS}, Aff}) ->
-              {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff)
-      end, AffUsers),
-    ConfigFields = mod_muc_light_room_config:to_binary_kv(
-                     Config, mod_muc_light:config_schema(RoomS)),
-    lists:foreach(
-      fun({Key, Val}) ->
-              {updated, _} = insert_config(MainHost, RoomID, Key, Val)
-      end, ConfigFields),
-      ok.
+    Schema = mod_muc_light:config_schema(RoomS),
+    ConfigFields = mod_muc_light_room_config:to_binary_kv(Config, Schema),
+    [insert_aff(MainHost, RoomID, UserU, UserS, Aff)
+     || {{UserU, UserS}, Aff} <- AffUsers],
+    [insert_config(MainHost, RoomID, Key, Val)
+     || {Key, Val} <- ConfigFields],
+    ok.
 
 -spec destroy_room_transaction(MainHost :: jid:lserver(),
                                RoomUS :: jid:simple_bare_jid()) ->
