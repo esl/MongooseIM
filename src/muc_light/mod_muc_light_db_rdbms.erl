@@ -118,7 +118,7 @@ prepare_room_queries(_Host) ->
                            [luser, lserver],
                            <<"DELETE FROM muc_light_rooms"
                              " WHERE luser = ? AND lserver = ?">>),
-    %% This query uses multiple tables
+    %% These queries use multiple tables
     mongoose_rdbms:prepare(muc_light_select_user_rooms, muc_light_occupants,
                            [luser, lserver],
                            <<"SELECT r.luser, r.lserver "
@@ -611,8 +611,7 @@ force_clear() ->
                               RoomUS :: jid:simple_bare_jid(),
                               Config :: mod_muc_light_room_config:kv(),
                               AffUsers :: aff_users(),
-                              Version :: binary()) ->
-    ok | {error, exists}.
+                              Version :: binary()) -> ok.
 create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     insert_room(MainHost, RoomU, RoomS, Version),
     RoomID = mongoose_rdbms:selected_to_integer(select_room_id(MainHost, RoomU, RoomS)),
