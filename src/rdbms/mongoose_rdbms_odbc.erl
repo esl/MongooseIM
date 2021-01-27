@@ -165,7 +165,7 @@ field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
 field_name_to_mapper(_ServerType, _TableDesc, <<"offset">>) ->
     fun(P) -> {sql_integer, [P]} end;
 field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
-    {_, ODBCType} = find_key(unicode:characters_to_list(FieldName), TableDesc),
+    ODBCType = field_to_odbc_type(unicode:characters_to_list(FieldName), TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
             fun(P) -> binary_mapper(P) end;
@@ -177,12 +177,14 @@ field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
             fun(P) -> {ODBCType, [P]} end
     end.
 
-find_key(Key, List) ->
-    case lists:keyfind(Key, 1, List) of
+field_to_odbc_type(FieldName, TableDesc) ->
+    case lists:keyfind(FieldName, 1, TableDesc) of
         false ->
-            error(#{what => find_key_failed, key => Key, list => List});
-        Tuple ->
-            Tuple
+            ?LOG_ERROR(#{what => field_to_odbc_type_failed,
+                         field => FieldName, table_desc => TableDesc}),
+            error(field_to_odbc_type_failed);
+        {_, ODBCType} ->
+            ODBCType
     end.
 
 unicode_mapper(P) ->
