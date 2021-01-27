@@ -39,6 +39,7 @@
          set_affiliations/4,
 
          publish/4,
+         publish_with_options/5,
          publish_without_node_attr/4,
          retract_item/4,
          get_all_items/3,
@@ -157,6 +158,11 @@ publish(User, ItemId, Node, Options) ->
     Request = publish_request(Id, User, ItemId, Node, Options),
     send_request_and_receive_response(User, Request, Id, Options).
 
+publish_with_options(User, ItemId, Node, Options, PublishOptions) ->
+    Id = id(User, Node, <<"publish">>),
+    Request = publish_request(Id, User, ItemId, Node, Options, PublishOptions),
+    send_request_and_receive_response(User, Request, Id, Options).
+
 publish_without_node_attr(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
     Request = publish_request(Id, User, ItemId, Node, Options),
@@ -172,6 +178,14 @@ publish_request(Id, User, ItemId, Node, Options) ->
         {true, Payload} -> escalus_pubsub_stanza:publish(User, ItemId, Payload, Id, Node);
         false -> escalus_pubsub_stanza:publish(User, Id, Node);
         #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
+    end.
+
+publish_request(Id, User, ItemId, Node, Options, PublishOptions) ->
+    case proplists:get_value(with_payload, Options, true) of
+        true -> escalus_pubsub_stanza:publish_with_options(User, ItemId, item_content(), Id, Node, PublishOptions);
+        {true, Payload} -> escalus_pubsub_stanza:publish_with_options(User, ItemId, Payload, Id, Node, PublishOptions);
+        false -> escalus_pubsub_stanza:publish(User, Id, Node, PublishOptions);
+        #xmlel{} = El -> escalus_pubsub_stanza:publish_with_options(User, ItemId, El, Id, Node, PublishOptions)
     end.
 
 retract_item(User, Node, ItemId, Options) ->
@@ -712,4 +726,3 @@ create_nodes(List) ->
     lists:map(fun({User, Node, Opts}) ->
                       pubsub_tools:create_node(User, Node, Opts)
               end, List).
-

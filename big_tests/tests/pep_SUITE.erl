@@ -21,6 +21,7 @@
 -export([
          pep_caps_test/1,
          publish_and_notify_test/1,
+         publish_options_test/1,
          send_caps_after_login_test/1,
          delayed_receive/1,
          delayed_receive_with_sm/1,
@@ -52,6 +53,7 @@ groups() ->
           [
            pep_caps_test,
            publish_and_notify_test,
+           publish_options_test,
            send_caps_after_login_test,
            delayed_receive,
            delayed_receive_with_sm,
@@ -148,6 +150,23 @@ publish_and_notify_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
               pubsub_tools:receive_item_notification(
                 Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, [])
+      end).
+
+publish_options_test(Config) ->
+    % Given pubsub is configured with pep plugin
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+
+            % When publishing an item with publish-options
+            Node = {pep, random_node_ns()},
+            PublishOptions = [{<<"pubsub#access_model">>, <<"open">>}],
+            pubsub_tools:publish_with_options(Alice, <<"item1">>, Node, [], PublishOptions),
+
+            % Then node configuration contains specified publish-options
+            NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
+            verify_publish_options(NodeConfig, PublishOptions)
       end).
 
 send_caps_after_login_test(Config) ->
@@ -356,6 +375,12 @@ receive_presence_with_caps(User1, User2, Caps) ->
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
 
+verify_publish_options(FullNodeConfig, Options) ->
+    NodeConfig = [{Opt, Value} || {Opt, _, Value} <- FullNodeConfig],
+    Options = lists:filter(fun(Option) ->
+                               lists:member(Option, NodeConfig)
+                           end, Options).
+
 %%-----------------------------------------------------------------
 %% XML helpers
 %%-----------------------------------------------------------------
@@ -442,4 +467,3 @@ item_content() ->
 enable_sm(User) ->
     escalus_client:send(User, escalus_stanza:enable_sm()),
     #xmlel{name = <<"enabled">>} = escalus:wait_for_stanza(User).
-
