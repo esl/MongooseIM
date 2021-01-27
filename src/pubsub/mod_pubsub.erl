@@ -2490,17 +2490,17 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
         {error, ErrorItemNotFound} ->
             Type = select_type(ServerHost, Host, Node),
             autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
-                                                Type, Access, ItemId, Payload);
+                                                Type, Access, ItemId, Payload, [PublishOptions]);
         Error ->
             Error
     end.
 
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
-                                    Type, Access, ItemId, Payload) ->
+                                    Type, Access, ItemId, Payload, PublishOptions) ->
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
     case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
         true ->
-            case create_node(Host, ServerHost, Node, Publisher, Type, Access, []) of
+            case create_node(Host, ServerHost, Node, Publisher, Type, Access, PublishOptions) of
                 {result,
                  [#xmlel{name = <<"pubsub">>,
                          attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
