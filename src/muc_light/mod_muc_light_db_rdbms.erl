@@ -617,11 +617,15 @@ create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
     RoomID = mongoose_rdbms:selected_to_integer(select_room_id(MainHost, RoomU, RoomS)),
     Schema = mod_muc_light:config_schema(RoomS),
     ConfigFields = mod_muc_light_room_config:to_binary_kv(Config, Schema),
-    [insert_aff(MainHost, RoomID, UserU, UserS, Aff)
-     || {{UserU, UserS}, Aff} <- AffUsers],
-    [insert_config(MainHost, RoomID, Key, Val)
-     || {Key, Val} <- ConfigFields],
+    [insert_aff_tuple(MainHost, RoomID, AffUser) || AffUser <- AffUsers],
+    [insert_config_kv(MainHost, RoomID, KV) || KV <- ConfigFields],
     ok.
+
+insert_aff_tuple(MainHost, RoomID, {{UserU, UserS}, Aff}) ->
+    insert_aff(MainHost, RoomID, UserU, UserS, Aff).
+
+insert_config_kv(MainHost, RoomID, {Key, Val}) ->
+    insert_config(MainHost, RoomID, Key, Val).
 
 -spec destroy_room_transaction(MainHost :: jid:lserver(),
                                RoomUS :: jid:simple_bare_jid()) ->
