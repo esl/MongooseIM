@@ -75,7 +75,16 @@ query(Connection, Query, Timeout) ->
 -spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, {binary(), [fun((term()) -> tuple())]}}.
-prepare(Connection, _Name, Table, Fields, Statement) ->
+prepare(Connection, Name, Table, Fields, Statement) ->
+    try prepare2(Connection, Table, Fields, Statement)
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => prepare_failed,
+                           statement_name => Name, sql_query => Statement,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+              erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+prepare2(Connection, Table, Fields, Statement) ->
     {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
     ServerType = server_type(),
     ParamMappers = [field_name_to_mapper(ServerType, TableDesc, Field) || Field <- Fields],
@@ -156,7 +165,7 @@ field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
 field_name_to_mapper(_ServerType, _TableDesc, <<"offset">>) ->
     fun(P) -> {sql_integer, [P]} end;
 field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
-    {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
+    ODBCType = field_to_odbc_type(unicode:characters_to_list(FieldName), TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
             fun(P) -> binary_mapper(P) end;
@@ -166,6 +175,16 @@ field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
             fun(P) -> bigint_mapper(P) end;
         _ ->
             fun(P) -> {ODBCType, [P]} end
+    end.
+
+field_to_odbc_type(FieldName, TableDesc) ->
+    case lists:keyfind(FieldName, 1, TableDesc) of
+        false ->
+            ?LOG_ERROR(#{what => field_to_odbc_type_failed,
+                         field => FieldName, table_desc => TableDesc}),
+            error(field_to_odbc_type_failed);
+        {_, ODBCType} ->
+            ODBCType
     end.
 
 unicode_mapper(P) ->
