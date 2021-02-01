@@ -1,3 +1,58 @@
+# [MongooseIM 4.1.0](https://github.com/esl/MongooseIM/releases/tag/4.1.0) - 2021-02-02
+
+## Highlights
+
+- Major configuration rework: the TOML format is now the only one supported
+- Documentation enhancements
+- Performance improvements
+
+## All changes
+
+### Added
+- Full support of TOML configuration format (#2929)
+- Prepared queries for `mod_vcard` (#2939)
+- [Humio](https://www.humio.com/) support (#2952)
+- GitHub actions for MongooseIM CI workflow (#2990, #2993)
+- Usage of `fast_scram` library (#3003)
+- Documentation for MongooseIM cluster's rolling upgrade (#3012)
+- PEP publish options (#3017)
+
+### Removed
+- Support of old `*.cfg` configuration format (#2929)
+- Support of HTTP File Upload 0.2.5 (#2989)
+- Unused `katt_helper` (#2999)
+
+### Changed
+- Moved documentation from readthedocs to gh-pages altogether with its face lifting (#2946, #2960, #2963, #2966, #2969)
+- Helper script in small tests uses python3 instead of python2 (#2957)
+- Use `tools/wait_for_service.sh` instead of `netcat` to ensure the main `minio` container is started (#2979)
+- Reduced stringprepping in roster hooks, privacy modules and `mod_offline` (#2997, #3005, #3009)
+
+### Fixed
+- The response of locked MUC room to `disco#info` (#2956)
+- `ct_mongoose_log_hook` initialization error (#2964)
+- Catching log formatter errors to avoid death spiral of logging (#2968, #2978)
+- The way big tests detect minio in CI (#2998)
+- Connection issues with Cassandra (#3006)
+
+### Other
+- Added `rebar3 clean` call to `Makefile` (#2932)
+- Minor docs improvements (#2945, #2981, #3000, #3013, #3020)
+- Parallel loading of `nksip` in tests (#2947)
+- CI improvements (#2949, #2972)
+- Usage of `integer_to_binary/1` instead of `list_to_integer(binary_to_list/1)` (#3008)
+- Removed `archive_groupchats` warning (#3016)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A4.1.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2020-11-17..2021-02-03+)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2020-11-17&to=2021-02-03&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222020-11-17..2021-02-03%22%20sort%3Acreated-asc%20)
+
+
 # [MongooseIM 4.0.1](https://github.com/esl/MongooseIM/releases/tag/4.0.1) - 2020-11-17
 
 ## Highlights
