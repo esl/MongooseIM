@@ -1419,7 +1419,7 @@ notify_nested_collections_test(Config) ->
               pubsub_tools:delete_node(Alice, MiddleCollection, []),
               pubsub_tools:delete_node(Alice, TopCollection, [])
       end).
- 
+
 retrieve_subscriptions_collection_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -1769,7 +1769,7 @@ can_create_node_with_existing_parent_path(Config) ->
               {Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
               pubsub_tools:create_node(Alice, Parent, []),
               pubsub_tools:create_node(Alice, Node, []),
-              
+
               pubsub_tools:delete_node(Alice, Node, []),
               pubsub_tools:delete_node(Alice, Parent, [])
       end).
@@ -1793,9 +1793,9 @@ disco_node_children_by_path_prefix(Config) ->
               pubsub_tools:discover_nodes(Bob, Parent, [{expected_error_type, <<"cancel">>}]),
 
               pubsub_tools:create_node(Alice, Parent, []),
-              
+
               pubsub_tools:discover_nodes(Bob, Parent, [{expected_result, []}]),
-              
+
               pubsub_tools:create_node(Alice, Node, []),
 
               %% Request:  5.2.1 Ex.11 Entity requests child nodes
@@ -1816,7 +1816,7 @@ deleting_parent_path_deletes_children(Config) ->
 
               pubsub_tools:create_node(Alice, Parent, []),
               pubsub_tools:create_node(Alice, Node, []),
-              
+
               pubsub_tools:delete_node(Alice, Parent, []),
 
               pubsub_tools:discover_nodes(Alice, node_addr(),
@@ -1971,4 +1971,3 @@ lookup_service_option(Host, Key) ->
 
 service_tab_name(Host) ->
     rpc(mim(), gen_mod, get_module_proc, [Host, config]).
-
