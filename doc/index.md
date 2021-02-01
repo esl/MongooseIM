@@ -1,10 +1,18 @@
 # MongooseIM platform
-[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest) [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-* Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
+[![Build Status](https://github.com/esl/MongooseIM/workflows/CI/badge.svg)](https://github.com/esl/MongooseIM/actions)
+[![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
+[![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+
+# [DOCUMENTATION HAS MOVED](https://esl.github.io/MongooseDocs/latest/)
+
+All things change, and so does our documentation. During our effort to create a user-friendly configuration file, we also went through all existing docs, and ended up changing templates, looks, colours, and whatnot, and had to move to github pages for extended functionality. This site will not be updated, and in the future it will be completely removed. Please refer to our latest documentation at [https://esl.github.io/MongooseDocs/latest/](https://esl.github.io/MongooseDocs/latest/)
+
+***
+
+* Home: [http://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
-
+* Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/)
 
 ## Get to know MongooseIM
 
@@ -74,7 +82,7 @@ Check out our test results:
 
 See the documentation for the latest releases:
 
-* [Master](https://mongooseim.readthedocs.org/en/latest/)
+* [Master](https://esl.github.io/MongooseDocs/latest/)
 * [4.0.1](https://mongooseim.readthedocs.io/en/4.0.1/)
 * [3.7.1](https://mongooseim.readthedocs.io/en/3.7.1/)
 * [3.6.2](https://mongooseim.readthedocs.io/en/3.6.2/)
