@@ -35,10 +35,6 @@
          limit_offset_sql/0,
          limit_offset_args/2,
          sql_transaction/2,
-         get_last/2,
-         select_last/3,
-         set_last_t/4,
-         del_last/2,
          get_password/2,
          set_password_t/3,
          add_user/3,
@@ -116,24 +112,6 @@ update_t(Table, Fields, Vals, Where) ->
 
 join_escaped(Vals) ->
     join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
-
-
-update(LServer, Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
-                           Fields, Vals),
-    case mongoose_rdbms:sql_query(
-           LServer,
-           [<<"update ">>, Table, <<" set ">>,
-            join(UPairs, ", "),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-            mongoose_rdbms:sql_query(
-              LServer,
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
 
 -spec execute_upsert(Host :: mongoose_rdbms:server(),
                      Name :: atom(),
@@ -246,30 +224,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-
-get_last(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select seconds, state from last "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-select_last(LServer, TStamp, Comparator) ->
-    mongoose_rdbms:sql_query(
-        LServer,
-        [<<"select username, seconds, state from last "
-           "where seconds ">>, Comparator, " ",
-         mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(TStamp)), ";"]).
-
-set_last_t(LServer, Username, Seconds, State) ->
-    update(LServer, "last", ["username", "seconds", "state"],
-           [Username, Seconds, State],
-           [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-del_last(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from last where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_password(LServer, Username) ->
     mongoose_rdbms:sql_query(
