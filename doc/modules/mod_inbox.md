@@ -221,7 +221,6 @@ value: -->
 
 ```toml
 [modules.mod_inbox]
-  backend = "rdbms"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true

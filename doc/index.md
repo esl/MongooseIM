@@ -1,6 +1,7 @@
 # MongooseIM platform
 
-[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM)
+[![Build Status](https://github.com/esl/MongooseIM/workflows/CI/badge.svg)](https://github.com/esl/MongooseIM/actions)
+[![CircleCI](https://circleci.com/gh/esl/MongooseIM.svg?style=shield&circle-token=53cdda11cfb95bd7a7044c509c89cb73d3fdeb5a)](https://github.com/esl/MongooseIM/)
 [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
@@ -65,11 +66,8 @@ For a quick start just download:
 
 Check out our test results:
 
-* Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
+* Continuous integration: [Github actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
 * Code coverage: [https://codecov.io/gh/esl/MongooseIM](https://codecov.io/gh/esl/MongooseIM)
-* Continuous Load Testing: [http://tide.erlang-solutions.com/](http://tide.erlang-solutions.com/)
-* Load test history:
-  ![Load test history](https://tide.erlang-solutions.com/charts/bidaily_last_year.png)
 
 ## Versions
 
@@ -94,8 +92,8 @@ When developing new features/modules, please make sure you add basic documentati
 
 Suggestions, questions, thoughts? Contact us directly:
 
-* Raise a [GitHub issue](https://github.com/esl/MongooseIM/issues): https://github.com/esl/MongooseIM/issues
+* Raise a [GitHub issue](https://github.com/esl/MongooseIM/issues)
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
-* Follow our [Twitter account](https://twitter.com/MongooseIM): [https://twitter.com/MongooseIM](https://twitter.com/MongooseIM)
-* Like our [Facebook page](https://www.facebook.com/MongooseIM/): [https://www.facebook.com/MongooseIM/](https://www.facebook.com/MongooseIM/)
-* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) at [https://groups.google.com/d/forum/mongooseim-announce](https://groups.google.com/d/forum/mongooseim-announce) to receive no more than two montly emails as well as access to the free and open archives.
+* Follow our [Twitter account](https://twitter.com/MongooseIM)
+* Like our [Facebook page](https://www.facebook.com/MongooseIM/)
+* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) to receive no more than two monthly emails as well as access to the free and open archives.

@@ -63,7 +63,6 @@ Do not add a `<stanza-id/>` element from MAM v0.6.
 * **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
 * **Example:** `is_archivable_message = "mod_mam_utils"`
-* **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain
 
 Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
 
@@ -145,6 +144,7 @@ To disable archive for MUC messages please remove MUC section or any MUC related
 * **Syntax:** string
 * **Default:** `"conference.@HOST@"`
 * **Example:** `modules.mod_mam_meta.muc.host = "conference.@HOST@"`
+* **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain
 
 The MUC host that will be archived if MUC archiving is enabled.
 

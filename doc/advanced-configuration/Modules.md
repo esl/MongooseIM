@@ -131,7 +131,7 @@ Provides `mod_muc` related `mongoose_commands`, accessible via the client REST A
 Implements a logging subsystem for [mod_muc](../modules/mod_muc.md).
 
 ### [mod_muc_light](../modules/mod_muc_light.md)
-Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118).
+Implements [XEP Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html).
 
 ### [mod_muc_light_commands](../modules/mod_muc_light_commands.md)
 Provides `mod_muc_light` related `mongoose_commands`, accessible via client REST API.
