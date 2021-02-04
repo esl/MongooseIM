@@ -53,6 +53,7 @@
     modMucMamLookups,
     modMucMamForwarded,
     modMucMamArchived,
+    modMucMamFlushed,
     modMucMamSinglePurges,
     modMucMamMultiplePurges,
     modCSIInactive,

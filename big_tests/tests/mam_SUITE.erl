@@ -933,7 +933,15 @@ init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
         muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
+    Config2 = %% Check that metric is incremented on MUC flushed
+        case ?config(configuration, Config1) of
+            rdbms_async_pool ->
+                MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
+                [{mongoose_metrics, MongooseMetrics} | Config1];
+            _ ->
+                Config1
+        end,
+    escalus:init_per_testcase(C, start_alice_room(Config2));
 init_per_testcase(C=muc_no_elements, Config) ->
     rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, [no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
