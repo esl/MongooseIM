@@ -34,6 +34,8 @@
          remove_old_messages/2,
          remove_user/2]).
 
+-import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
@@ -41,15 +43,82 @@
 -define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
 
 init(_Host, _Opts) ->
+    prepare_queries(),
     ok.
+
+prepare_queries() ->
+    prepare(offline_insert, offline_message,
+            [username, server, from_jid, timestamp, expire,
+             packet, permanent_fields],
+            <<"INSERT INTO offline_message "
+              "(username, server, from_jid, timestamp, expire,"
+              " packet, permanent_fields) "
+              "VALUES (?, ?, ?, ?, ?, ?, ?)">>),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    prepare(offline_count_limit, offline_message,
+            rdbms_queries:add_limit_arg(limit, [server, username]),
+            <<"SELECT ", LimitMSSQL/binary,
+              " count(*) FROM offline_message "
+              "WHERE server=? AND username=? ", LimitSQL/binary>>),
+    prepare(offline_select, offline_message,
+            [server, username, expire],
+            <<"SELECT timestamp, from_jid, packet, permanent_fields "
+              "FROM offline_message "
+              "WHERE server = ? AND username = ? AND "
+                     "(expire IS null OR expire > ?) "
+              "ORDER BY timestamp">>),
+    prepare(offline_delete, offline_message,
+            [server, username],
+            <<"DELETE FROM offline_message "
+              "WHERE server = ? AND username = ?">>),
+    prepare(offline_delete_old, offline_message,
+            [timestamp],
+            <<"DELETE FROM offline_message WHERE timestamp < ?">>),
+    prepare(offline_delete_expired, offline_message,
+            [expire],
+            <<"DELETE FROM offline_message "
+              "WHERE expire IS NOT null AND expire < ?">>),
+    ok.
+
+execute_count_offline_messages(LUser, LServer, Limit) ->
+    Args = rdbms_queries:add_limit_arg(Limit, [LServer, LUser]),
+    execute_successfully(LServer, offline_count_limit, Args).
+
+execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp) ->
+    execute_successfully(LServer, offline_select, [LServer, LUser, ExtTimeStamp]).
+
+execute_remove_expired_offline_messages(LServer, ExtTimeStamp) ->
+    execute_successfully(LServer, offline_delete_expired, [ExtTimeStamp]).
+
+execute_remove_old_offline_messages(LServer, ExtTimeStamp) ->
+    execute_successfully(LServer, offline_delete_old, [ExtTimeStamp]).
+
+execute_remove_user(LServer, LUser) ->
+    execute_successfully(LServer, offline_delete, [LServer, LUser]).
+
+%% Transactions
+
+pop_offline_messages(LServer, LUser, ExtTimeStamp) ->
+    F = fun() ->
+            Res = execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp),
+            execute_remove_user(LServer, LUser),
+            Res
+        end,
+    mongoose_rdbms:sql_transaction(LServer, F).
+
+push_offline_messages(LServer, Rows) ->
+    F = fun() ->
+            [execute_successfully(LServer, offline_insert, Row)
+             || Row <- Rows], ok
+        end,
+    mongoose_rdbms:sql_transaction(LServer, F).
+
+%% API functions
 
 pop_messages(#jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
-    SUser = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    TimeStamp = erlang:timestamp(),
-    STimeStamp = encode_timestamp(TimeStamp),
-    case rdbms_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
+    ExtTimeStamp = os:system_time(microsecond),
+    case pop_offline_messages(LServer, LUser, ExtTimeStamp) of
         {atomic, {selected, Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
@@ -58,123 +127,84 @@ pop_messages(#jid{} = To) ->
             {error, Reason}
     end.
 
+%% Fetch messages for GDPR
+%% User and Server are not normalized
 fetch_messages(#jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
-    TimeStamp = erlang:timestamp(),
-    SUser = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    STimeStamp = encode_timestamp(TimeStamp),
-    case rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp) of
-        {selected, Rows} ->
-            {ok, rows_to_records(US, To, Rows)};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
-rows_to_records(US, To, Rows) ->
-    [row_to_record(US, To, Row) || Row <- Rows].
-
-row_to_record(US, To, {STimeStamp, SFrom, SPacket, SPermanentFields}) ->
-    {ok, Packet} = exml:parse(SPacket),
-    TimeStamp = usec:to_now(mongoose_rdbms:result_to_integer(STimeStamp)),
-    From = jid:from_binary(SFrom),
-    PermanentFields = extract_permanent_fields(SPermanentFields),
-    #offline_msg{us = US,
-             timestamp = TimeStamp,
-             expire = never,
-             from = From,
-             to = To,
-             packet = Packet,
-             permanent_fields = PermanentFields}.
-
-extract_permanent_fields(null) ->
-    []; %% This is needed in transition period when upgrading to MongooseIM above 3.5.0
-extract_permanent_fields(Term) ->
-    Unescaped = mongoose_rdbms:unescape_binary(global, Term),
-    binary_to_term(Unescaped).
+    ExtTimeStamp = os:system_time(microsecond),
+    {selected, Rows} = execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp),
+    {ok, rows_to_records(US, To, Rows)}.
 
 write_messages(LUser, LServer, Msgs) ->
-    SUser = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    write_all_messages_t(LServer, SUser, SServer, Msgs).
+    Rows = [record_to_row(LUser, LServer, Msg) || Msg <- Msgs],
+    case push_offline_messages(LServer, Rows) of
+        {atomic, ok} ->
+            ok;
+        Other ->
+            {error, Other}
+    end.
 
 count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    SUser = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    count_offline_messages(LUser, LServer, SUser, SServer, MaxArchivedMsgs + 1).
-
-write_all_messages_t(LServer, SUser, SServer, Msgs) ->
-    Rows = [record_to_row(SUser, SServer, Msg) || Msg <- Msgs],
-    case rdbms_queries:push_offline_messages(LServer, Rows) of
-        {updated, _} ->
-            ok;
-        {aborted, Reason} ->
-            {error, {aborted, Reason}};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
-record_to_row(SUser, SServer,
-              #offline_msg{from = From, packet = Packet, timestamp = TimeStamp,
-                           expire = Expire, permanent_fields = PermanentFields}) ->
-    SFrom = mongoose_rdbms:escape_string(jid:to_binary(From)),
-    SPacket = mongoose_rdbms:escape_string(exml:to_binary(Packet)),
-    STimeStamp = encode_timestamp(TimeStamp),
-    SExpire = maybe_encode_timestamp(Expire),
-    SFields = encode_permanent_fields(PermanentFields),
-    rdbms_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields).
-
-encode_permanent_fields(Fields) ->
-    Binary = term_to_binary(Fields),
-    mongoose_rdbms:escape_binary(global, Binary).
+    Result = execute_count_offline_messages(LUser, LServer, MaxArchivedMsgs + 1),
+    mongoose_rdbms:selected_to_integer(Result).
 
 remove_user(LUser, LServer) ->
-    SUser   = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    rdbms_queries:remove_offline_messages(LServer, SUser, SServer).
+    execute_remove_user(LServer, LUser).
 
--spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
-    HowManyRemoved :: integer().
+-spec remove_expired_messages(jid:lserver()) ->
+    {error, term()} | {ok, HowManyRemoved :: non_neg_integer()}.
 remove_expired_messages(LServer) ->
-    TimeStamp = erlang:timestamp(),
-    STimeStamp = encode_timestamp(TimeStamp),
-    Result = rdbms_queries:remove_expired_offline_messages(LServer, STimeStamp),
-    case Result of
-        {error, Reason} ->
-            {error, Reason};
-        {updated, Count} ->
-            {ok, Count}
-    end.
+    ExtTimeStamp = os:system_time(microsecond),
+    Result = execute_remove_expired_offline_messages(LServer, ExtTimeStamp),
+    updated_ok(Result).
+
 -spec remove_old_messages(LServer, Timestamp) ->
     {error, term()} | {ok, HowManyRemoved} when
     LServer :: jid:lserver(),
     Timestamp :: erlang:timestamp(),
     HowManyRemoved :: integer().
 remove_old_messages(LServer, TimeStamp) ->
-    STimeStamp = encode_timestamp(TimeStamp),
-    Result = rdbms_queries:remove_old_offline_messages(LServer, STimeStamp),
-    case Result of
-        {error, Reason} ->
-            {error, Reason};
-        {updated, Count} ->
-            {ok, Count}
-    end.
+    ExtTimeStamp = encode_timestamp(TimeStamp),
+    Result = execute_remove_old_offline_messages(LServer, ExtTimeStamp),
+    updated_ok(Result).
 
-count_offline_messages(LUser, LServer, SUser, SServer, Limit) ->
-    case rdbms_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
-        {selected, [{Count}]} ->
-            mongoose_rdbms:result_to_integer(Count);
-        Error ->
-            ?LOG_ERROR(#{what => count_offline_messages_failed,
-                         server => LServer, user => LUser,
-                         reason => Error}),
-            0
-    end.
+%% Pure helper functions
+record_to_row(LUser, LServer,
+              #offline_msg{from = From, packet = Packet, timestamp = TimeStamp,
+                           expire = Expire, permanent_fields = PermanentFields}) ->
+    ExtFrom = jid:to_binary(From),
+    ExtTimeStamp = encode_timestamp(TimeStamp),
+    ExtExpire = maybe_encode_timestamp(Expire),
+    ExtPacket = exml:to_binary(Packet),
+    ExtFields = encode_permanent_fields(PermanentFields),
+    prepare_offline_message(LUser, LServer, ExtFrom, ExtTimeStamp,ExtExpire,
+                            ExtPacket, ExtFields).
 
-encode_timestamp(TimeStamp) ->
-    mongoose_rdbms:escape_integer(usec:from_now(TimeStamp)).
+prepare_offline_message(LUser, LServer, ExtFrom, ExtTimeStamp, ExtExpire, ExtPacket, ExtFields) ->
+    [LUser, LServer, ExtFrom, ExtTimeStamp, ExtExpire, ExtPacket, ExtFields].
 
-maybe_encode_timestamp(never) ->
-    mongoose_rdbms:escape_null();
-maybe_encode_timestamp(TimeStamp) ->
-    encode_timestamp(TimeStamp).
+encode_permanent_fields(Fields) ->
+    term_to_binary(Fields).
+
+encode_timestamp(TimeStamp) -> usec:from_now(TimeStamp). %% to microseconds
+
+maybe_encode_timestamp(never) -> null;
+maybe_encode_timestamp(TimeStamp) -> encode_timestamp(TimeStamp).
+
+rows_to_records(US, To, Rows) ->
+    [row_to_record(US, To, Row) || Row <- Rows].
+
+row_to_record(US, To, {ExtTimeStamp, ExtFrom, ExtPacket, ExtPermanentFields}) ->
+    {ok, Packet} = exml:parse(ExtPacket),
+    TimeStamp = usec:to_now(mongoose_rdbms:result_to_integer(ExtTimeStamp)),
+    From = jid:from_binary(ExtFrom),
+    PermanentFields = extract_permanent_fields(ExtPermanentFields),
+    #offline_msg{us = US, timestamp = TimeStamp, expire = never,
+                 from = From, to = To, packet = Packet,
+                 permanent_fields = PermanentFields}.
+
+extract_permanent_fields(Escaped) ->
+    Bin = mongoose_rdbms:unescape_binary(global, Escaped),
+    binary_to_term(Bin).
+
+updated_ok({updated, Count}) -> {ok, Count}.
