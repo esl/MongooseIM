@@ -25,6 +25,8 @@ BuildRequires:     openssl
 BuildRequires:     openssl-devel
 BuildRequires:     esl-erlang
 
+Requires:          erlang-erts
+
 %description
 MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large
 installations. Specifically designed for enterprise purposes, it is
