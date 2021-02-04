@@ -29,6 +29,7 @@
 -export([get_db_type/0,
          begin_trans/0,
          get_db_specific_limits/0,
+         get_db_specific_limits_binaries/0,
          get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,
          add_limit_arg/2,
@@ -47,14 +48,6 @@
          get_users_without_scram/2,
          get_users_without_scram_count/1,
          count_records_where/3,
-         prepare_offline_message/7,
-         push_offline_messages/2,
-         pop_offline_messages/4,
-         fetch_offline_messages/4,
-         count_offline_messages/4,
-         remove_old_offline_messages/2,
-         remove_expired_offline_messages/2,
-         remove_offline_messages/3,
          create_bulk_insert_query/3]).
 
 -export([join/2,
@@ -361,92 +354,6 @@ count_records_where(LServer, Table, WhereClause) ->
       LServer,
       [<<"select count(*) from ">>, Table, " ", WhereClause, ";"]).
 
-
-pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
-    SelectSQL = select_offline_messages_sql(SUser, SServer, STimeStamp),
-    DeleteSQL = delete_offline_messages_sql(SUser, SServer),
-    F = fun() ->
-              Res = mongoose_rdbms:sql_query_t(SelectSQL),
-          mongoose_rdbms:sql_query_t(DeleteSQL),
-          Res
-        end,
-    mongoose_rdbms:sql_transaction(LServer, F).
-
-fetch_offline_messages(LServer, SUser, SServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(LServer, select_offline_messages_sql(SUser, SServer, STimeStamp)).
-
-select_offline_messages_sql(SUser, SServer, STimeStamp) ->
-    [<<"select timestamp, from_jid, packet, permanent_fields from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" and "
-                  "(expire is null or expire > ">>, mongoose_rdbms:use_escaped_integer(STimeStamp), <<") "
-             "ORDER BY timestamp">>].
-
-delete_offline_messages_sql(SUser, SServer) ->
-    [<<"delete from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)].
-
-remove_old_offline_messages(LServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message where timestamp < ">>,
-       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
-
-remove_expired_offline_messages(LServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message "
-            "where expire is not null and expire < ">>,
-       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
-
-remove_offline_messages(LServer, SUser, SServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)]).
-
--spec prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields) ->
-    mongoose_rdbms:sql_query_part() when
-      SUser :: mongoose_rdbms:escaped_string(),
-      SServer :: mongoose_rdbms:escaped_string(),
-      STimeStamp :: mongoose_rdbms:escaped_timestamp(),
-      SExpire :: mongoose_rdbms:escaped_timestamp() | mongoose_rdbms:escaped_null(),
-      SFrom :: mongoose_rdbms:escaped_string(),
-      SPacket :: mongoose_rdbms:escaped_string(),
-      SFields :: mongoose_rdbms:escaped_binary().
-prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields) ->
-    [<<"(">>,  mongoose_rdbms:use_escaped_string(SUser),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SServer),
-     <<", ">>, mongoose_rdbms:use_escaped_integer(STimeStamp),
-     <<", ">>, mongoose_rdbms:use_escaped(SExpire),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SFrom),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SPacket),
-     <<", ">>, mongoose_rdbms:use_escaped_binary(SFields),
-     <<")">>].
-
-push_offline_messages(LServer, Rows) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"INSERT INTO offline_message "
-              "(username, server, timestamp, expire, from_jid, packet, permanent_fields) "
-            "VALUES ">>, join(Rows, ", ")]).
-
-
-count_offline_messages(LServer, SUser, SServer, Limit) ->
-    count_offline_messages(?RDBMS_TYPE, LServer, SUser, SServer, Limit).
-
-count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
-    rdbms_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
-count_offline_messages(_, LServer, SUser, SServer, Limit) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select count(*) from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" "
-            "limit ">>, integer_to_list(Limit)]).
-
 -spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],
                                RowsNum :: pos_integer()) ->
     {iodata(), [binary()]}.
@@ -467,6 +374,10 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
 
 get_db_specific_limits() ->
     do_get_db_specific_limits(?RDBMS_TYPE, "?", true).
+
+get_db_specific_limits_binaries() ->
+    {LimitSQL, LimitMSSQL} = get_db_specific_limits(),
+    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
 
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
