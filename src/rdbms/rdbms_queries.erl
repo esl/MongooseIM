@@ -113,24 +113,6 @@ update_t(Table, Fields, Vals, Where) ->
 join_escaped(Vals) ->
     join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
 
-
-update(LServer, Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
-                           Fields, Vals),
-    case mongoose_rdbms:sql_query(
-           LServer,
-           [<<"update ">>, Table, <<" set ">>,
-            join(UPairs, ", "),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-            mongoose_rdbms:sql_query(
-              LServer,
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
-
 -spec execute_upsert(Host :: mongoose_rdbms:server(),
                      Name :: atom(),
                      InsertParams :: [any()],
