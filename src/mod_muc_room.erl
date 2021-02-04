@@ -1919,12 +1919,12 @@ perform_http_auth(From, Nick, Packet, Role, Password, StateData) ->
     end.
 
 make_http_auth_request(From, RoomJid, Password, Pool) ->
-    FromVal = uri_encode(jid:to_binary(From)),
-    RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
-    PassVal = uri_encode(Password),
-    Path = <<"check_password?from=", FromVal/binary,
-             "&to=", RoomJidVal/binary,
-             "&pass=", PassVal/binary>>,
+    Query = uri_string:compose_query(
+              [{<<"from">>, jid:to_binary(From)},
+               {<<"to">>, jid:to_binary(RoomJid)},
+               {<<"pass">>, Password}
+              ]),
+    Path = <<"check_password", "?", Query/binary>>,
     case mongoose_http_client:get(global, Pool, Path, []) of
         {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
         _ -> error
@@ -1936,9 +1936,6 @@ handle_http_auth_result({invalid_password, ErrorMsg}, From, Nick, Packet, _Role,
     reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
 handle_http_auth_result(error, From, Nick, Packet, _Role, StateData) ->
     reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>).
-
-uri_encode(Bin) ->
-    list_to_binary(http_uri:encode(binary_to_list(Bin))).
 
 decode_http_auth_response(Body) ->
     try decode_json_auth_response(Body) of
