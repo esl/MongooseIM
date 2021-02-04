@@ -509,8 +509,8 @@ pop_messages(LUser, LServer) ->
             Other
     end.
 
-get_personal_data(Acc, #jid{ user = User, server = Server }) ->
-    {ok, Messages} = mod_offline_backend:fetch_messages(User, Server),
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+    {ok, Messages} = mod_offline_backend:fetch_messages(LUser, LServer),
     [ {offline, ["timestamp", "from", "to", "packet"],
        offline_messages_to_gdpr_format(Messages)} | Acc].
 
