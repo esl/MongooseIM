@@ -191,10 +191,9 @@ remove_user_req(LUser, LServer, Password, Method) ->
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) ->
-    LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
-    LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
-    PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
-    Query = <<"user=", LUserE/binary, "&server=", LServerE/binary, "&pass=", PasswordE/binary>>,
+    Query = uri_string:compose_query([{<<"user">>, LUser},
+                                      {<<"server">>, LServer},
+                                      {<<"pass">>, Password}]),
     Header =  case ejabberd_auth:get_opt(LServer, basic_auth) of
                   undefined ->
                       [];
