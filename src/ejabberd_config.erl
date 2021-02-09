@@ -47,17 +47,17 @@
 
 -export([other_cluster_nodes/0]).
 
--import(mongoose_config_reload, [can_be_ignored/1]).
-
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
-
--type compare_result() :: mongoose_config_parser:compare_result().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config_parser:state().
 -type key() :: mongoose_config_parser:key().
 -type value() :: mongoose_config_parser:value().
+
+-type categorized_options() :: #{global_config => list(),
+                                 local_config => list(),
+                                 host_config => list()}.
 
 -spec start() -> ok.
 start() ->
@@ -239,26 +239,37 @@ get_host_local_config() ->
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun mongoose_config_reload:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
                                 mnesia:dirty_read(local_config, Key)
                             end,
                             Keys)).
+
+-spec is_not_host_specific(atom()
+                           | {atom(), jid:server()}
+                           | {atom(), atom(), atom()}) -> boolean().
+is_not_host_specific(Key) when is_atom(Key) ->
+    true;
+is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
+    false;
+is_not_host_specific({Key, PoolType, PoolName})
+  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
+    true.
 
 -spec get_global_config() -> [{config, term(), term()}].
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
 %% @doc Returns current all options in memory, grouped by category.
+-spec get_categorized_options() -> categorized_options().
 get_categorized_options() ->
-    Config = get_global_config(),
-    Local = get_local_config(),
-    HostsLocal = get_host_local_config(),
-    mongoose_config_reload:make_categorized_options(Config, Local, HostsLocal).
+    #{global_config => get_global_config(),
+      local_config => get_local_config(),
+      host_config => get_host_local_config()}.
 
 %% @doc Returns configs on disc and in memory for this node.
 %% This function prepares all state data to pass into pure code part
-%% (i.e. mongoose_config_parser and mongoose_config_reload).
+%% (i.e. mongoose_config_parser).
 config_state() ->
     ConfigFile = get_config_path(),
     State = mongoose_config_parser:parse_file(ConfigFile),
