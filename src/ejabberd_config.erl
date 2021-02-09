@@ -41,6 +41,9 @@
          get_host_local_config/0,
          get_config_path/0]).
 
+%% Helper function to get all options in the shell
+-export([get_categorized_options/0]).
+
 %% Introspection
 -export([config_state/0]).
 -export([config_states/0]).
