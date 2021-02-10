@@ -97,7 +97,6 @@ nav:
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/Stanza-routing.md'
       - 'Accumulators':  'developers-guide/accumulators.md'
-      - 'Flat options format': 'developers-guide/flat_options.md'
       - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
       - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
