@@ -214,17 +214,6 @@ Enable MUC, or Multi-User Chat, for groupchats/channels in the `mongooseim.toml`
   access_create = "muc_create"
 ```
 
-Verify with:
-```bash
-mongooseimctl print_flat_config | grep muc
-{[h,<<"localhost">>,module,mod_muc_commands],'FLAT'}.
-{[h,<<"localhost">>,module,mod_muc_light_commands],'FLAT'}.
-{[h,<<"localhost">>,module,mod_muc],'FLAT'}.
-{[h,<<"localhost">>,module_opt,mod_muc,host],"muc.@HOST@"}.
-{[h,<<"localhost">>,module_opt,mod_muc,access],muc}.
-{[h,<<"localhost">>,module_opt,mod_muc,access_create],muc_create}.
-```
-
 ### Roster versioning
 
 For faster contact list downloads at each client/app (re)connection, edit the configuration file:
@@ -233,20 +222,8 @@ For faster contact list downloads at each client/app (re)connection, edit the co
   versioning = true
   store_current_id = true
 ```
-Verify with:
-```bash
-mongooseimctl print_flat_config | grep roster
- [{service_admin_extra,[{submods,[node,accounts,sessions,vcard,gdpr,roster,
-{[h,<<"localhost">>,module,mod_roster],'FLAT'}.
-{[h,<<"localhost">>,module_opt,mod_roster,versioning],true}.
-{[h,<<"localhost">>,module_opt,mod_roster,store_current_id],true}.
-```
-### Review configuration
 
-Read and double-check your configuration in a different way, after starting MongooseIM:
-```bash
-mongooseimctl print_flat_config
-```
+### Review configuration
 
 If MongooseIM does not start because the configuration file is broken in some way:
 ```bash
@@ -341,7 +318,6 @@ You know `mongooseimctl`, with commands such as:
 * `get_loglevel`
 * `register_identified`, `check_account`, `registered_users`, `unregister`
 * `add_rosteritem`, `get_roster`
-* `print_flat_config`
 
 You can even run `mongooseimctl` without arguments for a list of available commands.
 

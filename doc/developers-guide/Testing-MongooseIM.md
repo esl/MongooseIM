@@ -141,10 +141,9 @@ Unit test running example using test runner:
 # Run sha_SUITE without cover
 ./tools/test-runner.sh --skip-big-tests sha --skip-cover
 
-# Run reload_cluster group in ejabberd_config_SUITE, show progress
-./tools/test-runner.sh --skip-big-tests ejabberd_config:reload_cluster --verbose
+# Run the 'general' group in config_parser_SUITE, show progress
+./tools/test-runner.sh --skip-big-tests config_parser:general --verbose
 ```
-
 
 ## End-to-end tests (a.k.a. "big tests")
 

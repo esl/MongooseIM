@@ -37,43 +37,30 @@
          get_local_option_or_default/2]).
 -export([get_vh_by_auth_method/1]).
 
-%% conf reload
--export([reload_local/0,
-         reload_cluster/0,
-         reload_cluster_dryrun/0]).
-
-%% Information commands
--export([print_flat_config/0]).
-
 -export([get_local_config/0,
          get_host_local_config/0,
          get_config_path/0]).
 
+%% Helper function to get all options in the shell
+-export([get_categorized_options/0]).
+
 %% Introspection
--export([config_info/0]).
 -export([config_state/0]).
 -export([config_states/0]).
 
 -export([other_cluster_nodes/0]).
 
--import(mongoose_config_reload, [can_be_ignored/1]).
-
--export([apply_reloading_change/1]).
-
-%% For debugging
--export([assert_local_config_reloaded/0]).
-
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
-
--define(CONFIG_RELOAD_TIMEOUT, 30000).
-
--type compare_result() :: mongoose_config_parser:compare_result().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config_parser:state().
 -type key() :: mongoose_config_parser:key().
 -type value() :: mongoose_config_parser:value().
+
+-type categorized_options() :: #{global_config => list(),
+                                 local_config => list(),
+                                 host_config => list()}.
 
 -spec start() -> ok.
 start() ->
@@ -248,270 +235,6 @@ handle_table_does_not_exist_error(Table) ->
                  table => Table, directory => MnesiaDirectory, node => node()}),
     exit("Error reading Mnesia database").
 
-%%--------------------------------------------------------------------
-%% Configuration reload
-%%--------------------------------------------------------------------
--spec reload_local() -> {ok, iolist()} | no_return().
-reload_local() ->
-    reload_nodes(reload_local, [node()], false).
-
--spec reload_cluster() -> {ok, iolist()} | no_return().
-reload_cluster() ->
-    reload_nodes(reload_cluster, all_cluster_nodes(), false).
-
--spec reload_cluster_dryrun() -> {ok, iolist()} | no_return().
-reload_cluster_dryrun() ->
-    reload_nodes(reload_cluster_dryrun, all_cluster_nodes(), true).
-
-reload_nodes(Command, Nodes, DryRun) ->
-    NodeStates = config_states(Nodes),
-    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
-    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
-    case FailedChecks of
-        [] ->
-            Changes = mongoose_config_reload:context_to_changes_to_apply(ReloadContext),
-            apply_reload_changes(DryRun, Nodes, ReloadContext, Changes),
-            {ok, "done"};
-        [no_update_required] ->
-            {ok, "No update required"};
-        [_|_] ->
-            Filename = dump_reload_state(Command, ReloadContext),
-            error(#{reason => reload_failed,
-                    nodes => Nodes,
-                    from_command => Command,
-                    failed_checks => FailedChecks,
-                    dump_filename => Filename,
-                    dry_run => DryRun})
-    end.
-
-apply_reload_changes(_DryRun = false, Nodes, ReloadContext, Changes) ->
-    try_reload_cluster(ReloadContext, Changes),
-    assert_config_reloaded(Nodes);
-apply_reload_changes(_DryRun = true, _Nodes, _ReloadContext, _Changes) ->
-    ok.
-
-print_flat_config() ->
-    %% Without global opts
-    FlatOptsIolist = mongoose_config_helper:get_flat_opts_iolist(),
-    {ok, io_lib:format("Flat options:~n~s", [FlatOptsIolist])}.
-
-assert_local_config_reloaded() ->
-    assert_config_reloaded([node()]).
-
-assert_config_reloaded(Nodes) ->
-    NodeStates = config_states(Nodes),
-    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
-    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
-    case FailedChecks of
-        [no_update_required] ->
-            ok;
-        _ ->
-            Filename = dump_reload_state(assert_local_config_reloaded, ReloadContext),
-            error(#{reason => assert_config_reloaded,
-                    nodes => Nodes,
-                    failed_checks => FailedChecks,
-                    dump_filename => Filename})
-    end.
-
-dump_reload_state(From, ReloadContext) ->
-    Map = ReloadContext#{what => From},
-    Io = io_lib:format("~p.", [Map]),
-    Filename = dump_reload_state_filename(),
-    %% Wow, so important!
-    ?LOG_CRITICAL(#{what => dump_reload_state, from => From, filename => Filename}),
-    io:format("issue=dump_reload_state from=~p filename=~p",
-                  [From, Filename]),
-    file:write_file(Filename, Io),
-    Filename.
-
-dump_reload_state_filename() ->
-    {ok, Pwd} = file:get_cwd(),
-    DateTime = calendar:system_time_to_rfc3339(os:system_time(microsecond),
-                                               [{offset, "Z"}, {unit, microsecond}]),
-    Filename = "reload_state_" ++ DateTime ++ ".dump",
-    filename:join(Pwd, Filename).
-
-try_reload_cluster(ReloadContext, Changes) ->
-    try
-        do_reload_cluster(Changes)
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_CRITICAL(#{what => try_reload_cluster_failed, class => Class,
-                            reason => Reason, stacktrace => StackTrace}),
-            Filename = dump_reload_state(try_reload_cluster, ReloadContext),
-            Reason2 = #{issue => try_reload_cluster_failed,
-                        reason => Reason,
-                        dump_filename => Filename},
-            erlang:raise(Class, Reason2, StackTrace)
-    end.
-
-do_reload_cluster(Changes) ->
-    lists:map(fun(Change) -> apply_reloading_change(Change) end, Changes),
-    ok.
-
-apply_reloading_change(#{
-              mongoose_node := Node,
-              state_to_apply := State,
-              config_diff_to_apply := ConfigDiff}) when node() =:= Node ->
-    #{config_changes := ConfigChanges,
-      local_config_changes := LocalConfigChanges,
-      local_hosts_changes := LocalHostsChanges} = ConfigDiff,
-    set_opts(State),
-    reload_config(ConfigChanges),
-    reload_local_config(LocalConfigChanges),
-    reload_local_hosts_config(LocalHostsChanges),
-    {ok, node()};
-apply_reloading_change(Change=#{mongoose_node := Node}) ->
-    rpc:call(Node, ?MODULE, apply_reloading_change, [Change]).
-
--spec reload_config(compare_result()) -> ok.
-reload_config(#{to_start := CAdd,
-                to_stop := CDel,
-                to_reload := CChange}) ->
-    lists:foreach(fun handle_config_change/1, CChange),
-    lists:foreach(fun handle_config_add/1, CAdd),
-    lists:foreach(fun handle_config_del/1, CDel).
-
--spec reload_local_config(compare_result()) -> ok.
-reload_local_config(#{to_start := LCAdd,
-                      to_stop := LCDel,
-                      to_reload := LCChange}) ->
-    lists:foreach(fun handle_local_config_change/1, LCChange),
-    lists:foreach(fun handle_local_config_add/1, LCAdd),
-    lists:foreach(fun handle_local_config_del/1, LCDel).
-
--spec reload_local_hosts_config(compare_result()) -> ok.
-reload_local_hosts_config(#{to_start := LCHAdd,
-                            to_stop := LCHDel,
-                            to_reload := LCHChange}) ->
-    lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
-    lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
-    lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
-
-%% ----------------------------------------------------------------
-%% CONFIG
-%% ----------------------------------------------------------------
-handle_config_add(#config{key = hosts, value = Hosts}) when is_list(Hosts) ->
-    lists:foreach(fun(Host) -> add_virtual_host(Host) end, Hosts).
-
-handle_config_del(#config{key = hosts, value = Hosts}) ->
-    lists:foreach(fun(Host) -> remove_virtual_host(Host) end, Hosts).
-
-%% handle add/remove new hosts
-handle_config_change({hosts, OldHosts, NewHosts}) ->
-    {ToDel, ToAdd} = mongoose_config_reload:check_hosts(NewHosts, OldHosts),
-    lists:foreach(fun remove_virtual_host/1, ToDel),
-    lists:foreach(fun add_virtual_host/1, ToAdd);
-handle_config_change({language, _Old, _New}) ->
-    ok;
-handle_config_change({_Key, _OldValue, _NewValue}) ->
-    ok.
-
-%% ----------------------------------------------------------------
-%% LOCAL CONFIG
-%% ----------------------------------------------------------------
-handle_local_config_add(#local_config{key = Key} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config add ~p option unhandled", [El]).
-
-handle_local_config_del(#local_config{key = node_start}) ->
-    %% do nothing with it
-    ok;
-handle_local_config_del(#local_config{key = Key} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
-
-handle_local_config_change({listen, Old, New}) ->
-    reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
-handle_local_config_change({loglevel, _Old, Loglevel}) ->
-    mongoose_logs:set_global_loglevel(Loglevel),
-    ok;
-handle_local_config_change({Key, _Old, _New} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
-
-%% ----------------------------------------------------------------
-%% LOCAL HOST CONFIG
-%% ----------------------------------------------------------------
-
-handle_local_hosts_config_add({{auth, Host}, _}) ->
-    ejabberd_auth:start(Host);
-handle_local_hosts_config_add({{ldap, _Host}, _}) ->
-    %% ignore ldap section
-    ok;
-handle_local_hosts_config_add({{modules, Host}, Modules}) ->
-    gen_mod_deps:start_modules(Host, Modules);
-handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key), "local hosts config add option: ~p unhandled", [El]).
-
-handle_local_hosts_config_del({{auth, Host}, Opts}) ->
-    case lists:keyfind(auth_method, 1, Opts) of
-        false ->
-            ok;%nothing to stop?
-        {auth_method, Val} ->
-            AuthModules = methods_to_auth_modules(Val),
-            lists:foreach(fun(M) ->
-                              M:stop(Host)
-                          end, AuthModules)
-    end;
-handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
-    %% ignore ldap section, only appli
-    ok;
-handle_local_hosts_config_del({{modules, Host}, Modules}) ->
-    lists:foreach(fun({Mod, _}) -> gen_mod:stop_module(Host, Mod) end, Modules);
-handle_local_hosts_config_del({{Key, _}, _} =El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key),
-                    "local hosts config delete option: ~p unhandled", [El]).
-
-handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
-    case lists:keyfind(auth_method, 1, OldVals) of
-        false ->
-            ejabberd_auth:stop(Host);
-        {auth_method, Val} ->
-            %% stop old modules
-            AuthModules = methods_to_auth_modules(Val),
-            lists:foreach(fun(M) ->
-                              M:stop(Host)
-                          end, AuthModules)
-    end,
-    ejabberd_auth:start(Host);
-handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
-    ok = mongoose_hooks:host_config_update(Host, ok, ldap, NewConfig);
-handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
-    gen_mod_deps:replace_modules(Host, OldModules, NewModules);
-handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
-    ?WARNING_MSG_IF(not can_be_ignored(Key),
-                    "local hosts config change option: ~p unhandled", [El]).
-
-methods_to_auth_modules(L) when is_list(L) ->
-    [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- L];
-methods_to_auth_modules(A) when is_atom(A) ->
-    methods_to_auth_modules([A]).
-
-
--spec add_virtual_host(Host :: jid:server()) -> any().
-add_virtual_host(Host) ->
-    ?LOG_DEBUG(#{what => register_host, host => Host}),
-    ejabberd_local:register_host(Host).
-
--spec remove_virtual_host(jid:server()) -> any().
-remove_virtual_host(Host) ->
-    ?LOG_DEBUG(#{what => unregister_host, host => Host}),
-    ejabberd_local:unregister_host(Host).
-
--spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
-reload_listeners(#{to_start := Add,
-                   to_stop := Del,
-                   to_reload := Change} = ChangedListeners) ->
-    ?LOG_DEBUG(#{what => reload_listeners, listeners => ChangedListeners}),
-    lists:foreach(fun({{PortIP, Module}, Opts}) ->
-                      ejabberd_listener:delete_listener(PortIP, Module, Opts)
-                  end, Del),
-    lists:foreach(fun({{PortIP, Module}, Opts}) ->
-                      ejabberd_listener:add_listener(PortIP, Module, Opts)
-                  end, Add),
-    lists:foreach(fun({{PortIP, Module}, OldOpts, NewOpts}) ->
-                      ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
-                      ejabberd_listener:add_listener(PortIP, Module, NewOpts)
-                  end, Change).
-
 %% match all hosts
 -spec get_host_local_config() -> [{local_config, {term(), jid:server()}, term()}].
 get_host_local_config() ->
@@ -519,26 +242,37 @@ get_host_local_config() ->
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun mongoose_config_reload:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
                                 mnesia:dirty_read(local_config, Key)
                             end,
                             Keys)).
+
+-spec is_not_host_specific(atom()
+                           | {atom(), jid:server()}
+                           | {atom(), atom(), atom()}) -> boolean().
+is_not_host_specific(Key) when is_atom(Key) ->
+    true;
+is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
+    false;
+is_not_host_specific({Key, PoolType, PoolName})
+  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
+    true.
 
 -spec get_global_config() -> [{config, term(), term()}].
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
 %% @doc Returns current all options in memory, grouped by category.
+-spec get_categorized_options() -> categorized_options().
 get_categorized_options() ->
-    Config = get_global_config(),
-    Local = get_local_config(),
-    HostsLocal = get_host_local_config(),
-    mongoose_config_reload:make_categorized_options(Config, Local, HostsLocal).
+    #{global_config => get_global_config(),
+      local_config => get_local_config(),
+      host_config => get_host_local_config()}.
 
 %% @doc Returns configs on disc and in memory for this node.
 %% This function prepares all state data to pass into pure code part
-%% (i.e. mongoose_config_parser and mongoose_config_reload).
+%% (i.e. mongoose_config_parser).
 config_state() ->
     ConfigFile = get_config_path(),
     State = mongoose_config_parser:parse_file(ConfigFile),
@@ -569,21 +303,6 @@ config_states(Nodes) ->
                            cluster_nodes => Nodes,
                            failed_nodes => F})
     end.
-
-compute_config_file_version() ->
-    ConfigFile = get_config_path(),
-    State = mongoose_config_parser:parse_file(ConfigFile),
-    mongoose_config_reload:compute_config_file_version(State).
-
-compute_loaded_config_version() ->
-    LC = get_local_config(),
-    LCH = get_host_local_config(),
-    mongoose_config_reload:compute_config_version(LC, LCH).
-
-config_info() ->
-    [{config_file_version, compute_config_file_version()},
-     {config_version, compute_loaded_config_version()}].
-
 
 all_cluster_nodes() ->
     [node()|other_cluster_nodes()].

@@ -102,9 +102,6 @@ init_per_testcase(http_upstream, Config) ->
 init_per_testcase(https_upstream, Config) ->
     start_https_upstream(Config),
     Config;
-init_per_testcase(conf_reload, Config) ->
-    start_http_upstream(),
-    Config;
 init_per_testcase(_CaseName, Config) ->
     Config.
 
@@ -114,9 +111,6 @@ end_per_testcase(http_upstream, Config) ->
     Config;
 end_per_testcase(https_upstream, Config) ->
     stop_upstream(https_listener),
-    Config;
-end_per_testcase(conf_reload, Config) ->
-    stop_upstream(http_listener),
     Config;
 end_per_testcase(_CaseName, Config) ->
     Config.

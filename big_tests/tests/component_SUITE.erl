@@ -23,11 +23,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(reload_helper, [backup_ejabberd_config_file/2,
-                        restore_ejabberd_config_file/2,
-                        reload_through_ctl/2,
-                        restart_ejabberd_node/1]).
-
 -import(distributed_helper, [add_node_to_cluster/1,
                              mim/0,
                              remove_node_from_cluster/1,
@@ -524,17 +519,15 @@ get_components(Opts, Config) ->
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 add_domain(Config) ->
-    Node = default_node(),
     Hosts = {hosts, "\"localhost\", \"sogndal\""},
-    backup_ejabberd_config_file(Node, Config),
+    ejabberd_node_utils:backup_config_file(Config),
     ejabberd_node_utils:modify_config_file([Hosts], Config),
-    reload_through_ctl(Node, Config),
+    ejabberd_node_utils:restart_application(mongooseim),
     ok.
 
 restore_domain(Config) ->
-    Node = default_node(),
-    restore_ejabberd_config_file(Node, Config),
-    restart_ejabberd_node(Node),
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:restart_application(mongooseim),
     Config.
 
 
@@ -546,6 +539,3 @@ restore_domain(Config) ->
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
-
-default_node() ->
-    distributed_helper:mim().

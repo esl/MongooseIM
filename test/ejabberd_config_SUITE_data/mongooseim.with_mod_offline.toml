@@ -1,4 +1,0 @@
-[general]
-  hosts = ["localhost"]
-
-[modules.mod_offline]

@@ -156,17 +156,21 @@ tcp_start_stop_reload(C) ->
     %% and start them all again
     ejabberd_listener:start_listeners(),
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
-    %% alternative configuration differs only in that s2s listens on 5296 instea of 5269
-    copy(data(C, "mongooseim.alt.toml"), data(C, "mongooseim.toml")),
+
     %% we want to make sure that connection to an unchanged port survives reload
     UnchPort = 5222,
     {ok, Sock} = gen_tcp:connect("localhost", UnchPort,[{active, false}, {packet, 2}]),
     assert_connected(Sock, UnchPort),
-    %% and that to the change port does too (this is current implementation)
+
+    %% and that to the changed port does too (this is current implementation)
     ChgPort = 5269,
     {ok, Sock2} = gen_tcp:connect("localhost", ChgPort,[{active, false}, {packet, 2}]),
     assert_connected(Sock2, ChgPort),
-    ejabberd_config:reload_local(),
+
+    %% stop listening on 5269, start on 5296
+    ejabberd_listener:delete_listener(5269, ejabberd_c2s),
+    ejabberd_listener:add_listener(5296, ejabberd_c2s, []),
+
     lists:map(fun assert_open/1, ?ALT_PORTS),
     assert_closed(5269),
     assert_connected(Sock, UnchPort),
