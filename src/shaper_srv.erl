@@ -126,7 +126,7 @@ handle_call({wait, Host, Action, FromJID, Size},
             From, State=#state{max_delay=MaxDelayMs}) ->
     Key = new_key(Host, Action, FromJID),
     Shaper = find_or_create_shaper(Key, State),
-    State1 = update_access_time(Key, erlang:timestamp(), State),
+    State1 = update_access_time(Key, erlang:system_time(), State),
     case shaper:update(Shaper, Size) of
         {UpdatedShaper, 0} ->
             {reply, ok, save_shaper(Key, UpdatedShaper, State1)};
@@ -188,7 +188,7 @@ init_dicts(State) ->
 
 -spec delete_old_shapers(state()) -> state().
 delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
-    Min = subtract_seconds(erlang:timestamp(), TTL),
+    Min = subtract_seconds(TTL),
     %% Copy recently modified shapers
     dict:fold(fun
         (_, ATime, Acc) when ATime < Min -> Acc; %% skip too old
@@ -230,7 +230,7 @@ reply_after(DelayMs, {Pid, Tag}, Reply) ->
     erlang:send_after(DelayMs, Pid, {Tag, Reply}).
 
 
--spec subtract_seconds(erlang:timestamp(), non_neg_integer()) -> erlang:timestamp().
-subtract_seconds({MegaSecs, Secs, MicroSecs}, SubSecs) ->
-    {MegaSecs - (SubSecs div 1000000), Secs - (SubSecs rem 1000000), MicroSecs}.
-
+-spec subtract_seconds(integer()) -> integer().
+subtract_seconds(TTL) ->
+    TimestampThreshold = erlang:system_time(second) - TTL,
+    erlang:convert_time_unit(TimestampThreshold, second, native).
