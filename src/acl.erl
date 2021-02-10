@@ -226,7 +226,7 @@ match({node_glob, UserGlob, ServerGlob}, {User, Server, _Resource}, _Host) ->
     is_glob_match(Server, ServerGlob) andalso is_glob_match(User, UserGlob);
 match(WrongSpec, _LJID, _Host) ->
     ?LOG_ERROR(#{what => wrong_acl_expression,
-                 text => <<"Wrong ACL expression. Check your config file and reload it with the override_acls option enabled">>,
+                 text => <<"Wrong ACL expression in the configuration file">>,
                  wrong_spec => WrongSpec}),
     false.
 
