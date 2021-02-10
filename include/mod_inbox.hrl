@@ -21,7 +21,7 @@
 -type inbox_res() :: {RemoteBinJID :: binary(),
                       MsgContent :: content(),
                       UnreadCount :: count_bin(),
-                      Timestamp :: erlang:timestamp()}.
+                      Timestamp :: integer()}.
 
 -type inbox_write_res() :: ok | {error, any()}.
 
