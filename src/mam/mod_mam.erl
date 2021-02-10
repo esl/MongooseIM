@@ -588,18 +588,18 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            StartT = os:timestamp(),
+            StartT = erlang:monotonic_time(microsecond),
             R = mongoose_hooks:mam_lookup_messages(Host, {ok, {0, 0, []}}, Params),
-            Diff = timer:now_diff(os:timestamp(), StartT),
+            Diff = erlang:monotonic_time(microsecond) - StartT,
             mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
             R
     end.
 
 -spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
 archive_message(Host, Params) ->
-    StartT = os:timestamp(),
+    StartT = erlang:monotonic_time(microsecond),
     R = mongoose_hooks:mam_archive_message(Host, ok, Params),
-    Diff = timer:now_diff(os:timestamp(), StartT),
+    Diff = erlang:monotonic_time(microsecond) - StartT,
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
 
