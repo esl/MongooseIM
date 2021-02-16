@@ -509,7 +509,7 @@ archive_message(Host, Params) ->
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
 
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
-    TS = calendar:system_time_to_rfc3339(usec:to_sec(Microseconds), [{offset, "Z"}]),
+    TS = calendar:system_time_to_rfc3339(erlang:convert_time_unit(Microseconds, microsecond, second), [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
     Packet2 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet1),

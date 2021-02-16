@@ -207,8 +207,7 @@ archive_size(_Size, Host, _ArchiveID, ArchiveJID) ->
                     {binary(), binary()} | undefined.
 bucket(Host, MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
-    MsgNow = usec:to_now(MicroSec),
-    {MsgDate, _} = calendar:now_to_datetime(MsgNow),
+    {MsgDate, _} = calendar:system_time_to_universal_time(MicroSec, microsecond),
     bucket(Host, MsgDate);
 bucket(Host, {_, _, _} = Date) ->
     bucket(Host, calendar:iso_week_number(Date));
