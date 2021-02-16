@@ -74,8 +74,8 @@
 -define(MAX_USER_MESSAGES, infinity).
 
 -type msg() :: #offline_msg{us :: {jid:luser(), jid:lserver()},
-                          timestamp :: erlang:timestamp(),
-                          expire :: erlang:timestamp() | never,
+                          timestamp :: integer(),
+                          expire :: integer() | never,
                           from ::jid:jid(),
                           to ::jid:jid(),
                           packet :: exml:element()}.
@@ -119,7 +119,7 @@
     Count :: integer().
 -callback remove_old_messages(Host, Timestamp) -> {error, Reason} | {ok, Count} when
     Host :: jid:lserver(),
-    Timestamp :: erlang:timestamp(),
+    Timestamp :: integer(),
     Reason :: term(),
     Count :: integer().
 -callback remove_user(LUser, LServer) -> any() when
@@ -403,17 +403,17 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
     Pid ! {Acc, Msg},
     mongoose_acc:set(offline, stored, true, Acc).
 
--spec get_or_build_timestamp_from_packet(exml:element()) -> erlang:timestamp().
+-spec get_or_build_timestamp_from_packet(exml:element()) -> integer().
 get_or_build_timestamp_from_packet(Packet) ->
-    case exml_query:path(Packet, [{element, <<"delay">>},
-                                  {attr, <<"stamp">>}]) of
-        undefined -> erlang:timestamp();
-        Stamp -> try calendar:rfc3339_to_system_time(binary_to_list(Stamp),
-                                                     [{unit, microsecond}]) of
-                     TS -> usec:to_now(TS)
-                 catch error:_Error ->
-                         erlang:timestamp()
-                 end
+    case exml_query:path(Packet, [{element, <<"delay">>}, {attr, <<"stamp">>}]) of
+        undefined ->
+            erlang:system_time(microsecond);
+        Stamp ->
+            try
+                calendar:rfc3339_to_system_time(binary_to_list(Stamp), [{unit, microsecond}])
+            catch
+                error:_Error -> erlang:system_time(microsecond)
+            end
     end.
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
@@ -484,11 +484,8 @@ find_x_expire(TimeStamp, [El | Els]) ->
             Val = exml_query:attr(El, <<"seconds">>, <<>>),
             try binary_to_integer(Val) of
                 Int when Int > 0 ->
-                    {MegaSecs, Secs, MicroSecs} = TimeStamp,
-                    S = MegaSecs * 1000000 + Secs + Int,
-                    MegaSecs1 = S div 1000000,
-                    Secs1 = S rem 1000000,
-                    {MegaSecs1, Secs1, MicroSecs};
+                    ExpireMicroSeconds = erlang:convert_time_unit(Int, second, microsecond),
+                    TimeStamp + ExpireMicroSeconds;
                 _ ->
                     never
             catch
@@ -516,7 +513,7 @@ offline_messages(Acc, #jid{lserver = LServer} = JID) ->
 pop_messages(#jid{lserver = LServer} = JID) ->
     case gen_server:call(srv_name(LServer), {pop_offline_messages, jid:to_bare(JID)}) of
         {ok, RsAll} ->
-            TimeStamp = os:timestamp(),
+            TimeStamp = erlang:system_time(microsecond),
             Rs = skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, RsAll)),
             {ok, Rs};
         Other ->
@@ -533,7 +530,7 @@ offline_messages_to_gdpr_format(MsgList) ->
 
 offline_msg_to_gdpr_format(#offline_msg{timestamp = TimeStamp, from = From,
                                         to = To, packet = Packet}) ->
-    SystemTime = usec:to_sec(usec:from_now(TimeStamp)),
+    SystemTime = erlang:convert_time_unit(TimeStamp, microsecond, second),
     UTCTime = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
     UTC = list_to_binary(UTCTime),
     {UTC, jid:to_binary(From), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
@@ -559,8 +556,7 @@ resend_offline_message_packet(LServer,
 add_timestamp(undefined, _LServer, Packet) ->
     Packet;
 add_timestamp(TimeStamp, LServer, Packet) ->
-    Time = usec:from_now(TimeStamp),
-    TimeStampXML = timestamp_xml(LServer, Time),
+    TimeStampXML = timestamp_xml(LServer, TimeStamp),
     xml:append_subtags(Packet, [TimeStampXML]).
 
 timestamp_xml(LServer, Time) ->
@@ -573,8 +569,8 @@ remove_expired_messages(Host) ->
     mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [Host]),
     Result.
 
-remove_old_messages(Host, Days) ->
-    Timestamp = fallback_timestamp(Days, os:timestamp()),
+remove_old_messages(Host, HowManyDays) ->
+    Timestamp = fallback_timestamp(HowManyDays, erlang:system_time(microsecond)),
     Result = mod_offline_backend:remove_old_messages(Host, Timestamp),
     mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [Host, Timestamp]),
     Result.
@@ -603,11 +599,10 @@ discard_warn_sender(Msgs) ->
               ejabberd_router:route(To, From, Acc1, Err)
       end, Msgs).
 
-fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
-    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
-    MegaSecs1 = S div 1000000,
-    Secs1 = S rem 1000000,
-    {MegaSecs1, Secs1, 0}.
+fallback_timestamp(HowManyDays, TS_MicroSeconds) ->
+    HowManySeconds = HowManyDays * 86400,
+    HowManyMicroSeconds = erlang:convert_time_unit(HowManySeconds, second, microsecond),
+    TS_MicroSeconds - HowManyMicroSeconds.
 
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
