@@ -929,7 +929,7 @@ set_last(Config) ->
 
                 escalus:wait_for_stanza(Alice), % ignore push
 
-                Now = usec:to_sec(usec:from_now(os:timestamp())),
+                Now = os:system_time(second),
                 TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
                 escalus:send(Alice, escalus_stanza:last_activity(BobJid)),

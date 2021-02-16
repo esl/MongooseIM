@@ -190,7 +190,7 @@ wait_for_complete_archive_response(P, Alice, ExpectedCompleteValue)
                         #{mam_props => P, parsed_iq => ParsedIQ}).
 
 make_iso_time(Micro) ->
-    calendar:system_time_to_rfc3339(usec:to_sec(Micro), [{offset, "Z"}]).
+    calendar:system_time_to_rfc3339(erlang:convert_time_unit(Micro, microsecond, second), [{offset, "Z"}]).
 
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
