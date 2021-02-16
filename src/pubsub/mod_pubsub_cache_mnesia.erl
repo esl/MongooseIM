@@ -28,7 +28,7 @@ stop() ->
                        Publisher :: jid:jid(),
                        Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 upsert_last_item(_ServerHost, Nidx, ItemId, Publisher, Payload) ->
-    CreatedAt = os:timestamp(),
+    CreatedAt = os:system_time(microsecond),
     try mnesia:dirty_write(
         #pubsub_last_item{
         nodeid = Nidx,

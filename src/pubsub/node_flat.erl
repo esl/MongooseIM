@@ -339,7 +339,7 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
         true ->
             case MaxItems > 0 of
                true ->
-                   Now = os:timestamp(),
+                   Now = os:system_time(microsecond),
                    Item = make_pubsub_item(Nidx, ItemId, Now, SubKey, GenKey,
                                            Payload, Publisher, ItemPublisher),
                    Items = [ItemId | GenState#pubsub_state.items -- [ItemId]],

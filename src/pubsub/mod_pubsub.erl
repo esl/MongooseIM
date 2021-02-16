@@ -178,8 +178,8 @@
 -type(pubsubItem() ::
         #pubsub_item{
            itemid       :: {ItemId::mod_pubsub:itemId(), Nidx::mod_pubsub:nodeIdx()},
-           creation     :: {erlang:timestamp(), jid:ljid()},
-           modification :: {erlang:timestamp(), jid:ljid()},
+           creation     :: {integer(), jid:ljid()},
+           modification :: {integer(), jid:ljid()},
            payload      :: mod_pubsub:payload()
           }
         ).
@@ -188,7 +188,7 @@
         #pubsub_last_item{
            nodeid   :: mod_pubsub:nodeIdx(),
            itemid   :: mod_pubsub:itemId(),
-           creation :: {erlang:timestamp(), jid:ljid()},
+           creation :: {integer(), jid:ljid()},
            payload  :: mod_pubsub:payload()
           }
         ).
@@ -3471,7 +3471,7 @@ items_event_stanza(Node, Items) ->
     case Items of
         [LastItem] ->
             {ModifNow, ModifUSR} = LastItem#pubsub_item.modification,
-            Sec = usec:to_sec(usec:from_now(ModifNow)),
+            Sec = erlang:convert_time_unit(ModifNow, microsecond, second),
             TString = calendar:system_time_to_rfc3339(Sec, [{offset, "Z"}]),
             [#xmlel{name = <<"delay">>,
                     attrs = [{<<"xmlns">>, ?NS_DELAY},
@@ -4470,7 +4470,7 @@ string_to_ljid(JID) ->
 
 -spec uniqid() -> mod_pubsub:itemId().
 uniqid() ->
-    {T1, T2, T3} = timestamp(),
+    {T1, T2, T3} = os:timestamp(),
     iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
 
 node_attr(Node) -> [{<<"node">>, Node}].
@@ -4620,7 +4620,7 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
     end.
 
 timestamp() ->
-    os:timestamp().
+    os:system_time(microsecond).
 
 make_error_reply(#iq{ sub_el = SubEl } = IQ, #xmlel{} = ErrorEl) ->
     IQ#iq{type = error, sub_el = [ErrorEl, SubEl]};
