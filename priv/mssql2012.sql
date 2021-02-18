@@ -220,7 +220,7 @@ CREATE TABLE [dbo].[privacy_list_data](
 	[t] [char](1) NOT NULL,
 	[value] [nvarchar](max) NOT NULL,
 	[action] [char](1) NOT NULL,
-	[ord] [bigint] NOT NULL,
+	[ord] [int] NOT NULL,
 	[match_all] [smallint] NOT NULL,
 	[match_iq] [smallint] NOT NULL,
 	[match_message] [smallint] NOT NULL,
