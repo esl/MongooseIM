@@ -262,7 +262,7 @@ CREATE TABLE [dbo].[privacy_list_data](
 	[t] [char](1) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	[value] [varchar](max) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	[action] [char](1) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	[ord] [bigint] NOT NULL,
+	[ord] [int] NOT NULL,
 	[match_all] [smallint] NOT NULL,
 	[match_iq] [smallint] NOT NULL,
 	[match_message] [smallint] NOT NULL,

@@ -68,17 +68,26 @@ prepare_queries(Host) ->
     prepare_default_list_upsert(Host),
     %% Queries to privacy_list_data table
     mongoose_rdbms:prepare(privacy_data_get_by_id, privacy_list_data, [id],
-                           <<"SELECT t, value, action, ord, match_all, match_iq, "
+                           <<"SELECT ord, t, value, action, match_all, match_iq, "
                              "match_message, match_presence_in, match_presence_out "
                              "FROM privacy_list_data "
                              "WHERE id=? ORDER BY ord">>),
     mongoose_rdbms:prepare(delete_data_by_id, privacy_list_data, [id],
                            <<"DELETE FROM privacy_list_data WHERE id=?">>),
+    mongoose_rdbms:prepare(privacy_data_delete, privacy_list_data, [id, ord],
+                           <<"DELETE FROM privacy_list_data WHERE id=? AND ord=?">>),
+    mongoose_rdbms:prepare(privacy_data_update, privacy_list_data,
+                           [t, value, action, match_all, match_iq,
+                            match_message, match_presence_in, match_presence_out, id, ord],
+                           <<"UPDATE privacy_list_data SET "
+                             "t=?, value=?, action=?, match_all=?, match_iq=?, "
+                             "match_message=?, match_presence_in=?, match_presence_out=? "
+                             " WHERE id=? AND ord=?">>),
     mongoose_rdbms:prepare(privacy_data_insert, privacy_list_data,
-                           [id, t, value, action, ord, match_all, match_iq,
+                           [id, ord, t, value, action, match_all, match_iq,
                             match_message, match_presence_in, match_presence_out],
                            <<"INSERT INTO privacy_list_data("
-                              "id, t, value, action, ord, match_all, match_iq, "
+                              "id, ord, t, value, action, match_all, match_iq, "
                               "match_message, match_presence_in, match_presence_out) "
                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)">>),
     %% This query uses multiple tables
@@ -269,14 +278,8 @@ replace_privacy_list(LUser, LServer, Name, List) ->
         replace_data_rows(LServer, ID, Rows),
         ok
     end,
-    case rdbms_queries:sql_transaction(LServer, F) of
-        {atomic, ok} ->
-            ok;
-        {aborted, Reason} ->
-            {error, {aborted, Reason}};
-        {error, Reason} ->
-            {error, Reason}
-    end.
+    {atomic, ok} = mongoose_rdbms:transaction_with_delayed_retry(LServer, F, #{retries => 5, delay => 100}),
+    ok.
 
 remove_user(LUser, LServer) ->
     F = fun() -> remove_user_t(LUser, LServer) end,
@@ -311,18 +314,52 @@ execute_privacy_list_insert(LServer, LUser, Name) ->
 execute_delete_data_by_id(LServer, ID) ->
     mongoose_rdbms:execute_successfully(LServer, delete_data_by_id, [ID]).
 
-replace_data_rows(LServer, ID, Rows) when is_integer(ID)->
-    execute_delete_data_by_id(LServer, ID),
-    [mongoose_rdbms:execute_successfully(LServer, privacy_data_insert, [ID|Args])
-     || Args <- Rows],
+replace_data_rows(LServer, ID, []) when is_integer(ID) ->
+    %% Just remove the data, nothing should be inserted
+    execute_delete_data_by_id(LServer, ID);
+replace_data_rows(LServer, ID, Rows) when is_integer(ID) ->
+    {selected, OldRows} = execute_privacy_data_get_by_id(LServer, ID),
+    New = lists:sort(Rows),
+    Old = lists:sort([tuple_to_list(Row) || Row <- OldRows]),
+    Diff = diff_rows(ID, New, Old, []),
+    F = fun({Q, Args}) -> mongoose_rdbms:execute_successfully(LServer, Q, Args) end,
+    lists:foreach(F, Diff),
     ok.
+
+%% We assume that there are no record duplicates with the same Order.
+%% It's checked in the main module for the New argument.
+%% It's checked by the database for the Old argument.
+diff_rows(ID, [H|New], [H|Old], Ops) ->
+    diff_rows(ID, New, Old, Ops); %% Not modified
+diff_rows(ID, [NewH|NewT] = New, [OldH|OldT] = Old, Ops) ->
+    NewOrder = hd(NewH),
+    OldOrder = hd(OldH),
+    if NewOrder =:= OldOrder ->
+           Op = {privacy_data_update, tl(NewH) ++ [ID, OldOrder]},
+           diff_rows(ID, NewT, OldT, [Op|Ops]);
+       NewOrder > OldOrder ->
+           Op = {privacy_data_delete, [ID, OldOrder]},
+           diff_rows(ID, New, OldT, [Op|Ops]);
+       true ->
+           Op = {privacy_data_insert, [ID|NewH]},
+           diff_rows(ID, NewT, Old, [Op|Ops])
+    end;
+diff_rows(ID, [], [OldH|OldT], Ops) ->
+    OldOrder = hd(OldH),
+    Op = {privacy_data_delete, [ID, OldOrder]},
+    diff_rows(ID, [], OldT, [Op|Ops]);
+diff_rows(ID, [NewH|NewT], [], Ops) ->
+    Op = {privacy_data_insert, [ID|NewH]},
+    diff_rows(ID, NewT, [], [Op|Ops]);
+diff_rows(_ID, [], [], Ops) ->
+    Ops.
 
 %% Encoding/decoding pure functions
 
 raw_to_items(Rows) ->
     [raw_to_item(Row) || Row <- Rows].
 
-raw_to_item({ExtType, ExtValue, ExtAction, ExtOrder,
+raw_to_item({ExtOrder, ExtType, ExtValue, ExtAction,
              ExtMatchAll, ExtMatchIQ, ExtMatchMessage,
              ExtMatchPresenceIn, ExtMatchPresenceOut}) ->
     Type = decode_type(mongoose_rdbms:character_to_integer(ExtType)),
@@ -352,7 +389,7 @@ item_to_raw(#listitem{type = Type,
     ExtAction = encode_action(Action),
     Bools = [MatchAll, MatchIQ, MatchMessage, MatchPresenceIn, MatchPresenceOut],
     ExtBools = [encode_boolean(X) || X <- Bools],
-    [ExtType, ExtValue, ExtAction, Order | ExtBools].
+    [Order, ExtType, ExtValue, ExtAction | ExtBools].
 
 encode_boolean(true) -> 1;
 encode_boolean(false) -> 0.
