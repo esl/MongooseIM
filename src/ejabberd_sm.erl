@@ -130,11 +130,6 @@
                      }.
 -type info() :: #{info_key() => any()}.
 
-%% Session representation as 4-tuple.
--type ses_tuple() :: {USR :: jid:simple_jid(),
-                      Sid :: ejabberd_sm:sid(),
-                      Prio :: priority(),
-                      Info :: info()}.
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
 -type close_reason() :: resumed | normal | replaced.
 -type info_key() :: atom().
@@ -143,7 +138,6 @@
 -export_type([session/0,
               sid/0,
               priority/0,
-              ses_tuple/0,
               backend/0,
               close_reason/0,
               info/0

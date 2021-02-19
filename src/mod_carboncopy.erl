@@ -307,23 +307,24 @@ get_cc_enabled_resources(JID) ->
     {Prios, CCs}.
 
 filter_cc_enabled_resources(AllSessions) ->
-    lists:filtermap(
-      fun(Session = #session{usr = {_, _, R}}) ->
-              case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
-                  {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
-                      {true, {cc_ver_from_int(V), R}};
-                  _ ->
-                      false
-              end
-      end,
-      AllSessions).
+    lists:filtermap(fun fun_filter_cc_enabled_resource/1, AllSessions).
+
+fun_filter_cc_enabled_resource(Session = #session{usr = {_, _, R}}) ->
+    case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
+        {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
+            {true, {cc_ver_from_int(V), R}};
+        _ ->
+            false
+    end.
 
 filter_priority_resources(AllSessions) ->
-    lists:filtermap(
-      fun(#session{usr = {_, _, R}, priority = P}) when is_integer(P) -> {true, {P, R}};
-         (_) -> false
-      end,
-     AllSessions).
+    lists:filtermap(fun fun_filter_priority_resources/1, AllSessions).
+
+fun_filter_priority_resources(#session{usr = {_, _, R}, priority = P})
+  when is_integer(P) ->
+    {true, {P, R}};
+fun_filter_priority_resources(_) ->
+    false.
 
 cc_ver_to_int(?NS_CC_1) -> 1;
 cc_ver_to_int(?NS_CC_2) -> 2.
