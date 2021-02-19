@@ -26,7 +26,7 @@
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.7">>},1},
  {<<"eodbc">>,
   {git,"https://github.com/arcusfelis/eodbc.git",
-       {ref,"612461e4d8e12c0947a67e0bfdeb854010db0b2d"}},
+       {ref,"1823d8fe6f5fbe2d8724a9649b75ebd5b8738661"}},
   0},
  {<<"eper">>,
   {git,"http://github.com/basho/eper.git",

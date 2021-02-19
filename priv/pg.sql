@@ -143,7 +143,7 @@ CREATE TABLE privacy_list_data (
     t character(1) NOT NULL,
     value text NOT NULL,
     action character(1) NOT NULL,
-    ord NUMERIC NOT NULL,
+    ord INT NOT NULL,
     match_all boolean NOT NULL,
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,
