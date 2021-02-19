@@ -164,10 +164,6 @@
  {<<"tomerl">>,{pkg,<<"tomerl">>,<<"0.4.0">>},0},
  {<<"trails">>,{pkg,<<"trails">>,<<"2.1.0">>},0},
  {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.5.0">>},1},
- {<<"usec">>,
-  {git,"https://github.com/esl/usec.git",
-       {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
-  0},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},0},
  {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"4.0.3">>},0}]}.
 [

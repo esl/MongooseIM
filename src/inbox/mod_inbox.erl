@@ -64,7 +64,7 @@
                                 ToBareJid :: binary(),
                                 Content :: binary(),
                                 MsgId :: binary(),
-                                Timestamp :: erlang:timestamp().
+                                Timestamp :: integer().
 
 -callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_write_res() when
                        Username :: jid:luser(),
@@ -85,8 +85,8 @@
                       InterlocutorJID :: jid:jid().
 
 -type get_inbox_params() :: #{
-        start => erlang:timestamp(),
-        'end' => erlang:timestamp(),
+        start => integer(),
+        'end' => integer(),
         order => asc | desc,
         hidden_read => true | false
        }.
@@ -101,8 +101,8 @@
 get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["jid", "content", "unread_count", "timestamp"],
     InboxParams = #{
-        start => {0,0,0},
-        'end' => erlang:timestamp(),
+        start => 0,
+        'end' => erlang:system_time(microsecond),
         order => asc,
         hidden_read => false
        },
@@ -111,8 +111,7 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     [{inbox, Schema, ProcessedEntries} | Acc].
 
 process_entry({RemJID, Content, UnreadCount, Timestamp}) ->
-    USec = usec:from_now(Timestamp),
-    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     {RemJID, Content, UnreadCount, TS}.
 
 %%--------------------------------------------------------------------
@@ -334,7 +333,7 @@ build_inbox_message({_Username, Content, Count, Timestamp}, QueryId) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
         children = [build_result_el(Content, QueryId, Count, Timestamp)]}.
 
--spec build_result_el(content(), id(), count_bin(), erlang:timestamp()) -> exml:element().
+-spec build_result_el(content(), id(), count_bin(), integer()) -> exml:element().
 build_result_el(Msg, QueryId, BinUnread, Timestamp) ->
     Forwarded = build_forward_el(Msg, Timestamp),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
@@ -358,17 +357,16 @@ build_result_iq(List) ->
 build_result_el(Name, CountBin) ->
     #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
 
--spec build_forward_el(content(), erlang:timestamp()) -> exml:element().
+-spec build_forward_el(content(), integer()) -> exml:element().
 build_forward_el(Content, Timestamp) ->
     {ok, Parsed} = exml:parse(Content),
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
            children = [Delay, Parsed]}.
 
--spec build_delay_el(Timestamp :: erlang:timestamp()) -> exml:element().
+-spec build_delay_el(Timestamp :: integer()) -> exml:element().
 build_delay_el(Timestamp) ->
-    USec = usec:from_now(Timestamp),
-    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, undefined, undefined).
 
 -spec build_inbox_form() -> exml:element().
@@ -465,7 +463,7 @@ fields_to_params([], Acc) ->
 fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
     try calendar:rfc3339_to_system_time(binary_to_list(StartISO), [{unit, microsecond}]) of
         StartStamp ->
-            fields_to_params(RFields, Acc#{ start => usec:to_now(StartStamp) })
+            fields_to_params(RFields, Acc#{ start => StartStamp })
     catch error:Error ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            reason => Error, field => start, value => StartISO}),
@@ -474,7 +472,7 @@ fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
 fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
     try calendar:rfc3339_to_system_time(binary_to_list(EndISO), [{unit, microsecond}]) of
         EndStamp ->
-            fields_to_params(RFields, Acc#{ 'end' => usec:to_now(EndStamp) })
+            fields_to_params(RFields, Acc#{ 'end' => EndStamp })
     catch error:Error ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            reason => Error, field => 'end', value => EndISO}),

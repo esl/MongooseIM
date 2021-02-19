@@ -62,10 +62,6 @@
        {ref,"0f0df1b10aac78cbe6088b142d172de43fc387a3"}},
   1},
  {<<"stun">>,{pkg,<<"stun">>,<<"1.0.32">>},1},
- {<<"usec">>,
-  {git,"https://github.com/esl/usec.git",
-       {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
-  0},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},1},
  {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"3.2.0">>},1}]}.
 [

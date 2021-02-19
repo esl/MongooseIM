@@ -929,7 +929,7 @@ set_last(Config) ->
 
                 escalus:wait_for_stanza(Alice), % ignore push
 
-                Now = usec:to_sec(usec:from_now(os:timestamp())),
+                Now = os:system_time(second),
                 TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
                 escalus:send(Alice, escalus_stanza:last_activity(BobJid)),
@@ -1200,9 +1200,9 @@ remove_old_messages_test(Config) ->
                                       "Hi, how are you? Its old message!"),
         Msg2 = escalus_stanza:chat_to(<<"bob@", Domain/binary>>,
                                       "Hello its new message!"),
-        OldTimestamp = fallback_timestamp(10, os:timestamp()),
+        OldTimestamp = fallback_timestamp(10, os:system_time(microsecond)),
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
-        OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:timestamp()),
+        OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:system_time(microsecond)),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
         rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
@@ -1220,25 +1220,21 @@ remove_expired_messages_test(Config) ->
         JidRecordMike = jid:from_binary(JidA),
         JidRecordKate = jid:from_binary(JidB),
         Domain = domain(),
-        Msg1 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
-                                      "Rolling stones"),
-        Msg2 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
-                                      "Arctic monkeys!"),
-        Msg3 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
-                                      "More wine..."),
-        Msg4 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>,
-                                      "kings of leon"),
-        OldTimestamp = fallback_timestamp(10, os:timestamp()),
-        ExpirationTime = fallback_timestamp(2, os:timestamp()),
-        ExpirationTimeFuture= fallback_timestamp(-5, os:timestamp()),
+        Msg1 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, "Rolling stones"),
+        Msg2 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, "Arctic monkeys!"),
+        Msg3 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, "More wine..."),
+        Msg4 = escalus_stanza:chat_to(<<"kate@", Domain/binary>>, "kings of leon"),
+        OldTimestamp = fallback_timestamp(10, os:system_time(microsecond)),
+        ExpirationTime = fallback_timestamp(2, os:system_time(microsecond)),
+        ExpirationTimeFuture= fallback_timestamp(-5, os:system_time(microsecond)),
         OfflineOld = generate_offline_expired_message(JidRecordMike,
                                                       JidRecordKate, Msg1,
                                                       OldTimestamp,
                                                       ExpirationTime),
         OfflineNow = generate_offline_expired_message(JidRecordMike,
-                             JidRecordKate, Msg2, os:timestamp(), ExpirationTime),
+                             JidRecordKate, Msg2, os:system_time(microsecond), ExpirationTime),
         OfflineFuture = generate_offline_expired_message(JidRecordMike,
-                             JidRecordKate, Msg3, os:timestamp(), ExpirationTimeFuture),
+                             JidRecordKate, Msg3, os:system_time(microsecond), ExpirationTimeFuture),
         OfflineFuture2 = generate_offline_expired_message(JidRecordMike,
                                                           JidRecordKate, Msg4,
                                                           OldTimestamp,
@@ -1273,12 +1269,10 @@ generate_offline_expired_message(From, To, Msg, TimeStamp, ExpirationTime) ->
                  expire = ExpirationTime, from = From, to = To, packet = Msg}.
 
 
-fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
-    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
-    MegaSecs1 = S div 1000000,
-    Secs1 = S rem 1000000,
-    {MegaSecs1, Secs1, 0}.
-
+fallback_timestamp(HowManyDays, TS_MicroSeconds) ->
+    HowManySeconds = HowManyDays * 86400,
+    HowManyMicroSeconds = erlang:convert_time_unit(HowManySeconds, second, microsecond),
+    TS_MicroSeconds - HowManyMicroSeconds.
 
 get_user_data(User, Config) when is_atom(User) ->
     get_user_data(escalus_users:get_options(Config, User, <<"newres">>), Config);

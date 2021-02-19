@@ -93,11 +93,11 @@ remove_expired_messages(Host) ->
 
 -spec remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: jid:lserver(),
-    Days :: erlang:timestamp(),
+    Days :: integer(),
     Reason :: term(),
     Count :: integer().
 remove_old_messages(Host, Timestamp) ->
-    TimestampInt = usec:from_now(Timestamp),
+    TimestampInt = Timestamp,
     {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?TIMESTAMP_IDX,
                                                  0, TimestampInt, []),
     Keys = Result?INDEX_RESULTS.keys,
@@ -120,7 +120,7 @@ read_user_idx(LUser, LServer) ->
 write_msg(LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
                                        timestamp = TimestampIn, expire = Expire,
                                        permanent_fields = PermanentFields}) ->
-    Timestamp = usec:from_now(TimestampIn),
+    Timestamp = TimestampIn,
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, Timestamp), exml:to_binary(Packet)),
     MD = riakc_obj:get_update_metadata(Obj),
     SecondaryIndexes = [{?TIMESTAMP_IDX, [Timestamp]},
@@ -155,7 +155,7 @@ pop_msg(Key, LUser, LServer, To) ->
         mongoose_riak:delete(bucket_type(LServer), Key),
 
         #offline_msg{us = {LUser, LServer},
-                     timestamp = usec:to_now(Timestamp),
+                     timestamp = Timestamp,
                      expire = maybe_decode_timestamp(Expire),
                      from = jid:from_binary(From),
                      to = To,
@@ -190,12 +190,12 @@ key(LUser, TimestampInt) ->
 maybe_encode_timestamp(never) ->
     ?INFINITY;
 maybe_encode_timestamp(TS) ->
-    usec:from_now(TS).
+    TS.
 
 maybe_decode_timestamp(?INFINITY) ->
     never;
 maybe_decode_timestamp(TS) ->
-    usec:to_now(TS).
+    TS.
 
 
 fetch_messages(To) ->
@@ -215,7 +215,7 @@ fetch_msg(Key, LUser, LServer, To) ->
         [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
 
         #offline_msg{us = {LUser, LServer},
-            timestamp = usec:to_now(Timestamp),
+            timestamp = Timestamp,
             expire = maybe_decode_timestamp(Expire),
             from = jid:from_binary(From),
             to = To,

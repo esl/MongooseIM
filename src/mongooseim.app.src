@@ -43,7 +43,6 @@
                   jid,
                   fast_tls,
                   tirerl,
-                  usec,
                   uuid,
                   xmerl,
                   worker_pool,

@@ -103,7 +103,7 @@ prepare_upsert_params(Publisher, Payload) ->
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedAt, CreatedLServer, PayloadDB}) ->
     PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
     {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
-    Creation = {usec:to_now(mongoose_rdbms:result_to_integer(CreatedAt)),
+    Creation = {mongoose_rdbms:result_to_integer(CreatedAt),
                 {CreatedLUser, CreatedLServer, <<>>}},
     #pubsub_last_item{itemid = ItemId,
                       nodeid = NodeIdx,

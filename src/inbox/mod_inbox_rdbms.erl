@@ -131,7 +131,7 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             ToBareJid :: binary(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: erlang:timestamp()) -> ok | {ok, integer()}.
+                            Timestamp :: integer()) -> ok | {ok, integer()}.
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -198,11 +198,10 @@ esc_int(Integer) ->
 order_to_sql(asc) -> <<"ASC">>;
 order_to_sql(desc) -> <<"DESC">>.
 
--spec sql_and_where_timestamp(Operator :: string(), Timestamp :: erlang:timestamp()) -> iolist().
+-spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
 sql_and_where_timestamp(_Operator, undefined) ->
     [];
-sql_and_where_timestamp(Operator, Timestamp) ->
-    NumericTimestamp = usec:from_now(Timestamp),
+sql_and_where_timestamp(Operator, NumericTimestamp) ->
     [" AND timestamp ", Operator, esc_int(NumericTimestamp)].
 
 -spec sql_and_where_unread_count(HiddenRead :: boolean()) -> iolist().
@@ -226,7 +225,7 @@ decode_row(LServer, {Username, Content, Count, Timestamp}) ->
     Data = mongoose_rdbms:unescape_binary(LServer, Content),
     BCount = count_to_bin(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
-    {Username, Data, BCount, usec:to_now(NumericTimestamp)}.
+    {Username, Data, BCount, NumericTimestamp}.
 
 
 rdbms_specific_backend(Host) ->
