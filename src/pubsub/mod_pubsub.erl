@@ -4470,8 +4470,7 @@ string_to_ljid(JID) ->
 
 -spec uniqid() -> mod_pubsub:itemId().
 uniqid() ->
-    {T1, T2, T3} = os:timestamp(),
-    iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
+    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
 node_attr(Node) -> [{<<"node">>, Node}].
 
