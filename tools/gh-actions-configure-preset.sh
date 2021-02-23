@@ -22,5 +22,5 @@ case "$1" in
 esac
 
 if [ ! -z "$GITHUB_ENV" ]; then
-  env | egrep "^(DB|REL_CONFIG|TLS_DIST)=" >> $GITHUB_ENV
+  env | egrep "^(DB|REL_CONFIG|TLS_DIST|TESTSPEC)=" >> $GITHUB_ENV
 fi
