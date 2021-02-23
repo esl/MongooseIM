@@ -51,8 +51,8 @@ prepare_queries() ->
             [username, server, from_jid, timestamp, expire,
              packet, permanent_fields],
             <<"INSERT INTO offline_message "
-              "(username, server, from_jid, timestamp, expire,"
-              " packet, permanent_fields) "
+              "(username, server, timestamp, expire,"
+              " from_jid, packet, permanent_fields) "
               "VALUES (?, ?, ?, ?, ?, ?, ?)">>),
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
     prepare(offline_count_limit, offline_message,
@@ -93,7 +93,7 @@ execute_remove_expired_offline_messages(LServer, ExtTimeStamp) ->
 execute_remove_old_offline_messages(LServer, ExtTimeStamp) ->
     execute_successfully(LServer, offline_delete_old, [ExtTimeStamp]).
 
-execute_remove_user(LServer, LUser) ->
+execute_offline_delete(LServer, LUser) ->
     execute_successfully(LServer, offline_delete, [LServer, LUser]).
 
 %% Transactions
@@ -101,7 +101,7 @@ execute_remove_user(LServer, LUser) ->
 pop_offline_messages(LServer, LUser, ExtTimeStamp) ->
     F = fun() ->
             Res = execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp),
-            execute_remove_user(LServer, LUser),
+            execute_offline_delete(LServer, LUser),
             Res
         end,
     mongoose_rdbms:sql_transaction(LServer, F).
@@ -149,7 +149,7 @@ count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     mongoose_rdbms:selected_to_integer(Result).
 
 remove_user(LUser, LServer) ->
-    execute_remove_user(LServer, LUser).
+    execute_offline_delete(LServer, LUser).
 
 -spec remove_expired_messages(jid:lserver()) ->
     {error, term()} | {ok, HowManyRemoved :: non_neg_integer()}.
@@ -170,18 +170,18 @@ remove_old_messages(LServer, TimeStamp) ->
 
 %% Pure helper functions
 record_to_row(LUser, LServer,
-              #offline_msg{from = From, packet = Packet, timestamp = TimeStamp,
-                           expire = Expire, permanent_fields = PermanentFields}) ->
-    ExtFrom = jid:to_binary(From),
+              #offline_msg{timestamp = TimeStamp, expire = Expire, from = From,
+                           packet = Packet, permanent_fields = PermanentFields}) ->
     ExtTimeStamp = encode_timestamp(TimeStamp),
     ExtExpire = maybe_encode_timestamp(Expire),
+    ExtFrom = jid:to_binary(From),
     ExtPacket = exml:to_binary(Packet),
     ExtFields = encode_permanent_fields(PermanentFields),
-    prepare_offline_message(LUser, LServer, ExtFrom, ExtTimeStamp,ExtExpire,
-                            ExtPacket, ExtFields).
+    prepare_offline_message(LUser, LServer, ExtTimeStamp, ExtExpire,
+                            ExtFrom, ExtPacket, ExtFields).
 
-prepare_offline_message(LUser, LServer, ExtFrom, ExtTimeStamp, ExtExpire, ExtPacket, ExtFields) ->
-    [LUser, LServer, ExtFrom, ExtTimeStamp, ExtExpire, ExtPacket, ExtFields].
+prepare_offline_message(LUser, LServer, ExtTimeStamp, ExtExpire, ExtFrom, ExtPacket, ExtFields) ->
+    [LUser, LServer, ExtTimeStamp, ExtExpire, ExtFrom, ExtPacket, ExtFields].
 
 encode_permanent_fields(Fields) ->
     term_to_binary(Fields).
@@ -203,6 +203,8 @@ row_to_record(US, To, {ExtTimeStamp, ExtFrom, ExtPacket, ExtPermanentFields}) ->
                  from = From, to = To, packet = Packet,
                  permanent_fields = PermanentFields}.
 
+extract_permanent_fields(null) ->
+    []; %% This is needed in transition period when upgrading to MongooseIM above 3.5.0
 extract_permanent_fields(Escaped) ->
     Bin = mongoose_rdbms:unescape_binary(global, Escaped),
     binary_to_term(Bin).
