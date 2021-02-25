@@ -48,8 +48,8 @@ init(_Host, _Opts) ->
 
 prepare_queries() ->
     prepare(offline_insert, offline_message,
-            [username, server, from_jid, timestamp, expire,
-             packet, permanent_fields],
+            [username, server, timestamp, expire,
+             from_jid, packet, permanent_fields],
             <<"INSERT INTO offline_message "
               "(username, server, timestamp, expire,"
               " from_jid, packet, permanent_fields) "
