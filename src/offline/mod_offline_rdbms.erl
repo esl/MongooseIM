@@ -154,8 +154,8 @@ remove_user(LUser, LServer) ->
 -spec remove_expired_messages(jid:lserver()) ->
     {error, term()} | {ok, HowManyRemoved :: non_neg_integer()}.
 remove_expired_messages(LServer) ->
-    ExtTimeStamp = os:system_time(microsecond),
-    Result = execute_remove_expired_offline_messages(LServer, ExtTimeStamp),
+    TimeStamp = os:system_time(microsecond),
+    Result = execute_remove_expired_offline_messages(LServer, TimeStamp),
     updated_ok(Result).
 
 -spec remove_old_messages(LServer, Timestamp) ->
@@ -164,20 +164,18 @@ remove_expired_messages(LServer) ->
     Timestamp :: integer(),
     HowManyRemoved :: integer().
 remove_old_messages(LServer, TimeStamp) ->
-    ExtTimeStamp = encode_timestamp(TimeStamp),
-    Result = execute_remove_old_offline_messages(LServer, ExtTimeStamp),
+    Result = execute_remove_old_offline_messages(LServer, TimeStamp),
     updated_ok(Result).
 
 %% Pure helper functions
 record_to_row(LUser, LServer,
               #offline_msg{timestamp = TimeStamp, expire = Expire, from = From,
                            packet = Packet, permanent_fields = PermanentFields}) ->
-    ExtTimeStamp = encode_timestamp(TimeStamp),
     ExtExpire = maybe_encode_timestamp(Expire),
     ExtFrom = jid:to_binary(From),
     ExtPacket = exml:to_binary(Packet),
     ExtFields = encode_permanent_fields(PermanentFields),
-    prepare_offline_message(LUser, LServer, ExtTimeStamp, ExtExpire,
+    prepare_offline_message(LUser, LServer, TimeStamp, ExtExpire,
                             ExtFrom, ExtPacket, ExtFields).
 
 prepare_offline_message(LUser, LServer, ExtTimeStamp, ExtExpire, ExtFrom, ExtPacket, ExtFields) ->
@@ -186,17 +184,15 @@ prepare_offline_message(LUser, LServer, ExtTimeStamp, ExtExpire, ExtFrom, ExtPac
 encode_permanent_fields(Fields) ->
     term_to_binary(Fields).
 
-encode_timestamp(TimeStamp) -> usec:from_now(TimeStamp). %% to microseconds
-
 maybe_encode_timestamp(never) -> null;
-maybe_encode_timestamp(TimeStamp) -> encode_timestamp(TimeStamp).
+maybe_encode_timestamp(TimeStamp) -> TimeStamp.
 
 rows_to_records(US, To, Rows) ->
     [row_to_record(US, To, Row) || Row <- Rows].
 
 row_to_record(US, To, {ExtTimeStamp, ExtFrom, ExtPacket, ExtPermanentFields}) ->
     {ok, Packet} = exml:parse(ExtPacket),
-    TimeStamp = usec:to_now(mongoose_rdbms:result_to_integer(ExtTimeStamp)),
+    TimeStamp = mongoose_rdbms:result_to_integer(ExtTimeStamp),
     From = jid:from_binary(ExtFrom),
     PermanentFields = extract_permanent_fields(ExtPermanentFields),
     #offline_msg{us = US, timestamp = TimeStamp, expire = never,
