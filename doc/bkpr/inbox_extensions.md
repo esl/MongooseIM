@@ -1,12 +1,12 @@
 ## Terminology:
 
 #### The Inbox
-It is personal to a given user, that represents the current status of the conversations of such user. It's the front-page of the chat.
+It is personal to a given user, that represents the current status of the conversations of such user. It's the front-page of the chat feature.
 
 #### Inbox entry
 It is a specific conversation, that _the_ user can identify by the recipient jid, that is, the user jid in case of a one-to-one chat, or the room jid in case of a group-chat.
 
-#### Box
+#### Box (also referred as "folder")
 A category where entries can be classified. The default box is the active box, simply called _inbox_. There is a second box, called _archive_, where entries can be thrown into and not displayed by default. No more boxes are expected.
 
 
@@ -29,7 +29,7 @@ Entries can be muted for given periods of time, and likewise, unmuted. This chan
 Expected times can be extended before the previous has expired, without the need to first unmutting. When muting a conversation, the final timestamp will be calculated by the server by the current time plus the requested period, in seconds. When muting an already muted conversation, the timestamp is simply overridden following the previous specification.
 
 #### Other properties
-No more properties are expected, but I could envisage notions of flagging conversations with different colours, for example according to their urgency, or a client-specific category (work, personal, fitness, and whatnot). The design of the protocol, and the implementation, aims to leave room for future extensions.
+No more properties are expected, but I could envisage notions of flagging conversations with different colours, for example according to their urgency, or a client-specific category (work, personal, fitness, and whatnot), or pins to denote an entry should be always displayed (possibly in a special format, like on top of the box). The design of the protocol, and the implementation, aims to leave room for future extensions.
 
 ## Getting properties
 To fetch all supported properties, a classic Data Form is used. Upon the client sending an iq-get without a jid:
@@ -92,7 +92,7 @@ Where `Property` and `Value` are a list of key-value pairs as follows:
 If the query was successful, the server will answer with two stanzas, following the classic pattern of broadcasting state changes. First, it would send a message with a `<x>` children containing all new configuration, to the bare-jid of the user: this facilitates broadcasting to all online resources and to successfully synchronise their interfaces.
 ```xml
 <message from='alice@localhost' to='alice@localhost' id='some_unique_id'>
-  <x xmlns='erlang-solutions.com:xmpp:inbox:0#conversation'>
+  <x xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
     <archive>false</archive>
     <mute>0</mute>
     <read>true</read>
