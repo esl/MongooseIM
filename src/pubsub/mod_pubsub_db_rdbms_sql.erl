@@ -8,47 +8,10 @@
 -module(mod_pubsub_db_rdbms_sql).
 -author('piotr.nosek@erlang-solutions.com').
 
-% State building
--export([
-         get_item_rows/1,
-         get_affiliation_rows/1,
-         get_subscriptions_rows/1,
-         get_item_rows/2,
-         get_affiliation_rows/2,
-         get_subscriptions_rows/2,
-         get_subscriptions_rows/3,
-         get_idxs_of_own_nodes_with_pending_subs/2,
-         delete_node_entity_items/3
-        ]).
-
-% Affiliations
--export([
-         get_affiliation/3,
-         delete_affiliation/3,
-         delete_all_affiliations/1
-        ]).
-
-% Subscriptions
--export([
-         insert_subscription/7,
-         update_subscription_opts/6,
-         get_node_subs/1,
-         get_node_entity_subs/4,
-         delete_subscription/5,
-         delete_all_subscriptions/4,
-         delete_all_subscriptions/1,
-         delete_user_subscriptions/2,
-         update_subscription/6
-        ]).
-
 % Items
 -export([
-         get_entity_items/3,
-         delete_item/4,
-         delete_all_items/1,
          get_items/2,
          get_item/2,
-         del_item/2,
          del_items/2
         ]).
 
@@ -69,206 +32,11 @@
          del_parents/1]).
 
 % GDPR
--export([get_user_items/2,
-         select_nodes_by_owner/1,
-         get_user_subscriptions/2]).
+-export([select_nodes_by_owner/1]).
 
 %%====================================================================
 %% SQL queries
 %%====================================================================
-
-% -------------------- State building ----------------------------
-
--spec get_item_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-get_item_rows(Nidx) ->
-    ["SELECT nidx, created_luser, created_lserver, itemid FROM pubsub_items"
-     " WHERE nidx = ", esc_int(Nidx)].
-
--spec get_affiliation_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-get_affiliation_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, aff FROM pubsub_affiliations"
-     " WHERE nidx = ", esc_int(Nidx)].
-
--spec get_subscriptions_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-get_subscriptions_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx)].
-
--spec get_item_rows(LU :: jid:luser(),
-                    LS :: jid:lserver()) -> iolist().
-get_item_rows(LU, LS) ->
-    ["SELECT nidx, created_luser, created_lserver, itemid FROM pubsub_items"
-     " WHERE created_luser = ", esc_string(LU),
-     " AND created_lserver = ", esc_string(LS)].
-
--spec get_affiliation_rows(LU :: jid:luser(),
-                           LS :: jid:lserver()) -> iolist().
-get_affiliation_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, aff FROM pubsub_affiliations"
-     " WHERE luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS)].
-
--spec get_subscriptions_rows(LU :: jid:luser(),
-                             LS :: jid:lserver()) -> iolist().
-get_subscriptions_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-     " WHERE luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS)].
-
--spec get_subscriptions_rows(LU :: jid:luser(),
-                             LS :: jid:lserver(),
-                             LR :: jid:lresource()) -> iolist().
-get_subscriptions_rows(LU, LS, LR) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-     " WHERE luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR)].
-
--spec get_idxs_of_own_nodes_with_pending_subs(LU :: jid:luser(),
-                                              LS :: jid:lserver()) -> iolist().
-get_idxs_of_own_nodes_with_pending_subs(LU, LS) ->
-    ["SELECT DISTINCT s.nidx"
-     " FROM pubsub_affiliations AS a INNER JOIN pubsub_subscriptions s ON a.nidx = s.nidx"
-     " WHERE a.aff = ", esc_int(mod_pubsub_db_rdbms:aff2int(owner)),
-     " AND a.luser = ", esc_string(LU),
-     " AND a.lserver = ", esc_string(LS),
-     " AND s.type = ", esc_int(mod_pubsub_db_rdbms:sub2int(pending))].
-
--spec delete_node_entity_items(Nidx :: mod_pubsub:nodeIdx(),
-                               LU :: jid:luser(),
-                               LS :: jid:lserver()) -> iolist().
-delete_node_entity_items(Nidx, LU, LS) ->
-    ["DELETE FROM pubsub_items"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND created_luser = ", esc_string(LU),
-     " AND created_lserver = ", esc_string(LS)].
-
-% ------------------- Affiliations --------------------------------
--spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                      LU :: jid:luser(),
-                      LS :: jid:lserver()) -> iolist().
-get_affiliation(Nidx, LU, LS) ->
-    ["SELECT aff"
-     " FROM pubsub_affiliations"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS) ].
-
--spec delete_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                         LU :: jid:luser(),
-                         LS :: jid:lserver()) -> iolist().
-delete_affiliation(Nidx, LU, LS) ->
-    ["DELETE FROM pubsub_affiliations"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS) ].
-
--spec delete_all_affiliations(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-delete_all_affiliations(Nidx) ->
-    ["DELETE FROM pubsub_affiliations"
-     " WHERE nidx = ", esc_int(Nidx)].
-
-% ------------------- Subscriptions --------------------------------
-
--spec insert_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                          LU :: jid:luser(),
-                          LS :: jid:lserver(),
-                          LR :: jid:lresource(),
-                          SubInt :: integer(),
-                          SubId :: binary(),
-                          SubOpts :: binary()) -> iolist().
-insert_subscription(Nidx, LU, LS, LR, SubInt, SubId, SubOpts) ->
-    ["INSERT INTO pubsub_subscriptions (nidx, luser, lserver, lresource, type, sub_id, options)"
-     " VALUES (", esc_int(Nidx), ", ",
-                  esc_string(LU), ", ",
-                  esc_string(LS), ", ",
-                  esc_string(LR), ", ",
-                  esc_int(SubInt), ", ",
-                  esc_string(SubId), ", ",
-                  esc_string(SubOpts), ")"].
-
--spec update_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
-                               LU :: jid:luser(),
-                               LS :: jid:lserver(),
-                               LR :: jid:lresource(),
-                               SubId :: binary(),
-                               EncodedOpts :: binary()) -> iolist().
-update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts) ->
-    ["UPDATE pubsub_subscriptions",
-     " SET options = ", esc_string(EncodedOpts),
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR),
-     " AND sub_id = ", esc_string(SubId)].
-
--spec get_node_subs(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-get_node_subs(Nidx) ->
-    ["SELECT luser, lserver, lresource, type, sub_id, options"
-     " FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx)].
-
--spec get_node_entity_subs(Nidx :: mod_pubsub:nodeIdx(),
-                           LU :: jid:luser(),
-                           LS :: jid:lserver(),
-                           LR :: jid:lresource()) -> iolist().
-get_node_entity_subs(Nidx, LU, LS, LR) ->
-    ["SELECT type, sub_id, options"
-     " FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR)].
-
--spec delete_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                          LU :: jid:luser(),
-                          LS :: jid:lserver(),
-                          LR :: jid:lresource(),
-                          SubId :: binary()) -> iolist().
-delete_subscription(Nidx, LU, LS, LR, SubId) ->
-    ["DELETE FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR),
-     " AND sub_id = ", esc_string(SubId)].
-
--spec delete_all_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
-                               LU :: jid:luser(),
-                               LS :: jid:lserver(),
-                               LR :: jid:lresource()) -> iolist().
-delete_all_subscriptions(Nidx, LU, LS, LR) ->
-    ["DELETE FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR)].
-
--spec delete_all_subscriptions(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-delete_all_subscriptions(Nidx) ->
-    ["DELETE FROM pubsub_subscriptions"
-     " WHERE nidx = ", esc_int(Nidx)].
-
--spec delete_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
-delete_user_subscriptions(LU, LS) ->
-    ["DELETE FROM pubsub_subscriptions"
-     " WHERE luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS)].
-
--spec update_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                          LU :: jid:luser(),
-                          LS :: jid:lserver(),
-                          LR :: jid:lresource(),
-                          SubInt :: integer(),
-                          SubId :: binary()) -> iolist().
-update_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
-    ["UPDATE pubsub_subscriptions",
-     " SET type = ", esc_int(SubInt),
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
-     " AND lresource = ", esc_string(LR),
-     " AND sub_id = ", esc_string(SubId)].
 
 % ------------------- Items --------------------------------
 
@@ -314,12 +82,6 @@ maybe_result_limit(Limit) ->
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
--spec del_item(mod_pubsub:nodeIdx(), mod_pubsub:itemId()) -> iolist().
-del_item(Nidx, ItemId) ->
-    ["DELETE FROM pubsub_items "
-     "WHERE nidx=", esc_int(Nidx),
-      " AND itemid=", esc_string(ItemId)].
-
 -spec del_items(mod_pubsub:nodeIdx(), [mod_pubsub:itemId()]) -> iolist().
 del_items(Nidx, ItemIds) ->
     EscapedIds = [esc_string(ItemId) || ItemId <- ItemIds],
@@ -327,50 +89,6 @@ del_items(Nidx, ItemIds) ->
     ["DELETE FROM pubsub_items "
      "WHERE nidx=", esc_int(Nidx),
       " AND itemid IN (", Ids,")"].
-
--spec get_entity_items(Nidx :: mod_pubsub:nodeIdx(),
-                       LU :: jid:luser(),
-                       LS :: jid:lserver()) -> iolist().
-get_entity_items(Nidx, LU, LS) ->
-    ["SELECT itemid"
-     " FROM pubsub_items"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND created_luser = ", esc_string(LU),
-     " AND created_lserver = ", esc_string(LS) ].
-
--spec get_user_items(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
-get_user_items(LU, LS) ->
-    ["SELECT name, itemid, payload"
-    " FROM pubsub_items"
-    " INNER JOIN pubsub_nodes"
-    " ON pubsub_items.nidx = pubsub_nodes.nidx"
-    " WHERE created_luser = ", esc_string(LU),
-    " AND created_lserver = ", esc_string(LS) ].
-
--spec get_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
-get_user_subscriptions(LU, LS) ->
-    ["SELECT name"
-    " FROM pubsub_subscriptions"
-    " INNER JOIN pubsub_nodes"
-    " ON pubsub_subscriptions.nidx = pubsub_nodes.nidx"
-    " WHERE luser = ", esc_string(LU),
-    " AND lserver = ", esc_string(LS) ].
-
--spec delete_item(Nidx :: mod_pubsub:nodeIdx(),
-                  LU :: jid:luser(),
-                  LS :: jid:lserver(),
-                  ItemId :: mod_pubsub:itemId()) -> iolist().
-delete_item(Nidx, LU, LS, ItemId) ->
-    ["DELETE FROM pubsub_items"
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND created_luser = ", esc_string(LU),
-     " AND created_lserver = ", esc_string(LS),
-     " AND itemid = ", esc_string(ItemId) ].
-
--spec delete_all_items(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-delete_all_items(Nidx) ->
-    ["DELETE FROM pubsub_items"
-     " WHERE nidx = ", esc_int(Nidx)].
 
 insert_pubsub_node(Key, Name, Type, Owners, Options) ->
     RDBMSType = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
