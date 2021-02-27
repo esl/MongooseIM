@@ -57,6 +57,17 @@ commands:
       - run:
           name: Wait for port << parameters.port >>
           command: dockerize -wait tcp://localhost:<< parameters.port >> -timeout 60s
+  maybe_wait_for_container:
+    parameters:
+      db: {type: string}
+      port: {type: integer}
+    steps:
+      - run:
+          name: Maybe wait for container
+          command: |
+            if [[ "$DB" == *<< parameters.db >>* ]]; then
+              dockerize -wait tcp://localhost:<< parameters.port >> -timeout 60s
+            fi
   maybe_prepare_minio:
     steps:
       - run:
@@ -362,8 +373,8 @@ jobs:
     steps:
       - restore_workspace
       - install_dockerize
-      - dockerize_wait: {port: 6379} # Wait for redis
-      - dockerize_wait: {port: 5672} # Wait for rmq
+      - maybe_wait_for_container: {db: redis, port: 6379} # wait for redis
+      - maybe_wait_for_container: {db: rmq, port: 5672} # wait for rmq
       - maybe_prepare_minio
       - maybe_prepare_pgsql
       - maybe_prepare_mysql
