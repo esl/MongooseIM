@@ -209,6 +209,29 @@ commands:
   #           echo "ldap here, but don't know what to do"
   #           sudo apt install ldap-utils
   #          fi
+  maybe_prepare_elasticsearch:
+    steps:
+      - run:
+         name: maybe configure elasticsearch
+         command: |
+           if [[ "$DB" == *elasticsearch* ]]; then
+             ELASTICSEARCH_URL=http://localhost:$ELASTICSEARCH_PORT
+             ELASTICSEARCH_PM_MAPPING="$(pwd)/priv/elasticsearch/pm.json"
+             ELASTICSEARCH_MUC_MAPPING="$(pwd)/priv/elasticsearch/muc.json"
+             echo "Putting ElasticSearch mappings"
+             (curl -X PUT $ELASTICSEARCH_URL/messages -d "@$ELASTICSEARCH_PM_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
+                echo "Failed to put PM mapping into ElasticSearch"
+             (curl -X PUT $ELASTICSEARCH_URL/muc_messages -d "@$ELASTICSEARCH_MUC_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
+                echo "Failed to put MUC mapping into ElasticSearch"
+           fi
+  maybe_prepare_cassandra:
+    steps:
+      - run:
+         name: maybe configure cassandra
+         command: |
+           if [[ "$DB" == *cassandra* ]]; then
+                echo "Failed to put MUC mapping into ElasticSearch"
+           fi
 
 references:
   - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
@@ -258,6 +281,20 @@ executors:
   #         - LDAP_DOMAIN: "esl.com"
   #         - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
   #         - LDAP_ORGANISATION: "Erlang Solutions"
+  otp_23_elastic_cassandra:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
+      - image: docker.elastic.co/elasticsearch/elasticsearch:5.6.9
+        environment:
+          - http.host: 0.0.0.0
+          - transport.host: 127.0.0.1
+          - xpack.security.enabled: false
+      - image: cassandra:3.9
+        environment:
+          - MAX_HEAP_SIZE: 128M
+          - HEAP_NEWSIZE: 64M
   otp_23_redis_minio_rmq:
     working_directory: ~/app
     docker:
@@ -400,6 +437,8 @@ jobs:
       - maybe_prepare_mysql
       - maybe_prepare_mssql
       # - maybe_prepare_ldap
+      - maybe_prepare_elasticsearch
+      - maybe_prepare_cassandra
       - run:
           name: Prepare /etc/hosts
           command: |
@@ -591,6 +630,14 @@ workflows:
           requires:
             - otp_23
       # - big_tests:
+      #     name: elasticsearch_and_cassandra_mnesia
+      #     executor: otp_23_elastic_cassandra
+      #     context: mongooseim-org
+      #     preset: elasticsearch_and_cassandra_mnesia
+      #     db: "redis elasticsearch cassandra"
+      #     requires:
+      #       - otp_23
+      # - big_tests:
       #     name: ldap_mnesia
       #     executor: otp_23_ldap
       #     context: mongooseim-org
@@ -625,4 +672,5 @@ workflows:
       #       - pgsql_mnesia
       #       - mysql_redis
       #       - mssql_mnesia
+      #       - elasticsearch_and_cassandra_mnesia
       #       - ldap_mnesia
