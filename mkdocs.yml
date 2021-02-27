@@ -3,6 +3,7 @@ docs_dir: doc
 theme:
   name: material
   favicon: favicon.ico
+site_url: https://esl.github.io/MongooseDocs/
 extra_templates: []
 extra_css: [css/custom.css, css/version-select.css]
 extra_javascript: [js/version-select.js]
