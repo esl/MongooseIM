@@ -200,6 +200,15 @@ commands:
                   -d ejabberd \
                   -i priv/mssql2012.sql
             fi
+  # maybe_prepare_ldap:
+  #   steps:
+  #     - run:
+  #        name: maybe configure ldap
+  #        command: |
+  #          if [[ "$DB" == *ldap* ]]; then
+  #           echo "ldap here, but don't know what to do"
+  #           sudo apt install ldap-utils
+  #          fi
 
 references:
   - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
@@ -238,6 +247,17 @@ executors:
         environment:
           - ACCEPT_EULA: "y"
           - SA_PASSWORD: "mongooseim_secret+ESL123"
+  # otp_23_ldap:
+  #   working_directory: ~/app
+  #   docker:
+  #     - image: *OTP23
+  #     - image: circleci/redis:6.0.5
+  #     - image: osixia/openldap:1.5.0
+  #       environment:
+  #         - LDAP_TLS: false
+  #         - LDAP_DOMAIN: "esl.com"
+  #         - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
+  #         - LDAP_ORGANISATION: "Erlang Solutions"
   otp_23_redis_minio_rmq:
     working_directory: ~/app
     docker:
@@ -379,6 +399,7 @@ jobs:
       - maybe_prepare_pgsql
       - maybe_prepare_mysql
       - maybe_prepare_mssql
+      # - maybe_prepare_ldap
       - run:
           name: Prepare /etc/hosts
           command: |
@@ -490,32 +511,32 @@ workflows:
   build_and_test:
     jobs:
       # ============= PACKAGES =============
-      - package:
-          name: centos_7
-          executor: otp_23
-          platform: centos_7
-          context: mongooseim-org
-          otp_package: 23.1-1
-      - package:
-          name: debian_stretch
-          executor: otp_23
-          platform: debian_stretch
-          context: mongooseim-org
-          otp_package: 23.1-1
+      # - package:
+      #     name: centos_7
+      #     executor: otp_23
+      #     platform: centos_7
+      #     context: mongooseim-org
+      #     otp_package: 23.1-1
+      # - package:
+      #     name: debian_stretch
+      #     executor: otp_23
+      #     platform: debian_stretch
+      #     context: mongooseim-org
+      #     otp_package: 23.1-1
       # ============= BASE BUILDS =============
       - build:
           name: otp_23
           executor: otp_23
           context: mongooseim-org
           build_prod: true
-      - build:
-          name: otp_22
-          executor: otp_22
-          context: mongooseim-org
-      - build:
-          name: otp_21
-          executor: otp_21
-          context: mongooseim-org
+      # - build:
+      #     name: otp_22
+      #     executor: otp_22
+      #     context: mongooseim-org
+      # - build:
+      #     name: otp_21
+      #     executor: otp_21
+      #     context: mongooseim-org
       # ============= SMALL TESTS =============
       - small_tests:
           name: small_tests_23
@@ -523,18 +544,18 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_23
-      - small_tests:
-          name: small_tests_22
-          executor: otp_22_redis
-          context: mongooseim-org
-          requires:
-            - otp_22
-      - small_tests:
-          name: small_tests_21
-          executor: otp_21_redis
-          context: mongooseim-org
-          requires:
-            - otp_21
+      # - small_tests:
+      #     name: small_tests_22
+      #     executor: otp_22_redis
+      #     context: mongooseim-org
+      #     requires:
+      #       - otp_22
+      # - small_tests:
+      #     name: small_tests_21
+      #     executor: otp_21_redis
+      #     context: mongooseim-org
+      #     requires:
+      #       - otp_21
       # ============= MOST RECENT VERSION TESTS =============
       - big_tests:
           name: internal_mnesia
@@ -569,30 +590,39 @@ workflows:
           db: "mssql redis"
           requires:
             - otp_23
+      # - big_tests:
+      #     name: ldap_mnesia
+      #     executor: otp_23_ldap
+      #     context: mongooseim-org
+      #     preset: ldap_mnesia
+      #     db: "ldap redis"
+      #     requires:
+      #       - otp_23
       # ============= DIALYZER =============
-      - dialyzer:
-          name: dialyzer
-          executor: otp_23
-          context: mongooseim-org
-          requires:
-            - otp_23
+      # - dialyzer:
+      #     name: dialyzer
+      #     executor: otp_23
+      #     context: mongooseim-org
+      #     requires:
+      #       - otp_23
       # ============= DOCUMENTATION =============
-      - docs_build_deploy:
-          name: build_and_deploy_docs
-          context: mongooseim-org
-          filters: *all_tags
+      # - docs_build_deploy:
+      #     name: build_and_deploy_docs
+      #     context: mongooseim-org
+      #     filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
-      - docker_image:
-          name: docker_build_and_ship
-          executor: otp_23
-          context: mongooseim-org
-          requires:
-            - small_tests_23
-            - small_tests_22
-            - small_tests_21
-            - dialyzer
-            - build_and_deploy_docs
-            - internal_mnesia
-            - pgsql_mnesia
-            - mysql_redis
-            - mssql_mnesia
+      # - docker_image:
+      #     name: docker_build_and_ship
+      #     executor: otp_23
+      #     context: mongooseim-org
+      #     requires:
+      #       - small_tests_23
+      #       - small_tests_22
+      #       - small_tests_21
+      #       - dialyzer
+      #       - build_and_deploy_docs
+      #       - internal_mnesia
+      #       - pgsql_mnesia
+      #       - mysql_redis
+      #       - mssql_mnesia
+      #       - ldap_mnesia
