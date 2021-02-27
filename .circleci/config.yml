@@ -133,6 +133,23 @@ commands:
              sudo apt-get install -y postgresql-client-12
              psql -h 127.0.0.1 -p 5432 -U ejabberd -q -d ejabberd -f priv/pg.sql
            fi
+  maybe_prepare_mysql:
+    steps:
+      - run:
+         name: maybe configure mysql
+         command: |
+           if [[ "$DB" == *mysql* ]]; then
+             sudo apt-get update
+             sudo apt-get install -y default-mysql-client
+             echo "mysql installed, now configuring user"
+             mysql -h 127.0.0.1 --user=root --password=secret \
+               -e "GRANT USAGE ON *.* TO 'ejabberd'@'%'; \
+                   ALTER USER 'ejabberd'@'%';"
+             echo "user configured, now adding his schema"
+             mysql -h 127.0.0.1 --user=ejabberd \
+                                --password=mongooseim_secret \
+                                --database=ejabberd < priv/mysql.sql
+           fi
 
 references:
   - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
@@ -151,6 +168,17 @@ executors:
           - POSTGRES_PASSWORD: "mongooseim_secret"
           - POSTGRES_USER: "ejabberd"
           - POSTGRES_DB: "ejabberd"
+  otp_23_mysql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
+      - image: circleci/mysql:8.0.4-ram
+        environment:
+          - MYSQL_ROOT_PASSWORD: "secret"
+          - MYSQL_PASSWORD: "mongooseim_secret"
+          - MYSQL_USER: "ejabberd"
+          - MYSQL_DATABASE: "ejabberd"
   otp_23_redis_minio_rmq:
     working_directory: ~/app
     docker:
@@ -290,6 +318,7 @@ jobs:
       - dockerize_wait: {port: 5672} # Wait for rmq
       - maybe_prepare_minio
       - maybe_prepare_pgsql
+      - maybe_prepare_mysql
       - run:
           name: Prepare /etc/hosts
           command: |
@@ -464,6 +493,14 @@ workflows:
           db: "pgsql redis"
           requires:
             - otp_23
+      - big_tests:
+          name: mysql_redis
+          executor: otp_23_mysql
+          context: mongooseim-org
+          preset: mysql_redis
+          db: "mysql redis"
+          requires:
+            - otp_23
       # ============= DIALYZER =============
       - dialyzer:
           name: dialyzer
@@ -489,3 +526,4 @@ workflows:
             - build_and_deploy_docs
             - internal_mnesia
             - pgsql_mnesia
+            - mysql_redis
