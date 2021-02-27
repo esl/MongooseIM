@@ -141,7 +141,7 @@ commands:
          command: |
            if [[ "$DB" == *pgsql* ]]; then
              sudo apt-get update
-             sudo apt-get install -y postgresql-client-12
+             sudo apt-get install -y postgresql-client
              psql -h 127.0.0.1 -p 5432 -U ejabberd -q -d ejabberd -f priv/pg.sql
            fi
   maybe_prepare_mysql:
@@ -236,7 +236,6 @@ commands:
 references:
   - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
   - &OTP22 cimg/elixir:1.10  # Contains Erlang 22.3.4
-  - &OTP21 cimg/elixir:1.8.2 # Contains Erlang 21.3.8.8
 
 executors:
   # With REDIS
@@ -246,6 +245,16 @@ executors:
       - image: *OTP23
       - image: circleci/redis:6.0.5
       - image: circleci/postgres:12.5-ram
+        environment:
+          - POSTGRES_PASSWORD: "mongooseim_secret"
+          - POSTGRES_USER: "ejabberd"
+          - POSTGRES_DB: "ejabberd"
+  otp_22_pgsql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP22
+      - image: circleci/redis:6.0.5
+      - image: circleci/postgres:10.16-ram
         environment:
           - POSTGRES_PASSWORD: "mongooseim_secret"
           - POSTGRES_USER: "ejabberd"
@@ -316,11 +325,6 @@ executors:
     docker:
       - image: *OTP22
       - image: circleci/redis:6.0.5
-  otp_21_redis:
-    working_directory: ~/app
-    docker:
-      - image: *OTP21
-      - image: circleci/redis:6.0.5
 
   # JUST OTP
   otp_23:
@@ -331,10 +335,6 @@ executors:
     working_directory: ~/app
     docker:
       - image: *OTP22
-  otp_21:
-    working_directory: ~/app
-    docker:
-      - image: *OTP21
 
 jobs:
   build:
@@ -619,10 +619,6 @@ workflows:
           name: otp_22
           executor: otp_22
           context: mongooseim-org
-      - build:
-          name: otp_21
-          executor: otp_21
-          context: mongooseim-org
       # ============= SMALL TESTS =============
       - small_tests:
           name: small_tests_23
@@ -636,12 +632,15 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_22
-      - small_tests:
-          name: small_tests_21
-          executor: otp_21_redis
+      # ============= OLDER VERSIONS TESTS =============
+      - big_tests:
+          name: pgsql_mnesia_22
+          executor: otp_22_pgsql
           context: mongooseim-org
+          preset: pgsql_mnesia
+          db: "pgsql redis"
           requires:
-            - otp_21
+            - otp_22
       # ============= MOST RECENT VERSION TESTS =============
       - big_tests:
           name: internal_mnesia
@@ -716,11 +715,11 @@ workflows:
             - tls_testing
             - small_tests_23
             - small_tests_22
-            - small_tests_21
             - dialyzer
             - build_and_deploy_docs
             - internal_mnesia
             - pgsql_mnesia
+            - pgsql_mnesia_22
             - mysql_redis
             - mssql_mnesia
             # - elasticsearch_and_cassandra_mnesia
