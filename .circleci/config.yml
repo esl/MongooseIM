@@ -545,6 +545,50 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
+  tls_testing:
+    parallelism: 1
+    machine:
+      image: ubuntu-2004:202010-01
+    working_directory: ~/app
+    steps:
+        - checkout
+        - run:
+            name: Install basic packages
+            command: |
+              sudo killall -9 apt-get || true && \
+              echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+              wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && \
+              sudo dpkg -i erlang-solutions_2.0_all.deb && \
+              sudo apt-get update && \
+              sudo apt-get install unixodbc-dev -y && \
+              sudo apt-get install unixodbc -y && \
+              sudo apt-get install tdsodbc -y
+        - run:
+            name: Install Erlang
+            command: |
+              sudo killall -9 apt-get || true && \
+              sudo apt-get install -y esl-erlang=1:23.0.3-1
+        - run:
+            name: Get deps
+            command: |
+              tools/configure with-all
+              ./rebar3 get-deps
+        - run: ./rebar3 compile
+        - run:
+            name: Make Certs
+            command: |
+              make certs
+        - run:
+            name: Generate development releases
+            command: ./tools/build-releases.sh
+        - run:
+            name: Test for all of them
+            command: |
+              PRESET="internal_mnesia pgsql_mnesia odbc_mssql_mnesia mysql_redis ldap_mnesia riak_mnesia elasticsearch_and_cassandra_mnesia"
+              for preset in ${PRESET}; do
+                test-runner.sh --preset PRESET --skip-cover --skip-small-tests --one-node --skip-build-tests -- connect
+              done
+
 workflows:
   version: 2
   build_and_test:
@@ -645,6 +689,9 @@ workflows:
       #     db: "ldap redis"
       #     requires:
       #       - otp_23
+      - tls_testing:
+          name: tls_testing
+          context: mongooseim-org
       # ============= DIALYZER =============
       # - dialyzer:
       #     name: dialyzer
@@ -663,6 +710,7 @@ workflows:
       #     executor: otp_23
       #     context: mongooseim-org
       #     requires:
+      #       - tls_testing
       #       - small_tests_23
       #       - small_tests_22
       #       - small_tests_21
