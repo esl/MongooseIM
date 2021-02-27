@@ -3,6 +3,18 @@ docs_dir: doc
 theme:
   name: material
   favicon: favicon.ico
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/mongooseim/mongooseim/
+    - icon: fontawesome/brands/github
+      link: https://github.com/esl/MongooseIM
+plugins:
+  - search:
+      lang: en
+repo_url: https://github.com/esl/MongooseIM
 site_url: https://esl.github.io/MongooseDocs/
 extra_templates: []
 extra_css: [css/custom.css, css/version-select.css]
