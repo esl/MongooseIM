@@ -123,6 +123,16 @@ commands:
       - persist_to_workspace:
           root: ~/app/
           paths: ["*"]
+  maybe_prepare_pgsql:
+    steps:
+      - run:
+         name: maybe configure pgsql
+         command: |
+           if [[ "$DB" == *pgsql* ]]; then
+             sudo apt-get update
+             sudo apt-get install -y postgresql-client-12
+             psql -h 127.0.0.1 -p 5432 -U ejabberd -q -d ejabberd -f priv/pg.sql
+           fi
 
 references:
   - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
@@ -131,7 +141,17 @@ references:
 
 executors:
   # With REDIS
-  otp_23_redis:
+  otp_23_pgsql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
+      - image: circleci/postgres:12.5-ram
+        environment:
+          - POSTGRES_PASSWORD: "mongooseim_secret"
+          - POSTGRES_USER: "ejabberd"
+          - POSTGRES_DB: "ejabberd"
+  otp_23_redis_minio_rmq:
     working_directory: ~/app
     docker:
       - image: *OTP23
@@ -142,6 +162,11 @@ executors:
           - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
         command: ["server", "/data"]
       - image: rabbitmq:3.7-alpine
+  otp_23_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
   otp_22_redis:
     working_directory: ~/app
     docker:
@@ -264,6 +289,7 @@ jobs:
       - dockerize_wait: {port: 6379} # Wait for redis
       - dockerize_wait: {port: 5672} # Wait for rmq
       - maybe_prepare_minio
+      - maybe_prepare_pgsql
       - run:
           name: Prepare /etc/hosts
           command: |
@@ -423,11 +449,19 @@ workflows:
       # ============= MOST RECENT VERSION TESTS =============
       - big_tests:
           name: internal_mnesia
-          executor: otp_23_redis
+          executor: otp_23_redis_minio_rmq
           context: mongooseim-org
           preset: internal_mnesia
-          db: "mnesia minio"
+          db: "mnesia redis minio rmq"
           tls_dist: true
+          requires:
+            - otp_23
+      - big_tests:
+          name: pgsql_mnesia
+          executor: otp_23_pgsql
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          db: "pgsql redis"
           requires:
             - otp_23
       # ============= DIALYZER =============
@@ -454,3 +488,4 @@ workflows:
             - dialyzer
             - build_and_deploy_docs
             - internal_mnesia
+            - pgsql_mnesia
