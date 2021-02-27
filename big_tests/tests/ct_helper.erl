@@ -26,7 +26,7 @@ is_ct_running() ->
 -spec repeat_all_until_all_ok([group_def() | group_def_dirty() | group_def_incomplete()]) ->
     [group_def()].
 repeat_all_until_all_ok(GroupDefs) ->
-    repeat_all_until_all_ok(GroupDefs, 3).
+    repeat_all_until_all_ok(GroupDefs, 1).
 
 -spec repeat_all_until_any_fail([group_def() | group_def_dirty() | group_def_incomplete()]) ->
     [group_def()].
