@@ -582,11 +582,14 @@ jobs:
             name: Generate development releases
             command: ./tools/build-releases.sh
         - run:
+            name: Build Big Tests
+            command: tools/build-tests.sh
+        - run:
             name: Test for all of them
             command: |
               PRESET="internal_mnesia pgsql_mnesia odbc_mssql_mnesia mysql_redis ldap_mnesia riak_mnesia elasticsearch_and_cassandra_mnesia"
               for preset in ${PRESET}; do
-                test-runner.sh --preset PRESET --skip-cover --skip-small-tests --one-node --skip-build-tests -- connect
+                ./tools/test-runner.sh --preset PRESET --skip-cover --skip-small-tests --one-node --skip-build-tests -- connect
               done
 
 workflows:
@@ -594,32 +597,32 @@ workflows:
   build_and_test:
     jobs:
       # ============= PACKAGES =============
-      # - package:
-      #     name: centos_7
-      #     executor: otp_23
-      #     platform: centos_7
-      #     context: mongooseim-org
-      #     otp_package: 23.1-1
-      # - package:
-      #     name: debian_stretch
-      #     executor: otp_23
-      #     platform: debian_stretch
-      #     context: mongooseim-org
-      #     otp_package: 23.1-1
+      - package:
+          name: centos_7
+          executor: otp_23
+          platform: centos_7
+          context: mongooseim-org
+          otp_package: 23.1-1
+      - package:
+          name: debian_stretch
+          executor: otp_23
+          platform: debian_stretch
+          context: mongooseim-org
+          otp_package: 23.1-1
       # ============= BASE BUILDS =============
       - build:
           name: otp_23
           executor: otp_23
           context: mongooseim-org
           build_prod: true
-      # - build:
-      #     name: otp_22
-      #     executor: otp_22
-      #     context: mongooseim-org
-      # - build:
-      #     name: otp_21
-      #     executor: otp_21
-      #     context: mongooseim-org
+      - build:
+          name: otp_22
+          executor: otp_22
+          context: mongooseim-org
+      - build:
+          name: otp_21
+          executor: otp_21
+          context: mongooseim-org
       # ============= SMALL TESTS =============
       - small_tests:
           name: small_tests_23
@@ -627,18 +630,18 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_23
-      # - small_tests:
-      #     name: small_tests_22
-      #     executor: otp_22_redis
-      #     context: mongooseim-org
-      #     requires:
-      #       - otp_22
-      # - small_tests:
-      #     name: small_tests_21
-      #     executor: otp_21_redis
-      #     context: mongooseim-org
-      #     requires:
-      #       - otp_21
+      - small_tests:
+          name: small_tests_22
+          executor: otp_22_redis
+          context: mongooseim-org
+          requires:
+            - otp_22
+      - small_tests:
+          name: small_tests_21
+          executor: otp_21_redis
+          context: mongooseim-org
+          requires:
+            - otp_21
       # ============= MOST RECENT VERSION TESTS =============
       - big_tests:
           name: internal_mnesia
@@ -693,32 +696,32 @@ workflows:
           name: tls_testing
           context: mongooseim-org
       # ============= DIALYZER =============
-      # - dialyzer:
-      #     name: dialyzer
-      #     executor: otp_23
-      #     context: mongooseim-org
-      #     requires:
-      #       - otp_23
+      - dialyzer:
+          name: dialyzer
+          executor: otp_23
+          context: mongooseim-org
+          requires:
+            - otp_23
       # ============= DOCUMENTATION =============
-      # - docs_build_deploy:
-      #     name: build_and_deploy_docs
-      #     context: mongooseim-org
-      #     filters: *all_tags
+      - docs_build_deploy:
+          name: build_and_deploy_docs
+          context: mongooseim-org
+          filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
-      # - docker_image:
-      #     name: docker_build_and_ship
-      #     executor: otp_23
-      #     context: mongooseim-org
-      #     requires:
-      #       - tls_testing
-      #       - small_tests_23
-      #       - small_tests_22
-      #       - small_tests_21
-      #       - dialyzer
-      #       - build_and_deploy_docs
-      #       - internal_mnesia
-      #       - pgsql_mnesia
-      #       - mysql_redis
-      #       - mssql_mnesia
-      #       - elasticsearch_and_cassandra_mnesia
-      #       - ldap_mnesia
+      - docker_image:
+          name: docker_build_and_ship
+          executor: otp_23
+          context: mongooseim-org
+          requires:
+            - tls_testing
+            - small_tests_23
+            - small_tests_22
+            - small_tests_21
+            - dialyzer
+            - build_and_deploy_docs
+            - internal_mnesia
+            - pgsql_mnesia
+            - mysql_redis
+            - mssql_mnesia
+            # - elasticsearch_and_cassandra_mnesia
+            # - ldap_mnesia
