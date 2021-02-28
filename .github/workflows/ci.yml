@@ -77,7 +77,7 @@ jobs:
       - name: test redis
         run: tools/test-redis.sh
       - name: run test
-        run: tools/travis-test.sh -p $PRESET -s false -e false || true
+        run: tools/travis-test.sh -p $PRESET -s false -e false
       - name: test redis
         run: tools/test-redis.sh
       - name: dump redis logs

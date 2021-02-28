@@ -30,7 +30,7 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
 
 
 makeargs(RedisOpts) ->
-    Host = proplists:get_value(host, RedisOpts, "localhost"),
+    Host = proplists:get_value(host, RedisOpts, "127.0.0.1"),
     Port = proplists:get_value(port, RedisOpts, 6379),
     Database = proplists:get_value(database, RedisOpts, 0),
     Password = proplists:get_value(password, RedisOpts, ""),
