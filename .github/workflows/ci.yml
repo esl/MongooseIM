@@ -74,8 +74,14 @@ jobs:
         run: tools/travis-build-tests.sh
       - name: start backends
         run: tools/travis-setup-db.sh
+      - name: test redis
+        run: tools/test-redis.sh
       - name: run test
-        run: tools/travis-test.sh -p $PRESET -s false -e false
+        run: tools/travis-test.sh -p $PRESET -s false -e false || true
+      - name: test redis
+        run: tools/test-redis.sh
+      - name: dump redis logs
+        run: docker logs mongooseim-redis
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
