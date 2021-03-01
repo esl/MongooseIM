@@ -1,4 +1,9 @@
 site_name: MongooseIM
+site_description: "MongooseIM is a mobile messaging platform with focus on performance and scalability"
+site_author: "Erlang Solutions"
+site_url: https://esl.github.io/MongooseDocs/latest/
+repo_url: https://github.com/esl/MongooseIM
+edit_uri: edit/master/doc/
 docs_dir: doc
 theme:
   name: material
@@ -14,12 +19,7 @@ extra:
 plugins:
   - search:
       lang: en
-repo_url: https://github.com/esl/MongooseIM
-edit_uri: edit/master/doc/
-site_url: https://esl.github.io/MongooseDocs/
-extra_templates: []
-extra_css: [css/custom.css, css/version-select.css]
-extra_javascript: [js/version-select.js]
+extra_css: [css/custom.css]
 markdown_extensions:
   - pymdownx.highlight:
       linenums: true

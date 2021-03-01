@@ -49,7 +49,7 @@ For a quick start just download:
 
 Check out our test results:
 
-* CI testing: 
+* CI testing:
   * [GH Actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
   * [CircleCI](https://app.circleci.com/pipelines/github/esl/MongooseIM)
 * Code coverage:
