@@ -59,7 +59,7 @@ prepare_queries() ->
             rdbms_queries:add_limit_arg(limit, [server, username]),
             <<"SELECT ", LimitMSSQL/binary,
               " count(*) FROM offline_message "
-              "WHERE server=? AND username=? ", LimitSQL/binary>>),
+              "WHERE server = ? AND username = ? ", LimitSQL/binary>>),
     prepare(offline_select, offline_message,
             [server, username, expire],
             <<"SELECT timestamp, from_jid, packet, permanent_fields "
@@ -77,8 +77,7 @@ prepare_queries() ->
     prepare(offline_delete_expired, offline_message,
             [expire],
             <<"DELETE FROM offline_message "
-              "WHERE expire IS NOT null AND expire < ?">>),
-    ok.
+              "WHERE expire IS NOT null AND expire < ?">>).
 
 execute_count_offline_messages(LUser, LServer, Limit) ->
     Args = rdbms_queries:add_limit_arg(Limit, [LServer, LUser]),
@@ -128,7 +127,6 @@ pop_messages(#jid{} = To) ->
     end.
 
 %% Fetch messages for GDPR
-%% User and Server are not normalized
 fetch_messages(#jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
     ExtTimeStamp = os:system_time(microsecond),
