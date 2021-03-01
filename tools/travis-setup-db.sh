@@ -396,6 +396,9 @@ elif [ "$db" = 'ldap' ]; then
 elif [ "$db" = "minio" ]; then
     tools/setup_minio.sh
 
+elif [ "$db" = "rmq" ]; then
+    tools/travis-setup-rmq.sh
+
 else
     echo "Skip setting up database"
 fi

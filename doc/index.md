@@ -1,8 +1,9 @@
 # MongooseIM platform
 
-[![Build Status](https://github.com/esl/MongooseIM/workflows/CI/badge.svg)](https://github.com/esl/MongooseIM/actions)
-[![CircleCI](https://circleci.com/gh/esl/MongooseIM.svg?style=shield&circle-token=53cdda11cfb95bd7a7044c509c89cb73d3fdeb5a)](https://github.com/esl/MongooseIM/)
-[![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
+[![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=master)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Amaster)
+[![CircleCI](https://circleci.com/gh/esl/MongooseIM.svg?style=shield&circle-token=53cdda11cfb95bd7a7044c509c89cb73d3fdeb5a)](https://app.circleci.com/pipelines/github/esl/MongooseIM)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
+[![Coveralls](https://coveralls.io/repos/github/DenysGonchar/MongooseIM/badge.svg?branch=master)](https://coveralls.io/github/DenysGonchar/MongooseIM?branch=master)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
@@ -66,8 +67,12 @@ For a quick start just download:
 
 Check out our test results:
 
-* Continuous integration: [Github actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
-* Code coverage: [https://codecov.io/gh/esl/MongooseIM](https://codecov.io/gh/esl/MongooseIM)
+* CI testing:
+  * [GH Actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
+  * [CircleCI](https://app.circleci.com/pipelines/github/esl/MongooseIM)
+* Code coverage:
+  * [Codecov](https://codecov.io/gh/esl/MongooseIM) - reported by CircleCI.
+  * [Coveralls](https://coveralls.io/github/esl/MongooseIM) - reported by GH Actions.
 
 ## Versions
 
