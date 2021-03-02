@@ -393,7 +393,7 @@ get_session_info(RpcDetails, User) ->
     Server = escalus_client:server(User),
     Resource = escalus_client:resource(User),
     JID = make_jid(Username, Server, Resource),
-    {_, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
+    {session, _, _, _, _, Info} = rpc(RpcDetails, ejabberd_sm, get_session, [JID]),
     Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->

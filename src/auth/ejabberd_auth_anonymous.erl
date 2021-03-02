@@ -61,6 +61,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("session.hrl").
 -record(anonymous, {us  :: jid:simple_bare_jid(),
                     sid :: ejabberd_sm:sid()
                    }).
@@ -274,7 +275,7 @@ dirty_get_registered_users() ->
 
 -spec get_vh_registered_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
-    [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(LServer)].
+    [{U, S} || #session{us = {U, S}} <- ejabberd_sm:get_vh_session_list(LServer)].
 
 -spec get_vh_registered_users(LServer :: jid:lserver(), Opts :: list()) ->
     [jid:simple_bare_jid()].

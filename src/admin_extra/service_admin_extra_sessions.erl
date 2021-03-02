@@ -45,6 +45,7 @@
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
+-include("session.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -type status() :: binary().
@@ -60,11 +61,6 @@
                                 Prio :: ejabberd_sm:priority(),
                                 NodeS :: string(),
                                 Uptime :: integer()}.
--type usr_sid_prio_info() :: {jid:simple_jid(),
-                              ejabberd_sm:sid(),
-                              Prio :: ejabberd_sm:priority(),
-                              Info :: string()}.
-
 %%%
 %%% Register commands
 %%%
@@ -180,7 +176,7 @@ num_resources(User, Host) ->
 resource_num(User, Host, Num) ->
     JID = jid:make(User, Host, <<>>),
     Resources = ejabberd_sm:get_user_resources(JID),
-    case (0<Num) and (Num=<length(Resources)) of
+    case (0 < Num) and (Num =< length(Resources)) of
         true ->
             lists:nth(Num, Resources);
         false ->
@@ -236,8 +232,9 @@ get_status_list(Host, StatusRequired) ->
         all -> ejabberd_sm:get_full_session_list();
         _ -> ejabberd_sm:get_vh_session_list(Host)
     end,
-    Sessions = [ {catch ejabberd_c2s:get_presence(Pid), Server, Priority}
-                 || {{_, Server, _}, {_, Pid}, Priority, _} <- Sessions0 ],
+    Sessions = [ {catch ejabberd_c2s:get_presence(Pid), S, P}
+                 || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P}
+                    <- Sessions0 ],
 
     %% Filter by status
     Fstatus = case StatusRequired of
@@ -290,15 +287,16 @@ user_sessions_info(User, Host) ->
                 RJID = jid:replace_resource(JID, Res),
                 case ejabberd_sm:get_session(RJID) of
                     offline -> Acc;
-                    Session -> [format_user_info(Session)|Acc]
+                    Session -> [format_user_info(Session) | Acc]
                 end
         end, [], Resources).
 
 
--spec format_user_info(usr_sid_prio_info()) -> formatted_user_info().
-format_user_info({{U, S, R}, {Microseconds, Pid}, Priority, Info}) ->
-    Conn = proplists:get_value(conn, Info),
-    {Ip, Port} = proplists:get_value(ip, Info),
+-spec format_user_info(ejabberd_sm:session()) -> formatted_user_info().
+format_user_info(#session{sid = {Microseconds, Pid}, usr = {U, S, R},
+                          priority = Priority, info = Info}) ->
+    Conn = maps:get(conn, Info, undefined),
+    {Ip, Port} = maps:get(ip, Info, undefined),
     IPS = inet_parse:ntoa(Ip),
     NodeS = atom_to_list(node(Pid)),
     Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,

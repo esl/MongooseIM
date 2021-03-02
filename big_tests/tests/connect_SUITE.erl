@@ -729,7 +729,7 @@ connect_with_proxy_header(Config) ->
     %% THEN
     SessionInfo = mongoose_helper:get_session_info(mim(), Conn),
     #{src_address := IPAddr, src_port := Port} = proxy_info(),
-    ?assertMatch({IPAddr, Port}, proplists:get_value(ip, SessionInfo)),
+    ?assertMatch({IPAddr, Port}, maps:get(ip, SessionInfo)),
     escalus_connection:stop(Conn).
 
 %%--------------------------------------------------------------------

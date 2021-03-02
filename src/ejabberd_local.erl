@@ -64,6 +64,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("session.hrl").
 
 -record(state, {}).
 
@@ -293,7 +294,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({unregister_host, Host}, _From, State) ->
     [ejabberd_c2s:stop(Pid)
-     || {_, {_, Pid}, _, _} <- ejabberd_sm:get_vh_session_list(Host)],
+     || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host)],
     do_unregister_host(Host),
     mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};

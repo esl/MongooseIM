@@ -34,32 +34,24 @@ start(_Opts) ->
     RetVal.
 
 
--spec get_sessions() -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->
     Keys = mongoose_redis:cmd(["KEYS", hash(<<"*">>)]),
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
-                                            Session = binary_to_term(S),
-                                            { Session#session.usr,
-                                              Session#session.sid,
-                                              Session#session.priority,
-                                              Session#session.info }
+                                            binary_to_term(S)
                                     end,
                                     Sessions)
                   end, Keys).
 
--spec get_sessions(jid:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(jid:server()) -> [ejabberd_sm:session()].
 get_sessions(Server) ->
     Keys = mongoose_redis:cmd(["KEYS", hash(Server)]),
     lists:flatmap(fun(K) ->
                           Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
-                                            Session = binary_to_term(S),
-                                            {Session#session.usr,
-                                             Session#session.sid,
-                                             Session#session.priority,
-                                             Session#session.info}
+                                            binary_to_term(S)
                                     end,
                                     Sessions)
                   end, Keys).

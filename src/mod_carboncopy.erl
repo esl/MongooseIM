@@ -51,7 +51,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("session.hrl").
+-include("session.hrl").
 -include("mongoose_config_spec.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
@@ -300,29 +300,34 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-get_cc_enabled_resources(JID)->
+get_cc_enabled_resources(JID) ->
     AllSessions = ejabberd_sm:get_raw_sessions(JID),
-    CCs = cat_maybes([maybe_cc_resource(S) || S <- AllSessions]),
-    Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
+    CCs = filter_cc_enabled_resources(AllSessions),
+    Prios = filter_priority_resources(AllSessions),
     {Prios, CCs}.
 
-maybe_cc_resource(#session{usr = {_, _, R}, info = I}) ->
-    case lists:keyfind(?CC_KEY, 1, I) of
+filter_cc_enabled_resources(AllSessions) ->
+    lists:filtermap(fun fun_filter_cc_enabled_resource/1, AllSessions).
+
+fun_filter_cc_enabled_resource(Session = #session{usr = {_, _, R}}) ->
+    case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
         {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
-            {{cc_ver_from_int(V), R}};
+            {true, {cc_ver_from_int(V), R}};
         _ ->
-            {}
+            false
     end.
 
-maybe_prio_resource(#session{usr = {_, _, R}, priority = P})
-  when is_integer(P) -> {{P, R}};
-maybe_prio_resource(_) -> {}.
+filter_priority_resources(AllSessions) ->
+    lists:filtermap(fun fun_filter_priority_resources/1, AllSessions).
+
+fun_filter_priority_resources(#session{usr = {_, _, R}, priority = P})
+  when is_integer(P) ->
+    {true, {P, R}};
+fun_filter_priority_resources(_) ->
+    false.
 
 cc_ver_to_int(?NS_CC_1) -> 1;
 cc_ver_to_int(?NS_CC_2) -> 2.
 
 cc_ver_from_int(1) -> ?NS_CC_1;
 cc_ver_from_int(2) -> ?NS_CC_2.
-
--spec cat_maybes([({A}|{})]) -> [A].
-cat_maybes(L) -> [ Elem || {Elem} <- L ].

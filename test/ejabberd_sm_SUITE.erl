@@ -165,15 +165,15 @@ session_is_updated_when_created_twice(C) ->
     given_session_opened(Sid, USR, 20),
     verify_session_opened(C, Sid, USR),
 
-    [{USR, Sid, 20, _}] = ?B(C):get_sessions(),
-    [{USR, Sid, 20, _}] = ?B(C):get_sessions(S),
+    [#session{usr = USR, sid = Sid, priority = 20}] = ?B(C):get_sessions(),
+    [#session{usr = USR, sid = Sid, priority = 20}] = ?B(C):get_sessions(S),
     [#session{priority = 20}] = ?B(C):get_sessions(U, S).
 
 session_info_is_stored(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
-    [#session{sid = Sid, info = [{key1, val1}]}]
+    [#session{sid = Sid, info = #{key1 := val1}}]
      = ?B(C):get_sessions(U,S).
 
 session_info_is_updated_if_keys_match(C) ->
@@ -182,7 +182,7 @@ session_info_is_updated_if_keys_match(C) ->
 
     when_session_opened(Sid, USR, 1, [{key1, val2}]),
 
-    [#session{sid = Sid, info = [{key1, val2}]}]
+    [#session{sid = Sid, info = #{key1 := val2}}]
      = ?B(C):get_sessions(U,S).
 
 session_info_is_extended_if_new_keys_present(C) ->
@@ -191,7 +191,7 @@ session_info_is_extended_if_new_keys_present(C) ->
 
     when_session_opened(Sid, USR, 1, [{key1, val1}, {key2, val2}]),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, val2}]}]
+    [#session{sid = Sid, info = #{key1 := val1, key2 := val2}}]
      = ?B(C):get_sessions(U,S).
 
 session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
@@ -200,7 +200,7 @@ session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
 
     when_session_opened(Sid, USR, 1, []),
 
-    [#session{sid = Sid, info = [{key1, val1}]}]
+    [#session{sid = Sid, info = #{key1 := val1}}]
      = ?B(C):get_sessions(U,S).
 
 
@@ -210,7 +210,7 @@ kv_can_be_stored_for_session(C) ->
 
     when_session_info_stored(U, S, R, {key2, newval}),
 
-    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}],
+    ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := newval}}],
                  ?B(C):get_sessions(U,S)).
 
 kv_can_be_updated_for_session(C) ->
@@ -220,7 +220,7 @@ kv_can_be_updated_for_session(C) ->
     when_session_info_stored(U, S, R, {key2, newval}),
     when_session_info_stored(U, S, R, {key2, override}),
 
-    ?assertMatch([#session{sid = Sid, info = [{key1, val1}, {key2, override}]}],
+    ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := override}}],
                  ?B(C):get_sessions(U, S)).
 
 kv_can_be_removed_for_session(C) ->
@@ -229,17 +229,17 @@ kv_can_be_removed_for_session(C) ->
 
     when_session_info_stored(U, S, R, {key2, newval}),
 
-    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
+    [#session{sid = Sid, info = #{key1 := val1, key2 := newval}}]
      = ?B(C):get_sessions(U, S),
 
     when_session_info_removed(U, S, R, key2),
 
-    [#session{sid = Sid, info = [{key1, val1}]}]
+    [#session{sid = Sid, info = #{key1 := val1}}]
      = ?B(C):get_sessions(U, S),
 
     when_session_info_removed(U, S, R, key1),
 
-    [#session{sid = Sid, info = []}]
+    [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U, S).
 
 cannot_reproduce_race_condition_in_store_info(C) ->
@@ -250,7 +250,7 @@ store_info_sends_message_to_the_session_owner(C) ->
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
-    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
@@ -274,7 +274,7 @@ remove_info_sends_message_to_the_session_owner(C) ->
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
-    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
     %% Create session in one process
     ?B(C):create_session(U, S, R, Session),
     %% but call remove_info from another process
@@ -405,7 +405,7 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
 
 given_session_opened(Sid, {U, S, R}, Priority, Info) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:open_session(Sid, JID, Priority, Info).
+    ejabberd_sm:open_session(Sid, JID, Priority, maps:from_list(Info)).
 
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
@@ -530,7 +530,7 @@ try_to_reproduce_race_condition(Config) ->
     U = <<"alice">>,
     S = <<"localhost">>,
     R = <<"res1">>,
-    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = []},
+    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
     ?B(Config):create_session(U, S, R, Session),
     Parent = self(),
     %% Add some instrumentation to simulate race conditions

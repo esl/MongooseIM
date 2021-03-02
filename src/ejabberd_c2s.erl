@@ -781,8 +781,8 @@ do_open_session_common(Acc, JID, #state{jid = JID, server = S} = NewStateData0) 
     PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, JID),
     SID = ejabberd_sm:make_new_sid(),
     Conn = get_conn_type(NewStateData0),
-    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
-            {auth_module, NewStateData0#state.auth_module}],
+    Info = #{ip => NewStateData0#state.ip, conn => Conn,
+             auth_module => NewStateData0#state.auth_module },
     ReplacedPids = ejabberd_sm:open_session(SID, JID, Info),
 
     RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
@@ -1883,8 +1883,8 @@ presence_update(Acc, From, StateData) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"unavailable">> ->
             Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
-            Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
-                    {auth_module, StateData#state.auth_module}],
+            Info = #{ip => StateData#state.ip, conn => StateData#state.conn,
+                     auth_module => StateData#state.auth_module },
             Acc1 = ejabberd_sm:unset_presence(Acc,
                                               StateData#state.sid,
                                               StateData#state.jid,
@@ -2260,8 +2260,8 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
                       Packet :: exml:element(),
                       State :: state()) -> mongoose_acc:t().
 update_priority(Acc, Priority, Packet, StateData) ->
-    Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
-            {auth_module, StateData#state.auth_module}],
+    Info = #{ip => StateData#state.ip, conn => StateData#state.conn,
+             auth_module => StateData#state.auth_module },
     ejabberd_sm:set_presence(Acc,
                              StateData#state.sid,
                              StateData#state.jid,
@@ -3094,9 +3094,8 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Stop;
             {next_state, session_established, NSD, _} ->
                 Priority = get_priority_from_presence(NSD#state.pres_last),
-                Info = [{ip, NSD#state.ip},
-                        {conn, NSD#state.conn},
-                        {auth_module, NSD#state.auth_module}],
+                Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
+                         auth_module => NSD#state.auth_module },
                 ejabberd_sm:open_session(SID, NSD#state.jid, Priority, Info),
                 ok = mod_stream_management:register_smid(SMID, SID),
                 try
