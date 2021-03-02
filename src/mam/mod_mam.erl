@@ -118,9 +118,11 @@
 -type archive_id()          :: non_neg_integer().
 
 -type borders()             :: #mam_borders{}.
+
+-type message_row() :: {message_id(), jid:jid(), exml:element()}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
-                          MessageRows :: [{message_id(), jid:jid(), exml:element()}]}.
+                          MessageRows :: [message_row()]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
@@ -140,7 +142,9 @@
                                     source_jid := jid:jid(),
                                     origin_id := binary() | none,
                                     direction := atom(),
-                                    packet := exml:element()}.
+                                    packet := exml:element(),
+                                    %% Only in mod_mam_muc_rdbms_arch:retract_message/2
+                                    sender_id => mod_mam:archive_id()}.
 
 -export_type([rewriter_fun/0,
               borders/0,
@@ -150,6 +154,7 @@
               unix_timestamp/0,
               archive_id/0,
               lookup_result/0,
+              message_row/0,
               message_id/0,
               restore_option/0,
               archive_message_params/0

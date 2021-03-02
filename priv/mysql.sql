@@ -58,7 +58,7 @@ CREATE INDEX i_last_seconds ON last(seconds);
 
 CREATE TABLE rosterusers (
     username varchar(250) NOT NULL,
-    jid varchar(250) NOT NULL,
+    jid varchar(250) NOT NULL, -- must be a parsable jid
     nick text NOT NULL,
     subscription character(1) NOT NULL,
     ask character(1) NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE privacy_list_data (
     t character(1) NOT NULL,
     value text NOT NULL,
     action character(1) NOT NULL,
-    ord bigint NOT NULL,
+    ord INT NOT NULL,
     match_all boolean NOT NULL,
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,

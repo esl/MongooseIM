@@ -28,13 +28,14 @@
 
 -export([get_db_type/0,
          begin_trans/0,
-         get_db_specific_limits/1,
+         get_db_specific_limits/0,
+         get_db_specific_limits_binaries/0,
+         get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,
+         add_limit_arg/2,
+         limit_offset_sql/0,
+         limit_offset_args/2,
          sql_transaction/2,
-         get_last/2,
-         select_last/3,
-         set_last_t/4,
-         del_last/2,
          get_password/2,
          set_password_t/3,
          add_user/3,
@@ -46,51 +47,7 @@
          users_number/2,
          get_users_without_scram/2,
          get_users_without_scram_count/1,
-         get_average_roster_size/1,
-         get_average_rostergroup_size/1,
-         clear_rosters/1,
-         get_roster/2,
-         get_roster_jid_groups/2,
-         get_roster_groups/3,
-         del_user_roster_t/2,
-         get_roster_by_jid/3,
-         get_roster_by_jid_t/3,
-         get_rostergroup_by_jid/3,
-         get_rostergroup_by_jid_t/3,
-         del_roster/3,
-         del_roster_sql/2,
-         update_roster/5,
-         update_roster_sql/4,
-         roster_subscribe/4,
-         get_subscription/3,
-         get_subscription_t/3,
-         get_default_privacy_list/2,
-         get_default_privacy_list_t/1,
-         count_privacy_lists/1,
-         clear_privacy_lists/1,
-         get_privacy_list_names/2,
-         get_privacy_list_names_t/1,
-         get_privacy_list_id/3,
-         get_privacy_list_id_t/2,
-         get_privacy_list_data/3,
-         get_privacy_list_data_by_id/2,
-         set_default_privacy_list/2,
-         unset_default_privacy_list/2,
-         remove_privacy_list/2,
-         add_privacy_list/2,
-         set_privacy_list/2,
-         del_privacy_lists/3,
          count_records_where/3,
-         get_roster_version/2,
-         set_roster_version/2,
-         prepare_offline_message/7,
-         push_offline_messages/2,
-         pop_offline_messages/4,
-         fetch_offline_messages/4,
-         count_offline_messages/4,
-         remove_old_offline_messages/2,
-         remove_expired_offline_messages/2,
-         remove_offline_messages/3,
          create_bulk_insert_query/3]).
 
 -export([join/2,
@@ -148,24 +105,6 @@ update_t(Table, Fields, Vals, Where) ->
 
 join_escaped(Vals) ->
     join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
-
-
-update(LServer, Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
-                           Fields, Vals),
-    case mongoose_rdbms:sql_query(
-           LServer,
-           [<<"update ">>, Table, <<" set ">>,
-            join(UPairs, ", "),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-            mongoose_rdbms:sql_query(
-              LServer,
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
 
 -spec execute_upsert(Host :: mongoose_rdbms:server(),
                      Name :: atom(),
@@ -278,30 +217,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-
-get_last(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select seconds, state from last "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-select_last(LServer, TStamp, Comparator) ->
-    mongoose_rdbms:sql_query(
-        LServer,
-        [<<"select username, seconds, state from last "
-           "where seconds ">>, Comparator, " ",
-         mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(TStamp)), ";"]).
-
-set_last_t(LServer, Username, Seconds, State) ->
-    update(LServer, "last", ["username", "seconds", "state"],
-           [Username, Seconds, State],
-           [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-del_last(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from last where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_password(LServer, Username) ->
     mongoose_rdbms:sql_query(
@@ -433,373 +348,11 @@ get_users_without_scram_count(LServer) ->
       LServer,
       [<<"select count(*) from users where pass_details is null">>]).
 
-get_average_roster_size(Server) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        [<<"select avg(items) from "
-           "(select count(*) as items from rosterusers group by username) as items;">>]).
-
-get_average_rostergroup_size(Server) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        [<<"select avg(roster) from "
-           "(select count(*) as roster from rostergroups group by username) as roster;">>]).
-
-clear_rosters(Server) ->
-    mongoose_rdbms:sql_transaction(
-      Server,
-      fun() ->
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rosterusers;">>]),
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rostergroups;">>])
-      end).
-
-get_roster(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username, jid, nick, subscription, ask, "
-         "askmessage, server, subscribe, type from rosterusers "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_roster_jid_groups(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select jid, grp from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_roster_groups(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select grp from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]).
-
-del_user_roster_t(LServer, Username) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rosterusers "
-                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
-              mongoose_rdbms:sql_query_t(
-                [<<"delete from rostergroups "
-                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)])
-      end).
-
-q_get_roster(Username, SJID) ->
-    [<<"select username, jid, nick, subscription, "
-    "ask, askmessage, server, subscribe, type from rosterusers "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_roster_by_jid(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(LServer, q_get_roster(Username, SJID)).
-
-get_roster_by_jid_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_roster(Username, SJID)).
-
-q_get_rostergroup(Username, SJID) ->
-    [<<"select grp from rostergroups "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_rostergroup_by_jid(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query(LServer, q_get_rostergroup(Username, SJID)).
-
-get_rostergroup_by_jid_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_rostergroup(Username, SJID)).
-
-del_roster(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rosterusers "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
-
-del_roster_sql(Username, SJID) ->
-    [[<<"delete from rosterusers "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
-     [<<"delete from rostergroups "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]].
-
-update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
-    update_t(<<"rosterusers">>,
-             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-             ItemVals,
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from rostergroups "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
-    lists:foreach(fun(ItemGroup) ->
-                          mongoose_rdbms:sql_query_t(
-                            [<<"insert into rostergroups(username, jid, grp) "
-                               "values (">>, join_escaped(ItemGroup), ");"])
-                  end,
-                  ItemGroups).
-
-update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
-    [[<<"delete from rosterusers "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
-     [<<"insert into rosterusers("
-        "username, jid, nick, "
-        "subscription, ask, askmessage, "
-        "server, subscribe, type) "
-        " values (">>, join_escaped(ItemVals), ");"],
-     [<<"delete from rostergroups "
-        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]] ++
-        [[<<"insert into rostergroups(username, jid, grp) "
-            "values (">>, join_escaped(ItemGroup), ");"] ||
-            ItemGroup <- ItemGroups].
-
-roster_subscribe(_LServer, Username, SJID, ItemVals) ->
-    update_t(<<"rosterusers">>,
-             [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-             ItemVals,
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
-              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
-
-q_get_subscription(Username, SJID) ->
-    [<<"select subscription from rosterusers "
-    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
-    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
-
-get_subscription(LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query( LServer, q_get_subscription(Username, SJID)).
-
-get_subscription_t(_LServer, Username, SJID) ->
-    mongoose_rdbms:sql_query_t(q_get_subscription(Username, SJID)).
-
-get_default_privacy_list(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select name from privacy_default_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_default_privacy_list_t(Username) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select name from privacy_default_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-count_privacy_lists(LServer) ->
-    mongoose_rdbms:sql_query(LServer, [<<"select count(*) from privacy_list;">>]).
-
-clear_privacy_lists(LServer) ->
-    mongoose_rdbms:sql_query(LServer, [<<"delete from privacy_list;">>]).
-
-get_privacy_list_names(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select name from privacy_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_privacy_list_names_t(Username) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select name from privacy_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-get_privacy_list_id(LServer, Username, SName) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select id from privacy_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
-       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName)]).
-
-get_privacy_list_id_t(Username, SName) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"select id from privacy_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
-       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName)]).
-
-get_privacy_list_data(LServer, Username, SName) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select t, value, action, ord, match_all, match_iq, "
-         "match_message, match_presence_in, match_presence_out "
-         "from privacy_list_data "
-         "where id = (select id from privacy_list where "
-         "username=">>, mongoose_rdbms:use_escaped_string(Username),
-       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName), <<") "
-         "order by ord;">>]).
-
-get_privacy_list_data_by_id(LServer, ID) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select t, value, action, ord, match_all, match_iq, "
-         "match_message, match_presence_in, match_presence_out "
-         "from privacy_list_data "
-         "where id=">>, mongoose_rdbms:use_escaped_integer(ID), <<" order by ord;">>]).
-
-set_default_privacy_list(Username, SName) ->
-    update_t(<<"privacy_default_list">>, [<<"username">>, <<"name">>],
-             [Username, SName],
-             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-unset_default_privacy_list(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from privacy_default_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
-remove_privacy_list(Username, SName) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from privacy_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
-        " and name=", mongoose_rdbms:use_escaped_string(SName)]).
-
-add_privacy_list(Username, SName) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"insert into privacy_list(username, name) "
-         "values (">>, mongoose_rdbms:use_escaped_string(Username),
-                 ", ", mongoose_rdbms:use_escaped_string(SName), ");"]).
-
--spec set_privacy_list(mongoose_rdbms:escaped_integer(),
-                       list(list(mongoose_rdbms:escaped_value()))) -> ok.
-set_privacy_list(ID, RItems) ->
-    mongoose_rdbms:sql_query_t(
-      [<<"delete from privacy_list_data "
-         "where id=">>, mongoose_rdbms:use_escaped_integer(ID), ";"]),
-    lists:foreach(fun(Items) ->
-                          mongoose_rdbms:sql_query_t(
-                            [<<"insert into privacy_list_data("
-                               "id, t, value, action, ord, match_all, match_iq, "
-                               "match_message, match_presence_in, "
-                               "match_presence_out "
-                               ") "
-                               "values (">>, mongoose_rdbms:use_escaped_integer(ID), ", ",
-                                 join_escaped(Items), ");"])
-                  end, RItems).
-
-del_privacy_lists(LServer, _Server, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from privacy_list_data where id in "
-         "( select id from privacy_list as pl where pl.username=">>,
-           mongoose_rdbms:use_escaped_string(Username), <<";">>]),
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from privacy_list "
-          "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from privacy_default_list "
-         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
-
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from ">>, Table, " ", WhereClause, ";"]).
-
-
-get_roster_version(LServer, LUser) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select version from roster_version "
-         "where username=">>, mongoose_rdbms:use_escaped_string(LUser)]).
-
-set_roster_version(LUser, Version) ->
-    update_t(
-      <<"roster_version">>,
-      [<<"username">>, <<"version">>],
-      [LUser, Version],
-      [<<"username = ">>, mongoose_rdbms:use_escaped_string(LUser)]).
-
-
-pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
-    SelectSQL = select_offline_messages_sql(SUser, SServer, STimeStamp),
-    DeleteSQL = delete_offline_messages_sql(SUser, SServer),
-    F = fun() ->
-              Res = mongoose_rdbms:sql_query_t(SelectSQL),
-          mongoose_rdbms:sql_query_t(DeleteSQL),
-          Res
-        end,
-    mongoose_rdbms:sql_transaction(LServer, F).
-
-fetch_offline_messages(LServer, SUser, SServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(LServer, select_offline_messages_sql(SUser, SServer, STimeStamp)).
-
-select_offline_messages_sql(SUser, SServer, STimeStamp) ->
-    [<<"select timestamp, from_jid, packet, permanent_fields from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" and "
-                  "(expire is null or expire > ">>, mongoose_rdbms:use_escaped_integer(STimeStamp), <<") "
-             "ORDER BY timestamp">>].
-
-delete_offline_messages_sql(SUser, SServer) ->
-    [<<"delete from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)].
-
-remove_old_offline_messages(LServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message where timestamp < ">>,
-       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
-
-remove_expired_offline_messages(LServer, STimeStamp) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message "
-            "where expire is not null and expire < ">>,
-       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
-
-remove_offline_messages(LServer, SUser, SServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)]).
-
--spec prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields) ->
-    mongoose_rdbms:sql_query_part() when
-      SUser :: mongoose_rdbms:escaped_string(),
-      SServer :: mongoose_rdbms:escaped_string(),
-      STimeStamp :: mongoose_rdbms:escaped_timestamp(),
-      SExpire :: mongoose_rdbms:escaped_timestamp() | mongoose_rdbms:escaped_null(),
-      SFrom :: mongoose_rdbms:escaped_string(),
-      SPacket :: mongoose_rdbms:escaped_string(),
-      SFields :: mongoose_rdbms:escaped_binary().
-prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket, SFields) ->
-    [<<"(">>,  mongoose_rdbms:use_escaped_string(SUser),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SServer),
-     <<", ">>, mongoose_rdbms:use_escaped_integer(STimeStamp),
-     <<", ">>, mongoose_rdbms:use_escaped(SExpire),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SFrom),
-     <<", ">>, mongoose_rdbms:use_escaped_string(SPacket),
-     <<", ">>, mongoose_rdbms:use_escaped_binary(SFields),
-     <<")">>].
-
-push_offline_messages(LServer, Rows) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"INSERT INTO offline_message "
-              "(username, server, timestamp, expire, from_jid, packet, permanent_fields) "
-            "VALUES ">>, join(Rows, ", ")]).
-
-
-count_offline_messages(LServer, SUser, SServer, Limit) ->
-    count_offline_messages(?RDBMS_TYPE, LServer, SUser, SServer, Limit).
-
-count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
-    rdbms_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
-count_offline_messages(_, LServer, SUser, SServer, Limit) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select count(*) from offline_message "
-            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
-                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" "
-            "limit ">>, integer_to_list(Limit)]).
 
 -spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],
                                RowsNum :: pos_integer()) ->
@@ -819,20 +372,33 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
     Fields2 = lists:append(lists:duplicate(RowsNum, Fields)),
     {Sql, Fields2}.
 
+get_db_specific_limits() ->
+    do_get_db_specific_limits(?RDBMS_TYPE, "?", true).
+
+get_db_specific_limits_binaries() ->
+    {LimitSQL, LimitMSSQL} = get_db_specific_limits(),
+    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
+
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
 get_db_specific_limits(Limit) ->
     LimitStr = integer_to_list(Limit),
-    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr).
+    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr, false).
 
 -spec get_db_specific_offset(integer(), integer()) -> iolist().
 get_db_specific_offset(Offset, Limit) ->
     do_get_db_specific_offset(?RDBMS_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
 
-do_get_db_specific_limits(mssql, LimitStr) ->
+%% Arguments:
+%% - Type (atom) - database type
+%% - LimitStr (string) - a field value
+%% - Wrap (boolean) - add parentheses around a field for MSSQL
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = false) ->
     {"", "TOP " ++ LimitStr};
-do_get_db_specific_limits(_, LimitStr) ->
+do_get_db_specific_limits(mssql, LimitStr, _Wrap = true) ->
+    {"", "TOP (" ++ LimitStr ++ ")"};
+do_get_db_specific_limits(_, LimitStr, _Wrap) ->
     {"LIMIT " ++ LimitStr, ""}.
 
 do_get_db_specific_offset(mssql, Offset, Limit) ->
@@ -840,3 +406,29 @@ do_get_db_specific_offset(mssql, Offset, Limit) ->
     " FETCH NEXT ", Limit, " ROWS ONLY"];
 do_get_db_specific_offset(_, Offset, _Limit) ->
     [" OFFSET ", Offset].
+
+add_limit_arg(Limit, Args) ->
+    add_limit_arg(?RDBMS_TYPE, Limit, Args).
+
+add_limit_arg(mssql, Limit, Args) ->
+    [Limit|Args];
+add_limit_arg(_, Limit, Args) ->
+    Args ++ [Limit].
+
+get_db_specific_limits_binaries(Limit) ->
+    {LimitSQL, LimitMSSQL} = get_db_specific_limits(Limit),
+    {list_to_binary(LimitSQL), list_to_binary(LimitMSSQL)}.
+
+limit_offset_sql() ->
+    limit_offset_sql(?RDBMS_TYPE).
+
+limit_offset_sql(mssql) ->
+    <<" OFFSET (?) ROWS FETCH NEXT (?) ROWS ONLY">>;
+limit_offset_sql(_) ->
+    <<" LIMIT ? OFFSET ?">>.
+
+limit_offset_args(Limit, Offset) ->
+    limit_offset_args(?RDBMS_TYPE, Limit, Offset).
+
+limit_offset_args(mssql, Limit, Offset) -> [Offset, Limit];
+limit_offset_args(_, Limit, Offset) -> [Limit, Offset].

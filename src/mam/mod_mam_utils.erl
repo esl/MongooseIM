@@ -29,7 +29,8 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_archivable_message/4,
-         get_retract_id/3,
+         has_message_retraction/2,
+         get_retract_id/2,
          get_origin_id/1,
          tombstone/2,
          wrap_message/6,
@@ -59,15 +60,13 @@
     normalize_search_text/1,
     normalize_search_text/2,
     packet_to_search_body/3,
+    packet_to_search_body/2,
     has_full_text_search/2
 ]).
 
 %% JID serialization
 -export([jid_to_opt_binary/2,
          expand_minified_jid/2]).
-
-%% SQL
--export([success_sql_query/2, success_sql_execute/3]).
 
 %% Other
 -export([maybe_integer/2,
@@ -355,11 +354,10 @@ has_chat_marker(Packet) ->
         _                                 -> false
     end.
 
-get_retract_id(Module, Host, Packet) ->
-    case has_message_retraction(Module, Host) of
-        true -> get_retract_id(Packet);
-        false -> none
-    end.
+get_retract_id(true = _Enabled, Packet) ->
+    get_retract_id(Packet);
+get_retract_id(false, _Packet) ->
+    none.
 
 get_retract_id(Packet) ->
     case exml_query:subelement_with_name_and_ns(Packet, <<"apply-to">>, ?NS_FASTEN) of
@@ -761,13 +759,16 @@ normalize_search_text(Text, WordSeparator) ->
 -spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: jid:server(),
                             Packet :: exml:element()) -> binary().
 packet_to_search_body(Module, Host, Packet) ->
-    case has_full_text_search(Module, Host) of
-        true ->
-            BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-            mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
-        false ->
-            <<>>
-    end.
+    SearchEnabled = has_full_text_search(Module, Host),
+    packet_to_search_body(SearchEnabled, Packet).
+
+-spec packet_to_search_body(Enabled :: boolean(),
+                            Packet :: exml:element()) -> binary().
+packet_to_search_body(true, Packet) ->
+    BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+    mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
+packet_to_search_body(false, _Packet) ->
+    <<>>.
 
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->
@@ -1089,24 +1090,6 @@ is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,
     {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, ToJID, RemBareJID),
     Subscription == from orelse Subscription == both.
 
-
--spec success_sql_query(atom() | jid:server(), mongoose_rdbms:sql_query()) -> any().
-success_sql_query(HostOrConn, Query) ->
-    Result = mongoose_rdbms:sql_query(HostOrConn, Query),
-    error_on_sql_error(HostOrConn, Query, Result).
-
--spec success_sql_execute(atom() | jid:server(), atom(), [term()]) -> any().
-success_sql_execute(HostOrConn, Name, Params) ->
-    Result = mongoose_rdbms:execute(HostOrConn, Name, Params),
-    error_on_sql_error(HostOrConn, Name, Result).
-
-error_on_sql_error(HostOrConn, Query, {error, Reason}) ->
-    ?LOG_ERROR(#{what => mam_sql_error,
-                 host => HostOrConn, query => Query, reason => Reason}),
-    error({sql_error, Reason});
-error_on_sql_error(_HostOrConn, _Query, Result) ->
-    Result.
-
 %% @doc Returns a UUIDv4 canonical form binary.
 -spec wrapper_id() -> binary().
 wrapper_id() ->
@@ -1144,12 +1127,12 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
 %% return (up to) PageSize messages.
 %% @end
 -spec check_for_item_not_found(RSM, PageSize, LookupResult) -> R when
-      RSM :: jlib:rsm_in(),
+      RSM :: jlib:rsm_in() | undefined,
       PageSize :: non_neg_integer(),
       LookupResult :: mod_mam:lookup_result(),
       R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
-                         PageSize, {TotalCount, Offset, MessageRows}) when ID =/= undefined ->
+                         PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
         {ok, {ID, _, _}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
@@ -1158,7 +1141,7 @@ check_for_item_not_found(#rsm_in{direction = before, id = ID},
             {error, item_not_found}
     end;
 check_for_item_not_found(#rsm_in{direction = aft, id = ID},
-                         _PageSize, {TotalCount, Offset, MessageRows0}) when ID =/= undefined ->
+                         _PageSize, {TotalCount, Offset, MessageRows0}) ->
     case MessageRows0 of
         [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
             {ok, {TotalCount, Offset, MessageRows}};
