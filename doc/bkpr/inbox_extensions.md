@@ -242,7 +242,7 @@ As in [mod_inbox](../modules/mod_inbox.md), to request the currently supported f
         <option label='Descending by timestamp'><value>desc</value></option>
       </field>
       <field var='hidden_read' type='text-single' value='false'/>
-      <field var='archived' type='boolean' value='false'/>
+      <field var='archive' type='boolean' value='false'/>
     </x>
   </query>
 </iq>
@@ -257,12 +257,12 @@ To fetch the regular inbox, as explained in [mod_inbox/fetching](../modules/mod_
       <field type='hidden' var='FORM_TYPE'><value>erlang-solutions.com:xmpp:inbox:0</value></field>
       <field type='list-single' var='order'><value>asc</value></field>
       <field type='text-single' var='hidden_read'><value>true</value></field>
-      <field type='boolean' var='archived'><value>false</value></field>
+      <field type='boolean' var='archive'><value>false</value></field>
     </x>
   </inbox>
 </iq>
 ```
-where the `archived` determines whether to query the archive inbox. A value of true means querying only the archive inbox, a value of false means querying only the active inbox, and if the flag is not set, it is assumed all entries are requested.
+where the `archive` determines whether to query the archive inbox. A value of true means querying only the archive inbox, a value of false means querying only the active inbox, and if the flag is not set, it is assumed all entries are requested.
 
 All other fields in the form are as specified in [mod_inbox].
 
