@@ -264,6 +264,22 @@ To fetch the regular inbox, as explained in [mod_inbox/fetching](../../modules/m
 ```
 where the `archive` determines whether to query the archive inbox. A value of true means querying only the archive inbox, a value of false means querying only the active inbox, and if the flag is not set, it is assumed all entries are requested.
 
+Then the client would receive as in:
+```xml
+<message from="alicE@localhost" to="alicE@localhost" id="9b759">
+  <result xmlns="erlang-solutions.com:xmpp:inbox:0" unread="0" queryid="b6">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay xmlns="urn:xmpp:delay" stamp="2018-07-10T23:08:25.123456Z"/>
+      <message xml:lang="en" type="chat" to="bOb@localhost/res1" from="alicE@localhost/res1" id=”123”>
+        <body>Hello</body>
+      </message>
+    </forwarded>
+    <archive>false</archive>
+    <mute>0</mute>
+  </result>
+</message>
+```
+
 All other fields in the form are as specified in [mod_inbox].
 
 [mod_inbox]: ../modules/mod_inbox.md
