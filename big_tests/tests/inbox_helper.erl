@@ -28,14 +28,18 @@
          assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
          assert_invalid_reset_inbox/4,
-         assert_message_content/3
+         assert_message_content/3,
+         assert_invalid_form/4,
+         check_result/2,
+         check_inbox_result/4
         ]).
 % 1-1 helpers
 -export([
          given_conversations_between/2,
          send_msg/2,
          send_msg/3,
-         send_and_mark_msg/2
+         send_and_mark_msg/2,
+         send_and_mark_msg/3
         ]).
 % MUC + MUC Light helpers
 -export([
@@ -52,6 +56,10 @@
         ]).
 % Misc
 -export([
+         parse_form_iq/1,
+         muclight_domain/0,
+         muclight_config_domain/0,
+         muc_domain/0,
          domain/0,
          to_bare_lower/1
         ]).
@@ -553,6 +561,46 @@ verify_muc_light_aff_msg(Msg, AffUsersChanges) ->
 %% ---------------------------------------------------------
 %% Misc
 %% ---------------------------------------------------------
+parse_form_iq(IQ) ->
+    FieldsEls = exml_query:paths(IQ, [{element, <<"query">>},
+                                      {element, <<"x">>},
+                                      {element, <<"field">>}]),
+    lists:foldl(fun parse_form_field/2, #{ field_count => length(FieldsEls) }, FieldsEls).
+
+parse_form_field(FieldEl, Acc0) ->
+    Var = exml_query:attr(FieldEl, <<"var">>),
+    Type = exml_query:attr(FieldEl, <<"type">>),
+    Value = case exml_query:path(FieldEl, [{element, <<"value">>}, cdata]) of
+                undefined -> exml_query:attr(FieldEl, <<"value">>);
+                Val -> Val
+            end,
+    Info0 = #{ type => Type, value => Value },
+    Info1 =
+    case Type of
+        <<"list-single">> ->
+            Info0#{ options => exml_query:paths(FieldEl, [{element, <<"option">>},
+                                                          {element, <<"value">>},
+                                                          cdata]) };
+        _ ->
+            Info0
+    end,
+    Acc0#{ Var => Info1 }.
+
+
+-spec muclight_domain() -> binary().
+muclight_domain() ->
+    Domain = domain(),
+    <<"muclight.", Domain/binary>>.
+
+-spec muclight_config_domain() -> binary().
+muclight_config_domain() ->
+    Domain = <<"@HOST@">>,
+    <<"muclight.", Domain/binary>>.
+
+-spec muc_domain() -> binary().
+muc_domain() ->
+    Domain = inbox_helper:domain(),
+    <<"muc.", Domain/binary>>.
 
 -spec domain() -> binary().
 domain() ->
@@ -607,7 +655,10 @@ send_msg(From, To, Body) ->
 
 
 send_and_mark_msg(From, To) ->
-    Msg = send_msg(From, To),
+    send_and_mark_msg(From, To, "Test").
+
+send_and_mark_msg(From, To, Body) ->
+    Msg = send_msg(From, To, Body),
     MsgId = exml_query:attr(Msg, <<"id">>),
     ChatMarker = escalus_stanza:chat_marker(From, <<"displayed">>, MsgId),
     escalus:send(To, ChatMarker),

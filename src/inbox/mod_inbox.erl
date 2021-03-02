@@ -201,7 +201,7 @@ process_iq_conversation(From, _To, Acc,
     maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
 
 maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
-    case reset_stanza_extract_interlocutor_jid(ResetStanza) of
+    case mod_inbox_utils:extract_attr_jid(ResetStanza) of
         {error, Msg} ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         InterlocutorJID ->
@@ -528,20 +528,6 @@ get_message_type(Msg) ->
             groupchat;
         _ ->
             one2one
-    end.
-
-reset_stanza_extract_interlocutor_jid(ResetStanza) ->
-    case exml_query:attr(ResetStanza, <<"jid">>) of
-        undefined ->
-            {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
-        Value ->
-            case jid:from_binary(Value) of
-                error ->
-                    ?LOG_ERROR(#{what => inbox_invalid_form_field,
-                                 field => jid, value => Value}),
-                    {error, invalid_field_value(<<"jid">>, Value)};
-                JID -> JID
-            end
     end.
 
 -spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().

@@ -7,6 +7,7 @@
 %%
 %% For more info see:
 %% http://www.erlang.org/doc/apps/common_test/run_test_chapter.html#test_specifications
+{include, "tests"}.
 
 %% do not remove below SUITE if testing mongoose
 {suites, "tests", mongoose_sanity_checks_SUITE}.

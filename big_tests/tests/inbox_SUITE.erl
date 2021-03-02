@@ -73,6 +73,10 @@
 
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
+                       muclight_domain/0,
+                       muclight_config_domain/0,
+                       muc_domain/0,
+                       parse_form_iq/1,
                        check_inbox/2, check_inbox/4,
                        clear_inbox_all/0,
                        given_conversations_between/2,
@@ -208,18 +212,6 @@ inbox_opts() ->
      {remove_on_kicked, true},
      {groupchat, [muclight]},
      {markers, [displayed]}].
-
-muclight_domain() ->
-    Domain = inbox_helper:domain(),
-    <<"muclight.", Domain/binary>>.
-
-muclight_config_domain() ->
-    Domain = <<"@HOST@">>,
-    <<"muclight.", Domain/binary>>.
-
-muc_domain() ->
-    Domain = inbox_helper:domain(),
-    <<"muc.", Domain/binary>>.
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -399,13 +391,13 @@ returns_error_when_bad_form_field_hidden_read_sent(Config) ->
 returns_error_when_bad_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_reset_inbox(
-        Alice, <<"$@/">>, <<"jid">>, <<"$@/">>)
+        Alice, <<"$@/">>, <<"jid">>, <<"invalid-jid">>)
     end).
 
 returns_error_when_no_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_reset_inbox(
-        Alice, undefined, <<"jid">>, <<"No Interlocutor JID provided">>)
+        Alice, undefined, <<"jid">>, <<"jid-required">>)
     end).
 
 
@@ -430,28 +422,6 @@ returns_error_when_unknown_field_sent(Config) ->
         inbox_helper:assert_message_content(ErrorMsg, <<"field=unknown_field">>, <<"value=unknown_field_value">>)
       end).
 
-
-parse_form_iq(IQ) ->
-    FieldsEls = exml_query:paths(IQ, [{element, <<"query">>},
-                                      {element, <<"x">>},
-                                      {element, <<"field">>}]),
-    lists:foldl(fun parse_form_field/2, #{ field_count => length(FieldsEls) }, FieldsEls).
-
-parse_form_field(FieldEl, Acc0) ->
-    Var = exml_query:attr(FieldEl, <<"var">>),
-    Type = exml_query:attr(FieldEl, <<"type">>),
-    Value = exml_query:path(FieldEl, [{element, <<"value">>}, cdata]),
-    Info0 = #{ type => Type, value => Value },
-    Info1 =
-    case Type of
-        <<"list-single">> ->
-            Info0#{ options => exml_query:paths(FieldEl, [{element, <<"option">>},
-                                                          {element, <<"value">>},
-                                                          cdata]) };
-        _ ->
-            Info0
-    end,
-    Acc0#{ Var => Info1 }.
 
 %%--------------------------------------------------------------------
 %% Inbox tests one-to-one
