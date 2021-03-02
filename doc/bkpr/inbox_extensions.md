@@ -248,7 +248,7 @@ As in [mod_inbox](../modules/mod_inbox.md), to request the currently supported f
 </iq>
 ```
 
-To fetch the regular inbox, as explained in [mod_inbox/fetching](../modules/mod_inbox.md/#filtering-and-ordering), the client sends:
+To fetch the regular inbox, as explained in [mod_inbox/fetching](../../modules/mod_inbox/#filtering-and-ordering), the client sends:
 
 ```xml
 <iq type='set' id='10bca'>
