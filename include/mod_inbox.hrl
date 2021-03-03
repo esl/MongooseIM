@@ -21,7 +21,9 @@
 -type inbox_res() :: {RemoteBinJID :: binary(),
                       MsgContent :: content(),
                       UnreadCount :: count_bin(),
-                      Timestamp :: integer()}.
+                      Timestamp :: integer(),
+                      Archive :: binary(),
+                      MutedUntil :: binary()}.
 
 -type inbox_write_res() :: ok | {error, any()}.
 
