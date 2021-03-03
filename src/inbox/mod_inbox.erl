@@ -198,7 +198,9 @@ process_iq_conversation(From, _To, Acc,
                         #iq{type = set,
                             xmlns = ?NS_ESL_INBOX_CONVERSATION,
                             sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
-    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
+    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza);
+process_iq_conversation(From, To, Acc, IQ) ->
+    mod_inbox_bkpr:process_iq_conversation(From, To, Acc, IQ).
 
 maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of
