@@ -337,8 +337,9 @@ build_inbox_message({_Username, Content, Count, Timestamp}, QueryId) ->
 build_result_el(Msg, QueryId, BinUnread, Timestamp) ->
     Forwarded = build_forward_el(Msg, Timestamp),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
-    #xmlel{name = <<"result">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++
-    QueryAttr, children = [Forwarded]}.
+    #xmlel{name = <<"result">>,
+           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++ QueryAttr,
+           children = [Forwarded]}.
 
 -spec build_result_iq(get_inbox_res()) -> exml:element().
 build_result_iq(List) ->
