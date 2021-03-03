@@ -61,10 +61,13 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
     BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
     EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
     HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
-    Query = ["SELECT remote_bare_jid, content, unread_count, timestamp FROM inbox "
+    Query = ["SELECT remote_bare_jid, content, unread_count, timestamp ",
+              mod_inbox_bkpr:sql_selection(),
+             " FROM inbox "
                  "WHERE luser=", esc_string(LUser),
                  " AND lserver=", esc_string(LServer),
                  BeginSQL, EndSQL, HiddenSQL,
+                 mod_inbox_bkpr:sql_filters(Params),
                  " ORDER BY timestamp ", OrderSQL, ";"],
     mongoose_rdbms:sql_query(LServer, Query).
 
@@ -219,13 +222,14 @@ clear_inbox_rdbms(Username, Server) ->
 clear_inbox_rdbms(Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox;"]).
 
--spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary()}) ->
+-spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary(), term(), term()}) ->
     inbox_res().
-decode_row(LServer, {Username, Content, Count, Timestamp}) ->
+decode_row(LServer, {Username, Content, Count, Timestamp, Extra1, Extra2}) ->
     Data = mongoose_rdbms:unescape_binary(LServer, Content),
     BCount = count_to_bin(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
-    {Username, Data, BCount, NumericTimestamp}.
+    {Ret1, Ret2} = mod_inbox_bkpr:sql_process(Extra1, Extra2),
+    {Username, Data, BCount, NumericTimestamp, Ret1, Ret2}.
 
 
 rdbms_specific_backend(Host) ->
