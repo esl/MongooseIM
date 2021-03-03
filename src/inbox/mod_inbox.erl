@@ -88,7 +88,8 @@
         start => integer(),
         'end' => integer(),
         order => asc | desc,
-        hidden_read => true | false
+        hidden_read => true | false,
+        archive => boolean()
        }.
 
 -export_type([get_inbox_params/0]).
@@ -503,10 +504,20 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
 
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
-fields_to_params([{Invalid, [InvalidFieldVal]} | _], _) ->
-    ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
-                field => Invalid, value => InvalidFieldVal}),
-    {error, bad_request, <<"Unknown inbox form field=", Invalid/binary, ", value=", InvalidFieldVal/binary>>}.
+
+fields_to_params([{Field, [Value]} | RFields], Acc) ->
+    case mod_inbox_bkpr:fields_to_params(Field, Value, Acc) of
+        {error, unknown_field} ->
+            ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
+                        field => Field, value => Value}),
+            {error, bad_request, <<"Unknown inbox form field=", Field/binary, ", value=", Value/binary>>};
+        {error, bad_request} ->
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           field => Field, value => Value}),
+            {error, bad_request, invalid_field_value(Field, Value)};
+        NewAcc ->
+            fields_to_params(RFields, NewAcc)
+    end.
 
 -spec binary_to_order(binary()) -> asc | desc | error.
 binary_to_order(<<"desc">>) -> desc;
