@@ -16,9 +16,11 @@
          override_acls/1,
          set_opts/2,
          set_hosts/2,
+         set_host_types/2,
          get_opts/1,
          state_to_opts/1,
-         state_to_host_opts/1,
+         state_to_hosts/1,
+         state_to_host_types/1,
          state_to_global_opt/3,
          state_to_required_files/1,
          can_override/2]).
@@ -47,12 +49,14 @@
 -export_type([state/0, key/0, value/0]).
 
 -record(state, {opts = [] :: list(),
-                hosts = [] :: [host()],
+                hosts = [] :: [domain_name()],
+                host_types = [] :: [host_type()],
                 override_local = false :: boolean(),
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
 
--type host() :: jid:server().
+-type domain_name() :: jid:server().
+-type host_type() :: binary(). %% any domain_name() must be a valid host_type().
 -type state() :: #state{}.
 
 %% Parser API
@@ -110,9 +114,13 @@ override_acls(State) ->
 set_opts(Opts, State) ->
     State#state{opts = Opts}.
 
--spec set_hosts([host()], state()) -> state().
+-spec set_hosts([domain_name()], state()) -> state().
 set_hosts(Hosts, State) ->
     State#state{hosts = Hosts}.
+
+-spec set_host_types([host_type()], state()) -> state().
+set_host_types(HostTypes, State) ->
+    State#state{host_types = HostTypes}.
 
 -spec get_opts(state()) -> list().
 get_opts(State) ->
@@ -123,9 +131,13 @@ get_opts(State) ->
 state_to_opts(#state{opts = Opts}) ->
     lists:reverse(Opts).
 
--spec state_to_host_opts(state()) -> [host()].
-state_to_host_opts(#state{hosts = Hosts}) ->
+-spec state_to_hosts(state()) -> [domain_name()].
+state_to_hosts(#state{hosts = Hosts}) ->
     Hosts.
+
+-spec state_to_host_types(state()) -> [host_type()].
+state_to_host_types(#state{host_types = HostTypes}) ->
+    HostTypes.
 
 -spec can_override(global | local | acls, state()) -> boolean().
 can_override(global, #state{override_global = Override}) ->

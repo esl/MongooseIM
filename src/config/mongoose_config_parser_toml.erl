@@ -61,15 +61,17 @@ parse_file(FileName) ->
 process(Content) ->
     Config = parse(Content),
     Hosts = get_hosts(Config),
+    HostTypes = get_host_types(Config),
     {FOpts, Config1} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
     {Overrides, Opts} = lists:partition(fun({override, _}) -> true;
                                            (_) -> false
                                         end, Config1),
-    HOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
-    AllOpts = Opts ++ HOpts,
+    HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts ++ HostTypes) end, FOpts),
+    HostTypesOpts = lists:flatmap(fun(F) -> lists:flatmap(F, HostTypes) end, FOpts),
+    AllOpts = Opts ++ HostsOpts ++ HostTypesOpts,
     case extract_errors(AllOpts) of
         [] ->
-            build_state(Hosts, AllOpts, Overrides);
+            build_state(Hosts, HostTypes, AllOpts, Overrides);
         Errors ->
             error(config_error(Errors))
     end.
@@ -292,6 +294,7 @@ node_to_string({host, _}) -> [];
 node_to_string(Node) -> [binary_to_list(Node)].
 
 -spec item_key(path(), toml_value()) -> {host, jid:server()} | item.
+item_key([<<"host_config">>], #{<<"host_type">> := Host}) -> {host, Host};
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
 
@@ -306,12 +309,22 @@ get_hosts(Config) ->
         [#config{value = Hosts}] -> Hosts
     end.
 
--spec build_state([jid:server()], [top_level_config()], [override()]) ->
+-spec get_host_types(config_list()) -> [jid:server()].
+get_host_types(Config) ->
+    case lists:filter(fun(#config{key = host_types}) -> true;
+                         (_) -> false
+                      end, Config) of
+        [] -> [];
+        [#config{value = HostTypes}] -> HostTypes
+    end.
+
+-spec build_state([jid:server()], [jid:server()], [top_level_config()], [override()]) ->
           mongoose_config_parser:state().
-build_state(Hosts, Opts, Overrides) ->
+build_state(Hosts, HostTypes, Opts, Overrides) ->
     lists:foldl(fun(F, StateIn) -> F(StateIn) end,
                 mongoose_config_parser:new_state(),
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
+                 fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
                  fun mongoose_config_parser:dedup_state_opts/1,
                  fun mongoose_config_parser:add_dep_modules/1,
