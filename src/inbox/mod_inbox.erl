@@ -384,7 +384,8 @@ build_inbox_form() ->
                   text_single_form_field(<<"start">>),
                   text_single_form_field(<<"end">>),
                   list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
-                  text_single_form_field(<<"hidden_read">>, <<"false">>)
+                  text_single_form_field(<<"hidden_read">>, <<"false">>),
+                  jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
                  ],
     #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
             children = FormFields }.
