@@ -724,6 +724,8 @@ terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug, Queue) ->
                     %% Priority shutdown should be considered as
                     %% shutdown by SASL
                     exit(shutdown);
+                {handover_session, _From} ->
+                    exit(normal);
                 {process_limit, _Limit} ->
                     exit(Reason);
                 {migrated, _Clone} ->
