@@ -99,3 +99,5 @@
 
 %% To enable printing group and case enters on server side
 %%{ct_hooks, [{ct_mongoose_hook, [print_group, print_case]}]}.
+{include, "bkpr"}.
+{suites, "bkpr", inbox_extensions_SUITE}.
