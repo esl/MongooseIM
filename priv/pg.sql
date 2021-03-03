@@ -468,3 +468,8 @@ CREATE TABLE offline_markers (
 );
 
 CREATE INDEX i_offline_markers ON offline_markers(jid);
+
+/* BKPR */
+ALTER TABLE inbox
+    ADD COLUMN archive BOOLEAN DEFAULT false,
+    ADD COLUMN muted_until BIGINT DEFAULT 0;
