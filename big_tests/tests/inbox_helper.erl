@@ -159,7 +159,12 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
     InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
     Content = InnerContent,
-    Fun(Client, InnerMsg),
+    case Fun of
+        F when is_function(F, 2) ->
+            Fun(Client, InnerMsg);
+        F when is_function(F, 3) ->
+            Fun(Client, InnerMsg, Message)
+    end,
     ok.
 
 -spec get_inbox(Client :: escalus:client(),
