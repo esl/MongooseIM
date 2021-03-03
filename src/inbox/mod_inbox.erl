@@ -582,7 +582,8 @@ invalid_field_value(Field, Value) ->
 should_be_stored_in_inbox(Msg) ->
     not is_forwarded_message(Msg) andalso
         not is_error_message(Msg) andalso
-        not is_offline_message(Msg).
+        not is_offline_message(Msg) andalso
+        mod_inbox_bkpr:should_be_stored_in_inbox(Msg).
 
 -spec is_forwarded_message(Msg :: exml:element()) -> boolean().
 is_forwarded_message(Msg) ->
