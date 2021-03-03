@@ -51,6 +51,8 @@
 
 -export([scram_passwords/2, scram_passwords/4]).
 
+-import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+
 -include("mongoose.hrl").
 -include("scram.hrl").
 
@@ -77,6 +79,7 @@
 %%%----------------------------------------------------------------------
 
 start(_Host) ->
+    prepare_queries(),
     ok.
 
 stop(_Host) ->
@@ -96,51 +99,7 @@ authorize(Creds) ->
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    true == check_password_wo_escape(LUser, Username, LServer, Password).
-
-
--spec check_password(LUser :: jid:luser(),
-                     LServer :: jid:lserver(),
-                     Password :: binary(),
-                     Digest :: binary(),
-                     DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, Digest, DigestGen) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_password(LServer, Username) of
-        %% Account exists, check if password is valid
-        {selected, [{Passwd, null}]} ->
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        {selected, [{_Passwd, PassDetails}]} ->
-            case mongoose_scram:deserialize(PassDetails) of
-                {ok, Scram} ->
-                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
-                {error, Reason} ->
-                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
-                    false
-            end;
-        {selected, []} ->
-            false; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         reason => Error}),
-            false %% Typical error is that table doesn't exist
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            false %% Typical error is database not accessible
-    end.
-
--spec check_password_wo_escape(LUser :: jid:luser(),
-                               Username::mongoose_rdbms:escaped_string(),
-                               LServer::jid:lserver(),
-                               Password::binary()) -> boolean() | not_exists.
-check_password_wo_escape(LUser, Username, LServer, Password) ->
-    try rdbms_queries:get_password(LServer, Username) of
+    case execute_get_password(LServer, LUser) of
         {selected, [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
         {selected, [{_Password2, null}]} ->
@@ -151,24 +110,34 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
                     mongoose_scram:check_password(Password, Scram);
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
+                                   user => LUser, server => LServer}),
                     false %% Password is not correct
             end;
         {selected, []} ->
-            not_exists; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         reason => Error}),
-            false %% Typical error is that table doesn't exist
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            false %% Typical error is database not accessible
+            false %% Account does not exist
     end.
 
+-spec check_password(LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
+                     Password :: binary(),
+                     Digest :: binary(),
+                     DigestGen :: fun()) -> boolean().
+check_password(LUser, LServer, Password, Digest, DigestGen) ->
+    case execute_get_password(LServer, LUser) of
+        {selected, [{Passwd, null}]} ->
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        {selected, [{_Passwd, PassDetails}]} ->
+            case mongoose_scram:deserialize(PassDetails) of
+                {ok, Scram} ->
+                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => LUser, server => LServer}),
+                    false
+            end;
+        {selected, []} ->
+            false %% Account does not exist
+    end.
 
 -spec set_password(LUser :: jid:luser(),
                    LServer :: jid:lserver(),
@@ -282,24 +251,19 @@ get_vh_registered_users_number(LServer, Opts) ->
 
 -spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case catch rdbms_queries:get_password(LServer, Username) of
+    case execute_get_password(LServer, LUser) of
         {selected, [{Password, null}]} ->
-            Password; %%Plain password
+            Password; %% Plain password
         {selected, [{_Password, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     Scram;
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
+                                   user => LUser, server => LServer}),
                     false
             end;
         {selected, []} ->
-            false;
-        Other ->
-            ?LOG_ERROR(#{what => get_password_failed,
-                         user => LUser, server => LServer, reason => Other}),
             false
     end.
 
@@ -307,15 +271,10 @@ get_password(LUser, LServer) ->
 -spec get_password_s(LUser :: jid:user(),
                      LServer :: jid:server()) -> binary().
 get_password_s(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case catch rdbms_queries:get_password(LServer, Username) of
+    case execute_get_password(LServer, LUser) of
         {selected, [{Password, _}]} ->
             Password;
         {selected, []} ->
-            <<>>;
-        Other ->
-            ?LOG_ERROR(#{what => get_password_s_failed,
-                         user => LUser, server => LServer, reason => Other}),
             <<>>
     end.
 
@@ -324,22 +283,11 @@ get_password_s(LUser, LServer) ->
                      LServer :: jid:lserver()
                     ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_password(LServer, Username) of
+    case execute_get_password(LServer, LUser) of
         {selected, [{_Password, _}]} ->
             true; %% Account exists
         {selected, []} ->
-            false; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => does_user_exist_failed,
-                         user => LUser, server => LServer, reason => Error}),
-            {error, Error} %% Typical error is that table doesn't exist
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => does_user_exist_failed,
-                         user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            {error, Reason} %% Typical error is database not accessible
+            false %% Account does not exist
     end.
 
 
@@ -464,3 +412,16 @@ write_scrammed_password_to_rdbms(LServer, LUser, ScrammedPassword) ->
                          user => Username, server => LServer, reason => Other}),
             {error, not_allowed}
     end.
+
+%%%------------------------------------------------------------------
+%%% DB Queries
+%%%------------------------------------------------------------------
+
+prepare_queries() ->
+    prepare(get_password, users,
+            [username],
+            <<"SELECT password, pass_details FROM users "
+              "WHERE username = ?">>).
+
+execute_get_password(LServer, Username) ->
+    execute_successfully(LServer, get_password, [Username]).

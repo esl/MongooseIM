@@ -36,7 +36,6 @@
          limit_offset_sql/0,
          limit_offset_args/2,
          sql_transaction/2,
-         get_password/2,
          set_password_t/3,
          add_user/3,
          del_user/2,
@@ -217,12 +216,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-get_password(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select password, pass_details from users "
-       "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<";">>]).
 
 set_password_t(LServer, Username, #{password := Pass, details := PassDetails}) ->
     mongoose_rdbms:sql_transaction(
