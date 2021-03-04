@@ -68,8 +68,7 @@
         ]).
 %% Groupchats
 -export([
-         groupchat_setunread_stanza_sets_inbox/1, % muclight
-         setunread_count_is_set_after_sending_setunread_stanza/1 % muc
+         groupchat_setunread_stanza_sets_inbox/1 % muclight
         ]).
 
 all() ->
@@ -129,9 +128,6 @@ bkpr_tests() ->
       ]},
      {muclight, [sequence], [
         groupchat_setunread_stanza_sets_inbox
-      ]},
-     {muc, [sequence], [
-        setunread_count_is_set_after_sending_setunread_stanza
       ]}
     ].
 
@@ -147,12 +143,6 @@ init_per_group(Groupname, Config) ->
 end_per_group(Groupname, Config) ->
     ?INBOX_CT:?FUNCTION_NAME(Groupname, Config).
 
-init_per_testcase(setunread_count_is_set_after_sending_setunread_stanza, Config) ->
-    inbox_helper:clear_inbox_all(),
-    Users = ?config(escalus_users, Config),
-    Alice = lists:keyfind(alice, 1, Users),
-    Config2 = muc_helper:start_room(Config, Alice, muc_helper:fresh_room_name(), <<"some_friendly_name">>, default),
-    escalus:init_per_testcase(setunread_count_is_set_after_sending_setunread_stanza, Config2);
 init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
     inbox_helper:clear_inbox_all(),
     muc_light_helper:create_room(?ROOM_MARKERS_RESET, inbox_helper:muclight_domain(), alice, [bob, kate],
@@ -161,8 +151,6 @@ init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
 init_per_testcase(TestCase, Config) ->
     ?INBOX_CT:?FUNCTION_NAME(TestCase, Config).
 
-end_per_testcase(setunread_count_is_set_after_sending_setunread_stanza, Config) ->
-    muc_helper:destroy_room(Config);
 end_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
     inbox_helper:clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -300,14 +288,14 @@ archive_archived_entry_gets_active_on_request(Config) ->
 
 archive_archived_entry_gets_active_on_new_message(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        % Alice sends a message to Bob and Bob reads and archives it immediately
+        % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
-        inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:send_msg(Alice, Bob, Body),
         set_inbox_property(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
-        check_box(active, Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        check_box(active, Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}]),
         check_box(archive, Bob, [])
     end).
 
@@ -450,58 +438,25 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = muc_light_helper:room_bin_jid(?ROOM_MARKERS_RESET),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
-        %%% WHEN A MESSAGE IS SENT
+        %%% WHEN A MESSAGE IS SENT (two times the same message)
         MsgStanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"some_ID">>),
         escalus:send(Alice, MsgStanza),
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
+        escalus:send(Alice, MsgStanza),
+        inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
         % verify that Bob has the message on inbox, reset it, and verify is still there but read
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
-        inbox_helper:reset_inbox(Bob, RoomJid),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
+        set_inbox_property(Bob, RoomJid, [{read, true}]),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
         % Bob sets the inbox as unread again and has so in his inbox
         set_inbox_property(Bob, RoomJid, [{read, false}]),
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
         %% Alice has 0 unread messages because she was the sender
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = MsgBody}]),
-        %% Kate still has unread message
-        inbox_helper:check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = MsgBody}]),
+        %% Kate still has unread messages, and setting the entry as unread keeps the count to two
+        set_inbox_property(Kate, RoomJid, [{read, false}]),
+        inbox_helper:check_inbox(Kate, [#conv{unread = 2, from = AliceRoomJid, to = KateJid, content = MsgBody}]),
         %% And nobody received any other stanza
-        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
-    end).
-
-% muc
-setunread_count_is_set_after_sending_setunread_stanza(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        % %% with
-        Users = [Alice, Bob, Kate],
-        Msg = <<"Hi Room!">>,
-        Id = <<"MyID">>,
-        Room = ?config(room, Config),
-        RoomAddr = muc_helper:room_address(Room),
-        % provided
-        inbox_helper:enter_room(Room, Users),
-        inbox_helper:make_members(Room, Alice, Users -- [Alice]),
-        % when a message is sent
-        escalus:send(Bob, escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomAddr, Msg), Id)),
-        inbox_helper:wait_for_groupchat_msg(Users),
-        % and when send reset for room
-        inbox_helper:reset_inbox(Kate, RoomAddr),
-        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
-        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
-        %% Bob has 0 unread messages
-        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}], #{}, #{case_sensitive => true}),
-        %% Alice have one conv with 1 unread message
-        inbox_helper:check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}], #{}, #{case_sensitive => true}),
-        %% Kate has 0 unread messages
-        inbox_helper:check_inbox(Kate, [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}], #{}, #{case_sensitive => true}),
-        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate]),
-        %% THEN Kate marks inbox as unread again, and Bob as well:
-        set_inbox_property(Kate, RoomAddr, [{read, false}]),
-        set_inbox_property(Bob, RoomAddr, [{read, false}]),
-        %% Now all of them have one unread message
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = BobRoomJid, to = BobJid, content = Msg}], #{}, #{case_sensitive => true}),
-        inbox_helper:check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}], #{}, #{case_sensitive => true}),
-        inbox_helper:check_inbox(Kate, [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}], #{}, #{case_sensitive => true}),
         inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
     end).
 
