@@ -222,7 +222,7 @@ And similarly, to set a conversation as unread:
 
 
 ## Fetching the inbox
-As in [mod_inbox](../modules/mod_inbox.md), to request the currently supported form, the client can:
+As in [mod_inbox], to request the currently supported form, the client can:
 ```xml
 <!-- Client -->
 <iq type='get' id='some_unique_id'>
@@ -281,5 +281,25 @@ Then the client would receive as in:
 ```
 
 All other fields in the form are as specified in [mod_inbox].
+
+
+### Limiting the query
+It can happen that the amount of inbox entries is too big for a given user, even after filtering by `start` and `end` as already available in [mod_inbox]. Hence, we need to set a fixed limit of the number of entries that are requested. For this, we can use a `<max>` attribute as defined in [XEP-0059: #2.1 Limiting the Number of Items](https://xmpp.org/extensions/xep-0059.html#limit):
+```xml
+<iq type='set' id='10bca'>
+  <inbox xmlns='erlang-solutions.com:xmpp:inbox:0' queryid='b6'>
+    <x xmlns='jabber:x:data' type='form'>
+      <field type='hidden' var='FORM_TYPE'><value>erlang-solutions.com:xmpp:inbox:0</value></field>
+      <field type='list-single' var='order'><value>asc</value></field>
+      <field type='text-single' var='hidden_read'><value>true</value></field>
+      <field type='boolean' var='archive'><value>false</value></field>
+    </x>
+    <set xmlns='http://jabber.org/protocol/rsm'>
+      <max>Max</max>
+    </set>
+  </inbox>
+</iq>
+```
+where `Max` is a non-negative integer.
 
 [mod_inbox]: ../modules/mod_inbox.md
