@@ -36,7 +36,6 @@
          limit_offset_sql/0,
          limit_offset_args/2,
          sql_transaction/2,
-         del_user/2,
          del_user_return_password/3,
          list_users/1,
          list_users/2,
@@ -189,12 +188,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-del_user(LServer, Username) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"delete from users where username=">>,
-           mongoose_rdbms:use_escaped_string(Username), ";"]).
 
 del_user_return_password(_LServer, Username, Pass) ->
     P = mongoose_rdbms:sql_query_t(

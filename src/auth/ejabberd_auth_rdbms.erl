@@ -281,14 +281,7 @@ does_user_exist(LUser, LServer) ->
                   LServer :: jid:lserver()
                   ) -> ok.
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:del_user(LServer, Username)
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => remove_user_failed,
-                     user => LUser, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        ok
-    end,
+    execute_delete_user(LServer, LUser),
     ok.
 
 %%%------------------------------------------------------------------
@@ -394,7 +387,11 @@ prepare_queries() ->
             <<"INSERT INTO users(username, password, pass_details) VALUES (?, ?, ?)">>),
     prepare(auth_add_user, users,
             [username, password],
-            <<"INSERT INTO users(username, password) VALUES (?, ?)">>).
+            <<"INSERT INTO users(username, password) VALUES (?, ?)">>),
+    prepare(auth_delete_user, users,
+            [username],
+            <<"DELETE FROM users WHERE username = ?">>).
+
 
 -spec execute_get_password(jid:lserver(), jid:luser()) ->
           mongoose_rdbms:query_result().
@@ -414,3 +411,8 @@ execute_add_user(LServer, LUser, #{password := Pass, details := PassDetails}) ->
     execute_successfully(LServer, auth_add_user_scram, [LUser, Pass, PassDetails]);
 execute_add_user(LServer, LUser, #{password := Pass}) ->
     execute_successfully(LServer, auth_add_user, [LUser, Pass]).
+
+-spec execute_delete_user(jid:lserver(), jid:luser()) ->
+          mongoose_rdbms:query_result().
+execute_delete_user(LServer, LUser) ->
+    execute_successfully(LServer, auth_delete_user, [LUser]).
