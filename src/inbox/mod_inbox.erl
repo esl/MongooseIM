@@ -184,10 +184,15 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
         {error, bad_request, Msg} ->
             {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
-            List = mod_inbox_backend:get_inbox(Username, Host, Params),
-            forward_messages(List, QueryId, From),
-            Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
-            {Acc, Res}
+            case mod_inbox_bkpr:maybe_rsm(Params, exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
+                {error, Msg} ->
+                    {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
+                Params1 ->
+                    List = mod_inbox_backend:get_inbox(Username, Host, Params1),
+                    forward_messages(List, QueryId, From),
+                    Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
+                    {Acc, Res}
+            end
     end.
 
 -spec process_iq_conversation(From :: jid:jid(),

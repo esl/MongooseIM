@@ -15,6 +15,7 @@
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/2]).
 -export([fields_to_params/3]).
+-export([maybe_rsm/2]).
 
 -spec process_iq_conversation(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
@@ -230,15 +231,14 @@ form_to_query(TS, [#xmlel{name = <<"read">>,
     form_to_query(TS, Rest, ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"mute">>,
                           children = [#xmlcdata{content = Value}]} | Rest], Acc) ->
-    try erlang:binary_to_integer(Value) of
+    case maybe_binary_to_positive_integer(Value) of
+        {error, _} -> {error, <<"bad-request">>};
+        0 ->
+            form_to_query(TS, Rest, ["muted_until=0," | Acc]);
         N when N > 0 ->
             MutedUntilSec = erlang:convert_time_unit(TS, microsecond, second) + N,
             MutedUntilMicroSec = erlang:convert_time_unit(MutedUntilSec, second, microsecond),
-            form_to_query(TS, Rest, ["muted_until=", esc_int(MutedUntilMicroSec), "," | Acc]);
-        0 ->
-            form_to_query(TS, Rest, ["muted_until=0," | Acc]);
-        _ -> {error, <<"bad-request">>}
-    catch error:badarg -> {error, <<"bad-request">>}
+            form_to_query(TS, Rest, ["muted_until=", esc_int(MutedUntilMicroSec), "," | Acc])
     end;
 form_to_query(_, _, _) ->
     {error, <<"bad-request">>}.
@@ -259,7 +259,8 @@ extensions_result(Archive, MutedUntil) ->
     [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = Archive}]},
      #xmlel{name = <<"mute">>, children = [#xmlcdata{content = MutedUntil}]}].
 
--spec fields_to_params(binary(), binary(), map()) -> map() | {error, bad_request | unknown_field}.
+-spec fields_to_params(binary(), binary(), mod_inbox:get_inbox_params()) ->
+    mod_inbox:get_inbox_params() | {error, bad_request | unknown_field}.
 fields_to_params(<<"archive">>, <<"true">>, Acc) ->
     Acc#{archive => true};
 fields_to_params(<<"archive">>, <<"false">>, Acc) ->
@@ -268,3 +269,29 @@ fields_to_params(<<"archive">>, _, _) ->
     {error, bad_request};
 fields_to_params(_, _, _) ->
     {error, unknown_field}.
+
+-spec maybe_rsm(mod_inbox:get_inbox_params(), exml:element() | undefined) ->
+    mod_inbox:get_inbox_params() | {error, binary()}.
+maybe_rsm(Params, #xmlel{name = <<"set">>,
+                         children = [#xmlel{name = <<"max">>,
+                                            children = [#xmlcdata{content = Bin}]}]}) ->
+    case maybe_binary_to_positive_integer(Bin) of
+        {error, _} -> {error, wrong_rsm_message()};
+        0 -> Params;
+        N -> Params#{limit => N}
+    end;
+maybe_rsm(Params, undefined) ->
+    Params;
+maybe_rsm(_, _) ->
+    {error, wrong_rsm_message()}.
+
+wrong_rsm_message() ->
+    <<"bad-request">>.
+
+-spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | {error, atom()}.
+maybe_binary_to_positive_integer(Bin) ->
+    try erlang:binary_to_integer(Bin) of
+        N when N >= 0 -> N;
+        _ -> {error, non_positive_integer}
+    catch error:badarg -> {error, 'NaN'}
+    end.
