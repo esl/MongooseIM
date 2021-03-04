@@ -36,8 +36,6 @@
          limit_offset_sql/0,
          limit_offset_args/2,
          sql_transaction/2,
-         set_password_t/3,
-         add_user/3,
          del_user/2,
          del_user_return_password/3,
          list_users/1,
@@ -79,31 +77,6 @@ join([H|T], Sep) ->
 
 get_db_type() ->
     ?RDBMS_TYPE.
-
-
-%% Safe atomic update.
--spec update_t(Table, Fields, Vals, Where) -> term() when
-    Table :: binary(),
-    Fields :: list(binary()),
-    Vals :: list(mongoose_rdbms:escaped_value()),
-    Where :: mongoose_rdbms:sql_query_part().
-update_t(Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
-                           Fields, Vals),
-    case mongoose_rdbms:sql_query_t(
-           [<<"update ">>, Table, <<" set ">>,
-            join(UPairs, ", "),
-            <<" where ">>, Where, ";"]) of
-        {updated, 1} ->
-            ok;
-        _ ->
-            mongoose_rdbms:sql_query_t(
-              [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values (">>, join_escaped(Vals), ");"])
-    end.
-
-join_escaped(Vals) ->
-    join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
 
 -spec execute_upsert(Host :: mongoose_rdbms:server(),
                      Name :: atom(),
@@ -216,37 +189,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-set_password_t(LServer, Username, #{password := Pass, details := PassDetails}) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-              update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
-                       [Pass, PassDetails],
-                       [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)])
-      end);
-set_password_t(LServer, Username, Pass) ->
-    mongoose_rdbms:sql_transaction(
-      LServer,
-      fun() ->
-              update_t(<<"users">>, [<<"username">>, <<"password">>],
-                       [Username, Pass],
-                       [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)])
-      end).
-
-add_user(LServer, Username, #{password := Pass, details := PassDetails}) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"insert into users(username, password, pass_details) "
-       "values (">>, mongoose_rdbms:use_escaped_string(Username),
-           <<", ">>, mongoose_rdbms:use_escaped_string(Pass),
-           <<", ">>, mongoose_rdbms:use_escaped_string(PassDetails), <<");">>]);
-add_user(LServer, Username, Pass) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"insert into users(username, password) "
-         "values (">>, mongoose_rdbms:use_escaped_string(Username),
-           <<", ">>, mongoose_rdbms:use_escaped_string(Pass), <<");">>]).
 
 del_user(LServer, Username) ->
     mongoose_rdbms:sql_query(
