@@ -8,6 +8,7 @@
 % SQL extensions
 -export([sql_selection/0]).
 -export([sql_filters/1]).
+-export([sql_limits/1]).
 -export([sql_process/2]).
 % Inbox extensions
 -export([process_iq_conversation/4]).
@@ -190,6 +191,14 @@ sql_filters(Params) ->
 sql_and_where_archive(true) -> [" AND archive = true "];
 sql_and_where_archive(false) -> [" AND archive = false "];
 sql_and_where_archive(undefined) -> [].
+
+-spec sql_limits(map()) -> iolist().
+sql_limits(Params) ->
+    sql_and_where_limit(maps:get(limit, Params, undefined)).
+
+-spec sql_and_where_limit(boolean() | undefined) -> iolist().
+sql_and_where_limit(undefined) -> [];
+sql_and_where_limit(N) -> [" LIMIT ", esc_int(N), " "].
 
 -spec sql_process(binary(), binary() | integer()) -> {binary(), binary()}.
 sql_process(Archive, MutedUntil) ->

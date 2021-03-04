@@ -68,7 +68,9 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
                  " AND lserver=", esc_string(LServer),
                  BeginSQL, EndSQL, HiddenSQL,
                  mod_inbox_bkpr:sql_filters(Params),
-                 " ORDER BY timestamp ", OrderSQL, ";"],
+                 " ORDER BY timestamp ", OrderSQL,
+                 mod_inbox_bkpr:sql_limits(Params),
+                 ";"],
     mongoose_rdbms:sql_query(LServer, Query).
 
 
