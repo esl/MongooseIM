@@ -6,6 +6,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("../tests/inbox.hrl").
 
+-define(NS_RSM, <<"http://jabber.org/protocol/rsm">>).
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 -define(INBOX_CT, inbox_SUITE).
@@ -42,7 +43,8 @@
          returns_error_when_mute_invalid_seconds/1,
          returns_error_when_mute_valid_request_but_not_in_inbox/1,
          % Form errors
-         returns_error_when_archive_field_is_invalid/1
+         returns_error_when_archive_field_is_invalid/1,
+         returns_error_when_max_is_not_a_number/1
         ]).
 %% SUCCESSES
 -export([
@@ -64,7 +66,8 @@
          % other
          returns_valid_properties_form/1,
          properties_can_be_get/1,
-         properties_many_can_be_set/1
+         properties_many_can_be_set/1,
+         max_queries_can_be_limited/1
         ]).
 %% Groupchats
 -export([
@@ -103,7 +106,8 @@ bkpr_tests() ->
         returns_error_when_mute_invalid_seconds,
         returns_error_when_mute_valid_request_but_not_in_inbox,
         % Form errors
-        returns_error_when_archive_field_is_invalid
+        returns_error_when_archive_field_is_invalid,
+        returns_error_when_max_is_not_a_number
       ]},
      {one_to_one, [parallel], [
         % read
@@ -124,7 +128,8 @@ bkpr_tests() ->
         % other
         returns_valid_properties_form,
         properties_can_be_get,
-        properties_many_can_be_set
+        properties_many_can_be_set,
+        max_queries_can_be_limited
       ]},
      {muclight, [sequence], [
         groupchat_setunread_stanza_sets_inbox
@@ -212,6 +217,10 @@ returns_error_when_archive_field_is_invalid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       inbox_helper:assert_invalid_inbox_form_value_error(Alice, <<"archive">>, <<"invalid">>)
     end).
+
+returns_error_when_max_is_not_a_number(Config) ->
+    Stanza = make_box_request(both, <<"NaN">>),
+    returns_error(Config, Stanza, <<"bad-request">>).
 
 returns_error(Config, Stanza, Value) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -428,6 +437,24 @@ properties_many_can_be_set(Config) ->
                                        verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer) end}])
     end).
 
+max_queries_can_be_limited(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        Body = <<"Hi Alice">>,
+        inbox_helper:send_msg(Bob, Alice, Body),
+        inbox_helper:send_msg(Kate, Alice, Body),
+        inbox_helper:send_msg(Mike, Alice, Body),
+        % Alice has some unread messages
+        inbox_helper:check_inbox(Alice, [#conv{unread = 1, from = Mike, to = Alice, content = Body},
+                                         #conv{unread = 1, from = Kate, to = Alice, content = Body},
+                                         #conv{unread = 1, from = Bob, to = Alice, content = Body}]),
+        % Then Alice queries his inbox setting a limit to only one conversation,
+        % she gets the newest one
+        check_box(active, Alice,
+                  [#conv{unread = 1, from = Mike, to = Alice, content = Body}],
+                  #{limit => 1})
+    end).
+
 % muclight
 groupchat_setunread_stanza_sets_inbox(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -467,28 +494,39 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 -type maybe_client() :: undefined | escalus:client().
 -type box() :: both | active | archive.
 
--spec get_box(box(), maybe_client(), map()) -> [exml:element()].
-get_box(Box, Client, #{count := ExpectedCount} = ExpectedResult) ->
-    GetInbox = make_box_request(Box),
+-spec get_box(box(), maybe_client(), map(), map()) -> [exml:element()].
+get_box(Box, Client, #{count := ExpectedCount} = ExpectedResult, Opts) ->
+    GetInbox = make_box_request(Box, maps:get(limit, Opts, undefined)),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
     inbox_helper:check_result(ResIQ, ExpectedResult),
     Stanzas.
 
--spec make_box_request(box()) -> exml:element().
-make_box_request(Box) ->
+-spec make_box_request(box(), pos_integer()) -> exml:element().
+make_box_request(Box, Limit) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX} | which_box(Box)],
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams)]},
+                      children = [make_inbox_form(GetParams) | rsm_max(Limit)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec which_box(box()) -> list().
 which_box(both) -> [];
 which_box(active) -> [{<<"archive">>, <<"boolean">>, <<"false">>}];
 which_box(archive) -> [{<<"archive">>, <<"boolean">>, <<"true">>}].
+
+rsm_max(undefined) -> [];
+rsm_max(Value) ->
+    [#xmlel{name = <<"set">>,
+            attrs = [{<<"xmlns">>, ?NS_RSM}],
+            children = max_tag(Value)}].
+
+max_tag(N) when is_integer(N) ->
+    [#xmlel{name = <<"max">>, children = [#xmlcdata{content = integer_to_binary(N)}]}];
+max_tag(Bin) when is_binary(Bin) ->
+    [#xmlel{name = <<"max">>, children = [#xmlcdata{content = Bin}]}].
 
 -spec make_inbox_form([tuple()]) -> exml:element().
 make_inbox_form(Fields) ->
@@ -576,7 +614,11 @@ to_bin(Value) when is_integer(Value) -> integer_to_binary(Value).
 
 -spec check_box(box(), maybe_client(), [tuple()]) -> [exml:element()].
 check_box(Box, Client, Convs) ->
-    ResultStanzas = get_box(Box, Client, #{count => length(Convs)}),
+    check_box(Box, Client, Convs, #{}).
+
+-spec check_box(box(), maybe_client(), [tuple()], map()) -> [exml:element()].
+check_box(Box, Client, Convs, Opts) ->
+    ResultStanzas = get_box(Box, Client, #{count => length(Convs)}, Opts),
     try
         inbox_helper:check_inbox_result(Client, #{}, ResultStanzas, Convs)
     catch
