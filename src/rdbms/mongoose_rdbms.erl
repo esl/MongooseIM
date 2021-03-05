@@ -197,7 +197,7 @@ execute(Host, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_call(Host, {sql_execute, Name, Parameters}).
 
 %% Same as execute/3, but would fail loudly on any error.
--spec execute_successfully(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
+-spec execute_successfully(Host :: server() | ignored, Name :: atom(), Parameters :: [term()]) ->
                      query_result().
 execute_successfully(Host, Name, Parameters) ->
     try execute(Host, Name, Parameters) of
