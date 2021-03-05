@@ -72,8 +72,8 @@
 %%% API
 %%%----------------------------------------------------------------------
 
-start(_Host) ->
-    prepare_queries(),
+start(Host) ->
+    prepare_queries(Host),
     ok.
 
 stop(_Host) ->
@@ -192,68 +192,35 @@ dirty_get_registered_users() ->
 
 -spec get_vh_registered_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
-    try rdbms_queries:list_users(LServer) of
-        {selected, Res} ->
-            [{U, LServer} || {U} <- Res];
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
-                         server => LServer, reason => Other}),
-            []
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        []
-    end.
-
+    get_vh_registered_users(LServer, []).
 
 -spec get_vh_registered_users(LServer :: jid:lserver(), Opts :: list()
                              ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
-    try rdbms_queries:list_users(LServer, Opts) of
-        {selected, Res} ->
-            [{U, LServer} || {U} <- Res];
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
-                         server => LServer, opts => Opts, reason => Other}),
-            []
-    catch Class:Reason:StackTrace ->
+    try
+        {selected, Res} = execute_list_users(LServer, maps:from_list(Opts)),
+        [{U, LServer} || {U} <- Res]
+    catch error:Reason:StackTrace ->
         ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
+                     class => error, reason => Reason, stacktrace => StackTrace}),
         []
     end.
-
 
 -spec get_vh_registered_users_number(LServer :: jid:lserver()
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
-    try rdbms_queries:users_number(LServer) of
-        {selected, [{Res}]} when is_integer(Res) ->
-            Res;
-        {selected, [{Res}]} ->
-            mongoose_rdbms:result_to_integer(Res);
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
-                         server => LServer, reason => Other}),
-            0
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        0
-    end.
-
+    get_vh_registered_users_number(LServer, []).
 
 -spec get_vh_registered_users_number(LServer :: jid:lserver(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(LServer, Opts) ->
-    case catch rdbms_queries:users_number(LServer, Opts) of
-        {selected, [{Res}]} ->
-            list_to_integer(Res);
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
-                         server => LServer, opts => Opts, reason => Other}),
-            0
+    try
+        mongoose_rdbms:selected_to_integer(execute_count_users(LServer, maps:from_list(Opts)))
+    catch error:Reason:StackTrace ->
+        ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
+                     class => error, reason => Reason, stacktrace => StackTrace}),
+        0
     end.
-
 
 -spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
@@ -371,10 +338,7 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 text => <<"Converting the stored passwords into SCRAM bits">>}),
-    ToConvertCount = case catch rdbms_queries:get_users_without_scram_count(LServer) of
-        {selected, [{Res}]} -> Res;
-        _ -> 0
-    end,
+    ToConvertCount = mongoose_rdbms:selected_to_integer(execute_count_users_without_scram(LServer)),
 
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 convert_count => ToConvertCount,
@@ -388,7 +352,7 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
         Interval :: pos_integer(),
         ScramIterationCount :: pos_integer().
 scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
-    case rdbms_queries:get_users_without_scram(LServer, Count) of
+    case execute_list_users_without_scram(LServer, Count) of
         {selected, []} ->
             ?LOG_INFO(#{what => scram_passwords_completed,
                         text => <<"All users scrammed">>}),
@@ -408,19 +372,15 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
                         user_count => length(Results), interval => Interval,
                         text => io_lib:format("Scrammed. Waiting for ~pms", [Interval])}),
             timer:sleep(Interval),
-            scram_passwords1(LServer, Count, Interval, ScramIterationCount);
-        Other ->
-            ?LOG_ERROR(#{what => scram_passwords_failed,
-                         text => <<"Interrupted scramming">>,
-                         server => LServer, reason => Other}),
-            {error, interrupted}
+            scram_passwords1(LServer, Count, Interval, ScramIterationCount)
     end.
 
 %%%------------------------------------------------------------------
 %%% DB Queries
 %%%------------------------------------------------------------------
 
-prepare_queries() ->
+-spec prepare_queries(jid:lserver()) -> any().
+prepare_queries(LServer) ->
     prepare(auth_get_password, users,
             [username],
             <<"SELECT password, pass_details FROM users WHERE username = ?">>),
@@ -438,8 +398,48 @@ prepare_queries() ->
             <<"INSERT INTO users(username, password) VALUES (?, ?)">>),
     prepare(auth_delete_user, users,
             [username],
-            <<"DELETE FROM users WHERE username = ?">>).
+            <<"DELETE FROM users WHERE username = ?">>),
+    prepare(auth_list_users, users, [],
+            <<"SELECT username FROM users">>),
+    LimitOffset = rdbms_queries:limit_offset_sql(),
+    prepare(auth_list_users_range, users,
+            [limit, offset],
+            <<"SELECT username FROM users ORDER BY username ", LimitOffset/binary>>),
+    prepare(auth_list_users_prefix, users,
+            [username],
+            <<"SELECT username FROM users WHERE username LIKE ? ESCAPE '$' ORDER BY username">>),
+    prepare(auth_list_users_prefix_range, users,
+            [username, limit, offset],
+            <<"SELECT username FROM users WHERE username LIKE ? ESCAPE '$' ORDER BY username ",
+              LimitOffset/binary>>),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    prepare(auth_list_users_without_scram, users,
+            [limit],
+            <<"SELECT ", LimitMSSQL/binary, " username, password FROM users "
+              "WHERE pass_details is NULL ", LimitSQL/binary>>),
+    prepare(auth_count_users_prefix, users,
+            [username],
+            <<"SELECT COUNT(*) FROM users WHERE username LIKE ? ESCAPE '$'">>),
+    prepare_count_users(LServer, mongoose_rdbms:db_engine(LServer)),
+    prepare(auth_count_users_without_scram, users, [],
+            <<"SELECT COUNT(*) FROM users WHERE pass_details is NULL">>).
 
+-spec prepare_count_users(jid:lserver(), mysql | pgsql | odbc) -> any().
+prepare_count_users(_Host, mysql) ->
+    prepare(auth_count_users, 'information_schema.tables', [],
+            <<"SELECT table_rows FROM information_schema.tables WHERE table_name='users'">>);
+prepare_count_users(Host, pgsql) ->
+    case ejabberd_config:get_local_option({pgsql_users_number_estimate, Host}) of
+        true ->
+            prepare(auth_count_users_estimate, pg_class, [],
+                    <<"SELECT reltuples FROM pg_class WHERE oid = 'users'::regclass::oid">>);
+        _ ->
+            prepare(auth_count_users, users, [],
+                    <<"SELECT COUNT(*) FROM users">>)
+    end;
+prepare_count_users(_Host, odbc) ->
+    prepare(auth_count_users, users, [],
+            <<"SELECT COUNT(*) FROM users">>).
 
 -spec execute_get_password(jid:lserver(), jid:luser()) ->
           mongoose_rdbms:query_result().
@@ -460,7 +460,48 @@ execute_add_user(LServer, LUser, #{password := Pass, details := PassDetails}) ->
 execute_add_user(LServer, LUser, #{password := Pass}) ->
     execute_successfully(LServer, auth_add_user, [LUser, Pass]).
 
--spec execute_delete_user(jid:lserver(), jid:luser()) ->
-          mongoose_rdbms:query_result().
+-spec execute_delete_user(jid:lserver(), jid:luser()) -> mongoose_rdbms:query_result().
 execute_delete_user(LServer, LUser) ->
     execute_successfully(LServer, auth_delete_user, [LUser]).
+
+-spec execute_list_users(jid:lserver(), map()) -> mongoose_rdbms:query_result().
+execute_list_users(LServer, #{from := Start, to := End} = OptMap) ->
+    Map = maps:without([from, to], OptMap),
+    execute_list_users(LServer, Map#{limit => End - Start + 1, offset => Start - 1});
+execute_list_users(LServer, #{prefix := Prefix, limit := Limit, offset := Offset}) ->
+    Args = [prefix_to_like(Prefix)] ++ rdbms_queries:limit_offset_args(Limit, Offset),
+    execute_successfully(LServer, auth_list_users_prefix_range, Args);
+execute_list_users(LServer, #{prefix := Prefix}) ->
+    Args = [prefix_to_like(Prefix)],
+    execute_successfully(LServer, auth_list_users_prefix, Args);
+execute_list_users(LServer, #{limit := Limit, offset := Offset}) ->
+    Args = rdbms_queries:limit_offset_args(Limit, Offset),
+    execute_successfully(LServer, auth_list_users_range, Args);
+execute_list_users(LServer, #{}) ->
+    execute_successfully(LServer, auth_list_users, []).
+
+-spec execute_list_users_without_scram(jid:lserver(), non_neg_integer()) ->
+          mongoose_rdbms:query_result().
+execute_list_users_without_scram(LServer, Limit) ->
+    execute_successfully(LServer, auth_list_users_without_scram, [Limit]).
+
+-spec execute_count_users(jid:lserver(), map()) -> mongoose_rdbms:query_result().
+execute_count_users(LServer, #{prefix := Prefix}) ->
+    Args = [prefix_to_like(Prefix)],
+    execute_successfully(LServer, auth_count_users_prefix, Args);
+execute_count_users(LServer, #{}) ->
+    Query = case {ejabberd_config:get_local_option({pgsql_users_number_estimate, Host}),
+                  mongoose_rdbms:db_engine(LServer)} of
+                {true, pgsql} -> auth_count_users_estimate;
+                _ -> auth_count_users
+            end,
+    execute_successfully(LServer, Query, []).
+
+-spec execute_count_users_without_scram(jid:lserver()) -> mongoose_rdbms:query_result().
+execute_count_users_without_scram(LServer) ->
+    execute_successfully(LServer, auth_count_users_without_scram, []).
+
+-spec prefix_to_like(binary()) -> binary().
+prefix_to_like(Prefix) ->
+    EscapedPrefix = mongoose_rdbms:escape_prepared_like(Prefix),
+    <<EscapedPrefix/binary, $%>>.

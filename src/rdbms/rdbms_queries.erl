@@ -36,12 +36,6 @@
          limit_offset_sql/0,
          limit_offset_args/2,
          sql_transaction/2,
-         list_users/1,
-         list_users/2,
-         users_number/1,
-         users_number/2,
-         get_users_without_scram/2,
-         get_users_without_scram_count/1,
          count_records_where/3,
          create_bulk_insert_query/3]).
 
@@ -187,84 +181,6 @@ begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
 begin_trans(_) ->
     [<<"BEGIN;">>].
-
-list_users(LServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username from users">>]).
-
-list_users(LServer, [{from, Start}, {to, End}]) when is_integer(Start) and
-                                                     is_integer(End) ->
-    list_users(LServer, [{limit, End-Start+1}, {offset, Start-1}]);
-list_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}]) when is_list(Prefix) and
-                                                                       is_integer(Start) and
-                                                                       is_integer(End) ->
-    list_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start-1}]);
-
-list_users(LServer, [{limit, Limit}, {offset, Offset}]) when is_integer(Limit) and
-                                                             is_integer(Offset) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username from users "
-         "order by username "
-         "limit ">>, integer_to_list(Limit), <<" "
-         "offset ">>, integer_to_list(Offset)]);
-list_users(LServer, [{prefix, Prefix},
-                     {limit, Limit},
-                     {offset, Offset}]) when is_list(Prefix) and
-                                             is_integer(Limit) and
-                                             is_integer(Offset) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username from users "
-         "where username like ">>, mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like_prefix(Prefix)), <<" "
-         "order by username "
-         "limit ">>, integer_to_list(Limit), <<" "
-         "offset ">>, integer_to_list(Offset)]).
-
-users_number(LServer) ->
-    case mongoose_rdbms:db_engine(LServer) of
-        mysql ->
-            mongoose_rdbms:sql_query(
-              LServer,
-              <<"select table_rows from information_schema.tables where table_name='users'">>);
-        pgsql ->
-            case ejabberd_config:get_local_option({pgsql_users_number_estimate, LServer}) of
-                true ->
-                    mongoose_rdbms:sql_query(
-                      LServer,
-                      <<"select reltuples from pg_class where oid = 'users'::regclass::oid">>);
-                _ ->
-                    mongoose_rdbms:sql_query(
-                      LServer,
-                      <<"select count(*) from users">>)
-            end;
-        _ ->
-            mongoose_rdbms:sql_query(
-              LServer,
-              [<<"select count(*) from users">>])
-    end.
-
-users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select count(*) from users "
-         %% Warning: Escape prefix at higher level to prevent SQL
-         %%          injection.
-         "where username like ">>, mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like_prefix(Prefix)), ""]);
-users_number(LServer, []) ->
-    users_number(LServer).
-
-get_users_without_scram(LServer, Limit) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select username, password from users where pass_details is null limit ">>,
-       integer_to_binary(Limit)]).
-
-get_users_without_scram_count(LServer) ->
-    mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select count(*) from users where pass_details is null">>]).
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
