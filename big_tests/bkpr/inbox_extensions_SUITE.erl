@@ -67,7 +67,8 @@
          returns_valid_properties_form/1,
          properties_can_be_get/1,
          properties_many_can_be_set/1,
-         max_queries_can_be_limited/1
+         max_queries_can_be_limited/1,
+         max_queries_can_fetch_ahead/1
         ]).
 %% Groupchats
 -export([
@@ -129,7 +130,8 @@ bkpr_tests() ->
         returns_valid_properties_form,
         properties_can_be_get,
         properties_many_can_be_set,
-        max_queries_can_be_limited
+        max_queries_can_be_limited,
+        max_queries_can_fetch_ahead
       ]},
      {muclight, [sequence], [
         groupchat_setunread_stanza_sets_inbox
@@ -219,7 +221,7 @@ returns_error_when_archive_field_is_invalid(Config) ->
     end).
 
 returns_error_when_max_is_not_a_number(Config) ->
-    Stanza = make_box_request(both, <<"NaN">>),
+    Stanza = make_box_request(both, #{limit => <<"NaN">>}),
     returns_error(Config, Stanza, <<"bad-request">>).
 
 returns_error(Config, Stanza, Value) ->
@@ -438,21 +440,36 @@ properties_many_can_be_set(Config) ->
     end).
 
 max_queries_can_be_limited(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
-        Body = <<"Hi Alice">>,
-        inbox_helper:send_msg(Bob, Alice, Body),
-        inbox_helper:send_msg(Kate, Alice, Body),
-        inbox_helper:send_msg(Mike, Alice, Body),
-        % Alice has some unread messages
-        inbox_helper:check_inbox(Alice, [#conv{unread = 1, from = Mike, to = Alice, content = Body},
-                                         #conv{unread = 1, from = Kate, to = Alice, content = Body},
-                                         #conv{unread = 1, from = Bob, to = Alice, content = Body}]),
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
         % Then Alice queries his inbox setting a limit to only one conversation,
-        % she gets the newest one
+        % and she gets the newest one
+        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        check_box(active, Alice, [ConvWithMike], #{limit => 1}),
+        % And a limit to two also works fine
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        check_box(active, Alice, [ConvWithMike, ConvWithKate], #{limit => 2})
+    end).
+
+max_queries_can_fetch_ahead(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+
+        ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        % ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        TimeAfterKate = ConvWithKate#conv.time_after,
+
         check_box(active, Alice,
-                  [#conv{unread = 1, from = Mike, to = Alice, content = Body}],
-                  #{limit => 1})
+                  [ConvWithKate, ConvWithBob],
+                  #{limit => 2, 'end' => TimeAfterKate})
     end).
 
 % muclight
@@ -496,17 +513,19 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 
 -spec get_box(box(), maybe_client(), map(), map()) -> [exml:element()].
 get_box(Box, Client, #{count := ExpectedCount} = ExpectedResult, Opts) ->
-    GetInbox = make_box_request(Box, maps:get(limit, Opts, undefined)),
+    GetInbox = make_box_request(Box, Opts),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
     inbox_helper:check_result(ResIQ, ExpectedResult),
     Stanzas.
 
--spec make_box_request(box(), pos_integer()) -> exml:element().
-make_box_request(Box, Limit) ->
+-spec make_box_request(box(), map()) -> exml:element().
+make_box_request(Box, Opts) ->
+    Limit = maps:get(limit, Opts, undefined),
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-    GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX} | which_box(Box)],
+    GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}] ++
+                which_box(Box) ++ extra(Opts),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
                       children = [make_inbox_form(GetParams) | rsm_max(Limit)]},
@@ -516,6 +535,15 @@ make_box_request(Box, Limit) ->
 which_box(both) -> [];
 which_box(active) -> [{<<"archive">>, <<"boolean">>, <<"false">>}];
 which_box(archive) -> [{<<"archive">>, <<"boolean">>, <<"true">>}].
+
+extra(MapOpts) ->
+    Opts = maps:to_list(MapOpts),
+    lists:foldl(fun({start, V}, Acc) ->
+                        [ {<<"start">>, <<"text-single">>, V} | Acc];
+                   ({'end', V}, Acc) ->
+                        [ {<<"end">>, <<"text-single">>, V} | Acc];
+                   (_, Acc) -> Acc
+                end, [], Opts).
 
 rsm_max(undefined) -> [];
 rsm_max(Value) ->
