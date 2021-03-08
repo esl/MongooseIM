@@ -468,3 +468,23 @@ CREATE TABLE offline_markers (
 );
 
 CREATE INDEX i_offline_markers ON offline_markers(jid);
+
+-- Mapping from domain hostname to host_type.
+-- Column id is used for ordering only.
+CREATE TABLE domain_settings (
+    id BIGSERIAL NOT NULL UNIQUE,
+    domain VARCHAR(250) NOT NULL,
+    host_type VARCHAR(250) NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    PRIMARY KEY(domain)
+);
+
+-- A new record is inserted into domain_events, each time
+-- domain_settings table is updated: i.e. when a domain is removed,
+-- inserted, enabled or disabled.
+-- Column id is used for ordering and not related to domain_settings.id.
+CREATE TABLE domain_events (
+    id BIGSERIAL NOT NULL UNIQUE,
+    domain VARCHAR(250) NOT NULL
+);
+CREATE INDEX i_domain_events_domain ON domain_events(domain);
