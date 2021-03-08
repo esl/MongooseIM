@@ -7,6 +7,7 @@
 -include("ejabberd_config.hrl").
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(eq_list(Expected, Actual), ?assertEqual(lists:sort(Expected), lists:sort(Actual))).
 
 -define(err(Expr), ?assertMatch([#{class := error, what := _}|_],
                                 mongoose_config_parser_toml:extract_errors(Expr))).
@@ -268,32 +269,34 @@ loglevel(_Config) ->
     ?err(parse_host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
-    ?eq([#config{key = hosts, value = [<<"host1">>, <<"host2">>]}],
-        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>]}})),
+    ?eq([#config{key = hosts, value = [<<"host1">>]}],
+        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>]}})),
+    ?eq_list([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+              #config{key = host_types, value = []}],
+             parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>],
+                                        <<"host_types">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
-    ?err(parse(#{<<"general">> => #{<<"hosts">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
     % either hosts or host_types must be provided
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})).
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => [],
+                                                                <<"host_types">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host_types">> => []}})).
 
 host_types(_Config) ->
-    %% ./rebar3 ct --suite config_parser_SUITE --group general --case host_types
-    ?eq([#config{key = host_types, value = [<<"type1">>, <<"type2">>]}],
-        parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type2">>]}})),
-    ?eq([#config{key = host_types, value = [<<"what is this?">>]}],
-        parse(#{<<"general">> => #{<<"host_types">> => [<<"what is this?">>]}})),
+    ?eq([#config{key = host_types, value = [<<"type 1">>]}],
+        parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}})),
+    ?eq_list([#config{key = host_types, value = [<<"type 1">>, <<"type 2">>]},
+              #config{key = hosts, value = []}],
+             parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>, <<"type 2">>],
+                                        <<"hosts">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<>>]}})),
-    ?err(parse(#{<<"general">> => #{<<"host_types">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type1">>]}})),
     % either hosts and host_types cannot have the same values
-    io:format("~n!!! non-unique host types error: ~p~n",
-              [mongoose_config_parser_toml:parse(#{<<"general">> => #{
-                  <<"host_types">> => [<<"type1">>],
-                  <<"hosts">> => [<<"type1">>]}})]),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{
-              <<"host_types">> => [<<"type1">>],
-              <<"hosts">> => [<<"type1">>]}})).
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>],
+                                    <<"hosts">> => [<<"type1">>]}})).
 
 registration_timeout(_Config) ->
     ?eq([#local_config{key = registration_timeout, value = infinity}],

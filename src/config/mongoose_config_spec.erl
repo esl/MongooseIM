@@ -44,6 +44,7 @@
          process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.
@@ -181,12 +182,12 @@ general() ->
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
-                                      validate = unique_non_empty,
+                                      validate = unique,
                                       format = config},
                  <<"host_types">> => #list{items = #option{type = binary,
-                                                      validate = non_empty},
-                                      validate = unique_non_empty,
-                                      format = config},
+                                                           validate = non_empty},
+                                           validate = unique,
+                                           format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
@@ -1095,23 +1096,23 @@ process_host(Host) ->
     Node.
 
 process_general(General) ->
-    hosts_and_host_types_are_unique_and_non_emepty(General),
+    hosts_and_host_types_are_unique_and_non_empty(General),
     General.
 
-hosts_and_host_types_are_unique_and_non_emepty(General) ->
+hosts_and_host_types_are_unique_and_non_empty(General) ->
     AllHostTypes = get_all_hosts_and_host_types(General),
     true = lists:sort(AllHostTypes) =:= lists:usort(AllHostTypes),
     true = [] =/= AllHostTypes.
 
 get_all_hosts_and_host_types(General) ->
-    lists:foldl(fun
-                    ({config, hosts, Hosts}, Acc) ->
-                        Acc ++ Hosts;
-                    ({config, host_types, HostTypes}, Acc) ->
-                        Acc ++ HostTypes;
-                    (_, Acc) ->
-                        Acc
-                end, [], General).
+    FoldFN = fun
+                 (#config{key = K} = C, Acc) when K =:= hosts;
+                                                  K =:= host_types ->
+                     Acc ++ C#config.value;
+                 (_, Acc) ->
+                     Acc
+             end,
+    lists:foldl(FoldFN, [], General).
 
 process_sni(false) ->
     disable.
