@@ -39,7 +39,8 @@ groups() ->
                          miscellaneous,
                          s2s,
                          modules,
-                         outgoing_pools]},
+                         outgoing_pools,
+                         host_types_file]},
      {general, [parallel], [loglevel,
                             hosts,
                             host_types,
@@ -251,6 +252,12 @@ modules(Config) ->
 
 outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
+
+host_types_file(Config) ->
+    Modules = [dummy_module, another_dummy_module],
+    [meck:new(M, [non_strict]) || M <- Modules],
+    test_config_file(Config, "host_types"),
+    [meck:unload(M) || M <- Modules].
 
 %% tests: general
 loglevel(_Config) ->

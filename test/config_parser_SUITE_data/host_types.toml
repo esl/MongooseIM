@@ -1,0 +1,25 @@
+[general]
+host_types = [
+    "this is host type",
+    "some host type",
+    "another host type",
+    "yet another host type"
+]
+
+[modules.dummy_module]
+
+[[host_config]]
+host_type = "this is host type"
+## this resets the modules for this host
+modules ={}
+
+[[host_config]]
+## host is just synonym for host_type now
+host = "some host type"
+## another syntax for reseting the modules for this host type
+[host_config.modules]
+
+[[host_config]]
+host_type = "another host type"
+## reseting the modules for this host type
+[host_config.modules.another_dummy_module]
