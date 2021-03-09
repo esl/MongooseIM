@@ -41,7 +41,10 @@ groups() ->
                          s2s,
                          modules,
                          outgoing_pools,
-                         host_types_file]},
+                         {group, host_types_group}]},
+     {host_types_group, [], [host_types_file,
+                             host_types_missing_modules,
+                             host_types_unsupported_modules]},
      {general, [parallel], [loglevel,
                             hosts,
                             host_types,
@@ -239,6 +242,29 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
+init_per_group(host_types_group, Config) ->
+    Modules = [dummy_module, another_dummy_module, yet_another_dummy_module],
+    [{mocked_modules, Modules} | Config];
+init_per_group(_, Config) ->
+    Config.
+
+end_per_group(_, Config) ->
+    Config.
+
+init_per_testcase(_, Config) ->
+    case proplists:get_value(mocked_modules, Config, no_mocks) of
+        no_mocks -> ok;
+        Modules -> [meck:new(M, [non_strict, no_link]) || M <- Modules]
+    end,
+    Config.
+
+end_per_testcase(_, Config) ->
+    case proplists:get_value(mocked_modules, Config, no_mocks) of
+        no_mocks -> ok;
+        _ -> meck:unload()
+    end,
+    Config.
+
 sample_pgsql(Config) ->
     test_config_file(Config,  "mongooseim-pgsql").
 
@@ -256,11 +282,21 @@ outgoing_pools(Config) ->
 
 host_types_file(Config) ->
     Modules = [dummy_module, another_dummy_module],
-    [meck:new(M, [non_strict]) || M <- [yet_another_dummy_module | Modules]],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
-    test_config_file(Config, "host_types"),
-    meck:unload().
+    test_config_file(Config, "host_types").
+
+host_types_missing_modules(Config) ->
+    Modules = [dummy_module, yet_another_dummy_module],
+    [meck:unload(M) || M <- Modules],
+    ?assertError({config_error, "Could not read the TOML configuration file",
+                  [#{reason := module_not_found}, #{reason := module_not_found}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_modules(Config) ->
+    ?assertError({config_error, "Invalid host type configuration",
+                  [#{reason := not_supported_module}, #{reason := not_supported_module}]},
+                 test_config_file(Config, "host_types")).
 
 %% tests: general
 loglevel(_Config) ->
