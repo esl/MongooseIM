@@ -7,7 +7,9 @@
          remove_domain/1,
          disable_domain/1,
          enable_domain/1,
-         get_host_type/1]).
+         get_host_type/1,
+         get_all_locked/0,
+         get_domains_by_host_type/1]).
 
 -type domain() :: jid:lserver().
 -type host_type() :: jid:lserver().
@@ -114,3 +116,15 @@ check_db(Result) ->
     {ok, host_type()} | {error, not_found}.
 get_host_type(Domain) ->
     mongoose_domain_core:get_host_type(Domain).
+
+%% Get the list of the host_types provided during initialisation
+%% This has complexity N, where N is the number of online domains.
+-spec get_all_locked() -> [domain()].
+get_all_locked() ->
+    mongoose_domain_core:get_all_locked().
+
+%% Get the list of the host\_types provided during initialisation
+%% This has complexity N, where N is the number of online domains.
+-spec get_domains_by_host_type(host_type()) -> [domain()].
+get_domains_by_host_type(HostType) ->
+    mongoose_domain_core:get_domains_by_host_type(HostType).

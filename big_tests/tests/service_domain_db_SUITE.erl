@@ -16,7 +16,9 @@ all() ->
      core_locked_domain,
      core_cannot_insert_locked,
      core_cannot_disable_locked,
-     core_cannot_enable_locked
+     core_cannot_enable_locked,
+     core_get_all_locked,
+     core_get_domains_by_host_type
     ] ++ maybe_db_cases().
 
 db_cases() -> [
@@ -33,7 +35,8 @@ db_cases() -> [
      sql_select_from_works,
      db_records_are_restored_when_restarted,
      db_record_is_ignored_if_domain_locked,
-     db_events_table_gets_truncated
+     db_events_table_gets_truncated,
+     db_get_all_locked
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -114,6 +117,35 @@ core_cannot_disable_locked(_) ->
 core_cannot_enable_locked(_) ->
     precond(off, [<<"example.com">>, <<"type1">>]),
     {error, locked} = enable_domain(mim(), <<"example.com">>).
+
+%% See also db_get_all_locked
+core_get_all_locked(_) ->
+    precond(off, [<<"example.com">>, <<"type1">>,
+                  <<"example.org">>, <<"type2">>,
+                  <<"erlang-solutions.com">>, <<"type2">>]),
+    %% Could be in any order
+    [<<"erlang-solutions.com">>, <<"example.com">>, <<"example.org">>] =
+        lists:sort(get_all_locked(mim())).
+
+core_get_domains_by_host_type(_) ->
+    precond(off, [<<"example.com">>, <<"type1">>,
+                  <<"example.org">>, <<"type2">>,
+                  <<"erlang-solutions.com">>, <<"type2">>]),
+    [<<"erlang-solutions.com">>, <<"example.org">>] =
+        lists:sort(get_domains_by_host_type(mim(), <<"type2">>)),
+    [<<"example.com">>] = get_domains_by_host_type(mim(), <<"type1">>),
+    [] = get_domains_by_host_type(mim(), <<"type6">>).
+
+%% Similar to as core_get_all_locked, just with DB service enabled
+db_get_all_locked(_) ->
+    precond(on, [<<"example.com">>, <<"type1">>,
+                 <<"example.org">>, <<"type2">>,
+                 <<"erlang-solutions.com">>, <<"type2">>]),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    sync(),
+    %% Could be in any order
+    [<<"erlang-solutions.com">>, <<"example.com">>, <<"example.org">>] =
+        lists:sort(get_all_locked(mim())).
 
 db_inserted_domain_is_in_db(_) ->
     precond(on),
@@ -289,6 +321,12 @@ restore(Node, Dump) ->
 
 get_host_type(Node, Domain) ->
     rpc(Node, mongoose_domain_api, get_host_type, [Domain]).
+
+get_domains_by_host_type(Node, HostType) ->
+    rpc(Node, mongoose_domain_api, get_domains_by_host_type, [HostType]).
+
+get_all_locked(Node) ->
+    rpc(Node, mongoose_domain_api, get_all_locked, []).
 
 disable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, disable_domain, [Domain]).

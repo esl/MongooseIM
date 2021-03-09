@@ -80,9 +80,9 @@ schedule_removal(State = #{max_age := MaxAge}) ->
             ok; %% Ignore an empty event table
         _ ->
             Msg = {do_removal, LastEventId},
-            erlang:start_timer(timer:seconds(MaxAge), self(), Msg),
-            State
-    end.
+            erlang:start_timer(timer:seconds(MaxAge), self(), Msg)
+    end,
+    State.
 
 handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->
     mongoose_domain_sql:remove_events_older_than(LastEventId),

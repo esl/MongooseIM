@@ -16,6 +16,9 @@
          upsert_unlocked/2,
          remove_unlocked/1]).
 
+-export([get_all_locked/0,
+         get_domains_by_host_type/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -56,6 +59,15 @@ is_locked(Domain) ->
 
 remove_all_unlocked() ->
     ets:match_delete(?TABLE, {'_', '_', false}).
+
+get_all_locked() ->
+    heads(ets:match(?TABLE, {'$1', '_', true})).
+
+get_domains_by_host_type(HostType) when is_binary(HostType) ->
+    heads(ets:match(?TABLE, {'$1', HostType, '_'})).
+
+heads(List) ->
+    [H || [H|_] <- List].
 
 upsert_unlocked(Domain, HostType) ->
     case is_locked(Domain) of

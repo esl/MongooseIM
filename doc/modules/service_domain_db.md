@@ -29,8 +29,10 @@ It must provide the following interfaces:
   Implemented in `mongoose_domain_api:remove_domain(Domain)`.
 - Get host type by domain.
   Implemented in `mongoose_domain_api:get_host_type(Domain).`.
-- Get all domains configured for the host\_type.
+- Get all domains configured for the host\_type. 
+  Implemented in `mongoose_domain_api:get_domains_by_host_type(HostType).`.
 - Get the list of the host\_types provided during initialisation.
+  Implemented in `mongoose_domain_apiget_all_locked().`.
 
 `mongoose_domain_core` implementation:
 
