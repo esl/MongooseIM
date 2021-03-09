@@ -16,7 +16,10 @@ all() ->
      core_locked_domain,
      core_cannot_insert_locked,
      core_cannot_disable_locked,
-     core_cannot_enable_locked,
+     core_cannot_enable_locked
+    ] ++ maybe_db_cases().
+
+db_cases() -> [
      db_inserted_domain_is_in_db,
      db_inserted_domain_is_in_core,
      db_removed_domain_from_db,
@@ -34,6 +37,14 @@ all() ->
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
+
+maybe_db_cases() ->
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true -> db_cases();
+        false -> []
+    end.
+
+domain() -> ct:get_config({hosts, mim, domain}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -253,10 +264,16 @@ select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).
 
 erase_database(Node) ->
-    rpc(Node, mongoose_domain_sql, erase_database, []).
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true -> rpc(Node, mongoose_domain_sql, erase_database, []);
+        false -> ok
+    end.
 
 prepare_erase(Node) ->
-    rpc(Node, mongoose_domain_sql, prepare_erase, []).
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true -> rpc(Node, mongoose_domain_sql, prepare_erase, []);
+        false -> ok
+    end.
 
 get_min_event_id(Node) ->
     rpc(Node, mongoose_domain_sql, get_min_event_id, []).
