@@ -65,11 +65,12 @@
 parse_file(FileName) ->
     ParserModule = parser_module(filename:extension(FileName)),
     try
-        ParserModule:parse_file(FileName)
+        State = ParserModule:parse_file(FileName),
+        check_dynamic_domains_support(State),
+        State
     catch
         error:{config_error, ExitMsg, Errors} ->
-            [?LOG_ERROR(Error) || Error <- Errors],
-            mongoose_config_utils:exit_or_halt(ExitMsg)
+            halt_with_msg(ExitMsg, Errors)
     end.
 
 %% Only the TOML format is supported
@@ -200,3 +201,58 @@ add_dep_modules_opt({local_config, {modules, Host}, Modules}) ->
     {local_config, {modules, Host}, Modules2};
 add_dep_modules_opt(Other) ->
     Other.
+
+%% local functions
+-ifdef(TEST).
+halt_with_msg(ExitMsg, Errors) ->
+    config_error(ExitMsg, Errors).
+-else.
+halt_with_msg(ExitMsg, Errors) ->
+    [?LOG_ERROR(Error) || Error <- Errors],
+    mongoose_config_utils:exit_or_halt(ExitMsg).
+-endif.
+
+config_error(ErrorMsg, Errors) ->
+    error({config_error, ErrorMsg, Errors}).
+
+-spec check_dynamic_domains_support(mongoose_config_parser:state()) -> any().
+check_dynamic_domains_support(State) ->
+    %% we must check that all the the modules configured for
+    %% the pure host types support dynamic domains feature
+    Config = get_opts(State),
+    HostTypes = state_to_host_types(State),
+    FoldFN = fun
+                 (#local_config{key = {modules, H}, value = Modules}, Acc) ->
+                     case lists:member(H, HostTypes) of
+                         false -> Acc;
+                         true ->
+                             BadModules = check_modules_for_host_type(Modules),
+                             Acc ++ invalid_modules_for_host_type(H, BadModules)
+                     end;
+                 (_, Acc) -> Acc
+             end,
+    case lists:foldl(FoldFN, [], Config) of
+        [] -> ok;
+        Errors ->
+            config_error("Invalid host type configuration", Errors)
+    end.
+
+check_modules_for_host_type(Modules) ->
+    FilterMapFN = fun({Module, _}) ->
+                      case gen_mod:does_module_support(Module, dynamic_domains) of
+                          true -> false;
+                          false -> {true, Module}
+                      end
+                  end,
+    lists:filtermap(FilterMapFN, Modules).
+
+invalid_modules_for_host_type(HostType, Modules) ->
+    MapFN = fun(Module) ->
+                #{class => error,
+                  module => Module,
+                  host_type => HostType,
+                  reason => not_supported_module,
+                  text => "this module doesn't support dynamic domains",
+                  what => toml_processing_failed}
+            end,
+    lists:map(MapFN, Modules).
