@@ -22,6 +22,7 @@
 
 start(Opts) ->
     mongoose_domain_sql:start(Opts),
+    mongoose_domain_db_cleaner:start(Opts),
     ChildSpec =
         {?MODULE,
          {?MODULE, start_link, []},
@@ -30,6 +31,7 @@ start(Opts) ->
     ok.
 
 stop() ->
+    mongoose_domain_db_cleaner:stop(),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
@@ -79,15 +81,18 @@ init([]) ->
 
 handle_call(ping, _From, State) ->
     {reply, pong, State};
-handle_call(_Request, _From, State) ->
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
 handle_info(check_for_updates, State) ->
     {noreply, handle_check_for_updates(State)};
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 terminate(_Reason, _State) ->

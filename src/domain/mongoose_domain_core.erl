@@ -93,13 +93,16 @@ init([Pairs]) ->
     insert_initial(?TABLE, Pairs),
     {ok, #{}}.
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, From, State) ->
+    ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
 terminate(_Reason, _State) ->

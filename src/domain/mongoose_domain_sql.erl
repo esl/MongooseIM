@@ -11,10 +11,13 @@
          get_min_event_id/0,
          get_max_event_id/0,
          select_from/2,
-         select_updates_from/2]).
+         select_updates_from/2,
+         remove_events_older_than/1]).
 
 -export([prepare_erase/0,
          erase_database/0]).
+
+-include("mongoose_logger.hrl").
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -52,6 +55,8 @@ start(_Opts) ->
             <<"INSERT INTO domain_events (domain) VALUES (?)">>),
     prepare(domain_events_max, domain_events, [],
             <<"SELECT MAX(id) FROM domain_events">>),
+    prepare(domain_events_remove_older_than, domain_events, [id],
+            <<"DELETE FROM domain_events WHERE id < ?">>),
     prepare(domain_events_min, domain_events, [],
             <<"SELECT MIN(id) FROM domain_events">>),
     prepare(domain_select_events_from, domain_events,
@@ -141,6 +146,25 @@ get_max_event_id() ->
     Pool = get_db_pool(),
     selected_to_int(execute_successfully(Pool, domain_events_max, [])).
 
+remove_events_older_than(Id) ->
+    transaction(fun(Pool) ->
+            MaxId = get_max_event_id(),
+            if MaxId =:= null ->
+                    skipped;
+               MaxId < Id ->
+                    %% Removal would erase all the events, which we don't want.
+                    %% We want to keep at least one event.
+                    %% This should never happen though, unless the events table
+                    %% is modifined externally (for example, after DB restored
+                    %% from the dump to the previous state).
+                    %% Skipping is not critical.
+                    ?LOG_ERROR(#{what => domain_remove_events_older_than_failed,
+                                 max_id => MaxId, older_than_id => Id}),
+                    skipped;
+               true ->
+                   execute_successfully(Pool, domain_events_remove_older_than, [Id])
+            end
+        end).
 %% ----------------------------------------------------------------------------
 insert_domain_event(Pool, Domain) ->
     execute_successfully(Pool, domain_insert_event, [Domain]).

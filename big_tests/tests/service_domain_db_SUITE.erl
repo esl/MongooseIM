@@ -29,7 +29,8 @@ all() ->
      db_cannot_insert_domain_twice_with_the_another_host_type,
      sql_select_from_works,
      db_records_are_restored_when_restarted,
-     db_record_is_ignored_if_domain_locked
+     db_record_is_ignored_if_domain_locked,
+     db_events_table_gets_truncated
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -207,12 +208,30 @@ db_record_is_ignored_if_domain_locked(_) ->
     {ok, <<"cfggroup">>} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim(), <<"example.net">>).
 
+db_events_table_gets_truncated(_) ->
+    precond(off),
+    %% Configure service with a very short interval
+    service_enabled([{event_cleaning_interval, 1}, {event_max_age, 3}]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
+    ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
+    ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
+    Max = get_max_event_id(mim()),
+    true = is_integer(Max),
+    %% The events table is not empty and the size of 1, eventually.
+    F = fun() -> get_min_event_id(mim()) end,
+    mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
 service_enabled() ->
-    rpc(mim(), mongoose_service, start_service, [service_domain_db, []]),
+    service_enabled([]).
+
+service_enabled(Opts) ->
+    rpc(mim(), mongoose_service, start_service, [service_domain_db, Opts]),
     true = rpc(mim(), service_domain_db, enabled, []).
 
 service_disabled() ->
@@ -237,6 +256,12 @@ erase_database(Node) ->
 
 prepare_erase(Node) ->
     rpc(Node, mongoose_domain_sql, prepare_erase, []).
+
+get_min_event_id(Node) ->
+    rpc(Node, mongoose_domain_sql, get_min_event_id, []).
+
+get_max_event_id(Node) ->
+    rpc(Node, mongoose_domain_sql, get_max_event_id, []).
 
 dump(Node) ->
     rpc(Node, mongoose_domain_core, dump, []).
