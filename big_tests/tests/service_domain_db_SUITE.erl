@@ -218,6 +218,7 @@ db_events_table_gets_truncated(_) ->
     ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
     Max = get_max_event_id(mim()),
     true = is_integer(Max),
+    true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
     F = fun() -> get_min_event_id(mim()) end,
     mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}),

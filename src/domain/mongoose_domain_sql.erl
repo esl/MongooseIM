@@ -149,7 +149,7 @@ get_max_event_id() ->
 remove_events_older_than(Id) ->
     transaction(fun(Pool) ->
             MaxId = get_max_event_id(),
-            if MaxId =:= null ->
+            if MaxId =:= 0 ->
                     skipped;
                MaxId < Id ->
                     %% Removal would erase all the events, which we don't want.

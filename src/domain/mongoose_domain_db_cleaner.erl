@@ -1,6 +1,4 @@
 -module(mongoose_domain_db_cleaner).
-
--behaviour(mongoose_service).
 -include("mongoose_logger.hrl").
 
 -export([start/1, stop/0]).
@@ -78,7 +76,7 @@ code_change(_OldVsn, State, _Extra) ->
 schedule_removal(State = #{max_age := MaxAge}) ->
     LastEventId = mongoose_domain_sql:get_max_event_id(),
     case LastEventId of
-        null ->
+        0 ->
             ok; %% Ignore an empty event table
         _ ->
             Msg = {do_removal, LastEventId},
