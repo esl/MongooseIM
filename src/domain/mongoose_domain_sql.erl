@@ -19,7 +19,7 @@
 -import(mongoose_rdbms, [prepare/4]).
 
 start(_Opts) ->
-    {LimitSQL, LimitMSSQL} = get_db_specific_limits(),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
     %% Settings
     prepare(domain_insert_settings, domain_settings, [domain, host_type],
             <<"INSERT INTO domain_settings (domain, host_type, enabled) "
@@ -35,7 +35,7 @@ start(_Opts) ->
             <<"SELECT host_type, enabled "
               "FROM domain_settings WHERE domain = ?">>),
     prepare(domain_select_from, domain_settings,
-            add_limit_arg(limit, [id]),
+            rdbms_queries:add_limit_arg(limit, [id]),
             <<"SELECT ", LimitMSSQL/binary,
               " id, domain, host_type "
               " FROM domain_settings "
@@ -50,7 +50,7 @@ start(_Opts) ->
     prepare(domain_events_min, domain_events, [],
             <<"SELECT MIN(id) FROM domain_events">>),
     prepare(domain_select_events_from, domain_events,
-            add_limit_arg(limit, [id]),
+            rdbms_queries:add_limit_arg(limit, [id]),
             <<"SELECT ", LimitMSSQL/binary,
               " domain_events.id, domain_events.domain, domain_settings.host_type "
               " FROM domain_events "
@@ -118,13 +118,13 @@ erase_database() ->
 %% Returns smallest id first
 select_from(FromNum, Limit) ->
     Pool = get_db_pool(),
-    Args = add_limit_arg(Limit, [FromNum]),
+    Args = rdbms_queries:add_limit_arg(Limit, [FromNum]),
     {selected, Rows} = mongoose_rdbms:execute(Pool, domain_select_from, Args),
     Rows.
 
 select_updates_from(FromNum, Limit) ->
     Pool = get_db_pool(),
-    Args = add_limit_arg(Limit, [FromNum]),
+    Args = rdbms_queries:add_limit_arg(Limit, [FromNum]),
     {selected, Rows} = mongoose_rdbms:execute(Pool, domain_select_events_from, Args),
     Rows.
 
@@ -172,16 +172,6 @@ get_db_pool() ->
 selected_to_int({selected, [{null}]}) -> 0;
 selected_to_int({selected, [{UpdateNum}]}) ->
     mongoose_rdbms:result_to_integer(UpdateNum).
-
-get_db_specific_limits() ->
-    %% XXX Once merged with upstream:
-    % rdbms_queries:get_db_specific_limits_binaries().
-    {<<"LIMIT ?">>, <<>>}.
-
-add_limit_arg(Limit, Args) ->
-    %% XXX Once merged with upstream:
-    % rdbms_queries:add_limit_arg(Limit, Args).
-    Args ++ [Limit].
 
 transaction(F) ->
     Pool = get_db_pool(),
