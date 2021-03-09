@@ -475,7 +475,7 @@ CREATE TABLE domain_settings (
     id BIGSERIAL NOT NULL UNIQUE,
     domain VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,
-    enabled BOOLEAN NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT true,
     PRIMARY KEY(domain)
 );
 
