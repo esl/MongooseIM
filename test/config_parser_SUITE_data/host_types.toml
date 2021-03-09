@@ -6,6 +6,8 @@ host_types = [
     "yet another host type"
 ]
 
+hosts = ["localhost"]
+
 [modules.dummy_module]
 
 [[host_config]]
@@ -23,3 +25,8 @@ host = "some host type"
 host_type = "another host type"
 ## reseting the modules for this host type
 [host_config.modules.another_dummy_module]
+
+[[host_config]]
+host_type = "localhost"
+## reseting the modules for this host type
+[host_config.modules.yet_another_dummy_module]
