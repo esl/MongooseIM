@@ -101,7 +101,7 @@ restore(Dump) ->
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 init([Pairs]) ->
-    ets:new(?TABLE, [set, named_table, public]),
+    ets:new(?TABLE, [set, named_table, public, {read_concurrency, true}]),
     insert_initial(?TABLE, Pairs),
     {ok, #{}}.
 
