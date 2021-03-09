@@ -66,12 +66,14 @@ process(Content) ->
     {Overrides, Opts} = lists:partition(fun({override, _}) -> true;
                                            (_) -> false
                                         end, Config1),
-    HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts ++ HostTypes) end, FOpts),
+    HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
     HostTypesOpts = lists:flatmap(fun(F) -> lists:flatmap(F, HostTypes) end, FOpts),
     AllOpts = Opts ++ HostsOpts ++ HostTypesOpts,
     case extract_errors(AllOpts) of
         [] ->
-            build_state(Hosts, HostTypes, AllOpts, Overrides);
+            State = build_state(Hosts, HostTypes, AllOpts, Overrides),
+            check_dynamic_domains_support(State),
+            State;
         Errors ->
             error(config_error(Errors))
     end.
@@ -322,6 +324,47 @@ build_state(Hosts, HostTypes, Opts, Overrides) ->
                  fun mongoose_config_parser:dedup_state_opts/1,
                  fun mongoose_config_parser:add_dep_modules/1,
                  fun(S) -> set_overrides(Overrides, S) end]).
+
+-spec check_dynamic_domains_support(mongoose_config_parser:state()) -> any().
+check_dynamic_domains_support(State) ->
+    %% we must check that all the the modules configured for
+    %% the pure host types support dynamic domains feature
+    Config = mongoose_config_parser:get_opts(State),
+    HostTypes=mongoose_config_parser:state_to_host_types(State),
+    FoldFN = fun
+                 (#local_config{key = {modules, H}, value = Modules}, Acc) ->
+                     case lists:member(H, HostTypes) of
+                         false -> Acc;
+                         true ->
+                             BadModules = check_modules_for_host_type(Modules),
+                             Acc ++ invalid_modules_for_host_type(H, BadModules)
+                     end;
+                 (_, Acc) -> Acc
+             end,
+    case lists:foldl(FoldFN, [], Config) of
+        [] -> ok;
+        Errors -> error(config_error(Errors))
+    end.
+
+check_modules_for_host_type(Modules) ->
+    FilterMapFN = fun({Module, _}) ->
+                      case gen_mod:does_module_support(Module, dynamic_domains) of
+                          true -> false;
+                          false -> {true, Module}
+                      end
+                  end,
+    lists:filtermap(FilterMapFN, Modules).
+
+invalid_modules_for_host_type(HostType, Modules) ->
+    MapFN = fun(Module) ->
+                #{class => error,
+                  module => Module,
+                  host_type => HostType,
+                  reason  => not_supported_module,
+                  text => "this module doesn't support dynamic domains",
+                  what => toml_processing_failed}
+            end,
+    lists:map(MapFN, Modules).
 
 %% Any nested config_part() may be a config_error() - this function extracts them all recursively
 -spec extract_errors([config()]) -> [config_error()].
