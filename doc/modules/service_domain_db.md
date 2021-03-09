@@ -92,6 +92,24 @@ The database schema contains two tables:
 
 We use `id` field to sort records when paginating.
 
+## Service options
+
+### `event_cleaning_interval`
+
+The number of seconds between cleaning attempts of the `domain_events` table.
+
+* **Syntax:** positive integer
+* **Default:** `1800` (30 minutes)
+* **Example:** `event_cleaning_interval = 1800`
+
+### `event_max_age`
+
+The number of seconds after an event must be removed from the `domain_events` table.
+
+* **Syntax:** positive integer
+* **Default:** `7200` (2 hours)
+* **Example:** `event_max_age = 7200`
+
 # REST API
 
 We must provide REST API for Add/Remove and Enable/Disable interfaces of the

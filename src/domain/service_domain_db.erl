@@ -38,7 +38,12 @@ stop() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{}}.
+    #section{items = #{
+               <<"event_cleaning_interval">> => #option{type = integer,
+                                                        validate = positive},
+               <<"event_max_age">> => #option{type = integer,
+                                              validate = positive}
+              }}.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
