@@ -22,9 +22,9 @@ start(Host) ->
                     <<"created_at">>, <<"payload">>],
     mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_last_item, [nidx],
         <<"SELECT nidx, itemid, created_luser, created_at, created_lserver, payload "
-          "FROM pubsub_last_item WHERE nidx = ?;">>),
+          "FROM pubsub_last_item WHERE nidx = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_last_item, pubsub_last_item, [nidx],
-        <<"DELETE FROM pubsub_last_item WHERE nidx = ?;">>),
+        <<"DELETE FROM pubsub_last_item WHERE nidx = ?">>),
     rdbms_queries:prepare_upsert(Host, pubsub_last_item_upsert, pubsub_last_item,
                                  InsertFields,
                                  UpdateFields,

@@ -92,7 +92,7 @@ start() ->
     mongoose_rdbms:prepare(pubsub_get_subscriptions_rows_id, pubsub_subscriptions, [nidx],
         <<"SELECT nidx, luser, lserver, lresource, type, sub_id "
           "FROM pubsub_subscriptions WHERE nidx = ?">>),
-    mongoose_rdbms:prepare(pubsub_get_item_rows, pubsub_items, [luser, lserver],
+    mongoose_rdbms:prepare(pubsub_get_item_rows, pubsub_items, [created_luser, created_lserver],
         <<"SELECT nidx, created_luser, created_lserver, itemid FROM pubsub_items"
           " WHERE created_luser = ? AND created_lserver = ?">>),
     mongoose_rdbms:prepare(pubsub_get_affiliation_rows, pubsub_affiliations, [luser, lserver],
@@ -107,14 +107,14 @@ start() ->
           "WHERE luser = ? AND lserver = ? AND lresource = ?">>),
     mongoose_rdbms:prepare(pubsub_get_idxs_of_own_nodes_with_pending_subs, pubsub_affiliations,
         [aff, luser, lserver, type],
-        <<"SELECT DISTINCT s.nidx"" FROM pubsub_affiliations AS a "
+        <<"SELECT DISTINCT s.nidx FROM pubsub_affiliations AS a "
           "INNER JOIN pubsub_subscriptions s ON a.nidx = s.nidx "
           "WHERE a.aff = ? AND a.luser = ? AND a.lserver = ? AND s.type = ?">>),
     %% not used anywhere
     mongoose_rdbms:prepare(pubsub_delete_node_entity_items, pubsub_items,
         [nidx, created_luser, created_lserver],
-        <<"DELETE FROM pubsub_items WHERE nidx = ? AND created_luser = ? "
-          "AND created_lserver = ?">>),
+        <<"DELETE FROM pubsub_items "
+          "WHERE nidx = ? AND created_luser = ? AND created_lserver = ?">>),
 
     % ------------------- Affiliations --------------------------------
     mongoose_rdbms:prepare(pubsub_get_affiliation, pubsub_affiliations, [nidx, luser, lserver],
@@ -154,12 +154,13 @@ start() ->
         pubsub_subscriptions, [luser, lserver],
         <<"DELETE FROM pubsub_subscriptions WHERE luser = ? AND lserver = ?">>),
     mongoose_rdbms:prepare(pubsub_update_subscription, pubsub_subscriptions,
-                           [subint, nidx, luser, lserver, lresource, sub_id],
+                           [type, nidx, luser, lserver, lresource, sub_id],
         <<"UPDATE pubsub_subscriptions SET type = ? WHERE nidx = ? "
           "AND luser = ? AND lserver = ? AND lresource = ? AND sub_id = ?">>),
 
     % ------------------- Items --------------------------------
-    mongoose_rdbms:prepare(pubsub_get_entity_items, pubsub_items, [nidx, luser, lserver],
+    mongoose_rdbms:prepare(pubsub_get_entity_items, pubsub_items,
+        [nidx, created_luser, created_lserver],
         <<"SELECT itemid FROM pubsub_items WHERE nidx = ? "
           "AND created_luser = ? AND created_lserver = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_item, pubsub_items,
@@ -173,23 +174,21 @@ start() ->
         <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
     mongoose_rdbms:prepare(pubsub_del_item, pubsub_items, [nidx, itemid],
         <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
-    mongoose_rdbms:prepare(pubsub_del_items, pubsub_items, [nidx, itemids],
-        <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid IN (?)">>),
 
     % ------------------- Nodes --------------------------------
     mongoose_rdbms:prepare(pubsub_update_pubsub_node, pubsub_nodes, [type, owners, options, nidx],
         <<"UPDATE pubsub_nodes SET type = ?, owners = ?, options = ? WHERE nidx = ?">>),
     PubsubNodeFields = pubsub_node_fields(),
-    mongoose_rdbms:prepare(pubsub_select_node_by_key_and_name, pubsub_nodes, [key, name],
+    mongoose_rdbms:prepare(pubsub_select_node_by_key_and_name, pubsub_nodes, [p_key, name],
         <<"SELECT ", PubsubNodeFields/binary, " from pubsub_nodes WHERE p_key = ? AND name = ?">>),
     mongoose_rdbms:prepare(pubsub_select_node_by_id, pubsub_nodes, [nidx],
         <<"SELECT ", PubsubNodeFields/binary, " from pubsub_nodes WHERE nidx = ?">>),
-    mongoose_rdbms:prepare(pubsub_select_nodes_by_key, pubsub_nodes, [key],
+    mongoose_rdbms:prepare(pubsub_select_nodes_by_key, pubsub_nodes, [p_key],
         <<"SELECT ", PubsubNodeFields/binary, " from pubsub_nodes WHERE p_key = ?">>),
-    mongoose_rdbms:prepare(pubsub_select_nodes_in_list_with_key, pubsub_nodes, [key, names],
+    mongoose_rdbms:prepare(pubsub_select_nodes_in_list_with_key, pubsub_nodes, [p_key, names],
         <<"SELECT ", PubsubNodeFields/binary, " from pubsub_nodes "
           "WHERE p_key = ? AND name IN (?)">>),
-    PubsubNodeFieldsPrefixed = pubsub_node_fields("pn"),
+    PubsubNodeFieldsPrefixed = pubsub_node_fields_pn(),
     mongoose_rdbms:prepare(pubsub_select_nodes_by_affiliated_user,
         pubsub_affiliations, [luser, lserver],
         <<"SELECT aff, ", PubsubNodeFieldsPrefixed/binary, " FROM pubsub_affiliations AS pa "
@@ -213,14 +212,14 @@ start() ->
           "ON pubsub_items.nidx = pubsub_nodes.nidx WHERE created_luser = ? "
           "AND created_lserver = ?">>),
     mongoose_rdbms:prepare(pubsub_select_nodes_by_owner_mysql, pubsub_nodes, [ljid],
-        <<"SELECT name, type FROM pubsub_nodes WHERE owners = convert([\"?\"], JSON);">>),
+        <<"SELECT name, type FROM pubsub_nodes WHERE owners = convert([?], JSON);">>),
     mongoose_rdbms:prepare(pubsub_select_nodes_by_owner_pgsql, pubsub_nodes, [ljid],
-        <<"SELECT name, type"" FROM pubsub_nodes WHERE owners ::json->>0 like ? "
+        <<"SELECT name, type FROM pubsub_nodes WHERE owners ::json->>0 like ? "
           "AND JSON_ARRAY_LENGTH(owners) = 1">>),
     mongoose_rdbms:prepare(pubsub_select_nodes_by_owner_odbc, pubsub_nodes, [ljid],
-        <<"SELECT name, type FROM pubsub_nodes WHERE cast(owners as nvarchar(max)) = [\"?\"];">>),
+        <<"SELECT name, type FROM pubsub_nodes WHERE cast(owners as nvarchar(max)) = [?];">>),
     mongoose_rdbms:prepare(pubsub_get_user_subscriptions, pubsub_subscriptions, [luser, lserver],
-        <<"SELECT name"" FROM pubsub_subscriptions INNER JOIN pubsub_nodes "
+        <<"SELECT name FROM pubsub_subscriptions INNER JOIN pubsub_nodes "
           "ON pubsub_subscriptions.nidx = pubsub_nodes.nidx WHERE luser = ? AND lserver = ?">>),
 
     rdbms_queries:prepare_upsert(global, pubsub_affiliation_upsert, pubsub_affiliations,
@@ -402,8 +401,8 @@ del_item(Nidx, ItemId) ->
 del_items(_, []) ->
     ok;
 del_items(Nidx, ItemIds) ->
-    {updated, _} =
-        mongoose_rdbms:execute_successfully(ignored, pubsub_del_items, [Nidx, ItemIds]),
+    [{updated, _} = mongoose_rdbms:execute_successfully(ignored, pubsub_del_item, [Nidx, Item])
+        || Item <- ItemIds],
     ok.
 
 % ------------------- Node management --------------------------------
@@ -791,12 +790,9 @@ item_columns() ->
 pubsub_node_fields() ->
     <<"nidx, p_key, name, type, owners, options">>.
 
--spec pubsub_node_fields(string()) -> binary().
-pubsub_node_fields(Prefix) ->
-    Names = ["nidx", "p_key", "name", "type", "owners", "options"],
-    NamesWithPrefix = [ [Prefix, ".", Name] || Name <- Names],
-    Result = rdbms_queries:join(NamesWithPrefix, ", "),
-    list_to_binary(Result).
+-spec pubsub_node_fields_pn() -> binary().
+pubsub_node_fields_pn() ->
+    <<"pn.nidx, pn.p_key, pn.name, pn.type, pn.owners, pn.options">>.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid()) -> ok.
