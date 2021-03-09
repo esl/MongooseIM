@@ -146,7 +146,7 @@ insert_domain_settings(Pool, Domain, HostType) ->
 delete_domain_settings(Pool, Domain) ->
     mongoose_rdbms:execute(Pool, domain_delete_settings, [Domain]).
 
-set_enabled(Domain, Enabled) ->
+set_enabled(Domain, Enabled) when is_boolean(Enabled) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
                 {error, Reason} ->
@@ -161,10 +161,15 @@ set_enabled(Domain, Enabled) ->
         end).
 
 update_domain_enabled(Pool, Domain, Enabled) ->
-    mongoose_rdbms:execute(Pool, domain_update_settings_enabled, [Enabled, Domain]).
+    En = bool_to_int(Enabled),
+    mongoose_rdbms:execute(Pool, domain_update_settings_enabled, [En, Domain]).
+
+%% MySQL needs booleans as integers
+bool_to_int(true) -> 1;
+bool_to_int(false) -> 0.
 
 row_to_map({HostType, Enabled}) ->
-    #{host_type => HostType, enabled => Enabled}.
+    #{host_type => HostType, enabled => mongoose_rdbms:to_bool(Enabled)}.
 
 get_db_pool() ->
     hd(ejabberd_config:get_global_option(hosts)).

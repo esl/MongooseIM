@@ -484,7 +484,8 @@ CREATE TABLE domain_settings (
 -- inserted, enabled or disabled.
 -- Column id is used for ordering and not related to domain_settings.id.
 CREATE TABLE domain_events (
-    id BIGSERIAL NOT NULL UNIQUE,
-    domain VARCHAR(250) NOT NULL
+    id BIGSERIAL NOT NULL,
+    domain VARCHAR(250) NOT NULL,
+    PRIMARY KEY(id)
 );
 CREATE INDEX i_domain_events_domain ON domain_events(domain);
