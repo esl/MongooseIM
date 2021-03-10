@@ -96,7 +96,7 @@ extract_requests(Acc, IQ, From, EntryJID, Requests0) ->
 process_requests(Acc, IQ, From, EntryJID, CurrentTS, Requests) ->
     {LUser, LServer} = jid:to_lus(From),
     BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    Query = build_sql_query(LUser, LServer, BinEntryJID, CurrentTS, Requests),
+    Query = build_sql_query(LUser, LServer, BinEntryJID, Requests),
     case execute_requests(LServer, Query) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
@@ -104,11 +104,11 @@ process_requests(Acc, IQ, From, EntryJID, CurrentTS, Requests) ->
             forward_request(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
     end.
 
--spec build_sql_query(jid:luser(), jid:lserver(), binary(), integer(), iolist()) -> iolist().
-build_sql_query(LUser, LServer, BinEntryJID, CurrentTS, Requests) ->
+-spec build_sql_query(jid:luser(), jid:lserver(), binary(), iolist()) -> iolist().
+build_sql_query(LUser, LServer, BinEntryJID, Requests) ->
     ["UPDATE inbox ",
-     "SET ", Requests, "timestamp=", esc_int(CurrentTS),
-     "WHERE "
+     "SET ", Requests,
+     " WHERE "
          "luser=", esc_string(LUser), " AND "
          "lserver=", esc_string(LServer), " AND "
          "remote_bare_jid=", esc_string(BinEntryJID),
@@ -216,25 +216,25 @@ return_error(Acc, IQ, Msg) when is_binary(Msg) ->
 form_to_query(_, [], []) ->
     {error, <<"no-property">>};
 form_to_query(_, [], Acc) ->
-    Acc;
+    lists:droplast(Acc);
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["archive=true," | Acc]);
+    form_to_query(TS, Rest, ["archive=true", "," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["archive=false," | Acc]);
+    form_to_query(TS, Rest, ["archive=false", "," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"read">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["unread_count=0," | Acc]);
+    form_to_query(TS, Rest, ["unread_count=0", "," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"read">>,
                           children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END," | Acc]);
+    form_to_query(TS, Rest, ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END", "," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"mute">>,
                           children = [#xmlcdata{content = Value}]} | Rest], Acc) ->
     case maybe_binary_to_positive_integer(Value) of
         {error, _} -> {error, <<"bad-request">>};
         0 ->
-            form_to_query(TS, Rest, ["muted_until=0," | Acc]);
+            form_to_query(TS, Rest, ["muted_until=0", "," | Acc]);
         N when N > 0 ->
             MutedUntilSec = erlang:convert_time_unit(TS, microsecond, second) + N,
             MutedUntilMicroSec = erlang:convert_time_unit(MutedUntilSec, second, microsecond),
