@@ -23,6 +23,8 @@
          unescape_binary/1, connect/2, disconnect/1,
          query/3, prepare/5, execute/4]).
 
+-type tabcol() :: {binary(), binary()}.
+
 %% API
 
 -spec escape_binary(binary()) -> iodata().
@@ -76,7 +78,8 @@ query(Connection, Query, Timeout) ->
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, {binary(), [fun((term()) -> tuple())]}}.
 prepare(Connection, Name, Table, Fields, Statement) ->
-    try prepare2(Connection, Table, Fields, Statement)
+    TabCols = fields_to_tabcol(Fields, Table),
+    try prepare2(Connection, TabCols, Statement)
     catch Class:Reason:Stacktrace ->
               ?LOG_ERROR(#{what => prepare_failed,
                            statement_name => Name, sql_query => Statement,
@@ -84,10 +87,11 @@ prepare(Connection, Name, Table, Fields, Statement) ->
               erlang:raise(Class, Reason, Stacktrace)
     end.
 
-prepare2(Connection, Table, Fields, Statement) ->
-    {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
+prepare2(Connection, TabCols, Statement) ->
+    Tables = tabcols_to_tables(TabCols),
+    TableDesc = describe_tables(Connection, Tables),
     ServerType = server_type(),
-    ParamMappers = [field_name_to_mapper(ServerType, TableDesc, Field) || Field <- Fields],
+    ParamMappers = [tabcol_to_mapper(ServerType, TableDesc, TabCol) || TabCol <- TabCols],
     {ok, {iolist_to_binary(Statement), ParamMappers}}.
 
 -spec execute(Connection :: term(), Statement :: {binary(), [fun((term()) -> tuple())]},
@@ -157,15 +161,15 @@ parse_row([FieldValue|Row], [generic|FieldsInfo]) ->
 parse_row([], []) ->
     [].
 
--spec field_name_to_mapper(ServerType :: atom(),
-                           TableDesc :: proplists:proplist(),
-                           FieldName :: binary()) -> fun((term()) -> tuple()).
-field_name_to_mapper(_ServerType, _TableDesc, <<"limit">>) ->
+-spec tabcol_to_mapper(ServerType :: atom(),
+                       TableDesc :: proplists:proplist(),
+                       TabCol :: tabcol()) -> fun((term()) -> tuple()).
+tabcol_to_mapper(_ServerType, _TableDesc, {_, <<"limit">>}) ->
     fun(P) -> {sql_integer, [P]} end;
-field_name_to_mapper(_ServerType, _TableDesc, <<"offset">>) ->
+tabcol_to_mapper(_ServerType, _TableDesc, {_, <<"offset">>}) ->
     fun(P) -> {sql_integer, [P]} end;
-field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
-    ODBCType = field_to_odbc_type(unicode:characters_to_list(FieldName), TableDesc),
+tabcol_to_mapper(_ServerType, TableDesc, TabCol) ->
+    ODBCType = field_to_odbc_type(TabCol, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
             fun(P) -> binary_mapper(P) end;
@@ -177,11 +181,11 @@ field_name_to_mapper(_ServerType, TableDesc, FieldName) ->
             fun(P) -> {ODBCType, [P]} end
     end.
 
-field_to_odbc_type(FieldName, TableDesc) ->
-    case lists:keyfind(FieldName, 1, TableDesc) of
+field_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
+    case lists:keyfind(TabCol, 1, TableDesc) of
         false ->
-            ?LOG_ERROR(#{what => field_to_odbc_type_failed,
-                         field => FieldName, table_desc => TableDesc}),
+            ?LOG_ERROR(#{what => field_to_odbc_type_failed, table => Table,
+                         column => Column, table_desc => TableDesc}),
             error(field_to_odbc_type_failed);
         {_, ODBCType} ->
             ODBCType
@@ -270,3 +274,25 @@ escape_pgsql_string(Bin) ->
 %% Duplicate each single quaote
 escape_pgsql_characters(Bin) when is_binary(Bin) ->
     binary:replace(Bin, <<"'">>, <<"''">>, [global]).
+
+fields_to_tabcol(Fields, DefaultTable) ->
+    [field_to_tabcol(Field, DefaultTable) || Field <- Fields].
+
+field_to_tabcol(Field, DefaultTable) ->
+    case binary:split(Field, <<".">>) of
+        [Column] ->
+            {DefaultTable, Column};
+        [Table, Column] ->
+            {Table, Column}
+    end.
+
+tabcols_to_tables(TabCols) ->
+    lists:usort([Table || {Table, _Column} <- TabCols]).
+
+describe_tables(Connection, Tables) ->
+    lists:append([describe_table(Connection, Table) || Table <- Tables]).
+
+describe_table(Connection, Table) ->
+    {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
+    [{{Table, unicode:characters_to_binary(Column)}, ODBCType}
+     || {Column, ODBCType} <- TableDesc].

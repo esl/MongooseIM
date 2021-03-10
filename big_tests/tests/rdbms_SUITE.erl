@@ -63,7 +63,9 @@ rdbms_queries_cases() ->
      read_prep_boolean_case,
 
      select_like_case,
-     select_like_prep_case].
+     select_like_prep_case,
+
+     arguments_from_two_tables].
 
 suite() ->
     escalus:suite().
@@ -298,6 +300,21 @@ safe_binary(Len, Bin) when byte_size(Bin) > Len ->
 safe_binary(_Len, Bin) ->
     Bin.
 
+arguments_from_two_tables(Config) ->
+    erase_users(Config),
+    sql_prepare(Config, select_multi_args, users, [password, 'last.seconds'],
+                <<"SELECT users.username from users "
+                  " LEFT JOIN last ON (last.username = users.username) "
+                  " WHERE users.password = ? AND last.seconds > ?">>),
+    sql_query(Config, "INSERT INTO users (username, password) VALUES ('alice', 'secret')"),
+    sql_query(Config, "INSERT INTO users (username, password) VALUES ('bob', 'billy')"),
+    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('alice', 1615368268, 'ok')"),
+    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('bob', 1610000000, 'cool')"),
+    SelectResult = sql_execute(Config, select_multi_args, [<<"secret">>, 1611000000]),
+    ?assert_equal({selected, [{<<"alice">>}]}, SelectResult),
+    erase_users(Config),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -363,6 +380,10 @@ decode_boolean(_Config, Value) ->
 
 erase_table(Config) ->
     sql_query(Config, <<"TRUNCATE TABLE test_types">>).
+
+erase_users(Config) ->
+    sql_query(Config, <<"TRUNCATE TABLE users">>),
+    sql_query(Config, <<"TRUNCATE TABLE last">>).
 
 check_int32(Config, Value) ->
     check_generic_integer(Config, Value, <<"int32">>).
