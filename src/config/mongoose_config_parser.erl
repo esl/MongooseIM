@@ -203,6 +203,8 @@ add_dep_modules_opt(Other) ->
     Other.
 
 %% local functions
+
+-spec halt_with_msg(string(), [any()]) -> no_return().
 -ifdef(TEST).
 halt_with_msg(ExitMsg, Errors) ->
     config_error(ExitMsg, Errors).
