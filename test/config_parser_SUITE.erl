@@ -289,12 +289,18 @@ host_types_missing_modules(Config) ->
     Modules = [dummy_module, yet_another_dummy_module],
     [meck:unload(M) || M <- Modules],
     ?assertError({config_error, "Could not read the TOML configuration file",
-                  [#{reason := module_not_found}, #{reason := module_not_found}]},
+                  [#{reason := module_not_found, module := yet_another_dummy_module,
+                     toml_path := "host_config.modules"},
+                   #{reason := module_not_found, module := dummy_module,
+                     toml_path := "modules"}]},
                  test_config_file(Config, "host_types")).
 
 host_types_unsupported_modules(Config) ->
     ?assertError({config_error, "Invalid host type configuration",
-                  [#{reason := not_supported_module}, #{reason := not_supported_module}]},
+                  [#{reason := not_supported_module, module := dummy_module,
+                     host_type := <<"yet another host type">> },
+                   #{reason := not_supported_module, module := another_dummy_module,
+                     host_type := <<"another host type">>}]},
                  test_config_file(Config, "host_types")).
 
 %% tests: general
