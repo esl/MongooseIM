@@ -10,6 +10,7 @@
 
 %% callbacks for the 'process' step
 -export([process_host/1,
+         process_general/1,
          process_sm_backend/1,
          process_ctl_access_rule/1,
          process_ip_version/1,
@@ -43,6 +44,7 @@
          process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.
@@ -116,7 +118,7 @@
 root() ->
     General = general(),
     #section{
-       items = #{<<"general">> => General#section{required = [<<"hosts">>]},
+       items = #{<<"general">> => General#section{process = fun ?MODULE:process_general/1},
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
@@ -137,10 +139,21 @@ root() ->
 host_config() ->
     #section{
        items = #{%% Host is only validated here - it is stored in the path,
-                 %%   see mongoose_config_parser_toml:item_key/1
+                 %% see mongoose_config_parser_toml:item_key/1
+                 %%
+                 %% for every configured host the host_type of the same name
+                 %% is declared automatically. As host_config section is now
+                 %% used for changing configuration of the host_type, we don't
+                 %% need host option any more. but to stay compatible with an
+                 %% old config format we keep host option as well. now it is
+                 %% just a synonym to host_type.
                  <<"host">> => #option{type = binary,
                                        validate = non_empty,
                                        format = skip},
+
+                 <<"host_type">> => #option{type = binary,
+                                            validate = non_empty,
+                                            format = skip},
 
                  %% Sections below are allowed in host_config,
                  %% but only options with these formats are accepted:
@@ -169,8 +182,12 @@ general() ->
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
-                                      validate = unique_non_empty,
+                                      validate = unique,
                                       format = config},
+                 <<"host_types">> => #list{items = #option{type = binary,
+                                                           validate = non_empty},
+                                           validate = unique,
+                                           format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
@@ -1077,6 +1094,25 @@ process_host(Host) ->
     Node = jid:nodeprep(Host),
     true = Node =/= error,
     Node.
+
+process_general(General) ->
+    hosts_and_host_types_are_unique_and_non_empty(General),
+    General.
+
+hosts_and_host_types_are_unique_and_non_empty(General) ->
+    AllHostTypes = get_all_hosts_and_host_types(General),
+    true = lists:sort(AllHostTypes) =:= lists:usort(AllHostTypes),
+    true = [] =/= AllHostTypes.
+
+get_all_hosts_and_host_types(General) ->
+    FoldFN = fun
+                 (#config{key = K} = C, Acc) when K =:= hosts;
+                                                  K =:= host_types ->
+                     Acc ++ C#config.value;
+                 (_, Acc) ->
+                     Acc
+             end,
+    lists:foldl(FoldFN, [], General).
 
 process_sni(false) ->
     disable.

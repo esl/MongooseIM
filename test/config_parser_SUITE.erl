@@ -39,9 +39,14 @@ groups() ->
                          miscellaneous,
                          s2s,
                          modules,
-                         outgoing_pools]},
+                         outgoing_pools,
+                         {group, host_types_group}]},
+     {host_types_group, [], [host_types_file,
+                             host_types_missing_modules,
+                             host_types_unsupported_modules]},
      {general, [parallel], [loglevel,
                             hosts,
+                            host_types,
                             registration_timeout,
                             language,
                             all_metrics_are_global,
@@ -236,6 +241,29 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
+init_per_group(host_types_group, Config) ->
+    Modules = [dummy_module, another_dummy_module, yet_another_dummy_module],
+    [{mocked_modules, Modules} | Config];
+init_per_group(_, Config) ->
+    Config.
+
+end_per_group(_, Config) ->
+    Config.
+
+init_per_testcase(_, Config) ->
+    case proplists:get_value(mocked_modules, Config, no_mocks) of
+        no_mocks -> ok;
+        Modules -> [meck:new(M, [non_strict, no_link]) || M <- Modules]
+    end,
+    Config.
+
+end_per_testcase(_, Config) ->
+    case proplists:get_value(mocked_modules, Config, no_mocks) of
+        no_mocks -> ok;
+        _ -> meck:unload()
+    end,
+    Config.
+
 sample_pgsql(Config) ->
     test_config_file(Config,  "mongooseim-pgsql").
 
@@ -251,6 +279,30 @@ modules(Config) ->
 outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
 
+host_types_file(Config) ->
+    Modules = [dummy_module, another_dummy_module],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    test_config_file(Config, "host_types").
+
+host_types_missing_modules(Config) ->
+    Modules = [dummy_module, yet_another_dummy_module],
+    [meck:unload(M) || M <- Modules],
+    ?assertError({config_error, "Could not read the TOML configuration file",
+                  [#{reason := module_not_found, module := yet_another_dummy_module,
+                     toml_path := "host_config.modules"},
+                   #{reason := module_not_found, module := dummy_module,
+                     toml_path := "modules"}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_modules(Config) ->
+    ?assertError({config_error, "Invalid host type configuration",
+                  [#{reason := not_supported_module, module := dummy_module,
+                     host_type := <<"yet another host type">> },
+                   #{reason := not_supported_module, module := another_dummy_module,
+                     host_type := <<"another host type">>}]},
+                 test_config_file(Config, "host_types")).
+
 %% tests: general
 loglevel(_Config) ->
     ?eq([#local_config{key = loglevel, value = debug}],
@@ -260,13 +312,34 @@ loglevel(_Config) ->
     ?err(parse_host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
-    ?eq([#config{key = hosts, value = [<<"host1">>, <<"host2">>]}],
-        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>]}})),
+    ?eq([#config{key = hosts, value = [<<"host1">>]}],
+        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>]}})),
+    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #config{key = host_types, value = []}],
+                   parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>],
+                                              <<"host_types">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
-    ?err(parse(#{<<"general">> => #{<<"hosts">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})). % hosts are mandatory
+    % either hosts or host_types must be provided
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => [],
+                                                                <<"host_types">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host_types">> => []}})).
+
+host_types(_Config) ->
+    ?eq([#config{key = host_types, value = [<<"type 1">>]}],
+        parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}})),
+    compare_config([#config{key = host_types, value = [<<"type 1">>, <<"type 2">>]},
+                    #config{key = hosts, value = []}],
+                   parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>, <<"type 2">>],
+                                              <<"hosts">> => []}})),
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<>>]}})),
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type1">>]}})),
+    % either hosts and host_types cannot have the same values
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>],
+                                    <<"hosts">> => [<<"type1">>]}})).
 
 registration_timeout(_Config) ->
     ?eq([#local_config{key = registration_timeout, value = infinity}],
@@ -2872,7 +2945,7 @@ err_host_or_global(Config) ->
     ?err(parse_host_config(Config)).
 
 parse_host_config(Config) ->
-    parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
+    parse(#{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}).
 
 %% plug in 'hosts' as this option is mandatory, then parse, then remove the extra 'hosts'
 parse(M)
@@ -2883,6 +2956,7 @@ parse(M = #{<<"general">> := GenM})
     parse(M#{<<"general">> => GenM#{<<"hosts">> => [?HOST]}});
 parse(M) ->
     Config = mongoose_config_parser_toml:parse(M),
+    %% remove hosts key only if value is equal to [?HOST]
     lists:filter(fun(#config{key = hosts, value = [?HOST]}) -> false;
                     (_) -> true
                  end, Config).
@@ -2894,7 +2968,7 @@ test_config_file(Config, File) ->
     {ok, ExpectedOpts} = file:consult(OptionsPath),
 
     TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
-    State = mongoose_config_parser_toml:parse_file(TOMLPath),
+    State = mongoose_config_parser:parse_file(TOMLPath),
     TOMLOpts = mongoose_config_parser:state_to_opts(State),
 
     %% Save the parsed TOML options
