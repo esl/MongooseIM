@@ -68,7 +68,8 @@
          properties_can_be_get/1,
          properties_many_can_be_set/1,
          max_queries_can_be_limited/1,
-         max_queries_can_fetch_ahead/1
+         max_queries_can_fetch_ahead/1,
+         timestamp_is_not_reset_with_setting_properties/1
         ]).
 %% Groupchats
 -export([
@@ -131,7 +132,8 @@ bkpr_tests() ->
         properties_can_be_get,
         properties_many_can_be_set,
         max_queries_can_be_limited,
-        max_queries_can_fetch_ahead
+        max_queries_can_fetch_ahead,
+        timestamp_is_not_reset_with_setting_properties
       ]},
      {muclight, [sequence], [
         groupchat_setunread_stanza_sets_inbox
@@ -471,6 +473,21 @@ max_queries_can_fetch_ahead(Config) ->
                   [ConvWithKate, ConvWithBob],
                   #{limit => 2, 'end' => TimeAfterKate})
     end).
+
+timestamp_is_not_reset_with_setting_properties(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        inbox_helper:send_msg(Alice, Bob),
+        %% We capture the timestamp
+        [Item1] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        TStamp1 = inbox_helper:timestamp_from_item(Item1),
+        % Bob sets a bunch of properties
+        set_inbox_property(Bob, Alice, [{read, true}, {mute, 24*?HOUR}]),
+        % Bob gets the inbox again, and timestamp should be the same
+        [Item2] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        TStamp2 = inbox_helper:timestamp_from_item(Item2),
+        ?assertEqual(TStamp1, TStamp2)
+  end).
 
 % muclight
 groupchat_setunread_stanza_sets_inbox(Config) ->
