@@ -223,15 +223,8 @@ check_dynamic_domains_support(State) ->
     %% the pure host types support dynamic domains feature
     Config = get_opts(State),
     HostTypes = state_to_host_types(State),
-    FoldFN = fun
-                 (#local_config{key = {modules, H}, value = Modules}, Acc) ->
-                     case lists:member(H, HostTypes) of
-                         false -> Acc;
-                         true ->
-                             BadModules = check_modules_for_host_type(Modules),
-                             Acc ++ invalid_modules_for_host_type(H, BadModules)
-                     end;
-                 (_, Acc) -> Acc
+    FoldFN = fun(ConfigEl, ErrorsAcc) ->
+                 ErrorsAcc ++ maybe_check_modules_for_host_type(ConfigEl, HostTypes)
              end,
     case lists:foldl(FoldFN, [], Config) of
         [] -> ok;
@@ -239,14 +232,25 @@ check_dynamic_domains_support(State) ->
             config_error("Invalid host type configuration", Errors)
     end.
 
-check_modules_for_host_type(Modules) ->
+maybe_check_modules_for_host_type(#local_config{key = {modules, HostOrHostType},
+                                                value = ModulesWithOpts},
+                                  HostTypes) ->
+    case lists:member(HostOrHostType, HostTypes) of
+        false -> [];
+        true ->
+            BadModules = check_modules_for_host_type(ModulesWithOpts),
+            invalid_modules_for_host_type(HostOrHostType, BadModules)
+    end;
+maybe_check_modules_for_host_type(_, _) -> [].
+
+check_modules_for_host_type(ModulesWithOpts) ->
     FilterMapFN = fun({Module, _}) ->
                       case gen_mod:does_module_support(Module, dynamic_domains) of
                           true -> false;
                           false -> {true, Module}
                       end
                   end,
-    lists:filtermap(FilterMapFN, Modules).
+    lists:filtermap(FilterMapFN, ModulesWithOpts).
 
 invalid_modules_for_host_type(HostType, Modules) ->
     MapFN = fun(Module) ->
