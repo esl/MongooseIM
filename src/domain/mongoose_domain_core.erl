@@ -167,12 +167,17 @@ handle_insert_unlocked(Domain, HostType) ->
         false ->
             case is_host_type_allowed(HostType) of
                 true ->
-                    case ets:member(?TABLE, Domain) of
-                        true ->
-                            {error, duplicate};
-                        false ->
+                    case get_host_type(Domain) of
+                        {ok, HT} when HT =:= HostType ->
+                            ok;
+                        {error, not_found} ->
                             ets:insert_new(?TABLE, new_object(Domain, HostType, false)),
-                            ok
+                            ok;
+                        {ok, HT} ->
+                            ?LOG_ERROR(#{what => ignore_domain_from_db_with_different_host_type,
+                                         core_host_type => HT,
+                                         db_host_type => HostType}),
+                            {error, bad_insert}
                     end;
                 false ->
                     ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
