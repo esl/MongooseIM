@@ -428,7 +428,7 @@ too_many_unacked_stanzas(Config) ->
     escalus:wait_for_stanzas(Alice, ?SMALL_SM_BUFFER * 2), % messages and ack requests
     escalus:assert(is_stream_error, [<<"resource-constraint">>,
                                      <<"too many unacked stanzas">>],
-                   %% wait for deffered buffer check
+                   %% wait for deferred buffer check
                    escalus:wait_for_stanza(Alice, ?CONSTRAINT_CHECK_TIMEOUT + 1000)).
 
 server_requests_ack(Config) ->
@@ -1191,7 +1191,7 @@ subscription_requests_are_buffered_properly(Config) ->
 %% in a middle of state handover were not appended properly to SM buffer.
 %% Scenario to reproduce:
 %% 1. Online Bob and Alice
-%% 2. Alice kills the connecion
+%% 2. Alice kills the connection
 %% 3. Alice's session is suspended
 %% 4. Alice resumes session with new connection. At this moment new session is still not
 %%    present in session table. `resume` request is stuck in old proc mailbox.
