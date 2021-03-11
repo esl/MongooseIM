@@ -81,7 +81,13 @@ upsert_unlocked(Domain, HostType) ->
             %% Ignore any locked domains
             ?LOG_ERROR(#{what => domain_locked_but_in_db, domain => Domain});
         false ->
-            ets:insert(?TABLE, new_object(Domain, HostType, false))
+            case is_host_type_allowed(HostType) of
+                true ->
+                    ets:insert_new(?TABLE, new_object(Domain, HostType, false));
+                false ->
+                    ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
+                                 domain => Domain, host_type => HostType})
+            end
     end,
     ok.
 

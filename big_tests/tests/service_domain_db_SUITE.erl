@@ -37,6 +37,7 @@ db_cases() -> [
      db_cannot_remove_domain_with_unknown_host_type,
      db_cannot_enable_domain_with_unknown_host_type,
      db_cannot_disable_domain_with_unknown_host_type,
+     db_domains_with_unknown_host_type_are_ignored_by_core,
      sql_select_from_works,
      db_records_are_restored_when_restarted,
      db_record_is_ignored_if_domain_locked,
@@ -258,6 +259,16 @@ db_cannot_disable_domain_with_unknown_host_type(_) ->
     %% Nope. You can't touch oldies.
     {error, unknown_host_type} = disable_domain(mim(), <<"example.com">>).
 
+db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
+    precond(on, [], [<<"testing">>, <<"oldie">>]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
+    ok = insert_domain(mim(), <<"example.org">>, <<"testing">>),
+    %% The host type has been removed from the configuration.
+    precond(keep_on, [], [<<"testing">>]),
+    sync(),
+    {ok, <<"testing">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
+    {error, not_found} = get_host_type(mim(), <<"example.com">>).
+
 sql_select_from_works(_) ->
     precond(on, [], [<<"good">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"good">>),
@@ -391,14 +402,16 @@ precond(off, FlatPairs, AllowedHostTypes) ->
     erase_database(mim()),
     init_with(unflat(FlatPairs), AllowedHostTypes);
 precond(on, FlatPairs, AllowedHostTypes) ->
+    %% Restarts with clean DB
     service_disabled(),
     erase_database(mim()),
     service_enabled(),
     init_with(unflat(FlatPairs), AllowedHostTypes);
 precond(keep_on, FlatPairs, AllowedHostTypes) ->
+    init_with(unflat(FlatPairs), AllowedHostTypes),
     service_disabled(),
-    service_enabled(),
-    init_with(unflat(FlatPairs), AllowedHostTypes).
+    %% Skip erase
+    service_enabled().
 
 unflat([K,V|T]) ->
     [{K,V}|unflat(T)];
