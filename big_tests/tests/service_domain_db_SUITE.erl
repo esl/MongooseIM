@@ -33,6 +33,8 @@ db_cases() -> [
      db_reanabled_domain_is_in_core,
      db_can_insert_domain_twice_with_the_same_host_type,
      db_cannot_insert_domain_twice_with_the_another_host_type,
+     db_cannot_insert_domain_with_unknown_host_type,
+     db_cannot_remove_domain_with_unknown_host_type,
      sql_select_from_works,
      db_records_are_restored_when_restarted,
      db_record_is_ignored_if_domain_locked,
@@ -224,6 +226,18 @@ db_cannot_insert_domain_twice_with_the_another_host_type(_) ->
     precond(on, [], [<<"testing">>, <<"testing2">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, duplicate} = insert_domain(mim(), <<"example.com">>, <<"testing2">>).
+
+db_cannot_insert_domain_with_unknown_host_type(_) ->
+    precond(on, [], [<<"testing">>]),
+    {error, unknown_host_type} = insert_domain(mim(), <<"example.com">>, <<"nesting">>).
+
+db_cannot_remove_domain_with_unknown_host_type(_) ->
+    precond(on, [], [<<"testing">>, <<"oldie">>]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
+    %% The host type has been removed from the configuration.
+    precond(on, [], [<<"testing">>]),
+    %% Nope. You can't touch oldies.
+    {error, unknown_host_type} = remove_domain(mim(), <<"example.com">>, <<"oldie">>).
 
 sql_select_from_works(_) ->
     precond(on, [], [<<"good">>]),

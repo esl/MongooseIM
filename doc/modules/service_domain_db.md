@@ -94,6 +94,11 @@ The database schema contains two tables:
 
 We use `id` field to sort records when paginating.
 
+### Domain removal
+
+You are not allowed to remove domains with unknown host-type. 
+Configure host-type first to remove such domains.
+
 ## Service options
 
 ### `event_cleaning_interval`
