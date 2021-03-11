@@ -25,6 +25,7 @@ db_cases() -> [
      db_inserted_domain_is_in_db,
      db_inserted_domain_is_in_core,
      db_removed_domain_from_db,
+     db_removed_domain_fails_with_wrong_host_type,
      db_removed_domain_from_core,
      db_disabled_domain_is_in_db,
      db_disabled_domain_not_in_core,
@@ -162,14 +163,22 @@ db_inserted_domain_is_in_core(_) ->
 db_removed_domain_from_db(_) ->
     precond(on),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    ok = remove_domain(mim(), <<"example.com">>),
+    ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, not_found} = select_domain(mim(), <<"example.com">>).
+
+db_removed_domain_fails_with_wrong_host_type(_) ->
+    precond(on),
+    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
+    {error, wrong_host_type} =
+        remove_domain(mim(), <<"example.com">>, <<"testing2">>),
+    {ok, #{host_type := <<"testing">>, enabled := true}} =
+        select_domain(mim(), <<"example.com">>).
 
 db_removed_domain_from_core(_) ->
     precond(on),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
-    ok = remove_domain(mim(), <<"example.com">>),
+    ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
@@ -289,8 +298,8 @@ init_with(Pairs) ->
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
 
-remove_domain(Node, Domain) ->
-    rpc(Node, mongoose_domain_api, remove_domain, [Domain]).
+remove_domain(Node, Domain, HostType) ->
+    rpc(Node, mongoose_domain_api, remove_domain, [Domain, HostType]).
 
 select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).

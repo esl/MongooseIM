@@ -4,7 +4,7 @@
 
 -export([init/1,
          insert_domain/2,
-         remove_domain/1,
+         remove_domain/2,
          disable_domain/1,
          enable_domain/1,
          get_host_type/1,
@@ -51,17 +51,17 @@ insert_domain(Domain, HostType) ->
 %% all the nodes in the cluster.
 %% Returns ok, if domain not found.
 %% Domain should be nameprepped using `jid:nameprep'.
--spec remove_domain(domain()) ->
+-spec remove_domain(domain(), host_type()) ->
     ok | {error, locked} | {error, {db_error, term()}}
-    | {error, service_disabled}.
-remove_domain(Domain) ->
+    | {error, service_disabled} | {error, wrong_host_type}.
+remove_domain(Domain, HostType) ->
     case mongoose_domain_core:is_locked(Domain) of
         true ->
             {error, locked};
         false ->
             case service_domain_db:enabled() of
                 true ->
-                    check_db(mongoose_domain_sql:remove_domain(Domain));
+                    check_db(mongoose_domain_sql:remove_domain(Domain, HostType));
                 false ->
                     {error, service_disabled}
             end

@@ -3,7 +3,7 @@
 -export([start/1]).
 
 -export([insert_domain/2,
-         remove_domain/1,
+         remove_domain/2,
          disable_domain/1,
          enable_domain/1]).
 
@@ -103,13 +103,16 @@ select_domain(Domain) ->
              {ok, row_to_map(Row)}
     end.
 
-remove_domain(Domain) ->
+remove_domain(Domain, HostType) ->
     transaction(fun(Pool) ->
-            case delete_domain_settings(Pool, Domain) of
-                {updated, 1} ->
+            case select_domain(Domain) of
+                {ok, #{host_type := HT}} when HT =:= HostType ->
+                    {updated, 1} = delete_domain_settings(Pool, Domain),
                     insert_domain_event(Pool, Domain),
                     ok;
-                {updated, 0} ->
+                {ok, _} ->
+                    {error, wrong_host_type};
+                {error, not_found} ->
                     ok
             end
         end).
