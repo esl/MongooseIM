@@ -69,6 +69,7 @@ parallel_test_cases() ->
      resume_session_with_wrong_sid_returns_item_not_found,
      resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
+     resume_session_kills_old_C2S_gracefully,
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
@@ -975,6 +976,45 @@ session_resumption_expects_item_not_found(Config, SMID) ->
     true = escalus_connection:is_connected(Alice),
     escalus_connection:stop(Alice).
 
+resume_session_kills_old_C2S_gracefully(Config) ->
+    AliceSpec = [{manual_ack, true}
+        | escalus_fresh:create_fresh_user(Config, alice)],
+    Steps = connection_steps_to_enable_stream_resumption(),
+    {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+    {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
+
+    InitialPresence = setattr(escalus_stanza:presence(<<"available">>),
+                              <<"id">>, <<"presence1">>),
+    escalus_connection:send(Alice, InitialPresence),
+    Presence = escalus_connection:get_stanza(Alice, presence1),
+    escalus:assert(is_presence, Presence),
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    _Presence = escalus_connection:get_stanza(Alice, presence2),
+    discard_vcard_update(Alice),
+
+    %% Monitor the C2S process and disconnect Alice.
+    MonitorRef = erlang:monitor(process, C2SPid),
+    escalus_client:kill_connection(Config, Alice),
+
+    %% Ensure the c2s process is waiting for resumption.
+    assert_no_offline_msgs(AliceSpec),
+    wait_for_c2s_state_change(C2SPid, resume_session),
+
+    %% Resume the session.
+    SMID = proplists:get_value(smid, Props),
+    NewSteps = connection_steps_to_stream_resumption(SMID, 2),
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, NewSteps),
+
+    %% C2S process should die gracefully with Reason=normal.
+    receive
+        {'DOWN', MonitorRef, process, C2SPid, normal} ->
+            ok;
+        Msg ->
+            ct:fail("C2S did not die gracefully. Instead received: ~p", [Msg])
+    after timer:seconds(1) ->
+        ct:fail("Old C2S did not die in time after session resumption.")
+    end,
+    escalus_connection:stop(NewAlice).
 
 connection_steps_to_authenticate() ->
     [start_stream,
