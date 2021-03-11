@@ -420,26 +420,26 @@ prepare_queries(LServer) ->
     prepare(auth_count_users_prefix, users,
             [username],
             <<"SELECT COUNT(*) FROM users WHERE username LIKE ? ESCAPE '$'">>),
-    prepare_count_users(LServer, mongoose_rdbms:db_engine(LServer)),
+    prepare_count_users(LServer),
     prepare(auth_count_users_without_scram, users, [],
             <<"SELECT COUNT(*) FROM users WHERE pass_details is NULL">>).
 
--spec prepare_count_users(jid:lserver(), mysql | pgsql | odbc) -> any().
-prepare_count_users(_Host, mysql) ->
-    prepare(auth_count_users, 'information_schema.tables', [],
-            <<"SELECT table_rows FROM information_schema.tables WHERE table_name='users'">>);
-prepare_count_users(Host, pgsql) ->
-    case ejabberd_config:get_local_option({pgsql_users_number_estimate, Host}) of
-        true ->
+prepare_count_users(LServer) ->
+    case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
+          mongoose_rdbms:db_engine(LServer)} of
+        {true, mysql} ->
+            prepare(auth_count_users_estimate, 'information_schema.tables', [],
+                    <<"SELECT table_rows FROM information_schema.tables "
+                      "WHERE table_name = 'users'">>);
+        {true, pgsql} ->
             prepare(auth_count_users_estimate, pg_class, [],
                     <<"SELECT reltuples FROM pg_class WHERE oid = 'users'::regclass::oid">>);
         _ ->
-            prepare(auth_count_users, users, [],
-                    <<"SELECT COUNT(*) FROM users">>)
-    end;
-prepare_count_users(_Host, odbc) ->
-    prepare(auth_count_users, users, [],
-            <<"SELECT COUNT(*) FROM users">>).
+            prepare_count_users()
+    end.
+
+prepare_count_users() ->
+    prepare(auth_count_users, users, [], <<"SELECT COUNT(*) FROM users">>).
 
 -spec execute_get_password(jid:lserver(), jid:luser()) ->
           mongoose_rdbms:query_result().
@@ -490,9 +490,10 @@ execute_count_users(LServer, #{prefix := Prefix}) ->
     Args = [prefix_to_like(Prefix)],
     execute_successfully(LServer, auth_count_users_prefix, Args);
 execute_count_users(LServer, #{}) ->
-    Query = case {ejabberd_config:get_local_option({pgsql_users_number_estimate, Host}),
+    Query = case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
                   mongoose_rdbms:db_engine(LServer)} of
-                {true, pgsql} -> auth_count_users_estimate;
+                {true, DB} when DB =:= pgsql;
+                                DB =:= mysql -> auth_count_users_estimate;
                 _ -> auth_count_users
             end,
     execute_successfully(LServer, Query, []).

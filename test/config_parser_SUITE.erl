@@ -50,7 +50,6 @@ groups() ->
                             http_server_name,
                             rdbms_server_type,
                             override,
-                            pgsql_users_number_estimate,
                             route_subdomains,
                             mongooseimctl_access_commands,
                             routing_modules,
@@ -111,7 +110,8 @@ groups() ->
                          auth_external_program,
                          auth_http_basic_auth,
                          auth_jwt,
-                         auth_riak_bucket_type]},
+                         auth_riak_bucket_type,
+                         auth_rdbms_users_number_estimate]},
      {pool, [parallel], [pool_type,
                          pool_tag,
                          pool_scope,
@@ -314,11 +314,6 @@ override(_Config) ->
         parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"acls">>]}})),
     ?err(parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"local">>]}})),
     ?err(parse(#{<<"general">> => #{<<"override">> => [<<"pingpong">>]}})).
-
-pgsql_users_number_estimate(_Config) ->
-    eq_host_config([#local_config{key = {pgsql_users_number_estimate, ?HOST}, value = true}],
-                  #{<<"general">> => #{<<"pgsql_users_number_estimate">> => true}}),
-    err_host_config(#{<<"general">> => #{<<"pgsql_users_number_estimate">> => 1200}}).
 
 route_subdomains(_Config) ->
     eq_host_config([#local_config{key = {route_subdomains, ?HOST}, value = s2s}],
@@ -894,6 +889,12 @@ auth_riak_bucket_type(_Config) ->
                                   value = [{bucket_type, <<"buckethead">>}]}],
                    auth_config(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
     err_host_config(auth_config(<<"riak">>, #{<<"bucket_type">> => <<>>})).
+
+auth_rdbms_users_number_estimate(_Config) ->
+    eq_host_config([#local_config{key = {auth_opts, ?HOST},
+                                  value = [{rdbms_users_number_estimate, true}]}],
+                   auth_config(<<"rdbms">>, #{<<"users_number_estimate">> => true})),
+    err_host_config(auth_config(<<"rdbms">>, #{<<"users_number_estimate">> => 1200})).
 
 %% tests: outgoing_pools
 
