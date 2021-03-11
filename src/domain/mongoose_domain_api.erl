@@ -35,7 +35,7 @@ init(Pairs) ->
 insert_domain(Domain, HostType) ->
     case mongoose_domain_core:is_locked(Domain) of
         true ->
-            {error, duplicate};
+            {error, locked};
         false ->
             case service_domain_db:enabled() of
                 true ->

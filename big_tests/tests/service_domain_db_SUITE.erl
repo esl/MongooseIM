@@ -108,7 +108,7 @@ core_locked_domain(_) ->
 
 core_cannot_insert_locked(_) ->
     precond(off, [<<"example.com">>, <<"type1">>]),
-    {error, duplicate} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
+    {error, locked} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
 
 core_cannot_disable_locked(_) ->
     precond(off, [<<"example.com">>, <<"type1">>]),
