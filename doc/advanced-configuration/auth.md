@@ -126,6 +126,7 @@ However, for production systems other methods like `rdbms` are recommended, as u
 
 See the links below for options related to the particular methods:
 
+* [RDBMS method options](../authentication-methods/rdbms.md#configuration-options)
 * [Anonymous method options](../authentication-methods/anonymous.md#configuration-options)
 * [External method options](../authentication-methods/external.md#configuration-options)
 * [LDAP method options](../authentication-methods/ldap.md#configuration-options)
