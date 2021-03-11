@@ -131,7 +131,9 @@ core_get_all_locked(_) ->
                   <<"erlang-solutions.com">>, <<"type2">>],
            [<<"type1">>, <<"type2">>]),
     %% Could be in any order
-    [<<"erlang-solutions.com">>, <<"example.com">>, <<"example.org">>] =
+    [{<<"erlang-solutions.com">>, <<"type2">>},
+     {<<"example.com">>, <<"type1">>},
+     {<<"example.org">>, <<"type2">>}] =
         lists:sort(get_all_locked(mim())).
 
 core_get_domains_by_host_type(_) ->
@@ -153,7 +155,9 @@ db_get_all_locked(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     %% Could be in any order
-    [<<"erlang-solutions.com">>, <<"example.com">>, <<"example.org">>] =
+    [{<<"erlang-solutions.com">>, <<"type2">>},
+     {<<"example.com">>, <<"type1">>},
+     {<<"example.org">>, <<"type2">>}] =
         lists:sort(get_all_locked(mim())).
 
 db_inserted_domain_is_in_db(_) ->

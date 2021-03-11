@@ -67,13 +67,16 @@ remove_all_unlocked() ->
     gen_server:call(?MODULE, remove_all_unlocked).
 
 get_all_locked() ->
-    heads(ets:match(?TABLE, {'$1', '_', true})).
+    pairs(ets:match(?TABLE, {'$1', '$2', true})).
 
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
 
 heads(List) ->
     [H || [H|_] <- List].
+
+pairs(List) ->
+    [{K, V} || [K, V] <- List].
 
 insert_unlocked(Domain, HostType) ->
     gen_server:call(?MODULE, {insert_unlocked, Domain, HostType}).

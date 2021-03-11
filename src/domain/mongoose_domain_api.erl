@@ -110,7 +110,7 @@ get_host_type(Domain) ->
 
 %% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
--spec get_all_locked() -> [domain()].
+-spec get_all_locked() -> [{domain(), host_type()}].
 get_all_locked() ->
     mongoose_domain_core:get_all_locked().
 
