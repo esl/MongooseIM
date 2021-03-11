@@ -1440,9 +1440,10 @@ monitor_session(Client) ->
     {ok, C2SPid} = get_session_pid(UserSpec, Res),
     erlang:monitor(process, C2SPid).
 
-wait_for_process_termination(C2SRef) ->
+-spec wait_for_process_termination(MRef :: reference()) -> ok.
+wait_for_process_termination(MRef) ->
     receive
-        {'DOWN', _MRef, _Type, C2SRef, _Info} ->
+        {'DOWN', MRef, _Type, _C2SPid, _Info} ->
             ok
     after timer:seconds(1) ->
               ok
