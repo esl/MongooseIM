@@ -183,12 +183,17 @@ set_enabled(Domain, Enabled) when is_boolean(Enabled) ->
             case select_domain(Domain) of
                 {error, Reason} ->
                     {error, Reason};
-                {ok, #{enabled := X}} when Enabled =:= X ->
-                    ok;
-                {ok, #{}} ->
-                    update_domain_enabled(Pool, Domain, Enabled),
-                    insert_domain_event(Pool, Domain),
-                    ok
+                {ok, #{enabled := En, host_type := HostType}} ->
+                    case mongoose_domain_core:is_host_type_allowed(HostType) of
+                        false ->
+                            {error, unknown_host_type};
+                        true when Enabled =:= En ->
+                            ok;
+                        true ->
+                            update_domain_enabled(Pool, Domain, Enabled),
+                            insert_domain_event(Pool, Domain),
+                            ok
+                    end
             end
         end).
 

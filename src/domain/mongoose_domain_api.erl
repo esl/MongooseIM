@@ -65,7 +65,7 @@ remove_domain(Domain, HostType) ->
 %% Change of the status must be distributed across all the nodes in the cluster.
 -spec disable_domain(domain()) ->
     ok | {error, not_found} | {error, locked} | {error, duplicate}
-    | {error, service_disabled}.
+    | {error, service_disabled} | {error, unknown_host_type}.
 disable_domain(Domain) ->
     case mongoose_domain_core:is_locked(Domain) of
         true ->
@@ -81,7 +81,7 @@ disable_domain(Domain) ->
 
 -spec enable_domain(domain()) ->
     ok | {error, not_found} | {error, locked} | {error, duplicate}
-    | {error, service_disabled}.
+    | {error, service_disabled} | {error, unknown_host_type}.
 enable_domain(Domain) ->
     case mongoose_domain_core:is_locked(Domain) of
         true ->
