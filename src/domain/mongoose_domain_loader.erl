@@ -67,7 +67,7 @@ apply_change({_Id, Domain, null}) ->
     mongoose_domain_core:remove_unlocked(Domain);
 apply_change({_Id, Domain, HostType}) ->
     %% Inserted or updated record
-    mongoose_domain_core:upsert_unlocked(Domain, HostType).
+    mongoose_domain_core:insert_unlocked(Domain, HostType).
 
 insert_rows_to_core([Row|Rows]) ->
     insert_row_to_core(Row),
@@ -76,7 +76,7 @@ insert_rows_to_core([]) ->
     ok.
 
 insert_row_to_core({_Id, Domain, HostType}) ->
-    mongoose_domain_core:upsert_unlocked(Domain, HostType).
+    mongoose_domain_core:insert_unlocked(Domain, HostType).
 
 row_to_id({Id, _Domain, _HostType}) ->
     Id.

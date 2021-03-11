@@ -13,7 +13,7 @@
 
 %% API, used by DB module
 -export([remove_all_unlocked/0,
-         upsert_unlocked/2,
+         insert_unlocked/2,
          remove_unlocked/1]).
 
 -export([get_all_locked/0,
@@ -64,7 +64,7 @@ is_host_type_allowed(HostType) ->
     ets:member(?HOST_TYPE_TABLE, HostType).
 
 remove_all_unlocked() ->
-    ets:match_delete(?TABLE, {'_', '_', false}).
+    gen_server:call(?MODULE, remove_all_unlocked).
 
 get_all_locked() ->
     heads(ets:match(?TABLE, {'$1', '_', true})).
@@ -75,50 +75,40 @@ get_domains_by_host_type(HostType) when is_binary(HostType) ->
 heads(List) ->
     [H || [H|_] <- List].
 
-upsert_unlocked(Domain, HostType) ->
-    case is_locked(Domain) of
-        true ->
-            %% Ignore any locked domains
-            ?LOG_ERROR(#{what => domain_locked_but_in_db, domain => Domain});
-        false ->
-            case is_host_type_allowed(HostType) of
-                true ->
-                    ets:insert_new(?TABLE, new_object(Domain, HostType, false));
-                false ->
-                    ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
-                                 domain => Domain, host_type => HostType})
-            end
-    end,
-    ok.
+insert_unlocked(Domain, HostType) ->
+    gen_server:call(?MODULE, {insert_unlocked, Domain, HostType}).
 
 remove_unlocked(Domain) ->
-    case is_locked(Domain) of
-        true ->
-            %% Ignore any locked domains
-            ?LOG_ERROR(#{what => domain_locked_but_was_in_db, domain => Domain});
-        false ->
-            ets:delete(?TABLE, Domain)
-    end,
-    ok.
+    gen_server:call(?MODULE, {remove_unlocked, Domain}).
 
 %% For tests
 dump() ->
     ets:tab2list(?TABLE).
 
 restore(Dump) ->
-    ets:delete_all_objects(?TABLE),
-    ets:insert_new(?TABLE, Dump),
-    ok.
+    gen_server:call(?MODULE, {restore, Dump}).
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 init([Pairs, AllowedHostTypes]) ->
-    ets:new(?TABLE, [set, named_table, public, {read_concurrency, true}]),
+    ets:new(?TABLE, [set, named_table, protected, {read_concurrency, true}]),
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
     {ok, #{}}.
 
+handle_call({remove_unlocked, Domain}, From, State) ->
+    Result = handle_remove_unlocked(Domain),
+    {reply, Result, State};
+handle_call({insert_unlocked, Domain, HostType}, From, State) ->
+    Result = handle_insert_unlocked(Domain, HostType),
+    {reply, Result, State};
+handle_call(remove_all_unlocked, From, State) ->
+    Result = handle_remove_all_unlocked(),
+    {reply, Result, State};
+handle_call({restore, Dump}, From, State) ->
+    Result = handle_restore(Dump),
+    {reply, Result, State};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
@@ -156,4 +146,45 @@ insert_host_types(Tab, AllowedHostTypes) ->
     lists:foreach(fun(HostType) ->
                           ets:insert_new(Tab, {HostType})
                   end, AllowedHostTypes),
+    ok.
+
+handle_remove_unlocked(Domain) ->
+    case is_locked(Domain) of
+        true ->
+            %% Ignore any locked domains
+            ?LOG_ERROR(#{what => domain_locked_but_was_in_db, domain => Domain});
+        false ->
+            ets:delete(?TABLE, Domain)
+    end,
+    ok.
+
+handle_insert_unlocked(Domain, HostType) ->
+    case is_locked(Domain) of
+        true ->
+            %% Ignore any locked domains
+            ?LOG_ERROR(#{what => domain_locked_but_in_db, domain => Domain}),
+            {error, locked};
+        false ->
+            case is_host_type_allowed(HostType) of
+                true ->
+                    case ets:member(?TABLE, Domain) of
+                        true ->
+                            {error, duplicate};
+                        false ->
+                            ets:insert_new(?TABLE, new_object(Domain, HostType, false)),
+                            ok
+                    end;
+                false ->
+                    ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
+                                 domain => Domain, host_type => HostType}),
+                    {error, unknown_host_type}
+            end
+    end.
+
+handle_remove_all_unlocked() ->
+    ets:match_delete(?TABLE, {'_', '_', false}).
+
+handle_restore(Dump) ->
+    ets:delete_all_objects(?TABLE),
+    ets:insert_new(?TABLE, Dump),
     ok.
