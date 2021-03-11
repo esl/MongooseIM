@@ -2,7 +2,7 @@
 %% management.
 -module(mongoose_domain_api).
 
--export([init/1,
+-export([init/2,
          insert_domain/2,
          remove_domain/2,
          disable_domain/1,
@@ -12,15 +12,15 @@
          get_domains_by_host_type/1]).
 
 -type domain() :: jid:lserver().
--type host_type() :: jid:lserver().
+-type host_type() :: binary().
 -type pair() :: {domain(), host_type()}.
 
 %% Init - on init all the “enabled” domain names from the persistent storage
 %% must be added to the core MIM component described above.
 %% Domains should be nameprepped using `jid:nameprep'
--spec init([pair()]) -> ok | {error, term()}.
-init(Pairs) ->
-    mongoose_domain_core:start(Pairs).
+-spec init([pair()], [host_type()]) -> ok | {error, term()}.
+init(Pairs, AllowedHostTypes) ->
+    mongoose_domain_core:start(Pairs, AllowedHostTypes).
 
 %% Add domain name (w/ host type) - This function must be idempotent.
 %% Added domain is always “enabled” by default it must be added in the core
@@ -28,21 +28,17 @@ init(Pairs) ->
 %% If it’s successfully enabled than Information about the domain name
 %% must be added into persistent storage and distributed across all the nodes
 %% in the cluster.
-%% Domain and HostType should be nameprepped using `jid:nameprep'
+%% Domain should be nameprepped using `jid:nameprep'.
+%% HostType should be opaque binary.
 -spec insert_domain(domain(), host_type()) ->
     ok  | {error, duplicate} | {error, {db_error, term()}}
-    | {error, service_disabled}.
+    | {error, service_disabled} | {error, unknown_host_type}.
 insert_domain(Domain, HostType) ->
-    case mongoose_domain_core:is_locked(Domain) of
-        true ->
-            {error, locked};
-        false ->
-            case service_domain_db:enabled() of
-                true ->
-                    check_db(mongoose_domain_sql:insert_domain(Domain, HostType));
-                false ->
-                    {error, service_disabled}
-            end
+    case check_domain(Domain, HostType) of
+        ok ->
+            check_db(mongoose_domain_sql:insert_domain(Domain, HostType));
+        Other ->
+            Other
     end.
 
 %% Removal the domain name - This function must be idempotent.
@@ -53,18 +49,13 @@ insert_domain(Domain, HostType) ->
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec remove_domain(domain(), host_type()) ->
     ok | {error, locked} | {error, {db_error, term()}}
-    | {error, service_disabled} | {error, wrong_host_type}.
+    | {error, service_disabled} | {error, wrong_host_type} | {error, unknown_host_type}.
 remove_domain(Domain, HostType) ->
-    case mongoose_domain_core:is_locked(Domain) of
-        true ->
-            {error, locked};
-        false ->
-            case service_domain_db:enabled() of
-                true ->
-                    check_db(mongoose_domain_sql:remove_domain(Domain, HostType));
-                false ->
-                    {error, service_disabled}
-            end
+    case check_domain(Domain, HostType) of
+        ok ->
+            check_db(mongoose_domain_sql:remove_domain(Domain, HostType));
+        Other ->
+            Other
     end.
 
 %% Disabling/Enabling domain name - This function must be idempotent.
@@ -128,3 +119,18 @@ get_all_locked() ->
 -spec get_domains_by_host_type(host_type()) -> [domain()].
 get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
+
+check_domain(Domain, HostType) ->
+    Locked = mongoose_domain_core:is_locked(Domain),
+    Allowed = mongoose_domain_core:is_host_type_allowed(HostType),
+    HasDb = service_domain_db:enabled(),
+    if 
+        Locked ->
+           {error, locked};
+       not Allowed ->
+           {error, unknown_host_type};
+       not HasDb ->
+           {error, service_disabled};
+       true ->
+            ok
+    end.

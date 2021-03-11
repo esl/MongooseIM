@@ -96,34 +96,35 @@ end_per_testcase(_TestcaseName, Config) ->
 %%--------------------------------------------------------------------
 
 core_lookup_works(_) ->
-    precond(off, [<<"example.com">>, <<"type1">>]),
+    precond(off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
 
 core_lookup_not_found(_) ->
-    precond(off),
+    precond(off, [], []),
     {error, not_found} = get_host_type(mim(), <<"example.life">>).
 
 core_locked_domain(_) ->
-    precond(off, [<<"example.com">>, <<"type1">>]),
+    precond(off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
     true = is_locked(<<"example.com">>).
 
 core_cannot_insert_locked(_) ->
-    precond(off, [<<"example.com">>, <<"type1">>]),
+    precond(off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
     {error, locked} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
 
 core_cannot_disable_locked(_) ->
-    precond(off, [<<"example.com">>, <<"type1">>]),
+    precond(off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
     {error, locked} = disable_domain(mim(), <<"example.com">>).
 
 core_cannot_enable_locked(_) ->
-    precond(off, [<<"example.com">>, <<"type1">>]),
+    precond(off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
     {error, locked} = enable_domain(mim(), <<"example.com">>).
 
 %% See also db_get_all_locked
 core_get_all_locked(_) ->
     precond(off, [<<"example.com">>, <<"type1">>,
                   <<"example.org">>, <<"type2">>,
-                  <<"erlang-solutions.com">>, <<"type2">>]),
+                  <<"erlang-solutions.com">>, <<"type2">>],
+           [<<"type1">>, <<"type2">>]),
     %% Could be in any order
     [<<"erlang-solutions.com">>, <<"example.com">>, <<"example.org">>] =
         lists:sort(get_all_locked(mim())).
@@ -131,7 +132,8 @@ core_get_all_locked(_) ->
 core_get_domains_by_host_type(_) ->
     precond(off, [<<"example.com">>, <<"type1">>,
                   <<"example.org">>, <<"type2">>,
-                  <<"erlang-solutions.com">>, <<"type2">>]),
+                  <<"erlang-solutions.com">>, <<"type2">>],
+           [<<"type1">>, <<"type2">>]),
     [<<"erlang-solutions.com">>, <<"example.org">>] =
         lists:sort(get_domains_by_host_type(mim(), <<"type2">>)),
     [<<"example.com">>] = get_domains_by_host_type(mim(), <<"type1">>),
@@ -141,7 +143,8 @@ core_get_domains_by_host_type(_) ->
 db_get_all_locked(_) ->
     precond(on, [<<"example.com">>, <<"type1">>,
                  <<"example.org">>, <<"type2">>,
-                 <<"erlang-solutions.com">>, <<"type2">>]),
+                 <<"erlang-solutions.com">>, <<"type2">>],
+           [<<"type1">>, <<"type2">>]),
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     %% Could be in any order
@@ -149,25 +152,25 @@ db_get_all_locked(_) ->
         lists:sort(get_all_locked(mim())).
 
 db_inserted_domain_is_in_db(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     {ok, #{host_type := <<"testing">>, enabled := true}} =
        select_domain(mim(), <<"example.com">>).
 
 db_inserted_domain_is_in_core(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
     {ok, <<"testing">>} = get_host_type(mim(), <<"example.com">>).
 
 db_removed_domain_from_db(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, not_found} = select_domain(mim(), <<"example.com">>).
 
 db_removed_domain_fails_with_wrong_host_type(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>, <<"testing2">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, wrong_host_type} =
         remove_domain(mim(), <<"example.com">>, <<"testing2">>),
@@ -175,7 +178,7 @@ db_removed_domain_fails_with_wrong_host_type(_) ->
         select_domain(mim(), <<"example.com">>).
 
 db_removed_domain_from_core(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
     ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
@@ -183,21 +186,21 @@ db_removed_domain_from_core(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
 db_disabled_domain_is_in_db(_) ->
-    precond(on),
+    precond(on, [], [<<"type1">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.com">>),
     {ok, #{host_type := <<"type1">>, enabled := false}} =
        select_domain(mim(), <<"example.com">>).
 
 db_disabled_domain_not_in_core(_) ->
-    precond(on),
+    precond(on, [], [<<"type1">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.com">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
 db_reanabled_domain_is_in_db(_) ->
-    precond(on),
+    precond(on, [], [<<"type1">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.com">>),
     ok = enable_domain(mim(), <<"example.com">>),
@@ -205,7 +208,7 @@ db_reanabled_domain_is_in_db(_) ->
        select_domain(mim(), <<"example.com">>).
 
 db_reanabled_domain_is_in_core(_) ->
-    precond(on),
+    precond(on, [], [<<"type1">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.com">>),
     ok = enable_domain(mim(), <<"example.com">>),
@@ -213,27 +216,27 @@ db_reanabled_domain_is_in_core(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
 
 db_can_insert_domain_twice_with_the_same_host_type(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>).
 
 db_cannot_insert_domain_twice_with_the_another_host_type(_) ->
-    precond(on),
+    precond(on, [], [<<"testing">>, <<"testing2">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, duplicate} = insert_domain(mim(), <<"example.com">>, <<"testing2">>).
 
 sql_select_from_works(_) ->
-    precond(on),
+    precond(on, [], [<<"good">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"good">>),
     [{_, <<"example.com">>, <<"good">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
 db_records_are_restored_when_restarted(_) ->
-    precond(on),
+    precond(on, [], [<<"cool">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"cool">>),
     %% Simulate MIM restart
     service_disabled(),
-    init_with([]),
+    init_with([], [<<"cool">>]),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     service_enabled(),
     %% DB still contains data
@@ -243,13 +246,13 @@ db_records_are_restored_when_restarted(_) ->
     {ok, <<"cool">>} = get_host_type(mim(), <<"example.com">>).
 
 db_record_is_ignored_if_domain_locked(_) ->
-    precond(on),
+    precond(on, [], [<<"dbgroup">>, <<"cfggroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     %% Simulate MIM restart
     service_disabled(),
     %% Only one domain is locked
-    init_with([{<<"example.com">>, <<"cfggroup">>}]),
+    init_with([{<<"example.com">>, <<"cfggroup">>}], [<<"dbgroup">>, <<"cfggroup">>]),
     service_enabled(),
     %% DB still contains data
     {ok, #{host_type := <<"dbgroup">>, enabled := true}} =
@@ -261,7 +264,7 @@ db_record_is_ignored_if_domain_locked(_) ->
     {ok, <<"dbgroup">>} = get_host_type(mim(), <<"example.net">>).
 
 db_events_table_gets_truncated(_) ->
-    precond(off),
+    precond(off, [], [<<"dbgroup">>]),
     %% Configure service with a very short interval
     service_enabled([{event_cleaning_interval, 1}, {event_max_age, 3}]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -291,9 +294,9 @@ service_disabled() ->
     rpc(mim(), mongoose_service, stop_service, [service_domain_db]),
     false = rpc(mim(), service_domain_db, enabled, []).
 
-init_with(Pairs) ->
+init_with(Pairs, AllowedHostTypes) ->
     rpc(mim(), mongoose_domain_core, stop, []),
-    rpc(mim(), mongoose_domain_api, init, [Pairs]).
+    rpc(mim(), mongoose_domain_api, init, [Pairs, AllowedHostTypes]).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -350,18 +353,15 @@ is_locked(Domain) ->
 sync() ->
     rpc(mim(), service_domain_db, sync, []).
 
-precond(Enabled) ->
-    precond(Enabled, []).
-
-precond(off, FlatPairs) ->
+precond(off, FlatPairs, AllowedHostTypes) ->
     service_disabled(),
     erase_database(mim()),
-    init_with(unflat(FlatPairs));
-precond(on, FlatPairs) ->
+    init_with(unflat(FlatPairs), AllowedHostTypes);
+precond(on, FlatPairs, AllowedHostTypes) ->
     service_disabled(),
     erase_database(mim()),
     service_enabled(),
-    init_with(unflat(FlatPairs)).
+    init_with(unflat(FlatPairs), AllowedHostTypes).
 
 unflat([K,V|T]) ->
     [{K,V}|unflat(T)];

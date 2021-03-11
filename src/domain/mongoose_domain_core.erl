@@ -3,8 +3,8 @@
 -module(mongoose_domain_core).
 -include("mongoose_logger.hrl").
 
--export([start/1, stop/0]).
--export([start_link/1]).
+-export([start/2, stop/0]).
+-export([start_link/2]).
 -export([get_host_type/1]).
 -export([is_locked/1]).
 
@@ -19,16 +19,19 @@
 -export([get_all_locked/0,
          get_domains_by_host_type/1]).
 
+-export([is_host_type_allowed/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -define(TABLE, ?MODULE).
+-define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
 
-start(Pairs) ->
+start(Pairs, AllowedHostTypes) ->
     ChildSpec =
         {?MODULE,
-         {?MODULE, start_link, [Pairs]},
+         {?MODULE, start_link, [Pairs, AllowedHostTypes]},
          permanent, infinity, worker, [?MODULE]},
     just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
 
@@ -38,8 +41,8 @@ stop() ->
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
 
-start_link(Pairs) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs], []).
+start_link(Pairs, AllowedHostTypes) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
 
 get_host_type(Domain) ->
     case ets:lookup(?TABLE, Domain) of
@@ -56,6 +59,9 @@ is_locked(Domain) ->
         _ ->
             false
     end.
+
+is_host_type_allowed(HostType) ->
+    ets:member(?HOST_TYPE_TABLE, HostType).
 
 remove_all_unlocked() ->
     ets:match_delete(?TABLE, {'_', '_', false}).
@@ -100,8 +106,10 @@ restore(Dump) ->
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
-init([Pairs]) ->
+init([Pairs, AllowedHostTypes]) ->
     ets:new(?TABLE, [set, named_table, public, {read_concurrency, true}]),
+    ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
+    insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
     {ok, #{}}.
 
@@ -137,3 +145,9 @@ new_object(Domain, HostType, Locked) ->
 
 just_ok({ok,_}) -> ok;
 just_ok(Other) -> Other.
+
+insert_host_types(Tab, AllowedHostTypes) ->
+    lists:foreach(fun(HostType) ->
+                          ets:insert_new(Tab, {HostType})
+                  end, AllowedHostTypes),
+    ok.
