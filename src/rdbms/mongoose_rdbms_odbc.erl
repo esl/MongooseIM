@@ -169,7 +169,7 @@ tabcol_to_mapper(_ServerType, _TableDesc, {_, <<"limit">>}) ->
 tabcol_to_mapper(_ServerType, _TableDesc, {_, <<"offset">>}) ->
     fun(P) -> {sql_integer, [P]} end;
 tabcol_to_mapper(_ServerType, TableDesc, TabCol) ->
-    ODBCType = field_to_odbc_type(TabCol, TableDesc),
+    ODBCType = tabcol_to_odbc_type(TabCol, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
             fun(P) -> binary_mapper(P) end;
@@ -181,7 +181,7 @@ tabcol_to_mapper(_ServerType, TableDesc, TabCol) ->
             fun(P) -> {ODBCType, [P]} end
     end.
 
-field_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
+tabcol_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
     case lists:keyfind(TabCol, 1, TableDesc) of
         false ->
             ?LOG_ERROR(#{what => field_to_odbc_type_failed, table => Table,
