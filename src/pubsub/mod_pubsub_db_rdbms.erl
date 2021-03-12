@@ -106,7 +106,7 @@ start() ->
         <<"SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions "
           "WHERE luser = ? AND lserver = ? AND lresource = ?">>),
     mongoose_rdbms:prepare(pubsub_get_idxs_of_own_nodes_with_pending_subs, pubsub_affiliations,
-        [aff, luser, lserver, type],
+        [aff, luser, lserver, 'pubsub_subscriptions.type'],
         <<"SELECT DISTINCT s.nidx FROM pubsub_affiliations AS a "
           "INNER JOIN pubsub_subscriptions s ON a.nidx = s.nidx "
           "WHERE a.aff = ? AND a.luser = ? AND a.lserver = ? AND s.type = ?">>),
@@ -197,7 +197,8 @@ start() ->
         <<"SELECT ", PubsubNodeFieldsPrefixed/binary, " from pubsub_nodes as pn "
           "LEFT JOIN pubsub_node_collections as collection ON pn.name = collection.name "
           "WHERE p_key = ? AND collection.parent_name IS NULL">>),
-    mongoose_rdbms:prepare(pubsub_select_subnodes, pubsub_nodes, [parent_name, key],
+    mongoose_rdbms:prepare(pubsub_select_subnodes, pubsub_nodes,
+        ['pubsub_node_collections.parent_name', key],
         <<"SELECT ", PubsubNodeFieldsPrefixed/binary, " from pubsub_nodes as pn "
           "INNER JOIN pubsub_node_collections as collection ON pn.name = collection.name AND "
           "collection.parent_name = ? WHERE p_key = ?">>),
