@@ -43,7 +43,8 @@ db_cases() -> [
      db_record_is_ignored_if_domain_locked,
      db_events_table_gets_truncated,
      db_get_all_locked,
-     db_could_sync_between_nodes
+     db_could_sync_between_nodes,
+     db_removed_from_one_node_while_service_disabled_on_another
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -60,6 +61,7 @@ domain() -> ct:get_config({hosts, mim, domain}).
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
+    ensure_nodes_know_each_other(),
     prepare_erase(mim()),
     prepare_erase(mim2()),
     Conf1 = store_conf(mim()),
@@ -326,6 +328,29 @@ db_events_table_gets_truncated(_) ->
     ok.
 
 db_could_sync_between_nodes(_) ->
+    precond(mim(), on, [], [<<"dbgroup">>]),
+    precond(mim2(), on, [], [<<"dbgroup">>]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    ok.
+
+db_removed_from_one_node_while_service_disabled_on_another(_) ->
+    precond(mim(), on, [], [<<"dbgroup">>]),
+    precond(mim2(), on, [], [<<"dbgroup">>]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    %% Service is disable on the second node
+    service_disabled(mim2()),
+    %% Removed from the first node
+    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    {error, not_found} = get_host_type(mim(), <<"example.com">>),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    %% Sync is working again
+    service_enabled(mim2()),
+    {error, not_found} = get_host_type(mim2(), <<"example.com">>),
     ok.
 
 %%--------------------------------------------------------------------
@@ -427,3 +452,8 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
         _ ->
             ok
     end.
+
+%% Needed for pg2 group to work
+%% So, multiple node tests work
+ensure_nodes_know_each_other() ->
+    pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
