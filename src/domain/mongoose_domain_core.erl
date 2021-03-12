@@ -20,6 +20,9 @@
 
 -export([is_host_type_allowed/1]).
 
+%% For testing
+-export([get_start_args/0]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -86,6 +89,9 @@ set_last_event_id(LastEventId) ->
 get_last_event_id() ->
     gen_server:call(?MODULE, get_last_event_id).
 
+get_start_args() ->
+    gen_server:call(?MODULE, get_start_args).
+
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 init([Pairs, AllowedHostTypes]) ->
@@ -93,7 +99,9 @@ init([Pairs, AllowedHostTypes]) ->
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
-    {ok, #{last_event_id => undefined}}.
+    {ok, #{last_event_id => undefined,
+           initial_pairs => Pairs,
+           initial_host_types => AllowedHostTypes}}.
 
 handle_call({remove_unlocked, Domain}, _From, State) ->
     Result = handle_remove_unlocked(Domain),
@@ -106,6 +114,9 @@ handle_call({set_last_event_id, LastEventId}, _From, State) ->
 handle_call(get_last_event_id, _From, State) ->
     LastEventId = maps:get(last_event_id, State),
     {reply, LastEventId, State};
+handle_call(get_start_args, _From, State = #{initial_pairs := Pairs,
+                                             initial_host_types := AllowedHostTypes}) ->
+    {reply, [Pairs, AllowedHostTypes], State};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
