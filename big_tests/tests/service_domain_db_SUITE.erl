@@ -60,18 +60,14 @@ domain() -> ct:get_config({hosts, mim, domain}).
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
     prepare_erase(mim()),
-    Dump = dump(mim()),
     Loaded = rpc(mim(), mongoose_service, is_loaded, [service_domain_db]),
     ServiceOpts = rpc(mim(), mongoose_service, get_service_opts, [service_domain_db]),
-    escalus:init_per_suite([{orig_dump, Dump},
-                            {orig_service_opts, ServiceOpts},
+    escalus:init_per_suite([{orig_service_opts, ServiceOpts},
                             {orig_loaded, Loaded}|Config]).
 
 end_per_suite(Config) ->
-    Dump = proplists:get_value(orig_dump, Config),
     ServiceOpts = proplists:get_value(orig_service_opts, Config),
     Loaded = proplists:get_value(orig_loaded, Config),
-    restore(mim(), Dump),
     rpc(mim(), mongoose_service, stop_service, [service_domain_db]),
     case Loaded of
         true ->
@@ -373,12 +369,6 @@ get_min_event_id(Node) ->
 get_max_event_id(Node) ->
     rpc(Node, mongoose_domain_sql, get_max_event_id, []).
 
-dump(Node) ->
-    rpc(Node, mongoose_domain_core, dump, []).
-
-restore(Node, Dump) ->
-    rpc(Node, mongoose_domain_core, restore, [Dump]).
-
 get_host_type(Node, Domain) ->
     rpc(Node, mongoose_domain_api, get_host_type, [Domain]).
 
@@ -409,8 +399,8 @@ precond(on, FlatPairs, AllowedHostTypes) ->
     %% Restarts with clean DB
     service_disabled(),
     erase_database(mim()),
-    service_enabled(),
-    init_with(unflat(FlatPairs), AllowedHostTypes);
+    init_with(unflat(FlatPairs), AllowedHostTypes),
+    service_enabled();
 precond(keep_on, FlatPairs, AllowedHostTypes) ->
     init_with(unflat(FlatPairs), AllowedHostTypes),
     service_disabled(),

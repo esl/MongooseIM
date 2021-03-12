@@ -75,10 +75,7 @@ sync() ->
 init([]) ->
     pg2:create(?GROUP),
     pg2:join(?GROUP, self()),
-    LastEventId = mongoose_domain_sql:get_max_event_id(),
-    PageSize = 10000,
-    mongoose_domain_core:remove_all_unlocked(),
-    mongoose_domain_loader:load_data_from_base(0, PageSize),
+    LastEventId = initial_load(mongoose_domain_core:get_last_event_id()),
     ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
     State = #{last_event_id => LastEventId,
               check_for_updates_interval => 30000},
@@ -109,12 +106,24 @@ code_change(_OldVsn, State, _Extra) ->
 %% ---------------------------------------------------------------------------
 %% Server helpers
 
+initial_load(undefined) ->
+    link(whereis(mongoose_domain_core)),
+    LastEventId = mongoose_domain_sql:get_max_event_id(),
+    PageSize = 10000,
+    mongoose_domain_loader:load_data_from_base(0, PageSize),
+    mongoose_domain_core:set_last_event_id(LastEventId),
+    unlink(whereis(mongoose_domain_core)),
+    LastEventId;
+initial_load(LastEventId) when is_integer(LastEventId) ->
+    LastEventId. %% Skip initial init
+
 handle_check_for_updates(State = #{last_event_id := LastEventId,
                                    check_for_updates_interval := Interval}) ->
     maybe_cancel_timer(State),
     receive_all_check_for_updates(),
     PageSize = 1000,
     LastEventId2 = mongoose_domain_loader:check_for_updates(LastEventId, PageSize),
+    maybe_set_last_event_id(LastEventId, LastEventId2),
     TRef = erlang:send_after(Interval, self(), check_for_updates),
     State#{last_event_id => LastEventId2, check_for_updates => TRef}.
 
@@ -125,3 +134,8 @@ maybe_cancel_timer(_) ->
 
 receive_all_check_for_updates() ->
     receive check_for_updates -> ok after 0 -> ok end.
+
+maybe_set_last_event_id(LastEventId, LastEventId) ->
+    ok;
+maybe_set_last_event_id(_LastEventId, LastEventId2) ->
+    mongoose_domain_core:set_last_event_id(LastEventId2).

@@ -8,16 +8,15 @@
 -export([get_host_type/1]).
 -export([is_locked/1]).
 
-%% API for tests
--export([dump/0, restore/1]).
-
 %% API, used by DB module
--export([remove_all_unlocked/0,
-         insert_unlocked/2,
+-export([insert_unlocked/2,
          remove_unlocked/1]).
 
 -export([get_all_locked/0,
          get_domains_by_host_type/1]).
+
+-export([set_last_event_id/1,
+         get_last_event_id/0]).
 
 -export([is_host_type_allowed/1]).
 
@@ -63,9 +62,6 @@ is_locked(Domain) ->
 is_host_type_allowed(HostType) ->
     ets:member(?HOST_TYPE_TABLE, HostType).
 
-remove_all_unlocked() ->
-    gen_server:call(?MODULE, remove_all_unlocked).
-
 get_all_locked() ->
     pairs(ets:match(?TABLE, {'$1', '$2', true})).
 
@@ -84,12 +80,11 @@ insert_unlocked(Domain, HostType) ->
 remove_unlocked(Domain) ->
     gen_server:call(?MODULE, {remove_unlocked, Domain}).
 
-%% For tests
-dump() ->
-    ets:tab2list(?TABLE).
+set_last_event_id(LastEventId) ->
+    gen_server:call(?MODULE, {set_last_event_id, LastEventId}).
 
-restore(Dump) ->
-    gen_server:call(?MODULE, {restore, Dump}).
+get_last_event_id() ->
+    gen_server:call(?MODULE, get_last_event_id).
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
@@ -98,20 +93,19 @@ init([Pairs, AllowedHostTypes]) ->
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
-    {ok, #{}}.
+    {ok, #{last_event_id => undefined}}.
 
-handle_call({remove_unlocked, Domain}, From, State) ->
+handle_call({remove_unlocked, Domain}, _From, State) ->
     Result = handle_remove_unlocked(Domain),
     {reply, Result, State};
-handle_call({insert_unlocked, Domain, HostType}, From, State) ->
+handle_call({insert_unlocked, Domain, HostType}, _From, State) ->
     Result = handle_insert_unlocked(Domain, HostType),
     {reply, Result, State};
-handle_call(remove_all_unlocked, From, State) ->
-    Result = handle_remove_all_unlocked(),
-    {reply, Result, State};
-handle_call({restore, Dump}, From, State) ->
-    Result = handle_restore(Dump),
-    {reply, Result, State};
+handle_call({set_last_event_id, LastEventId}, _From, State) ->
+    {reply, ok, State#{last_event_id => LastEventId}};
+handle_call(get_last_event_id, _From, State) ->
+    LastEventId = maps:get(last_event_id, State),
+    {reply, LastEventId, State};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
@@ -189,10 +183,3 @@ handle_insert_unlocked(Domain, HostType) ->
             end
     end.
 
-handle_remove_all_unlocked() ->
-    ets:match_delete(?TABLE, {'_', '_', false}).
-
-handle_restore(Dump) ->
-    ets:delete_all_objects(?TABLE),
-    ets:insert_new(?TABLE, Dump),
-    ok.
