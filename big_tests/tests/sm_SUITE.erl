@@ -988,8 +988,6 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     escalus_connection:send(Alice, InitialPresence),
     Presence = escalus_connection:get_stanza(Alice, presence1),
     escalus:assert(is_presence, Presence),
-    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
-    _Presence = escalus_connection:get_stanza(Alice, presence2),
     discard_vcard_update(Alice),
 
     %% Monitor the C2S process and disconnect Alice.
@@ -1002,7 +1000,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
 
     %% Resume the session.
     SMID = proplists:get_value(smid, Props),
-    NewSteps = connection_steps_to_stream_resumption(SMID, 2),
+    NewSteps = connection_steps_to_stream_resumption(SMID, 1),
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, NewSteps),
 
     %% C2S process should die gracefully with Reason=normal.
