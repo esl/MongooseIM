@@ -44,7 +44,9 @@ db_cases() -> [
      db_events_table_gets_truncated,
      db_get_all_locked,
      db_could_sync_between_nodes,
-     db_removed_from_one_node_while_service_disabled_on_another
+     db_removed_from_one_node_while_service_disabled_on_another,
+     db_inserted_from_one_node_while_service_disabled_on_another,
+     db_reinserted_from_one_node_while_service_disabled_on_another
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -350,6 +352,46 @@ db_removed_from_one_node_while_service_disabled_on_another(_) ->
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     %% Sync is working again
     service_enabled(mim2()),
+    {error, not_found} = get_host_type(mim2(), <<"example.com">>),
+    ok.
+
+db_inserted_from_one_node_while_service_disabled_on_another(_) ->
+    precond(mim(), on, [], [<<"dbgroup">>]),
+    precond(mim2(), on, [], [<<"dbgroup">>]),
+    %% Service is disable on the second node
+    service_disabled(mim2()),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    %% Sync is working again
+    service_enabled(mim2()),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    ok.
+
+db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
+    %% This test shows the behaviour when someone
+    %% reinserts a domain with a different host type.
+    %% TLDR: just keep the host_type constant or don't reuse domains.
+    precond(mim(), on, [], [<<"dbgroup">>, <<"dbgroup2">>]),
+    precond(mim2(), on, [], [<<"dbgroup">>, <<"dbgroup2">>]),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    %% Service is disable on the second node
+    service_disabled(mim2()),
+    %% Removed from the first node
+    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    sync(),
+    %% Sync is working again
+    service_enabled(mim2()),
+    sync(),
+    %% A corner case: mim2 sees the change, but core ignores it
+    {ok, <<"dbgroup2">>} = get_host_type(mim(), <<"example.com">>),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
+    %% But if we remove it, it would be removed everywhere
+    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    sync(),
+    {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>),
     ok.
 
