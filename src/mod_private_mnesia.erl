@@ -37,6 +37,8 @@
 
 -export([get_all_nss/2]).
 
+-export([get_usns/1, get_xml/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -98,3 +100,9 @@ select_namespaces_t(LUser, LServer) ->
 
 delete_record_t(LUser, LServer, NS) ->
     mnesia:delete({private_storage, {LUser, LServer, NS}}).
+
+get_usns(#private_storage{usns = USNS}) ->
+    USNS.
+
+get_xml(#private_storage{xml = XML}) ->
+    XML.

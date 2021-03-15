@@ -54,6 +54,8 @@
          force_clear/0
         ]).
 
+-export([get_room/1, get_room_config/1, get_room_aff_users/1, get_room_version/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -400,3 +402,18 @@ update_users_rooms(RoomUS, [], [User | RLeavingUsers]) ->
 update_users_rooms(_RoomUS, [], []) ->
     ok.
 
+-spec get_room(Data :: muc_light_room()) -> jid:simple_bare_jid().
+get_room(#muc_light_room{room = Room}) ->
+    Room.
+
+-spec get_room_config(Data :: muc_light_room()) -> [{atom(), term()}].
+get_room_config(#muc_light_room{config = Config}) ->
+    Config.
+
+-spec get_room_aff_users(Data :: muc_light_room()) -> aff_users().
+get_room_aff_users(#muc_light_room{aff_users = AffUsers}) ->
+    AffUsers.
+
+-spec get_room_version(Data :: muc_light_room()) -> binary().
+get_room_version(#muc_light_room{version = Version}) ->
+    Version.

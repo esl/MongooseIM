@@ -19,6 +19,7 @@
 
 -export([init/2]).
 -export([enable/4, disable/3, get_publish_services/1]).
+-export([get_user_jid/1, get_pubsub_jid/1, get_pubsub_node/1, get_form/1]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -148,3 +149,19 @@ make_record(UserJID, PubsubJID, Node, Form) ->
 -spec key(jid:jid()) -> key().
 key(JID) ->
     jid:to_lus(JID).
+
+-spec get_user_jid(Data :: tuple()) -> Result :: key() | undefined.
+get_user_jid(#push_subscription{user_jid = UserJid}) ->
+    UserJid.
+
+-spec get_pubsub_jid(Data :: tuple()) -> Result :: jid:jid().
+get_pubsub_jid(#push_subscription{pubsub_jid = PubsubJid}) ->
+    PubsubJid.
+
+-spec get_pubsub_node(Data :: tuple()) -> Result :: mod_event_pusher_push:pubsub_node().
+get_pubsub_node(#push_subscription{pubsub_node = PubsubNode}) ->
+    PubsubNode.
+
+-spec get_form(Data :: tuple()) -> Result :: mod_event_pusher_push:form().
+get_form(#push_subscription{form = Form}) ->
+    Form.

@@ -51,6 +51,8 @@
 -export([check_password/3,
          check_password/5]).
 
+-export([get_us/1, get_password/1]).
+
 -include("mongoose.hrl").
 -include("scram.hrl").
 
@@ -361,3 +363,11 @@ get_vh_registered_users_within_interval(Users, Limit, Offset) ->
     Length = length(Set),
     Start = min(1, max(Offset, Length)),
     lists:sublist(Set, Start, Limit).
+
+-spec get_us(Data :: passwd()) -> tuple().
+get_us(#passwd{us = US}) ->
+    US.
+
+-spec get_password(Data :: passwd()) -> tuple() | binary().
+get_password(#passwd{password = Pass}) ->
+    Pass.
