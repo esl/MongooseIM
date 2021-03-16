@@ -15,21 +15,12 @@
 -type host_type() :: binary().
 -type pair() :: {domain(), host_type()}.
 
-%% Init - on init all the “enabled” domain names from the persistent storage
-%% must be added to the core MIM component described above.
 %% Domains should be nameprepped using `jid:nameprep'
 -spec init([pair()], [host_type()]) -> ok | {error, term()}.
 init(Pairs, AllowedHostTypes) ->
     mongoose_domain_core:start(Pairs, AllowedHostTypes).
 
-%% Add domain name (w/ host type) - This function must be idempotent.
-%% Added domain is always “enabled” by default it must be added in the core
-%% MIM component described in the previous section.
-%% If it’s successfully enabled than Information about the domain name
-%% must be added into persistent storage and distributed across all the nodes
-%% in the cluster.
 %% Domain should be nameprepped using `jid:nameprep'.
-%% HostType should be opaque binary.
 -spec insert_domain(domain(), host_type()) ->
     ok  | {error, duplicate} | {error, {db_error, term()}}
     | {error, service_disabled} | {error, unknown_host_type}.
@@ -41,10 +32,6 @@ insert_domain(Domain, HostType) ->
             Other
     end.
 
-%% Remove the domain name - This function must be idempotent.
-%% domain name must be deleted from the core MIM component (if required)
-%% and from the DB. this action must be distributed across
-%% all the nodes in the cluster.
 %% Returns ok, if domain not found.
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec delete_domain(domain(), host_type()) ->
@@ -58,11 +45,6 @@ delete_domain(Domain, HostType) ->
             Other
     end.
 
-%% Disabling/Enabling domain name - This function must be idempotent.
-%% the status of the existing domain must be changed.
-%% If domain name is enabled, then it must be added in the core MIM component.
-%% On disabling domain name must be deleted from the core MIM component.
-%% Change of the status must be distributed across all the nodes in the cluster.
 -spec disable_domain(domain()) ->
     ok | {error, not_found} | {error, static} | {error, duplicate}
     | {error, service_disabled} | {error, unknown_host_type}.
