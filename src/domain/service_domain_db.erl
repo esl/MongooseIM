@@ -22,12 +22,12 @@
 
 start(Opts) ->
     mongoose_domain_sql:start(Opts),
-    mongoose_domain_db_cleaner:start(Opts),
     ChildSpec =
         {?MODULE,
          {?MODULE, start_link, []},
          permanent, infinity, worker, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec),
+    mongoose_domain_db_cleaner:start(Opts),
     ok.
 
 stop() ->
