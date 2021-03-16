@@ -4,7 +4,7 @@
 
 -export([init/2,
          insert_domain/2,
-         remove_domain/2,
+         delete_domain/2,
          disable_domain/1,
          enable_domain/1,
          get_host_type/1,
@@ -42,18 +42,18 @@ insert_domain(Domain, HostType) ->
     end.
 
 %% Removal the domain name - This function must be idempotent.
-%% domain name must be removed from the core MIM component (if required)
+%% domain name must be deleted from the core MIM component (if required)
 %% and from the DB. this action must be distributed across
 %% all the nodes in the cluster.
 %% Returns ok, if domain not found.
 %% Domain should be nameprepped using `jid:nameprep'.
--spec remove_domain(domain(), host_type()) ->
+-spec delete_domain(domain(), host_type()) ->
     ok | {error, static} | {error, {db_error, term()}}
     | {error, service_disabled} | {error, wrong_host_type} | {error, unknown_host_type}.
-remove_domain(Domain, HostType) ->
+delete_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
         ok ->
-            check_db(mongoose_domain_sql:remove_domain(Domain, HostType));
+            check_db(mongoose_domain_sql:delete_domain(Domain, HostType));
         Other ->
             Other
     end.
@@ -61,7 +61,7 @@ remove_domain(Domain, HostType) ->
 %% Disabling/Enabling domain name - This function must be idempotent.
 %% the status of the existing domain must be changed.
 %% If domain name is enabled, then it must be added in the core MIM component.
-%% On disabling domain name must be removed from the core MIM component.
+%% On disabling domain name must be deleted from the core MIM component.
 %% Change of the status must be distributed across all the nodes in the cluster.
 -spec disable_domain(domain()) ->
     ok | {error, not_found} | {error, static} | {error, duplicate}

@@ -22,11 +22,11 @@ It must provide the following interfaces:
   name associated with another host type.
   Only host types provided during init are allowed! Domain names must be valid!
   Implemented in `mongoose_domain_api:insert_domain(Domain, HostType)`.
-- Remove - This function must be idempotent. this function removes existing
+- Remove - This function must be idempotent. this function deletes existing
   domain/host\_type pairs.
-  It must be impossible to remove domain/host\_type pairs specified on init
+  It must be impossible to delete domain/host\_type pairs specified on init
   of the component!
-  Implemented in `mongoose_domain_api:remove_domain(Domain)`.
+  Implemented in `mongoose_domain_api:delete_domain(Domain)`.
 - Get host type by domain.
   Implemented in `mongoose_domain_api:get_host_type(Domain).`.
 - Get all domains configured for the host\_type. 
@@ -38,7 +38,7 @@ It must provide the following interfaces:
 
 - Has `mongoose_domain_core` table.
 - Default (initial) domains are **static**.
-- Disabled or removed domains are not in `mongoose_domain_core`.
+- Disabled or deleted domains are not in `mongoose_domain_core`.
 - Static domains are non-mutable.
 - Static domains are not replicated.
 - Static domains has priority above DB domains.
@@ -70,10 +70,10 @@ This service must provide the following interfaces:
 - Disabling/Enabling domain name - This function must be idempotent. the status
   of the existing domain must be changed.
   If domain name is enabled, then it must be added in the core MIM component.
-  On disabling domain name must be removed from the core MIM component.
+  On disabling domain name must be deleted from the core MIM component.
   Change of the status must be distributed across all the nodes in the cluster.
 - Removal the domain name - This function must be idempotent.
-  Domain name must be removed from the core MIM component (if required) and from the DB.
+  Domain name must be deleted from the core MIM component (if required) and from the DB.
   This action must be distributed across all the nodes in the cluster.
 
 In case of any issues (domain name is already configured with another
@@ -84,7 +84,7 @@ The database schema contains two tables:
 - `domain_settings` - one record per domain. Maps `domain` name to `host_type` and `enabled` status.
 - `domain_events` - the log of changes. The only reason it exists is that
   we can track updates in the `domain_settings` and get apply updates acrooss different nodes.
-  The old events are eventually removed from the table.
+  The old events are eventually deleted from the table.
 
 `service_domain_db` module do two tasks:
 
@@ -96,8 +96,8 @@ We use `id` field to sort records when paginating.
 
 ### Domain removal
 
-You are not allowed to remove domains with unknown host-type. 
-Configure host-type first to remove such domains.
+You are not allowed to delete domains with unknown host-type. 
+Configure host-type first to delete such domains.
 
 ## Service options
 
@@ -111,7 +111,7 @@ The number of seconds between cleaning attempts of the `domain_events` table.
 
 ### `event_max_age`
 
-The number of seconds after an event must be removed from the `domain_events` table.
+The number of seconds after an event must be deleted from the `domain_events` table.
 
 * **Syntax:** positive integer
 * **Default:** `7200` (2 hours)

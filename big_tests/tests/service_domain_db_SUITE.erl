@@ -24,9 +24,9 @@ all() ->
 db_cases() -> [
      db_inserted_domain_is_in_db,
      db_inserted_domain_is_in_core,
-     db_removed_domain_from_db,
-     db_removed_domain_fails_with_wrong_host_type,
-     db_removed_domain_from_core,
+     db_deleted_domain_from_db,
+     db_deleted_domain_fails_with_wrong_host_type,
+     db_deleted_domain_from_core,
      db_disabled_domain_is_in_db,
      db_disabled_domain_not_in_core,
      db_reanabled_domain_is_in_db,
@@ -34,7 +34,7 @@ db_cases() -> [
      db_can_insert_domain_twice_with_the_same_host_type,
      db_cannot_insert_domain_twice_with_the_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
-     db_cannot_remove_domain_with_unknown_host_type,
+     db_cannot_delete_domain_with_unknown_host_type,
      db_cannot_enable_domain_with_unknown_host_type,
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
@@ -44,7 +44,7 @@ db_cases() -> [
      db_events_table_gets_truncated,
      db_get_all_static,
      db_could_sync_between_nodes,
-     db_removed_from_one_node_while_service_disabled_on_another,
+     db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another
     ].
@@ -174,25 +174,25 @@ db_inserted_domain_is_in_core(_) ->
     sync(),
     {ok, <<"testing">>} = get_host_type(mim(), <<"example.com">>).
 
-db_removed_domain_from_db(_) ->
+db_deleted_domain_from_db(_) ->
     precond(mim(), on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = delete_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, not_found} = select_domain(mim(), <<"example.com">>).
 
-db_removed_domain_fails_with_wrong_host_type(_) ->
+db_deleted_domain_fails_with_wrong_host_type(_) ->
     precond(mim(), on, [], [<<"testing">>, <<"testing2">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     {error, wrong_host_type} =
-        remove_domain(mim(), <<"example.com">>, <<"testing2">>),
+        delete_domain(mim(), <<"example.com">>, <<"testing2">>),
     {ok, #{host_type := <<"testing">>, enabled := true}} =
         select_domain(mim(), <<"example.com">>).
 
-db_removed_domain_from_core(_) ->
+db_deleted_domain_from_core(_) ->
     precond(mim(), on, [], [<<"testing">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
-    ok = remove_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = delete_domain(mim(), <<"example.com">>, <<"testing">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
@@ -240,19 +240,19 @@ db_cannot_insert_domain_with_unknown_host_type(_) ->
     precond(mim(), on, [], [<<"testing">>]),
     {error, unknown_host_type} = insert_domain(mim(), <<"example.com">>, <<"nesting">>).
 
-db_cannot_remove_domain_with_unknown_host_type(_) ->
+db_cannot_delete_domain_with_unknown_host_type(_) ->
     precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    %% The host type has been removed from the configuration.
+    %% The host type has been deleted from the configuration.
     precond(mim(), on, [], [<<"testing">>]),
     %% Nope. You can't touch oldies.
-    {error, unknown_host_type} = remove_domain(mim(), <<"example.com">>, <<"oldie">>).
+    {error, unknown_host_type} = delete_domain(mim(), <<"example.com">>, <<"oldie">>).
 
 db_cannot_enable_domain_with_unknown_host_type(_) ->
     precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
     ok = disable_domain(mim(), <<"example.com">>),
-    %% The host type has been removed from the configuration.
+    %% The host type has been deleted from the configuration.
     precond(mim(), keep_on, [], [<<"testing">>]),
     %% Nope. You can't touch oldies.
     {error, unknown_host_type} = enable_domain(mim(), <<"example.com">>).
@@ -260,7 +260,7 @@ db_cannot_enable_domain_with_unknown_host_type(_) ->
 db_cannot_disable_domain_with_unknown_host_type(_) ->
     precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    %% The host type has been removed from the configuration.
+    %% The host type has been deleted from the configuration.
     precond(mim(), keep_on, [], [<<"testing">>]),
     %% Nope. You can't touch oldies.
     {error, unknown_host_type} = disable_domain(mim(), <<"example.com">>).
@@ -269,7 +269,7 @@ db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
     precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
     ok = insert_domain(mim(), <<"example.org">>, <<"testing">>),
-    %% The host type has been removed from the configuration.
+    %% The host type has been deleted from the configuration.
     precond(mim(), keep_on, [], [<<"testing">>]),
     sync(),
     {ok, <<"testing">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
@@ -337,7 +337,7 @@ db_could_sync_between_nodes(_) ->
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     ok.
 
-db_removed_from_one_node_while_service_disabled_on_another(_) ->
+db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     precond(mim(), on, [], [<<"dbgroup">>]),
     precond(mim2(), on, [], [<<"dbgroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -346,7 +346,7 @@ db_removed_from_one_node_while_service_disabled_on_another(_) ->
     %% Service is disable on the second node
     service_disabled(mim2()),
     %% Removed from the first node
-    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -378,7 +378,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% Service is disable on the second node
     service_disabled(mim2()),
     %% Removed from the first node
-    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
@@ -388,8 +388,8 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% A corner case: mim2 sees the change, but core ignores it
     {ok, <<"dbgroup2">>} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
-    %% But if we remove it, it would be removed everywhere
-    ok = remove_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    %% But if we delete it, it would be deleted everywhere
+    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>),
@@ -417,8 +417,8 @@ init_with(Node, Pairs, AllowedHostTypes) ->
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
 
-remove_domain(Node, Domain, HostType) ->
-    rpc(Node, mongoose_domain_api, remove_domain, [Domain, HostType]).
+delete_domain(Node, Domain, HostType) ->
+    rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
 
 select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).

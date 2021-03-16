@@ -3,7 +3,7 @@
 -export([start/1]).
 
 -export([insert_domain/2,
-         remove_domain/2,
+         delete_domain/2,
          disable_domain/1,
          enable_domain/1]).
 
@@ -12,7 +12,7 @@
          get_max_event_id/0,
          select_from/2,
          select_updates_from/2,
-         remove_events_older_than/1]).
+         delete_events_older_than/1]).
 
 -export([prepare_erase/0,
          erase_database/0]).
@@ -55,7 +55,7 @@ start(_Opts) ->
             <<"INSERT INTO domain_events (domain) VALUES (?)">>),
     prepare(domain_events_max, domain_events, [],
             <<"SELECT MAX(id) FROM domain_events">>),
-    prepare(domain_events_remove_older_than, domain_events, [id],
+    prepare(domain_events_delete_older_than, domain_events, [id],
             <<"DELETE FROM domain_events WHERE id < ?">>),
     prepare(domain_events_min, domain_events, [],
             <<"SELECT MIN(id) FROM domain_events">>),
@@ -103,7 +103,7 @@ select_domain(Domain) ->
              {ok, row_to_map(Row)}
     end.
 
-remove_domain(Domain, HostType) ->
+delete_domain(Domain, HostType) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
                 {ok, #{host_type := HT}} when HT =:= HostType ->
@@ -149,7 +149,7 @@ get_max_event_id() ->
     Pool = get_db_pool(),
     selected_to_int(execute_successfully(Pool, domain_events_max, [])).
 
-remove_events_older_than(Id) ->
+delete_events_older_than(Id) ->
     transaction(fun(Pool) ->
             MaxId = get_max_event_id(),
             if MaxId =:= 0 ->
@@ -161,11 +161,11 @@ remove_events_older_than(Id) ->
                     %% is modifined externally (for example, after DB restored
                     %% from the dump to the previous state).
                     %% Skipping is not critical.
-                    ?LOG_ERROR(#{what => domain_remove_events_older_than_failed,
+                    ?LOG_ERROR(#{what => domain_delete_events_older_than_failed,
                                  max_id => MaxId, older_than_id => Id}),
                     skipped;
                true ->
-                   execute_successfully(Pool, domain_events_remove_older_than, [Id])
+                   execute_successfully(Pool, domain_events_delete_older_than, [Id])
             end
         end).
 %% ----------------------------------------------------------------------------

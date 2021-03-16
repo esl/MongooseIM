@@ -85,5 +85,5 @@ schedule_removal(State = #{max_age := MaxAge}) ->
     State.
 
 handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->
-    mongoose_domain_sql:remove_events_older_than(LastEventId),
+    mongoose_domain_sql:delete_events_older_than(LastEventId),
     State.

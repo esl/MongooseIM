@@ -10,7 +10,7 @@
 
 %% API, used by DB module
 -export([insert/2,
-         remove/1]).
+         delete/1]).
 
 -export([get_all_static/0,
          get_domains_by_host_type/1]).
@@ -80,8 +80,8 @@ pairs(List) ->
 insert(Domain, HostType) ->
     gen_server:call(?MODULE, {insert, Domain, HostType}).
 
-remove(Domain) ->
-    gen_server:call(?MODULE, {remove, Domain}).
+delete(Domain) ->
+    gen_server:call(?MODULE, {delete, Domain}).
 
 set_last_event_id(LastEventId) ->
     gen_server:call(?MODULE, {set_last_event_id, LastEventId}).
@@ -103,8 +103,8 @@ init([Pairs, AllowedHostTypes]) ->
            initial_pairs => Pairs,
            initial_host_types => AllowedHostTypes}}.
 
-handle_call({remove, Domain}, _From, State) ->
-    Result = handle_remove(Domain),
+handle_call({delete, Domain}, _From, State) ->
+    Result = handle_delete(Domain),
     {reply, Result, State};
 handle_call({insert, Domain, HostType}, _From, State) ->
     Result = handle_insert(Domain, HostType),
@@ -156,7 +156,7 @@ insert_host_types(Tab, AllowedHostTypes) ->
                   end, AllowedHostTypes),
     ok.
 
-handle_remove(Domain) ->
+handle_delete(Domain) ->
     case is_static(Domain) of
         true ->
             %% Ignore any static domains

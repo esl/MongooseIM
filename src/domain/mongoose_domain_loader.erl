@@ -46,7 +46,7 @@ check_if_from_num_still_relevant(FromNum) ->
            %% But the event log in the DB has been truncated by some other node
            %% meanwhile. We have to load the whole set of data from DB.
            ?LOG_ERROR(#{what => events_log_out_of_sync,
-                        text => <<"DB domain log had some updates to domains removed, "
+                        text => <<"DB domain log had some updates to domains deleted, "
                                   " which we have not applied yet. Have to crash.">>,
                         min_db => Min,
                         from_num => FromNum}),
@@ -64,7 +64,7 @@ apply_changes([]) ->
 apply_change({_Id, Domain, null}) ->
     %% Missing record in domain_settings table.
     %% Or enabled field is false.
-    mongoose_domain_core:remove(Domain);
+    mongoose_domain_core:delete(Domain);
 apply_change({_Id, Domain, HostType}) ->
     %% Inserted or updated record
     mongoose_domain_core:insert(Domain, HostType).
