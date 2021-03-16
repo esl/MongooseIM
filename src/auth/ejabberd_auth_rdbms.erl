@@ -433,7 +433,8 @@ prepare_count_users(LServer) ->
                       "WHERE table_name = 'users'">>);
         {true, pgsql} ->
             prepare(auth_count_users_estimate, pg_class, [],
-                    <<"SELECT reltuples FROM pg_class WHERE oid = 'users'::regclass::oid">>);
+                    <<"SELECT reltuples::numeric FROM pg_class "
+                      "WHERE oid = 'users'::regclass::oid">>);
         _ ->
             prepare_count_users()
     end.

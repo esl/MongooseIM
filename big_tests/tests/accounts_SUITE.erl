@@ -45,10 +45,13 @@ groups() ->
                                              registration_failure_timeout]},
          {change_account_details, [parallel], change_password_tests()},
          {change_account_details_store_plain, [parallel], change_password_tests()},
-         {utilities, [parallel], [list_users,
+         {utilities, [{group, user_info},
+                      {group, users_number_estimate}]},
+         {user_info, [parallel], [list_users,
                                   list_selected_users,
                                   count_users,
-                                  count_selected_users]}
+                                  count_selected_users]},
+         {users_number_estimate, [], [count_users_estimate]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -93,7 +96,13 @@ init_per_group(change_account_details_store_plain, Config) ->
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
 init_per_group(utilities, Config) ->
-     escalus:create_users(Config, escalus:get_users([alice, bob]));
+    escalus:create_users(Config, escalus:get_users([alice, bob]));
+init_per_group(users_number_estimate, Config) ->
+    AuthOpts = get_auth_opts(),
+    Key = rdbms_users_number_estimate,
+    NewAuthOpts = lists:keystore(Key, 1, AuthOpts, {Key, true}),
+    set_auth_opts(NewAuthOpts),
+    [{auth_opts, AuthOpts} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -110,8 +119,19 @@ end_per_group(registration_timeout, Config) ->
     restore_registration_timeout(Config);
 end_per_group(utilities, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
+end_per_group(users_number_estimate, Config) ->
+    StoredAuthOpts = ?config(auth_opts, Config),
+    set_auth_opts(StoredAuthOpts);
 end_per_group(_GroupName, Config) ->
     Config.
+
+get_auth_opts() ->
+    rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, domain()}]).
+
+set_auth_opts(AuthOpts) ->
+    rpc(mim(), ejabberd_auth, stop, [domain()]),
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, domain()}, AuthOpts]),
+    rpc(mim(), ejabberd_auth, start, [domain()]).
 
 init_per_testcase(admin_notify, Config) ->
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
@@ -359,6 +379,10 @@ list_selected_users(_Config) ->
 
 count_users(_Config) ->
     ?assertEqual(2, rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [domain()])).
+
+count_users_estimate(_Config) ->
+    Count = rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [domain()]),
+    ?assert(is_integer(Count) andalso Count >= 0).
 
 count_selected_users(_Config) ->
     ?assertEqual(1, rpc(mim(), ejabberd_auth, get_vh_registered_users_number,
