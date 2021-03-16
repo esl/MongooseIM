@@ -136,7 +136,7 @@ maybe_cancel_timer(_) ->
     ok.
 
 receive_all_check_for_updates() ->
-    receive check_for_updates -> ok after 0 -> ok end.
+    receive check_for_updates -> receive_all_check_for_updates() after 0 -> ok end.
 
 maybe_set_last_event_id(LastEventId, LastEventId) ->
     ok;
