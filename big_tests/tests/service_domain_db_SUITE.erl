@@ -19,7 +19,8 @@ all() ->
      core_cannot_enable_static,
      core_get_all_static,
      core_get_domains_by_host_type,
-     {group, db}
+     {group, db},
+     db_initial_load_crashes_node
     ].
 
 groups() ->
@@ -98,6 +99,10 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(db_initial_load_crashes_node, Config) ->
+    setup_meck(),
+    init_with(mim(), [], []),
+    Config;
 init_per_testcase(TestcaseName, Config) ->
     ServiceEnabled = proplists:get_value(service, Config, false),
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
@@ -121,6 +126,9 @@ service_opts(db_events_table_gets_truncated) ->
 service_opts(_) ->
     [].
 
+end_per_testcase(db_initial_load_crashes_node, Config) ->
+    teardown_meck(),
+    end_per_testcase(generic, Config);
 end_per_testcase(_TestcaseName, Config) ->
     service_disabled(mim()),
     service_disabled(mim2()),
@@ -364,6 +372,12 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
+db_initial_load_crashes_node(_) ->
+    service_enabled(mim()),
+    %% Called halt node function, but it's mocked
+    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -447,3 +461,13 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 %% So, multiple node tests work
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
+
+setup_meck() ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
+    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]),
+    ok.
+
+teardown_meck() ->
+    rpc(mim(), meck, unload, []).

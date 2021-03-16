@@ -5,13 +5,26 @@
 -include("mongoose_logger.hrl").
 
 load_data_from_base(FromId, PageSize) ->
+    try
+        load_data_from_base_loop(FromId, PageSize)
+    catch Class:Reason:Stacktrace ->
+              Text = <<"Loading initial domains from RDBMS failed">>,
+              ?LOG_CRITICAL(#{what => load_domains_from_base_failed,
+                              text => Text,
+                              from_id => FromId,
+                              class => Class, reason => Reason,
+                              stacktrace => Stacktrace}),
+              mongoose_domain_utils:halt_node(Text)
+    end.
+
+load_data_from_base_loop(FromId, PageSize) ->
     %% Crash on init if select fails.
     case mongoose_domain_sql:select_from(FromId, PageSize) of
         [] -> ok;
         Rows ->
             PageMaxId = row_to_id(lists:last(Rows)),
             insert_rows_to_core(Rows),
-            load_data_from_base(PageMaxId, PageSize)
+            load_data_from_base_loop(PageMaxId, PageSize)
     end.
 
 check_for_updates(FromId, PageSize) ->
