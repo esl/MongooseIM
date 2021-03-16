@@ -49,7 +49,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 enabled() ->
-    is_pid(whereis(?MODULE)).
+    mongoose_service:is_loaded(?MODULE).
 
 force_check_for_updates() ->
     %% Send a broadcast message.
