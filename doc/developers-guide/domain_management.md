@@ -11,21 +11,19 @@ started by MIM even if there is no support of dynamic domain names configured.
 It must provide the following interfaces:
 - Init - should accept the list of initial domain/host\_type pairs provided in
   config file and the list of host\_types that can be used for dynamic insertion.
-  Any of these lists can be empty, initial list of domain/host\_type pair can
-  have some unique host\_types not mentioned in in the host\_types list.
-  The component must be initialised by the main MIM supervisor
-  (for initial implementation it can be initialised with empty lists)
+  Any of these lists can be empty, initial list of domain/host\_type pairs can
+  have some unique host\_types not mentioned in the host\_types list.
+  The component must be initialised by the main MIM supervisor.
   Implemented in `mongoose_domain_api:init(Pairs)`.
 - Insert - adding new domain/host\_type pair.
   This function must be **idempotent**, it must return success on attempt to
   insert the existing data, but it must fail if ETS already has the domain
   name associated with another host type.
-  Only host types provided during init are allowed! Domain names must be valid!
   Implemented in `mongoose_domain_api:insert_domain(Domain, HostType)`.
 - Remove - This function must be idempotent. this function deletes existing
   domain/host\_type pairs.
   It must be impossible to delete domain/host\_type pairs specified on init
-  of the component!
+  of the component.
   Implemented in `mongoose_domain_api:delete_domain(Domain)`.
 - Get host type by domain.
   Implemented in `mongoose_domain_api:get_host_type(Domain).`.
@@ -72,7 +70,7 @@ This service must provide the following interfaces:
   If domain name is enabled, then it must be added in the core MIM component.
   On disabling domain name must be deleted from the core MIM component.
   Change of the status must be distributed across all the nodes in the cluster.
-- Removal the domain name - This function must be idempotent.
+- Remove the domain name - This function must be idempotent.
   Domain name must be deleted from the core MIM component (if required) and from the DB.
   This action must be distributed across all the nodes in the cluster.
 
@@ -83,7 +81,7 @@ The database schema contains two tables:
 
 - `domain_settings` - one record per domain. Maps `domain` name to `host_type` and `enabled` status.
 - `domain_events` - the log of changes. The only reason it exists is that
-  we can track updates in the `domain_settings` and get apply updates acrooss different nodes.
+  we can track updates in the `domain_settings` and get apply updates across different nodes.
   The old events are eventually deleted from the table.
 
 `service_domain_db` module do two tasks:
