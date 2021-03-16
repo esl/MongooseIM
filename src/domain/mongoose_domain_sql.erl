@@ -158,7 +158,7 @@ delete_events_older_than(Id) ->
                     %% Removal would erase all the events, which we don't want.
                     %% We want to keep at least one event.
                     %% This should never happen though, unless the events table
-                    %% is modifined externally (for example, after DB restored
+                    %% is modified externally (for example, after DB restored
                     %% from the dump to the previous state).
                     %% Skipping is not critical.
                     ?LOG_ERROR(#{what => domain_delete_events_older_than_failed,
