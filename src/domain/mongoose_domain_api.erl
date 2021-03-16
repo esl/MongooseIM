@@ -41,7 +41,7 @@ insert_domain(Domain, HostType) ->
             Other
     end.
 
-%% Removal the domain name - This function must be idempotent.
+%% Remove the domain name - This function must be idempotent.
 %% domain name must be deleted from the core MIM component (if required)
 %% and from the DB. this action must be distributed across
 %% all the nodes in the cluster.
