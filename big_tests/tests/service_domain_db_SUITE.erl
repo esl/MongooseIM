@@ -67,11 +67,14 @@ domain() -> ct:get_config({hosts, mim, domain}).
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    ensure_nodes_know_each_other(),
-    prepare_erase(mim()),
-    prepare_erase(mim2()),
     Conf1 = store_conf(mim()),
     Conf2 = store_conf(mim2()),
+    ensure_nodes_know_each_other(),
+    service_disabled(mim()),
+    service_disabled(mim2()),
+    prepare_erase(mim()),
+    prepare_erase(mim2()),
+    erase_database(mim()),
     escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config]).
 
 store_conf(Node) ->
@@ -105,8 +108,15 @@ init_per_testcase(TestcaseName, Config) ->
              {<<"erlang-solutions.local">>, <<"type2">>}],
     CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
     Types2 = [<<"mim2only">>|CommonTypes],
-    precond(mim(), ServiceEnabled, Pairs1, CommonTypes, service_opts(TestcaseName)),
-    precond(mim2(), ServiceEnabled, [], Types2, []),
+    init_with(mim(), Pairs1, CommonTypes),
+    init_with(mim2(), [], Types2),
+    case ServiceEnabled of
+        true ->
+            service_enabled(mim(), service_opts(TestcaseName)),
+            service_enabled(mim2(), []);
+        false ->
+            ok
+    end,
     Config.
 
 service_opts(db_events_table_gets_truncated) ->
@@ -115,6 +125,9 @@ service_opts(_) ->
     [].
 
 end_per_testcase(_TestcaseName, Config) ->
+    service_disabled(mim()),
+    service_disabled(mim2()),
+    erase_database(mim()),
     Config.
 
 %%--------------------------------------------------------------------
@@ -298,14 +311,12 @@ db_events_table_gets_truncated(_) ->
     true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
     F = fun() -> get_min_event_id(mim()) end,
-    mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}),
-    ok.
+    mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}).
 
 db_could_sync_between_nodes(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
-    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
-    ok.
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
 
 db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -320,8 +331,7 @@ db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     %% Sync is working again
     service_enabled(mim2()),
-    {error, not_found} = get_host_type(mim2(), <<"example.com">>),
-    ok.
+    {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
 db_inserted_from_one_node_while_service_disabled_on_another(_) ->
     %% Service is disable on the second node
@@ -329,8 +339,7 @@ db_inserted_from_one_node_while_service_disabled_on_another(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     %% Sync is working again
     service_enabled(mim2()),
-    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
-    ok.
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
 
 db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% This test shows the behaviour when someone
@@ -356,8 +365,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
-    {error, not_found} = get_host_type(mim2(), <<"example.com">>),
-    ok.
+    {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -426,17 +434,6 @@ is_static(Domain) ->
 %% Call sync before get_host_type, if there are some async changes expected
 sync() ->
     rpc(mim(), service_domain_db, sync, []).
-
-precond(Node, false, Pairs, AllowedHostTypes, ServiceOpts) ->
-    service_disabled(Node),
-    erase_database(Node),
-    init_with(Node, Pairs, AllowedHostTypes);
-precond(Node, true, Pairs, AllowedHostTypes, ServiceOpts) ->
-    %% Restarts with clean DB
-    service_disabled(Node),
-    erase_database(Node),
-    init_with(Node, Pairs, AllowedHostTypes),
-    service_enabled(Node, ServiceOpts).
 
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
     rpc(Node, mongoose_service, stop_service, [service_domain_db]),
