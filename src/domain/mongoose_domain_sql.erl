@@ -129,15 +129,15 @@ erase_database() ->
     execute_successfully(Pool, domain_erase_settings, []).
 
 %% Returns smallest id first
-select_from(FromNum, Limit) ->
+select_from(FromId, Limit) ->
     Pool = get_db_pool(),
-    Args = rdbms_queries:add_limit_arg(Limit, [FromNum]),
+    Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
     {selected, Rows} = execute_successfully(Pool, domain_select_from, Args),
     Rows.
 
-select_updates_from(FromNum, Limit) ->
+select_updates_from(FromId, Limit) ->
     Pool = get_db_pool(),
-    Args = rdbms_queries:add_limit_arg(Limit, [FromNum]),
+    Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
     {selected, Rows} = execute_successfully(Pool, domain_select_events_from, Args),
     Rows.
 

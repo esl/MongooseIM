@@ -4,9 +4,9 @@
 
 -include("mongoose_logger.hrl").
 
-load_data_from_base(FromNum, PageSize) ->
+load_data_from_base(FromId, PageSize) ->
     %% Crash on init if select fails.
-    case mongoose_domain_sql:select_from(FromNum, PageSize) of
+    case mongoose_domain_sql:select_from(FromId, PageSize) of
         [] -> ok;
         Rows ->
             PageMaxId = row_to_id(lists:last(Rows)),
@@ -14,11 +14,11 @@ load_data_from_base(FromNum, PageSize) ->
             load_data_from_base(PageMaxId, PageSize)
     end.
 
-check_for_updates(FromNum, PageSize) ->
-    check_if_from_num_still_relevant(FromNum),
+check_for_updates(FromId, PageSize) ->
+    check_if_from_num_still_relevant(FromId),
     %% Ordered by the earlist events first
-    try mongoose_domain_sql:select_updates_from(FromNum, PageSize) of
-        [] -> FromNum;
+    try mongoose_domain_sql:select_updates_from(FromId, PageSize) of
+        [] -> FromId;
         Rows ->
             PageMaxId = row_to_id(lists:last(Rows)),
             apply_changes(Rows),
@@ -29,19 +29,19 @@ check_for_updates(FromNum, PageSize) ->
             ?LOG_ERROR(#{what => domain_check_for_updates_failed,
                          class => Class, reason => Reason,
                          stacktrace => StackTrace}),
-            FromNum
+            FromId
     end.
 
 %% Be aware that for this check to work, the cleaner should keep at least
 %% one record in domain_events table.
 check_if_from_num_still_relevant(0) ->
     ok;
-check_if_from_num_still_relevant(FromNum) ->
+check_if_from_num_still_relevant(FromId) ->
     Min = mongoose_domain_sql:get_min_event_id(),
     if Min =:= 0 ->
             %% Nothing to do, there were no updates done ever in the DB
             ok;
-       Min > FromNum ->
+       Min > FromId ->
            %% Looks like this node has no DB connection for a long time.
            %% But the event log in the DB has been truncated by some other node
            %% meanwhile. We have to load the whole set of data from DB.
@@ -49,7 +49,7 @@ check_if_from_num_still_relevant(FromNum) ->
                         text => <<"DB domain log had some updates to domains deleted, "
                                   " which we have not applied yet. Have to crash.">>,
                         min_db => Min,
-                        from_num => FromNum}),
+                        from_id => FromId}),
            error(check_if_from_num_still_relevant_failed);
        true ->
            ok
