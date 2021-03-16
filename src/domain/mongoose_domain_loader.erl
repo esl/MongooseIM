@@ -55,25 +55,21 @@ check_if_from_num_still_relevant(FromId) ->
            ok
     end.
 
-apply_changes([Row|Rows]) ->
-    apply_change(Row),
-    apply_changes(Rows);
-apply_changes([]) ->
-    ok.
+apply_changes(Rows) ->
+    lists:foreach(fun apply_change/1, Rows).
 
 apply_change({_Id, Domain, null}) ->
-    %% Missing record in domain_settings table.
-    %% Or enabled field is false.
+    %% Removed or disabled domain.
+    %% According to the SQL query, the HostType is null when:
+    %% - There is no record for the domain in the domain_settings table.
+    %% - Or domain_settings.enabled equals false.
     mongoose_domain_core:delete(Domain);
 apply_change({_Id, Domain, HostType}) ->
-    %% Inserted or updated record
+    %% Inserted or enabled record.
     mongoose_domain_core:insert(Domain, HostType).
 
-insert_rows_to_core([Row|Rows]) ->
-    insert_row_to_core(Row),
-    insert_rows_to_core(Rows);
-insert_rows_to_core([]) ->
-    ok.
+insert_rows_to_core(Rows) ->
+    lists:foreach(fun insert_row_to_core/1, Rows).
 
 insert_row_to_core({_Id, Domain, HostType}) ->
     mongoose_domain_core:insert(Domain, HostType).

@@ -85,7 +85,7 @@ The database schema contains two tables:
   The old events are eventually deleted from the table.  Removal is triggered by
   all nodes of MongooseIM, that have the service configured.
 
-`service_domain_db` module do two tasks:
+`service_domain_db` module does two tasks:
 
 - Initially downloads domains from `domain_settings` table, using sorting by id.
 - Waits for `check_for_updates` message and updates core component, depending
