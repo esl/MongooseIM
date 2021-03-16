@@ -55,12 +55,6 @@ db_cases() -> [
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
 
-maybe_db_cases() ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> db_cases();
-        false -> []
-    end.
-
 domain() -> ct:get_config({hosts, mim, domain}).
 
 %%--------------------------------------------------------------------
@@ -94,7 +88,10 @@ end_per_suite(Config) ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_group(db, Config) ->
-    [{service, true}|Config];
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true -> [{service, true}|Config];
+        false -> {skip, require_rdbms}
+    end;
 init_per_group(_GroupName, Config) ->
     Config.
 
