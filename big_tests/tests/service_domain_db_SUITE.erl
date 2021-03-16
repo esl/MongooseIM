@@ -18,8 +18,12 @@ all() ->
      core_cannot_disable_static,
      core_cannot_enable_static,
      core_get_all_static,
-     core_get_domains_by_host_type
-    ] ++ maybe_db_cases().
+     core_get_domains_by_host_type,
+     {group, db}
+    ].
+
+groups() ->
+    [{db, [], db_cases()}].
 
 db_cases() -> [
      db_inserted_domain_is_in_db,
@@ -86,14 +90,29 @@ end_per_suite(Config) ->
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+init_per_group(db, Config) ->
+    [{service, true}|Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(_TestcaseName, Config) ->
+init_per_testcase(TestcaseName, Config) ->
+    ServiceEnabled = proplists:get_value(service, Config, false),
+    Pairs1 = [{<<"example.cfg">>, <<"type1">>},
+             {<<"erlang-solutions.com">>, <<"type2">>},
+             {<<"erlang-solutions.local">>, <<"type2">>}],
+    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
+    Types2 = [<<"mim2only">>|CommonTypes],
+    precond(mim(), ServiceEnabled, Pairs1, CommonTypes, service_opts(TestcaseName)),
+    precond(mim2(), ServiceEnabled, [], Types2, []),
     Config.
+
+service_opts(db_events_table_gets_truncated) ->
+    [{event_cleaning_interval, 1}, {event_max_age, 3}];
+service_opts(_) ->
+    [].
 
 end_per_testcase(_TestcaseName, Config) ->
     Config.
@@ -103,200 +122,155 @@ end_per_testcase(_TestcaseName, Config) ->
 %%--------------------------------------------------------------------
 
 core_lookup_works(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
+    {ok, <<"type1">>} = get_host_type(mim(), <<"example.cfg">>).
 
 core_lookup_not_found(_) ->
-    precond(mim(), off, [], []),
-    {error, not_found} = get_host_type(mim(), <<"example.life">>).
+    {error, not_found} = get_host_type(mim(), <<"example.missing">>).
 
 core_static_domain(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    true = is_static(<<"example.com">>).
+    true = is_static(<<"example.cfg">>).
 
 core_cannot_insert_static(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, static} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
+    {error, static} = insert_domain(mim(), <<"example.cfg">>, <<"type1">>).
 
 core_cannot_disable_static(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, static} = disable_domain(mim(), <<"example.com">>).
+    {error, static} = disable_domain(mim(), <<"example.cfg">>).
 
 core_cannot_enable_static(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, static} = enable_domain(mim(), <<"example.com">>).
+    {error, static} = enable_domain(mim(), <<"example.cfg">>).
 
 %% See also db_get_all_static
 core_get_all_static(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>,
-                  <<"example.org">>, <<"type2">>,
-                  <<"erlang-solutions.com">>, <<"type2">>],
-           [<<"type1">>, <<"type2">>]),
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
-     {<<"example.com">>, <<"type1">>},
-     {<<"example.org">>, <<"type2">>}] =
+     {<<"erlang-solutions.local">>, <<"type2">>},
+     {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
 
 core_get_domains_by_host_type(_) ->
-    precond(mim(), off, [<<"example.com">>, <<"type1">>,
-                  <<"example.org">>, <<"type2">>,
-                  <<"erlang-solutions.com">>, <<"type2">>],
-           [<<"type1">>, <<"type2">>]),
-    [<<"erlang-solutions.com">>, <<"example.org">>] =
+    [<<"erlang-solutions.com">>, <<"erlang-solutions.local">>] =
         lists:sort(get_domains_by_host_type(mim(), <<"type2">>)),
-    [<<"example.com">>] = get_domains_by_host_type(mim(), <<"type1">>),
+    [<<"example.cfg">>] = get_domains_by_host_type(mim(), <<"type1">>),
     [] = get_domains_by_host_type(mim(), <<"type6">>).
 
 %% Similar to as core_get_all_static, just with DB service enabled
 db_get_all_static(_) ->
-    precond(mim(), on, [<<"example.com">>, <<"type1">>,
-                 <<"example.org">>, <<"type2">>,
-                 <<"erlang-solutions.com">>, <<"type2">>],
-           [<<"type1">>, <<"type2">>]),
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
-     {<<"example.com">>, <<"type1">>},
-     {<<"example.org">>, <<"type2">>}] =
+     {<<"erlang-solutions.local">>, <<"type2">>},
+     {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
 
 db_inserted_domain_is_in_db(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    {ok, #{host_type := <<"testing">>, enabled := true}} =
-       select_domain(mim(), <<"example.com">>).
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+       select_domain(mim(), <<"example.db">>).
 
 db_inserted_domain_is_in_core(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
-    {ok, <<"testing">>} = get_host_type(mim(), <<"example.com">>).
+    {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
 
 db_deleted_domain_from_db(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    ok = delete_domain(mim(), <<"example.com">>, <<"testing">>),
-    {error, not_found} = select_domain(mim(), <<"example.com">>).
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = delete_domain(mim(), <<"example.db">>, <<"type1">>),
+    {error, not_found} = select_domain(mim(), <<"example.db">>).
 
 db_deleted_domain_fails_with_wrong_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"testing2">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     {error, wrong_host_type} =
-        delete_domain(mim(), <<"example.com">>, <<"testing2">>),
-    {ok, #{host_type := <<"testing">>, enabled := true}} =
-        select_domain(mim(), <<"example.com">>).
+        delete_domain(mim(), <<"example.db">>, <<"type2">>),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
 
 db_deleted_domain_from_core(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
-    ok = delete_domain(mim(), <<"example.com">>, <<"testing">>),
+    ok = delete_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
-    {error, not_found} = get_host_type(mim(), <<"example.com">>).
+    {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
 db_disabled_domain_is_in_db(_) ->
-    precond(mim(), on, [], [<<"type1">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.com">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = disable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, enabled := false}} =
-       select_domain(mim(), <<"example.com">>).
+       select_domain(mim(), <<"example.db">>).
 
 db_disabled_domain_not_in_core(_) ->
-    precond(mim(), on, [], [<<"type1">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.com">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = disable_domain(mim(), <<"example.db">>),
     sync(),
-    {error, not_found} = get_host_type(mim(), <<"example.com">>).
+    {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
 db_reanabled_domain_is_in_db(_) ->
-    precond(mim(), on, [], [<<"type1">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.com">>),
-    ok = enable_domain(mim(), <<"example.com">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = disable_domain(mim(), <<"example.db">>),
+    ok = enable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
-       select_domain(mim(), <<"example.com">>).
+       select_domain(mim(), <<"example.db">>).
 
 db_reanabled_domain_is_in_core(_) ->
-    precond(mim(), on, [], [<<"type1">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.com">>),
-    ok = enable_domain(mim(), <<"example.com">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = disable_domain(mim(), <<"example.db">>),
+    ok = enable_domain(mim(), <<"example.db">>),
     sync(),
-    {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
+    {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
 
 db_can_insert_domain_twice_with_the_same_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>).
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>).
 
 db_cannot_insert_domain_twice_with_the_another_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"testing2">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"testing">>),
-    {error, duplicate} = insert_domain(mim(), <<"example.com">>, <<"testing2">>).
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {error, duplicate} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
 
 db_cannot_insert_domain_with_unknown_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>]),
-    {error, unknown_host_type} = insert_domain(mim(), <<"example.com">>, <<"nesting">>).
+    {error, unknown_host_type} = insert_domain(mim(), <<"example.db">>, <<"type6">>).
 
 db_cannot_delete_domain_with_unknown_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    %% The host type has been deleted from the configuration.
-    precond(mim(), on, [], [<<"testing">>]),
-    %% Nope. You can't touch oldies.
-    {error, unknown_host_type} = delete_domain(mim(), <<"example.com">>, <<"oldie">>).
+    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    sync(),
+    {error, unknown_host_type} = delete_domain(mim(), <<"example.db">>, <<"mim2only">>).
 
 db_cannot_enable_domain_with_unknown_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    ok = disable_domain(mim(), <<"example.com">>),
-    %% The host type has been deleted from the configuration.
-    precond(mim(), keep_on, [], [<<"testing">>]),
-    %% Nope. You can't touch oldies.
-    {error, unknown_host_type} = enable_domain(mim(), <<"example.com">>).
+    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    ok = disable_domain(mim2(), <<"example.db">>),
+    sync(),
+    {error, unknown_host_type} = enable_domain(mim(), <<"example.db">>).
 
 db_cannot_disable_domain_with_unknown_host_type(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    %% The host type has been deleted from the configuration.
-    precond(mim(), keep_on, [], [<<"testing">>]),
-    %% Nope. You can't touch oldies.
-    {error, unknown_host_type} = disable_domain(mim(), <<"example.com">>).
+    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    sync(),
+    {error, unknown_host_type} = disable_domain(mim(), <<"example.db">>).
 
 db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
-    precond(mim(), on, [], [<<"testing">>, <<"oldie">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"oldie">>),
-    ok = insert_domain(mim(), <<"example.org">>, <<"testing">>),
-    %% The host type has been deleted from the configuration.
-    precond(mim(), keep_on, [], [<<"testing">>]),
+    ok = insert_domain(mim2(), <<"example.com">>, <<"mim2only">>),
+    ok = insert_domain(mim2(), <<"example.org">>, <<"type1">>),
     sync(),
-    {ok, <<"testing">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
+    {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
 sql_select_from_works(_) ->
-    precond(mim(), on, [], [<<"good">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"good">>),
-    [{_, <<"example.com">>, <<"good">>}] =
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
 db_records_are_restored_when_restarted(_) ->
-    precond(mim(), on, [], [<<"cool">>]),
-    ok = insert_domain(mim(), <<"example.com">>, <<"cool">>),
+    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
     service_disabled(mim()),
-    init_with(mim(), [], [<<"cool">>]),
+    init_with(mim(), [], [<<"type1">>]),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     service_enabled(mim()),
     %% DB still contains data
-    {ok, #{host_type := <<"cool">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
        select_domain(mim(), <<"example.com">>),
     %% Restored
-    {ok, <<"cool">>} = get_host_type(mim(), <<"example.com">>).
+    {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
 
 db_record_is_ignored_if_domain_static(_) ->
-    precond(mim(), on, [], [<<"dbgroup">>, <<"cfggroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     %% Simulate MIM restart
@@ -314,9 +288,7 @@ db_record_is_ignored_if_domain_static(_) ->
     {ok, <<"dbgroup">>} = get_host_type(mim(), <<"example.net">>).
 
 db_events_table_gets_truncated(_) ->
-    precond(mim(), off, [], [<<"dbgroup">>]),
     %% Configure service with a very short interval
-    service_enabled(mim(), [{event_cleaning_interval, 1}, {event_max_age, 3}]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
@@ -330,16 +302,12 @@ db_events_table_gets_truncated(_) ->
     ok.
 
 db_could_sync_between_nodes(_) ->
-    precond(mim(), on, [], [<<"dbgroup">>]),
-    precond(mim2(), on, [], [<<"dbgroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     ok.
 
 db_deleted_from_one_node_while_service_disabled_on_another(_) ->
-    precond(mim(), on, [], [<<"dbgroup">>]),
-    precond(mim2(), on, [], [<<"dbgroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -356,8 +324,6 @@ db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     ok.
 
 db_inserted_from_one_node_while_service_disabled_on_another(_) ->
-    precond(mim(), on, [], [<<"dbgroup">>]),
-    precond(mim2(), on, [], [<<"dbgroup">>]),
     %% Service is disable on the second node
     service_disabled(mim2()),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -370,8 +336,6 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% This test shows the behaviour when someone
     %% reinserts a domain with a different host type.
     %% TLDR: just keep the host_type constant or don't reuse domains.
-    precond(mim(), on, [], [<<"dbgroup">>, <<"dbgroup2">>]),
-    precond(mim2(), on, [], [<<"dbgroup">>, <<"dbgroup2">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -463,26 +427,16 @@ is_static(Domain) ->
 sync() ->
     rpc(mim(), service_domain_db, sync, []).
 
-precond(Node, off, FlatPairs, AllowedHostTypes) ->
+precond(Node, false, Pairs, AllowedHostTypes, ServiceOpts) ->
     service_disabled(Node),
     erase_database(Node),
-    init_with(Node, unflat(FlatPairs), AllowedHostTypes);
-precond(Node, on, FlatPairs, AllowedHostTypes) ->
+    init_with(Node, Pairs, AllowedHostTypes);
+precond(Node, true, Pairs, AllowedHostTypes, ServiceOpts) ->
     %% Restarts with clean DB
     service_disabled(Node),
     erase_database(Node),
-    init_with(Node, unflat(FlatPairs), AllowedHostTypes),
-    service_enabled(Node);
-precond(Node, keep_on, FlatPairs, AllowedHostTypes) ->
-    init_with(Node, unflat(FlatPairs), AllowedHostTypes),
-    service_disabled(Node),
-    %% Skip erase
-    service_enabled(Node).
-
-unflat([K,V|T]) ->
-    [{K,V}|unflat(T)];
-unflat([]) ->
-    [].
+    init_with(Node, Pairs, AllowedHostTypes),
+    service_enabled(Node, ServiceOpts).
 
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
     rpc(Node, mongoose_service, stop_service, [service_domain_db]),
