@@ -1,3 +1,5 @@
+%% Cleaning is triggered from all MongooseIM nodes.
+%% Though, it's quick, if there is nothing to remove.
 -module(mongoose_domain_db_cleaner).
 -include("mongoose_logger.hrl").
 

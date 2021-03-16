@@ -82,7 +82,8 @@ The database schema contains two tables:
 - `domain_settings` - one record per domain. Maps `domain` name to `host_type` and `enabled` status.
 - `domain_events` - the log of changes. The only reason it exists is that
   we can track updates in the `domain_settings` and get apply updates across different nodes.
-  The old events are eventually deleted from the table.
+  The old events are eventually deleted from the table.  Removal is triggered by
+  all nodes of MongooseIM, that have the service configured.
 
 `service_domain_db` module do two tasks:
 
