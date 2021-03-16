@@ -19,8 +19,7 @@ all() ->
      core_cannot_enable_static,
      core_get_all_static,
      core_get_domains_by_host_type,
-     {group, db},
-     db_initial_load_crashes_node
+     {group, db}
     ].
 
 groups() ->
@@ -52,7 +51,8 @@ db_cases() -> [
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
-     db_out_of_sync_crashes_node
+     db_out_of_sync_crashes_node,
+     db_initial_load_crashes_node
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
