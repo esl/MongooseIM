@@ -51,7 +51,8 @@ db_cases() -> [
      db_could_sync_between_nodes,
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
-     db_reinserted_from_one_node_while_service_disabled_on_another
+     db_reinserted_from_one_node_while_service_disabled_on_another,
+     db_out_of_sync_crashes_node
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -100,10 +101,16 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(db_initial_load_crashes_node, Config) ->
-    setup_meck(),
+    setup_meck(db_initial_load_crashes_node),
     init_with(mim(), [], []),
     Config;
 init_per_testcase(TestcaseName, Config) ->
+    case TestcaseName of
+        db_out_of_sync_crashes_node ->
+            setup_meck(db_out_of_sync_crashes_node);
+        _ ->
+            ok
+    end,
     ServiceEnabled = proplists:get_value(service, Config, false),
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
@@ -127,6 +134,10 @@ service_opts(_) ->
     [].
 
 end_per_testcase(db_initial_load_crashes_node, Config) ->
+    teardown_meck(),
+    end_per_testcase(generic, Config);
+end_per_testcase(db_out_of_sync_crashes_node, Config) ->
+    rpc(mim(), sys, resume, [service_domain_db]),
     teardown_meck(),
     end_per_testcase(generic, Config);
 end_per_testcase(_TestcaseName, Config) ->
@@ -378,6 +389,29 @@ db_initial_load_crashes_node(_) ->
     true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
     ok.
 
+db_out_of_sync_crashes_node(_) ->
+    ok = insert_domain(mim2(), <<"example1.com">>, <<"type1">>),
+    ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
+    sync(),
+    %% Pause processing events on one node
+    ok = rpc(mim(), sys, suspend, [service_domain_db]),
+    ok = insert_domain(mim2(), <<"example3.com">>, <<"type1">>),
+    ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
+    sync_local(mim2()),
+    %% Truncate events table, keep only one event
+    MaxId = get_max_event_id(mim2()),
+    {updated, _} = delete_events_older_than(mim2(), MaxId),
+    {error, not_found} = get_host_type(mim(), <<"example3.com">>),
+    %% Resume processing events on one node
+    ok = rpc(mim(), sys, resume, [service_domain_db]),
+    %% The size of the table is 1
+    MaxId = get_min_event_id(mim2()),
+    sync(),
+    %% Out of sync detected.
+    %% Called halt node function, but it's mocked
+    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -424,6 +458,9 @@ get_min_event_id(Node) ->
 get_max_event_id(Node) ->
     rpc(Node, mongoose_domain_sql, get_max_event_id, []).
 
+delete_events_older_than(Node, Id) ->
+    rpc(Node, mongoose_domain_sql, delete_events_older_than, [Id]).
+
 get_host_type(Node, Domain) ->
     rpc(Node, mongoose_domain_api, get_host_type, [Domain]).
 
@@ -446,6 +483,9 @@ is_static(Domain) ->
 sync() ->
     rpc(mim(), service_domain_db, sync, []).
 
+sync_local(Node) ->
+    rpc(Node, service_domain_db, sync_local, []).
+
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
     rpc(Node, mongoose_service, stop_service, [service_domain_db]),
     [Pairs, AllowedHostTypes] = CoreOpts,
@@ -462,12 +502,14 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
-setup_meck() ->
+setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
     ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]),
-    ok.
+    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]);
+setup_meck(db_out_of_sync_crashes_node) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]).
 
 teardown_meck() ->
     rpc(mim(), meck, unload, []).

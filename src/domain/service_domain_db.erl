@@ -11,7 +11,7 @@
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
--export([sync/0]).
+-export([sync/0, sync_local/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -68,6 +68,9 @@ sync() ->
             ok;
         {error, _Reason} -> ok
     end.
+
+sync_local() ->
+    gen_server:call(?MODULE, ping).
 
 %% ---------------------------------------------------------------------------
 %% Server callbacks

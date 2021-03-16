@@ -58,12 +58,11 @@ check_if_from_num_still_relevant(FromId) ->
            %% Looks like this node has no DB connection for a long time.
            %% But the event log in the DB has been truncated by some other node
            %% meanwhile. We have to load the whole set of data from DB.
-           ?LOG_ERROR(#{what => events_log_out_of_sync,
-                        text => <<"DB domain log had some updates to domains deleted, "
-                                  " which we have not applied yet. Have to crash.">>,
-                        min_db => Min,
-                        from_id => FromId}),
-           error(check_if_from_num_still_relevant_failed);
+           Text = <<"DB domain log had some updates to domains deleted, "
+                    " which we have not applied yet. Have to crash.">>,
+           ?LOG_CRITICAL(#{what => events_log_out_of_sync,
+                           text => Text, min_db => Min, from_id => FromId}),
+           mongoose_domain_utils:halt_node(Text);
        true ->
            ok
     end.
