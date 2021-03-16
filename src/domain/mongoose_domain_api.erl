@@ -8,7 +8,7 @@
          disable_domain/1,
          enable_domain/1,
          get_host_type/1,
-         get_all_locked/0,
+         get_all_static/0,
          get_domains_by_host_type/1]).
 
 -type domain() :: jid:lserver().
@@ -48,7 +48,7 @@ insert_domain(Domain, HostType) ->
 %% Returns ok, if domain not found.
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec remove_domain(domain(), host_type()) ->
-    ok | {error, locked} | {error, {db_error, term()}}
+    ok | {error, static} | {error, {db_error, term()}}
     | {error, service_disabled} | {error, wrong_host_type} | {error, unknown_host_type}.
 remove_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
@@ -64,12 +64,12 @@ remove_domain(Domain, HostType) ->
 %% On disabling domain name must be removed from the core MIM component.
 %% Change of the status must be distributed across all the nodes in the cluster.
 -spec disable_domain(domain()) ->
-    ok | {error, not_found} | {error, locked} | {error, duplicate}
+    ok | {error, not_found} | {error, static} | {error, duplicate}
     | {error, service_disabled} | {error, unknown_host_type}.
 disable_domain(Domain) ->
-    case mongoose_domain_core:is_locked(Domain) of
+    case mongoose_domain_core:is_static(Domain) of
         true ->
-            {error, locked};
+            {error, static};
         false ->
             case service_domain_db:enabled() of
                 true ->
@@ -80,12 +80,12 @@ disable_domain(Domain) ->
     end.
 
 -spec enable_domain(domain()) ->
-    ok | {error, not_found} | {error, locked} | {error, duplicate}
+    ok | {error, not_found} | {error, static} | {error, duplicate}
     | {error, service_disabled} | {error, unknown_host_type}.
 enable_domain(Domain) ->
-    case mongoose_domain_core:is_locked(Domain) of
+    case mongoose_domain_core:is_static(Domain) of
         true ->
-            {error, locked};
+            {error, static};
         false ->
             case service_domain_db:enabled() of
                 true ->
@@ -110,9 +110,9 @@ get_host_type(Domain) ->
 
 %% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
--spec get_all_locked() -> [{domain(), host_type()}].
-get_all_locked() ->
-    mongoose_domain_core:get_all_locked().
+-spec get_all_static() -> [{domain(), host_type()}].
+get_all_static() ->
+    mongoose_domain_core:get_all_static().
 
 %% Get the list of the host\_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
@@ -121,12 +121,12 @@ get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
 
 check_domain(Domain, HostType) ->
-    Locked = mongoose_domain_core:is_locked(Domain),
+    Locked = mongoose_domain_core:is_static(Domain),
     Allowed = mongoose_domain_core:is_host_type_allowed(HostType),
     HasDb = service_domain_db:enabled(),
     if 
         Locked ->
-           {error, locked};
+           {error, static};
        not Allowed ->
            {error, unknown_host_type};
        not HasDb ->

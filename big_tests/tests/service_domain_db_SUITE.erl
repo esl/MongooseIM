@@ -13,11 +13,11 @@ all() ->
     [
      core_lookup_works,
      core_lookup_not_found,
-     core_locked_domain,
-     core_cannot_insert_locked,
-     core_cannot_disable_locked,
-     core_cannot_enable_locked,
-     core_get_all_locked,
+     core_static_domain,
+     core_cannot_insert_static,
+     core_cannot_disable_static,
+     core_cannot_enable_static,
+     core_get_all_static,
      core_get_domains_by_host_type
     ] ++ maybe_db_cases().
 
@@ -40,9 +40,9 @@ db_cases() -> [
      db_domains_with_unknown_host_type_are_ignored_by_core,
      sql_select_from_works,
      db_records_are_restored_when_restarted,
-     db_record_is_ignored_if_domain_locked,
+     db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
-     db_get_all_locked,
+     db_get_all_static,
      db_could_sync_between_nodes,
      db_removed_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
@@ -110,24 +110,24 @@ core_lookup_not_found(_) ->
     precond(mim(), off, [], []),
     {error, not_found} = get_host_type(mim(), <<"example.life">>).
 
-core_locked_domain(_) ->
+core_static_domain(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    true = is_locked(<<"example.com">>).
+    true = is_static(<<"example.com">>).
 
-core_cannot_insert_locked(_) ->
+core_cannot_insert_static(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, locked} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
+    {error, static} = insert_domain(mim(), <<"example.com">>, <<"type1">>).
 
-core_cannot_disable_locked(_) ->
+core_cannot_disable_static(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, locked} = disable_domain(mim(), <<"example.com">>).
+    {error, static} = disable_domain(mim(), <<"example.com">>).
 
-core_cannot_enable_locked(_) ->
+core_cannot_enable_static(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>], [<<"type1">>]),
-    {error, locked} = enable_domain(mim(), <<"example.com">>).
+    {error, static} = enable_domain(mim(), <<"example.com">>).
 
-%% See also db_get_all_locked
-core_get_all_locked(_) ->
+%% See also db_get_all_static
+core_get_all_static(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>,
                   <<"example.org">>, <<"type2">>,
                   <<"erlang-solutions.com">>, <<"type2">>],
@@ -136,7 +136,7 @@ core_get_all_locked(_) ->
     [{<<"erlang-solutions.com">>, <<"type2">>},
      {<<"example.com">>, <<"type1">>},
      {<<"example.org">>, <<"type2">>}] =
-        lists:sort(get_all_locked(mim())).
+        lists:sort(get_all_static(mim())).
 
 core_get_domains_by_host_type(_) ->
     precond(mim(), off, [<<"example.com">>, <<"type1">>,
@@ -148,8 +148,8 @@ core_get_domains_by_host_type(_) ->
     [<<"example.com">>] = get_domains_by_host_type(mim(), <<"type1">>),
     [] = get_domains_by_host_type(mim(), <<"type6">>).
 
-%% Similar to as core_get_all_locked, just with DB service enabled
-db_get_all_locked(_) ->
+%% Similar to as core_get_all_static, just with DB service enabled
+db_get_all_static(_) ->
     precond(mim(), on, [<<"example.com">>, <<"type1">>,
                  <<"example.org">>, <<"type2">>,
                  <<"erlang-solutions.com">>, <<"type2">>],
@@ -160,7 +160,7 @@ db_get_all_locked(_) ->
     [{<<"erlang-solutions.com">>, <<"type2">>},
      {<<"example.com">>, <<"type1">>},
      {<<"example.org">>, <<"type2">>}] =
-        lists:sort(get_all_locked(mim())).
+        lists:sort(get_all_static(mim())).
 
 db_inserted_domain_is_in_db(_) ->
     precond(mim(), on, [], [<<"testing">>]),
@@ -295,13 +295,13 @@ db_records_are_restored_when_restarted(_) ->
     %% Restored
     {ok, <<"cool">>} = get_host_type(mim(), <<"example.com">>).
 
-db_record_is_ignored_if_domain_locked(_) ->
+db_record_is_ignored_if_domain_static(_) ->
     precond(mim(), on, [], [<<"dbgroup">>, <<"cfggroup">>]),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     %% Simulate MIM restart
     service_disabled(mim()),
-    %% Only one domain is locked
+    %% Only one domain is static
     init_with(mim(), [{<<"example.com">>, <<"cfggroup">>}], [<<"dbgroup">>, <<"cfggroup">>]),
     service_enabled(mim()),
     %% DB still contains data
@@ -309,7 +309,7 @@ db_record_is_ignored_if_domain_locked(_) ->
        select_domain(mim(), <<"example.com">>),
     {ok, #{host_type := <<"dbgroup">>, enabled := true}} =
        select_domain(mim(), <<"example.net">>),
-     %% Locked DB records are ignored
+     %% Static DB records are ignored
     {ok, <<"cfggroup">>} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim(), <<"example.net">>).
 
@@ -447,8 +447,8 @@ get_host_type(Node, Domain) ->
 get_domains_by_host_type(Node, HostType) ->
     rpc(Node, mongoose_domain_api, get_domains_by_host_type, [HostType]).
 
-get_all_locked(Node) ->
-    rpc(Node, mongoose_domain_api, get_all_locked, []).
+get_all_static(Node) ->
+    rpc(Node, mongoose_domain_api, get_all_static, []).
 
 disable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, disable_domain, [Domain]).
@@ -456,8 +456,8 @@ disable_domain(Node, Domain) ->
 enable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, enable_domain, [Domain]).
 
-is_locked(Domain) ->
-    rpc(mim(), mongoose_domain_core, is_locked, [Domain]).
+is_static(Domain) ->
+    rpc(mim(), mongoose_domain_core, is_static, [Domain]).
 
 %% Call sync before get_host_type, if there are some async changes expected
 sync() ->

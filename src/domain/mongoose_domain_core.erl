@@ -6,13 +6,13 @@
 -export([start/2, stop/0]).
 -export([start_link/2]).
 -export([get_host_type/1]).
--export([is_locked/1]).
+-export([is_static/1]).
 
 %% API, used by DB module
--export([insert_unlocked/2,
-         remove_unlocked/1]).
+-export([insert/2,
+         remove/1]).
 
--export([get_all_locked/0,
+-export([get_all_static/0,
          get_domains_by_host_type/1]).
 
 -export([set_last_event_id/1,
@@ -50,13 +50,13 @@ get_host_type(Domain) ->
     case ets:lookup(?TABLE, Domain) of
         [] ->
             {error, not_found};
-        [{_Domain, HostType, _Locked}] ->
+        [{_Domain, HostType, _IsStatic}] ->
             {ok, HostType}
     end.
 
-is_locked(Domain) ->
+is_static(Domain) ->
     case ets:lookup(?TABLE, Domain) of
-        [{_Domain, _HostType, _Locked = true}] ->
+        [{_Domain, _HostType, _IsStatic = true}] ->
             true;
         _ ->
             false
@@ -65,7 +65,7 @@ is_locked(Domain) ->
 is_host_type_allowed(HostType) ->
     ets:member(?HOST_TYPE_TABLE, HostType).
 
-get_all_locked() ->
+get_all_static() ->
     pairs(ets:match(?TABLE, {'$1', '$2', true})).
 
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
@@ -77,11 +77,11 @@ heads(List) ->
 pairs(List) ->
     [{K, V} || [K, V] <- List].
 
-insert_unlocked(Domain, HostType) ->
-    gen_server:call(?MODULE, {insert_unlocked, Domain, HostType}).
+insert(Domain, HostType) ->
+    gen_server:call(?MODULE, {insert, Domain, HostType}).
 
-remove_unlocked(Domain) ->
-    gen_server:call(?MODULE, {remove_unlocked, Domain}).
+remove(Domain) ->
+    gen_server:call(?MODULE, {remove, Domain}).
 
 set_last_event_id(LastEventId) ->
     gen_server:call(?MODULE, {set_last_event_id, LastEventId}).
@@ -103,11 +103,11 @@ init([Pairs, AllowedHostTypes]) ->
            initial_pairs => Pairs,
            initial_host_types => AllowedHostTypes}}.
 
-handle_call({remove_unlocked, Domain}, _From, State) ->
-    Result = handle_remove_unlocked(Domain),
+handle_call({remove, Domain}, _From, State) ->
+    Result = handle_remove(Domain),
     {reply, Result, State};
-handle_call({insert_unlocked, Domain, HostType}, _From, State) ->
-    Result = handle_insert_unlocked(Domain, HostType),
+handle_call({insert, Domain, HostType}, _From, State) ->
+    Result = handle_insert(Domain, HostType),
     {reply, Result, State};
 handle_call({set_last_event_id, LastEventId}, _From, State) ->
     {reply, ok, State#{last_event_id => LastEventId}};
@@ -144,8 +144,8 @@ insert_initial(Tab, Pairs) ->
 insert_initial_pair(Tab, Domain, HostType) ->
     ets:insert_new(Tab, new_object(Domain, HostType, true)).
 
-new_object(Domain, HostType, Locked) ->
-    {Domain, HostType, Locked}.
+new_object(Domain, HostType, IsStatic) ->
+    {Domain, HostType, IsStatic}.
 
 just_ok({ok,_}) -> ok;
 just_ok(Other) -> Other.
@@ -156,22 +156,22 @@ insert_host_types(Tab, AllowedHostTypes) ->
                   end, AllowedHostTypes),
     ok.
 
-handle_remove_unlocked(Domain) ->
-    case is_locked(Domain) of
+handle_remove(Domain) ->
+    case is_static(Domain) of
         true ->
-            %% Ignore any locked domains
-            ?LOG_ERROR(#{what => domain_locked_but_was_in_db, domain => Domain});
+            %% Ignore any static domains
+            ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain});
         false ->
             ets:delete(?TABLE, Domain)
     end,
     ok.
 
-handle_insert_unlocked(Domain, HostType) ->
-    case is_locked(Domain) of
+handle_insert(Domain, HostType) ->
+    case is_static(Domain) of
         true ->
-            %% Ignore any locked domains
-            ?LOG_ERROR(#{what => domain_locked_but_in_db, domain => Domain}),
-            {error, locked};
+            %% Ignore any static domains
+            ?LOG_ERROR(#{what => domain_static_but_in_db, domain => Domain}),
+            {error, static};
         false ->
             case is_host_type_allowed(HostType) of
                 true ->

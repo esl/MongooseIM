@@ -32,16 +32,16 @@ It must provide the following interfaces:
 - Get all domains configured for the host\_type. 
   Implemented in `mongoose_domain_api:get_domains_by_host_type(HostType).`.
 - Get the list of the host\_types provided during initialisation.
-  Implemented in `mongoose_domain_apiget_all_locked().`.
+  Implemented in `mongoose_domain_api:get_all_static().`.
 
 `mongoose_domain_core` implementation:
 
 - Has `mongoose_domain_core` table.
-- Default (initial) domains are **locked**.
+- Default (initial) domains are **static**.
 - Disabled or removed domains are not in `mongoose_domain_core`.
-- Locked domains are non-mutable.
-- Locked domains are not replicated.
-- Locked domains has priority above DB domains.
+- Static domains are non-mutable.
+- Static domains are not replicated.
+- Static domains has priority above DB domains.
 
 # MongooseIM service
 
