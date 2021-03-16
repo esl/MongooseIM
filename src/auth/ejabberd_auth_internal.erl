@@ -217,17 +217,15 @@ get_vh_registered_users(LServer, [{limit, Limit}, {offset, Offset}])
                                             Limit, Offset);
 get_vh_registered_users(LServer, [{prefix, Prefix}])
         when is_binary(Prefix) ->
-    Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
-                    binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
-    lists:keysort(1, Set);
+    Users = matching_users(Prefix, get_vh_registered_users(LServer)),
+    lists:keysort(1, Users);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
         when is_binary(Prefix) and is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
         when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    UsersWithTheGivenPrefix = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
-                                      binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
-    get_vh_registered_users_within_interval(UsersWithTheGivenPrefix, Limit, Offset);
+    Users = matching_users(Prefix, get_vh_registered_users(LServer)),
+    get_vh_registered_users_within_interval(Users, Limit, Offset);
 get_vh_registered_users(LServer, _) ->
     get_vh_registered_users(LServer).
 
@@ -251,11 +249,14 @@ get_vh_registered_users_number(LServer) ->
                                      Query :: [{prefix, binary()}]
                                      ) -> integer().
 get_vh_registered_users_number(LServer, [{prefix, Prefix}]) when is_binary(Prefix) ->
-    Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
-                     binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
-    length(Set);
+    length(matching_users(Prefix, get_vh_registered_users(LServer)));
 get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
+
+matching_users(Prefix, Users) ->
+    lists:filter(fun({U, _S}) ->
+                         binary:longest_common_prefix([U, Prefix]) =:= byte_size(Prefix)
+                 end, Users).
 
 -spec get_password(LUser :: jid:luser(),
                    LServer :: jid:lserver()) -> ejabberd_auth:passterm() | false.
@@ -357,7 +358,5 @@ get_scram(LServer, Password) ->
                                                     list().
 get_vh_registered_users_within_interval([], _Limit, _Offset) -> [];
 get_vh_registered_users_within_interval(Users, Limit, Offset) ->
-    Set = lists:keysort(1, Users),
-    Length = length(Set),
-    Start = min(1, max(Offset, Length)),
-    lists:sublist(Set, Start, Limit).
+    SortedUsers = lists:keysort(1, Users),
+    lists:sublist(SortedUsers, Offset, Limit).

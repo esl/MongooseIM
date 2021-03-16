@@ -6,7 +6,6 @@
   http_server_name = "Apache"
   rdbms_server_type = "mssql"
   override = ["local", "global", "acls"]
-  pgsql_users_number_estimate = true
   route_subdomains = "s2s"
   routing_modules = [
       "mongoose_router_global",
@@ -54,6 +53,9 @@
     [[auth.ldap.uids]]
       attr = "uid2"
       format = "%u"
+
+  [auth.rdbms]
+    users_number_estimate = true
 
 [[listen.http]]
   port = 5280
