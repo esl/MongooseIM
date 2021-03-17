@@ -96,7 +96,7 @@ get_host_type(Domain) ->
 get_all_static() ->
     mongoose_domain_core:get_all_static().
 
-%% Get the list of the host\_types provided during initialisation
+%% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
 -spec get_domains_by_host_type(host_type()) -> [domain()].
 get_domains_by_host_type(HostType) ->

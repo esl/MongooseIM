@@ -33,8 +33,8 @@ db_cases() -> [
      db_deleted_domain_from_core,
      db_disabled_domain_is_in_db,
      db_disabled_domain_not_in_core,
-     db_reanabled_domain_is_in_db,
-     db_reanabled_domain_is_in_core,
+     db_reenabled_domain_is_in_db,
+     db_reenabled_domain_is_in_core,
      db_can_insert_domain_twice_with_the_same_host_type,
      db_cannot_insert_domain_twice_with_the_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
@@ -233,14 +233,14 @@ db_disabled_domain_not_in_core(_) ->
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
-db_reanabled_domain_is_in_db(_) ->
+db_reenabled_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
     ok = enable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
        select_domain(mim(), <<"example.db">>).
 
-db_reanabled_domain_is_in_core(_) ->
+db_reenabled_domain_is_in_core(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
     ok = enable_domain(mim(), <<"example.db">>),

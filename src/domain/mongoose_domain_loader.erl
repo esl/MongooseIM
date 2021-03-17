@@ -28,8 +28,8 @@ load_data_from_base_loop(FromId, PageSize) ->
     end.
 
 check_for_updates(FromId, PageSize) ->
-    check_if_from_num_still_relevant(FromId),
-    %% Ordered by the earlist events first
+    check_if_id_is_still_relevant(FromId),
+    %% Ordered by the earliest events first
     try mongoose_domain_sql:select_updates_from(FromId, PageSize) of
         [] -> FromId;
         Rows ->
@@ -47,9 +47,9 @@ check_for_updates(FromId, PageSize) ->
 
 %% Be aware that for this check to work, the cleaner should keep at least
 %% one record in domain_events table.
-check_if_from_num_still_relevant(0) ->
+check_if_id_is_still_relevant(0) ->
     ok;
-check_if_from_num_still_relevant(FromId) ->
+check_if_id_is_still_relevant(FromId) ->
     Min = mongoose_domain_sql:get_min_event_id(),
     if Min =:= 0 ->
             %% Nothing to do, there were no updates done ever in the DB
