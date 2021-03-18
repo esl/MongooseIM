@@ -5,6 +5,7 @@
 
 -compile(export_all).
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(ejabberdctl_helper, [ejabberdctl/3]).
 
 suite() ->
     require_rpc_nodes([mim, mim2]).
@@ -52,7 +53,9 @@ db_cases() -> [
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
      db_out_of_sync_crashes_node,
-     db_initial_load_crashes_node
+     db_initial_load_crashes_node,
+     cli_can_insert_domain,
+     rest_can_insert_domain
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -71,7 +74,8 @@ init_per_suite(Config) ->
     prepare_erase(mim()),
     prepare_erase(mim2()),
     erase_database(mim()),
-    escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config]).
+    Config1 = ejabberd_node_utils:init(mim(), Config),
+    escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config1]).
 
 store_conf(Node) ->
     Loaded = rpc(Node, mongoose_service, is_loaded, [service_domain_db]),
@@ -411,6 +415,19 @@ db_out_of_sync_crashes_node(_) ->
     %% Called halt node function, but it's mocked
     true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
     ok.
+
+cli_can_insert_domain(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_insert_domain(Config) ->
+    Params = #{host_type => <<"type1">>},
+    {{<<"204">>, _}, _} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, Params),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
 
 %%--------------------------------------------------------------------
 %% Helpers
