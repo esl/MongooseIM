@@ -8,7 +8,8 @@
 -export([init/2,
          allowed_methods/2,
          content_types_accepted/2,
-         content_types_provided/2]).
+         content_types_provided/2,
+         delete_resource/2]).
 
 %% Custom cowboy_rest callbacks.
 -export([handle_domain/2,
@@ -21,7 +22,7 @@ init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"PUT">>, <<"PATCH">>], Req, State}.
+    {[<<"GET">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>], Req, State}.
 
 content_types_accepted(Req, State) ->
     {[{{<<"application">>, <<"json">>, '*'}, handle_domain}],
@@ -88,6 +89,31 @@ handle_enabled_result(Res, Req, State) ->
             {false, reply_error(403, <<"domain is static">>, Req), State};
         {error, service_disabled} ->
             {false, reply_error(403, <<"service disabled">>, Req), State};
+        {error, _} ->
+            {false, reply_error(500, <<"unknown error">>, Req), State}
+    end.
+
+delete_resource(Req, State) ->
+    ExtDomain = cowboy_req:binding(domain, Req),
+    Domain = jid:nameprep(ExtDomain),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
+    Props = jiffy:decode(Body, [return_maps]),
+    delete_domain(Domain, Props, Req, State).
+
+delete_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
+    case mongoose_domain_api:delete_domain(Domain, HostType) of
+        ok ->
+            {true, Req, State};
+        {error, {db_error, _}} ->
+            {false, reply_error(500, <<"database error">>, Req), State};
+        {error, static} ->
+            {false, reply_error(403, <<"the domain is static">>, Req), State};
+        {error, service_disabled} ->
+            {false, reply_error(403, <<"service disabled">>, Req), State};
+        {error, wrong_host_type} ->
+            {false, reply_error(403, <<"wrong host type">>, Req), State};
+        {error, unknown_host_type} ->
+            {false, reply_error(403, <<"unknown host type">>, Req), State};
         {error, _} ->
             {false, reply_error(500, <<"unknown error">>, Req), State}
     end.

@@ -57,8 +57,10 @@ db_cases() -> [
      cli_can_insert_domain,
      cli_can_disable_domain,
      cli_can_enable_domain,
+     cli_can_delete_domain,
      rest_can_insert_domain,
      rest_can_disable_domain,
+     rest_can_delete_domain,
      rest_can_enable_domain,
      rest_can_select_domain
     ].
@@ -440,6 +442,11 @@ cli_can_enable_domain(Config) ->
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
+cli_can_delete_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
+    {error, not_found} = select_domain(mim(), <<"example.db">>).
+
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
         rest_put_domain(<<"example.db">>, <<"type1">>),
@@ -451,6 +458,12 @@ rest_can_disable_domain(Config) ->
     rest_patch_enabled(<<"example.db">>, false),
     {ok, #{host_type := <<"type1">>, enabled := false}} =
         select_domain(mim(), <<"example.db">>).
+
+rest_can_delete_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"204">>, _}, _} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>),
+    {error, not_found} = select_domain(mim(), <<"example.db">>).
 
 rest_can_enable_domain(Config) ->
     rest_put_domain(<<"example.db">>, <<"type1">>),
@@ -579,3 +592,9 @@ rest_put_domain(Domain, Type) ->
 
 rest_select_domain(Domain) ->
     rest_helper:gett(admin, <<"/domains/", Domain/binary>>, #{}).
+
+rest_delete_domain(Domain, HostType) ->
+    Params = #{<<"host_type">> => HostType},
+    rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
+                                path => <<"/domains/", Domain/binary>>,
+                                body => Params }).

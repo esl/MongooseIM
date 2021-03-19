@@ -2,6 +2,7 @@
 -module(service_admin_extra_domain).
 -export([commands/0,
          insert_domain/2,
+         delete_domain/2,
          enable_domain/1,
          disable_domain/1]).
 
@@ -15,6 +16,11 @@ commands() ->
         #ejabberd_commands{name = insert_domain, tags = [domain],
                            desc = "Insert a domain",
                            module = ?MODULE, function = insert_domain,
+                           args = [{domain, binary}, {host_type, binary}],
+                           result = {res, restuple}},
+        #ejabberd_commands{name = delete_domain, tags = [domain],
+                           desc = "Delete a domain",
+                           module = ?MODULE, function = delete_domain,
                            args = [{domain, binary}, {host_type, binary}],
                            result = {res, restuple}},
         #ejabberd_commands{name = enable_domain, tags = [domain],
@@ -39,6 +45,24 @@ insert_domain(Domain, HostType) ->
             {error, "database error"};
         {error, service_disabled} ->
             {error, "service disabled"};
+        {error, unknown_host_type} ->
+            {error, "unknown host type"};
+        {error, _} ->
+            {error, "unknown error"}
+    end.
+
+delete_domain(Domain, HostType) ->
+    SDomain = jid:nameprep(Domain),
+    case mongoose_domain_api:delete_domain(SDomain, HostType) of
+        ok -> {ok, "Deleted"};
+        {error, {db_error, _}} ->
+            {error, "database error"};
+        {error, static} ->
+            {error, "the domain is static"};
+        {error, service_disabled} ->
+            {error, "service disabled"};
+        {error, wrong_host_type} ->
+            {error, "wrong host type"};
         {error, unknown_host_type} ->
             {error, "unknown host type"};
         {error, _} ->
