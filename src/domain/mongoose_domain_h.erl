@@ -10,7 +10,7 @@
 -export([content_types_accepted/2]).
 
 %% Custom cowboy_rest callbacks.
--export([insert_domain/2]).
+-export([handle_domain/2]).
 
 cowboy_router_paths(Base, Opts) ->
     [{[Base, "/domains/:domain"], ?MODULE, []}].
@@ -19,20 +19,29 @@ init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
-    {[<<"PUT">>], Req, State}.
+    {[<<"PUT">>, <<"PATCH">>], Req, State}.
 
 content_types_accepted(Req, State) ->
-    {[{{<<"application">>, <<"json">>, '*'}, insert_domain}],
+    {[{{<<"application">>, <<"json">>, '*'}, handle_domain}],
         Req, State}.
 
-insert_domain(Req, State) ->
-    Domain = cowboy_req:binding(domain, Req),
-    SDomain = jid:nameprep(Domain),
+handle_domain(Req, State) ->
+    Method = cowboy_req:method(Req),
+    ExtDomain = cowboy_req:binding(domain, Req),
+    Domain = jid:nameprep(ExtDomain),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    #{<<"host_type">> := HostType} = jiffy:decode(Body, [return_maps]),
-    case mongoose_domain_api:insert_domain(SDomain, HostType) of
+    Params = jiffy:decode(Body, [return_maps]),
+    case Method of
+        <<"PUT">> ->
+            insert_domain(Domain, Params, Req2, State);
+        <<"PATCH">> ->
+            patch_domain(Domain, Params, Req2, State)
+    end.
+
+insert_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
+    case mongoose_domain_api:insert_domain(Domain, HostType) of
         ok ->
-            {true, Req2, State};
+            {true, Req, State};
         {error, duplicate} ->
             {false, reply_error(409, <<"duplicate">>, Req), State};
         {error, {db_error, _}} ->
@@ -41,6 +50,27 @@ insert_domain(Req, State) ->
             {false, reply_error(403, <<"service disabled">>, Req), State};
         {error, unknown_host_type} ->
             {false, reply_error(403, <<"unknown host type">>, Req), State};
+        {error, _} ->
+            {false, reply_error(500, <<"unknown error">>, Req), State}
+    end.
+
+patch_domain(Domain, #{<<"enabled">> := true}, Req, State) ->
+    Res = mongoose_domain_api:enable_domain(Domain),
+    handle_enabled_result(Res, Req, State);
+patch_domain(Domain, #{<<"enabled">> := false}, Req, State) ->
+    Res = mongoose_domain_api:disable_domain(Domain),
+    handle_enabled_result(Res, Req, State).
+
+handle_enabled_result(Res, Req, State) ->
+    case Res of
+        ok ->
+            {true, Req, State};
+        {error, not_found} ->
+            {false, reply_error(404, <<"domain not found">>, Req), State};
+        {error, static} ->
+            {false, reply_error(403, <<"domain is static">>, Req), State};
+        {error, service_disabled} ->
+            {false, reply_error(403, <<"service disabled">>, Req), State};
         {error, _} ->
             {false, reply_error(500, <<"unknown error">>, Req), State}
     end.

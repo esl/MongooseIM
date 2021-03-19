@@ -55,7 +55,11 @@ db_cases() -> [
      db_out_of_sync_crashes_node,
      db_initial_load_crashes_node,
      cli_can_insert_domain,
-     rest_can_insert_domain
+     cli_can_disable_domain,
+     cli_can_enable_domain,
+     rest_can_insert_domain,
+     rest_can_disable_domain,
+     rest_can_enable_domain
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -422,10 +426,35 @@ cli_can_insert_domain(Config) ->
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
+cli_can_disable_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("disable_domain", [<<"example.db">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := false}} =
+        select_domain(mim(), <<"example.db">>).
+
+cli_can_enable_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("disable_domain", [<<"example.db">>], Config),
+    ejabberdctl("enable_domain", [<<"example.db">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
 rest_can_insert_domain(Config) ->
-    Params = #{host_type => <<"type1">>},
     {{<<"204">>, _}, _} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, Params),
+        rest_put_domain(<<"example.db">>, <<"type1">>),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_disable_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_patch_enabled(<<"example.db">>, false),
+    {ok, #{host_type := <<"type1">>, enabled := false}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_enable_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_patch_enabled(<<"example.db">>, false),
+    rest_patch_enabled(<<"example.db">>, true),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
@@ -530,3 +559,13 @@ setup_meck(db_out_of_sync_crashes_node) ->
 
 teardown_meck() ->
     rpc(mim(), meck, unload, []).
+
+rest_patch_enabled(Domain, Enabled) ->
+    Params = #{enabled => Enabled},
+    rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
+                                path => <<"/domains/", Domain/binary>>,
+                                body => Params }).
+
+rest_put_domain(Domain, Type) ->
+    Params = #{host_type => Type},
+    rest_helper:putt(admin, <<"/domains/", Domain/binary>>, Params).
