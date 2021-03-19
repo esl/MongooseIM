@@ -50,9 +50,8 @@ prepare_queries(LServer) ->
                            <<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = ?">>),
     mongoose_rdbms:prepare(auth_token_delete, auth_token, [owner],
                            <<"DELETE from auth_token WHERE owner = ?">>),
-    %% 'owner' is updated with the same value because the list of updated fields cannot be empty
     rdbms_queries:prepare_upsert(LServer, auth_token_upsert, auth_token,
-                                 [<<"owner">>, <<"seq_no">>], [<<"owner">>], [<<"owner">>]),
+                                 [<<"owner">>, <<"seq_no">>], [], [<<"owner">>]),
     ok.
 
 -spec execute_revoke_token(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
@@ -66,5 +65,5 @@ execute_delete_token(LServer, Owner) ->
 -spec get_sequence_number_t(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
 get_sequence_number_t(LServer, Owner) ->
     {updated, _} =
-        rdbms_queries:execute_upsert(LServer, auth_token_upsert, [Owner, 1], [Owner], [Owner]),
+        rdbms_queries:execute_upsert(LServer, auth_token_upsert, [Owner, 1], [], [Owner]),
     mongoose_rdbms:execute_successfully(LServer, auth_token_select, [Owner]).
