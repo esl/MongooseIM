@@ -59,7 +59,8 @@ db_cases() -> [
      cli_can_enable_domain,
      rest_can_insert_domain,
      rest_can_disable_domain,
-     rest_can_enable_domain
+     rest_can_enable_domain,
+     rest_can_select_domain
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -458,6 +459,12 @@ rest_can_enable_domain(Config) ->
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
+rest_can_select_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"200">>, <<"OK">>},
+     {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
+        rest_select_domain(<<"example.db">>).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -569,3 +576,6 @@ rest_patch_enabled(Domain, Enabled) ->
 rest_put_domain(Domain, Type) ->
     Params = #{host_type => Type},
     rest_helper:putt(admin, <<"/domains/", Domain/binary>>, Params).
+
+rest_select_domain(Domain) ->
+    rest_helper:gett(admin, <<"/domains/", Domain/binary>>, #{}).

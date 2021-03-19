@@ -5,12 +5,14 @@
 -export([cowboy_router_paths/2]).
 
 %% Standard cowboy_rest callbacks.
--export([init/2]).
--export([allowed_methods/2]).
--export([content_types_accepted/2]).
+-export([init/2,
+         allowed_methods/2,
+         content_types_accepted/2,
+         content_types_provided/2]).
 
 %% Custom cowboy_rest callbacks.
--export([handle_domain/2]).
+-export([handle_domain/2,
+         to_json/2]).
 
 cowboy_router_paths(Base, Opts) ->
     [{[Base, "/domains/:domain"], ?MODULE, []}].
@@ -19,11 +21,26 @@ init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
-    {[<<"PUT">>, <<"PATCH">>], Req, State}.
+    {[<<"GET">>, <<"PUT">>, <<"PATCH">>], Req, State}.
 
 content_types_accepted(Req, State) ->
     {[{{<<"application">>, <<"json">>, '*'}, handle_domain}],
         Req, State}.
+
+content_types_provided(Req, State) ->
+    {[{{<<"application">>, <<"json">>, '*'}, to_json}], Req, State}.
+
+to_json(Req, State) ->
+    ExtDomain = cowboy_req:binding(domain, Req),
+    Domain = jid:nameprep(ExtDomain),
+    case mongoose_domain_sql:select_domain(Domain) of
+        {ok, Props} ->
+            {jiffy:encode(Props), Req, State};
+        {error, not_found} ->
+            {stop, reply_error(404, <<"domain not found">>, Req), State};
+        {error, _} ->
+            {stop, reply_error(500, <<"unknown error">>, Req), State}
+    end.
 
 handle_domain(Req, State) ->
     Method = cowboy_req:method(Req),
