@@ -129,9 +129,9 @@ mysql_and_pgsql_insert(Table, Columns) ->
      join(Placeholders, ", "),
      ")"].
 
-upsert_mysql_query(Table, InsertFields, UpdateFields, _) ->
+upsert_mysql_query(Table, InsertFields, UpdateFields, [Key | _]) ->
     Insert = mysql_and_pgsql_insert(Table, InsertFields),
-    OnConflict = mysql_on_conflict(UpdateFields),
+    OnConflict = mysql_on_conflict(UpdateFields, Key),
     [Insert, OnConflict].
 
 upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
@@ -139,10 +139,16 @@ upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
     OnConflict = pgsql_on_conflict(UpdateFields, UniqueKeyFields),
     [Insert, OnConflict].
 
-mysql_on_conflict(UpdateFields) ->
+mysql_on_conflict([], Key) ->
+    %% Update field to itself (no-op), there is no 'DO NOTHING' in MySQL
+    [" ON DUPLICATE KEY UPDATE ", Key, " = ", Key];
+mysql_on_conflict(UpdateFields, _) ->
     [" ON DUPLICATE KEY UPDATE ",
      update_fields_on_conflict(UpdateFields)].
 
+pgsql_on_conflict([], UniqueKeyFields) ->
+    JoinedKeys = join(UniqueKeyFields, ", "),
+    [" ON CONFLICT (", JoinedKeys, ") DO NOTHING"];
 pgsql_on_conflict(UpdateFields, UniqueKeyFields) ->
     JoinedKeys = join(UniqueKeyFields, ", "),
     [" ON CONFLICT (", JoinedKeys, ")"
@@ -164,9 +170,11 @@ upsert_mssql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
         " ON (", join(UniqueConstraint, " AND "), ")"
      " WHEN NOT MATCHED THEN INSERT"
        " (", JoinedInsertFields, ")"
-         " VALUES (", join(Placeholders, ", "), ")"
-     " WHEN MATCHED THEN UPDATE"
-       " SET ", update_fields_on_conflict(UpdateFields),";"].
+         " VALUES (", join(Placeholders, ", "), ")" | mssql_on_conflict(UpdateFields)].
+
+mssql_on_conflict([]) -> ";";
+mssql_on_conflict(UpdateFields) ->
+     [" WHEN MATCHED THEN UPDATE SET ", update_fields_on_conflict(UpdateFields), ";"].
 
 %% F can be either a fun or a list of queries
 %% TODO: We should probably move the list of queries transaction
