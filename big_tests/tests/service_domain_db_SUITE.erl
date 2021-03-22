@@ -429,7 +429,7 @@ service_disabled(Node) ->
 
 init_with(Node, Pairs, AllowedHostTypes) ->
     rpc(Node, mongoose_domain_core, stop, []),
-    rpc(Node, mongoose_domain_api, init, [Pairs, AllowedHostTypes]).
+    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).

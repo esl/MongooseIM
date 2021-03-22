@@ -2,7 +2,7 @@
 %% management.
 -module(mongoose_domain_api).
 
--export([init/2,
+-export([init/0,
          insert_domain/2,
          delete_domain/2,
          disable_domain/1,
@@ -15,9 +15,11 @@
 -type host_type() :: binary().
 -type pair() :: {domain(), host_type()}.
 
-%% Domains should be nameprepped using `jid:nameprep'
--spec init([pair()], [host_type()]) -> ok | {error, term()}.
-init(Pairs, AllowedHostTypes) ->
+
+-spec init() -> ok | {error, term()}.
+init() ->
+    Pairs = get_static_pairs(),
+    AllowedHostTypes = ejabberd_config:get_global_option_or_default(host_types, []),
     mongoose_domain_core:start(Pairs, AllowedHostTypes).
 
 %% Domain should be nameprepped using `jid:nameprep'.
@@ -116,3 +118,8 @@ check_domain(Domain, HostType) ->
        true ->
             ok
     end.
+
+%% Domains should be nameprepped using `jid:nameprep'
+-spec get_static_pairs() -> [{domain(), host_type()}].
+get_static_pairs() ->
+    [{H, H} || H <- ejabberd_config:get_global_option_or_default(hosts, [])].

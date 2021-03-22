@@ -30,6 +30,7 @@
          load_file/1,
          add_global_option/2,
          get_global_option/1,
+         get_global_option_or_default/2,
          add_local_option/2,
          get_local_option/1,
          get_local_option/2,
@@ -190,6 +191,15 @@ get_global_option(Opt) ->
             Val;
         _ ->
             undefined
+    end.
+
+-spec get_global_option_or_default(key(), value()) -> value().
+get_global_option_or_default(Opt, DefaultValue) ->
+    case ets:lookup(config, Opt) of
+        [#config{value = Val}] ->
+            Val;
+        _ ->
+            DefaultValue
     end.
 
 -spec get_local_option(key()) -> value() | undefined.
