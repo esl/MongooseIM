@@ -17,7 +17,8 @@
          init_per_testcase/2,
          end_per_testcase/2]).
 %% tests
--export([returns_valid_form/1,
+-export([disco_service/1,
+         returns_valid_form/1,
          returns_error_when_first_bad_form_field_encountered/1,
          returns_error_when_bad_form_field_start_sent/1,
          returns_error_when_bad_form_field_end_sent/1,
@@ -118,6 +119,7 @@ groups() ->
     G = [
          {generic, [parallel],
           [
+           disco_service,
            returns_valid_form,
            returns_error_when_first_bad_form_field_encountered,
            returns_error_when_bad_form_field_start_sent,
@@ -332,6 +334,18 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Generic Inbox tests
 %%--------------------------------------------------------------------
+
+disco_service(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(
+              Alice, escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            Features = exml_query:paths(Stanza, [{element, <<"query">>},
+                                                 {element, <<"feature">>},
+                                                 {attr, <<"var">>}]),
+            ?assertEqual(true, lists:member(inbox_helper:inbox_ns(), Features))
+        end).
 
 returns_valid_form(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
