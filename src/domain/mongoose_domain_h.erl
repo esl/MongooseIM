@@ -15,7 +15,7 @@
 -export([handle_domain/2,
          to_json/2]).
 
-cowboy_router_paths(Base, Opts) ->
+cowboy_router_paths(Base, _Opts) ->
     [{[Base, "/domains/:domain"], ?MODULE, []}].
 
 init(Req, Opts) ->
@@ -92,7 +92,7 @@ delete_resource(Req, State) ->
     Domain = jid:nameprep(ExtDomain),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     Props = jiffy:decode(Body, [return_maps]),
-    delete_domain(Domain, Props, Req, State).
+    delete_domain(Domain, Props, Req2, State).
 
 delete_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
     case mongoose_domain_api:delete_domain(Domain, HostType) of
