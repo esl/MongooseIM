@@ -115,7 +115,7 @@ tests() ->
 
 groups() ->
     G = [
-         {generic, [sequence],
+         {generic, [parallel],
           [
            returns_valid_form,
            returns_error_when_first_bad_form_field_encountered,
@@ -352,7 +352,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 returns_valid_form(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, inbox_helper:get_inbox_form_stanza()),
         ResIQ = escalus:wait_for_stanza(Alice),
         InboxNS = inbox_helper:inbox_ns(),
@@ -369,22 +369,22 @@ returns_valid_form(Config) ->
       end).
 
 returns_error_when_bad_form_field_order_sent(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         assert_invalid_inbox_form_value_error(Alice, <<"order">>, <<"invalid">>)
       end).
 
 returns_error_when_bad_form_field_start_sent(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         assert_invalid_inbox_form_value_error(Alice, <<"start">>, <<"invalid">>)
       end).
 
 returns_error_when_bad_form_field_end_sent(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_inbox_form_value_error(Alice, <<"end">>, <<"invalid">>)
     end).
 
 returns_error_when_bad_form_field_hidden_read_sent(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_inbox_form_value_error(Alice, <<"hidden_read">>, <<"invalid">>)
     end).
 
@@ -402,7 +402,7 @@ returns_error_when_no_reset_field_jid(Config) ->
 
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Stanza = inbox_helper:make_inbox_stanza( #{ <<"start">> => <<"invalid">>,
                                                    <<"end">> => <<"invalid">>}, false),
         escalus:send(Alice, Stanza),
@@ -413,7 +413,7 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
       end).
 
 returns_error_when_unknown_field_sent(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Stanza = inbox_helper:make_inbox_stanza( #{ <<"unknown_field">> => <<"unknown_field_value">> }, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
