@@ -61,7 +61,8 @@
          muclight_config_domain/0,
          muc_domain/0,
          domain/0,
-         to_bare_lower/1
+         to_bare_lower/1,
+         extract_user_specs/1
         ]).
 
 -import(muc_helper, [foreach_recipient/2]).
@@ -692,3 +693,8 @@ assert_invalid_form(User, Stanza, Field, Value) ->
 assert_message_content(Msg, Field, Value) ->
     ?assertNotEqual(nomatch, binary:match(Msg, Field)),
     ?assertNotEqual(nomatch, binary:match(Msg, Value)).
+
+%% TODO: properly extract the specs from Bob
+extract_user_specs(User) ->
+    {client,_,_,_,_,UserSpecs} = User,
+    {User, UserSpecs}.
