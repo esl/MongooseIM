@@ -118,7 +118,23 @@ The number of seconds after an event must be deleted from the `domain_events` ta
 
 # REST API
 
-Provides for adding/removing and enabling/disabling domains.
+Provides for adding/removing and enabling/disabling domains over HTTP.
+
+Implemented by `mongoose_domain_h` module.
+
+Confiugration example:
+
+```toml
+[[listen.http]]
+  ip_address = "127.0.0.1"
+  port = 8088
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_domain_h]]
+    host = "localhost"
+    path = "/api"
+```
 
 ## Add domain
 
@@ -185,7 +201,38 @@ Result codes:
 * 403 - service disabled.
 
 
-# Command Line Interfaces
+# Command Line Interface
+
+Implemented by `service_admin_extra_domain` module.
+
+Configuration example:
+
+```toml
+[services.service_admin_extra]
+  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
+             "roster", "last", "private", "stanza", "stats", "domain"]
+```
  
-We must provide CLI for Add/Remove and Enable/Disable interfaces of MongooseIM
-service described in the section above.
+Add domain:
+
+```
+./mongooseimctl insert_domain domain host_type
+```
+
+Delete domain:
+
+```
+./mongooseimctl delete_domain domain host_type
+```
+
+Disable domain:
+
+```
+./mongooseimctl disable_domain domain
+```
+
+Enable domain:
+
+```
+./mongooseimctl enable_domain domain
+```
