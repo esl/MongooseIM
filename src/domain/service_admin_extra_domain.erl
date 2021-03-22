@@ -46,9 +46,7 @@ insert_domain(Domain, HostType) ->
         {error, service_disabled} ->
             {error, "service disabled"};
         {error, unknown_host_type} ->
-            {error, "unknown host type"};
-        {error, _} ->
-            {error, "unknown error"}
+            {error, "unknown host type"}
     end.
 
 delete_domain(Domain, HostType) ->
@@ -64,9 +62,7 @@ delete_domain(Domain, HostType) ->
         {error, wrong_host_type} ->
             {error, "wrong host type"};
         {error, unknown_host_type} ->
-            {error, "unknown host type"};
-        {error, _} ->
-            {error, "unknown error"}
+            {error, "unknown host type"}
     end.
 
 enable_domain(Domain) ->
@@ -88,7 +84,5 @@ handle_enabled_result(Res, OkText) ->
         {error, static} ->
             {error, "domain is static"};
         {error, service_disabled} ->
-            {false, "service disabled"};
-        {error, _} ->
-            {false, "unknown error"}
+            {false, "service disabled"}
     end.

@@ -38,9 +38,7 @@ to_json(Req, State) ->
         {ok, Props} ->
             {jiffy:encode(Props), Req, State};
         {error, not_found} ->
-            {stop, reply_error(404, <<"domain not found">>, Req), State};
-        {error, _} ->
-            {stop, reply_error(500, <<"unknown error">>, Req), State}
+            {stop, reply_error(404, <<"domain not found">>, Req), State}
     end.
 
 handle_domain(Req, State) ->
@@ -67,9 +65,7 @@ insert_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
         {error, service_disabled} ->
             {false, reply_error(403, <<"service disabled">>, Req), State};
         {error, unknown_host_type} ->
-            {false, reply_error(403, <<"unknown host type">>, Req), State};
-        {error, _} ->
-            {false, reply_error(500, <<"unknown error">>, Req), State}
+            {false, reply_error(403, <<"unknown host type">>, Req), State}
     end.
 
 patch_domain(Domain, #{<<"enabled">> := true}, Req, State) ->
@@ -88,9 +84,7 @@ handle_enabled_result(Res, Req, State) ->
         {error, static} ->
             {false, reply_error(403, <<"domain is static">>, Req), State};
         {error, service_disabled} ->
-            {false, reply_error(403, <<"service disabled">>, Req), State};
-        {error, _} ->
-            {false, reply_error(500, <<"unknown error">>, Req), State}
+            {false, reply_error(403, <<"service disabled">>, Req), State}
     end.
 
 delete_resource(Req, State) ->
@@ -113,9 +107,7 @@ delete_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
         {error, wrong_host_type} ->
             {false, reply_error(403, <<"wrong host type">>, Req), State};
         {error, unknown_host_type} ->
-            {false, reply_error(403, <<"unknown host type">>, Req), State};
-        {error, _} ->
-            {false, reply_error(500, <<"unknown error">>, Req), State}
+            {false, reply_error(403, <<"unknown host type">>, Req), State}
     end.
 
 reply_error(Code, What, Req) ->
