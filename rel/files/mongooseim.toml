@@ -1,6 +1,7 @@
 [general]
   loglevel = "warning"
   hosts = [{{{hosts}}}]
+  host_types = ["test type"]
   registration_timeout = "infinity"
   language = "en"
   all_metrics_are_global = {{{all_metrics_are_global}}}
@@ -12,6 +13,11 @@
   {{#rdbms_server_type}}
   rdbms_server_type = {{{rdbms_server_type}}}
   {{/rdbms_server_type}}
+
+[[host_config]]
+  host_type = "test type"
+  modules = { }
+  auth = { methods = ["dummy"] }
 
 [[listen.http]]
   port = {{{http_port}}}
