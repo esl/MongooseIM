@@ -64,8 +64,11 @@
                  Node :: pubsub_node(), Form :: form()) ->
     ok | {error, Reason :: term()}.
 
+-callback disable(UserJID :: jid:jid()) ->
+    ok | {error, Reason :: term()}.
+
 -callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
-                  Node :: pubsub_node()) ->
+                  Node :: pubsub_node() | undefined) ->
     ok | {error, Reason :: term()}.
 
 -callback get_publish_services(User :: jid:jid()) ->
@@ -144,8 +147,7 @@ push_event(Acc, _, _) ->
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    R = mod_event_pusher_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>),
-                                              undefined, undefined),
+    R = mod_event_pusher_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
@@ -288,13 +290,14 @@ maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, 
 store_session_info(Jid, Service) ->
     ejabberd_sm:store_info(Jid, {?SESSION_KEY, Service}).
 
--spec maybe_remove_push_node_from_sessions_info(jid:jid(), jid:jid(), pubsub_node()) -> ok.
+-spec maybe_remove_push_node_from_sessions_info(jid:jid(), jid:jid(), pubsub_node() | undefined) ->
+          ok.
 maybe_remove_push_node_from_sessions_info(From, PubSubJid, Node) ->
     AllSessions = ejabberd_sm:get_raw_sessions(From),
     find_and_remove_push_node(From, AllSessions, PubSubJid, Node).
 
 -spec find_and_remove_push_node(jid:jid(), [ejabberd_sm:session()],
-                                jid:jid(), pubsub_node()) -> ok.
+                                jid:jid(), pubsub_node() | undefined) -> ok.
 find_and_remove_push_node(_From, [], _,_) ->
     ok;
 find_and_remove_push_node(From, [RawSession | Rest], PubSubJid, Node) ->
@@ -308,7 +311,7 @@ find_and_remove_push_node(From, [RawSession | Rest], PubSubJid, Node) ->
             find_and_remove_push_node(From, Rest, PubSubJid, Node)
     end.
 
--spec my_push_node(ejabberd_sm:session(), jid:jid(), pubsub_node()) -> boolean().
+-spec my_push_node(ejabberd_sm:session(), jid:jid(), pubsub_node() | undfined) -> boolean().
 my_push_node(RawSession, PubSubJid, Node) ->
     case mongoose_session:get_info(RawSession, ?SESSION_KEY, undefined) of
         {?SESSION_KEY, {PubSubJid, Node, _}} ->
