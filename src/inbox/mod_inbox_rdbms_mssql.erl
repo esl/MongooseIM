@@ -59,6 +59,7 @@ build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
       " WHEN MATCHED THEN UPDATE"
           " SET content = ", EContent, ","
               " unread_count =  target.unread_count + 1,"
+              " archive = false,"
               " msg_id = ", EMsgId, ",",
               " timestamp = ", ETimestamp,
       " WHEN NOT MATCHED THEN INSERT"

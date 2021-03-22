@@ -479,6 +479,8 @@ CREATE TABLE dbo.inbox(
     unread_count INT NOT NULL,
     msg_id NVARCHAR(250) NOT NULL,
     timestamp BIGINT NOT NULL,
+    archive BOOLEAN DEFAULT false,
+    muted_until BIGINT DEFAULT 0,
     CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
         luser ASC,
         lserver ASC,
