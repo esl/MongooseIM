@@ -4,7 +4,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("../tests/inbox.hrl").
+-include("inbox.hrl").
 
 -define(NS_RSM, <<"http://jabber.org/protocol/rsm">>).
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
