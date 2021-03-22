@@ -11,14 +11,13 @@ suite() ->
 
 all() ->
     [
-     core_lookup_works,
-     core_lookup_not_found,
-     core_static_domain,
-     core_cannot_insert_static,
-     core_cannot_disable_static,
-     core_cannot_enable_static,
-     core_get_all_static,
-     core_get_domains_by_host_type,
+     api_lookup_works,
+     api_lookup_not_found,
+     api_cannot_insert_static,
+     api_cannot_disable_static,
+     api_cannot_enable_static,
+     api_get_all_static,
+     api_get_domains_by_host_type,
      {group, db}
     ].
 
@@ -150,39 +149,36 @@ end_per_testcase(_TestcaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-core_lookup_works(_) ->
+api_lookup_works(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.cfg">>).
 
-core_lookup_not_found(_) ->
+api_lookup_not_found(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.missing">>).
 
-core_static_domain(_) ->
-    true = is_static(<<"example.cfg">>).
-
-core_cannot_insert_static(_) ->
+api_cannot_insert_static(_) ->
     {error, static} = insert_domain(mim(), <<"example.cfg">>, <<"type1">>).
 
-core_cannot_disable_static(_) ->
+api_cannot_disable_static(_) ->
     {error, static} = disable_domain(mim(), <<"example.cfg">>).
 
-core_cannot_enable_static(_) ->
+api_cannot_enable_static(_) ->
     {error, static} = enable_domain(mim(), <<"example.cfg">>).
 
 %% See also db_get_all_static
-core_get_all_static(_) ->
+api_get_all_static(_) ->
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
      {<<"erlang-solutions.local">>, <<"type2">>},
      {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
 
-core_get_domains_by_host_type(_) ->
+api_get_domains_by_host_type(_) ->
     [<<"erlang-solutions.com">>, <<"erlang-solutions.local">>] =
         lists:sort(get_domains_by_host_type(mim(), <<"type2">>)),
     [<<"example.cfg">>] = get_domains_by_host_type(mim(), <<"type1">>),
     [] = get_domains_by_host_type(mim(), <<"type6">>).
 
-%% Similar to as core_get_all_static, just with DB service enabled
+%% Similar to as api_get_all_static, just with DB service enabled
 db_get_all_static(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
@@ -475,9 +471,6 @@ disable_domain(Node, Domain) ->
 
 enable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, enable_domain, [Domain]).
-
-is_static(Domain) ->
-    rpc(mim(), mongoose_domain_core, is_static, [Domain]).
 
 %% Call sync before get_host_type, if there are some async changes expected
 sync() ->

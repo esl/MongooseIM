@@ -30,6 +30,16 @@
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
 
+-ifdef(TEST).
+%% required for unit tests
+start(Pairs, AllowedHostTypes) ->
+    gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
+
+stop() ->
+    gen_server:stop(?MODULE).
+
+-else.
+
 start(Pairs, AllowedHostTypes) ->
     ChildSpec =
         {?MODULE,
@@ -37,11 +47,13 @@ start(Pairs, AllowedHostTypes) ->
          permanent, infinity, worker, [?MODULE]},
     just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
 
-%% For tests
+%% required for integration tests
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
+
+-endif.
 
 start_link(Pairs, AllowedHostTypes) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
