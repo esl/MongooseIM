@@ -118,8 +118,72 @@ The number of seconds after an event must be deleted from the `domain_events` ta
 
 # REST API
 
-We must provide REST API for Add/Remove and Enable/Disable interfaces of the
-MongooseIM service described in the section above.
+Provides for adding/removing and enabling/disabling domains.
+
+## Add domain
+
+```bash
+curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"host_type": "type1"}'
+```
+
+Result codes:
+
+* 204 - inserted.
+* 409 - domain already exists with a different host type.
+* 403 - DB service disabled.
+* 403 - unknown host type.
+* 500 - other errors.
+
+Example of the result body with a failure reason:
+
+```
+{"what":"unknown host type"}
+```
+
+Check `src/domain/mongoose_domain_h.erl` file for the the exact values of `what` field
+if needed.
+
+
+## Delete domain
+
+You must provide the domain's host type inside the body:
+
+```bash
+curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"host_type": "type1"}'
+```
+
+Result codes:
+
+* 204 - the domain removed or not found.
+* 403 - the domain is static.
+* 403 - the DB service disabled.
+* 403 - the host type is wrong (does not match the host type in the database).
+* 403 - the unknown host type.
+* 500 - other errors.
+
+
+## Enable/disable domain
+
+Provide `{"enabled": true}` as a body to enable a domain.
+Provide `{"enabled": false}` as a body to disable a domain.
+
+```bash
+curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"enabled": true}'
+```
+
+Result codes:
+
+* 204 - updated.
+* 404 - domain not found;
+* 403 - domain is static;
+* 403 - service disabled.
+
 
 # Command Line Interfaces
  
