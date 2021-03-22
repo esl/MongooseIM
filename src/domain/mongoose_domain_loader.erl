@@ -28,43 +28,44 @@ load_data_from_base_loop(FromId, PageSize) ->
     end.
 
 check_for_updates(FromId, PageSize) ->
-    check_if_id_is_still_relevant(FromId),
     %% Ordered by the earliest events first
     try mongoose_domain_sql:select_updates_from(FromId, PageSize) of
-        [] -> FromId;
         Rows ->
-            PageMaxId = row_to_id(lists:last(Rows)),
-            apply_changes(Rows),
-            check_for_updates(PageMaxId, PageSize)
+            case check_if_id_is_still_relevant(FromId, Rows) of
+                [] -> FromId;
+                RowsToApply ->
+                    PageMaxId = row_to_id(lists:last(RowsToApply)),
+                    apply_changes(RowsToApply),
+                    check_for_updates(PageMaxId, PageSize)
+            end
     catch Class:Reason:StackTrace ->
-            %% Don't allow to crash in the critical code,
-            %% once we've started.
-            ?LOG_ERROR(#{what => domain_check_for_updates_failed,
-                         class => Class, reason => Reason,
-                         stacktrace => StackTrace}),
-            FromId
+        %% Don't allow to crash in the critical code,
+        %% once we've started.
+        ?LOG_ERROR(#{what => domain_check_for_updates_failed,
+                     class => Class, reason => Reason,
+                     stacktrace => StackTrace}),
+        FromId
     end.
 
-%% Be aware that for this check to work, the cleaner should keep at least
-%% one record in domain_events table.
-check_if_id_is_still_relevant(0) ->
-    ok;
-check_if_id_is_still_relevant(FromId) ->
-    Min = mongoose_domain_sql:get_min_event_id(),
-    if Min =:= 0 ->
-            %% Nothing to do, there were no updates done ever in the DB
-            ok;
-       Min > FromId ->
-           %% Looks like this node has no DB connection for a long time.
-           %% But the event log in the DB has been truncated by some other node
-           %% meanwhile. We have to load the whole set of data from DB.
-           Text = <<"DB domain log had some updates to domains deleted, "
-                    " which we have not applied yet. Have to crash.">>,
-           ?LOG_CRITICAL(#{what => events_log_out_of_sync,
-                           text => Text, min_db => Min, from_id => FromId}),
-           mongoose_domain_utils:halt_node(Text);
-       true ->
-           ok
+
+check_if_id_is_still_relevant(FromId, Rows) ->
+    MinId = row_to_id(hd(Rows)),
+    if
+        FromId =:= MinId ->
+            tl(Rows);
+        FromId =:= MinId - 1 ->
+            %% looks like someone completely erased the events table
+            %% this should not happen, but we are still fine.
+            Rows;
+        true ->
+            %% Looks like this node has no DB connection for a long time.
+            %% But the event log in the DB has been truncated by some other node
+            %% meanwhile. We have to load the whole set of data from DB.
+            Text = <<"DB domain log had some updates to domains deleted, "
+                     " which we have not applied yet. Have to crash.">>,
+            ?LOG_CRITICAL(#{what => events_log_out_of_sync,
+                            text => Text, min_db => MinId, from_id => FromId}),
+            mongoose_domain_utils:halt_node(Text)
     end.
 
 apply_changes(Rows) ->

@@ -68,8 +68,8 @@ init_per_suite(Config) ->
     ensure_nodes_know_each_other(),
     service_disabled(mim()),
     service_disabled(mim2()),
-    prepare_erase(mim()),
-    prepare_erase(mim2()),
+    prepare_test_queries(mim()),
+    prepare_test_queries(mim2()),
     erase_database(mim()),
     escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config]).
 
@@ -446,9 +446,9 @@ erase_database(Node) ->
         false -> ok
     end.
 
-prepare_erase(Node) ->
+prepare_test_queries(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, prepare_erase, []);
+        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, []);
         false -> ok
     end.
 
@@ -506,10 +506,10 @@ setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
     ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]);
+    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, []]);
 setup_meck(db_out_of_sync_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]).
+    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, []]).
 
 teardown_meck() ->
     rpc(mim(), meck, unload, []).

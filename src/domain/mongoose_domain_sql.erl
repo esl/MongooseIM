@@ -8,13 +8,14 @@
          enable_domain/1]).
 
 -export([select_domain/1,
-         get_min_event_id/0,
          get_max_event_id/0,
          select_from/2,
          select_updates_from/2,
          delete_events_older_than/1]).
 
--export([prepare_erase/0,
+%% interfaces only for integration tests
+-export([prepare_test_queries/0,
+         get_min_event_id/0,
          erase_database/0]).
 
 -include("mongoose_logger.hrl").
@@ -57,8 +58,6 @@ start(_Opts) ->
             <<"SELECT MAX(id) FROM domain_events">>),
     prepare(domain_events_delete_older_than, domain_events, [id],
             <<"DELETE FROM domain_events WHERE id < ?">>),
-    prepare(domain_events_min, domain_events, [],
-            <<"SELECT MIN(id) FROM domain_events">>),
     prepare(domain_select_events_from, domain_events,
             rdbms_queries:add_limit_arg(limit, [id]),
             <<"SELECT ", LimitMSSQL/binary,
@@ -67,16 +66,18 @@ start(_Opts) ->
               " LEFT JOIN domain_settings ON "
                   "(domain_settings.domain = domain_events.domain AND "
                    "domain_settings.enabled = ", True/binary, ") "
-              " WHERE domain_events.id > ? "
+              " WHERE domain_events.id >= ? "
               " ORDER BY domain_events.id ",
               LimitSQL/binary>>),
     ok.
 
-prepare_erase() ->
+prepare_test_queries() ->
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
     prepare(domain_erase_events, domain_events, [],
-            <<"DELETE FROM domain_events">>).
+            <<"DELETE FROM domain_events">>),
+    prepare(domain_events_min, domain_events, [],
+            <<"SELECT MIN(id) FROM domain_events">>).
 
 %% ----------------------------------------------------------------------------
 %% API
@@ -128,6 +129,10 @@ erase_database() ->
     execute_successfully(Pool, domain_erase_events, []),
     execute_successfully(Pool, domain_erase_settings, []).
 
+get_min_event_id() ->
+    Pool = get_db_pool(),
+    selected_to_int(execute_successfully(Pool, domain_events_min, [])).
+
 %% Returns smallest id first
 select_from(FromId, Limit) ->
     Pool = get_db_pool(),
@@ -138,34 +143,51 @@ select_from(FromId, Limit) ->
 select_updates_from(FromId, Limit) ->
     Pool = get_db_pool(),
     Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
-    {selected, Rows} = execute_successfully(Pool, domain_select_events_from, Args),
-    Rows.
-
-get_min_event_id() ->
-    Pool = get_db_pool(),
-    selected_to_int(execute_successfully(Pool, domain_events_min, [])).
+    case execute_successfully(Pool, domain_select_events_from, Args) of
+        {selected, []} ->
+            %% get MaxID, this inserts the dummy record
+            %% in the events table if required.
+            MaxId = get_max_event_id(),
+            if
+                MaxId > FromId ->
+                    select_updates_from(FromId, Limit);
+                true ->
+                    %% This must never happen though, unless the events table
+                    %% is modified externally. this is critical error!
+                    %% TODO: figure out what should we do in this case
+                    ?LOG_ERROR(#{what => select_updates_from_failed, limit => Limit,
+                                 from_id => FromId, max_id => MaxId}),
+                    []
+            end;
+        {selected, Rows} -> Rows
+    end.
 
 get_max_event_id() ->
     Pool = get_db_pool(),
-    selected_to_int(execute_successfully(Pool, domain_events_max, [])).
+    case execute_successfully(Pool, domain_events_max, []) of
+        {selected, [{null}]} ->
+            %% ensure that we have at least one record
+            %% in the table, even if it's dummy one.
+            insert_domain_event(Pool,<<"dummy.test.domain">>),
+            get_max_event_id();
+        NonNullSelection -> selected_to_int(NonNullSelection)
+    end.
 
 delete_events_older_than(Id) ->
     transaction(fun(Pool) ->
             MaxId = get_max_event_id(),
-            if MaxId =:= 0 ->
-                    skipped;
-               MaxId < Id ->
+            if
+                MaxId < Id ->
                     %% Removal would erase all the events, which we don't want.
                     %% We want to keep at least one event.
-                    %% This should never happen though, unless the events table
-                    %% is modified externally (for example, after DB restored
-                    %% from the dump to the previous state).
-                    %% Skipping is not critical.
+                    %% This must never happen though, unless the events table
+                    %% is modified externally. this is critical error!
+                    %% TODO: figure out what should we do in this case
                     ?LOG_ERROR(#{what => domain_delete_events_older_than_failed,
                                  max_id => MaxId, older_than_id => Id}),
                     skipped;
-               true ->
-                   execute_successfully(Pool, domain_events_delete_older_than, [Id])
+                true ->
+                    execute_successfully(Pool, domain_events_delete_older_than, [Id])
             end
         end).
 %% ----------------------------------------------------------------------------
@@ -220,8 +242,8 @@ get_db_pool() ->
     hd(ejabberd_config:get_global_option(hosts)).
 
 selected_to_int({selected, [{null}]}) -> 0;
-selected_to_int({selected, [{UpdateNum}]}) ->
-    mongoose_rdbms:result_to_integer(UpdateNum).
+selected_to_int({selected, [{Num}]}) ->
+    mongoose_rdbms:result_to_integer(Num).
 
 transaction(F) ->
     Pool = get_db_pool(),
