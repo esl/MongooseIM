@@ -22,6 +22,7 @@
          make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
+         inbox_ns_conversation/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
@@ -80,7 +81,8 @@
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
         start => binary() | undefined, % ISO timestamp
-        'end' => binary() | undefined % ISO timestamp
+        'end' => binary() | undefined, % ISO timestamp
+        archive => boolean()
        }.
 
 -type inbox_check_params() :: #{
@@ -107,6 +109,10 @@
 -spec inbox_ns() -> binary().
 inbox_ns() ->
     ?NS_ESL_INBOX.
+
+-spec inbox_ns_conversation() -> binary().
+inbox_ns_conversation() ->
+    ?NS_ESL_INBOX_CONVERSATION.
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
     [begin
@@ -279,7 +285,7 @@ reset_inbox(From, To) ->
         Result = escalus:wait_for_stanza(From),
         ?assert(escalus_pred:is_iq_result(ResetStanza, Result)),
         ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
-                                                             ?NS_ESL_INBOX_CONVERSATION}])).
+                                                             inbox_ns_conversation()}])).
 
 -spec make_reset_inbox_stanza(undefined | escalus:client() | binary()) -> exml:element().
 make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
@@ -287,7 +293,7 @@ make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
       <<"set">>,
       [#xmlel{name = <<"reset">>,
               attrs = [
-                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"xmlns">>, inbox_ns_conversation()},
                        {<<"jid">>, InterlocutorJid}
                       ]}]);
 make_reset_inbox_stanza(undefined) ->
@@ -295,7 +301,7 @@ make_reset_inbox_stanza(undefined) ->
       <<"set">>,
       [#xmlel{name = <<"reset">>,
               attrs = [
-                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}
+                       {<<"xmlns">>, inbox_ns_conversation()}
                       ]}]);
 make_reset_inbox_stanza(InterlocutorJid) ->
     make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
@@ -342,10 +348,14 @@ make_inbox_form(GetParams, true) ->
                undefined -> [];
                End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
            end,
+    Archive = case maps:get(archive, GetParams, undefined) of
+               undefined -> [];
+               ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
+           end,
     FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
     HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                            bool_to_bin(maps:get(hidden_read, GetParams, false)))],
-    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
+    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
     escalus_stanza:x_data_form(<<"submit">>, Fields);
 
 make_inbox_form(GetParams, false) ->

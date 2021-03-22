@@ -1,14 +1,12 @@
 -module(inbox_extensions_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("inbox.hrl").
 
--define(NS_RSM, <<"http://jabber.org/protocol/rsm">>).
--define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
--define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 -define(INBOX_CT, inbox_SUITE).
 -define(ROOM_MARKERS_RESET, <<"room_markers_reset">>).
 -define(HOUR, 3600).
@@ -410,7 +408,7 @@ mute_muted_conv_restarts_timestamp(Config) ->
 % other
 returns_valid_properties_form(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        InboxConversationNS = ?NS_ESL_INBOX_CONVERSATION,
+        InboxConversationNS = inbox_helper:inbox_ns_conversation(),
         escalus:send(Alice, escalus_stanza:iq_get(InboxConversationNS, [])),
         ResIQ = escalus:wait_for_stanza(Alice),
         #{field_count := 4} = Form = inbox_helper:parse_form_iq(ResIQ),
@@ -540,11 +538,11 @@ get_box(Box, Client, #{count := ExpectedCount} = ExpectedResult, Opts) ->
 -spec make_box_request(box(), map()) -> exml:element().
 make_box_request(Box, Opts) ->
     Limit = maps:get(limit, Opts, undefined),
-    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-    GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}] ++
+    GetIQ = escalus_stanza:iq_set(inbox_helper:inbox_ns(), []),
+    GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, inbox_helper:inbox_ns()}] ++
                 which_box(Box) ++ extra(Opts),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      attrs = [{<<"xmlns">>, inbox_helper:inbox_ns()}],
                       children = [make_inbox_form(GetParams) | rsm_max(Limit)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
@@ -585,12 +583,12 @@ query_properties(From, To, Expected) ->
     Result = escalus:wait_for_stanza(From),
     ?assert(escalus_pred:is_iq_result(Stanza, Result)),
     [Props] = exml_query:subelements(Result, <<"query">>),
-    ?assertEqual(?NS_ESL_INBOX_CONVERSATION, exml_query:attr(Props, <<"xmlns">>)),
+    ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(Props, <<"xmlns">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(Props, Key, Val) end, Expected).
 
 -spec make_inbox_get_properties(escalus:client()) -> exml:element().
 make_inbox_get_properties(To) ->
-    Query = escalus_stanza:query_el(?NS_ESL_INBOX_CONVERSATION, jid_attr(To), []),
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), jid_attr(To), []),
     escalus_stanza:iq(<<"get">>, [Query]).
 
 -spec set_inbox_property(escalus:client(), escalus:client(), proplists:proplist()) -> ok.
@@ -606,7 +604,7 @@ check_message_with_properties(From, Stanza, Properties) ->
     ?assert(escalus_pred:is_message(Message)),
     ?assert(has_same_id(Stanza, Message)),
     [X] = exml_query:subelements(Message, <<"x">>),
-    ?assertEqual(?NS_ESL_INBOX_CONVERSATION, exml_query:attr(X, <<"xmlns">>)),
+    ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
 
 -spec check_iq_result_for_property(escalus:client(), exml:element()) -> ok.
@@ -622,7 +620,7 @@ make_inbox_iq_request(ToClient, Key, Value) ->
 make_inbox_iq_request(ToClient, Properties) when is_list(Properties) ->
     JidAttr = jid_attr(ToClient),
     Children = props_to_children(Properties),
-    Query = escalus_stanza:query_el(?NS_ESL_INBOX_CONVERSATION, JidAttr, Children),
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr, Children),
     escalus_stanza:iq(<<"set">>, [Query]).
 
 assert_invalid_request(From, Stanza, Value) ->
