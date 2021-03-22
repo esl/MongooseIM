@@ -1,4 +1,4 @@
--module(mod_inbox_bkpr).
+-module(mod_inbox_entries).
 
 -include("mongoose_ns.hrl").
 -include("jlib.hrl").
@@ -164,6 +164,8 @@ read_or_not(<<"0">>) -> <<"true">>;
 read_or_not(_) -> <<"false">>.
 
 -spec expand_bin_bool(binary()) -> binary().
+expand_bin_bool(1) -> <<"true">>;
+expand_bin_bool(0) -> <<"false">>;
 expand_bin_bool(<<"t">>) -> <<"true">>;
 expand_bin_bool(<<"f">>) -> <<"false">>.
 
