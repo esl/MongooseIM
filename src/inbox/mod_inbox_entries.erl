@@ -5,11 +5,6 @@
 
 -import(mod_inbox_rdbms, [esc_string/1, esc_int/1]).
 
-% SQL extensions
--export([sql_selection/0]).
--export([sql_filters/1]).
--export([sql_limits/1]).
--export([sql_process/2]).
 % Inbox extensions
 -export([process_iq_conversation/4]).
 -export([should_be_stored_in_inbox/1]).
@@ -51,15 +46,8 @@ build_inbox_entry_form() ->
     {mongoose_acc:t(), jlib:iq()}.
 get_properties_for_jid(Acc, IQ, From, EntryJID) ->
     BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    {LUser, LServer} = jid:to_lus(From),
-    Query = ["SELECT archive, unread_count, muted_until ",
-             "FROM inbox "
-             "WHERE luser = ", esc_string(LUser), " AND "
-                   "lserver = ", esc_string(LServer), " AND "
-                   "remote_bare_jid = ", esc_string(BinEntryJID)],
-    case execute_requests(LServer, Query) of
-        {error, Msg} ->
-            return_error(Acc, IQ, Msg);
+    case mod_inbox_backend:get_entry_properties(From, BinEntryJID) of
+        [] -> return_error(Acc, IQ, <<"Entry not found">>);
         Result ->
             CurrentTS = mongoose_acc:timestamp(Acc),
             Properties = build_result(Result, CurrentTS),
@@ -178,52 +166,6 @@ kv_to_el(Key, Value) ->
 -spec read_or_not(binary()) -> binary().
 read_or_not(<<"0">>) -> <<"true">>;
 read_or_not(_) -> <<"false">>.
-
--spec expand_bin_bool(binary()) -> binary().
-expand_bin_bool(1) -> <<"true">>;
-expand_bin_bool(0) -> <<"false">>;
-expand_bin_bool(<<"t">>) -> <<"true">>;
-expand_bin_bool(<<"f">>) -> <<"false">>.
-
--spec maybe_muted_until(integer()) -> binary().
-maybe_muted_until(Val) ->
-    CurrentTS = os:system_time(microsecond),
-    maybe_muted_until(Val, CurrentTS).
-
--spec maybe_muted_until(integer(), integer()) -> binary().
-maybe_muted_until(0, _) -> <<"0">>;
-maybe_muted_until(MutedUntil, CurrentTS) ->
-    case CurrentTS =< MutedUntil of
-        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
-        false -> <<"0">>
-    end.
-
--spec sql_selection() -> iolist().
-sql_selection() ->
-    [", archive, muted_until "].
-
--spec sql_filters(map()) -> iolist().
-sql_filters(Params) ->
-    sql_and_where_archive(maps:get(archive, Params, undefined)).
-
--spec sql_and_where_archive(boolean() | undefined) -> iolist().
-sql_and_where_archive(true) -> [" AND archive = true "];
-sql_and_where_archive(false) -> [" AND archive = false "];
-sql_and_where_archive(undefined) -> [].
-
--spec sql_limits(map()) -> iolist().
-sql_limits(Params) ->
-    sql_and_where_limit(maps:get(limit, Params, undefined)).
-
--spec sql_and_where_limit(boolean() | undefined) -> iolist().
-sql_and_where_limit(undefined) -> [];
-sql_and_where_limit(N) -> [" LIMIT ", esc_int(N), " "].
-
--spec sql_process(binary(), binary() | integer()) -> {binary(), binary()}.
-sql_process(Archive, MutedUntil) ->
-    Extra1 = expand_bin_bool(Archive),
-    Extra2 = maybe_muted_until(mongoose_rdbms:result_to_integer(MutedUntil)),
-    {Extra1, Extra2}.
 
 -spec return_error(mongoose_acc:t(), jlib:iq(), any()) ->
     {mongoose_acc:t(), jlib:iq()}.

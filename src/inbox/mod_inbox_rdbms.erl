@@ -23,10 +23,19 @@
          remove_inbox/3,
          clear_inbox/1,
          clear_inbox/2,
-         get_inbox_unread/3]).
+         get_inbox_unread/3,
+         get_entry_properties/2]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
+
+
+-type db_return() :: {username(),
+                      binary(),
+                      count_bin(),
+                      non_neg_integer() | binary(),
+                      binary(),
+                      binary()}.
 
 %% ----------------------------------------------------------------------
 %% API
@@ -58,21 +67,19 @@ get_inbox(LUsername, LServer, Params) ->
     mongoose_rdbms:query_result().
 get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
     OrderSQL = order_to_sql(Order),
+    LimitSQL = sql_and_where_limit(maps:get(limit, Params, undefined)),
     BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
     EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
     HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
-    Query = ["SELECT remote_bare_jid, content, unread_count, timestamp ",
-              mod_inbox_bkpr:sql_selection(),
+    Archive = sql_and_where_archive(maps:get(archive, Params, undefined)),
+    Query = ["SELECT remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
              " FROM inbox "
                  "WHERE luser=", esc_string(LUser),
                  " AND lserver=", esc_string(LServer),
-                 BeginSQL, EndSQL, HiddenSQL,
-                 mod_inbox_bkpr:sql_filters(Params),
+                 BeginSQL, EndSQL, HiddenSQL, Archive,
                  " ORDER BY timestamp ", OrderSQL,
-                 mod_inbox_bkpr:sql_limits(Params),
-                 ";"],
+                 LimitSQL, ";"],
     mongoose_rdbms:sql_query(LServer, Query).
-
 
 get_inbox_unread(Username, Server, InterlocutorJID) ->
     RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
@@ -186,6 +193,24 @@ clear_inbox( Server) ->
     Res = clear_inbox_rdbms(LServer),
     check_result(Res).
 
+
+-spec get_entry_properties(jid:jid(), binary()) ->
+    {binary(), binary(), binary()}.
+get_entry_properties(From, BinEntryJID) ->
+    {LUser, LServer} = jid:to_lus(From),
+    Query = ["SELECT archive, unread_count, muted_until ",
+             "FROM inbox "
+             "WHERE luser = ", esc_string(LUser), " AND "
+                   "lserver = ", esc_string(LServer), " AND "
+                   "remote_bare_jid = ", esc_string(BinEntryJID)],
+    case mongoose_rdbms:sql_query(LServer, Query) of
+        {selected, []} ->
+            [];
+        {selected, [Selected]} ->
+            Selected
+    end.
+
+
 -spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
@@ -203,6 +228,12 @@ esc_int(Integer) ->
 order_to_sql(asc) -> <<"ASC">>;
 order_to_sql(desc) -> <<"DESC">>.
 
+-spec sql_and_where_limit(boolean() | undefined) -> iolist().
+sql_and_where_limit(undefined) ->
+    [];
+sql_and_where_limit(N) ->
+    [" LIMIT ", esc_int(N), " "].
+
 -spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
 sql_and_where_timestamp(_Operator, undefined) ->
     [];
@@ -215,6 +246,14 @@ sql_and_where_unread_count(true) ->
 sql_and_where_unread_count(_) ->
     [].
 
+-spec sql_and_where_archive(boolean() | undefined) -> iolist().
+sql_and_where_archive(true) ->
+    [" AND archive = true "];
+sql_and_where_archive(false) ->
+    [" AND archive = false "];
+sql_and_where_archive(undefined) ->
+    [].
+
 -spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> mongoose_rdbms:query_result().
 clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
@@ -224,14 +263,14 @@ clear_inbox_rdbms(Username, Server) ->
 clear_inbox_rdbms(Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox;"]).
 
--spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary(), term(), term()}) ->
-    inbox_res().
-decode_row(LServer, {Username, Content, Count, Timestamp, Extra1, Extra2}) ->
+-spec decode_row(host(), db_return()) -> inbox_res().
+decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
     Data = mongoose_rdbms:unescape_binary(LServer, Content),
     BCount = count_to_bin(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
-    {Ret1, Ret2} = mod_inbox_bkpr:sql_process(Extra1, Extra2),
-    {Username, Data, BCount, NumericTimestamp, Ret1, Ret2}.
+    BoolArchive = mod_inbox_utils:expand_bin_bool(Archive),
+    MaybeMutedUntil = mod_inbox_utils:maybe_muted_until(mongoose_rdbms:result_to_integer(MutedUntil)),
+    {Username, Data, BCount, NumericTimestamp, BoolArchive, MaybeMutedUntil}.
 
 
 rdbms_specific_backend(Host) ->
