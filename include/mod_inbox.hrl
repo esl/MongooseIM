@@ -18,12 +18,16 @@
 
 -type get_inbox_res() :: list(inbox_res()).
 
--type inbox_res() :: {RemoteBinJID :: binary(),
-                      MsgContent :: content(),
-                      UnreadCount :: count_bin(),
-                      Timestamp :: integer(),
-                      Archive :: binary(),
-                      MutedUntil :: binary()}.
+-type inbox_res() :: #{remote_jid := binary(),
+                       msg := content(),
+                       unread_count := count_bin(),
+                       timestamp := integer(),
+                       archive := binary(),
+                       muted_until := binary()}.
+
+-type entry_properties() :: #{unread_count := count_bin(),
+                              archive := binary(),
+                              muted_until := binary()}.
 
 -type inbox_write_res() :: ok | {error, any()}.
 

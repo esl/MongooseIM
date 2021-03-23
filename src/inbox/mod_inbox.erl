@@ -110,7 +110,10 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     ProcessedEntries = lists:map(fun process_entry/1, Entries),
     [{inbox, Schema, ProcessedEntries} | Acc].
 
-process_entry({RemJID, Content, UnreadCount, Timestamp, _, _}) ->
+process_entry(#{remote_jid := RemJID,
+                msg := Content,
+                unread_count := UnreadCount,
+                timestamp := Timestamp}) ->
     TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     {RemJID, Content, UnreadCount, TS}.
 
@@ -308,17 +311,21 @@ process_message(Host, From, To, Message, Dir, Type) ->
 %% Stanza builders
 
 -spec build_inbox_message(inbox_res(), id()) -> exml:element().
-build_inbox_message({_Username, Content, Count, Timestamp, Ex1, Ex2}, QueryId) ->
+build_inbox_message(#{msg := Content,
+                      unread_count := Count,
+                      timestamp := Timestamp,
+                      archive := Archive,
+                      muted_until := MutedUntil}, QueryId) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
-        children = [build_result_el(Content, QueryId, Count, Timestamp, Ex1, Ex2)]}.
+        children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil)]}.
 
 -spec build_result_el(content(), id(), count_bin(), integer(), binary(), binary()) -> exml:element().
-build_result_el(Msg, QueryId, BinUnread, Timestamp, Ex1, Ex2) ->
+build_result_el(Msg, QueryId, BinUnread, Timestamp, Archive, MutedUntil) ->
     Forwarded = build_forward_el(Msg, Timestamp),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++ QueryAttr,
-           children = [Forwarded | mod_inbox_entries:extensions_result(Ex1, Ex2)]}.
+           children = [Forwarded | mod_inbox_entries:extensions_result(Archive, MutedUntil)]}.
 
 -spec build_result_iq(get_inbox_res()) -> exml:element().
 build_result_iq(List) ->
@@ -607,7 +614,7 @@ is_offline_message(Msg) ->
             true
     end.
 
-extract_unread_count({_, _, Count, _, _, _}) ->
+extract_unread_count(#{unread_count := Count}) ->
     binary_to_integer(Count).
 
 config_metrics(Host) ->

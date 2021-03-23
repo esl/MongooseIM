@@ -270,7 +270,12 @@ decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) 
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
     BoolArchive = mod_inbox_utils:expand_bin_bool(Archive),
     MaybeMutedUntil = mod_inbox_utils:maybe_muted_until(mongoose_rdbms:result_to_integer(MutedUntil)),
-    {Username, Data, BCount, NumericTimestamp, BoolArchive, MaybeMutedUntil}.
+    #{remote_jid => Username,
+      msg => Data,
+      unread_count => BCount,
+      timestamp => NumericTimestamp,
+      archive => BoolArchive,
+      muted_until => MaybeMutedUntil}.
 
 
 rdbms_specific_backend(Host) ->
