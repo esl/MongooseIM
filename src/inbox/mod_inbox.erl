@@ -437,17 +437,17 @@ muclight_enabled(Host) ->
     lists:member(muclight, Groupchats).
 
 -spec maybe_rsm(exml:element() | undefined) ->
-    #{limit => non_neg_integer()} | {error, binary()}.
+    undefined | non_neg_integer() | {error, binary()}.
 maybe_rsm(#xmlel{name = <<"set">>,
                  children = [#xmlel{name = <<"max">>,
                                     children = [#xmlcdata{content = Bin}]}]}) ->
     case mod_inbox_utils:maybe_binary_to_positive_integer(Bin) of
         {error, _} -> {error, wrong_rsm_message()};
-        0 -> #{};
-        N -> #{limit => N}
+        0 -> undefined;
+        N -> N
     end;
 maybe_rsm(undefined) ->
-    #{};
+    undefined;
 maybe_rsm(_) ->
     {error, wrong_rsm_message()}.
 
@@ -463,7 +463,8 @@ query_to_params(QueryEl) ->
         Params ->
             case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
                 {error, Msg} -> {error, bad_request, Msg};
-                Rsm -> maps:merge(Params, Rsm)
+                undefined -> Params;
+                Rsm -> Params#{limit => Rsm}
             end
     end.
 
