@@ -182,19 +182,14 @@ process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
 process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
     Username = From#jid.luser,
     Host = From#jid.lserver,
-    case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
+    case query_to_params(QueryEl) of
         {error, bad_request, Msg} ->
             {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
-            case maybe_rsm(Params, exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
-                {error, Msg} ->
-                    {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
-                Params1 ->
-                    List = mod_inbox_backend:get_inbox(Username, Host, Params1),
-                    forward_messages(List, QueryId, From),
-                    Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
-                    {Acc, Res}
-            end
+            List = mod_inbox_backend:get_inbox(Username, Host, Params),
+            forward_messages(List, QueryId, From),
+            Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
+            {Acc, Res}
     end.
 
 -spec forward_messages(List :: list(inbox_res()),
@@ -435,23 +430,36 @@ muclight_enabled(Host) ->
     Groupchats = get_groupchat_types(Host),
     lists:member(muclight, Groupchats).
 
--spec maybe_rsm(mod_inbox:get_inbox_params(), exml:element() | undefined) ->
-    mod_inbox:get_inbox_params() | {error, binary()}.
-maybe_rsm(Params, #xmlel{name = <<"set">>,
-                         children = [#xmlel{name = <<"max">>,
-                                            children = [#xmlcdata{content = Bin}]}]}) ->
+-spec maybe_rsm(exml:element() | undefined) ->
+    #{limit => non_neg_integer()} | {error, binary()}.
+maybe_rsm(#xmlel{name = <<"set">>,
+                 children = [#xmlel{name = <<"max">>,
+                                    children = [#xmlcdata{content = Bin}]}]}) ->
     case mod_inbox_utils:maybe_binary_to_positive_integer(Bin) of
         {error, _} -> {error, wrong_rsm_message()};
-        0 -> Params;
-        N -> Params#{limit => N}
+        0 -> #{};
+        N -> #{limit => N}
     end;
-maybe_rsm(Params, undefined) ->
-    Params;
-maybe_rsm(_, _) ->
+maybe_rsm(undefined) ->
+    #{};
+maybe_rsm(_) ->
     {error, wrong_rsm_message()}.
 
 wrong_rsm_message() ->
-    <<"bad-request">>.
+    <<"Invalid RSM value">>.
+
+-spec query_to_params(QueryEl :: exml:element()) ->
+    get_inbox_params() | {error, bad_request, Msg :: binary()}.
+query_to_params(QueryEl) ->
+    case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
+        {error, bad_request, Msg} ->
+            {error, bad_request, Msg};
+        Params ->
+            case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
+                {error, Msg} -> {error, bad_request, Msg};
+                Rsm -> maps:merge(Params, Rsm)
+            end
+    end.
 
 -spec form_to_params(FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
