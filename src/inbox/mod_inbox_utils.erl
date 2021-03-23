@@ -32,7 +32,11 @@
          get_option_remove_on_kicked/1,
          reset_marker_to_bin/1,
          extract_attr_jid/1,
-         get_inbox_unread/3
+         get_inbox_unread/3,
+         maybe_binary_to_positive_integer/1,
+         maybe_muted_until/1,
+         maybe_muted_until/2,
+         expand_bin_bool/1
         ]).
 
 -spec maybe_reset_unread_count(Server :: host(),
@@ -204,3 +208,30 @@ extract_attr_jid(ResetStanza) ->
 
 all_chat_markers() ->
     [<<"received">>, <<"displayed">>, <<"acknowledged">>].
+
+-spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | {error, atom()}.
+maybe_binary_to_positive_integer(Bin) ->
+    try erlang:binary_to_integer(Bin) of
+        N when N >= 0 -> N;
+        _ -> {error, non_positive_integer}
+    catch error:badarg -> {error, 'NaN'}
+    end.
+
+-spec maybe_muted_until(integer()) -> binary().
+maybe_muted_until(Val) ->
+    CurrentTS = os:system_time(microsecond),
+    maybe_muted_until(Val, CurrentTS).
+
+-spec maybe_muted_until(integer(), integer()) -> binary().
+maybe_muted_until(0, _) -> <<"0">>;
+maybe_muted_until(MutedUntil, CurrentTS) ->
+    case CurrentTS =< MutedUntil of
+        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
+        false -> <<"0">>
+    end.
+
+-spec expand_bin_bool(binary()) -> binary().
+expand_bin_bool(1) -> <<"true">>;
+expand_bin_bool(0) -> <<"false">>;
+expand_bin_bool(<<"t">>) -> <<"true">>;
+expand_bin_bool(<<"f">>) -> <<"false">>.

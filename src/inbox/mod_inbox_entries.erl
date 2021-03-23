@@ -14,13 +14,14 @@
 -export([process_iq_conversation/4]).
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/2]).
--export([fields_to_params/3]).
--export([maybe_rsm/2]).
 
 -spec process_iq_conversation(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_iq_conversation(From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     process_iq_conversation_get(Acc, IQ, From, SubEl);
+process_iq_conversation(From, _To, Acc, #iq{type = set,
+                                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
+    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza);
 process_iq_conversation(From, _To, Acc, #iq{type = set, sub_el = Query} = IQ) ->
     process_iq_conversation_set(Acc, IQ, From, Query).
 
@@ -142,6 +143,21 @@ forward_request(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
     {Acc1, IQ#iq{type = result, sub_el = []}}.
 
+maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
+    case mod_inbox_utils:extract_attr_jid(ResetStanza) of
+        {error, Msg} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        InterlocutorJID ->
+            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
+    end.
+
+process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
+    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
+    {Acc, IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"reset">>,
+                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 children = []}]}}.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -150,9 +166,9 @@ forward_request(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
 build_result({Archived, UnreadCount, MutedUntil}, CurrentTS) ->
     NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
     [
-     kv_to_el(<<"archive">>, expand_bin_bool(Archived)),
+     kv_to_el(<<"archive">>, mod_inbox_utils:expand_bin_bool(Archived)),
      kv_to_el(<<"read">>, read_or_not(UnreadCount)),
-     kv_to_el(<<"mute">>, maybe_muted_until(NumericMutedUntil, CurrentTS))
+     kv_to_el(<<"mute">>, mod_inbox_utils:maybe_muted_until(NumericMutedUntil, CurrentTS))
     ].
 
 -spec kv_to_el(binary(), binary()) -> exml:element().
@@ -233,7 +249,7 @@ form_to_query(TS, [#xmlel{name = <<"read">>,
     form_to_query(TS, Rest, ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END", "," | Acc]);
 form_to_query(TS, [#xmlel{name = <<"mute">>,
                           children = [#xmlcdata{content = Value}]} | Rest], Acc) ->
-    case maybe_binary_to_positive_integer(Value) of
+    case mod_inbox_utils:maybe_binary_to_positive_integer(Value) of
         {error, _} -> {error, <<"bad-request">>};
         0 ->
             form_to_query(TS, Rest, ["muted_until=0", "," | Acc]);
@@ -260,40 +276,3 @@ is_inbox_update(Msg) ->
 extensions_result(Archive, MutedUntil) ->
     [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = Archive}]},
      #xmlel{name = <<"mute">>, children = [#xmlcdata{content = MutedUntil}]}].
-
--spec fields_to_params(binary(), binary(), mod_inbox:get_inbox_params()) ->
-    mod_inbox:get_inbox_params() | {error, bad_request | unknown_field}.
-fields_to_params(<<"archive">>, <<"true">>, Acc) ->
-    Acc#{archive => true};
-fields_to_params(<<"archive">>, <<"false">>, Acc) ->
-    Acc#{archive => false};
-fields_to_params(<<"archive">>, _, _) ->
-    {error, bad_request};
-fields_to_params(_, _, _) ->
-    {error, unknown_field}.
-
--spec maybe_rsm(mod_inbox:get_inbox_params(), exml:element() | undefined) ->
-    mod_inbox:get_inbox_params() | {error, binary()}.
-maybe_rsm(Params, #xmlel{name = <<"set">>,
-                         children = [#xmlel{name = <<"max">>,
-                                            children = [#xmlcdata{content = Bin}]}]}) ->
-    case maybe_binary_to_positive_integer(Bin) of
-        {error, _} -> {error, wrong_rsm_message()};
-        0 -> Params;
-        N -> Params#{limit => N}
-    end;
-maybe_rsm(Params, undefined) ->
-    Params;
-maybe_rsm(_, _) ->
-    {error, wrong_rsm_message()}.
-
-wrong_rsm_message() ->
-    <<"bad-request">>.
-
--spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | {error, atom()}.
-maybe_binary_to_positive_integer(Bin) ->
-    try erlang:binary_to_integer(Bin) of
-        N when N >= 0 -> N;
-        _ -> {error, non_positive_integer}
-    catch error:badarg -> {error, 'NaN'}
-    end.

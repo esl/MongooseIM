@@ -23,7 +23,6 @@
 
 -export([start/2, stop/1, deps/2, config_spec/0]).
 -export([process_iq/4,
-         process_iq_conversation/4,
          user_send_packet/4,
          filter_packet/1,
          inbox_unread_count/2,
@@ -142,7 +141,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX,
                                   ?MODULE, process_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION,
-                                  ?MODULE, process_iq_conversation, IQDisc).
+                                  mod_inbox_entries, process_iq_conversation, IQDisc).
 
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -184,7 +183,7 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
         {error, bad_request, Msg} ->
             {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
-            case mod_inbox_bkpr:maybe_rsm(Params, exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
+            case maybe_rsm(Params, exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
                 {error, Msg} ->
                     {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
                 Params1 ->
@@ -194,34 +193,6 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
                     {Acc, Res}
             end
     end.
-
--spec process_iq_conversation(From :: jid:jid(),
-                              To :: jid:jid(),
-                              Acc :: mongoose_acc:t(),
-                              IQ :: jlib:iq()) ->
-    {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
-process_iq_conversation(From, _To, Acc,
-                        #iq{type = set,
-                            xmlns = ?NS_ESL_INBOX_CONVERSATION,
-                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
-    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza);
-process_iq_conversation(From, To, Acc, IQ) ->
-    mod_inbox_bkpr:process_iq_conversation(From, To, Acc, IQ).
-
-maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
-    case mod_inbox_utils:extract_attr_jid(ResetStanza) of
-        {error, Msg} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
-        InterlocutorJID ->
-            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
-    end.
-
-process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
-    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
-    {Acc, IQ#iq{type = result,
-                sub_el = [#xmlel{name = <<"reset">>,
-                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
-                                 children = []}]}}.
 
 -spec forward_messages(List :: list(inbox_res()),
                        QueryId :: id(),
@@ -347,7 +318,7 @@ build_result_el(Msg, QueryId, BinUnread, Timestamp, Ex1, Ex2) ->
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++ QueryAttr,
-           children = [Forwarded | mod_inbox_bkpr:extensions_result(Ex1, Ex2)]}.
+           children = [Forwarded | mod_inbox_entries:extensions_result(Ex1, Ex2)]}.
 
 -spec build_result_iq(get_inbox_res()) -> exml:element().
 build_result_iq(List) ->
@@ -457,6 +428,24 @@ muclight_enabled(Host) ->
     Groupchats = get_groupchat_types(Host),
     lists:member(muclight, Groupchats).
 
+-spec maybe_rsm(mod_inbox:get_inbox_params(), exml:element() | undefined) ->
+    mod_inbox:get_inbox_params() | {error, binary()}.
+maybe_rsm(Params, #xmlel{name = <<"set">>,
+                         children = [#xmlel{name = <<"max">>,
+                                            children = [#xmlcdata{content = Bin}]}]}) ->
+    case mod_inbox_utils:maybe_binary_to_positive_integer(Bin) of
+        {error, _} -> {error, wrong_rsm_message()};
+        0 -> Params;
+        N -> Params#{limit => N}
+    end;
+maybe_rsm(Params, undefined) ->
+    Params;
+maybe_rsm(_, _) ->
+    {error, wrong_rsm_message()}.
+
+wrong_rsm_message() ->
+    <<"bad-request">>.
+
 -spec form_to_params(FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
 form_to_params(undefined) ->
@@ -508,22 +497,22 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
             fields_to_params(RFields, Acc#{ hidden_read => Hidden })
     end;
 
+fields_to_params([{<<"archive">>, [Value]} | RFields], Acc) ->
+    case binary_to_bool(Value) of
+        error ->
+            ?LOG_WARNING(#{what => inbox_invalid_form_field,
+                           field => archive, value => Value}),
+            {error, bad_request, invalid_field_value(<<"archive">>, Value)};
+        Archive ->
+            fields_to_params(RFields, Acc#{ archive => Archive })
+    end;
+
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
-
-fields_to_params([{Field, [Value]} | RFields], Acc) ->
-    case mod_inbox_bkpr:fields_to_params(Field, Value, Acc) of
-        {error, unknown_field} ->
-            ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
-                        field => Field, value => Value}),
-            {error, bad_request, <<"Unknown inbox form field=", Field/binary, ", value=", Value/binary>>};
-        {error, bad_request} ->
-            ?LOG_WARNING(#{what => inbox_invalid_form_field,
-                           field => Field, value => Value}),
-            {error, bad_request, invalid_field_value(Field, Value)};
-        NewAcc ->
-            fields_to_params(RFields, NewAcc)
-    end.
+fields_to_params([{Invalid, [InvalidFieldVal]} | _], _) ->
+    ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
+                field => Invalid, value => InvalidFieldVal}),
+    {error, bad_request, <<"Unknown inbox form field=", Invalid/binary, ", value=", InvalidFieldVal/binary>>}.
 
 -spec binary_to_order(binary()) -> asc | desc | error.
 binary_to_order(<<"desc">>) -> desc;
@@ -589,7 +578,7 @@ should_be_stored_in_inbox(Msg) ->
     not is_forwarded_message(Msg) andalso
         not is_error_message(Msg) andalso
         not is_offline_message(Msg) andalso
-        mod_inbox_bkpr:should_be_stored_in_inbox(Msg).
+        mod_inbox_entries:should_be_stored_in_inbox(Msg).
 
 -spec is_forwarded_message(Msg :: exml:element()) -> boolean().
 is_forwarded_message(Msg) ->
