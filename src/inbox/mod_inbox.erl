@@ -134,10 +134,8 @@ deps(_Host, Opts) ->
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
     FullOpts = case lists:keyfind(backend, 2, Opts) of
-                   false ->
-                       [{backend, rdbms} | Opts];
-                   _ ->
-                       Opts
+                   false -> [{backend, rdbms} | Opts];
+                   _ -> Opts
                end,
     gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
     mod_inbox_backend:init(Host, FullOpts),
@@ -191,7 +189,7 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
     Host = From#jid.lserver,
     case query_to_params(QueryEl) of
         {error, bad_request, Msg} ->
-            {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         Params ->
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
             forward_messages(List, QueryId, From),
@@ -372,8 +370,9 @@ build_inbox_form() ->
                   text_single_form_field(<<"hidden_read">>, <<"false">>),
                   jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
                  ],
-    #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
-            children = FormFields }.
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
+           children = FormFields}.
 
 -spec text_single_form_field(Var :: binary()) -> exml:element().
 text_single_form_field(Var) ->
@@ -406,7 +405,7 @@ form_field_option(Label, Value) ->
 
 -spec form_field_value(Value :: binary()) -> exml:element().
 form_field_value(Value) ->
-    #xmlel{ name = <<"value">>, children = [#xmlcdata{ content = Value }] }.
+    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
