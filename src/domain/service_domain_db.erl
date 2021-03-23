@@ -110,12 +110,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Server helpers
 
 initial_load(undefined) ->
-    link(whereis(mongoose_domain_core)),
     LastEventId = mongoose_domain_sql:get_max_event_id(),
     PageSize = 10000,
     mongoose_domain_loader:load_data_from_base(0, PageSize),
+    mongoose_domain_loader:remove_outdated_domains(),
     mongoose_domain_core:set_last_event_id(LastEventId),
-    unlink(whereis(mongoose_domain_core)),
     LastEventId;
 initial_load(LastEventId) when is_integer(LastEventId) ->
     LastEventId. %% Skip initial init

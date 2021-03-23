@@ -1,6 +1,7 @@
 -module(mongoose_domain_loader).
--export([load_data_from_base/2]).
--export([check_for_updates/2]).
+-export([load_data_from_base/2,
+         check_for_updates/2,
+         remove_outdated_domains/0]).
 
 -include("mongoose_logger.hrl").
 
@@ -26,6 +27,10 @@ load_data_from_base_loop(FromId, PageSize) ->
             insert_rows_to_core(Rows),
             load_data_from_base_loop(PageMaxId, PageSize)
     end.
+
+remove_outdated_domains() ->
+    OutdatedDomains = mongoose_domain_core:get_all_outdated(),
+    remove_domains(OutdatedDomains).
 
 check_for_updates(FromId, PageSize) ->
     %% Ordered by the earliest events first
@@ -86,6 +91,12 @@ insert_rows_to_core(Rows) ->
 
 insert_row_to_core({_Id, Domain, HostType}) ->
     mongoose_domain_core:insert(Domain, HostType).
+
+remove_domains(DomainsWithHostTypes) ->
+    lists:foreach(fun remove_domain/1, DomainsWithHostTypes).
+
+remove_domain({Domain,_HostType}) ->
+    mongoose_domain_core:delete(Domain).
 
 row_to_id({Id, _Domain, _HostType}) ->
     Id.
