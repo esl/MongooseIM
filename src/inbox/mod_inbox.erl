@@ -83,6 +83,12 @@
                       Server :: jid:lserver(),
                       InterlocutorJID :: jid:jid().
 
+-callback get_entry_properties(jid:jid(), binary()) ->
+    {binary(), binary(), binary()}.
+
+-callback set_entry_properties(jid:jid(), binary(), entry_props_params()) ->
+    entry_properties() | {error, binary()}.
+
 -type get_inbox_params() :: #{
         start => integer(),
         'end' => integer(),
@@ -446,7 +452,7 @@ maybe_rsm(_) ->
     {error, wrong_rsm_message()}.
 
 wrong_rsm_message() ->
-    <<"Invalid RSM value">>.
+    <<"bad-request">>.
 
 -spec query_to_params(QueryEl :: exml:element()) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
@@ -580,7 +586,8 @@ muc_dep(List) ->
 
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
-     reset_unread, remove_inbox, clear_inbox, get_inbox_unread].
+     reset_unread, remove_inbox, clear_inbox, get_inbox_unread,
+     get_entry_properties, set_entry_properties].
 
 invalid_field_value(Field, Value) ->
     <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.

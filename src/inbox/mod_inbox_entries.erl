@@ -2,8 +2,7 @@
 
 -include("mongoose_ns.hrl").
 -include("jlib.hrl").
-
--import(mod_inbox_rdbms, [esc_string/1, esc_int/1]).
+-include("mod_inbox.hrl").
 
 % Inbox extensions
 -export([process_iq_conversation/4]).
@@ -73,48 +72,22 @@ process_iq_conversation_set(
     {mongoose_acc:t(), jlib:iq()}.
 extract_requests(Acc, IQ, From, EntryJID, Requests0) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
-    case form_to_query(CurrentTS, Requests0, []) of
+    case form_to_query(CurrentTS, Requests0, #{}) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
-        Requests ->
-            process_requests(Acc, IQ, From, EntryJID, CurrentTS, Requests)
+        Params ->
+            process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params)
     end.
 
--spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), iolist()) ->
+-spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_requests(Acc, IQ, From, EntryJID, CurrentTS, Requests) ->
-    {LUser, LServer} = jid:to_lus(From),
+process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
     BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    Query = build_sql_query(LUser, LServer, BinEntryJID, Requests),
-    case execute_requests(LServer, Query) of
+    case mod_inbox_backend:set_entry_properties(From, BinEntryJID, Params) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
             forward_request(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
-    end.
-
--spec build_sql_query(jid:luser(), jid:lserver(), binary(), iolist()) -> iolist().
-build_sql_query(LUser, LServer, BinEntryJID, Requests) ->
-    ["UPDATE inbox ",
-     "SET ", Requests,
-     " WHERE "
-         "luser=", esc_string(LUser), " AND "
-         "lserver=", esc_string(LServer), " AND "
-         "remote_bare_jid=", esc_string(BinEntryJID),
-     "RETURNING archive, unread_count, muted_until;"].
-
--spec execute_requests(jid:lserver(), iolist()) ->
-    {_,_,_} | {error, binary()}.
-execute_requests(LServer, Query) ->
-    case mongoose_rdbms:sql_query(LServer, Query) of
-        {error, Msg} ->
-            {error, Msg};
-        {updated, 0, []} ->
-            {error, <<"item-not-found">>};
-        {updated, 1, [Result]} ->
-            Result;
-        {selected, [Selected]} ->
-            Selected
     end.
 
 -spec forward_request(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), {_,_,_}, integer()) ->
@@ -172,33 +145,33 @@ read_or_not(_) -> <<"false">>.
 return_error(Acc, IQ, Msg) when is_binary(Msg) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}}.
 
--spec form_to_query(integer(), [exml:element()], iolist()) -> iolist() | {error, binary()}.
-form_to_query(_, [], []) ->
+-spec form_to_query(integer(), [exml:element()], map()) -> map() | {error, binary()}.
+form_to_query(_, [], Acc) when map_size(Acc) == 0 ->
     {error, <<"no-property">>};
 form_to_query(_, [], Acc) ->
-    lists:droplast(Acc);
+    Acc;
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["archive=true", "," | Acc]);
+    form_to_query(TS, Rest, Acc#{archive => true});
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["archive=false", "," | Acc]);
+    form_to_query(TS, Rest, Acc#{archive => false});
 form_to_query(TS, [#xmlel{name = <<"read">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["unread_count=0", "," | Acc]);
+    form_to_query(TS, Rest, Acc#{unread_count => 0});
 form_to_query(TS, [#xmlel{name = <<"read">>,
                           children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END", "," | Acc]);
+    form_to_query(TS, Rest, Acc#{unread_count => 1});
 form_to_query(TS, [#xmlel{name = <<"mute">>,
                           children = [#xmlcdata{content = Value}]} | Rest], Acc) ->
     case mod_inbox_utils:maybe_binary_to_positive_integer(Value) of
         {error, _} -> {error, <<"bad-request">>};
         0 ->
-            form_to_query(TS, Rest, ["muted_until=0", "," | Acc]);
+            form_to_query(TS, Rest, Acc#{muted_until => 0});
         N when N > 0 ->
             MutedUntilSec = erlang:convert_time_unit(TS, microsecond, second) + N,
             MutedUntilMicroSec = erlang:convert_time_unit(MutedUntilSec, second, microsecond),
-            form_to_query(TS, Rest, ["muted_until=", esc_int(MutedUntilMicroSec), "," | Acc])
+            form_to_query(TS, Rest, Acc#{muted_until => MutedUntilMicroSec})
     end;
 form_to_query(_, _, _) ->
     {error, <<"bad-request">>}.

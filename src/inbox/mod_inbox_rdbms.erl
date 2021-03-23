@@ -24,7 +24,8 @@
          clear_inbox/1,
          clear_inbox/2,
          get_inbox_unread/3,
-         get_entry_properties/2]).
+         get_entry_properties/2,
+         set_entry_properties/3]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -210,6 +211,49 @@ get_entry_properties(From, BinEntryJID) ->
             Selected
     end.
 
+-spec set_entry_properties(jid:jid(), binary(), entry_props_params()) ->
+    entry_properties() | {error, binary()}.
+set_entry_properties(From, BinEntryJID, Params) ->
+    {LUser, LServer} = jid:to_lus(From),
+    UnreadCount = sql_set_unread_count(maps:get(unread_count, Params, undefined)),
+    MutedUntil = sql_set_muted_until(maps:get(muted_until, Params, undefined)),
+    Archive = sql_set_archive(maps:get(archive, Params, undefined)),
+    Query = ["UPDATE inbox ",
+             "SET ", UnreadCount, MutedUntil, Archive,
+             " WHERE "
+                 "luser=", esc_string(LUser), " AND "
+                 "lserver=", esc_string(LServer), " AND "
+                 "remote_bare_jid=", esc_string(BinEntryJID),
+             "RETURNING archive, unread_count, muted_until;"],
+    case mongoose_rdbms:sql_query(LServer, Query) of
+        {error, Msg} ->
+            {error, Msg};
+        {updated, 0, []} ->
+            {error, <<"item-not-found">>};
+        {updated, 1, [Result]} ->
+            Result
+    end.
+
+sql_set_archive(undefined) ->
+    ["archive=archive"];
+sql_set_archive(true) ->
+    ["archive=true"];
+sql_set_archive(false) ->
+    ["archive=false"].
+
+sql_set_unread_count(undefined) ->
+    [];
+sql_set_unread_count(0) ->
+    ["unread_count=0,"];
+sql_set_unread_count(1) ->
+    ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END,"].
+
+sql_set_muted_until(undefined) ->
+    [];
+sql_set_muted_until(0) ->
+    ["muted_until=0,"];
+sql_set_muted_until(Int) ->
+    ["muted_until=", esc_int(Int), ","].
 
 -spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
 esc_string(String) ->
@@ -276,7 +320,6 @@ decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) 
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => MaybeMutedUntil}.
-
 
 rdbms_specific_backend(Host) ->
     case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of

@@ -28,6 +28,10 @@
 -type entry_properties() :: #{unread_count := count_bin(),
                               archive := binary(),
                               muted_until := binary()}.
+-type entry_props_params() :: #{archive => boolean(),
+                                read => boolean(),
+                                muted_until => integer()}.
+
 
 -type inbox_write_res() :: ok | {error, any()}.
 
