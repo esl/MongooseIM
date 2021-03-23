@@ -7,7 +7,7 @@
 
 -define(GROUP, service_domain_db_group).
 
--export([start/1, stop/0, config_spec/0]).
+-export([start/1, stop/0, reset/0, config_spec/0]).
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
@@ -35,6 +35,9 @@ stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
+
+reset() ->
+    gen_server:cast(?MODULE, reset).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -78,11 +81,9 @@ sync_local() ->
 init([]) ->
     pg2:create(?GROUP),
     pg2:join(?GROUP, self()),
-    LastEventId = initial_load(mongoose_domain_core:get_last_event_id()),
-    ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
-    State = #{last_event_id => LastEventId,
-              check_for_updates_interval => 30000},
-    {ok, handle_check_for_updates(State)}.
+    gen_server:cast(self(),initial_loading),
+    %% initial state will be set on initial_loading processing
+    {ok, #{}}.
 
 handle_call(ping, _From, State) ->
     {reply, pong, State};
@@ -90,6 +91,16 @@ handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
+handle_cast(initial_loading, State) ->
+    LastEventId = initial_load(mongoose_domain_core:get_last_event_id()),
+    ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
+    NewState = State#{last_event_id => LastEventId,
+                      check_for_updates_interval => 30000},
+    {noreply, handle_check_for_updates(NewState)};
+handle_cast(reset, State) ->
+    %% just shut it down, supervisor will restart it
+    mongoose_domain_core:set_last_event_id(undefined),
+    {stop, shutdown, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.

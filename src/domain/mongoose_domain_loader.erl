@@ -15,7 +15,7 @@ load_data_from_base(FromId, PageSize) ->
                               from_id => FromId,
                               class => Class, reason => Reason,
                               stacktrace => Stacktrace}),
-              mongoose_domain_utils:halt_node(Text)
+              service_domain_db:reset()
     end.
 
 load_data_from_base_loop(FromId, PageSize) ->
@@ -66,11 +66,12 @@ check_if_id_is_still_relevant(FromId, Rows) ->
             %% Looks like this node has no DB connection for a long time.
             %% But the event log in the DB has been truncated by some other node
             %% meanwhile. We have to load the whole set of data from DB.
-            Text = <<"DB domain log had some updates to domains deleted, "
+            Text = <<"DB domain log had some updates to domains deleted,"
                      " which we have not applied yet. Have to crash.">>,
             ?LOG_CRITICAL(#{what => events_log_out_of_sync,
                             text => Text, min_db => MinId, from_id => FromId}),
-            mongoose_domain_utils:halt_node(Text)
+            service_domain_db:reset(),
+            []
     end.
 
 apply_changes(Rows) ->
@@ -83,14 +84,24 @@ apply_change({_Id, Domain, null}) ->
     %% - Or domain_settings.enabled equals false.
     mongoose_domain_core:delete(Domain);
 apply_change({_Id, Domain, HostType}) ->
-    %% Inserted or enabled record.
-    mongoose_domain_core:insert(Domain, HostType).
+    %% Inserted, reinserted (removed & inserted) or enabled record.
+    maybe_insert_to_core(Domain, HostType).
 
 insert_rows_to_core(Rows) ->
     lists:foreach(fun insert_row_to_core/1, Rows).
 
 insert_row_to_core({_Id, Domain, HostType}) ->
-    mongoose_domain_core:insert(Domain, HostType).
+    maybe_insert_to_core(Domain, HostType).
+
+maybe_insert_to_core(Domain, HostType) ->
+    case mongoose_domain_core:insert(Domain, HostType) of
+        {error, bad_insert} ->
+            %% we already have such dynamic domain paired with
+            %% another host type, enforce update of the domain.
+            mongoose_domain_core:delete(Domain),
+            mongoose_domain_core:insert(Domain, HostType);
+        _ -> ok %%ignore other errors
+    end.
 
 remove_domains(DomainsWithHostTypes) ->
     lists:foreach(fun remove_domain/1, DomainsWithHostTypes).

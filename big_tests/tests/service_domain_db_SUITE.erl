@@ -370,19 +370,20 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% Sync is working again
     service_enabled(mim2()),
     sync(),
-    %% A corner case: mim2 sees the change, but core ignores it
+    %% A corner case: domain name is reinserted with different host type
+    %% while service was down on mim2. check that mim2 is updated
     {ok, <<"dbgroup2">>} = get_host_type(mim(), <<"example.com">>),
-    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
-    %% But if we delete it, it would be deleted everywhere
-    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    {ok, <<"dbgroup2">>} = get_host_type(mim2(), <<"example.com">>),
+    %% check deleting
+    ok = delete_domain(mim2(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
 db_initial_load_crashes_node(_) ->
     service_enabled(mim()),
-    %% Called halt node function, but it's mocked
-    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    %% service is restarted
+    true = rpc(mim(), meck, num_calls, [service_domain_db, reset, 0]) > 0,
     ok.
 
 db_out_of_sync_crashes_node(_) ->
@@ -404,8 +405,8 @@ db_out_of_sync_crashes_node(_) ->
     MaxId = get_min_event_id(mim2()),
     sync(),
     %% Out of sync detected.
-    %% Called halt node function, but it's mocked
-    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    %% service is restarted
+    true = rpc(mim(), meck, num_calls, [service_domain_db, reset, 0]) > 0,
     ok.
 
 %%--------------------------------------------------------------------
@@ -413,7 +414,8 @@ db_out_of_sync_crashes_node(_) ->
 %%--------------------------------------------------------------------
 
 service_enabled(Node) ->
-    service_enabled(Node, []).
+    service_enabled(Node, []),
+    sync_local(Node).
 
 service_enabled(Node, Opts) ->
     rpc(Node, mongoose_service, start_service, [service_domain_db, Opts]),
@@ -498,11 +500,11 @@ ensure_nodes_know_each_other() ->
 setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
-    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, []]);
+    ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [service_domain_db, reset, 0, ok]);
 setup_meck(db_out_of_sync_crashes_node) ->
-    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, []]).
+    ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [service_domain_db, reset, 0, ok]).
 
 teardown_meck() ->
     rpc(mim(), meck, unload, []).
