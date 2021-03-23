@@ -158,7 +158,8 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(Host),
     ejabberd_hooks:delete(hooks(Host)),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
