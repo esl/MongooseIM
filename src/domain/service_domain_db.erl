@@ -81,7 +81,7 @@ sync_local() ->
 init([]) ->
     pg2:create(?GROUP),
     pg2:join(?GROUP, self()),
-    gen_server:cast(self(),initial_loading),
+    gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.
 
@@ -121,10 +121,10 @@ code_change(_OldVsn, State, _Extra) ->
 %% Server helpers
 
 initial_load(undefined) ->
-    LastEventId = mongoose_domain_sql:get_max_event_id(),
+    LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
     PageSize = 10000,
     mongoose_domain_loader:load_data_from_base(0, PageSize),
-    mongoose_domain_loader:remove_outdated_domains(),
+    mongoose_domain_loader:remove_outdated_domains_from_core(),
     mongoose_domain_core:set_last_event_id(LastEventId),
     LastEventId;
 initial_load(LastEventId) when is_integer(LastEventId) ->

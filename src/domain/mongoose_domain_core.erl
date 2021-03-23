@@ -171,7 +171,7 @@ insert_initial_pair(Tab, Domain, HostType) ->
 new_object(Domain, HostType, Source) ->
     {Domain, HostType, Source}.
 
-just_ok({ok,_}) -> ok;
+just_ok({ok, _}) -> ok;
 just_ok(Other) -> Other.
 
 insert_host_types(Tab, AllowedHostTypes) ->

@@ -48,4 +48,4 @@ core_get_domains_by_host_type(_) ->
     [<<"erlang-solutions.com">>, <<"erlang-solutions.local">>] =
     lists:sort(mongoose_domain_core:get_domains_by_host_type(<<"type2">>)),
     [<<"example.cfg">>] = mongoose_domain_core:get_domains_by_host_type(<<"type1">>),
-    [] = mongoose_domain_core:get_domains_by_host_type( <<"type6">>).
+    [] = mongoose_domain_core:get_domains_by_host_type(<<"type6">>).

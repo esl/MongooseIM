@@ -318,7 +318,7 @@ db_events_table_gets_truncated(_) ->
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
-    Max = get_max_event_id(mim()),
+    Max = get_max_event_id_or_set_dummy(mim()),
     true = is_integer(Max),
     true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
@@ -396,7 +396,7 @@ db_out_of_sync_crashes_node(_) ->
     ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
     sync_local(mim2()),
     %% Truncate events table, keep only one event
-    MaxId = get_max_event_id(mim2()),
+    MaxId = get_max_event_id_or_set_dummy(mim2()),
     {updated, _} = delete_events_older_than(mim2(), MaxId),
     {error, not_found} = get_host_type(mim(), <<"example3.com">>),
     %% Resume processing events on one node
@@ -453,8 +453,8 @@ prepare_test_queries(Node) ->
 get_min_event_id(Node) ->
     rpc(Node, mongoose_domain_sql, get_min_event_id, []).
 
-get_max_event_id(Node) ->
-    rpc(Node, mongoose_domain_sql, get_max_event_id, []).
+get_max_event_id_or_set_dummy(Node) ->
+    rpc(Node, mongoose_domain_sql, get_max_event_id_or_set_dummy, []).
 
 delete_events_older_than(Node, Id) ->
     rpc(Node, mongoose_domain_sql, delete_events_older_than, [Id]).

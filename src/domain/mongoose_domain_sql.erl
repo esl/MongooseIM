@@ -8,7 +8,7 @@
          enable_domain/1]).
 
 -export([select_domain/1,
-         get_max_event_id/0,
+         get_max_event_id_or_set_dummy/0,
          select_from/2,
          select_updates_from/2,
          delete_events_older_than/1]).
@@ -147,7 +147,7 @@ select_updates_from(FromId, Limit) ->
         {selected, []} ->
             %% get MaxID, this inserts the dummy record
             %% in the events table if required.
-            MaxId = get_max_event_id(),
+            MaxId = get_max_event_id_or_set_dummy(),
             if
                 MaxId > FromId ->
                     select_updates_from(FromId, Limit);
@@ -162,20 +162,20 @@ select_updates_from(FromId, Limit) ->
         {selected, Rows} -> Rows
     end.
 
-get_max_event_id() ->
+get_max_event_id_or_set_dummy() ->
     Pool = get_db_pool(),
     case execute_successfully(Pool, domain_events_max, []) of
         {selected, [{null}]} ->
             %% ensure that we have at least one record
             %% in the table, even if it's dummy one.
-            insert_domain_event(Pool,<<"dummy.test.domain">>),
-            get_max_event_id();
+            insert_domain_event(Pool, <<"dummy.test.domain">>),
+            get_max_event_id_or_set_dummy();
         NonNullSelection -> selected_to_int(NonNullSelection)
     end.
 
 delete_events_older_than(Id) ->
     transaction(fun(Pool) ->
-            MaxId = get_max_event_id(),
+            MaxId = get_max_event_id_or_set_dummy(),
             if
                 MaxId < Id ->
                     %% Removal would erase all the events, which we don't want.
