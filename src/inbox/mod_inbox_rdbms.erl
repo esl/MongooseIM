@@ -218,40 +218,60 @@ set_entry_properties(From, BinEntryJID, Params) ->
     UnreadCount = sql_set_unread_count(maps:get(unread_count, Params, undefined)),
     MutedUntil = sql_set_muted_until(maps:get(muted_until, Params, undefined)),
     Archive = sql_set_archive(maps:get(archive, Params, undefined)),
+    Returning = returning_properties(mongoose_rdbms:db_engine(LServer), From, BinEntryJID),
     Query = ["UPDATE inbox ",
-             "SET ", UnreadCount, MutedUntil, Archive,
+             "SET ", lists:droplast(lists:append([UnreadCount, MutedUntil, Archive])),
              " WHERE "
                  "luser=", esc_string(LUser), " AND "
                  "lserver=", esc_string(LServer), " AND "
                  "remote_bare_jid=", esc_string(BinEntryJID),
-             "RETURNING archive, unread_count, muted_until;"],
+             Returning],
     case mongoose_rdbms:sql_query(LServer, Query) of
+        {error, Msg} when is_list(Msg) ->
+            {error, list_to_binary(Msg)};
         {error, Msg} ->
             {error, Msg};
         {updated, 0, []} ->
             {error, <<"item-not-found">>};
         {updated, 1, [Result]} ->
+            Result;
+        {selected, []} ->
+            {error, <<"item-not-found">>};
+        {selected, [Result]} ->
             Result
     end.
 
+returning_properties(pgsql, _, _) ->
+    ["RETURNING archive, unread_count, muted_until;"];
+returning_properties(mysql, From, BinEntryJID) ->
+    {LUser, LServer} = jid:to_lus(From),
+    ["; SELECT archive, unread_count, muted_until"
+        " FROM inbox"
+        " WHERE "
+            "luser=", esc_string(LUser), " AND "
+            "lserver=", esc_string(LServer), " AND "
+            "remote_bare_jid=", esc_string(BinEntryJID), ";"];
+returning_properties(odbc, _, _) ->
+    ["OUTPUT inserted.archive, inserted.unread_count, inserted.muted_until;"].
+
 sql_set_archive(undefined) ->
-    ["archive=archive"];
+    [];
 sql_set_archive(true) ->
-    ["archive=true"];
+    ["archive=true", ","];
 sql_set_archive(false) ->
-    ["archive=false"].
+    ["archive=false", ","].
 
 sql_set_unread_count(undefined) ->
     [];
 sql_set_unread_count(0) ->
-    ["unread_count=0,"];
+    ["unread_count=0", ","];
 sql_set_unread_count(1) ->
-    ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END,"].
+    ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END", ","].
 
 sql_set_muted_until(undefined) ->
     [];
 sql_set_muted_until(0) ->
-    ["muted_until=0,"];
+    ["muted_until=0", ","];
 sql_set_muted_until(Int) ->
     ["muted_until=", esc_int(Int), ","].
 

@@ -138,6 +138,7 @@ kv_to_el(Key, Value) ->
 
 -spec read_or_not(binary()) -> binary().
 read_or_not(<<"0">>) -> <<"true">>;
+read_or_not(0) -> <<"true">>;
 read_or_not(_) -> <<"false">>.
 
 -spec return_error(mongoose_acc:t(), jlib:iq(), any()) ->
