@@ -24,8 +24,8 @@
          clear_inbox/1,
          clear_inbox/2,
          get_inbox_unread/3,
-         get_entry_properties/2,
-         set_entry_properties/3]).
+         get_entry_properties/3,
+         set_entry_properties/4]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -82,30 +82,29 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
                  LimitSQL, ";"],
     mongoose_rdbms:sql_query(LServer, Query).
 
-get_inbox_unread(Username, Server, InterlocutorJID) ->
-    RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
-    Res = mongoose_rdbms:sql_query(Server,
-                                   ["select unread_count from inbox "
-                                    "WHERE luser=", esc_string(Username),
-                                      "AND lserver=", esc_string(Server),
-                                      "AND remote_bare_jid=", esc_string(RemBareJIDBin),
-                                    ";"]),
+-spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
+get_inbox_unread(LUSername, LServer, RemBareJIDBin) ->
+    Query = ["SELECT unread_count FROM inbox "
+             "WHERE luser=", esc_string(LUSername),
+                 "AND lserver=", esc_string(LServer),
+                 "AND remote_bare_jid=", esc_string(RemBareJIDBin),
+             ";"],
+    Res = mongoose_rdbms:sql_query(LServer, Query),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
     %% so we have to add +1
     {ok, Val + 1}.
 
--spec set_inbox(Username, Server, ToBareJid, Content,
-                Count, MsgId, Timestamp) -> inbox_write_res() when
-                Username :: jid:luser(),
-                Server :: jid:lserver(),
-                ToBareJid :: binary(),
-                Content :: binary(),
-                Count :: integer(),
-                MsgId :: binary(),
-                Timestamp :: integer().
-set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
-    LUsername = jid:nodeprep(Username),
+-spec set_inbox(LUsername, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
+    inbox_write_res() when
+      LUsername :: jid:luser(),
+      Server :: jid:lserver(),
+      ToBareJid :: binary(),
+      Content :: binary(),
+      Count :: integer(),
+      MsgId :: binary(),
+      Timestamp :: integer().
+set_inbox(LUsername, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
     InsertParams = [LUsername, LServer, LToBareJid,
@@ -195,10 +194,9 @@ clear_inbox( Server) ->
     check_result(Res).
 
 
--spec get_entry_properties(jid:jid(), binary()) ->
+-spec get_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
     {binary(), binary(), binary()}.
-get_entry_properties(From, BinEntryJID) ->
-    {LUser, LServer} = jid:to_lus(From),
+get_entry_properties(LUser, LServer, BinEntryJID) ->
     Query = ["SELECT archive, unread_count, muted_until ",
              "FROM inbox "
              "WHERE luser = ", esc_string(LUser), " AND "
@@ -211,14 +209,13 @@ get_entry_properties(From, BinEntryJID) ->
             Selected
     end.
 
--spec set_entry_properties(jid:jid(), binary(), entry_props_params()) ->
+-spec set_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid(), entry_properties()) ->
     entry_properties() | {error, binary()}.
-set_entry_properties(From, BinEntryJID, Params) ->
-    {LUser, LServer} = jid:to_lus(From),
+set_entry_properties(LUser, LServer, BinEntryJID, Params) ->
     UnreadCount = sql_set_unread_count(maps:get(unread_count, Params, undefined)),
     MutedUntil = sql_set_muted_until(maps:get(muted_until, Params, undefined)),
     Archive = sql_set_archive(maps:get(archive, Params, undefined)),
-    Returning = returning_properties(mongoose_rdbms:db_engine(LServer), From, BinEntryJID),
+    Returning = returning_properties(mongoose_rdbms:db_engine(LServer), LUser, LServer, BinEntryJID),
     Query = ["UPDATE inbox ",
              "SET ", lists:droplast(lists:append([UnreadCount, MutedUntil, Archive])),
              " WHERE "
@@ -241,18 +238,17 @@ set_entry_properties(From, BinEntryJID, Params) ->
             Result
     end.
 
-returning_properties(pgsql, _, _) ->
-    ["RETURNING archive, unread_count, muted_until;"];
-returning_properties(mysql, From, BinEntryJID) ->
-    {LUser, LServer} = jid:to_lus(From),
+returning_properties(pgsql, _, _, _) ->
+    [" RETURNING archive, unread_count, muted_until;"];
+returning_properties(mysql, LUser, LServer, BinEntryJID) ->
     ["; SELECT archive, unread_count, muted_until"
         " FROM inbox"
         " WHERE "
             "luser=", esc_string(LUser), " AND "
             "lserver=", esc_string(LServer), " AND "
             "remote_bare_jid=", esc_string(BinEntryJID), ";"];
-returning_properties(odbc, _, _) ->
-    ["OUTPUT inserted.archive, inserted.unread_count, inserted.muted_until;"].
+returning_properties(odbc, _, _, _) ->
+    [" OUTPUT inserted.archive, inserted.unread_count, inserted.muted_until;"].
 
 sql_set_archive(undefined) ->
     [];
@@ -306,11 +302,11 @@ sql_and_where_timestamp(Operator, NumericTimestamp) ->
 
 -spec sql_and_where_unread_count(HiddenRead :: boolean()) -> iolist().
 sql_and_where_unread_count(true) ->
-    [" AND  unread_count ", " > ", <<"0">>];
+    [" AND unread_count > 0 "];
 sql_and_where_unread_count(_) ->
     [].
 
--spec sql_and_where_archive(boolean() | undefined) -> iolist().
+-spec sql_and_where_archive(ArchiveBox :: boolean() | undefined) -> iolist().
 sql_and_where_archive(true) ->
     [" AND archive = true "];
 sql_and_where_archive(false) ->

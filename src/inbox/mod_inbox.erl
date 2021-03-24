@@ -41,53 +41,59 @@
                     LServer :: jid:lserver(),
                     Params :: get_inbox_params().
 
--callback set_inbox(Username, Server, ToBareJid,
+-callback set_inbox(LUsername, LServer, ToBareJid,
                     Content, Count, MsgId, Timestamp) -> inbox_write_res() when
-                    Username :: jid:luser(),
-                    Server :: jid:lserver(),
+                    LUsername :: jid:luser(),
+                    LServer :: jid:lserver(),
                     ToBareJid :: binary(),
                     Content :: binary(),
                     Count :: integer(),
                     MsgId :: binary(),
                     Timestamp :: integer().
 
--callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
-                       Username :: jid:luser(),
-                       Server :: jid:lserver(),
+-callback remove_inbox(LUsername, LServer, ToBareJid) -> inbox_write_res() when
+                       LUsername :: jid:luser(),
+                       LServer :: jid:lserver(),
                        ToBareJid :: binary().
 
--callback set_inbox_incr_unread(Username, Server, ToBareJid,
+-callback set_inbox_incr_unread(LUsername, LServer, ToBareJid,
                                 Content, MsgId, Timestamp) -> {ok, integer()} | ok when
-                                Username :: jid:luser(),
-                                Server :: jid:lserver(),
+                                LUsername :: jid:luser(),
+                                LServer :: jid:lserver(),
                                 ToBareJid :: binary(),
                                 Content :: binary(),
                                 MsgId :: binary(),
                                 Timestamp :: integer().
 
--callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_write_res() when
-                       Username :: jid:luser(),
-                       Server :: jid:lserver(),
+-callback reset_unread(LUsername, LServer, BareJid, MsgId) -> inbox_write_res() when
+                       LUsername :: jid:luser(),
+                       LServer :: jid:lserver(),
                        BareJid :: binary(),
                        MsgId :: binary().
 
--callback clear_inbox(Server) -> inbox_write_res() when
-                      Server :: jid:lserver().
+-callback clear_inbox(LServer) -> inbox_write_res() when
+                      LServer :: jid:lserver().
 
--callback clear_inbox(Username, Server) -> inbox_write_res() when
-                      Username :: jid:luser(),
-                      Server :: jid:lserver().
+-callback clear_inbox(LUsername, LServer) -> inbox_write_res() when
+                      LUsername :: jid:luser(),
+                      LServer :: jid:lserver().
 
--callback get_inbox_unread(Username, Server, InterlocutorJID) -> {ok, integer()} when
-                      Username :: jid:luser(),
-                      Server :: jid:lserver(),
-                      InterlocutorJID :: jid:jid().
+-callback get_inbox_unread(LUsername, LServer, InterlocutorJID) -> {ok, integer()} when
+                      LUsername :: jid:luser(),
+                      LServer :: jid:lserver(),
+                      InterlocutorJID :: jid:literal_jid().
 
--callback get_entry_properties(jid:jid(), binary()) ->
-    {binary(), binary(), binary()}.
+-callback get_entry_properties(LUsername, LServer, EntryJID) -> {binary(), binary(), binary()} when
+                      LUsername :: jid:luser(),
+                      LServer :: jid:lserver(),
+                      EntryJID :: jid:literal_jid().
 
--callback set_entry_properties(jid:jid(), binary(), entry_props_params()) ->
-    entry_properties() | {error, binary()}.
+-callback set_entry_properties(LUsername, LServer, EntryJID, Params) -> Ret when
+                      LUsername :: jid:luser(),
+                      LServer :: jid:lserver(),
+                      EntryJID :: jid:literal_jid(),
+                      Params :: get_inbox_params(),
+                      Ret :: entry_properties() | {error, binary()}.
 
 -type get_inbox_params() :: #{
         start => integer(),

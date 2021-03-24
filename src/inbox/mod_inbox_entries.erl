@@ -44,8 +44,9 @@ build_inbox_entry_form() ->
 -spec get_properties_for_jid(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid()) ->
     {mongoose_acc:t(), jlib:iq()}.
 get_properties_for_jid(Acc, IQ, From, EntryJID) ->
+    {LUser, LServer} = jid:to_lus(From),
     BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    case mod_inbox_backend:get_entry_properties(From, BinEntryJID) of
+    case mod_inbox_backend:get_entry_properties(LUser, LServer, BinEntryJID) of
         [] -> return_error(Acc, IQ, <<"Entry not found">>);
         Result ->
             CurrentTS = mongoose_acc:timestamp(Acc),
@@ -82,8 +83,9 @@ extract_requests(Acc, IQ, From, EntryJID, Requests0) ->
 -spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
+    {LUser, LServer} = jid:to_lus(From),
     BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    case mod_inbox_backend:set_entry_properties(From, BinEntryJID, Params) of
+    case mod_inbox_backend:set_entry_properties(LUser, LServer, BinEntryJID, Params) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
