@@ -122,7 +122,7 @@ Provides for adding/removing and enabling/disabling domains over HTTP.
 
 Implemented by `mongoose_domain_handler` module.
 
-Confiugration example:
+Configuration example:
 
 ```toml
 [[listen.http]]
@@ -158,8 +158,7 @@ Example of the result body with a failure reason:
 {"what":"unknown host type"}
 ```
 
-Check `src/domain/mongoose_domain_handler.erl` file for the the exact values of `what` field
-if needed.
+Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
 
 
 ## Delete domain
@@ -174,11 +173,11 @@ curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
 
 Result codes:
 
-* 204 - the domain removed or not found.
+* 204 - the domain is removed or not found.
 * 403 - the domain is static.
-* 403 - the DB service disabled.
+* 403 - the DB service is disabled.
 * 403 - the host type is wrong (does not match the host type in the database).
-* 403 - the unknown host type.
+* 403 - the host type is unknown.
 * 500 - other errors.
 
 
