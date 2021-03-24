@@ -1,5 +1,5 @@
 %% REST API for domain actions.
--module(mongoose_domain_h).
+-module(mongoose_domain_handler).
 
 %% ejabberd_cowboy exports
 -export([cowboy_router_paths/2]).

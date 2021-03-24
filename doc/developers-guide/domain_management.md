@@ -120,7 +120,7 @@ The number of seconds after an event must be deleted from the `domain_events` ta
 
 Provides for adding/removing and enabling/disabling domains over HTTP.
 
-Implemented by `mongoose_domain_h` module.
+Implemented by `mongoose_domain_handler` module.
 
 Confiugration example:
 
@@ -131,7 +131,7 @@ Confiugration example:
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_domain_h]]
+  [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
 ```
@@ -158,7 +158,7 @@ Example of the result body with a failure reason:
 {"what":"unknown host type"}
 ```
 
-Check `src/domain/mongoose_domain_h.erl` file for the the exact values of `what` field
+Check `src/domain/mongoose_domain_handler.erl` file for the the exact values of `what` field
 if needed.
 
 

@@ -57,7 +57,7 @@
   [[listen.http.handlers.mongoose_api_admin]]
     host = "localhost"
     path = "/api"
-  [[listen.http.handlers.mongoose_domain_h]]
+  [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
 
