@@ -59,10 +59,16 @@ db_cases() -> [
      cli_can_enable_domain,
      cli_can_delete_domain,
      cli_cannot_delete_domain_without_correct_type,
+     cli_cannot_insert_domain_twice_with_the_another_host_type,
+     cli_cannot_enable_missing_domain,
+     cli_cannot_disable_missing_domain,
      rest_can_insert_domain,
      rest_can_disable_domain,
      rest_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
+     rest_cannot_insert_domain_twice_with_the_another_host_type,
+     rest_cannot_enable_missing_domain,
+     rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
      rest_can_select_domain
     ].
@@ -456,6 +462,20 @@ cli_cannot_delete_domain_without_correct_type(Config) ->
         ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
+cli_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {"Error: \"domain already exists\"\n", 1}} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
+
+cli_cannot_enable_missing_domain(Config) ->
+    {"Error: \"domain not found\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+
+cli_cannot_disable_missing_domain(Config) ->
+    {"Error: \"domain not found\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
         rest_put_domain(<<"example.db">>, <<"type1">>),
@@ -480,6 +500,21 @@ rest_cannot_delete_domain_without_correct_type(Config) ->
      {[{<<"what">>, <<"wrong host type">>}]}} =
         rest_delete_domain(<<"example.db">>, <<"type2">>),
     {ok, _} = select_domain(mim(), <<"example.db">>).
+
+rest_cannot_enable_missing_domain(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
+rest_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"409">>, <<"Conflict">>}, {[{<<"what">>, <<"duplicate">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type2">>).
+
+rest_cannot_disable_missing_domain(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_patch_enabled(<<"example.db">>, false).
 
 rest_can_enable_domain(Config) ->
     rest_put_domain(<<"example.db">>, <<"type1">>),
