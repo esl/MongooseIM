@@ -108,7 +108,6 @@
 %%--------------------------------------------------------------------
 %% gdpr callbacks
 %%--------------------------------------------------------------------
-
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["jid", "content", "unread_count", "timestamp"],
@@ -423,33 +422,20 @@ form_field_value(Value) ->
     #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
 %%%%%%%%%%%%%%%%%%%
-%% Helpers
-get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
-    Acc;
-get_inbox_unread(undefined, Acc, To) ->
-%% TODO this value should be bound to a stanza reference inside Acc
-    {User, Host} = jid:to_lus(To),
-    InterlocutorJID = mongoose_acc:from_jid(Acc),
-    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host, InterlocutorJID),
-    mongoose_acc:set(inbox, unread_count, Count, Acc).
-
-hooks(Host) ->
-    [
-     {remove_user, Host, ?MODULE, remove_user, 50},
-     {user_send_packet, Host, ?MODULE, user_send_packet, 70},
-     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
-     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
-    ].
-
-get_groupchat_types(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
-
-
--spec muclight_enabled(Host :: binary()) -> boolean().
-muclight_enabled(Host) ->
-    Groupchats = get_groupchat_types(Host),
-    lists:member(muclight, Groupchats).
+%% iq-set
+-spec query_to_params(QueryEl :: exml:element()) ->
+    get_inbox_params() | {error, bad_request, Msg :: binary()}.
+query_to_params(QueryEl) ->
+    case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
+        {error, bad_request, Msg} ->
+            {error, bad_request, Msg};
+        Params ->
+            case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
+                {error, Msg} -> {error, bad_request, Msg};
+                undefined -> Params;
+                Rsm -> Params#{limit => Rsm}
+            end
+    end.
 
 -spec maybe_rsm(exml:element() | undefined) ->
     undefined | non_neg_integer() | {error, binary()}.
@@ -468,20 +454,6 @@ maybe_rsm(_) ->
 
 wrong_rsm_message() ->
     <<"bad-request">>.
-
--spec query_to_params(QueryEl :: exml:element()) ->
-    get_inbox_params() | {error, bad_request, Msg :: binary()}.
-query_to_params(QueryEl) ->
-    case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
-        {error, bad_request, Msg} ->
-            {error, bad_request, Msg};
-        Params ->
-            case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
-                {error, Msg} -> {error, bad_request, Msg};
-                undefined -> Params;
-                Rsm -> Params#{limit => Rsm}
-            end
-    end.
 
 -spec form_to_params(FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
@@ -556,25 +528,42 @@ binary_to_order(<<"desc">>) -> desc;
 binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
 
--spec binary_to_bool(binary()) -> true | false | error.
-binary_to_bool(<<"true">>) -> true;
-binary_to_bool(<<"false">>) -> false;
-binary_to_bool(_) -> error.
+invalid_field_value(Field, Value) ->
+    <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.
+
+%%%%%%%%%%%%%%%%%%%
+%% Helpers
+get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
+    Acc;
+get_inbox_unread(undefined, Acc, To) ->
+%% TODO this value should be bound to a stanza reference inside Acc
+    {User, Host} = jid:to_lus(To),
+    InterlocutorJID = mongoose_acc:from_jid(Acc),
+    RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
+    {ok, Count} = mod_inbox_backend:get_inbox_unread(User, Host, RemBareJIDBin),
+    mongoose_acc:set(inbox, unread_count, Count, Acc).
+
+hooks(Host) ->
+    [
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {user_send_packet, Host, ?MODULE, user_send_packet, 70},
+     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+    ].
+
+get_groupchat_types(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
+
+config_metrics(Host) ->
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
     ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
     ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
     gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
-
--spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
-get_message_type(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"groupchat">> ->
-            groupchat;
-        _ ->
-            one2one
-    end.
 
 -spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
@@ -605,12 +594,22 @@ callback_funs() ->
      reset_unread, remove_inbox, clear_inbox, get_inbox_unread,
      get_entry_properties, set_entry_properties].
 
-invalid_field_value(Field, Value) ->
-    <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.
+-spec muclight_enabled(Host :: binary()) -> boolean().
+muclight_enabled(Host) ->
+    Groupchats = get_groupchat_types(Host),
+    lists:member(muclight, Groupchats).
+
+-spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
+get_message_type(Msg) ->
+    case exml_query:attr(Msg, <<"type">>, undefined) of
+        <<"groupchat">> ->
+            groupchat;
+        _ ->
+            one2one
+    end.
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
-
 -spec should_be_stored_in_inbox(Msg :: exml:element()) -> boolean().
 should_be_stored_in_inbox(Msg) ->
     not is_forwarded_message(Msg) andalso
@@ -644,6 +643,3 @@ is_offline_message(Msg) ->
         _ ->
             true
     end.
-config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

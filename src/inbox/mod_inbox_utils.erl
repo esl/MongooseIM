@@ -32,7 +32,6 @@
          get_option_remove_on_kicked/1,
          reset_marker_to_bin/1,
          extract_attr_jid/1,
-         get_inbox_unread/3,
          maybe_binary_to_positive_integer/1,
          maybe_muted_until/2,
          expand_bin_bool/1,
@@ -191,9 +190,6 @@ reset_marker_to_bin(displayed) -> <<"displayed">>;
 reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
 reset_marker_to_bin(received) -> <<"received">>;
 reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
-
-get_inbox_unread(User, Server, InterlocutorJID) ->
-    mod_inbox_backend:get_inbox_unread(User, Server, InterlocutorJID).
 
 extract_attr_jid(ResetStanza) ->
     case exml_query:attr(ResetStanza, <<"jid">>) of
