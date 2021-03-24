@@ -78,7 +78,7 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
                  "WHERE luser=", esc_string(LUser),
                  " AND lserver=", esc_string(LServer),
                  BeginSQL, EndSQL, HiddenSQL, Archive,
-                 " ORDER BY timestamp ", OrderSQL,
+                 " ORDER BY timestamp ", OrderSQL, " ",
                  LimitSQL, ";"],
     mongoose_rdbms:sql_query(LServer, Query).
 
@@ -292,7 +292,10 @@ order_to_sql(desc) -> <<"DESC">>.
 sql_and_where_limit(undefined) ->
     [];
 sql_and_where_limit(N) ->
-    [" LIMIT ", esc_int(N), " "].
+    case rdbms_queries:get_db_specific_limits(N) of
+        {SQL, ""} -> SQL;
+        {"", SQL} -> SQL
+    end.
 
 -spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
 sql_and_where_timestamp(_Operator, undefined) ->
