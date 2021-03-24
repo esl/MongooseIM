@@ -60,6 +60,7 @@ db_cases() -> [
      cli_can_delete_domain,
      cli_cannot_delete_domain_without_correct_type,
      cli_cannot_insert_domain_twice_with_the_another_host_type,
+     cli_cannot_insert_domain_with_unknown_host_type,
      cli_cannot_enable_missing_domain,
      cli_cannot_disable_missing_domain,
      rest_can_insert_domain,
@@ -67,6 +68,7 @@ db_cases() -> [
      rest_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
      rest_cannot_insert_domain_twice_with_the_another_host_type,
+     rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
@@ -465,8 +467,12 @@ cli_cannot_delete_domain_without_correct_type(Config) ->
 cli_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
     {"Added\n", 0} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"domain already exists\"\n", 1}} =
+    {"Error: \"domain already exists\"\n", 1} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
+
+cli_cannot_insert_domain_with_unknown_host_type(Config) ->
+    {"Error: \"unknown host type\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
 
 cli_cannot_enable_missing_domain(Config) ->
     {"Error: \"domain not found\"\n", 1} =
@@ -510,6 +516,10 @@ rest_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
     rest_put_domain(<<"example.db">>, <<"type1">>),
     {{<<"409">>, <<"Conflict">>}, {[{<<"what">>, <<"duplicate">>}]}} =
         rest_put_domain(<<"example.db">>, <<"type2">>).
+
+rest_cannot_insert_domain_with_unknown_host_type(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>,<<"unknown host type">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type6">>).
 
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
