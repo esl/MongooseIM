@@ -8,10 +8,6 @@
 
 -type count_bin() :: binary().
 
--type unread_bin() :: binary().
-
--type active_bin() :: binary().
-
 -type name_bin() :: binary().
 
 -type id() :: binary().
@@ -20,18 +16,14 @@
 
 -type inbox_res() :: #{remote_jid := binary(),
                        msg := content(),
-                       unread_count := count_bin(),
+                       unread_count := integer(),
                        timestamp := integer(),
-                       archive := binary(),
+                       archive := boolean(),
                        muted_until := binary()}.
 
--type entry_properties() :: #{unread_count := count_bin(),
-                              archive := binary(),
-                              muted_until := binary()}.
--type entry_props_params() :: #{archive => boolean(),
-                                read => boolean(),
-                                muted_until => integer()}.
-
+-type entry_properties() :: #{unread_count := integer(),
+                              archive := boolean(),
+                              muted_until := integer()}.
 
 -type inbox_write_res() :: ok | {error, any()}.
 

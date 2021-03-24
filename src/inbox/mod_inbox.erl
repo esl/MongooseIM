@@ -130,16 +130,15 @@ process_entry(#{remote_jid := RemJID,
     {RemJID, Content, UnreadCount, TS}.
 
 %%--------------------------------------------------------------------
-%% inbox callbacks
+%% gen_mod callbacks
 %%--------------------------------------------------------------------
-
 -spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
     groupchat_deps(Opts).
 
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-    FullOpts = case lists:keyfind(backend, 2, Opts) of
+    FullOpts = case lists:keyfind(backend, 1, Opts) of
                    false -> [{backend, rdbms} | Opts];
                    _ -> Opts
                end,
@@ -198,22 +197,31 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         Params ->
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
-            forward_messages(List, QueryId, From),
+            forward_messages(Acc, List, QueryId, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
 
--spec forward_messages(List :: list(inbox_res()),
+-spec forward_messages(Acc :: mongoose_acc:t(),
+                       List :: list(inbox_res()),
                        QueryId :: id(),
                        To :: jid:jid()) -> list(mongoose_acc:t()).
-forward_messages(List, QueryId, To) when is_list(List) ->
-    Msgs = [build_inbox_message(El, QueryId) || El <- List],
-    [send_message(To, Msg) || Msg <- Msgs].
+forward_messages(Acc, List, QueryId, To) when is_list(List) ->
+    AccTS = mongoose_acc:timestamp(Acc),
+    Msgs = [build_inbox_message(El, QueryId, AccTS) || El <- List],
+    [send_message(Acc, To, Msg) || Msg <- Msgs].
 
--spec send_message(To :: jid:jid(), Msg :: exml:element()) -> mongoose_acc:t().
-send_message(To, Msg) ->
+-spec send_message(mongoose_acc:t(), jid:jid(), exml:element()) -> mongoose_acc:t().
+send_message(Acc, To, Msg) ->
     BareTo = jid:to_bare(To),
-    ejabberd_sm:route(BareTo, To, Msg).
+    NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                 lserver => To#jid.lserver,
+                                 element => Msg,
+                                 from_jid => BareTo,
+                                 to_jid => To}),
+    PermanentFields = mongoose_acc:get_permanent_fields(Acc),
+    NewAcc = mongoose_acc:set_permanent(PermanentFields, NewAcc0),
+    ejabberd_sm:route(BareTo, To, NewAcc).
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
@@ -221,7 +229,7 @@ send_message(To, Msg) ->
                        To :: jid:jid(),
                        Packet :: exml:element()) -> map().
 user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
-    Host = From#jid.server,
+    Host = From#jid.lserver,
     maybe_process_message(Host, From, To, Msg, outgoing),
     Acc;
 user_send_packet(Acc, _From, _To, _Packet) ->
@@ -240,7 +248,7 @@ inbox_unread_count(Acc, To) ->
 filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
-    Host = To#jid.server,
+    Host = To#jid.lserver,
     %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
@@ -315,29 +323,28 @@ process_message(Host, From, To, Message, Dir, Type) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
-
--spec build_inbox_message(inbox_res(), id()) -> exml:element().
+-spec build_inbox_message(inbox_res(), id(), integer()) -> exml:element().
 build_inbox_message(#{msg := Content,
                       unread_count := Count,
                       timestamp := Timestamp,
                       archive := Archive,
-                      muted_until := MutedUntil}, QueryId) ->
+                      muted_until := MutedUntil}, QueryId, AccTS) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
-        children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil)]}.
+        children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS)]}.
 
--spec build_result_el(content(), id(), count_bin(), integer(), binary(), binary()) -> exml:element().
-build_result_el(Msg, QueryId, BinUnread, Timestamp, Archive, MutedUntil) ->
+-spec build_result_el(content(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
+build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
     Forwarded = build_forward_el(Msg, Timestamp),
+    Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
-           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++ QueryAttr,
-           children = [Forwarded | mod_inbox_entries:extensions_result(Archive, MutedUntil)]}.
+           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
+                    {<<"unread">>, integer_to_binary(Count)} | QueryAttr],
+           children = [Forwarded | Properties]}.
 
 -spec build_result_iq(get_inbox_res()) -> exml:element().
 build_result_iq(List) ->
-    AllUnread = lists:filter(fun(E) -> E =/= 0 end,
-                             [extract_unread_count(E) || E <- List]),
-
+    AllUnread = [ N || #{unread_count := N} <- List, N =/= 0],
     Result = #{<<"count">> => length(List),
                <<"unread-messages">> => lists:sum(AllUnread),
                <<"active-conversations">> => length(AllUnread)},
@@ -362,6 +369,8 @@ build_delay_el(Timestamp) ->
     TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, undefined, undefined).
 
+%%%%%%%%%%%%%%%%%%%
+%% iq-get
 -spec build_inbox_form() -> exml:element().
 build_inbox_form() ->
     OrderOptions = [
@@ -516,7 +525,7 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
     end;
 
 fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
-    case binary_to_bool(HiddenRead) of
+    case mod_inbox_utils:binary_to_bool(HiddenRead) of
         error ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            field => hidden_read, value => HiddenRead}),
@@ -526,7 +535,7 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
     end;
 
 fields_to_params([{<<"archive">>, [Value]} | RFields], Acc) ->
-    case binary_to_bool(Value) of
+    case mod_inbox_utils:binary_to_bool(Value) of
         error ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            field => archive, value => Value}),
@@ -635,10 +644,6 @@ is_offline_message(Msg) ->
         _ ->
             true
     end.
-
-extract_unread_count(#{unread_count := Count}) ->
-    binary_to_integer(Count).
-
 config_metrics(Host) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).

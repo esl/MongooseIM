@@ -7,7 +7,7 @@
 % Inbox extensions
 -export([process_iq_conversation/4]).
 -export([should_be_stored_in_inbox/1]).
--export([extensions_result/2]).
+-export([extensions_result/3]).
 
 -spec process_iq_conversation(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
@@ -190,7 +190,9 @@ is_inbox_update(Msg) ->
         _ -> true
     end.
 
--spec extensions_result(binary(), binary()) -> [exml:element()].
-extensions_result(Archive, MutedUntil) ->
-    [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = Archive}]},
-     #xmlel{name = <<"mute">>, children = [#xmlcdata{content = MutedUntil}]}].
+-spec extensions_result(boolean(), integer(), integer()) -> [exml:element()].
+extensions_result(Archive, MutedUntil, AccTS) ->
+    [#xmlel{name = <<"archive">>,
+            children = [#xmlcdata{content = mod_inbox_utils:bool_to_binary(Archive)}]},
+     #xmlel{name = <<"mute">>,
+            children = [#xmlcdata{content = mod_inbox_utils:maybe_muted_until(MutedUntil, AccTS)}]}].

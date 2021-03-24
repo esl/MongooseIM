@@ -329,16 +329,16 @@ clear_inbox_rdbms(Server) ->
 -spec decode_row(host(), db_return()) -> inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
     Data = mongoose_rdbms:unescape_binary(LServer, Content),
-    BCount = count_to_bin(Count),
+    BCount = mongoose_rdbms:result_to_integer(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
-    BoolArchive = mod_inbox_utils:expand_bin_bool(Archive),
-    MaybeMutedUntil = mod_inbox_utils:maybe_muted_until(mongoose_rdbms:result_to_integer(MutedUntil)),
+    BoolArchive = mongoose_rdbms:to_bool(Archive),
+    NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
     #{remote_jid => Username,
       msg => Data,
       unread_count => BCount,
       timestamp => NumericTimestamp,
       archive => BoolArchive,
-      muted_until => MaybeMutedUntil}.
+      muted_until => NumericMutedUntil}.
 
 rdbms_specific_backend(Host) ->
     case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
@@ -347,9 +347,6 @@ rdbms_specific_backend(Host) ->
         {odbc, mssql} -> mod_inbox_rdbms_mssql;
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
-
-count_to_bin(Count) when is_integer(Count) -> integer_to_binary(Count);
-count_to_bin(Count) when is_binary(Count) -> Count.
 
 check_result({updated, Val}, ValList) when is_list(ValList) ->
     case lists:member(Val, ValList) of

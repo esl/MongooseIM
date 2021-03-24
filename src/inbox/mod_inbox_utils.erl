@@ -34,9 +34,10 @@
          extract_attr_jid/1,
          get_inbox_unread/3,
          maybe_binary_to_positive_integer/1,
-         maybe_muted_until/1,
          maybe_muted_until/2,
-         expand_bin_bool/1
+         expand_bin_bool/1,
+         binary_to_bool/1,
+         bool_to_binary/1
         ]).
 
 -spec maybe_reset_unread_count(Server :: host(),
@@ -217,11 +218,6 @@ maybe_binary_to_positive_integer(Bin) ->
     catch error:badarg -> {error, 'NaN'}
     end.
 
--spec maybe_muted_until(integer()) -> binary().
-maybe_muted_until(Val) ->
-    CurrentTS = os:system_time(microsecond),
-    maybe_muted_until(Val, CurrentTS).
-
 -spec maybe_muted_until(integer(), integer()) -> binary().
 maybe_muted_until(0, _) -> <<"0">>;
 maybe_muted_until(MutedUntil, CurrentTS) ->
@@ -235,3 +231,13 @@ expand_bin_bool(1) -> <<"true">>;
 expand_bin_bool(0) -> <<"false">>;
 expand_bin_bool(<<"t">>) -> <<"true">>;
 expand_bin_bool(<<"f">>) -> <<"false">>.
+
+-spec binary_to_bool(binary()) -> true | false | error.
+binary_to_bool(<<"true">>) -> true;
+binary_to_bool(<<"false">>) -> false;
+binary_to_bool(_) -> error.
+
+-spec bool_to_binary(boolean()) -> binary() | error.
+bool_to_binary(true) -> <<"true">>;
+bool_to_binary(false) -> <<"false">>;
+bool_to_binary(_) -> error.
