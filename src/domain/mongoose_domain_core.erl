@@ -19,9 +19,6 @@
          get_all_outdated/0,
          get_domains_by_host_type/1]).
 
--export([set_last_event_id/1,
-         get_last_event_id/0]).
-
 -export([is_host_type_allowed/1]).
 
 %% For testing
@@ -107,12 +104,6 @@ insert(Domain, HostType) ->
 delete(Domain) ->
     gen_server:call(?MODULE, {delete, Domain}).
 
-set_last_event_id(LastEventId) ->
-    gen_server:call(?MODULE, {set_last_event_id, LastEventId}).
-
-get_last_event_id() ->
-    gen_server:call(?MODULE, get_last_event_id).
-
 get_start_args() ->
     gen_server:call(?MODULE, get_start_args).
 
@@ -123,8 +114,7 @@ init([Pairs, AllowedHostTypes]) ->
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
-    {ok, #{last_event_id => undefined,
-           initial_pairs => Pairs,
+    {ok, #{initial_pairs => Pairs,
            initial_host_types => AllowedHostTypes}}.
 
 handle_call({delete, Domain}, _From, State) ->
@@ -133,11 +123,6 @@ handle_call({delete, Domain}, _From, State) ->
 handle_call({insert, Domain, HostType, Source}, _From, State) ->
     Result = handle_insert(Domain, HostType, Source),
     {reply, Result, State};
-handle_call({set_last_event_id, LastEventId}, _From, State) ->
-    {reply, ok, State#{last_event_id => LastEventId}};
-handle_call(get_last_event_id, _From, State) ->
-    LastEventId = maps:get(last_event_id, State),
-    {reply, LastEventId, State};
 handle_call(get_start_args, _From, State = #{initial_pairs := Pairs,
                                              initial_host_types := AllowedHostTypes}) ->
     {reply, [Pairs, AllowedHostTypes], State};

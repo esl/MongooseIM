@@ -15,7 +15,7 @@ load_data_from_base(FromId, PageSize) ->
                               from_id => FromId,
                               class => Class, reason => Reason,
                               stacktrace => Stacktrace}),
-              service_domain_db:reset()
+              service_domain_db:restart()
     end.
 
 load_data_from_base_loop(FromId, PageSize) ->
@@ -70,7 +70,7 @@ check_if_id_is_still_relevant(FromId, Rows) ->
                      " which we have not applied yet. Have to crash.">>,
             ?LOG_CRITICAL(#{what => events_log_out_of_sync,
                             text => Text, min_db => MinId, from_id => FromId}),
-            service_domain_db:reset(),
+            service_domain_db:restart(),
             []
     end.
 

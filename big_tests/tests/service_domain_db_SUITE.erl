@@ -383,7 +383,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
 db_initial_load_crashes_node(_) ->
     service_enabled(mim()),
     %% service is restarted
-    true = rpc(mim(), meck, num_calls, [service_domain_db, reset, 0]) > 0,
+    true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
     ok.
 
 db_out_of_sync_crashes_node(_) ->
@@ -406,7 +406,7 @@ db_out_of_sync_crashes_node(_) ->
     sync(),
     %% Out of sync detected.
     %% service is restarted
-    true = rpc(mim(), meck, num_calls, [service_domain_db, reset, 0]) > 0,
+    true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
     ok.
 
 %%--------------------------------------------------------------------
@@ -427,7 +427,9 @@ service_disabled(Node) ->
 
 init_with(Node, Pairs, AllowedHostTypes) ->
     rpc(Node, mongoose_domain_core, stop, []),
-    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
+    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]),
+    %% call restart to reset last event id
+    rpc(Node, service_domain_db, restart, []).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -501,10 +503,10 @@ setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
     ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [service_domain_db, reset, 0, ok]);
+    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]);
 setup_meck(db_out_of_sync_crashes_node) ->
     ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [service_domain_db, reset, 0, ok]).
+    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]).
 
 teardown_meck() ->
     rpc(mim(), meck, unload, []).

@@ -6,8 +6,9 @@
 -include("mongoose_logger.hrl").
 
 -define(GROUP, service_domain_db_group).
+-define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
--export([start/1, stop/0, reset/0, config_spec/0]).
+-export([start/1, stop/0, restart/0, config_spec/0]).
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
@@ -36,8 +37,15 @@ stop() ->
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
 
-reset() ->
-    gen_server:cast(?MODULE, reset).
+restart() ->
+    %% if service goes out of sync. with DB this interface
+    %% can be used to restart the service. to ensure that
+    %% domains table is re-read from scratch we must also
+    %% reset the last event id.
+    %% it's enough to just shut down gen_server, supervisor
+    %% will restart it.
+    set_last_event_id(undefined),
+    gen_server:cast(?MODULE, shutdown).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -92,14 +100,12 @@ handle_call(Request, From, State) ->
     {reply, ok, State}.
 
 handle_cast(initial_loading, State) ->
-    LastEventId = initial_load(mongoose_domain_core:get_last_event_id()),
+    LastEventId = initial_load(get_last_event_id()),
     ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
     NewState = State#{last_event_id => LastEventId,
                       check_for_updates_interval => 30000},
     {noreply, handle_check_for_updates(NewState)};
-handle_cast(reset, State) ->
-    %% just shut it down, supervisor will restart it
-    mongoose_domain_core:set_last_event_id(undefined),
+handle_cast(shutdown, State) ->
     {stop, shutdown, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
@@ -125,7 +131,7 @@ initial_load(undefined) ->
     PageSize = 10000,
     mongoose_domain_loader:load_data_from_base(0, PageSize),
     mongoose_domain_loader:remove_outdated_domains_from_core(),
-    mongoose_domain_core:set_last_event_id(LastEventId),
+    set_last_event_id(LastEventId),
     LastEventId;
 initial_load(LastEventId) when is_integer(LastEventId) ->
     LastEventId. %% Skip initial init
@@ -151,4 +157,10 @@ receive_all_check_for_updates() ->
 maybe_set_last_event_id(LastEventId, LastEventId) ->
     ok;
 maybe_set_last_event_id(_LastEventId, LastEventId2) ->
-    mongoose_domain_core:set_last_event_id(LastEventId2).
+    set_last_event_id(LastEventId2).
+
+set_last_event_id(LastEventId) ->
+    persistent_term:put(?LAST_EVENT_ID_KEY, LastEventId).
+
+get_last_event_id() ->
+    persistent_term:get(?LAST_EVENT_ID_KEY, undefined).
