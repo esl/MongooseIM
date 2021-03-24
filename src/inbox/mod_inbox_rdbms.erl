@@ -195,7 +195,7 @@ clear_inbox( Server) ->
 
 
 -spec get_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
-    {binary(), binary(), binary()}.
+    entry_properties().
 get_entry_properties(LUser, LServer, BinEntryJID) ->
     Query = ["SELECT archive, unread_count, muted_until ",
              "FROM inbox "
@@ -206,7 +206,7 @@ get_entry_properties(LUser, LServer, BinEntryJID) ->
         {selected, []} ->
             [];
         {selected, [Selected]} ->
-            Selected
+            decode_entries(Selected)
     end.
 
 -spec set_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid(), entry_properties()) ->
@@ -231,12 +231,20 @@ set_entry_properties(LUser, LServer, BinEntryJID, Params) ->
         {updated, 0, []} ->
             {error, <<"item-not-found">>};
         {updated, 1, [Result]} ->
-            Result;
+            decode_entries(Result);
         {selected, []} ->
             {error, <<"item-not-found">>};
         {selected, [Result]} ->
-            Result
+            decode_entries(Result)
     end.
+
+decode_entries({BArchive, BCount, BMutedUntil}) ->
+    Archive = mongoose_rdbms:to_bool(BArchive),
+    Count = mongoose_rdbms:result_to_integer(BCount),
+    MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
+    #{archive => Archive,
+      unread_count => Count,
+      muted_until => MutedUntil}.
 
 returning_properties(pgsql, _, _, _) ->
     [" RETURNING archive, unread_count, muted_until;"];

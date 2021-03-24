@@ -92,7 +92,7 @@ process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
             forward_request(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
     end.
 
--spec forward_request(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), {_,_,_}, integer()) ->
+-spec forward_request(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), entry_properties(), integer()) ->
     {mongoose_acc:t(), jlib:iq()}.
 forward_request(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
     Properties = build_result(Result, CurrentTS),
@@ -125,23 +125,17 @@ process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec build_result({binary(), binary(), binary()}, integer()) -> [exml:element()].
-build_result({Archived, UnreadCount, MutedUntil}, CurrentTS) ->
-    NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
+-spec build_result(entry_properties(), integer()) -> [exml:element()].
+build_result(#{archive := Archived, unread_count := UnreadCount, muted_until := MutedUntil}, CurrentTS) ->
     [
-     kv_to_el(<<"archive">>, mod_inbox_utils:expand_bin_bool(Archived)),
-     kv_to_el(<<"read">>, read_or_not(UnreadCount)),
-     kv_to_el(<<"mute">>, mod_inbox_utils:maybe_muted_until(NumericMutedUntil, CurrentTS))
+     kv_to_el(<<"archive">>, mod_inbox_utils:bool_to_binary(Archived)),
+     kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
+     kv_to_el(<<"mute">>, mod_inbox_utils:maybe_muted_until(MutedUntil, CurrentTS))
     ].
 
 -spec kv_to_el(binary(), binary()) -> exml:element().
 kv_to_el(Key, Value) ->
     #xmlel{name = Key, children = [#xmlcdata{content = Value}]}.
-
--spec read_or_not(binary()) -> binary().
-read_or_not(<<"0">>) -> <<"true">>;
-read_or_not(0) -> <<"true">>;
-read_or_not(_) -> <<"false">>.
 
 -spec return_error(mongoose_acc:t(), jlib:iq(), any()) ->
     {mongoose_acc:t(), jlib:iq()}.

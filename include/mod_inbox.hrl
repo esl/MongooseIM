@@ -19,7 +19,7 @@
                        unread_count := integer(),
                        timestamp := integer(),
                        archive := boolean(),
-                       muted_until := binary()}.
+                       muted_until := integer()}.
 
 -type entry_properties() :: #{unread_count := integer(),
                               archive := boolean(),

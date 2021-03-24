@@ -83,16 +83,17 @@
                       LServer :: jid:lserver(),
                       InterlocutorJID :: jid:literal_jid().
 
--callback get_entry_properties(LUsername, LServer, EntryJID) -> {binary(), binary(), binary()} when
+-callback get_entry_properties(LUsername, LServer, EntryJID) -> Ret when
                       LUsername :: jid:luser(),
                       LServer :: jid:lserver(),
-                      EntryJID :: jid:literal_jid().
+                      EntryJID :: jid:literal_jid(),
+                      Ret :: entry_properties().
 
 -callback set_entry_properties(LUsername, LServer, EntryJID, Params) -> Ret when
                       LUsername :: jid:luser(),
                       LServer :: jid:lserver(),
                       EntryJID :: jid:literal_jid(),
-                      Params :: get_inbox_params(),
+                      Params :: entry_properties(),
                       Ret :: entry_properties() | {error, binary()}.
 
 -type get_inbox_params() :: #{

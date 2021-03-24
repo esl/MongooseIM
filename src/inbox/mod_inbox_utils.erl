@@ -34,7 +34,6 @@
          extract_attr_jid/1,
          maybe_binary_to_positive_integer/1,
          maybe_muted_until/2,
-         expand_bin_bool/1,
          binary_to_bool/1,
          bool_to_binary/1
         ]).
@@ -221,12 +220,6 @@ maybe_muted_until(MutedUntil, CurrentTS) ->
         true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
         false -> <<"0">>
     end.
-
--spec expand_bin_bool(binary()) -> binary().
-expand_bin_bool(1) -> <<"true">>;
-expand_bin_bool(0) -> <<"false">>;
-expand_bin_bool(<<"t">>) -> <<"true">>;
-expand_bin_bool(<<"f">>) -> <<"false">>.
 
 -spec binary_to_bool(binary()) -> true | false | error.
 binary_to_bool(<<"true">>) -> true;
