@@ -58,6 +58,7 @@ db_cases() -> [
      cli_can_disable_domain,
      cli_can_enable_domain,
      cli_can_delete_domain,
+     cli_cannot_delete_domain_without_correct_type,
      rest_can_insert_domain,
      rest_can_disable_domain,
      rest_can_delete_domain,
@@ -448,6 +449,13 @@ cli_can_delete_domain(Config) ->
     ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
     {error, not_found} = select_domain(mim(), <<"example.db">>).
 
+cli_cannot_delete_domain_without_correct_type(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {"Error: \"wrong host type\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
+    {ok, _} = select_domain(mim(), <<"example.db">>).
+
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
         rest_put_domain(<<"example.db">>, <<"type1">>),
@@ -468,8 +476,8 @@ rest_can_delete_domain(Config) ->
 
 rest_cannot_delete_domain_without_correct_type(Config) ->
     rest_put_domain(<<"example.db">>, <<"type1">>),
-    {{<<"403">>,<<"Forbidden">>},
-     {[{<<"what">>,<<"wrong host type">>}]}} =
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"wrong host type">>}]}} =
         rest_delete_domain(<<"example.db">>, <<"type2">>),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
