@@ -523,7 +523,7 @@ rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
         rest_put_domain(<<"example.db">>, <<"type2">>).
 
 rest_cannot_insert_domain_with_unknown_host_type(Config) ->
-    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>,<<"unknown host type">>}]}} =
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
         rest_put_domain(<<"example.db">>, <<"type6">>).
 
 rest_cannot_disable_missing_domain(Config) ->
