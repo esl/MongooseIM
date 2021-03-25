@@ -119,8 +119,8 @@ if_chat_marker_get_id(Packet, Markers) when is_list(Markers) ->
     case Filtered of
         [] ->
             undefined;
-        _ ->
-            lists:nth(1, Filtered)
+        [H | _] ->
+            H
     end;
 if_chat_marker_get_id(Packet, Marker) ->
     case exml_query:paths(Packet, [{element, Marker}, {attr, <<"id">>}]) of
@@ -157,8 +157,7 @@ maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) ->
         true ->
             ok;
         false ->
-            FromBin = jid:to_binary(User),
-            Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
+            Packet2 = mod_inbox_utils:fill_from_attr(Packet, User),
             WriteF(Host, User, Remote, Packet2, TS)
     end.
 
@@ -166,14 +165,16 @@ maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) ->
 get_msg_id(#xmlel{name = <<"message">>} = Msg) ->
     exml_query:attr(Msg, <<"id">>, <<>>).
 
--spec fill_from_attr(Msg :: exml:element(), FromBin :: binary()) ->exml:element().
-fill_from_attr(Msg = #xmlel{attrs = Attrs}, FromBin) ->
+-spec fill_from_attr(Msg :: exml:element(), From :: jid:jid()) -> exml:element().
+fill_from_attr(Msg = #xmlel{attrs = Attrs}, From) ->
     case exml_query:attr(Msg, <<"from">>, undefined) of
         undefined ->
+            FromBin = jid:to_binary(From),
             Msg#xmlel{attrs = [{<<"from">>, FromBin} | Attrs]};
         _ ->
             Msg
     end.
+
 -spec wrapper_id() -> id().
 wrapper_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
