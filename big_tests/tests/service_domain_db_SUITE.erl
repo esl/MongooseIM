@@ -67,6 +67,7 @@ db_cases() -> [
      rest_can_disable_domain,
      rest_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
+     rest_delete_missing_domain,
      rest_cannot_insert_domain_twice_with_the_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_enable_missing_domain,
@@ -506,6 +507,10 @@ rest_cannot_delete_domain_without_correct_type(Config) ->
      {[{<<"what">>, <<"wrong host type">>}]}} =
         rest_delete_domain(<<"example.db">>, <<"type2">>),
     {ok, _} = select_domain(mim(), <<"example.db">>).
+
+rest_delete_missing_domain(Config) ->
+    {{<<"204">>, _}, _} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
 
 rest_cannot_enable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
