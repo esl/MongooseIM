@@ -110,9 +110,9 @@ maybe_store_system_message(Host, Room, Remote, Packet) ->
 maybe_remove_inbox_row(_, _, _, false) ->
     ok;
 maybe_remove_inbox_row(Host, Room, Remote, true) ->
-    UserBin = (jid:to_bare(Remote))#jid.luser,
+    UserBin = Remote#jid.luser,
     RoomBin = jid:to_binary(Room),
-    ok = mod_inbox_backend:remove_inbox(UserBin, Host, RoomBin).
+    ok = mod_inbox_backend:remove_inbox_row(UserBin, Host, RoomBin).
 
 -spec write_to_inbox(Server :: host(),
                      RoomUser :: jid:jid(),

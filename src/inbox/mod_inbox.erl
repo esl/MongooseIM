@@ -28,7 +28,6 @@
          inbox_unread_count/2,
          remove_user/3
         ]).
--export([clear_inbox/2]).
 
 -export([config_metrics/1]).
 
@@ -51,10 +50,10 @@
                     MsgId :: binary(),
                     Timestamp :: integer().
 
--callback remove_inbox(LUsername, LServer, ToBareJid) -> inbox_write_res() when
-                       LUsername :: jid:luser(),
-                       LServer :: jid:lserver(),
-                       ToBareJid :: binary().
+-callback remove_inbox_row(LUsername, LServer, ToBareJid) -> inbox_write_res() when
+                           LUsername :: jid:luser(),
+                           LServer :: jid:lserver(),
+                           ToBareJid :: binary().
 
 -callback set_inbox_incr_unread(LUsername, LServer, ToBareJid,
                                 Content, MsgId, Timestamp) -> {ok, integer()} | ok when
@@ -265,9 +264,7 @@ filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
 remove_user(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    mod_inbox_backend:clear_inbox(LUser, LServer),
+    mod_inbox_utils:clear_inbox(User, Server),
     Acc.
 
 -spec maybe_process_message(Host :: host(),
@@ -566,10 +563,6 @@ store_bin_reset_markers(Host, Opts) ->
     ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
     gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
 
--spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
-clear_inbox(Username, Server) ->
-    mod_inbox_utils:clear_inbox(Username, Server).
-
 groupchat_deps(Opts) ->
     case lists:keyfind(groupchat, 1, Opts) of
         {groupchat, List} ->
@@ -592,7 +585,7 @@ muc_dep(List) ->
 
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
-     reset_unread, remove_inbox, clear_inbox, get_inbox_unread,
+     reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
      get_entry_properties, set_entry_properties].
 
 -spec muclight_enabled(Host :: binary()) -> boolean().

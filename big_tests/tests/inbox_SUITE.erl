@@ -324,8 +324,7 @@ end_per_testcase(no_stored_and_remain_after_kicked, Config) ->
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(no_stored_and_remain_after_kicked, Config);
 end_per_testcase(msg_sent_to_not_existing_user, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user@localhost">>,Host]),
+    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user">>,<<"localhost">>]),
     escalus:end_per_testcase(msg_sent_to_not_existing_user, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).

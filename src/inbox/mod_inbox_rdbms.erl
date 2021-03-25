@@ -20,7 +20,7 @@
          set_inbox/7,
          set_inbox_incr_unread/6,
          reset_unread/4,
-         remove_inbox/3,
+         remove_inbox_row/3,
          clear_inbox/1,
          clear_inbox/2,
          get_inbox_unread/3,
@@ -95,41 +95,38 @@ get_inbox_unread(LUSername, LServer, RemBareJIDBin) ->
     %% so we have to add +1
     {ok, Val + 1}.
 
--spec set_inbox(LUsername, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
+-spec set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
     inbox_write_res() when
       LUsername :: jid:luser(),
-      Server :: jid:lserver(),
-      ToBareJid :: binary(),
+      LServer :: jid:lserver(),
+      ToBareJid :: jid:literal_jid(),
       Content :: binary(),
       Count :: integer(),
       MsgId :: binary(),
       Timestamp :: integer().
-set_inbox(LUsername, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
-    LServer = jid:nameprep(Server),
+set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
     InsertParams = [LUsername, LServer, LToBareJid,
                     Content, Count, MsgId, Timestamp],
     UpdateParams = [Content, Count, MsgId, Timestamp],
     UniqueKeyValues  = [LUsername, LServer, LToBareJid],
-    Res = rdbms_queries:execute_upsert(Server, inbox_upsert,
+    Res = rdbms_queries:execute_upsert(LServer, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
     %% MySQL returns 1 when an upsert is an insert
     %% and 2, when an upsert acts as update
     ok = check_result(Res, [1, 2]).
 
--spec remove_inbox(User :: binary(),
-    Server :: binary(),
-    ToBareJid :: binary()) -> ok.
-remove_inbox(Username, Server, ToBareJid) ->
-    LUsername = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec remove_inbox_row(LUsername :: jid:luser(),
+                       LServer :: jid:lserver(),
+                       ToBareJid :: jid:literal_jid()) -> ok.
+remove_inbox_row(LUsername, LServer, ToBareJid) ->
     LToBareJid = jid:nameprep(ToBareJid),
     Res = remove_inbox_rdbms(LUsername, LServer, LToBareJid),
     check_result(Res).
 
 -spec remove_inbox_rdbms(Username :: jid:luser(),
                          Server :: jid:lserver(),
-                         ToBareJid :: binary()) -> mongoose_rdbms:query_result().
+                         ToBareJid :: jid:literal_jid()) -> mongoose_rdbms:query_result().
 remove_inbox_rdbms(Username, Server, ToBareJid) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
         esc_string(Username), " and lserver=", esc_string(Server),
@@ -138,37 +135,33 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
 
 %% This function was not refatorected to use the generic upsert helper
 %% becase this helper doesn't support parametrized queries for incremental change
--spec set_inbox_incr_unread(Username :: binary(),
-                            Server :: binary(),
-                            ToBareJid :: binary(),
+-spec set_inbox_incr_unread(LUsername :: jid:luser(),
+                            LServer :: jid:lserver(),
+                            ToBareJid :: jid:literal_jid(),
                             Content :: binary(),
                             MsgId :: binary(),
                             Timestamp :: integer()) -> ok | {ok, integer()}.
-set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
-    LUsername = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    BackendModule = rdbms_specific_backend(Server),
+    BackendModule = rdbms_specific_backend(LServer),
     Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
                                               Content, MsgId, Timestamp),
     %% psql will return {updated, {[UnreadCount]}}
     %% mssql and mysql will return {selected, {[Val]}}
     check_result(Res).
 
--spec reset_unread(User :: binary(),
-                   Server :: binary(),
-                   BareJid :: binary(),
+-spec reset_unread(LUsername :: jid:luser(),
+                   LServer :: jid:lserver(),
+                   BareJid :: jid:literal_jid(),
                    MsgId :: binary() | undefined) -> ok.
-reset_unread(Username, Server, ToBareJid, MsgId) ->
-    LUsername = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+reset_unread(LUsername, LServer, ToBareJid, MsgId) ->
     LToBareJid = jid:nameprep(ToBareJid),
     Res = reset_inbox_unread_rdbms(LUsername, LServer, LToBareJid, MsgId),
     check_result(Res).
 
 -spec reset_inbox_unread_rdbms(Username :: jid:luser(),
                                Server :: jid:lserver(),
-                               ToBareJid :: binary(),
+                               ToBareJid :: jid:literal_jid(),
                                MsgId :: binary() | undefined) -> mongoose_rdbms:query_result().
 reset_inbox_unread_rdbms(Username, Server, ToBareJid, undefined) ->
     mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=0",
@@ -180,16 +173,13 @@ reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
         esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
         esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
--spec clear_inbox(Username :: binary(), Server :: binary()) -> inbox_write_res().
-clear_inbox(Username, Server) ->
-    LUsername = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec clear_inbox(LUsername :: jid:luser(), LServer :: jid:lserver()) -> inbox_write_res().
+clear_inbox(LUsername, LServer) ->
     Res = clear_inbox_rdbms(LUsername, LServer),
     check_result(Res).
 
--spec clear_inbox(Server :: binary()) -> inbox_write_res().
-clear_inbox( Server) ->
-    LServer = jid:nameprep(Server),
+-spec clear_inbox(LServer :: jid:lserver()) -> inbox_write_res().
+clear_inbox(LServer) ->
     Res = clear_inbox_rdbms(LServer),
     check_result(Res).
 

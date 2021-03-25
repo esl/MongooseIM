@@ -220,8 +220,8 @@ clear_inbox_all() ->
     clear_inboxes([alice, bob, kate, mike], domain()).
 
 clear_inboxes(UserList, Host) ->
-    JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
-    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
+    Usernames = [escalus_users:get_username(escalus_users:get_users(UserList),U) || U <- UserList],
+    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [Username,Host]) || Username <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
     Host = domain(),

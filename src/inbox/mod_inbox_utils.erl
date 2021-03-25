@@ -95,8 +95,9 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
 
 -spec clear_inbox(User :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(User, Server) when is_binary(User) ->
-    JidForm = jid:from_binary(User),
-    ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    ok = mod_inbox_backend:clear_inbox(LUser, LServer).
 
 -spec clear_inbox(Server :: host()) -> inbox_write_res().
 clear_inbox(Server) ->
