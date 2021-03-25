@@ -18,9 +18,9 @@
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
 -export([maybe_reset_unread_count/4,
          reset_unread_count_to_zero/2,
-         maybe_write_to_inbox/5,
-         write_to_sender_inbox/4,
-         write_to_receiver_inbox/4,
+         maybe_write_to_inbox/6,
+         write_to_sender_inbox/5,
+         write_to_receiver_inbox/5,
          clear_inbox/1,
          clear_inbox/2,
          get_reset_markers/1,
@@ -68,28 +68,28 @@ reset_unread_count(User, Remote, MsgId) ->
 -spec write_to_sender_inbox(Server :: host(),
                             Sender :: jid:jid(),
                             Receiver :: jid:jid(),
-                            Packet :: exml:element()) -> ok.
-write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
+                            Packet :: exml:element(),
+                            Timestamp :: integer()) -> ok.
+write_to_sender_inbox(Server, Sender, Receiver, Packet, Timestamp) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
     Username = Sender#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
-    Timestamp = erlang:system_time(microsecond),
     ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
                                      Content, Count, MsgId, Timestamp).
 
 -spec write_to_receiver_inbox(Server :: host(),
                               Sender :: jid:jid(),
                               Receiver :: jid:jid(),
-                              Packet :: exml:element()) -> ok | {ok, integer()}.
-write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
+                              Packet :: exml:element(),
+                              Timestamp :: integer()) -> ok | {ok, integer()}.
+write_to_receiver_inbox(Server, Sender, Receiver, Packet, Timestamp) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
     Username = Receiver#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
-    Timestamp = erlang:system_time(microsecond),
     mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
                                             Content, MsgId, Timestamp).
 
@@ -144,21 +144,22 @@ has_chat_marker(Packet, Markers) ->
             lists:member(Marker, Markers)
     end.
 
--spec maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) -> ok | {ok, integer()} when
+-spec maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) -> ok | {ok, integer()} when
       Host :: host(),
       User :: jid:jid(),
       Remote :: jid:jid(),
       Packet :: exml:element(),
-      %% WriteF is write_to_receiver_inbox/4 or write_to_sender_inbox/4
+      TS :: integer(),
+      %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
       WriteF :: fun().
-maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) ->
+maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) ->
     case mod_inbox_utils:has_chat_marker(Packet) of
         true ->
             ok;
         false ->
             FromBin = jid:to_binary(User),
             Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
-            WriteF(Host, User, Remote, Packet2)
+            WriteF(Host, User, Remote, Packet2, TS)
     end.
 
 -spec get_msg_id(Msg :: exml:element()) -> binary().

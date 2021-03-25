@@ -93,7 +93,8 @@ direction(From, To) ->
       Packet :: packet().
 handle_outgoing_message(Host, Room, To, Packet) ->
     maybe_reset_unread_count(Host, To, Room, Packet),
-    maybe_write_to_inbox(Host, To, Room, Packet, fun write_to_sender_inbox/4).
+    TS = erlang:system_time(microsecond),
+    maybe_write_to_inbox(Host, To, Room, Packet, TS, fun write_to_sender_inbox/5).
 
 -spec handle_incoming_message(Host, Room, To, Packet) -> term() when
       Host :: receiver_host(),
@@ -101,19 +102,20 @@ handle_outgoing_message(Host, Room, To, Packet) ->
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 handle_incoming_message(Host, Room, To, Packet) ->
-    maybe_write_to_inbox(Host, Room, To, Packet, fun write_to_receiver_inbox/4).
+    TS = erlang:system_time(microsecond),
+    maybe_write_to_inbox(Host, Room, To, Packet, TS, fun write_to_receiver_inbox/5).
 
 maybe_reset_unread_count(Host, User, Room, Packet) ->
     mod_inbox_utils:maybe_reset_unread_count(Host, User, Room, Packet).
 
-maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) ->
-    mod_inbox_utils:maybe_write_to_inbox(Host, User, Remote, Packet, WriteF).
+maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) ->
+    mod_inbox_utils:maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF).
 
-write_to_sender_inbox(Server, User, Remote, Packet) ->
-    mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, Packet).
+write_to_sender_inbox(Server, User, Remote, Packet, TS) ->
+    mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, Packet, TS).
 
-write_to_receiver_inbox(Server, User, Remote, Packet) ->
-    mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, Packet).
+write_to_receiver_inbox(Server, User, Remote, Packet, TS) ->
+    mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, Packet, TS).
 
 %% @doc Check, that the host is served by MongooseIM.
 %% A local host can be used to fire hooks or write into database on this node.
