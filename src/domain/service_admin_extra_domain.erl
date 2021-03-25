@@ -40,13 +40,13 @@ insert_domain(Domain, HostType) ->
     case mongoose_domain_api:insert_domain(SDomain, HostType) of
         ok -> {ok, "Added"};
         {error, duplicate} ->
-            {error, "domain already exists"};
+            {error, "Domain already exists"};
         {error, {db_error, _}} ->
-            {error, "database error"};
+            {error, "Database error"};
         {error, service_disabled} ->
-            {error, "service disabled"};
+            {error, "Service disabled"};
         {error, unknown_host_type} ->
-            {error, "unknown host type"}
+            {error, "Unknown host type"}
     end.
 
 delete_domain(Domain, HostType) ->
@@ -54,15 +54,15 @@ delete_domain(Domain, HostType) ->
     case mongoose_domain_api:delete_domain(SDomain, HostType) of
         ok -> {ok, "Deleted"};
         {error, {db_error, _}} ->
-            {error, "database error"};
+            {error, "Database error"};
         {error, static} ->
-            {error, "the domain is static"};
+            {error, "The domain is static"};
         {error, service_disabled} ->
-            {error, "service disabled"};
+            {error, "Service disabled"};
         {error, wrong_host_type} ->
-            {error, "wrong host type"};
+            {error, "Wrong host type"};
         {error, unknown_host_type} ->
-            {error, "unknown host type"}
+            {error, "Unknown host type"}
     end.
 
 enable_domain(Domain) ->
@@ -80,9 +80,9 @@ handle_enabled_result(Res, OkText) ->
         ok ->
             {ok, OkText};
         {error, not_found} ->
-            {error, "domain not found"};
+            {error, "Domain not found"};
         {error, static} ->
-            {error, "domain is static"};
+            {error, "Domain is static"};
         {error, service_disabled} ->
-            {false, "service disabled"}
+            {false, "Service disabled"}
     end.

@@ -461,26 +461,26 @@ cli_can_delete_domain(Config) ->
 cli_cannot_delete_domain_without_correct_type(Config) ->
     {"Added\n", 0} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"wrong host type\"\n", 1} =
+    {"Error: \"Wrong host type\"\n", 1} =
         ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
 cli_cannot_insert_domain_twice_with_another_host_type(Config) ->
     {"Added\n", 0} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"domain already exists\"\n", 1} =
+    {"Error: \"Domain already exists\"\n", 1} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
 
 cli_cannot_insert_domain_with_unknown_host_type(Config) ->
-    {"Error: \"unknown host type\"\n", 1} =
+    {"Error: \"Unknown host type\"\n", 1} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
 
 cli_cannot_enable_missing_domain(Config) ->
-    {"Error: \"domain not found\"\n", 1} =
+    {"Error: \"Domain not found\"\n", 1} =
         ejabberdctl("enable_domain", [<<"example.db">>], Config).
 
 cli_cannot_disable_missing_domain(Config) ->
-    {"Error: \"domain not found\"\n", 1} =
+    {"Error: \"Domain not found\"\n", 1} =
         ejabberdctl("disable_domain", [<<"example.db">>], Config).
 
 rest_can_insert_domain(Config) ->
