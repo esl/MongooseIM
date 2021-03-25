@@ -118,7 +118,7 @@ The number of seconds after an event must be deleted from the `domain_events` ta
 
 # REST API
 
-Provides for adding/removing and enabling/disabling domains over HTTP.
+Provides API for adding/removing and enabling/disabling domains over HTTP.
 
 Implemented by `mongoose_domain_handler` module.
 

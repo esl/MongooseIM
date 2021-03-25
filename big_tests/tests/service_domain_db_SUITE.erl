@@ -37,7 +37,7 @@ db_cases() -> [
      db_reanabled_domain_is_in_db,
      db_reanabled_domain_is_in_core,
      db_can_insert_domain_twice_with_the_same_host_type,
-     db_cannot_insert_domain_twice_with_the_another_host_type,
+     db_cannot_insert_domain_twice_with_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
      db_cannot_delete_domain_with_unknown_host_type,
      db_cannot_enable_domain_with_unknown_host_type,
@@ -59,7 +59,7 @@ db_cases() -> [
      cli_can_enable_domain,
      cli_can_delete_domain,
      cli_cannot_delete_domain_without_correct_type,
-     cli_cannot_insert_domain_twice_with_the_another_host_type,
+     cli_cannot_insert_domain_twice_with_another_host_type,
      cli_cannot_insert_domain_with_unknown_host_type,
      cli_cannot_enable_missing_domain,
      cli_cannot_disable_missing_domain,
@@ -68,7 +68,7 @@ db_cases() -> [
      rest_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
      rest_delete_missing_domain,
-     rest_cannot_insert_domain_twice_with_the_another_host_type,
+     rest_cannot_insert_domain_twice_with_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
@@ -273,7 +273,7 @@ db_can_insert_domain_twice_with_the_same_host_type(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>).
 
-db_cannot_insert_domain_twice_with_the_another_host_type(_) ->
+db_cannot_insert_domain_twice_with_another_host_type(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     {error, duplicate} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
 
@@ -465,7 +465,7 @@ cli_cannot_delete_domain_without_correct_type(Config) ->
         ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
-cli_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
+cli_cannot_insert_domain_twice_with_another_host_type(Config) ->
     {"Added\n", 0} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     {"Error: \"domain already exists\"\n", 1} =
@@ -517,7 +517,7 @@ rest_cannot_enable_missing_domain(Config) ->
      {[{<<"what">>, <<"domain not found">>}]}} =
         rest_patch_enabled(<<"example.db">>, true).
 
-rest_cannot_insert_domain_twice_with_the_another_host_type(Config) ->
+rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
     rest_put_domain(<<"example.db">>, <<"type1">>),
     {{<<"409">>, <<"Conflict">>}, {[{<<"what">>, <<"duplicate">>}]}} =
         rest_put_domain(<<"example.db">>, <<"type2">>).
