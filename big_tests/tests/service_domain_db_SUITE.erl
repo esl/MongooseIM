@@ -73,7 +73,16 @@ db_cases() -> [
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
-     rest_can_select_domain
+     rest_can_select_domain,
+     rest_cannot_put_domain_without_host_type,
+     rest_cannot_put_domain_without_body,
+     rest_cannot_put_domain_with_invalid_json,
+     rest_cannot_delete_domain_without_host_type,
+     rest_cannot_delete_domain_without_body,
+     rest_cannot_delete_domain_with_invalid_json,
+     rest_cannot_patch_domain_without_enabled_field,
+     rest_cannot_patch_domain_without_body,
+     rest_cannot_patch_domain_with_invalid_json
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -544,6 +553,51 @@ rest_can_select_domain(Config) ->
      {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
         rest_select_domain(<<"example.db">>).
 
+rest_cannot_put_domain_without_host_type(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_put_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_put_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+rest_cannot_delete_domain_without_host_type(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_delete_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_delete_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+rest_cannot_patch_domain_without_enabled_field(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'enabled' field is missing">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_patch_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_patch_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -664,3 +718,13 @@ rest_delete_domain(Domain, HostType) ->
     rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
                                 path => <<"/domains/", Domain/binary>>,
                                 body => Params }).
+
+delete_custom(Role, Path, Body) ->
+    rest_helper:make_request(#{ role => Role, method => <<"DELETE">>,
+                                path => Path,
+                                body => Body }).
+
+patch_custom(Role, Path, Body) ->
+    rest_helper:make_request(#{ role => Role, method => <<"PATCH">>,
+                                path => Path,
+                                body => Body }).

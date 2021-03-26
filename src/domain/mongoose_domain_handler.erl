@@ -46,15 +46,15 @@ handle_domain(Req, State) ->
     ExtDomain = cowboy_req:binding(domain, Req),
     Domain = jid:nameprep(ExtDomain),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    Params = jiffy:decode(Body, [return_maps]),
+    MaybeParams = json_decode(Body),
     case Method of
         <<"PUT">> ->
-            insert_domain(Domain, Params, Req2, State);
+            insert_domain(Domain, MaybeParams, Req2, State);
         <<"PATCH">> ->
-            patch_domain(Domain, Params, Req2, State)
+            patch_domain(Domain, MaybeParams, Req2, State)
     end.
 
-insert_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
+insert_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
     case mongoose_domain_api:insert_domain(Domain, HostType) of
         ok ->
             {true, Req, State};
@@ -66,14 +66,26 @@ insert_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
             {false, reply_error(403, <<"service disabled">>, Req), State};
         {error, unknown_host_type} ->
             {false, reply_error(403, <<"unknown host type">>, Req), State}
-    end.
+    end;
+insert_domain(_Domain, {ok, #{}}, Req, State) ->
+    {false, reply_error(400, <<"'host_type' field is missing">>, Req), State};
+insert_domain(_Domain, {error, empty}, Req, State) ->
+    {false, reply_error(400, <<"body is empty">>, Req), State};
+insert_domain(_Domain, {error, _}, Req, State) ->
+    {false, reply_error(400, <<"failed to parse JSON">>, Req), State}.
 
-patch_domain(Domain, #{<<"enabled">> := true}, Req, State) ->
+patch_domain(Domain, {ok, #{<<"enabled">> := true}}, Req, State) ->
     Res = mongoose_domain_api:enable_domain(Domain),
     handle_enabled_result(Res, Req, State);
-patch_domain(Domain, #{<<"enabled">> := false}, Req, State) ->
+patch_domain(Domain, {ok, #{<<"enabled">> := false}}, Req, State) ->
     Res = mongoose_domain_api:disable_domain(Domain),
-    handle_enabled_result(Res, Req, State).
+    handle_enabled_result(Res, Req, State);
+patch_domain(_Domain, {ok, #{}}, Req, State) ->
+    {false, reply_error(400, <<"'enabled' field is missing">>, Req), State};
+patch_domain(_Domain, {error, empty}, Req, State) ->
+    {false, reply_error(400, <<"body is empty">>, Req), State};
+patch_domain(_Domain, {error, _}, Req, State) ->
+    {false, reply_error(400, <<"failed to parse JSON">>, Req), State}.
 
 handle_enabled_result(Res, Req, State) ->
     case Res of
@@ -91,10 +103,10 @@ delete_resource(Req, State) ->
     ExtDomain = cowboy_req:binding(domain, Req),
     Domain = jid:nameprep(ExtDomain),
     {ok, Body, Req2} = cowboy_req:read_body(Req),
-    Props = jiffy:decode(Body, [return_maps]),
-    delete_domain(Domain, Props, Req2, State).
+    MaybeParams = json_decode(Body),
+    delete_domain(Domain, MaybeParams, Req2, State).
 
-delete_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
+delete_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
     case mongoose_domain_api:delete_domain(Domain, HostType) of
         ok ->
             {true, Req, State};
@@ -108,8 +120,24 @@ delete_domain(Domain, #{<<"host_type">> := HostType}, Req, State) ->
             {false, reply_error(403, <<"wrong host type">>, Req), State};
         {error, unknown_host_type} ->
             {false, reply_error(403, <<"unknown host type">>, Req), State}
-    end.
+    end;
+delete_domain(_Domain, {ok, #{}}, Req, State) ->
+    {false, reply_error(400, <<"'host_type' field is missing">>, Req), State};
+delete_domain(_Domain, {error, empty}, Req, State) ->
+    {false, reply_error(400, <<"body is empty">>, Req), State};
+delete_domain(_Domain, {error, _}, Req, State) ->
+    {false, reply_error(400, <<"failed to parse JSON">>, Req), State}.
 
 reply_error(Code, What, Req) ->
     Body = jiffy:encode(#{what => What}),
     cowboy_req:reply(Code, #{<<"content-type">> => <<"application/json">>}, Body, Req).
+
+json_decode(<<>>) ->
+    {error, empty};
+json_decode(Bin) ->
+    try
+        {ok, jiffy:decode(Bin, [return_maps])}
+    catch
+        Class:Reason ->
+            {error, {Class, Reason}}
+    end.
