@@ -143,6 +143,14 @@ select_from(FromId, Limit) ->
     Rows.
 
 select_updates_from(FromId, Limit) ->
+    select_updates_from(FromId, Limit, 2).
+
+select_updates_from(_FromId, _Limit, 0) ->
+    %% this should never happen, but just in case returning
+    %% an empty list here and trying to restart service
+    service_domain_db:restart(),
+    [];
+select_updates_from(FromId, Limit, NoOfRetries) ->
     Pool = get_db_pool(),
     Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
     case execute_successfully(Pool, domain_select_events_from, Args) of
@@ -152,7 +160,7 @@ select_updates_from(FromId, Limit) ->
             MaxId = get_max_event_id_or_set_dummy(),
             if
                 MaxId > FromId ->
-                    select_updates_from(FromId, Limit);
+                    select_updates_from(FromId, Limit, NoOfRetries - 1);
                 true ->
                     %% This must never happen though, unless the events table
                     %% is modified externally. this is critical error!
@@ -165,13 +173,21 @@ select_updates_from(FromId, Limit) ->
     end.
 
 get_max_event_id_or_set_dummy() ->
+    get_max_event_id_or_set_dummy(2).
+
+get_max_event_id_or_set_dummy(0) ->
+    %% this should never happen, but just in case
+    %% returning 0 here and trying to restart service
+    service_domain_db:restart(),
+    0;
+get_max_event_id_or_set_dummy(NoOfRetries) ->
     Pool = get_db_pool(),
     case execute_successfully(Pool, domain_events_max, []) of
         {selected, [{null}]} ->
             %% ensure that we have at least one record
             %% in the table, even if it's dummy one.
             insert_domain_event(Pool, <<"dummy.test.domain">>),
-            get_max_event_id_or_set_dummy();
+            get_max_event_id_or_set_dummy(NoOfRetries - 1);
         NonNullSelection ->
             mongoose_rdbms:selected_to_integer(NonNullSelection)
     end.
