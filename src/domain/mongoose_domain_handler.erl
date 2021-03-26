@@ -96,7 +96,9 @@ handle_enabled_result(Res, Req, State) ->
         {error, static} ->
             {false, reply_error(403, <<"domain is static">>, Req), State};
         {error, service_disabled} ->
-            {false, reply_error(403, <<"service disabled">>, Req), State}
+            {false, reply_error(403, <<"service disabled">>, Req), State};
+        {error, {db_error, _}} ->
+            {false, reply_error(500, <<"database error">>, Req), State}
     end.
 
 delete_resource(Req, State) ->

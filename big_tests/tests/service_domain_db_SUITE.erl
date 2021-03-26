@@ -82,7 +82,13 @@ db_cases() -> [
      rest_cannot_delete_domain_with_invalid_json,
      rest_cannot_patch_domain_without_enabled_field,
      rest_cannot_patch_domain_without_body,
-     rest_cannot_patch_domain_with_invalid_json
+     rest_cannot_patch_domain_with_invalid_json,
+     rest_insert_domain_fails_if_db_fails,
+     rest_insert_domain_fails_if_service_disabled,
+     rest_delete_domain_fails_if_db_fails,
+     rest_delete_domain_fails_if_service_disabled,
+     rest_enable_domain_fails_if_db_fails,
+     rest_enable_domain_fails_if_service_disabled
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -135,6 +141,15 @@ init_per_testcase(db_initial_load_crashes_node, Config) ->
     setup_meck(db_initial_load_crashes_node),
     init_with(mim(), [], []),
     Config;
+init_per_testcase(rest_insert_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_insert_domain_fails),
+    init_per_testcase(generic, Config);
+init_per_testcase(rest_delete_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_delete_domain_fails),
+    init_per_testcase(generic, Config);
+init_per_testcase(rest_enable_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_enable_domain_fails),
+    init_per_testcase(generic, Config);
 init_per_testcase(TestcaseName, Config) ->
     case TestcaseName of
         db_out_of_sync_crashes_node ->
@@ -169,6 +184,12 @@ end_per_testcase(db_initial_load_crashes_node, Config) ->
     end_per_testcase(generic, Config);
 end_per_testcase(db_out_of_sync_crashes_node, Config) ->
     rpc(mim(), sys, resume, [service_domain_db]),
+    teardown_meck(),
+    end_per_testcase(generic, Config);
+end_per_testcase(C, Config) when
+     C == rest_insert_domain_fails_if_db_fails;
+     C == rest_delete_domain_fails_if_db_fails;
+     C == rest_enable_domain_fails_if_db_fails ->
     teardown_meck(),
     end_per_testcase(generic, Config);
 end_per_testcase(_TestcaseName, Config) ->
@@ -598,6 +619,42 @@ rest_cannot_patch_domain_with_invalid_json(Config) ->
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
         patch_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
 
+%% SQL query is mocked to fail
+rest_insert_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type1">>).
+
+rest_insert_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type1">>).
+
+%% SQL query is mocked to fail
+rest_delete_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
+
+rest_delete_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
+
+%% SQL query is mocked to fail
+rest_enable_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
+rest_enable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -688,6 +745,15 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
+setup_meck(sql_insert_domain_fails) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, insert_domain, 2, {error, {db_error, simulated_db_error}}]);
+setup_meck(sql_delete_domain_fails) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2, {error, {db_error, simulated_db_error}}]);
+setup_meck(sql_enable_domain_fails) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1, {error, {db_error, simulated_db_error}}]);
 setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),

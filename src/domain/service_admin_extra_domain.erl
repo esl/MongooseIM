@@ -84,5 +84,7 @@ handle_enabled_result(Res, OkText) ->
         {error, static} ->
             {error, "Domain is static"};
         {error, service_disabled} ->
-            {false, "Service disabled"}
+            {false, "Service disabled"};
+        {error, {db_error, _}} ->
+            {error, "Database error"}
     end.

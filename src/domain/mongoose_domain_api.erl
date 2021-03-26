@@ -46,7 +46,8 @@ delete_domain(Domain, HostType) ->
     end.
 
 -spec disable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, service_disabled}.
+    ok | {error, not_found} | {error, static} | {error, service_disabled}
+    | {error, {db_error, term()}}.
 disable_domain(Domain) ->
     case mongoose_domain_core:is_static(Domain) of
         true ->
@@ -61,7 +62,8 @@ disable_domain(Domain) ->
     end.
 
 -spec enable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, service_disabled}.
+    ok | {error, not_found} | {error, static} | {error, service_disabled}
+    | {error, {db_error, term()}}.
 enable_domain(Domain) ->
     case mongoose_domain_core:is_static(Domain) of
         true ->
