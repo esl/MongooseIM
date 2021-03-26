@@ -42,7 +42,7 @@ db_cases() -> [
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
      sql_select_from_works,
-     db_records_are_restored_when_restarted,
+     db_records_are_restored_on_mim_restart,
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
      db_get_all_static,
@@ -51,7 +51,8 @@ db_cases() -> [
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
      db_out_of_sync_restarts_service,
-     db_crash_on_initial_load_restarts_service
+     db_crash_on_initial_load_restarts_service,
+     db_restarts_properly
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -276,7 +277,7 @@ sql_select_from_works(_) ->
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
-db_records_are_restored_when_restarted(_) ->
+db_records_are_restored_on_mim_restart(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
     service_disabled(mim()),
@@ -350,7 +351,6 @@ db_inserted_from_one_node_while_service_disabled_on_another(_) ->
 db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% This test shows the behaviour when someone
     %% reinserts a domain with a different host type.
-    %% TLDR: just keep the host_type constant or don't reuse domains.
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -377,7 +377,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
 db_crash_on_initial_load_restarts_service(_) ->
     service_enabled(mim()),
     %% service is restarted
-    true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
+    true = rpc(mim(), meck, wait, [service_domain_db, restart, 0, timer:seconds(1)]) > 0,
     ok.
 
 db_out_of_sync_restarts_service(_) ->
@@ -393,15 +393,23 @@ db_out_of_sync_restarts_service(_) ->
     MaxId = get_max_event_id_or_set_dummy(mim2()),
     {updated, _} = delete_events_older_than(mim2(), MaxId),
     {error, not_found} = get_host_type(mim(), <<"example3.com">>),
-    %% Resume processing events on one node
-    ok = rpc(mim(), sys, resume, [service_domain_db]),
     %% The size of the table is 1
     MaxId = get_min_event_id(mim2()),
+    %% Resume processing events on one node
+    ok = rpc(mim(), sys, resume, [service_domain_db]),
     sync(),
-    %% Out of sync detected.
-    %% service is restarted
+    %% Out of sync detected and service is restarted
     true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
     ok.
+
+db_restarts_properly(_) ->
+    PID = rpc(mim(), erlang, whereis, [service_domain_db]),
+    ok = rpc(mim(), service_domain_db, restart, []),
+    F = fun() ->
+            PID2 = rpc(mim(), erlang, whereis, [service_domain_db]),
+            PID2 =/= PID
+        end,
+    mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
 %%--------------------------------------------------------------------
 %% Helpers
