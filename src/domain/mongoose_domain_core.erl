@@ -12,11 +12,11 @@
 -export([is_static/1]).
 
 %% API, used by DB module
--export([insert/2,
+-export([insert/3,
          delete/1]).
 
 -export([get_all_static/0,
-         get_all_outdated/0,
+         get_all_outdated/1,
          get_domains_by_host_type/1]).
 
 -export([is_host_type_allowed/1]).
@@ -84,9 +84,8 @@ get_all_static() ->
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
 
-get_all_outdated() ->
-    Source = self(),
-    MS = ets:fun2ms(fun({Domain, HostType, {dynamic, Src}}) when Src =/= Source ->
+get_all_outdated(CurrentSource) ->
+    MS = ets:fun2ms(fun({Domain, HostType, {dynamic, Src}}) when Src =/= CurrentSource ->
                         {Domain, HostType}
                     end),
     ets:select(?TABLE, MS).
@@ -97,8 +96,7 @@ heads(List) ->
 pairs(List) ->
     [{K, V} || [K, V] <- List].
 
-insert(Domain, HostType) ->
-    Source = self(),
+insert(Domain, HostType, Source) ->
     gen_server:call(?MODULE, {insert, Domain, HostType, Source}).
 
 delete(Domain) ->

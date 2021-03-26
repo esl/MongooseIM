@@ -29,7 +29,8 @@ load_data_from_base_loop(FromId, PageSize) ->
     end.
 
 remove_outdated_domains_from_core() ->
-    OutdatedDomains = mongoose_domain_core:get_all_outdated(),
+    CurrentSource = self(),
+    OutdatedDomains = mongoose_domain_core:get_all_outdated(CurrentSource),
     remove_domains(OutdatedDomains).
 
 check_for_updates(FromId, PageSize) ->
@@ -96,13 +97,14 @@ insert_row_to_core({_Id, Domain, HostType}) ->
     maybe_insert_to_core(Domain, HostType).
 
 maybe_insert_to_core(Domain, HostType) ->
-    case mongoose_domain_core:insert(Domain, HostType) of
+    Source = self(),
+    case mongoose_domain_core:insert(Domain, HostType, Source) of
         {error, bad_insert} ->
             %% we already have such dynamic domain paired with
             %% another host type, enforce update of the domain.
             mongoose_domain_core:delete(Domain),
-            mongoose_domain_core:insert(Domain, HostType);
-        _ -> ok %%ignore other errors
+            mongoose_domain_core:insert(Domain, HostType, Source);
+        _ -> ok %% ignore other errors
     end.
 
 remove_domains(DomainsWithHostTypes) ->

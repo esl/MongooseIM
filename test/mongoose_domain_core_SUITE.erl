@@ -34,7 +34,7 @@ core_static_domain(_) ->
     true = mongoose_domain_core:is_static(<<"example.cfg">>).
 
 core_cannot_insert_static(_) ->
-    {error, static} = mongoose_domain_core:insert(<<"example.cfg">>, <<"type1">>).
+    {error, static} = mongoose_domain_core:insert(<<"example.cfg">>, <<"type1">>, dummy_src).
 
 %% See also db_get_all_static
 core_get_all_static(_) ->

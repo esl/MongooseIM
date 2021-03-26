@@ -12,8 +12,11 @@ all() ->
     [can_authenticate].
 
 init_per_suite(Config) ->
-    rpc(mim(), mongoose_domain_core, insert, [<<"example.com">>, <<"test type">>]),
-    rpc(mim2(), mongoose_domain_core, insert, [<<"example.com">>, <<"test type">>]),
+    Domain = <<"example.com">>,
+    HostType = <<"test type">>,
+    Source = dummy_source,
+    rpc(mim(), mongoose_domain_core, insert, [Domain, HostType, Source]),
+    rpc(mim2(), mongoose_domain_core, insert, [Domain, HostType, Source]),
     Config.
 
 end_per_suite(Config) ->
