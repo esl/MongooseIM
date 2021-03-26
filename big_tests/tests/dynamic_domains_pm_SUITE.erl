@@ -1,13 +1,4 @@
-%%%-------------------------------------------------------------------
-%%% @author denysgonchar
-%%% @copyright (C) 2021, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 22. Mar 2021 19:38
-%%%-------------------------------------------------------------------
 -module(dynamic_domains_pm_SUITE).
--author("denysgonchar").
 
 %% API
 -compile(export_all).

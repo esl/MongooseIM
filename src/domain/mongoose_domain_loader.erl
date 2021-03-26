@@ -55,6 +55,8 @@ check_for_updates(FromId, PageSize) ->
 
 check_if_id_is_still_relevant(FromId, Rows) ->
     MinId = row_to_id(hd(Rows)),
+    %% FromID should be always equal or less than MinID,
+    %% see check_for_updates/2 function for more details
     if
         FromId =:= MinId ->
             tl(Rows);
@@ -62,7 +64,7 @@ check_if_id_is_still_relevant(FromId, Rows) ->
             %% looks like someone completely erased the events table
             %% this should not happen, but we are still fine.
             Rows;
-        true ->
+        FromId < MinId - 1 ->
             %% Looks like this node has no DB connection for a long time.
             %% But the event log in the DB has been truncated by some other node
             %% meanwhile. We have to load the whole set of data from DB.

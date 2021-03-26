@@ -50,7 +50,7 @@ db_cases() -> [
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
-     db_out_of_sync_crashes_node,
+     db_out_of_sync_restarts_service,
      db_initial_load_crashes_node
     ].
 
@@ -100,16 +100,11 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(db_initial_load_crashes_node, Config) ->
-    setup_meck(db_initial_load_crashes_node),
+    maybe_setup_meck(db_initial_load_crashes_node),
     init_with(mim(), [], []),
     Config;
 init_per_testcase(TestcaseName, Config) ->
-    case TestcaseName of
-        db_out_of_sync_crashes_node ->
-            setup_meck(db_out_of_sync_crashes_node);
-        _ ->
-            ok
-    end,
+    maybe_setup_meck(TestcaseName),
     ServiceEnabled = proplists:get_value(service, Config, false),
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
@@ -132,14 +127,13 @@ service_opts(db_events_table_gets_truncated) ->
 service_opts(_) ->
     [].
 
-end_per_testcase(db_initial_load_crashes_node, Config) ->
-    teardown_meck(),
-    end_per_testcase(generic, Config);
-end_per_testcase(db_out_of_sync_crashes_node, Config) ->
-    rpc(mim(), sys, resume, [service_domain_db]),
-    teardown_meck(),
-    end_per_testcase(generic, Config);
-end_per_testcase(_TestcaseName, Config) ->
+end_per_testcase(TestcaseName, Config) ->
+    case TestcaseName of
+        db_out_of_sync_restarts_service ->
+            rpc(mim(), sys, resume, [service_domain_db]);
+        _ -> ok
+    end,
+    maybe_teardown_meck(TestcaseName),
     service_disabled(mim()),
     service_disabled(mim2()),
     erase_database(mim()),
@@ -386,7 +380,7 @@ db_initial_load_crashes_node(_) ->
     true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
     ok.
 
-db_out_of_sync_crashes_node(_) ->
+db_out_of_sync_restarts_service(_) ->
     ok = insert_domain(mim2(), <<"example1.com">>, <<"type1">>),
     ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
@@ -499,14 +493,18 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
-setup_meck(db_initial_load_crashes_node) ->
+maybe_setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
     ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]);
-setup_meck(db_out_of_sync_crashes_node) ->
+maybe_setup_meck(db_out_of_sync_restarts_service) ->
     ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]).
+    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]);
+maybe_setup_meck(_TestCase) ->
+    ok.
 
-teardown_meck() ->
-    rpc(mim(), meck, unload, []).
+maybe_teardown_meck(TC) when TC =:= db_initial_load_crashes_node;
+                             TC =:= db_out_of_sync_restarts_service ->
+    rpc(mim(), meck, unload, []);
+maybe_teardown_meck(_TestCase) -> ok.

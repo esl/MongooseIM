@@ -105,17 +105,17 @@ get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
 
 check_domain(Domain, HostType) ->
-    Locked = mongoose_domain_core:is_static(Domain),
+    Static = mongoose_domain_core:is_static(Domain),
     Allowed = mongoose_domain_core:is_host_type_allowed(HostType),
     HasDb = service_domain_db:enabled(),
     if
-        Locked ->
-           {error, static};
-       not Allowed ->
-           {error, unknown_host_type};
-       not HasDb ->
-           {error, service_disabled};
-       true ->
+        Static ->
+            {error, static};
+        not Allowed ->
+            {error, unknown_host_type};
+        not HasDb ->
+            {error, service_disabled};
+        true ->
             ok
     end.
 

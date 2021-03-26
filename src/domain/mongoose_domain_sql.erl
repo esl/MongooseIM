@@ -130,8 +130,10 @@ erase_database() ->
     execute_successfully(Pool, domain_erase_settings, []).
 
 get_min_event_id() ->
+    %% use this function for integration tests only
     Pool = get_db_pool(),
-    selected_to_int(execute_successfully(Pool, domain_events_min, [])).
+    Selected = execute_successfully(Pool, domain_events_min, []),
+    mongoose_rdbms:selected_to_integer(Selected).
 
 %% Returns smallest id first
 select_from(FromId, Limit) ->
@@ -154,9 +156,9 @@ select_updates_from(FromId, Limit) ->
                 true ->
                     %% This must never happen though, unless the events table
                     %% is modified externally. this is critical error!
-                    %% TODO: figure out what should we do in this case
                     ?LOG_ERROR(#{what => select_updates_from_failed, limit => Limit,
                                  from_id => FromId, max_id => MaxId}),
+                    service_domain_db:restart(),
                     []
             end;
         {selected, Rows} -> Rows
@@ -170,7 +172,8 @@ get_max_event_id_or_set_dummy() ->
             %% in the table, even if it's dummy one.
             insert_domain_event(Pool, <<"dummy.test.domain">>),
             get_max_event_id_or_set_dummy();
-        NonNullSelection -> selected_to_int(NonNullSelection)
+        NonNullSelection ->
+            mongoose_rdbms:selected_to_integer(NonNullSelection)
     end.
 
 delete_events_older_than(Id) ->
@@ -182,9 +185,9 @@ delete_events_older_than(Id) ->
                     %% We want to keep at least one event.
                     %% This must never happen though, unless the events table
                     %% is modified externally. this is critical error!
-                    %% TODO: figure out what should we do in this case
                     ?LOG_ERROR(#{what => domain_delete_events_older_than_failed,
                                  max_id => MaxId, older_than_id => Id}),
+                    service_domain_db:restart(),
                     skipped;
                 true ->
                     execute_successfully(Pool, domain_events_delete_older_than, [Id])
@@ -240,10 +243,6 @@ row_to_map({HostType, Enabled}) ->
 
 get_db_pool() ->
     hd(ejabberd_config:get_global_option(hosts)).
-
-selected_to_int({selected, [{null}]}) -> 0;
-selected_to_int({selected, [{Num}]}) ->
-    mongoose_rdbms:result_to_integer(Num).
 
 transaction(F) ->
     Pool = get_db_pool(),
