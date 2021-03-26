@@ -1,5 +1,6 @@
 %% REST API for domain actions.
 -module(mongoose_domain_handler).
+-behaviour(cowboy_rest).
 
 %% ejabberd_cowboy exports
 -export([cowboy_router_paths/2]).
@@ -16,10 +17,14 @@
          to_json/2]).
 
 -include("mongoose_logger.hrl").
+-type state() :: term().
 
+-spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
+        ejabberd_cowboy:implemented_result().
 cowboy_router_paths(Base, _Opts) ->
     [{[Base, "/domains/:domain"], ?MODULE, []}].
 
+%% cowboy_rest callbacks:
 init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
@@ -33,6 +38,9 @@ content_types_accepted(Req, State) ->
 content_types_provided(Req, State) ->
     {[{{<<"application">>, <<"json">>, '*'}, to_json}], Req, State}.
 
+%% Custom cowboy_rest callbacks:
+-spec to_json(Req, State) -> {Body, Req, State} | {stop, Req, State}
+    when Req :: cowboy_req:req(), State :: state(), Body :: binary().
 to_json(Req, State) ->
     ExtDomain = cowboy_req:binding(domain, Req),
     Domain = jid:nameprep(ExtDomain),
@@ -43,6 +51,8 @@ to_json(Req, State) ->
             {stop, reply_error(404, <<"domain not found">>, Req), State}
     end.
 
+-spec handle_domain(Req, State) -> {boolean(), Req, State}
+    when Req :: cowboy_req:req(), State :: state().
 handle_domain(Req, State) ->
     Method = cowboy_req:method(Req),
     ExtDomain = cowboy_req:binding(domain, Req),
@@ -56,6 +66,7 @@ handle_domain(Req, State) ->
             patch_domain(Domain, MaybeParams, Req2, State)
     end.
 
+%% Private helper functions:
 insert_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
     case mongoose_domain_api:insert_domain(Domain, HostType) of
         ok ->
