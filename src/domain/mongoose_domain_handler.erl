@@ -15,6 +15,8 @@
 -export([handle_domain/2,
          to_json/2]).
 
+-include("mongoose_logger.hrl").
+
 cowboy_router_paths(Base, _Opts) ->
     [{[Base, "/domains/:domain"], ?MODULE, []}].
 
@@ -133,6 +135,8 @@ delete_domain(_Domain, {error, _}, Req, State) ->
     {false, reply_error(400, <<"failed to parse JSON">>, Req), State}.
 
 reply_error(Code, What, Req) ->
+    ?LOG_ERROR(#{what => rest_domain_failed, reason => What,
+                 code => Code, req => Req}),
     Body = jiffy:encode(#{what => What}),
     cowboy_req:reply(Code, #{<<"content-type">> => <<"application/json">>}, Body, Req).
 
