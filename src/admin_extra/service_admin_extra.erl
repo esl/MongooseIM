@@ -33,7 +33,7 @@
 -export([start/1, stop/0, config_spec/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
-                  private, stanza, stats, gdpr, upload
+                  private, stanza, stats, gdpr, upload, domain
                   %, srg %% Disabled until we add mod_shared_roster
                  ]).
 
