@@ -14,6 +14,9 @@
 -export([force_check_for_updates/0]).
 -export([sync/0, sync_local/0]).
 
+%% exported for integration tests only!
+-export([reset_last_event_id/0]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -38,14 +41,11 @@ stop() ->
     ok.
 
 restart() ->
-    %% if service goes out of sync. with DB this interface
-    %% can be used to restart the service. to ensure that
-    %% domains table is re-read from scratch we must also
-    %% reset the last event id.
+    %% if service goes out of sync with DB this interface
+    %% can be used to restart the service.
     %% it's enough to just shut down gen_server, supervisor
     %% will restart it.
-    set_last_event_id(undefined),
-    gen_server:cast(?MODULE, shutdown).
+    gen_server:cast(?MODULE, reset_and_shutdown).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -105,7 +105,10 @@ handle_cast(initial_loading, State) ->
     NewState = State#{last_event_id => LastEventId,
                       check_for_updates_interval => 30000},
     {noreply, handle_check_for_updates(NewState)};
-handle_cast(shutdown, State) ->
+handle_cast(reset_and_shutdown, State) ->
+    %% to ensure that domains table is re-read from
+    %% scratch, we must reset the last event id.
+    reset_last_event_id(),
     {stop, shutdown, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
@@ -164,3 +167,6 @@ set_last_event_id(LastEventId) ->
 
 get_last_event_id() ->
     persistent_term:get(?LAST_EVENT_ID_KEY, undefined).
+
+reset_last_event_id() ->
+    set_last_event_id(undefined).

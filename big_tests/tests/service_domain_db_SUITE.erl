@@ -51,7 +51,7 @@ db_cases() -> [
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
      db_out_of_sync_restarts_service,
-     db_initial_load_crashes_node
+     db_crash_on_initial_load_restarts_service
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -99,8 +99,8 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(db_initial_load_crashes_node, Config) ->
-    maybe_setup_meck(db_initial_load_crashes_node),
+init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
+    maybe_setup_meck(db_crash_on_initial_load_restarts_service),
     init_with(mim(), [], []),
     Config;
 init_per_testcase(TestcaseName, Config) ->
@@ -374,7 +374,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
-db_initial_load_crashes_node(_) ->
+db_crash_on_initial_load_restarts_service(_) ->
     service_enabled(mim()),
     %% service is restarted
     true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
@@ -423,7 +423,7 @@ init_with(Node, Pairs, AllowedHostTypes) ->
     rpc(Node, mongoose_domain_core, stop, []),
     rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]),
     %% call restart to reset last event id
-    rpc(Node, service_domain_db, restart, []).
+    rpc(Node, service_domain_db, reset_last_event_id, []).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -493,7 +493,7 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
-maybe_setup_meck(db_initial_load_crashes_node) ->
+maybe_setup_meck(db_crash_on_initial_load_restarts_service) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
     ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
@@ -504,7 +504,7 @@ maybe_setup_meck(db_out_of_sync_restarts_service) ->
 maybe_setup_meck(_TestCase) ->
     ok.
 
-maybe_teardown_meck(TC) when TC =:= db_initial_load_crashes_node;
+maybe_teardown_meck(TC) when TC =:= db_crash_on_initial_load_restarts_service;
                              TC =:= db_out_of_sync_restarts_service ->
     rpc(mim(), meck, unload, []);
 maybe_teardown_meck(_TestCase) -> ok.
