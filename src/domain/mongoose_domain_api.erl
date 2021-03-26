@@ -22,7 +22,7 @@ init(Pairs, AllowedHostTypes) ->
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->
-    ok  | {error, duplicate} | {error, {db_error, term()}}
+    ok  | {error, duplicate} | {error, static} | {error, {db_error, term()}}
     | {error, service_disabled} | {error, unknown_host_type}.
 insert_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
