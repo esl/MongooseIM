@@ -44,6 +44,8 @@ insert_domain(Domain, HostType) ->
         ok -> {ok, "Added"};
         {error, duplicate} ->
             {error, "Domain already exists"};
+        {error, static} ->
+            {error, "Domain is static"};
         {error, {db_error, _}} ->
             {error, "Database error"};
         {error, service_disabled} ->
@@ -60,7 +62,7 @@ delete_domain(Domain, HostType) ->
         {error, {db_error, _}} ->
             {error, "Database error"};
         {error, static} ->
-            {error, "The domain is static"};
+            {error, "Domain is static"};
         {error, service_disabled} ->
             {error, "Service disabled"};
         {error, wrong_host_type} ->
@@ -90,7 +92,7 @@ handle_enabled_result(Res, OkText) ->
         {error, static} ->
             {error, "Domain is static"};
         {error, service_disabled} ->
-            {false, "Service disabled"};
+            {error, "Service disabled"};
         {error, {db_error, _}} ->
             {error, "Database error"}
     end.

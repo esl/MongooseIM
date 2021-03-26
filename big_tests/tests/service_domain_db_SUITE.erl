@@ -61,8 +61,21 @@ db_cases() -> [
      cli_cannot_delete_domain_without_correct_type,
      cli_cannot_insert_domain_twice_with_another_host_type,
      cli_cannot_insert_domain_with_unknown_host_type,
+     cli_cannot_delete_domain_with_unknown_host_type,
      cli_cannot_enable_missing_domain,
      cli_cannot_disable_missing_domain,
+     cli_cannot_insert_domain_when_it_is_static,
+     cli_cannot_delete_domain_when_it_is_static,
+     cli_cannot_enable_domain_when_it_is_static,
+     cli_cannot_disable_domain_when_it_is_static,
+     cli_insert_domain_fails_if_db_fails,
+     cli_insert_domain_fails_if_service_disabled,
+     cli_delete_domain_fails_if_db_fails,
+     cli_delete_domain_fails_if_service_disabled,
+     cli_enable_domain_fails_if_db_fails,
+     cli_enable_domain_fails_if_service_disabled,
+     cli_disable_domain_fails_if_db_fails,
+     cli_disable_domain_fails_if_service_disabled,
      rest_can_insert_domain,
      rest_can_disable_domain,
      rest_can_delete_domain,
@@ -149,11 +162,23 @@ init_per_testcase(db_initial_load_crashes_node, Config) ->
 init_per_testcase(rest_insert_domain_fails_if_db_fails, Config) ->
     setup_meck(sql_insert_domain_fails),
     init_per_testcase(generic, Config);
+init_per_testcase(cli_insert_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_insert_domain_fails),
+    init_per_testcase(generic, Config);
 init_per_testcase(rest_delete_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_delete_domain_fails),
+    init_per_testcase(generic, Config);
+init_per_testcase(cli_delete_domain_fails_if_db_fails, Config) ->
     setup_meck(sql_delete_domain_fails),
     init_per_testcase(generic, Config);
 init_per_testcase(rest_enable_domain_fails_if_db_fails, Config) ->
     setup_meck(sql_enable_domain_fails),
+    init_per_testcase(generic, Config);
+init_per_testcase(cli_enable_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_enable_domain_fails),
+    init_per_testcase(generic, Config);
+init_per_testcase(cli_disable_domain_fails_if_db_fails, Config) ->
+    setup_meck(sql_disable_domain_fails),
     init_per_testcase(generic, Config);
 init_per_testcase(TestcaseName, Config) ->
     case TestcaseName of
@@ -191,10 +216,14 @@ end_per_testcase(db_out_of_sync_crashes_node, Config) ->
     rpc(mim(), sys, resume, [service_domain_db]),
     teardown_meck(),
     end_per_testcase(generic, Config);
-end_per_testcase(C, Config) when
-     C == rest_insert_domain_fails_if_db_fails;
-     C == rest_delete_domain_fails_if_db_fails;
-     C == rest_enable_domain_fails_if_db_fails ->
+end_per_testcase(C, Config)
+    when C == rest_insert_domain_fails_if_db_fails;
+         C == rest_delete_domain_fails_if_db_fails;
+         C == rest_enable_domain_fails_if_db_fails;
+         C == cli_insert_domain_fails_if_db_fails;
+         C == cli_delete_domain_fails_if_db_fails;
+         C == cli_enable_domain_fails_if_db_fails;
+         C == cli_disable_domain_fails_if_db_fails ->
     teardown_meck(),
     end_per_testcase(generic, Config);
 end_per_testcase(_TestcaseName, Config) ->
@@ -510,12 +539,68 @@ cli_cannot_insert_domain_with_unknown_host_type(Config) ->
     {"Error: \"Unknown host type\"\n", 1} =
         ejabberdctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
 
+cli_cannot_delete_domain_with_unknown_host_type(Config) ->
+    {"Error: \"Unknown host type\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
+
 cli_cannot_enable_missing_domain(Config) ->
     {"Error: \"Domain not found\"\n", 1} =
         ejabberdctl("enable_domain", [<<"example.db">>], Config).
 
 cli_cannot_disable_missing_domain(Config) ->
     {"Error: \"Domain not found\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
+cli_cannot_insert_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.cfg">>, <<"type1">>], Config).
+
+cli_cannot_delete_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.cfg">>, <<"type1">>], Config).
+
+cli_cannot_enable_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.cfg">>], Config).
+
+cli_cannot_disable_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.cfg">>], Config).
+
+cli_insert_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_insert_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_delete_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_delete_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_enable_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+    
+cli_enable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+
+cli_disable_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
+cli_disable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
         ejabberdctl("disable_domain", [<<"example.db">>], Config).
 
 rest_can_insert_domain(Config) ->
@@ -783,6 +868,9 @@ setup_meck(sql_delete_domain_fails) ->
 setup_meck(sql_enable_domain_fails) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1, {error, {db_error, simulated_db_error}}]);
+setup_meck(sql_disable_domain_fails) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, disable_domain, 1, {error, {db_error, simulated_db_error}}]);
 setup_meck(db_initial_load_crashes_node) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
