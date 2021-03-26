@@ -10,6 +10,8 @@
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 
+-type cmd_result() :: {ok, string()} | {error, string()}.
+
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
     [
@@ -35,6 +37,7 @@ commands() ->
                            result = {res, restuple}}
     ].
 
+-spec insert_domain(binary(), binary()) -> cmd_result().
 insert_domain(Domain, HostType) ->
     SDomain = jid:nameprep(Domain),
     case mongoose_domain_api:insert_domain(SDomain, HostType) of
@@ -49,6 +52,7 @@ insert_domain(Domain, HostType) ->
             {error, "Unknown host type"}
     end.
 
+-spec delete_domain(binary(), binary()) -> cmd_result().
 delete_domain(Domain, HostType) ->
     SDomain = jid:nameprep(Domain),
     case mongoose_domain_api:delete_domain(SDomain, HostType) of
@@ -65,11 +69,13 @@ delete_domain(Domain, HostType) ->
             {error, "Unknown host type"}
     end.
 
+-spec enable_domain(binary()) -> cmd_result().
 enable_domain(Domain) ->
     SDomain = jid:nameprep(Domain),
     Res = mongoose_domain_api:enable_domain(SDomain),
     handle_enabled_result(Res, "enabled").
 
+-spec disable_domain(binary()) -> cmd_result().
 disable_domain(Domain) ->
     SDomain = jid:nameprep(Domain),
     Res = mongoose_domain_api:disable_domain(SDomain),
