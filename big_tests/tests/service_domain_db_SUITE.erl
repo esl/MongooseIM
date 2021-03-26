@@ -70,19 +70,24 @@ db_cases() -> [
      rest_delete_missing_domain,
      rest_cannot_insert_domain_twice_with_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
+     rest_cannot_delete_domain_with_unknown_host_type,
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
      rest_can_select_domain,
+     rest_cannot_select_domain_if_domain_not_found,
      rest_cannot_put_domain_without_host_type,
      rest_cannot_put_domain_without_body,
      rest_cannot_put_domain_with_invalid_json,
+     rest_cannot_put_domain_when_it_is_static,
      rest_cannot_delete_domain_without_host_type,
      rest_cannot_delete_domain_without_body,
      rest_cannot_delete_domain_with_invalid_json,
+     rest_cannot_delete_domain_when_it_is_static,
      rest_cannot_patch_domain_without_enabled_field,
      rest_cannot_patch_domain_without_body,
      rest_cannot_patch_domain_with_invalid_json,
+     rest_cannot_enable_domain_when_it_is_static,
      rest_insert_domain_fails_if_db_fails,
      rest_insert_domain_fails_if_service_disabled,
      rest_delete_domain_fails_if_db_fails,
@@ -556,6 +561,10 @@ rest_cannot_insert_domain_with_unknown_host_type(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
         rest_put_domain(<<"example.db">>, <<"type6">>).
 
+rest_cannot_delete_domain_with_unknown_host_type(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type6">>).
+
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
      {[{<<"what">>, <<"domain not found">>}]}} =
@@ -574,6 +583,11 @@ rest_can_select_domain(Config) ->
      {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
         rest_select_domain(<<"example.db">>).
 
+rest_cannot_select_domain_if_domain_not_found(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_select_domain(<<"example.db">>).
+
 rest_cannot_put_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
@@ -589,6 +603,11 @@ rest_cannot_put_domain_with_invalid_json(Config) ->
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
         rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>).
 
+rest_cannot_put_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_put_domain(<<"example.cfg">>, <<"type1">>).
+
 rest_cannot_delete_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
@@ -603,6 +622,11 @@ rest_cannot_delete_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
         delete_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+rest_cannot_delete_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_delete_domain(<<"example.cfg">>, <<"type1">>).
 
 rest_cannot_patch_domain_without_enabled_field(Config) ->
     {{<<"400">>, <<"Bad Request">>},
@@ -654,6 +678,11 @@ rest_enable_domain_fails_if_service_disabled(Config) ->
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"service disabled">>}]}} =
         rest_patch_enabled(<<"example.db">>, true).
+
+rest_cannot_enable_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_patch_enabled(<<"example.cfg">>, true).
 
 %%--------------------------------------------------------------------
 %% Helpers

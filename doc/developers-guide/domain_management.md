@@ -147,7 +147,7 @@ curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
 Result codes:
 
 * 204 - inserted.
-* 409 - domain already exists with a different host type.
+* 403 - domain already exists with a different host type.
 * 403 - DB service disabled.
 * 403 - unknown host type.
 * 500 - other errors.

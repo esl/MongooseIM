@@ -60,6 +60,8 @@ insert_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
             {true, Req, State};
         {error, duplicate} ->
             {false, reply_error(409, <<"duplicate">>, Req), State};
+        {error, static} ->
+            {false, reply_error(403, <<"domain is static">>, Req), State};
         {error, {db_error, _}} ->
             {false, reply_error(500, <<"database error">>, Req), State};
         {error, service_disabled} ->
@@ -115,7 +117,7 @@ delete_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
         {error, {db_error, _}} ->
             {false, reply_error(500, <<"database error">>, Req), State};
         {error, static} ->
-            {false, reply_error(403, <<"the domain is static">>, Req), State};
+            {false, reply_error(403, <<"domain is static">>, Req), State};
         {error, service_disabled} ->
             {false, reply_error(403, <<"service disabled">>, Req), State};
         {error, wrong_host_type} ->
