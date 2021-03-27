@@ -167,11 +167,12 @@ handle_delete(Domain) ->
     case is_static(Domain) of
         true ->
             %% Ignore any static domains
-            ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain});
+            ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain}),
+            {error, static};
         false ->
-            ets:delete(?TABLE, Domain)
-    end,
-    ok.
+            ets:delete(?TABLE, Domain),
+            ok
+    end.
 
 handle_insert(Domain, HostType, Source) ->
     case is_host_type_allowed(HostType) of
