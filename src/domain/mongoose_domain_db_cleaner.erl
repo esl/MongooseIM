@@ -76,14 +76,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% Server helpers
 
 schedule_removal(State = #{max_age := MaxAge}) ->
-    LastEventId = mongoose_domain_sql:get_max_event_id(),
-    case LastEventId of
-        0 ->
-            ok; %% Ignore an empty event table
-        _ ->
-            Msg = {do_removal, LastEventId},
-            erlang:start_timer(timer:seconds(MaxAge), self(), Msg)
-    end,
+    LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
+    Msg = {do_removal, LastEventId},
+    erlang:start_timer(timer:seconds(MaxAge), self(), Msg),
     State.
 
 handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->

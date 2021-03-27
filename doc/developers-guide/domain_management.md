@@ -14,7 +14,7 @@ It must provide the following interfaces:
   Any of these lists can be empty, initial list of domain/host\_type pairs can
   have some unique host\_types not mentioned in the host\_types list.
   The component must be initialised by the main MIM supervisor.
-  Implemented in `mongoose_domain_api:init(Pairs)`.
+  Implemented in `mongoose_domain_api:init()`.
 - Insert - adding new domain/host\_type pair.
   This function must be **idempotent**, it must return success on attempt to
   insert the existing data, but it must fail if ETS already has the domain

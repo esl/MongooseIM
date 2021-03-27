@@ -6,12 +6,16 @@
 -include("mongoose_logger.hrl").
 
 -define(GROUP, service_domain_db_group).
+-define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
--export([start/1, stop/0, config_spec/0]).
+-export([start/1, stop/0, restart/0, config_spec/0]).
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
 -export([sync/0, sync_local/0]).
+
+%% exported for integration tests only!
+-export([reset_last_event_id/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -35,6 +39,13 @@ stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
+
+restart() ->
+    %% if service goes out of sync with DB this interface
+    %% can be used to restart the service.
+    %% it's enough to just shut down gen_server, supervisor
+    %% will restart it.
+    gen_server:cast(?MODULE, reset_and_shutdown).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -78,11 +89,9 @@ sync_local() ->
 init([]) ->
     pg2:create(?GROUP),
     pg2:join(?GROUP, self()),
-    LastEventId = initial_load(mongoose_domain_core:get_last_event_id()),
-    ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
-    State = #{last_event_id => LastEventId,
-              check_for_updates_interval => 30000},
-    {ok, handle_check_for_updates(State)}.
+    gen_server:cast(self(), initial_loading),
+    %% initial state will be set on initial_loading processing
+    {ok, #{}}.
 
 handle_call(ping, _From, State) ->
     {reply, pong, State};
@@ -90,6 +99,17 @@ handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
+handle_cast(initial_loading, State) ->
+    LastEventId = initial_load(get_last_event_id()),
+    ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
+    NewState = State#{last_event_id => LastEventId,
+                      check_for_updates_interval => 30000},
+    {noreply, handle_check_for_updates(NewState)};
+handle_cast(reset_and_shutdown, State) ->
+    %% to ensure that domains table is re-read from
+    %% scratch, we must reset the last event id.
+    reset_last_event_id(),
+    {stop, shutdown, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
@@ -110,12 +130,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Server helpers
 
 initial_load(undefined) ->
-    link(whereis(mongoose_domain_core)),
-    LastEventId = mongoose_domain_sql:get_max_event_id(),
+    LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
     PageSize = 10000,
     mongoose_domain_loader:load_data_from_base(0, PageSize),
-    mongoose_domain_core:set_last_event_id(LastEventId),
-    unlink(whereis(mongoose_domain_core)),
+    mongoose_domain_loader:remove_outdated_domains_from_core(),
+    set_last_event_id(LastEventId),
     LastEventId;
 initial_load(LastEventId) when is_integer(LastEventId) ->
     LastEventId. %% Skip initial init
@@ -141,4 +160,13 @@ receive_all_check_for_updates() ->
 maybe_set_last_event_id(LastEventId, LastEventId) ->
     ok;
 maybe_set_last_event_id(_LastEventId, LastEventId2) ->
-    mongoose_domain_core:set_last_event_id(LastEventId2).
+    set_last_event_id(LastEventId2).
+
+set_last_event_id(LastEventId) ->
+    persistent_term:put(?LAST_EVENT_ID_KEY, LastEventId).
+
+get_last_event_id() ->
+    persistent_term:get(?LAST_EVENT_ID_KEY, undefined).
+
+reset_last_event_id() ->
+    set_last_event_id(undefined).

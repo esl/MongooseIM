@@ -12,14 +12,13 @@ suite() ->
 
 all() ->
     [
-     core_lookup_works,
-     core_lookup_not_found,
-     core_static_domain,
-     core_cannot_insert_static,
-     core_cannot_disable_static,
-     core_cannot_enable_static,
-     core_get_all_static,
-     core_get_domains_by_host_type,
+     api_lookup_works,
+     api_lookup_not_found,
+     api_cannot_insert_static,
+     api_cannot_disable_static,
+     api_cannot_enable_static,
+     api_get_all_static,
+     api_get_domains_by_host_type,
      {group, db}
     ].
 
@@ -34,8 +33,8 @@ db_cases() -> [
      db_deleted_domain_from_core,
      db_disabled_domain_is_in_db,
      db_disabled_domain_not_in_core,
-     db_reanabled_domain_is_in_db,
-     db_reanabled_domain_is_in_core,
+     db_reenabled_domain_is_in_db,
+     db_reenabled_domain_is_in_core,
      db_can_insert_domain_twice_with_the_same_host_type,
      db_cannot_insert_domain_twice_with_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
@@ -44,7 +43,7 @@ db_cases() -> [
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
      sql_select_from_works,
-     db_records_are_restored_when_restarted,
+     db_records_are_restored_on_mim_restart,
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
      db_get_all_static,
@@ -52,8 +51,9 @@ db_cases() -> [
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
      db_reinserted_from_one_node_while_service_disabled_on_another,
-     db_out_of_sync_crashes_node,
-     db_initial_load_crashes_node,
+     db_out_of_sync_restarts_service,
+     db_crash_on_initial_load_restarts_service,
+     db_restarts_properly,
      cli_can_insert_domain,
      cli_can_disable_domain,
      cli_can_enable_domain,
@@ -122,8 +122,8 @@ init_per_suite(Config) ->
     ensure_nodes_know_each_other(),
     service_disabled(mim()),
     service_disabled(mim2()),
-    prepare_erase(mim()),
-    prepare_erase(mim2()),
+    prepare_test_queries(mim()),
+    prepare_test_queries(mim2()),
     erase_database(mim()),
     Config1 = ejabberd_node_utils:init(mim(), Config),
     escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config1]).
@@ -155,38 +155,12 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(db_initial_load_crashes_node, Config) ->
-    setup_meck(db_initial_load_crashes_node),
+init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
+    maybe_setup_meck(db_crash_on_initial_load_restarts_service),
     init_with(mim(), [], []),
     Config;
-init_per_testcase(rest_insert_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_insert_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(cli_insert_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_insert_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(rest_delete_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_delete_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(cli_delete_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_delete_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(rest_enable_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_enable_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(cli_enable_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_enable_domain_fails),
-    init_per_testcase(generic, Config);
-init_per_testcase(cli_disable_domain_fails_if_db_fails, Config) ->
-    setup_meck(sql_disable_domain_fails),
-    init_per_testcase(generic, Config);
 init_per_testcase(TestcaseName, Config) ->
-    case TestcaseName of
-        db_out_of_sync_crashes_node ->
-            setup_meck(db_out_of_sync_crashes_node);
-        _ ->
-            ok
-    end,
+    maybe_setup_meck(TestcaseName),
     ServiceEnabled = proplists:get_value(service, Config, false),
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
@@ -209,24 +183,13 @@ service_opts(db_events_table_gets_truncated) ->
 service_opts(_) ->
     [].
 
-end_per_testcase(db_initial_load_crashes_node, Config) ->
-    teardown_meck(),
-    end_per_testcase(generic, Config);
-end_per_testcase(db_out_of_sync_crashes_node, Config) ->
-    rpc(mim(), sys, resume, [service_domain_db]),
-    teardown_meck(),
-    end_per_testcase(generic, Config);
-end_per_testcase(C, Config)
-    when C == rest_insert_domain_fails_if_db_fails;
-         C == rest_delete_domain_fails_if_db_fails;
-         C == rest_enable_domain_fails_if_db_fails;
-         C == cli_insert_domain_fails_if_db_fails;
-         C == cli_delete_domain_fails_if_db_fails;
-         C == cli_enable_domain_fails_if_db_fails;
-         C == cli_disable_domain_fails_if_db_fails ->
-    teardown_meck(),
-    end_per_testcase(generic, Config);
-end_per_testcase(_TestcaseName, Config) ->
+end_per_testcase(TestcaseName, Config) ->
+    case TestcaseName of
+        db_out_of_sync_restarts_service ->
+            rpc(mim(), sys, resume, [service_domain_db]);
+        _ -> ok
+    end,
+    maybe_teardown_meck(TestcaseName),
     service_disabled(mim()),
     service_disabled(mim2()),
     erase_database(mim()),
@@ -236,39 +199,36 @@ end_per_testcase(_TestcaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-core_lookup_works(_) ->
+api_lookup_works(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.cfg">>).
 
-core_lookup_not_found(_) ->
+api_lookup_not_found(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.missing">>).
 
-core_static_domain(_) ->
-    true = is_static(<<"example.cfg">>).
-
-core_cannot_insert_static(_) ->
+api_cannot_insert_static(_) ->
     {error, static} = insert_domain(mim(), <<"example.cfg">>, <<"type1">>).
 
-core_cannot_disable_static(_) ->
+api_cannot_disable_static(_) ->
     {error, static} = disable_domain(mim(), <<"example.cfg">>).
 
-core_cannot_enable_static(_) ->
+api_cannot_enable_static(_) ->
     {error, static} = enable_domain(mim(), <<"example.cfg">>).
 
 %% See also db_get_all_static
-core_get_all_static(_) ->
+api_get_all_static(_) ->
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
      {<<"erlang-solutions.local">>, <<"type2">>},
      {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
 
-core_get_domains_by_host_type(_) ->
+api_get_domains_by_host_type(_) ->
     [<<"erlang-solutions.com">>, <<"erlang-solutions.local">>] =
         lists:sort(get_domains_by_host_type(mim(), <<"type2">>)),
     [<<"example.cfg">>] = get_domains_by_host_type(mim(), <<"type1">>),
     [] = get_domains_by_host_type(mim(), <<"type6">>).
 
-%% Similar to as core_get_all_static, just with DB service enabled
+%% Similar to as api_get_all_static, just with DB service enabled
 db_get_all_static(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
@@ -319,14 +279,14 @@ db_disabled_domain_not_in_core(_) ->
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
-db_reanabled_domain_is_in_db(_) ->
+db_reenabled_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
     ok = enable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
        select_domain(mim(), <<"example.db">>).
 
-db_reanabled_domain_is_in_core(_) ->
+db_reenabled_domain_is_in_core(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
     ok = enable_domain(mim(), <<"example.db">>),
@@ -372,7 +332,7 @@ sql_select_from_works(_) ->
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
-db_records_are_restored_when_restarted(_) ->
+db_records_are_restored_on_mim_restart(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
     service_disabled(mim()),
@@ -408,7 +368,7 @@ db_events_table_gets_truncated(_) ->
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
-    Max = get_max_event_id(mim()),
+    Max = get_max_event_id_or_set_dummy(mim()),
     true = is_integer(Max),
     true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
@@ -446,7 +406,6 @@ db_inserted_from_one_node_while_service_disabled_on_another(_) ->
 db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% This test shows the behaviour when someone
     %% reinserts a domain with a different host type.
-    %% TLDR: just keep the host_type constant or don't reuse domains.
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -460,22 +419,23 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% Sync is working again
     service_enabled(mim2()),
     sync(),
-    %% A corner case: mim2 sees the change, but core ignores it
+    %% A corner case: domain name is reinserted with different host type
+    %% while service was down on mim2. check that mim2 is updated
     {ok, <<"dbgroup2">>} = get_host_type(mim(), <<"example.com">>),
-    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
-    %% But if we delete it, it would be deleted everywhere
-    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    {ok, <<"dbgroup2">>} = get_host_type(mim2(), <<"example.com">>),
+    %% check deleting
+    ok = delete_domain(mim2(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>).
 
-db_initial_load_crashes_node(_) ->
+db_crash_on_initial_load_restarts_service(_) ->
     service_enabled(mim()),
-    %% Called halt node function, but it's mocked
-    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    %% service is restarted
+    true = rpc(mim(), meck, wait, [service_domain_db, restart, 0, timer:seconds(1)]) > 0,
     ok.
 
-db_out_of_sync_crashes_node(_) ->
+db_out_of_sync_restarts_service(_) ->
     ok = insert_domain(mim2(), <<"example1.com">>, <<"type1">>),
     ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
@@ -485,18 +445,26 @@ db_out_of_sync_crashes_node(_) ->
     ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
     sync_local(mim2()),
     %% Truncate events table, keep only one event
-    MaxId = get_max_event_id(mim2()),
+    MaxId = get_max_event_id_or_set_dummy(mim2()),
     {updated, _} = delete_events_older_than(mim2(), MaxId),
     {error, not_found} = get_host_type(mim(), <<"example3.com">>),
-    %% Resume processing events on one node
-    ok = rpc(mim(), sys, resume, [service_domain_db]),
     %% The size of the table is 1
     MaxId = get_min_event_id(mim2()),
+    %% Resume processing events on one node
+    ok = rpc(mim(), sys, resume, [service_domain_db]),
     sync(),
-    %% Out of sync detected.
-    %% Called halt node function, but it's mocked
-    true = rpc(mim(), meck, num_calls, [mongoose_domain_utils, halt_node, 1]) > 0,
+    %% Out of sync detected and service is restarted
+    true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
     ok.
+
+db_restarts_properly(_) ->
+    PID = rpc(mim(), erlang, whereis, [service_domain_db]),
+    ok = rpc(mim(), service_domain_db, restart, []),
+    F = fun() ->
+            PID2 = rpc(mim(), erlang, whereis, [service_domain_db]),
+            PID2 =/= PID
+        end,
+    mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
@@ -588,7 +556,7 @@ cli_delete_domain_fails_if_service_disabled(Config) ->
 cli_enable_domain_fails_if_db_fails(Config) ->
     {"Error: \"Database error\"\n", 1} =
         ejabberdctl("enable_domain", [<<"example.db">>], Config).
-    
+
 cli_enable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {"Error: \"Service disabled\"\n", 1} =
@@ -774,7 +742,8 @@ rest_cannot_enable_domain_when_it_is_static(Config) ->
 %%--------------------------------------------------------------------
 
 service_enabled(Node) ->
-    service_enabled(Node, []).
+    service_enabled(Node, []),
+    sync_local(Node).
 
 service_enabled(Node, Opts) ->
     rpc(Node, mongoose_service, start_service, [service_domain_db, Opts]),
@@ -786,7 +755,9 @@ service_disabled(Node) ->
 
 init_with(Node, Pairs, AllowedHostTypes) ->
     rpc(Node, mongoose_domain_core, stop, []),
-    rpc(Node, mongoose_domain_api, init, [Pairs, AllowedHostTypes]).
+    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]),
+    %% call restart to reset last event id
+    rpc(Node, service_domain_db, reset_last_event_id, []).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -803,17 +774,17 @@ erase_database(Node) ->
         false -> ok
     end.
 
-prepare_erase(Node) ->
+prepare_test_queries(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, prepare_erase, []);
+        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, []);
         false -> ok
     end.
 
 get_min_event_id(Node) ->
     rpc(Node, mongoose_domain_sql, get_min_event_id, []).
 
-get_max_event_id(Node) ->
-    rpc(Node, mongoose_domain_sql, get_max_event_id, []).
+get_max_event_id_or_set_dummy(Node) ->
+    rpc(Node, mongoose_domain_sql, get_max_event_id_or_set_dummy, []).
 
 delete_events_older_than(Node, Id) ->
     rpc(Node, mongoose_domain_sql, delete_events_older_than, [Id]).
@@ -832,9 +803,6 @@ disable_domain(Node, Domain) ->
 
 enable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, enable_domain, [Domain]).
-
-is_static(Domain) ->
-    rpc(mim(), mongoose_domain_core, is_static, [Domain]).
 
 %% Call sync before get_host_type, if there are some async changes expected
 sync() ->
@@ -859,28 +827,38 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
-setup_meck(sql_insert_domain_fails) ->
+maybe_setup_meck(TC) when TC =:= rest_insert_domain_fails_if_db_fails;
+                          TC =:= cli_insert_domain_fails_if_db_fails ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, insert_domain, 2, {error, {db_error, simulated_db_error}}]);
-setup_meck(sql_delete_domain_fails) ->
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, insert_domain, 2,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(TC) when TC =:= rest_delete_domain_fails_if_db_fails;
+                          TC =:= cli_delete_domain_fails_if_db_fails ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2, {error, {db_error, simulated_db_error}}]);
-setup_meck(sql_enable_domain_fails) ->
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(TC) when TC =:= rest_enable_domain_fails_if_db_fails;
+                          TC =:= cli_enable_domain_fails_if_db_fails ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1, {error, {db_error, simulated_db_error}}]);
-setup_meck(sql_disable_domain_fails) ->
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(cli_disable_domain_fails_if_db_fails) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, disable_domain, 1, {error, {db_error, simulated_db_error}}]);
-setup_meck(db_initial_load_crashes_node) ->
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, disable_domain, 1,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(db_crash_on_initial_load_restarts_service) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
-    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]);
-setup_meck(db_out_of_sync_crashes_node) ->
-    ok = rpc(mim(), meck, new, [mongoose_domain_utils, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_utils, halt_node, 1, ok]).
+    ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]);
+maybe_setup_meck(db_out_of_sync_restarts_service) ->
+    ok = rpc(mim(), meck, new, [service_domain_db, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [service_domain_db, restart, 0, ok]);
+maybe_setup_meck(_TestCase) ->
+    ok.
 
-teardown_meck() ->
+maybe_teardown_meck(_) ->
+    %% running unload meck makes no harm even if nothing is mocked
     rpc(mim(), meck, unload, []).
 
 rest_patch_enabled(Domain, Enabled) ->

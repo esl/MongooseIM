@@ -2,7 +2,7 @@
 %% management.
 -module(mongoose_domain_api).
 
--export([init/2,
+-export([init/0,
          insert_domain/2,
          delete_domain/2,
          disable_domain/1,
@@ -15,9 +15,11 @@
 -type host_type() :: binary().
 -type pair() :: {domain(), host_type()}.
 
-%% Domains should be nameprepped using `jid:nameprep'
--spec init([pair()], [host_type()]) -> ok | {error, term()}.
-init(Pairs, AllowedHostTypes) ->
+
+-spec init() -> ok | {error, term()}.
+init() ->
+    Pairs = get_static_pairs(),
+    AllowedHostTypes = ejabberd_config:get_global_option_or_default(host_types, []),
     mongoose_domain_core:start(Pairs, AllowedHostTypes).
 
 %% Domain should be nameprepped using `jid:nameprep'.
@@ -96,23 +98,28 @@ get_host_type(Domain) ->
 get_all_static() ->
     mongoose_domain_core:get_all_static().
 
-%% Get the list of the host\_types provided during initialisation
+%% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
 -spec get_domains_by_host_type(host_type()) -> [domain()].
 get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
 
 check_domain(Domain, HostType) ->
-    Locked = mongoose_domain_core:is_static(Domain),
+    Static = mongoose_domain_core:is_static(Domain),
     Allowed = mongoose_domain_core:is_host_type_allowed(HostType),
     HasDb = service_domain_db:enabled(),
-    if 
-        Locked ->
-           {error, static};
-       not Allowed ->
-           {error, unknown_host_type};
-       not HasDb ->
-           {error, service_disabled};
-       true ->
+    if
+        Static ->
+            {error, static};
+        not Allowed ->
+            {error, unknown_host_type};
+        not HasDb ->
+            {error, service_disabled};
+        true ->
             ok
     end.
+
+%% Domains should be nameprepped using `jid:nameprep'
+-spec get_static_pairs() -> [{domain(), host_type()}].
+get_static_pairs() ->
+    [{H, H} || H <- ejabberd_config:get_global_option_or_default(hosts, [])].

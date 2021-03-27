@@ -3,20 +3,21 @@
 -module(mongoose_domain_core).
 -include("mongoose_logger.hrl").
 
+%% required for ets:fun2ms/1 pseudo function
+-include_lib("stdlib/include/ms_transform.hrl").
+
 -export([start/2, stop/0]).
 -export([start_link/2]).
 -export([get_host_type/1]).
 -export([is_static/1]).
 
 %% API, used by DB module
--export([insert/2,
+-export([insert/3,
          delete/1]).
 
 -export([get_all_static/0,
+         get_all_outdated/1,
          get_domains_by_host_type/1]).
-
--export([set_last_event_id/1,
-         get_last_event_id/0]).
 
 -export([is_host_type_allowed/1]).
 
@@ -30,6 +31,16 @@
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
 
+-ifdef(TEST).
+%% required for unit tests
+start(Pairs, AllowedHostTypes) ->
+    gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
+
+stop() ->
+    gen_server:stop(?MODULE).
+
+-else.
+
 start(Pairs, AllowedHostTypes) ->
     ChildSpec =
         {?MODULE,
@@ -37,11 +48,13 @@ start(Pairs, AllowedHostTypes) ->
          permanent, infinity, worker, [?MODULE]},
     just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
 
-%% For tests
+%% required for integration tests
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
     ok.
+
+-endif.
 
 start_link(Pairs, AllowedHostTypes) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
@@ -50,13 +63,13 @@ get_host_type(Domain) ->
     case ets:lookup(?TABLE, Domain) of
         [] ->
             {error, not_found};
-        [{_Domain, HostType, _IsStatic}] ->
+        [{_Domain, HostType, _Source}] ->
             {ok, HostType}
     end.
 
 is_static(Domain) ->
     case ets:lookup(?TABLE, Domain) of
-        [{_Domain, _HostType, _IsStatic = true}] ->
+        [{_Domain, _HostType, _Source = config}] ->
             true;
         _ ->
             false
@@ -66,10 +79,16 @@ is_host_type_allowed(HostType) ->
     ets:member(?HOST_TYPE_TABLE, HostType).
 
 get_all_static() ->
-    pairs(ets:match(?TABLE, {'$1', '$2', true})).
+    pairs(ets:match(?TABLE, {'$1', '$2', config})).
 
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
+
+get_all_outdated(CurrentSource) ->
+    MS = ets:fun2ms(fun({Domain, HostType, {dynamic, Src}}) when Src =/= CurrentSource ->
+                        {Domain, HostType}
+                    end),
+    ets:select(?TABLE, MS).
 
 heads(List) ->
     [H || [H|_] <- List].
@@ -77,17 +96,11 @@ heads(List) ->
 pairs(List) ->
     [{K, V} || [K, V] <- List].
 
-insert(Domain, HostType) ->
-    gen_server:call(?MODULE, {insert, Domain, HostType}).
+insert(Domain, HostType, Source) ->
+    gen_server:call(?MODULE, {insert, Domain, HostType, Source}).
 
 delete(Domain) ->
     gen_server:call(?MODULE, {delete, Domain}).
-
-set_last_event_id(LastEventId) ->
-    gen_server:call(?MODULE, {set_last_event_id, LastEventId}).
-
-get_last_event_id() ->
-    gen_server:call(?MODULE, get_last_event_id).
 
 get_start_args() ->
     gen_server:call(?MODULE, get_start_args).
@@ -99,21 +112,15 @@ init([Pairs, AllowedHostTypes]) ->
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
     insert_initial(?TABLE, Pairs),
-    {ok, #{last_event_id => undefined,
-           initial_pairs => Pairs,
+    {ok, #{initial_pairs => Pairs,
            initial_host_types => AllowedHostTypes}}.
 
 handle_call({delete, Domain}, _From, State) ->
     Result = handle_delete(Domain),
     {reply, Result, State};
-handle_call({insert, Domain, HostType}, _From, State) ->
-    Result = handle_insert(Domain, HostType),
+handle_call({insert, Domain, HostType, Source}, _From, State) ->
+    Result = handle_insert(Domain, HostType, Source),
     {reply, Result, State};
-handle_call({set_last_event_id, LastEventId}, _From, State) ->
-    {reply, ok, State#{last_event_id => LastEventId}};
-handle_call(get_last_event_id, _From, State) ->
-    LastEventId = maps:get(last_event_id, State),
-    {reply, LastEventId, State};
 handle_call(get_start_args, _From, State = #{initial_pairs := Pairs,
                                              initial_host_types := AllowedHostTypes}) ->
     {reply, [Pairs, AllowedHostTypes], State};
@@ -142,12 +149,12 @@ insert_initial(Tab, Pairs) ->
                   end, Pairs).
 
 insert_initial_pair(Tab, Domain, HostType) ->
-    ets:insert_new(Tab, new_object(Domain, HostType, true)).
+    ets:insert_new(Tab, new_object(Domain, HostType, config)).
 
-new_object(Domain, HostType, IsStatic) ->
-    {Domain, HostType, IsStatic}.
+new_object(Domain, HostType, Source) ->
+    {Domain, HostType, Source}.
 
-just_ok({ok,_}) -> ok;
+just_ok({ok, _}) -> ok;
 just_ok(Other) -> Other.
 
 insert_host_types(Tab, AllowedHostTypes) ->
@@ -160,37 +167,37 @@ handle_delete(Domain) ->
     case is_static(Domain) of
         true ->
             %% Ignore any static domains
-            ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain});
-        false ->
-            ets:delete(?TABLE, Domain)
-    end,
-    ok.
-
-handle_insert(Domain, HostType) ->
-    case is_static(Domain) of
-        true ->
-            %% Ignore any static domains
-            ?LOG_ERROR(#{what => domain_static_but_in_db, domain => Domain}),
+            ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain}),
             {error, static};
         false ->
-            case is_host_type_allowed(HostType) of
-                true ->
-                    case get_host_type(Domain) of
-                        {ok, HT} when HT =:= HostType ->
-                            ok;
-                        {error, not_found} ->
-                            ets:insert_new(?TABLE, new_object(Domain, HostType, false)),
-                            ok;
-                        {ok, HT} ->
-                            ?LOG_ERROR(#{what => ignore_domain_from_db_with_different_host_type,
-                                         core_host_type => HT,
-                                         db_host_type => HostType}),
-                            {error, bad_insert}
-                    end;
-                false ->
-                    ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
-                                 domain => Domain, host_type => HostType}),
-                    {error, unknown_host_type}
-            end
+            ets:delete(?TABLE, Domain),
+            ok
+    end.
+
+handle_insert(Domain, HostType, Source) ->
+    case is_host_type_allowed(HostType) of
+        true ->
+            case ets:lookup(?TABLE, Domain) of
+                [{Domain, _HostType, _Source = config}] ->
+                    %% Ignore any static domains
+                    ?LOG_ERROR(#{what => domain_static_but_in_db, domain => Domain}),
+                    {error, static};
+                [] ->
+                    ets:insert_new(?TABLE, new_object(Domain, HostType, {dynamic, Source})),
+                    ok;
+                [{Domain, HT, _Source}] when HT =:= HostType ->
+                    ets:insert(?TABLE, new_object(Domain, HostType, {dynamic, Source})),
+                    ok;
+                [{Domain, HT, _Source}] when HT =/= HostType ->
+                    ?LOG_ERROR(#{what => ignore_domain_from_db_with_different_host_type,
+                                 core_host_type => HT,
+                                 db_host_type => HostType}),
+                    {error, bad_insert}
+            end;
+        false ->
+            ?LOG_ERROR(#{what => ignore_domain_from_db_with_unknown_host_type,
+                         domain => Domain, host_type => HostType}),
+            {error, unknown_host_type}
+
     end.
 
