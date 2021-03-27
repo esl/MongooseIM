@@ -118,10 +118,120 @@ The number of seconds after an event must be deleted from the `domain_events` ta
 
 # REST API
 
-We must provide REST API for Add/Remove and Enable/Disable interfaces of the
-MongooseIM service described in the section above.
+Provides API for adding/removing and enabling/disabling domains over HTTP.
 
-# Command Line Interfaces
+Implemented by `mongoose_domain_handler` module.
+
+Configuration example:
+
+```toml
+[[listen.http]]
+  ip_address = "127.0.0.1"
+  port = 8088
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_domain_handler]]
+    host = "localhost"
+    path = "/api"
+```
+
+## Add domain
+
+```bash
+curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"host_type": "type1"}'
+```
+
+Result codes:
+
+* 204 - inserted.
+* 409 - domain already exists with a different host type.
+* 403 - DB service disabled.
+* 403 - unknown host type.
+* 500 - other errors.
+
+Example of the result body with a failure reason:
+
+```
+{"what":"unknown host type"}
+```
+
+Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
+
+
+## Delete domain
+
+You must provide the domain's host type inside the body:
+
+```bash
+curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"host_type": "type1"}'
+```
+
+Result codes:
+
+* 204 - the domain is removed or not found.
+* 403 - the domain is static.
+* 403 - the DB service is disabled.
+* 403 - the host type is wrong (does not match the host type in the database).
+* 403 - the host type is unknown.
+* 500 - other errors.
+
+
+## Enable/disable domain
+
+Provide `{"enabled": true}` as a body to enable a domain.
+Provide `{"enabled": false}` as a body to disable a domain.
+
+```bash
+curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
+    -H 'content-type: application/json' \
+    -d '{"enabled": true}'
+```
+
+Result codes:
+
+* 204 - updated.
+* 404 - domain not found;
+* 403 - domain is static;
+* 403 - service disabled.
+
+
+# Command Line Interface
+
+Implemented by `service_admin_extra_domain` module.
+
+Configuration example:
+
+```toml
+[services.service_admin_extra]
+  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
+             "roster", "last", "private", "stanza", "stats", "domain"]
+```
  
-We must provide CLI for Add/Remove and Enable/Disable interfaces of MongooseIM
-service described in the section above.
+Add domain:
+
+```
+./mongooseimctl insert_domain domain host_type
+```
+
+Delete domain:
+
+```
+./mongooseimctl delete_domain domain host_type
+```
+
+Disable domain:
+
+```
+./mongooseimctl disable_domain domain
+```
+
+Enable domain:
+
+```
+./mongooseimctl enable_domain domain
+```

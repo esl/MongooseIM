@@ -24,7 +24,7 @@ init() ->
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->
-    ok  | {error, duplicate} | {error, {db_error, term()}}
+    ok  | {error, duplicate} | {error, static} | {error, {db_error, term()}}
     | {error, service_disabled} | {error, unknown_host_type}.
 insert_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
@@ -48,8 +48,8 @@ delete_domain(Domain, HostType) ->
     end.
 
 -spec disable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, duplicate}
-    | {error, service_disabled} | {error, unknown_host_type}.
+    ok | {error, not_found} | {error, static} | {error, service_disabled}
+    | {error, {db_error, term()}}.
 disable_domain(Domain) ->
     case mongoose_domain_core:is_static(Domain) of
         true ->
@@ -64,8 +64,8 @@ disable_domain(Domain) ->
     end.
 
 -spec enable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, duplicate}
-    | {error, service_disabled} | {error, unknown_host_type}.
+    ok | {error, not_found} | {error, static} | {error, service_disabled}
+    | {error, {db_error, term()}}.
 enable_domain(Domain) ->
     case mongoose_domain_core:is_static(Domain) of
         true ->

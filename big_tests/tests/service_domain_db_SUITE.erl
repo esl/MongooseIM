@@ -5,6 +5,7 @@
 
 -compile(export_all).
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(ejabberdctl_helper, [ejabberdctl/3]).
 
 suite() ->
     require_rpc_nodes([mim, mim2]).
@@ -35,7 +36,7 @@ db_cases() -> [
      db_reenabled_domain_is_in_db,
      db_reenabled_domain_is_in_core,
      db_can_insert_domain_twice_with_the_same_host_type,
-     db_cannot_insert_domain_twice_with_the_another_host_type,
+     db_cannot_insert_domain_twice_with_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
      db_cannot_delete_domain_with_unknown_host_type,
      db_cannot_enable_domain_with_unknown_host_type,
@@ -52,7 +53,60 @@ db_cases() -> [
      db_reinserted_from_one_node_while_service_disabled_on_another,
      db_out_of_sync_restarts_service,
      db_crash_on_initial_load_restarts_service,
-     db_restarts_properly
+     db_restarts_properly,
+     cli_can_insert_domain,
+     cli_can_disable_domain,
+     cli_can_enable_domain,
+     cli_can_delete_domain,
+     cli_cannot_delete_domain_without_correct_type,
+     cli_cannot_insert_domain_twice_with_another_host_type,
+     cli_cannot_insert_domain_with_unknown_host_type,
+     cli_cannot_delete_domain_with_unknown_host_type,
+     cli_cannot_enable_missing_domain,
+     cli_cannot_disable_missing_domain,
+     cli_cannot_insert_domain_when_it_is_static,
+     cli_cannot_delete_domain_when_it_is_static,
+     cli_cannot_enable_domain_when_it_is_static,
+     cli_cannot_disable_domain_when_it_is_static,
+     cli_insert_domain_fails_if_db_fails,
+     cli_insert_domain_fails_if_service_disabled,
+     cli_delete_domain_fails_if_db_fails,
+     cli_delete_domain_fails_if_service_disabled,
+     cli_enable_domain_fails_if_db_fails,
+     cli_enable_domain_fails_if_service_disabled,
+     cli_disable_domain_fails_if_db_fails,
+     cli_disable_domain_fails_if_service_disabled,
+     rest_can_insert_domain,
+     rest_can_disable_domain,
+     rest_can_delete_domain,
+     rest_cannot_delete_domain_without_correct_type,
+     rest_delete_missing_domain,
+     rest_cannot_insert_domain_twice_with_another_host_type,
+     rest_cannot_insert_domain_with_unknown_host_type,
+     rest_cannot_delete_domain_with_unknown_host_type,
+     rest_cannot_enable_missing_domain,
+     rest_cannot_disable_missing_domain,
+     rest_can_enable_domain,
+     rest_can_select_domain,
+     rest_cannot_select_domain_if_domain_not_found,
+     rest_cannot_put_domain_without_host_type,
+     rest_cannot_put_domain_without_body,
+     rest_cannot_put_domain_with_invalid_json,
+     rest_cannot_put_domain_when_it_is_static,
+     rest_cannot_delete_domain_without_host_type,
+     rest_cannot_delete_domain_without_body,
+     rest_cannot_delete_domain_with_invalid_json,
+     rest_cannot_delete_domain_when_it_is_static,
+     rest_cannot_patch_domain_without_enabled_field,
+     rest_cannot_patch_domain_without_body,
+     rest_cannot_patch_domain_with_invalid_json,
+     rest_cannot_enable_domain_when_it_is_static,
+     rest_insert_domain_fails_if_db_fails,
+     rest_insert_domain_fails_if_service_disabled,
+     rest_delete_domain_fails_if_db_fails,
+     rest_delete_domain_fails_if_service_disabled,
+     rest_enable_domain_fails_if_db_fails,
+     rest_enable_domain_fails_if_service_disabled
     ].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
@@ -71,7 +125,8 @@ init_per_suite(Config) ->
     prepare_test_queries(mim()),
     prepare_test_queries(mim2()),
     erase_database(mim()),
-    escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config]).
+    Config1 = ejabberd_node_utils:init(mim(), Config),
+    escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config1]).
 
 store_conf(Node) ->
     Loaded = rpc(Node, mongoose_service, is_loaded, [service_domain_db]),
@@ -242,7 +297,7 @@ db_can_insert_domain_twice_with_the_same_host_type(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>).
 
-db_cannot_insert_domain_twice_with_the_another_host_type(_) ->
+db_cannot_insert_domain_twice_with_another_host_type(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     {error, duplicate} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
 
@@ -411,6 +466,277 @@ db_restarts_properly(_) ->
         end,
     mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
+cli_can_insert_domain(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+cli_can_disable_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("disable_domain", [<<"example.db">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := false}} =
+        select_domain(mim(), <<"example.db">>).
+
+cli_can_enable_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("disable_domain", [<<"example.db">>], Config),
+    ejabberdctl("enable_domain", [<<"example.db">>], Config),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+cli_can_delete_domain(Config) ->
+    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
+    {error, not_found} = select_domain(mim(), <<"example.db">>).
+
+cli_cannot_delete_domain_without_correct_type(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {"Error: \"Wrong host type\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
+    {ok, _} = select_domain(mim(), <<"example.db">>).
+
+cli_cannot_insert_domain_twice_with_another_host_type(Config) ->
+    {"Added\n", 0} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    {"Error: \"Domain already exists\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
+
+cli_cannot_insert_domain_with_unknown_host_type(Config) ->
+    {"Error: \"Unknown host type\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
+
+cli_cannot_delete_domain_with_unknown_host_type(Config) ->
+    {"Error: \"Unknown host type\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
+
+cli_cannot_enable_missing_domain(Config) ->
+    {"Error: \"Domain not found\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+
+cli_cannot_disable_missing_domain(Config) ->
+    {"Error: \"Domain not found\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
+cli_cannot_insert_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.cfg">>, <<"type1">>], Config).
+
+cli_cannot_delete_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.cfg">>, <<"type1">>], Config).
+
+cli_cannot_enable_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.cfg">>], Config).
+
+cli_cannot_disable_domain_when_it_is_static(Config) ->
+    {"Error: \"Domain is static\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.cfg">>], Config).
+
+cli_insert_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_insert_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_delete_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_delete_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+
+cli_enable_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+
+cli_enable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+
+cli_disable_domain_fails_if_db_fails(Config) ->
+    {"Error: \"Database error\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
+cli_disable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {"Error: \"Service disabled\"\n", 1} =
+        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+
+rest_can_insert_domain(Config) ->
+    {{<<"204">>, _}, _} =
+        rest_put_domain(<<"example.db">>, <<"type1">>),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_disable_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_patch_enabled(<<"example.db">>, false),
+    {ok, #{host_type := <<"type1">>, enabled := false}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_delete_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"204">>, _}, _} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>),
+    {error, not_found} = select_domain(mim(), <<"example.db">>).
+
+rest_cannot_delete_domain_without_correct_type(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"wrong host type">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type2">>),
+    {ok, _} = select_domain(mim(), <<"example.db">>).
+
+rest_delete_missing_domain(Config) ->
+    {{<<"204">>, _}, _} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_missing_domain(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
+rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"409">>, <<"Conflict">>}, {[{<<"what">>, <<"duplicate">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type2">>).
+
+rest_cannot_insert_domain_with_unknown_host_type(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type6">>).
+
+rest_cannot_delete_domain_with_unknown_host_type(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type6">>).
+
+rest_cannot_disable_missing_domain(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_patch_enabled(<<"example.db">>, false).
+
+rest_can_enable_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_patch_enabled(<<"example.db">>, false),
+    rest_patch_enabled(<<"example.db">>, true),
+    {ok, #{host_type := <<"type1">>, enabled := true}} =
+        select_domain(mim(), <<"example.db">>).
+
+rest_can_select_domain(Config) ->
+    rest_put_domain(<<"example.db">>, <<"type1">>),
+    {{<<"200">>, <<"OK">>},
+     {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
+        rest_select_domain(<<"example.db">>).
+
+rest_cannot_select_domain_if_domain_not_found(Config) ->
+    {{<<"404">>, <<"Not Found">>},
+     {[{<<"what">>, <<"domain not found">>}]}} =
+        rest_select_domain(<<"example.db">>).
+
+rest_cannot_put_domain_without_host_type(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_put_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_put_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+rest_cannot_put_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_put_domain(<<"example.cfg">>, <<"type1">>).
+
+rest_cannot_delete_domain_without_host_type(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_delete_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_delete_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        delete_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+rest_cannot_delete_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_delete_domain(<<"example.cfg">>, <<"type1">>).
+
+rest_cannot_patch_domain_without_enabled_field(Config) ->
+    {{<<"400">>, <<"Bad Request">>},
+     {[{<<"what">>, <<"'enabled' field is missing">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, #{}).
+
+rest_cannot_patch_domain_without_body(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"body is empty">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, <<>>).
+
+rest_cannot_patch_domain_with_invalid_json(Config) ->
+    {{<<"400">>,<<"Bad Request">>},
+     {[{<<"what">>,<<"failed to parse JSON">>}]}} =
+        patch_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+
+%% SQL query is mocked to fail
+rest_insert_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type1">>).
+
+rest_insert_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_put_domain(<<"example.db">>, <<"type1">>).
+
+%% SQL query is mocked to fail
+rest_delete_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
+
+rest_delete_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_delete_domain(<<"example.db">>, <<"type1">>).
+
+%% SQL query is mocked to fail
+rest_enable_domain_fails_if_db_fails(Config) ->
+    {{<<"500">>, <<"Internal Server Error">>},
+     {[{<<"what">>, <<"database error">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
+rest_enable_domain_fails_if_service_disabled(Config) ->
+    service_disabled(mim()),
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"service disabled">>}]}} =
+        rest_patch_enabled(<<"example.db">>, true).
+
+rest_cannot_enable_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"domain is static">>}]}} =
+        rest_patch_enabled(<<"example.cfg">>, true).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -501,6 +827,25 @@ restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts :=
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
+maybe_setup_meck(TC) when TC =:= rest_insert_domain_fails_if_db_fails;
+                          TC =:= cli_insert_domain_fails_if_db_fails ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, insert_domain, 2,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(TC) when TC =:= rest_delete_domain_fails_if_db_fails;
+                          TC =:= cli_delete_domain_fails_if_db_fails ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(TC) when TC =:= rest_enable_domain_fails_if_db_fails;
+                          TC =:= cli_enable_domain_fails_if_db_fails ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1,
+                                   {error, {db_error, simulated_db_error}}]);
+maybe_setup_meck(cli_disable_domain_fails_if_db_fails) ->
+    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, disable_domain, 1,
+                                   {error, {db_error, simulated_db_error}}]);
 maybe_setup_meck(db_crash_on_initial_load_restarts_service) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, select_from, 2, something_strange]),
@@ -512,7 +857,35 @@ maybe_setup_meck(db_out_of_sync_restarts_service) ->
 maybe_setup_meck(_TestCase) ->
     ok.
 
-maybe_teardown_meck(TC) when TC =:= db_crash_on_initial_load_restarts_service;
-                             TC =:= db_out_of_sync_restarts_service ->
-    rpc(mim(), meck, unload, []);
-maybe_teardown_meck(_TestCase) -> ok.
+maybe_teardown_meck(_) ->
+    %% running unload meck makes no harm even if nothing is mocked
+    rpc(mim(), meck, unload, []).
+
+rest_patch_enabled(Domain, Enabled) ->
+    Params = #{enabled => Enabled},
+    rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
+                                path => <<"/domains/", Domain/binary>>,
+                                body => Params }).
+
+rest_put_domain(Domain, Type) ->
+    Params = #{host_type => Type},
+    rest_helper:putt(admin, <<"/domains/", Domain/binary>>, Params).
+
+rest_select_domain(Domain) ->
+    rest_helper:gett(admin, <<"/domains/", Domain/binary>>, #{}).
+
+rest_delete_domain(Domain, HostType) ->
+    Params = #{<<"host_type">> => HostType},
+    rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
+                                path => <<"/domains/", Domain/binary>>,
+                                body => Params }).
+
+delete_custom(Role, Path, Body) ->
+    rest_helper:make_request(#{ role => Role, method => <<"DELETE">>,
+                                path => Path,
+                                body => Body }).
+
+patch_custom(Role, Path, Body) ->
+    rest_helper:make_request(#{ role => Role, method => <<"PATCH">>,
+                                path => Path,
+                                body => Body }).

@@ -58,6 +58,9 @@
   [[listen.http.handlers.mongoose_api_admin]]
     host = "localhost"
     path = "/api"
+  [[listen.http.handlers.mongoose_domain_handler]]
+    host = "localhost"
+    path = "/api"
 
 [[listen.http]]
   {{#http_api_client_endpoint}}
@@ -200,7 +203,7 @@
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats"]
+             "roster", "last", "private", "stanza", "stats", "domain"]
 
 [services.service_mongoose_system_metrics]
   initial_report = 300_000
