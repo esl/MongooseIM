@@ -15,15 +15,25 @@ init_per_suite(Config) ->
     Domain = <<"example.com">>,
     HostType = <<"test type">>,
     Source = dummy_source,
-    rpc(mim(), mongoose_domain_core, insert, [Domain, HostType, Source]),
-    rpc(mim2(), mongoose_domain_core, insert, [Domain, HostType, Source]),
-    Config.
+    ok = rpc(mim(), mongoose_domain_core, insert, [Domain, HostType, Source]),
+    ok = rpc(mim2(), mongoose_domain_core, insert, [Domain, HostType, Source]),
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    rpc(mim(), mongoose_domain_core, delete, [<<"example.com">>]),
-    rpc(mim2(), mongoose_domain_core, delete, [<<"example.com">>]),
-    Config.
+    ok = rpc(mim(), mongoose_domain_core, delete, [<<"example.com">>]),
+    ok = rpc(mim2(), mongoose_domain_core, delete, [<<"example.com">>]),
+    escalus:end_per_suite(Config).
+
+init_per_testcase(CN, Config) ->
+    escalus:init_per_testcase(CN, Config).
+
+end_per_testcase(CaseName, Config) ->
+    escalus:end_per_testcase(CaseName, Config).
 
 can_authenticate(Config) ->
-    %% TODO: implement later
-    ok.
+    UserSpecA = escalus_users:get_userspec(Config, alice3),
+    {ok, ClientA, _} = escalus_connection:start(UserSpecA),
+    UserSpecB = escalus_users:get_userspec(Config, bob3),
+    {ok, ClientB, _} = escalus_connection:start(UserSpecB),
+    escalus_connection:stop(ClientA),
+    escalus_connection:stop(ClientB).
