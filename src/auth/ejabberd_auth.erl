@@ -76,7 +76,7 @@
 %%%----------------------------------------------------------------------
 -spec start() -> 'ok'.
 start() ->
-    lists:foreach(fun start/1, ?MYHOSTS).
+    lists:foreach(fun start/1, ?ALL_HOST_TYPES).
 
 -spec start(Host :: jid:server()) -> 'ok'.
 start(Host) ->
@@ -122,9 +122,10 @@ get_opt(Host, Opt, Default) ->
 get_opt(Host, Opt) ->
     get_opt(Host, Opt, undefined).
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(Server, Module) ->
-    lists:any(fun(M) -> M:supports_sasl_module(Server, Module) end, auth_modules(Server)).
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(HostType, Module) ->
+    lists:any(fun(M) -> M:supports_sasl_module(HostType, Module) end,
+              auth_modules_for_host_type(HostType)).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -247,11 +248,11 @@ do_try_register_if_does_not_exist(true, _, _) ->
     {error, exists};
 do_try_register_if_does_not_exist(_, JID, Password) ->
     {LUser, LServer} = jid:to_lus(JID),
-    case lists:member(LServer, ?MYHOSTS) of
-        true ->
-            timed_call(LServer, try_register,
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            timed_call(HostType, try_register,
                        fun do_try_register_if_does_not_exist_timed/3, [LUser, LServer, Password]);
-        false ->
+        {error, not_found} ->
             {error, not_allowed}
     end.
 
@@ -458,20 +459,27 @@ entropy(IOList) ->
 auth_modules() ->
     lists:usort(
       lists:flatmap(
-        fun(Server) ->
-                auth_modules(Server)
-        end, ?MYHOSTS)).
+        fun(HostType) ->
+                auth_modules_for_host_type(HostType)
+        end, ?ALL_HOST_TYPES)).
 
-
-%% Return the list of authenticated modules for a given host
+%% Return the list of authenticated modules for a given domain
 -spec auth_modules(Server :: jid:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
-    Methods = auth_methods(LServer),
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} -> auth_modules_for_host_type(HostType);
+        {error, not_found} -> []
+    end.
+
+%% Return the list of authenticated modules for a given host type
+-spec auth_modules_for_host_type(HostType :: binary()) -> [authmodule()].
+auth_modules_for_host_type(HostType) ->
+    Methods = auth_methods(HostType),
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
 
--spec auth_methods(jid:lserver()) -> [atom()].
-auth_methods(LServer) ->
-    Method = ejabberd_config:get_local_option({auth_method, LServer}),
+-spec auth_methods(binary()) -> [atom()].
+auth_methods(HostType) ->
+    Method = ejabberd_config:get_local_option({auth_method, HostType}),
     get_auth_method_as_a_list(Method).
 
 get_auth_method_as_a_list(undefined) -> [];
