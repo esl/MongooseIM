@@ -34,7 +34,7 @@
 -ifdef(TEST).
 %% required for unit tests
 start(Pairs, AllowedHostTypes) ->
-    gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
+    just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], [])).
 
 stop() ->
     gen_server:stop(?MODULE).
