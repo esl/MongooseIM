@@ -46,7 +46,7 @@ init(VHost, _Options) ->
     rdbms_queries:prepare_upsert(VHost, inbox_upsert, inbox,
                                  [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>,
                                   <<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
-                                 [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
+                                 [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>, <<"archive">>],
                                  [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>]),
     ok.
 
@@ -108,7 +108,7 @@ set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
     InsertParams = [LUsername, LServer, LToBareJid,
                     Content, Count, MsgId, Timestamp],
-    UpdateParams = [Content, Count, MsgId, Timestamp],
+    UpdateParams = [Content, Count, MsgId, Timestamp, false],
     UniqueKeyValues  = [LUsername, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(LServer, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),

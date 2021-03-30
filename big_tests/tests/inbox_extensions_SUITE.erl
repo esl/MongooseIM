@@ -53,7 +53,8 @@
          % archive
          archive_active_entry_gets_archived/1,
          archive_archived_entry_gets_active_on_request/1,
-         archive_archived_entry_gets_active_on_new_message/1,
+         archive_archived_entry_gets_active_for_the_sender_on_new_message/1,
+         archive_archived_entry_gets_active_for_the_receiver_on_new_message/1,
          archive_active_unread_entry_gets_archived_and_still_unread/1,
          archive_full_archive_can_be_fetched/1,
          % mute
@@ -117,7 +118,8 @@ bkpr_tests() ->
         % archive
         archive_active_entry_gets_archived,
         archive_archived_entry_gets_active_on_request,
-        archive_archived_entry_gets_active_on_new_message,
+        archive_archived_entry_gets_active_for_the_sender_on_new_message,
+        archive_archived_entry_gets_active_for_the_receiver_on_new_message,
         archive_active_unread_entry_gets_archived_and_still_unread,
         archive_full_archive_can_be_fetched,
         % mute
@@ -297,7 +299,7 @@ archive_archived_entry_gets_active_on_request(Config) ->
         check_box(archive, Bob, [])
     end).
 
-archive_archived_entry_gets_active_on_new_message(Config) ->
+archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
@@ -308,6 +310,19 @@ archive_archived_entry_gets_active_on_new_message(Config) ->
         % Then the conversation is automatically in the active and not in the archive box
         check_box(active, Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}]),
         check_box(archive, Bob, [])
+    end).
+
+archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and then she archives the conversation
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        set_inbox_property(Alice, Bob, [{archive, true}]),
+        % But then Alice keeps writing
+        inbox_helper:send_msg(Alice, Bob, Body),
+        % Then the conversation is automatically in the active and not in the archive box
+        check_box(archive, Alice, []),
+        check_box(active, Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
     end).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
