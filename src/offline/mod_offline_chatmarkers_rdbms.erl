@@ -17,19 +17,43 @@
 -include("jlib.hrl").
 
 -spec init(Host :: jid:lserver(), Opts :: list()) -> ok.
-init(_Host, _Opts) ->
+init(Host, _Opts) ->
+    mongoose_rdbms:prepare(offline_chatmarkers_select, offline_markers, [jid],
+        <<"SELECT thread, room, timestamp FROM offline_markers WHERE jid = ?;">>),
+    mongoose_rdbms:prepare(offline_chatmarkers_delete, offline_markers, [jid],
+        <<"DELETE FROM offline_markers WHERE jid = ?;">>),
+    rdbms_queries:prepare_upsert(Host, offline_chatmarkers_upsert, offline_markers,
+                                 [<<"jid">>, <<"thread">>, <<"room">>, <<"timestamp">>],
+                                 [],
+                                 [<<"jid">>, <<"thread">>, <<"room">>]),
     ok.
 
 -spec get(Jid :: jid:jid()) -> {ok, [{Thread :: undefined | binary(),
                                       Room :: undefined | jid:jid(),
                                       Timestamp :: integer()}]}.
 get(#jid{lserver = Host} = Jid) ->
-    JidEscaped = escape(encode_jid(Jid)),
-    SelectQuery = ["SELECT thread, room, timestamp FROM offline_markers",
-                   " WHERE jid = ", JidEscaped, ";"],
-    {selected, Rows} = mongoose_rdbms:sql_query(Host, SelectQuery),
+    {selected, Rows} = execute_select(Host, encode_jid(Jid)),
     decode(Rows).
 
+-spec execute_select(Host :: jid:lserver(), Jid :: binary()) -> mongoose_rdbms:query_result().
+execute_select(Host, Jid) ->
+    mongoose_rdbms:execute_successfully(Host, offline_chatmarkers_select, [Jid]).
+
+-spec execute_delete_user(Host :: jid:lserver(), Jid :: binary()) -> mongoose_rdbms:query_result().
+execute_delete_user(Host, Jid) ->
+    mongoose_rdbms:execute_successfully(Host, offline_chatmarkers_delete, [Jid]).
+
+-spec execute_maybe_store(Host :: jid:lserver(),
+                          Jid :: binary(),
+                          Thread :: binary(),
+                          Room :: binary(),
+                          Timestamp :: integer()) ->
+                              mongoose_rdbms:query_result().
+execute_maybe_store(Host, Jid, Thread, Room, Timestamp) ->
+    rdbms_queries:execute_upsert(Host, offline_chatmarkers_upsert,
+                                 [Jid, Thread, Room, Timestamp],
+                                 [],
+                                 [Jid, Thread, Room]).
 %%% @doc
 %%% Jid, Thread, and Room parameters serve as a composite database key. If
 %%% key is not available in the database, then it must be added with the
@@ -39,20 +63,13 @@ get(#jid{lserver = Host} = Jid) ->
 -spec maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
                   Room :: undefined | jid:jid(), Timestamp :: integer()) -> ok.
 maybe_store(#jid{lserver = Host} = Jid, Thread, Room, Timestamp) ->
-    JidEscaped = escape(encode_jid(Jid)),
-    ThreadEscaped = escape(encode_thread(Thread)),
-    RoomEscaped = escape(encode_jid(Room)),
-    TSEscaped = escape(Timestamp),
-    InsertQuery = ["INSERT INTO offline_markers (jid, thread, room, timestamp) VALUES (",
-                   JidEscaped, ",", ThreadEscaped, ",", RoomEscaped, ",", TSEscaped, ");"],
-    Res = mongoose_rdbms:sql_query(Host, InsertQuery),
-    ok = check_insert_result(Res).
+    {updated, _} = execute_maybe_store(Host, encode_jid(Jid), encode_thread(Thread),
+                                       encode_jid(Room), Timestamp),
+    ok.
 
 -spec remove_user(Jid :: jid:jid()) -> ok.
 remove_user(#jid{lserver = Host} = Jid) ->
-    JidEscaped = escape(encode_jid(Jid)),
-    DelQuery = ["DELETE FROM offline_markers WHERE jid = ", JidEscaped, ";"],
-    {updated, _} = mongoose_rdbms:sql_query(Host, DelQuery),
+    {updated, _} = execute_delete_user(Host, encode_jid(Jid)),
     ok.
 
 encode_jid(undefined) -> <<"">>;
@@ -60,21 +77,6 @@ encode_jid(JID)       -> jid:to_binary(jid:to_lus(JID)).
 
 encode_thread(undefined) -> <<"">>;
 encode_thread(Thread)    -> Thread.
-
-escape(String) when is_binary(String) -> escape_string(String);
-escape(Int) when is_integer(Int)      -> escape_int(Int).
-
-escape_string(String) ->
-    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
-escape_int(Int) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
-
-%% add new record if key is not available, otherwise no changes to the table
-check_insert_result({error,duplicate_key}) -> ok;
-check_insert_result({updated, 1}) -> ok;
-check_insert_result(Result) ->
-    {error, {bad_result, Result}}.
 
 decode(Rows) ->
     {ok, [decode_row(R) || R <- Rows]}.
