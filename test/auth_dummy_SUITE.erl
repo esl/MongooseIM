@@ -53,7 +53,7 @@ check_password_5(_Config) ->
 
 authorize(_Config) ->
     {ok, _} = application:ensure_all_started(jid),
-    Creds = mongoose_credentials:new(?DOMAIN),
+    Creds = mongoose_credentials:new(?DOMAIN, ?DOMAIN),
     {ok, _Creds2} = ejabberd_auth_dummy:authorize(Creds).
 
 plain_password_required(_Config) ->
