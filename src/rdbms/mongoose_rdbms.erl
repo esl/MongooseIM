@@ -155,7 +155,7 @@
 -type rdbms_msg() :: {sql_query, _}
                    | {sql_transaction, fun()}
                    | {sql_dirty, fun()}
-                   | {sql_execute, atom(), iodata()}.
+                   | {sql_execute, atom(), [binary() | boolean() | integer()]}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {updated, non_neg_integer(), [tuple()]} |
