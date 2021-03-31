@@ -63,17 +63,21 @@ isolation_works_for_one2one(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {alice_bis, 1}], F).
 
 isolation_works_for_subdomains(Config) ->
-    F = fun(Bis) ->
+    F = fun(Alice, Bis) ->
           Domain = domain(),
-          To = <<"muclight.", Domain/binary>>,
+          To = <<"muclight.", Domain/binary, "/room">>,
           %% Ignored from another domain
           escalus_client:send(Bis, escalus_stanza:chat_to(To, <<"Hi muc!">>)),
           %% Sender receives an error about the drop
           Err = escalus:wait_for_stanza(Bis),
           escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Err),
-          <<"Filtered by the domain isolation">> = get_error_text(Err)
+          <<"Filtered by the domain isolation">> = get_error_text(Err),
+          %% But if Alice is on the same domain, her message passes
+          escalus_client:send(Alice, escalus_stanza:chat_to(To, <<"Hi muc!">>)),
+          Ok = escalus:wait_for_stanza(Alice),
+          escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Ok)
         end,
-    escalus:fresh_story(Config, [{alice_bis, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], F).
 
 %%--------------------------------------------------------------------
 %% Helpers

@@ -47,15 +47,26 @@ filter_local_packet(drop) ->
     drop;
 filter_local_packet({From = #jid{lserver = FromServer},
                      To = #jid{lserver = ToServer}, Acc, Packet}) ->
-    if
-        FromServer =:= ToServer ->
-            {From, To, Acc, Packet};
+    FromHost = domain_to_host(FromServer),
+    ToHost = domain_to_host(ToServer),
+    Pass = FromHost =:= ToHost,
+    case Pass of
         true ->
+            {From, To, Acc, Packet};
+        false ->
             send_back_error(mongoose_xmpp_errors:service_unavailable(
                                 <<"en">>, <<"Filtered by the domain isolation">>),
                             From, To, Acc),
             drop
      end.
+
+%% muc.localhost becomes localhost.
+%% localhost stays localhost.
+domain_to_host(Domain) ->
+    case mongoose_subhosts:get_host(Domain) of
+        {ok, Host} -> Host;
+        undefined -> Domain
+    end.
 
 send_back_error(Etype, From, To, Acc) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Etype),

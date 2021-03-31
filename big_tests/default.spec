@@ -81,6 +81,7 @@
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
+{suites, "tests", domain_isolation_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
