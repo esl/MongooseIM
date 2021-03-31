@@ -27,6 +27,7 @@
 {suites, "tests", extdisco_SUITE}.
 {suites, "tests", gdpr_SUITE}.
 {suites, "tests", inbox_SUITE}.
+{suites, "tests", inbox_extensions_SUITE}.
 {suites, "tests", jingle_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
@@ -99,5 +100,3 @@
 
 %% To enable printing group and case enters on server side
 %%{ct_hooks, [{ct_mongoose_hook, [print_group, print_case]}]}.
-{include, "bkpr"}.
-{suites, "bkpr", inbox_extensions_SUITE}.
