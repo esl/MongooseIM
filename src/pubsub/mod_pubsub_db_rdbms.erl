@@ -167,6 +167,14 @@ start() ->
     ItemColumns = item_columns(),
     mongoose_rdbms:prepare(pubsub_get_item, pubsub_items, [nidx, itemid],
         <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
+    mongoose_rdbms:prepare(pubsub_get_items, pubsub_items, [nidx],
+        <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? "
+          "ORDER BY modified_at DESC">>),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    mongoose_rdbms:prepare(pubsub_get_items_limit, pubsub_items,
+        rdbms_queries:add_limit_arg(limit, [nidx]),
+        <<"SELECT ", LimitMSSQL/binary, " ", ItemColumns/binary,
+          " FROM pubsub_items WHERE nidx = ? ORDER BY modified_at DESC ", LimitSQL/binary>>),
     mongoose_rdbms:prepare(pubsub_del_item, pubsub_items, [nidx, itemid],
         <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
 
@@ -408,6 +416,16 @@ execute_delete_all_items(Nidx) ->
 execute_get_item(Nidx, ItemId) ->
     mongoose_rdbms:execute_successfully(global, pubsub_get_item, [Nidx, ItemId]).
 
+-spec execute_get_items(Nidx :: mod_pubsub:nodeIdx()) -> mongoose_rdbms:query_result().
+execute_get_items(Nidx) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_get_items, [Nidx]).
+
+-spec execute_get_items(Nidx :: mod_pubsub:nodeIdx(), Limit :: pos_integer()) ->
+          mongoose_rdbms:query_result().
+execute_get_items(Nidx, Limit) ->
+    Args = rdbms_queries:add_limit_arg(Limit, [Nidx]),
+    mongoose_rdbms:execute_successfully(global, pubsub_get_items_limit, Args).
+
 -spec execute_del_item(Nidx :: mod_pubsub:nodeIdx(),
                        ItemId :: mod_pubsub:itemId()) ->
                            mongoose_rdbms:query_result().
@@ -567,11 +585,36 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], none}}.
 get_items(Nidx, Opts) ->
-    SQL = mod_pubsub_db_rdbms_sql:get_items(Nidx, Opts),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    MaxItems = maps:get(max_items, Opts, undefined),
+    ItemIds = maps:get(item_ids, Opts, undefined),
+    Rows = get_item_rows(Nidx, MaxItems, ItemIds),
     Result = [item_to_record(Row) || Row <- Rows],
     {ok, {Result, none}}.
 
+-spec get_item_rows(Nidx :: mod_pubsub:nodeIdx(),
+                    MaxItems :: undefined | non_neg_integer(),
+                    ItemIds :: undefined | mod_pubsub:itemId()) -> [tuple()].
+get_item_rows(Nidx, undefined, undefined) ->
+    {selected, Rows} = execute_get_items(Nidx),
+    Rows;
+get_item_rows(Nidx, MaxItems, undefined) ->
+    {selected, Rows} = execute_get_items(Nidx, MaxItems),
+    Rows;
+get_item_rows(Nidx, MaxItems, ItemIds) ->
+    %% Returned items have same order as ItemIds
+    get_item_rows_acc(Nidx, MaxItems, ItemIds, []).
+
+get_item_rows_acc(_Nidx, _MaxItems, [], AccRows) -> AccRows;
+get_item_rows_acc(Nidx, MaxItems, [ItemId | ItemIds], AccRows) ->
+    case execute_get_item(Nidx, ItemId) of
+        {selected, []} ->
+            get_item_rows_acc(Nidx, MaxItems, ItemIds, AccRows);
+        {selected, [Item]} when MaxItems =:= undefined;
+                                length(AccRows) < MaxItems ->
+            get_item_rows_acc(Nidx, MaxItems, ItemIds, [Item | AccRows]);
+        {selected, [_]} ->
+            AccRows
+    end.
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
@@ -626,7 +669,7 @@ create_node(Nidx, LJID) ->
     {ok, [mod_pubsub:pubsubState()]}.
 del_node(Nidx) ->
     {ok, States} = get_states(Nidx),
-    {updated, _} =execute_delete_all_subscriptions_id(Nidx),
+    {updated, _} = execute_delete_all_subscriptions_id(Nidx),
     {updated, _} = execute_delete_all_items(Nidx),
     {updated, _} = execute_delete_all_affiliations(Nidx),
     {ok, States}.

@@ -8,11 +8,6 @@
 -module(mod_pubsub_db_rdbms_sql).
 -author('piotr.nosek@erlang-solutions.com').
 
-% Items
--export([
-         get_items/2
-        ]).
-
 % Nodes
 
 -export([insert_pubsub_node/5,
@@ -26,41 +21,6 @@
 %%====================================================================
 
 % ------------------- Items --------------------------------
-
--spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
-    iolist().
-get_items(Nidx, Opts) ->
-    MaxItems = maps:get(max_items, Opts, undefined),
-    {MySQLOrPgSQLLimit, MSSQLLimit} = maybe_result_limit(MaxItems),
-    ["SELECT ", MSSQLLimit, item_columns(), " ",
-     "FROM pubsub_items "
-     "WHERE nidx=", esc_int(Nidx),
-     maybe_item_ids_filter(maps:get(item_ids, Opts, undefined)),
-     " ORDER BY modified_at DESC",
-     MySQLOrPgSQLLimit].
-
-item_columns() ->
-     "nidx, itemid, created_luser, created_lserver, created_at, "
-     "modified_luser, modified_lserver, modified_lresource, modified_at, "
-     "publisher, payload".
-
-maybe_item_ids_filter(undefined) ->
-    [];
-maybe_item_ids_filter(ItemIds) ->
-    EscapedIds = [esc_string(ItemId) || ItemId <- ItemIds],
-    Ids = rdbms_queries:join(EscapedIds, ","),
-    [" AND itemid IN (", Ids, ")"].
-
-maybe_result_limit(undefined) ->
-    {[], []};
-maybe_result_limit(Limit) ->
-    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
-        {MySQLorPgSQL, _} when MySQLorPgSQL =:= mysql; MySQLorPgSQL =:= pgsql ->
-            {[" LIMIT ", esc_int(Limit)], []};
-        {odbc, mssql} ->
-            {[], [" TOP ", esc_int(Limit), " "]};
-        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
-    end.
 
 insert_pubsub_node(Key, Name, Type, Owners, Options) ->
     RDBMSType = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
@@ -138,9 +98,6 @@ select_nodes_by_key_and_names_in_list_with_children(Key, Nodes) ->
 
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
-esc_int(Int) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
 %% MSSQL and MYSQL
 convert_sql_nidx({selected, [{Nidx}]}) ->
