@@ -130,6 +130,7 @@ nav:
       - 'mod_commands': 'modules/mod_commands.md'
       - 'mod_csi': 'modules/mod_csi.md'
       - 'mod_disco': 'modules/mod_disco.md'
+      - 'mod_domain_isolation': 'modules/mod_domain_isolation.md'
       - 'mod_event_pusher':
           - 'mod_event_pusher': 'modules/mod_event_pusher.md'
           - 'HTTP backend': 'modules/mod_event_pusher_http.md'
