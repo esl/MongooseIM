@@ -45,14 +45,16 @@ stop(Host) ->
 -spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_local_packet(drop) ->
     drop;
-filter_local_packet({From = #jid{lserver = FromServer},
-                     To = #jid{lserver = ToServer}, Acc, Packet}) ->
+filter_local_packet({#jid{lserver = Server},
+                     #jid{lserver = Server}, _Acc, _Packet} = Arg) ->
+    Arg;
+filter_local_packet({#jid{lserver = FromServer} = From,
+                     #jid{lserver = ToServer} = To, Acc, Packet} = Arg) ->
     FromHost = domain_to_host(FromServer),
     ToHost = domain_to_host(ToServer),
-    Pass = FromHost =:= ToHost,
-    case Pass of
+    case FromHost =:= ToHost of
         true ->
-            {From, To, Acc, Packet};
+            Arg;
         false ->
             send_back_error(mongoose_xmpp_errors:service_unavailable(
                                 <<"en">>, <<"Filtered by the domain isolation">>),
