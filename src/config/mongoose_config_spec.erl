@@ -886,7 +886,8 @@ configurable_modules() ->
      mod_stream_management,
      mod_time,
      mod_vcard,
-     mod_version].
+     mod_version,
+     mod_domain_isolation].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->
