@@ -224,7 +224,9 @@ check_dynamic_domains_support(State) ->
     Config = get_opts(State),
     HostTypes = state_to_host_types(State),
     FoldFN = fun(ConfigEl, ErrorsAcc) ->
-                 ErrorsAcc ++ maybe_check_modules_for_host_type(ConfigEl, HostTypes)
+                 ErrorsAcc ++
+                     maybe_check_modules_for_host_type(ConfigEl, HostTypes) ++
+                     maybe_check_auth_methods_for_host_types(ConfigEl, HostTypes)
              end,
     case lists:foldl(FoldFN, [], Config) of
         [] -> ok;
@@ -262,3 +264,34 @@ invalid_modules_for_host_type(HostType, Modules) ->
                   what => toml_processing_failed}
             end,
     lists:map(MapFN, Modules).
+
+maybe_check_auth_methods_for_host_types(#local_config{key = {auth_method, HostOrHostType},
+                                                      value = ListOfMethods},
+                                        HostTypes) ->
+    case lists:member(HostOrHostType, HostTypes) of
+        false -> [];
+        true ->
+            BadModules = check_auth_methods_for_host_type(ListOfMethods),
+            invalid_auth_methods_for_host_type(HostOrHostType, BadModules)
+    end;
+maybe_check_auth_methods_for_host_types(_, _) -> [].
+
+check_auth_methods_for_host_type(ListOfMethods) ->
+    FilterMapFN = fun(Method) ->
+                      case ejabberd_auth:does_method_support(Method, dynamic_domains) of
+                          true -> false;
+                          false -> {true, Method}
+                      end
+                  end,
+    lists:filtermap(FilterMapFN, ListOfMethods).
+
+invalid_auth_methods_for_host_type(HostType, Methods) ->
+    MapFN = fun(Method) ->
+                #{class => error,
+                  auth_method => Method,
+                  host_type => HostType,
+                  reason => not_supported_auth_method,
+                  text => "this auth method doesn't support dynamic domains",
+                  what => toml_processing_failed}
+            end,
+    lists:map(MapFN, Methods).

@@ -43,7 +43,10 @@ groups() ->
                          {group, host_types_group}]},
      {host_types_group, [], [host_types_file,
                              host_types_missing_modules,
-                             host_types_unsupported_modules]},
+                             host_types_missing_auth_methods,
+                             host_types_unsupported_modules,
+                             host_types_unsupported_auth_methods,
+                             host_types_unsupported_auth_methods_and_modules]},
      {general, [parallel], [loglevel,
                             hosts,
                             host_types,
@@ -242,8 +245,9 @@ end_per_suite(_Config) ->
     ok.
 
 init_per_group(host_types_group, Config) ->
-    Modules = [dummy_module, another_dummy_module, yet_another_dummy_module],
-    [{mocked_modules, Modules} | Config];
+    Modules = [test_mim_module1, test_mim_module2, test_mim_module3],
+    AuthModules = [ejabberd_auth_test1, ejabberd_auth_test2, ejabberd_auth_test3],
+    [{mocked_modules, Modules ++ AuthModules} | Config];
 init_per_group(_, Config) ->
     Config.
 
@@ -258,10 +262,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, Config) ->
-    case proplists:get_value(mocked_modules, Config, no_mocks) of
-        no_mocks -> ok;
-        _ -> meck:unload()
-    end,
+    meck:unload(),
     Config.
 
 sample_pgsql(Config) ->
@@ -280,27 +281,65 @@ outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
 
 host_types_file(Config) ->
-    Modules = [dummy_module, another_dummy_module],
+    Modules = [test_mim_module1, test_mim_module2,
+               ejabberd_auth_test1, ejabberd_auth_test2],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     test_config_file(Config, "host_types").
 
 host_types_missing_modules(Config) ->
-    Modules = [dummy_module, yet_another_dummy_module],
+    Modules = [test_mim_module1, test_mim_module2],
     [meck:unload(M) || M <- Modules],
     ?assertError({config_error, "Could not read the TOML configuration file",
-                  [#{reason := module_not_found, module := yet_another_dummy_module,
+                  [#{reason := module_not_found, module := test_mim_module2,
                      toml_path := "host_config.modules"},
-                   #{reason := module_not_found, module := dummy_module,
+                   #{reason := module_not_found, module := test_mim_module1,
                      toml_path := "modules"}]},
                  test_config_file(Config, "host_types")).
 
+host_types_missing_auth_methods(Config) ->
+    Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
+    [meck:unload(M) || M <- Modules],
+    ?assertError({config_error, "Could not read the TOML configuration file",
+                  [#{reason := module_not_found, module := ejabberd_auth_test1,
+                     toml_path := "host_config.auth.methods", toml_value := <<"test1">>},
+                   #{reason := module_not_found, module := ejabberd_auth_test2,
+                     toml_path := "host_config.auth.methods", toml_value := <<"test2">>}]},
+                 test_config_file(Config, "host_types")).
+
 host_types_unsupported_modules(Config) ->
+    Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
-                  [#{reason := not_supported_module, module := dummy_module,
-                     host_type := <<"yet another host type">> },
-                   #{reason := not_supported_module, module := another_dummy_module,
+                  [#{reason := not_supported_module, module := test_mim_module1,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_module, module := test_mim_module2,
                      host_type := <<"another host type">>}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_auth_methods(Config) ->
+    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_test1],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    ?assertError({config_error, "Invalid host type configuration",
+                  [#{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"some host type">>}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_auth_methods_and_modules(Config) ->
+    Modules = [test_mim_module1, ejabberd_auth_test1],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    ?assertError({config_error, "Invalid host type configuration",
+                  [#{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_module, module := test_mim_module2,
+                     host_type := <<"another host type">>},
+                   #{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"some host type">>}]},
                  test_config_file(Config, "host_types")).
 
 %% tests: general

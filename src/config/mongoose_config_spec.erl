@@ -1209,7 +1209,11 @@ process_auth(Opts) ->
     %% some options need to be wrapped in 'auth_opts' - this needs simplifying in the future
     OuterKeys = [auth_method, allow_multiple_connections, anonymous_protocol, sasl_mechanisms,
                  extauth_instances],
-    {OuterOpts, InnerOpts} = lists:partition(fun({K, _}) -> lists:member(K, OuterKeys) end, Opts),
+    PartitionFn = fun
+                      ({K, _}) -> lists:member(K, OuterKeys);
+                      (_) -> false %% e.g. error maps
+                  end,
+    {OuterOpts, InnerOpts} = lists:partition(PartitionFn, Opts),
     [{auth_opts, InnerOpts} | OuterOpts].
 
 process_sasl_external(V) when V =:= standard;
