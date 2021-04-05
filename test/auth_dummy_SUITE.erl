@@ -27,7 +27,10 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
-all() -> [authorize].
+all() -> [
+    authorize,
+    supports_dynamic_domains
+].
 
 %%--------------------------------------------------------------------
 %% Authentication tests
@@ -37,3 +40,8 @@ authorize(_Config) ->
     {ok, _} = application:ensure_all_started(jid),
     Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
     {ok, _Creds2} = ejabberd_auth_dummy:authorize(Creds).
+
+supports_dynamic_domains(_) ->
+    true = ejabberd_auth:does_method_support(dummy, dynamic_domains),
+    false = ejabberd_auth:does_method_support(invalid_method, dynamic_domains),
+    false = ejabberd_auth:does_method_support(dummy, invalid_feature).

@@ -384,7 +384,9 @@ does_method_support(AuthMethod, Feature) ->
 
 -spec get_supported_features(Module :: authmodule()) -> [Feature :: atom()].
 get_supported_features(Module) ->
-    %% if module is not loaded, erlang:function_exported/3 returns false
+    %% if module is not loaded, erlang:function_exported/3 returns false.
+    %% we can safely ignore any error returned from code:ensure_loaded/1.
+    code:ensure_loaded(Module),
     case erlang:function_exported(Module, supported_features, 0) of
         true -> apply(Module, supported_features, []);
         false -> []
