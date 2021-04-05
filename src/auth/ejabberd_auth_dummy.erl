@@ -4,7 +4,6 @@
 -export([start/1,
          stop/1,
          authorize/1,
-         plain_password_required/0,
          remove_domain/1,
          supported_features/0]).
 
@@ -41,9 +40,6 @@ stop(_HostType) ->
 authorize(Creds) ->
     timer:sleep(50 + rand:uniform(450)),
     {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)}.
-
-plain_password_required() ->
-    true.
 
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%       ok | {error, invalid_jid}

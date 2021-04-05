@@ -20,8 +20,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(DOMAIN1, <<"localhost">>).
--define(DOMAIN2, <<"localhost2">>).
+-define(DOMAIN, <<"localhost">>).
+-define(HOST_TYPE, ?DOMAIN).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
 
@@ -78,18 +78,16 @@ init_per_suite(Config) ->
               Pool = {http, host, auth,
                       [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
                       [{path_prefix, "/auth/"}, {http_opts, []}, {server, ?AUTH_HOST}]},
-              Hosts = [?DOMAIN1, ?DOMAIN2],
+              Hosts = [?DOMAIN],
               mongoose_wpool:start_configured_pools([Pool], Hosts),
               mongoose_wpool_http:init(),
-              ejabberd_auth_http:start(?DOMAIN1),
-              ejabberd_auth_http:start(?DOMAIN2)
+              ejabberd_auth_http:start(?HOST_TYPE)
       end),
     meck_cleanup(),
     Config.
 
 end_per_suite(Config) ->
-    ejabberd_auth_http:stop(?DOMAIN1),
-    ejabberd_auth_http:stop(?DOMAIN2),
+    ejabberd_auth_http:stop(?HOST_TYPE),
     ok = mim_ct_rest:stop(),
     Config.
 
@@ -109,54 +107,54 @@ init_per_group(GroupName, Config) ->
     Config2 = lists:keystore(scram_group, 1, Config,
                              {scram_group, GroupName == auth_requests_scram}),
     meck_config(Config2),
-    mim_ct_rest:register(<<"alice">>, ?DOMAIN1, do_scram(<<"makota">>, Config2)),
-    mim_ct_rest:register(<<"bob">>, ?DOMAIN1, do_scram(<<"niema5klepki">>, Config2)),
+    mim_ct_rest:register(<<"alice">>, ?DOMAIN, do_scram(<<"makota">>, Config2)),
+    mim_ct_rest:register(<<"bob">>, ?DOMAIN, do_scram(<<"niema5klepki">>, Config2)),
     meck_cleanup(),
     Config2.
 
 end_per_group(cert_auth, Config) ->
     Config;
 end_per_group(_GroupName, Config) ->
-    mim_ct_rest:remove_user(<<"alice">>, ?DOMAIN1),
-    mim_ct_rest:remove_user(<<"bob">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"alice">>, ?DOMAIN),
+    mim_ct_rest:remove_user(<<"bob">>, ?DOMAIN),
     Config.
 
 init_per_testcase(remove_user, Config) ->
     meck_config(Config),
-    mim_ct_rest:register(<<"toremove1">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
-    mim_ct_rest:register(<<"toremove2">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
+    mim_ct_rest:register(<<"toremove1">>, ?DOMAIN, do_scram(<<"pass">>, Config)),
+    mim_ct_rest:register(<<"toremove2">>, ?DOMAIN, do_scram(<<"pass">>, Config)),
     Config;
 init_per_testcase(cert_auth_fail, Config) ->
     meck_config(Config),
     Cert = proplists:get_value(pem_cert1, Config),
-    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN1, Cert),
+    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN, Cert),
     Config;
 init_per_testcase(cert_auth_success, Config) ->
     meck_config(Config),
     Cert1 = proplists:get_value(pem_cert1, Config),
     Cert2 = proplists:get_value(pem_cert2, Config),
     SeveralCerts = <<Cert1/bitstring, Cert2/bitstring>>,
-    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN1, SeveralCerts),
+    mim_ct_rest:register(<<"cert_user">>, ?DOMAIN, SeveralCerts),
     Config;
 init_per_testcase(_CaseName, Config) ->
     meck_config(Config),
     Config.
 
 end_per_testcase(try_register, Config) ->
-    mim_ct_rest:remove_user(<<"nonexistent">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"nonexistent">>, ?DOMAIN),
     meck_cleanup(),
     Config;
 end_per_testcase(remove_user, Config) ->
-    mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN1),
-    mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN),
+    mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN),
     meck_cleanup(),
     Config;
 end_per_testcase(cert_auth_fail, Config) ->
-    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN),
     meck_cleanup(),
     Config;
 end_per_testcase(cert_auth_success, Config) ->
-    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN),
     meck_cleanup(),
     Config;
 end_per_testcase(_CaseName, Config) ->
@@ -168,43 +166,52 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 check_password(_Config) ->
-    true = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"makota">>),
-    false = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"niemakota">>),
-    false = ejabberd_auth_http:check_password(<<"kate">>, ?DOMAIN1, <<"mapsa">>).
+    true = ejabberd_auth_http:check_password(?HOST_TYPE, <<"alice">>,
+                                             ?DOMAIN, <<"makota">>),
+    false = ejabberd_auth_http:check_password(?HOST_TYPE, <<"alice">>,
+                                              ?DOMAIN, <<"niemakota">>),
+    false = ejabberd_auth_http:check_password(?HOST_TYPE, <<"kate">>,
+                                              ?DOMAIN, <<"mapsa">>).
 
 set_password(_Config) ->
-    ok = ejabberd_auth_http:set_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>),
-    true = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>),
-    ok = ejabberd_auth_http:set_password(<<"alice">>, ?DOMAIN1, <<"makota">>).
+    ok = ejabberd_auth_http:set_password(?HOST_TYPE, <<"alice">>,
+                                         ?DOMAIN, <<"mialakota">>),
+    true = ejabberd_auth_http:check_password(?HOST_TYPE, <<"alice">>,
+                                             ?DOMAIN, <<"mialakota">>),
+    ok = ejabberd_auth_http:set_password(?HOST_TYPE, <<"alice">>,
+                                         ?DOMAIN, <<"makota">>).
 
 try_register(_Config) ->
-    ok = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
-    true = ejabberd_auth_http:check_password(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
-    {error, exists} = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"anypass">>).
+    ok = ejabberd_auth_http:try_register(?HOST_TYPE, <<"nonexistent">>,
+                                         ?DOMAIN, <<"newpass">>),
+    true = ejabberd_auth_http:check_password(?HOST_TYPE, <<"nonexistent">>,
+                                             ?DOMAIN, <<"newpass">>),
+    {error, exists} = ejabberd_auth_http:try_register(?HOST_TYPE, <<"nonexistent">>,
+                                                      ?DOMAIN, <<"anypass">>).
 
 % get_password + get_password_s
 get_password(_Config) ->
-    case mongoose_scram:enabled(?DOMAIN1) of
+    case mongoose_scram:enabled(?DOMAIN) of
         false ->
-            <<"makota">> = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1),
-            <<"makota">> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1);
+            <<"makota">> = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN),
+            <<"makota">> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN);
         true ->
             % map with SCRAM data
-            is_map(ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1)),
-            <<>> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1)
+            is_map(ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN)),
+            <<>> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN)
     end,
-    false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN1),
-    <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN1).
+    false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN),
+    <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN).
 
 does_user_exist(_Config) ->
-    true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
-    false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).
+    true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN),
+    false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN).
 
 % remove_user/2
 remove_user(_Config) ->
-    true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
-    ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN1),
-    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1).
+    true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN),
+    ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN),
+    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN).
 
 supported_sasl_mechanisms(Config) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
@@ -215,7 +222,7 @@ supported_sasl_mechanisms(Config) ->
                           _ -> true
                       end,
     [true, DigestSupported, false, true, true, true, true, true] =
-        [ejabberd_auth_http:supports_sasl_module(?DOMAIN1, Mod) || Mod <- Modules].
+        [ejabberd_auth_http:supports_sasl_module(?DOMAIN, Mod) || Mod <- Modules].
 
 cert_auth_fail(Config) ->
     Creds = creds_with_cert(Config, <<"cert_user">>),
@@ -234,7 +241,7 @@ cert_auth_nonexistent(Config) ->
 %%--------------------------------------------------------------------
 creds_with_cert(Config, Username) ->
     Cert = proplists:get_value(der_cert, Config),
-    NewCreds = mongoose_credentials:new(?DOMAIN1, ?DOMAIN1),
+    NewCreds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
     mongoose_credentials:extend(NewCreds, [{der_cert, Cert},
                                            {username, Username}]).
 
@@ -261,7 +268,9 @@ meck_cleanup() ->
 do_scram(Pass, Config) ->
     case lists:keyfind(scram_group, 1, Config) of
         {_, true} ->
-            mongoose_scram:serialize(mongoose_scram:password_to_scram(?DOMAIN1, Pass, mongoose_scram:iterations(?DOMAIN1)));
+            Iterations =  mongoose_scram:iterations(?HOST_TYPE),
+            Scram = mongoose_scram:password_to_scram(?HOST_TYPE, Pass, Iterations),
+            mongoose_scram:serialize(Scram);
         _ ->
             Pass
     end.

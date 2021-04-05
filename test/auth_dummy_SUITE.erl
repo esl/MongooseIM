@@ -21,40 +21,19 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(DOMAIN, <<"localhost">>).
+-define(HOST_TYPE, ?DOMAIN).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
-all() ->
-    [
-     check_password_3,
-     check_password_5,
-     authorize,
-     plain_password_required
-    ].
+all() -> [authorize].
 
 %%--------------------------------------------------------------------
 %% Authentication tests
 %%--------------------------------------------------------------------
 
-check_password_3(_Config) ->
-    true = ejabberd_auth_dummy:check_password(<<"alice">>, ?DOMAIN, <<"makota">>),
-    true = ejabberd_auth_dummy:check_password(<<"alice">>, ?DOMAIN, <<"niemakota">>),
-    true = ejabberd_auth_dummy:check_password(<<"kate">>, ?DOMAIN, <<"mapsa">>).
-
-check_password_5(_Config) ->
-    false = ejabberd_auth_dummy:check_password(<<"alice">>, ?DOMAIN, <<"makota">>,
-                                               <<"digest">>, fun() -> true end),
-    false = ejabberd_auth_dummy:check_password(<<"alice">>, ?DOMAIN, <<"niemakota">>,
-                                               <<"digest">>, fun() -> true end),
-    false = ejabberd_auth_dummy:check_password(<<"kate">>, ?DOMAIN, <<"mapsa">>,
-                                               <<"digest">>, fun() -> true end).
-
 authorize(_Config) ->
     {ok, _} = application:ensure_all_started(jid),
-    Creds = mongoose_credentials:new(?DOMAIN, ?DOMAIN),
+    Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
     {ok, _Creds2} = ejabberd_auth_dummy:authorize(Creds).
-
-plain_password_required(_Config) ->
-    true = ejabberd_auth_dummy:plain_password_required().
