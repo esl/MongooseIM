@@ -39,13 +39,13 @@
 -behaviour(ejabberd_gen_auth).
 %% Function used by ejabberd_auth:
 -export([login/2,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         try_register/3,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_password/2,
-         get_password/3,
+         %get_password/3,
          does_user_exist/2,
          remove_user/2,
          supports_sasl_module/2,
@@ -56,8 +56,8 @@
         ]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -68,28 +68,28 @@
 
 %% @doc Create the anonymous table if at least one virtual host has anonymous
 %% features enabled. Register to login / logout events
-start(Host) ->
+start(HostType) ->
     %% TODO: Check cluster mode
     mnesia:create_table(anonymous, [{ram_copies, [node()]},
                                     {type, bag},
                                     {attributes, record_info(fields, anonymous)}]),
     mnesia:add_table_copy(anonymous, node(), ram_copies),
     %% The hooks are needed to add / remove users from the anonymous tables
-    ejabberd_hooks:add(sm_register_connection_hook, Host, ?MODULE, register_connection, 100),
-    ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, unregister_connection, 100),
-    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
+    ejabberd_hooks:add(sm_register_connection_hook, HostType, ?MODULE, register_connection, 100),
+    ejabberd_hooks:add(sm_remove_connection_hook, HostType, ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:add(session_cleanup, HostType, ?MODULE, session_cleanup, 50),
     ok.
 
-stop(Host) ->
-    ejabberd_hooks:delete(sm_register_connection_hook, Host, ?MODULE, register_connection, 100),
-    ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, unregister_connection, 100),
-    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
+stop(HostType) ->
+    ejabberd_hooks:delete(sm_register_connection_hook, HostType, ?MODULE, register_connection, 100),
+    ejabberd_hooks:delete(sm_remove_connection_hook, HostType, ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:delete(session_cleanup, HostType, ?MODULE, session_cleanup, 50),
     ok.
 
 %% @doc Return true if SASL ANONYMOUS mechanism is enabled one the server
--spec is_sasl_anonymous_enabled(Host :: jid:lserver()) -> boolean().
-is_sasl_anonymous_enabled(Host) ->
-    case anonymous_protocol(Host) of
+-spec is_sasl_anonymous_enabled(HostType :: binary()) -> boolean().
+is_sasl_anonymous_enabled(HostType) ->
+    case anonymous_protocol(HostType) of
         sasl_anon -> true;
         both      -> true;
         _Other    -> false
@@ -98,9 +98,9 @@ is_sasl_anonymous_enabled(Host) ->
 %% @doc Return true if anonymous login is enabled on the server
 %% anonymous login can be used with a standard authentication method
 %% (i.e. with clients that do not support anonymous login)
--spec is_login_anonymous_enabled(Host :: jid:lserver()) -> boolean().
-is_login_anonymous_enabled(Host) ->
-    case anonymous_protocol(Host) of
+-spec is_login_anonymous_enabled(HostType :: binary()) -> boolean().
+is_login_anonymous_enabled(HostType) ->
+    case anonymous_protocol(HostType) of
         login_anon -> true;
         both       -> true;
         _Other     -> false
@@ -108,10 +108,10 @@ is_login_anonymous_enabled(Host) ->
 
 %% @doc Return the anonymous protocol to use: sasl_anon|login_anon|both
 %% defaults to login_anon
--spec anonymous_protocol(Host :: jid:lserver()) ->
+-spec anonymous_protocol(HostType :: binary()) ->
                                       'both' | 'login_anon' | 'sasl_anon'.
-anonymous_protocol(Host) ->
-    case ejabberd_config:get_local_option({anonymous_protocol, Host}) of
+anonymous_protocol(HostType) ->
+    case ejabberd_config:get_local_option({anonymous_protocol, HostType}) of
         sasl_anon  -> sasl_anon;
         login_anon -> login_anon;
         both       -> both;
@@ -212,16 +212,17 @@ authorize(Creds) ->
 
 %% @doc When anonymous login is enabled, check the password for permanent users
 %% before allowing access
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
-    check_password(LUser, LServer, Password, undefined, undefined).
+check_password(HostType, LUser, LServer, Password) ->
+    check_password(HostType, LUser, LServer, Password, undefined, undefined).
 
-check_password(LUser, LServer, _Password, _Digest, _DigestGen) ->
+check_password(HostType, LUser, LServer, _Password, _Digest, _DigestGen) ->
     %% We refuse login for registered accounts (They cannot logged but
     %% they however are "reserved")
-    case ejabberd_auth:is_user_exists_in_other_modules(
+    case ejabberd_auth:does_user_exist_in_other_modules(HostType,
            ?MODULE, jid:make_noprep(LUser, LServer, <<>>)) of
         %% If user exists in other module, reject anonymous authentication
         true  -> false;
@@ -250,10 +251,11 @@ login(LUser, LServer) ->
 
 %% @doc When anonymous login is enabled, check that the user is permanent before
 %% changing its password
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
-set_password(LUser, LServer, _Password) ->
+set_password(_HostType, LUser, LServer, _Password) ->
     case anonymous_user_exist(LUser, LServer) of
         true ->
             ok;
@@ -263,10 +265,11 @@ set_password(LUser, LServer, _Password) ->
 
 %% @doc When anonymous login is enabled, check if permanent users are allowed on
 %% the server:
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> {error, not_allowed}.
-try_register(_LUser, _LServer, _Password) ->
+try_register(_HostType, _LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 -spec dirty_get_registered_users() -> [].
@@ -319,16 +322,16 @@ remove_user(_LUser, _LServer) ->
 
 
 -spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(Host, cyrsasl_anonymous) ->
-    is_sasl_anonymous_enabled(Host);
-supports_sasl_module(Host, cyrsasl_plain) ->
-    is_login_anonymous_enabled(Host);
-supports_sasl_module(Host, cyrsasl_digest) ->
-    is_login_anonymous_enabled(Host);
-supports_sasl_module(Host, Mechanism) ->
-   case mongoose_scram:enabled(Host, Mechanism) of
+supports_sasl_module(HostType, cyrsasl_anonymous) ->
+    is_sasl_anonymous_enabled(HostType);
+supports_sasl_module(HostType, cyrsasl_plain) ->
+    is_login_anonymous_enabled(HostType);
+supports_sasl_module(HostType, cyrsasl_digest) ->
+    is_login_anonymous_enabled(HostType);
+supports_sasl_module(HostType, Mechanism) ->
+   case mongoose_scram:enabled(HostType, Mechanism) of
       true ->
-          is_login_anonymous_enabled(Host);
+          is_login_anonymous_enabled(HostType);
       _ ->
           false
 end.

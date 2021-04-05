@@ -178,6 +178,9 @@ does_stored_user_exist(JID) ->
 
 -spec is_anonymous_user(jid:jid()) -> boolean().
 is_anonymous_user(#jid{luser = LUser, lserver = LServer} = _JID) ->
+    %% TODO: check if we make this check in a more efficient way, MB we
+    %% can just make  a call to ejabberd_auth_anonymous:does_user_exist/2
+    %% without verification if ejabberd_auth_anonymous is configured 
     case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
         true ->
             ejabberd_auth_anonymous:does_user_exist(LUser, LServer);

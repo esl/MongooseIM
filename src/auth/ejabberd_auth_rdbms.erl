@@ -31,8 +31,8 @@
 -export([start/1,
          stop/1,
          authorize/1,
-         set_password/3,
-         try_register/3,
+         set_password/4,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -46,8 +46,8 @@
         ]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -export([scram_passwords/2, scram_passwords/4]).
 
@@ -76,36 +76,38 @@
 %%% API
 %%%----------------------------------------------------------------------
 
-start(_Host) ->
+start(_HostType) ->
     ok.
 
-stop(_Host) ->
+stop(_HostType) ->
     ok.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(_Host, cyrsasl_plain) -> true;
-supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
-supports_sasl_module(Host, Mechanism) -> mongoose_scram:enabled(Host, Mechanism).
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_HostType, cyrsasl_plain) -> true;
+supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
+supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
+check_password(_HostType, LUser, LServer, Password) ->
     Username = mongoose_rdbms:escape_string(LUser),
     true == check_password_wo_escape(LUser, Username, LServer, Password).
 
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, Digest, DigestGen) ->
+check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
     Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:get_password(LServer, Username) of
         %% Account exists, check if password is valid
@@ -170,13 +172,14 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
     end.
 
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
-set_password(LUser, LServer, Password) ->
+set_password(HostType, LUser, LServer, Password) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    PreparedPass = prepare_password(LServer, Password),
+    PreparedPass = prepare_password(HostType, Password),
     case catch rdbms_queries:set_password_t(LServer, Username, PreparedPass) of
         {atomic, ok} ->
             ok;
@@ -187,13 +190,14 @@ set_password(LUser, LServer, Password) ->
             {error, not_allowed}
     end.
 
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists}.
-try_register(LUser, LServer, Password) ->
+try_register(HostType, LUser, LServer, Password) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    PreparedPass = prepare_password(LServer, Password),
+    PreparedPass = prepare_password(HostType, Password),
     case catch rdbms_queries:add_user(LServer, Username, PreparedPass) of
         {updated, 1} ->
             ok;
@@ -376,12 +380,12 @@ prepare_scrammed_password(Server, Iterations, Password) when is_integer(Iteratio
     #{password => EmptyPassword,
       details => PassDetailsEscaped}.
 
--spec prepare_password(Server :: jid:server(), Password :: binary()) ->
+-spec prepare_password(HostType :: binary(), Password :: binary()) ->
     PreparedPassword :: prepared_password().
-prepare_password(Server, Password) ->
-    case mongoose_scram:enabled(Server) of
+prepare_password(HostType, Password) ->
+    case mongoose_scram:enabled(HostType) of
         true ->
-            prepare_scrammed_password(Server, mongoose_scram:iterations(Server), Password);
+            prepare_scrammed_password(HostType, mongoose_scram:iterations(HostType), Password);
         _ ->
             mongoose_rdbms:escape_string(Password)
     end.

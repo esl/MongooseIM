@@ -36,9 +36,9 @@
 -export([start/1,
          stop/1,
          start_link/1,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         try_register/3,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -52,8 +52,8 @@
         ]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -export([config_change/4]).
 
@@ -90,35 +90,35 @@ handle_info(_Info, State) -> {noreply, State}.
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: jid:lserver()) -> ok.
-start(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    ChildSpec = {Proc, {?MODULE, start_link, [Host]},
+-spec start(HostType :: binary()) -> ok.
+start(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ?MODULE),
+    ChildSpec = {Proc, {?MODULE, start_link, [HostType]},
                  transient, 1000, worker, [?MODULE]},
-    ejabberd_hooks:add(host_config_update, Host, ?MODULE, config_change, 50),
+    ejabberd_hooks:add(host_config_update, HostType, ?MODULE, config_change, 50),
     ejabberd_sup:start_child(ChildSpec),
     ok.
 
--spec stop(Host :: jid:lserver()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
+-spec stop(HostType :: binary()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(host_config_update, HostType, ?MODULE, config_change, 50),
+    Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc),
     ok.
 
-start_link(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    gen_server:start_link({local, Proc}, ?MODULE, Host, []).
+start_link(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ?MODULE),
+    gen_server:start_link({local, Proc}, ?MODULE, HostType, []).
 
 terminate(_Reason, _State) -> ok.
 
--spec init(Host :: jid:lserver()) -> {'ok', state()}.
-init(Host) ->
-    State = parse_options(Host),
+-spec init(HostType :: binary()) -> {'ok', state()}.
+init(HostType) ->
+    State = parse_options(HostType),
     {ok, State}.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) -> true;
 supports_sasl_module(_, cyrsasl_external) -> true;
 supports_sasl_module(_, _) -> false.
@@ -138,31 +138,34 @@ authorize(Creds) ->
         false -> ejabberd_auth:authorize_with_check_password(?MODULE, Creds)
     end.
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(_LUser, _LServer, <<"">>) -> false;
-check_password(LUser, LServer, Password) ->
+check_password(_HostType, _LUser, _LServer, <<"">>) -> false;
+check_password(_HostType, LUser, LServer, Password) ->
     case catch check_password_ldap(LUser, LServer, Password) of
         {'EXIT', _} -> false;
         Result -> Result
     end.
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, _Digest,
+check_password(HostType, LUser, LServer, Password, _Digest,
                _DigestGen) ->
-    check_password(LUser, LServer, Password).
+    check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary())
       -> ok | {error, not_allowed | invalid_jid}.
-set_password(LUser, LServer, Password) ->
+set_password(_HostType, LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     case find_user_dn(LUser, State) of
       false -> {error, user_not_found};
@@ -172,9 +175,10 @@ set_password(LUser, LServer, Password) ->
     end.
 
 
--spec try_register(LUser :: jid:luser(), LServer :: jid:lserver(),
-                   Password :: binary()) -> ok | {error, exists}.
-try_register(LUser, LServer, Password) ->
+-spec try_register(HostType :: binary(), LUser :: jid:luser(),
+                   LServer :: jid:lserver(), Password :: binary()) ->
+    ok | {error, exists}.
+try_register(_HostType, LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     UserStr = binary_to_list(LUser),
     DN = "cn=" ++ UserStr ++ ", " ++ binary_to_list(State#state.base),
@@ -473,23 +477,23 @@ result_attrs(#state{uids = UIDs,
 %%% Auxiliary functions
 %%%----------------------------------------------------------------------
 
--spec parse_options(Host :: jid:lserver()) -> state().
-parse_options(Host) ->
-    Opts = ejabberd_config:get_local_option_or_default({auth_opts, Host}, []),
+-spec parse_options(HostType :: binary()) -> state().
+parse_options(HostType) ->
+    Opts = ejabberd_config:get_local_option_or_default({auth_opts, HostType}, []),
     EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
                                       fun(A) when is_atom(A) -> A end, default),
     BindEldapID = eldap_utils:get_mod_opt(ldap_bind_pool_tag, Opts,
                                           fun(A) when is_atom(A) -> A end, bind),
     Base = eldap_utils:get_base(Opts),
     DerefAliases = eldap_utils:get_deref_aliases(Opts),
-    UIDs = eldap_utils:get_uids(Host, Opts),
+    UIDs = eldap_utils:get_uids(HostType, Opts),
     UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
     {DNFilter, DNFilterAttrs} = eldap_utils:get_dn_filter_with_attrs(Opts),
     LocalFilter = eldap_utils:get_mod_opt(ldap_local_filter, Opts),
-    #state{host = Host,
-           eldap_id = {Host, EldapID},
-           bind_eldap_id = {Host, BindEldapID},
+    #state{host = HostType,
+           eldap_id = {HostType, EldapID},
+           bind_eldap_id = {HostType, BindEldapID},
            base = Base,
            deref = DerefAliases,
            uids = UIDs, ufilter = UserFilter,

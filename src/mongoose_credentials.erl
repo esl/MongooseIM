@@ -1,7 +1,6 @@
 -module(mongoose_credentials).
 
--export([new/1,
-         new/2,
+-export([new/2,
          lserver/1,
          host_type/1,
          get/2, get/3,
@@ -18,23 +17,18 @@
 -opaque t() ::
     #mongoose_credentials{ %% These values are always present.
                            lserver :: jid:lserver(),
-                           host_type :: {ok, binary()} | {error, not_found},
+                           host_type :: binary(),
                            %% Authorization success / failure registry.
                            registry :: [{ejabberd_gen_auth:t(), auth_event()}],
                            %% These values are dependent on the ejabberd_auth backend in use.
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()] }.
 
--spec new(jid:lserver()) -> mongoose_credentials:t().
-new(LServer) when is_binary(LServer) ->
-    Ret = mongoose_domain_api:get_host_type(LServer),
-    new_creds(LServer, Ret).
-
 -spec new(jid:lserver(), binary()) -> mongoose_credentials:t().
 new(LServer, HostType) when is_binary(LServer), is_binary(HostType) ->
-    new_creds(LServer, {ok, HostType}).
+    #mongoose_credentials{lserver = LServer, host_type = HostType}.
 
--spec host_type(t()) -> {ok, binary()} | {error, not_found}.
+-spec host_type(t()) -> binary().
 host_type(#mongoose_credentials{host_type = HostType}) -> HostType.
 
 -spec lserver(t()) -> jid:lserver().
@@ -80,8 +74,3 @@ extend(#mongoose_credentials{} = C, KVPairs) ->
 register(#mongoose_credentials{} = C, Mod, Event) ->
     #mongoose_credentials{registry = R} = C,
     C#mongoose_credentials{registry = [{Mod, Event} | R]}.
-
--spec new_creds(jid:lserver(), {ok, binary()} | {error, not_found}) ->
-    mongoose_credentials:t().
-new_creds(LServer, HostType) ->
-    #mongoose_credentials{lserver = LServer, host_type = HostType}.

@@ -30,9 +30,9 @@
 -behaviour(ejabberd_gen_auth).
 -export([start/1,
          stop/1,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         try_register/3,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -48,8 +48,8 @@
 -export([scram_passwords/0]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -include("mongoose.hrl").
 -include("scram.hrl").
@@ -72,8 +72,8 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: jid:server()) -> ok.
-start(Host) ->
+-spec start(HostType :: binary()) -> ok.
+start(HostType) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
                                  {attributes, record_info(fields, passwd)},
                                  {storage_properties,
@@ -84,11 +84,11 @@ start(Host) ->
                          {attributes, record_info(fields, reg_users_counter)}]),
     mnesia:add_table_copy(passwd, node(), disc_copies),
     mnesia:add_table_copy(reg_users_counter, node(), ram_copies),
-    update_reg_users_counter_table(Host),
+    update_reg_users_counter_table(HostType),
     ok.
 
--spec stop(Host :: jid:server()) -> ok.
-stop(_Host) ->
+-spec stop(HostType :: binary()) -> ok.
+stop(_HostType) ->
     ok.
 
 -spec update_reg_users_counter_table(Server :: jid:server()) -> any().
@@ -101,20 +101,21 @@ update_reg_users_counter_table(Server) ->
         end,
     mnesia:sync_dirty(F).
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(_Host, cyrsasl_plain) -> true;
-supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
-supports_sasl_module(Host, Mechanism) -> mongoose_scram:enabled(Host, Mechanism).
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_HostType, cyrsasl_plain) -> true;
+supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
+supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
+check_password(_HostType, LUser, LServer, Password) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_map(Scram) orelse is_record(Scram, scram) ->
@@ -126,12 +127,13 @@ check_password(LUser, LServer, Password) ->
     end.
 
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, Digest, DigestGen) ->
+check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) orelse is_map(Scram) ->
@@ -143,32 +145,30 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
     end.
 
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
-set_password(LUser, LServer, Password) ->
+set_password(HostType, LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
-        Password2 = case mongoose_scram:enabled(LServer) of
-                        true ->
-                            mongoose_scram:password_to_scram(LServer, Password, mongoose_scram:iterations(LServer));
-                        false -> Password
-                    end,
+        Password2 = get_scram(HostType, Password),
         write_passwd(#passwd{us = US, password = Password2})
     end,
     {atomic, ok} = mnesia:transaction(F),
     ok.
 
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists | not_allowed}.
-try_register(LUser, LServer, Password) ->
+try_register(HostType, LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
         case read_passwd(US) of
             [] ->
-                Password2 = get_scram(LServer, Password),
+                Password2 = get_scram(HostType, Password),
                 write_passwd(#passwd{us = US, password = Password2}),
                 mnesia:dirty_update_counter(reg_users_counter, LServer, 1),
                 ok;
@@ -345,11 +345,11 @@ write_passwd(#passwd{} = Passwd) ->
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
 
--spec get_scram(jid:lserver(), binary()) -> mongoose_scram:scram() | binary().
-get_scram(LServer, Password) ->
-    case mongoose_scram:enabled(LServer) and is_binary(Password) of
+-spec get_scram(binary(), binary()) -> mongoose_scram:scram() | binary().
+get_scram(HostType, Password) ->
+    case mongoose_scram:enabled(HostType) and is_binary(Password) of
         true ->
-            mongoose_scram:password_to_scram(LServer, Password, mongoose_scram:iterations(LServer));
+            mongoose_scram:password_to_scram(HostType, Password, mongoose_scram:iterations(HostType));
         false -> Password
     end.
 
