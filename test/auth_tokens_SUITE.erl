@@ -59,6 +59,7 @@ init_per_testcase(Test, Config)
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
+    mock_rdbms_backend(),
     mock_mongoose_metrics(),
     mock_gen_iq_handler(),
     mock_ejabberd_commands(),
@@ -86,6 +87,7 @@ end_per_testcase(Test, C)
     C;
 
 end_per_testcase(validity_period_test, C) ->
+    meck:unload(mod_auth_token_rdbms),
     meck:unload(mongoose_metrics),
     meck:unload(gen_iq_handler),
     meck:unload(ejabberd_commands),
@@ -239,10 +241,12 @@ mock_mongoose_metrics() ->
     ok.
 
 mock_rdbms_backend() ->
-    gen_mod:start_backend_module(?TESTED, [{backend, rdbms}]),
     meck:new(mod_auth_token_rdbms, []),
+    meck:expect(mod_auth_token_rdbms, start, fun(_) -> ok end),
     meck:expect(mod_auth_token_rdbms, get_valid_sequence_number,
-                fun (_) -> valid_seq_no_threshold() end).
+                fun (_) -> valid_seq_no_threshold() end),
+    gen_mod:start_backend_module(?TESTED, [{backend, rdbms}]),
+    ok.
 
 mock_keystore() ->
     ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).

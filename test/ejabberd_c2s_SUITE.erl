@@ -65,7 +65,7 @@ stream_error_when_invalid_domain(_) ->
 
 session_established(_) ->
     {ok, C2SPid} = given_c2s_started(),
-    change_state_to(session_estasblished, C2SPid),
+    change_state_to(session_established, C2SPid),
     ?eq(session_established, getstate(C2SPid)),
     Last = last_stanza(),
     ?eq(final_iq_response(), Last).
@@ -182,7 +182,7 @@ when_stream_is_opened(C2SPid, Stanza) ->
     lists:filtermap(filter_calls(ejabberd_socket, [send, close]),
                        meck:history(ejabberd_socket)).
 
-filter_calls(_ExpecetdMod, Funs) ->
+filter_calls(_ExpectedMod, Funs) ->
     fun({_Pid, MFA, _Return}) ->
             maybe_extract_function_with_args(MFA, Funs)
     end.

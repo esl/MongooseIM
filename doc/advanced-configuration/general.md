@@ -53,15 +53,6 @@ There are some additional options that influence all database connections in the
 
 When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optimize some queries for these DBs (e.g. `mod_mam_rdbms_user` uses different queries for `mssql`).
 
-### `general.pgsql_users_number_estimate`
-* **Scope:** local
-* **Syntax:** boolean
-* **Default:** false
-* **Example:** `pgsql_users_number_estimate = true`
-
-PostgreSQL's internal structure can make row counting slow.
-Enabling this option uses an alternative query instead of `SELECT COUNT`, that might be not as accurate, but is always fast.
-
 ## Access management
 
 User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
