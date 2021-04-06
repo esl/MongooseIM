@@ -60,9 +60,12 @@
 -callback supported_features() -> [Feature::atom()].
 
 
-%% implementation of check_password callbacks is required only if
-%% auth module uses ejabberd_auth:authorize_with_check_password/2
-%% helper interface.
+%% implementation of check_password callbacks is required for the
+%% corresponding check_password interfaces of ejabberd_auth module.
+%%
+%% with the help of ejabberd_auth:authorize_with_check_password/2
+%% function, these callbacks can be reused to simplify implementation
+%% of the M:authorize/1 interface.
 -callback check_password(HostType :: binary(),
                          LUser :: jid:luser(),
                          LServer :: jid:lserver(),
@@ -75,8 +78,7 @@
                          Digest :: binary(),
                          DigestGen :: fun()) -> boolean().
 
--optional_callbacks([remove_domain/1, supported_features/0,
-                     check_password/4, check_password/6]).
+-optional_callbacks([remove_domain/1, supported_features/0]).
 
 -export_type([t/0]).
 

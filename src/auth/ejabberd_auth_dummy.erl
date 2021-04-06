@@ -3,6 +3,8 @@
 %% API
 -export([start/1,
          stop/1,
+         check_password/4,
+         check_password/6,
          authorize/1,
          remove_domain/1,
          supported_features/0]).
@@ -40,6 +42,15 @@ stop(_HostType) ->
 authorize(Creds) ->
     timer:sleep(50 + rand:uniform(450)),
     {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)}.
+
+check_password(_HostType, _User, _Server, _Password) ->
+    true.
+
+check_password(_HostType, User, Server, _Password, _Digest, _DigestGen) ->
+    ?LOG_DEBUG(#{what => digest_auth_unsupported,
+                 text => <<"no support for digest authentication">>,
+                 user => User, server => Server}),
+    false.
 
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%       ok | {error, invalid_jid}

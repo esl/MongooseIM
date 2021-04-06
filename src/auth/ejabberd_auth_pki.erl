@@ -38,6 +38,9 @@
          remove_user/2
         ]).
 
+-export([check_password/4,
+         check_password/6]).
+
 -spec start(HostType :: binary()) -> ok.
 start(_) -> ok.
 
@@ -57,6 +60,10 @@ set_password(_, _, _, _) -> {error, not_allowed}.
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
 authorize(Creds) ->
     {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])}.
+
+check_password(_, _, _, _) -> false.
+
+check_password(_, _, _, _, _, _) -> false.
 
 -spec try_register( HostType :: binary(),
                     User :: jid:luser(),

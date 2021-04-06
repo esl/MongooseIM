@@ -157,8 +157,9 @@ do_authorize_loop([M | Modules], Creds) ->
 -spec check_password(JID :: jid:jid() | error, Password :: binary()) -> boolean().
 check_password(error, _Password) ->
     false;
-check_password(#jid{} = JID, Password) ->
-    case check_password_with_authmodule(JID, Password) of
+check_password(#jid{luser = LUser, lserver = LServer}, Password) ->
+    CheckPasswordArgsWithoutHostType = [LUser, LServer, Password],
+    case check_password_for_domain(LServer, CheckPasswordArgsWithoutHostType) of
         {true, _AuthModule} -> true;
         false -> false
     end.
@@ -170,8 +171,9 @@ check_password(#jid{} = JID, Password) ->
                      DigestGen :: fun((binary()) -> binary())) -> boolean().
 check_password(error, _, _, _) ->
     false;
-check_password(#jid{} = JID, Password, Digest, DigestGen) ->
-    case check_password_with_authmodule(JID, Password, Digest, DigestGen) of
+check_password(#jid{luser = LUser, lserver = LServer}, Password, Digest, DigestGen) ->
+    CheckPasswordArgsWithoutHostType = [LUser, LServer, Password, Digest, DigestGen],
+    case check_password_for_domain(LServer, CheckPasswordArgsWithoutHostType) of
         {true, _AuthModule} -> true;
         false -> false
     end.
@@ -179,27 +181,26 @@ check_password(#jid{} = JID, Password, Digest, DigestGen) ->
 %% @doc Check if the user and password can login in server.
 %% The user can login if at least an authentication method accepts the user
 %% and the password.
--spec check_password_with_authmodule(JID :: jid:jid(), Password :: binary()) ->
-    false | {true, authmodule()}.
-check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password) ->
-    check_password_loop(auth_modules(LServer), [LUser, LServer, Password]).
+-spec check_password_for_domain(LServer :: jid:lserver(),
+                                ArgsWithoutHostType :: [any(), ...]) ->
+                                   'false' | {'true', authmodule()}.
+check_password_for_domain(LServer, ArgsWithoutHostType) ->
+    case mongoose_domain_api:get_host_type(LServer) of
+        {error, not_found} -> false;
+        {ok, HostType} ->
+            Args = [HostType | ArgsWithoutHostType],
+            check_password_for_host_type(HostType, Args)
+    end.
 
--spec check_password_with_authmodule(JID :: jid:jid(),
-                                     Password :: binary(),
-                                     Digest :: binary(),
-                                     DigestGen :: fun((binary()) -> binary())
-                                     ) -> 'false' | {'true', authmodule()}.
-check_password_with_authmodule(#jid{luser = LUser, lserver = LServer}, Password, Digest, DigestGen) ->
-    check_password_loop(auth_modules(LServer), [LUser, LServer, Password,
-                                               Digest, DigestGen]).
-
--spec check_password_loop(AuthModules :: [authmodule()],
-                          Args :: [any(), ...]
-                          ) -> 'false' | {'true', authmodule()}.
-check_password_loop([], _Args) ->
-    false;
-check_password_loop(AuthModules, [_, LServer | _] = Args) ->
-    timed_call(LServer, check_password, fun do_check_password_loop/2, [AuthModules, Args]).
+check_password_for_host_type(HostType, Args) when length(Args) =:= 4;
+                                                  length(Args) =:= 6 ->
+    case auth_modules_for_host_type(HostType) of
+        [] -> false;
+        AuthModules ->
+            timed_call(HostType, check_password,
+                       fun do_check_password_loop/2,
+                       [AuthModules, Args])
+    end.
 
 do_check_password_loop([], _) ->
     false;
