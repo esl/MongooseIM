@@ -4,7 +4,7 @@
 -compile(export_all).
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
 
--define(TEST_NODES, [mim(),mim2()]).
+-define(TEST_NODES, [mim(), mim2()]).
 -define(DOMAINS, [<<"example.com">>, <<"example.org">>]).
 
 suite() ->

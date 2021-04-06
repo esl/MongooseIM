@@ -78,7 +78,7 @@ init_per_suite(Config) ->
               Pool = {http, host, auth,
                       [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
                       [{path_prefix, "/auth/"}, {http_opts, []}, {server, ?AUTH_HOST}]},
-              Hosts = [?DOMAIN],
+              Hosts = [?DOMAIN, <<"another.domain">>],
               mongoose_wpool:start_configured_pools([Pool], Hosts),
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)

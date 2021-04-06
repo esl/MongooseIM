@@ -45,7 +45,6 @@
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_password/2,
-         %get_password/3,
          does_user_exist/2,
          remove_user/2,
          supports_sasl_module/2,

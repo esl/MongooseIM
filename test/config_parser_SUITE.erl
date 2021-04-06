@@ -299,6 +299,8 @@ host_types_unsupported_modules(Config) ->
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
                   [#{reason := not_supported_module, module := test_mim_module1,
                      host_type := <<"yet another host type">>},
                    #{reason := not_supported_module, module := test_mim_module2,
@@ -310,6 +312,8 @@ host_types_unsupported_auth_methods(Config) ->
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
                   [#{reason := not_supported_auth_method, auth_method := test2,
                      host_type := <<"yet another host type">>},
                    #{reason := not_supported_auth_method, auth_method := test2,
@@ -321,6 +325,8 @@ host_types_unsupported_auth_methods_and_modules(Config) ->
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
                   [#{reason := not_supported_auth_method, auth_method := test2,
                      host_type := <<"yet another host type">>},
                    #{reason := not_supported_module, module := test_mim_module2,
