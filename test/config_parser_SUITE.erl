@@ -32,15 +32,15 @@ all() ->
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
-     {group, services}].
+     {group, services},
+     {group, host_types_group}].
 
 groups() ->
     [{file, [parallel], [sample_pgsql,
                          miscellaneous,
                          s2s,
                          modules,
-                         outgoing_pools,
-                         {group, host_types_group}]},
+                         outgoing_pools]},
      {host_types_group, [], [host_types_file,
                              host_types_missing_auth_methods_and_modules,
                              host_types_unsupported_modules,
