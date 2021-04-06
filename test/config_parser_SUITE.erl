@@ -42,8 +42,7 @@ groups() ->
                          outgoing_pools,
                          {group, host_types_group}]},
      {host_types_group, [], [host_types_file,
-                             host_types_missing_modules,
-                             host_types_missing_auth_methods,
+                             host_types_missing_auth_methods_and_modules,
                              host_types_unsupported_modules,
                              host_types_unsupported_auth_methods,
                              host_types_unsupported_auth_methods_and_modules]},
@@ -287,24 +286,18 @@ host_types_file(Config) ->
     [meck:expect(M, supported_features, FN) || M <- Modules],
     test_config_file(Config, "host_types").
 
-host_types_missing_modules(Config) ->
-    Modules = [test_mim_module1, test_mim_module2],
-    [meck:unload(M) || M <- Modules],
-    ?assertError({config_error, "Could not read the TOML configuration file",
-                  [#{reason := module_not_found, module := test_mim_module2,
-                     toml_path := "host_config.modules"},
-                   #{reason := module_not_found, module := test_mim_module1,
-                     toml_path := "modules"}]},
-                 test_config_file(Config, "host_types")).
-
-host_types_missing_auth_methods(Config) ->
-    Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
+host_types_missing_auth_methods_and_modules(Config) ->
+    Modules = [ejabberd_auth_test1, test_mim_module1, test_mim_module2],
     [meck:unload(M) || M <- Modules],
     ?assertError({config_error, "Could not read the TOML configuration file",
                   [#{reason := module_not_found, module := ejabberd_auth_test1,
-                     toml_path := "host_config.auth.methods", toml_value := <<"test1">>},
-                   #{reason := module_not_found, module := ejabberd_auth_test2,
-                     toml_path := "host_config.auth.methods", toml_value := <<"test2">>}]},
+                     toml_path := "auth.methods"},
+                   #{reason := module_not_found, module := ejabberd_auth_test1,
+                     toml_path := "host_config.auth.methods"},
+                   #{reason := module_not_found, module := test_mim_module2,
+                     toml_path := "host_config.modules"},
+                   #{reason := module_not_found, module := test_mim_module1,
+                     toml_path := "modules"}]},
                  test_config_file(Config, "host_types")).
 
 host_types_unsupported_modules(Config) ->
