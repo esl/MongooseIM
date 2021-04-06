@@ -289,16 +289,10 @@ host_types_file(Config) ->
 host_types_missing_auth_methods_and_modules(Config) ->
     Modules = [ejabberd_auth_test1, test_mim_module1, test_mim_module2],
     [meck:unload(M) || M <- Modules],
-    ?assertError({config_error, "Could not read the TOML configuration file",
-                  [#{reason := module_not_found, module := ejabberd_auth_test1,
-                     toml_path := "auth.methods"},
-                   #{reason := module_not_found, module := ejabberd_auth_test1,
-                     toml_path := "host_config.auth.methods"},
-                   #{reason := module_not_found, module := test_mim_module2,
-                     toml_path := "host_config.modules"},
-                   #{reason := module_not_found, module := test_mim_module1,
-                     toml_path := "modules"}]},
-                 test_config_file(Config, "host_types")).
+    {'EXIT', {{config_error, "Could not read the TOML configuration file", ErrorList}, _}}
+        = (catch test_config_file(Config, "host_types")),
+    MissingModules = [M || #{reason := module_not_found, module := M} <- ErrorList],
+    ?assertEqual(lists:sort(Modules), lists:usort(MissingModules)).
 
 host_types_unsupported_modules(Config) ->
     Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
