@@ -218,15 +218,19 @@ just_type(Type) ->
     Type.
 
 map_params([Param|Params], [Mapper|Mappers]) ->
-    [maybe_null(Param, Mapper)|map_params(Params, Mappers)];
+    [map_param(Param, Mapper)|map_params(Params, Mappers)];
 map_params([], []) ->
     [].
 
-maybe_null(undefined, _Mapper) ->
+map_param(undefined, _Mapper) ->
     {sql_integer, [null]}; %% some code uses "undefined" instead of "null"
-maybe_null(null, _Mapper) ->
+map_param(null, _Mapper) ->
     {sql_integer, [null]}; %% Yeah, just random type for null
-maybe_null(Param, Mapper) ->
+map_param(true, _Mapper) ->
+    {sql_integer, [1]};
+map_param(false, _Mapper) ->
+    {sql_integer, [0]};
+map_param(Param, Mapper) ->
     Mapper(Param).
 
 -spec server_type() -> atom().
