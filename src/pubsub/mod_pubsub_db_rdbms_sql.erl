@@ -10,8 +10,7 @@
 
 % Nodes
 
--export([insert_pubsub_node/5,
-         select_nodes_by_key_and_names_in_list_with_parents/2,
+-export([select_nodes_by_key_and_names_in_list_with_parents/2,
          select_nodes_by_key_and_names_in_list_with_children/2,
          set_parents/2]).
 
@@ -21,47 +20,6 @@
 %%====================================================================
 
 % ------------------- Items --------------------------------
-
-insert_pubsub_node(Key, Name, Type, Owners, Options) ->
-    RDBMSType = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
-    EscKey = esc_string(Key),
-    EscName = esc_string(Name),
-    EscType = esc_string(Type),
-    EscOwners = esc_string(Owners),
-    EscOptions = esc_string(Options),
-    sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, RDBMSType).
-
-sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {odbc, mssql}) ->
-    Query = ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) "
-             "OUTPUT inserted.nidx "
-             "VALUES (",
-             EscKey, ", ",
-             EscName, ", ",
-             EscType, ", ",
-             EscOwners, ", ",
-             EscOptions, ");"],
-    Res = mongoose_rdbms:sql_query(global, Query),
-    convert_sql_nidx(Res);
-sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {pgsql, _}) ->
-    Query = [common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions),
-             [" RETURNING nidx;"]],
-    Res = mongoose_rdbms:sql_query(global, Query),
-    convert_sql_nidx(Res);
-sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {mysql, _}) ->
-    Queries = [common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions),
-               ["; SELECT last_insert_id();"]],
-    %% When a list of queries is passed, the first encountered error will be returned.
-    %% Otherwise last statement result is returned.
-    Res = mongoose_rdbms:sql_query(global, Queries),
-    convert_sql_nidx(Res).
-
-common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
-     EscKey, ", ",
-     EscName, ", ",
-     EscType, ", ",
-     EscOwners, ", ",
-     EscOptions, ")"].
 
 set_parents(Node, Parents) ->
     EscNode = esc_string(Node),
@@ -98,12 +56,3 @@ select_nodes_by_key_and_names_in_list_with_children(Key, Nodes) ->
 
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
-%% MSSQL and MYSQL
-convert_sql_nidx({selected, [{Nidx}]}) ->
-    {ok, mongoose_rdbms:result_to_integer(Nidx)};
-%% PGSQL
-convert_sql_nidx({updated, _, [{Nidx}]}) ->
-    {ok, mongoose_rdbms:result_to_integer(Nidx)};
-convert_sql_nidx(Res) ->
-    {error, {bad_rdbms_response, Res}}.

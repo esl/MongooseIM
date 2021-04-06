@@ -179,6 +179,8 @@ start() ->
         <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
 
     % ------------------- Nodes --------------------------------
+    mongoose_rdbms:prepare(pubsub_insert_node, pubsub_nodes, [p_key, name, type, owners, options],
+        <<"INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (?, ?, ?, ?, ?)">>),
     mongoose_rdbms:prepare(pubsub_update_pubsub_node, pubsub_nodes, [type, owners, options, nidx],
         <<"UPDATE pubsub_nodes SET type = ?, owners = ?, options = ? WHERE nidx = ?">>),
     PubsubNodeFields = pubsub_node_fields(),
@@ -433,6 +435,12 @@ execute_del_item(Nidx, ItemId) ->
     mongoose_rdbms:execute_successfully(global, pubsub_del_item, [Nidx, ItemId]).
 
 % ------------------- Nodes --------------------------------
+-spec execute_insert_pubsub_node(binary(), binary(), binary(), iodata(), iodata()) ->
+          mongoose_rdbms:query_result().
+execute_insert_pubsub_node(Key, Name, Type, Owners, Options) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_insert_node,
+                                        [Key, Name, Type, Owners, Options]).
+
 -spec execute_update_pubsub_node(Type :: binary(),
                                  OwnersJid :: iodata(),
                                  Opts :: iodata(),
@@ -677,10 +685,12 @@ del_node(Nidx) ->
 -spec set_node(Node :: mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
 set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
-    OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    {ok, Nidx} = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
-                                                     jiffy:encode(OwnersJid),
-                                                     jiffy:encode({Opts})),
+    ExtKey = encode_key(Key),
+    ExtOwners = jiffy:encode([jid:to_binary(Owner) || Owner <- Owners]),
+    ExtOpts = jiffy:encode({Opts}),
+    {updated, 1} = execute_insert_pubsub_node(ExtKey, Name, Type, ExtOwners, ExtOpts),
+    {selected, [Row]} = execute_select_node_by_key_and_name(ExtKey, Name),
+    #pubsub_node{id = Nidx} = decode_pubsub_node_row(Row),
     maybe_set_parents(Name, Parents),
     {ok, Nidx};
 
