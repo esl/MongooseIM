@@ -21,6 +21,10 @@ init(Host, _) ->
     QueryName = smart_markers_upsert,
     rdbms_queries:prepare_upsert(Host, QueryName, smart_markers,
                                  InsertFields, UpdateFields, KeyFields),
+    mongoose_rdbms:prepare(smart_markers_select, smart_markers,
+        [to_jid, thread, timestamp],
+        <<"SELECT from_jid, to_jid, thread, type, msg_id, timestamp FROM smart_markers "
+          "WHERE to_jid = ? AND thread = ? AND timestamp >= ?">>),
     ok.
 
 %%% @doc
@@ -47,6 +51,15 @@ get_chat_markers(Host, To, Thread, TS) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
+-spec execute_select_chat_markers(Host :: jid:lserver(),
+                                  To :: binary(),
+                                  Thread :: binary(),
+                                  Timestamp :: integer()) ->
+    mongoose_rdbms:query_result().
+execute_select_chat_markers(Host, To, Thread, Timestamp) ->
+    mongoose_rdbms:execute_successfully(Host, smart_markers_select,
+        [To, Thread, Timestamp]).
+
 do_update_chat_marker(Host, #{from := From, to := To, thread := Thread,
                               type := Type, timestamp := TS, id := Id}) ->
     FromEncoded = encode_jid(From),
@@ -61,14 +74,10 @@ do_update_chat_marker(Host, #{from := From, to := To, thread := Thread,
     ok = check_upsert_result(Res).
 
 do_get_chat_markers(Host, To, Thread, TS) ->
-    ToEscaped = escape(encode_jid(To)),
-    ThreadEscaped = escape(encode_thread(Thread)),
-    TSEscaped = escape(TS),
-    SelectQuery = [
-        "select from_jid, to_jid, thread, type, msg_id, timestamp from smart_markers"
-        " WHERE to_jid = ", ToEscaped, " AND thread = ", ThreadEscaped,
-        " AND timestamp >= ", TSEscaped, " ;"],
-    {selected, ChatMarkers} = mongoose_rdbms:sql_query(Host, SelectQuery),
+    {selected, ChatMarkers} = execute_select_chat_markers(Host,
+                                                          encode_jid(To),
+                                                          encode_thread(Thread),
+                                                          TS),
     decode(ChatMarkers).
 
 encode_jid(JID) -> jid:to_binary(jid:to_lus(JID)).
@@ -79,15 +88,6 @@ encode_thread(Thread)    -> Thread.
 encode_type(received)     -> <<"R">>;
 encode_type(displayed)    -> <<"D">>;
 encode_type(acknowledged) -> <<"A">>.
-
-escape(String) when is_binary(String) -> escape_string(String);
-escape(Int) when is_integer(Int)      -> escape_int(Int).
-
-escape_string(String) ->
-    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
-escape_int(Int) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
 %% MySQL returns 1 when an upsert is an insert
 %% and 2, when an upsert acts as update
