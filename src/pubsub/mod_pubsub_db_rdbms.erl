@@ -209,6 +209,16 @@ start() ->
         <<"SELECT ", PubsubNodeFieldsPrefixed/binary, " from pubsub_nodes as pn "
           "INNER JOIN pubsub_node_collections as collection ON pn.name = collection.name AND "
           "collection.parent_name = ? WHERE p_key = ?">>),
+    mongoose_rdbms:prepare(pubsub_select_node_with_parents, pubsub_nodes,
+        [p_key, name],
+        <<"SELECT pn.nidx, pn.name, collection.parent_name from pubsub_nodes as pn "
+          "LEFT JOIN pubsub_node_collections as collection ON pn.name = collection.name "
+          "WHERE pn.p_key = ? AND pn.name = ?">>),
+    mongoose_rdbms:prepare(pubsub_select_node_with_children, pubsub_nodes,
+        [p_key, name],
+        <<"SELECT pn.nidx, pn.name, collection.name from pubsub_nodes as pn "
+          "LEFT JOIN pubsub_node_collections as collection ON pn.name = collection.parent_name "
+          "WHERE pn.p_key = ? AND pn.name = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_node, pubsub_nodes, [p_key, name],
         <<"DELETE from pubsub_nodes WHERE p_key = ? AND name = ?">>),
     mongoose_rdbms:prepare(pubsub_del_parents, pubsub_node_collections, [name],
@@ -485,6 +495,16 @@ execute_select_subnodes(Key, <<>>) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_top_level_nodes, [Key]);
 execute_select_subnodes(Key, Node) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_subnodes, [Node, Key]).
+
+-spec execute_select_node_with_parents(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
+          mongoose_rdbms:query_result().
+execute_select_node_with_parents(Key, Name) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_select_node_with_parents, [Key, Name]).
+
+-spec execute_select_node_with_children(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
+          mongoose_rdbms:query_result().
+execute_select_node_with_children(Key, Name) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_select_node_with_children, [Key, Name]).
 
 -spec execute_delete_node(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
     mongoose_rdbms:query_result().
@@ -790,9 +810,11 @@ find_nodes_with_parents(_, _, 100, Acc) ->
     ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
-    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_parents(
-            encode_key(Key), Nodes),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    ExtKey = encode_key(Key),
+    Rows = lists:flatmap(fun(Name) ->
+                                 {selected, Rs} = execute_select_node_with_parents(ExtKey, Name),
+                                 Rs
+                         end, Nodes),
     Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Parents}, {ParentsAcc, NodesAcc}) ->
@@ -836,9 +858,11 @@ find_subnodes(_, _, 100, Acc) ->
     ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_subnodes(Key, Nodes, Depth, Acc) ->
-    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_children(
-            encode_key(Key), Nodes),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    ExtKey = encode_key(Key),
+    Rows = lists:flatmap(fun(Name) ->
+                                 {selected, Rs} = execute_select_node_with_children(ExtKey, Name),
+                                 Rs
+                         end, Nodes),
     Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Subnodes}, {SubnodesAcc, NodesAcc}) ->
