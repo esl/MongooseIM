@@ -167,10 +167,22 @@ start() ->
     ItemColumns = item_columns(),
     mongoose_rdbms:prepare(pubsub_get_item, pubsub_items, [nidx, itemid],
         <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
+    mongoose_rdbms:prepare(pubsub_get_items, pubsub_items, [nidx],
+        <<"SELECT ", ItemColumns/binary, " FROM pubsub_items WHERE nidx = ? "
+          "ORDER BY modified_at DESC">>),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    mongoose_rdbms:prepare(pubsub_get_items_limit, pubsub_items,
+        rdbms_queries:add_limit_arg(limit, [nidx]),
+        <<"SELECT ", LimitMSSQL/binary, " ", ItemColumns/binary,
+          " FROM pubsub_items WHERE nidx = ? ORDER BY modified_at DESC ", LimitSQL/binary>>),
     mongoose_rdbms:prepare(pubsub_del_item, pubsub_items, [nidx, itemid],
         <<"DELETE FROM pubsub_items WHERE nidx = ? AND itemid = ?">>),
 
     % ------------------- Nodes --------------------------------
+    mongoose_rdbms:prepare(pubsub_insert_node, pubsub_nodes, [p_key, name, type, owners, options],
+        <<"INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (?, ?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(pubsub_insert_parent, pubsub_node_collections, [name, parent_name],
+        <<"INSERT INTO pubsub_node_collections (name, parent_name) VALUES (?, ?)">>),
     mongoose_rdbms:prepare(pubsub_update_pubsub_node, pubsub_nodes, [type, owners, options, nidx],
         <<"UPDATE pubsub_nodes SET type = ?, owners = ?, options = ? WHERE nidx = ?">>),
     PubsubNodeFields = pubsub_node_fields(),
@@ -197,6 +209,16 @@ start() ->
         <<"SELECT ", PubsubNodeFieldsPrefixed/binary, " from pubsub_nodes as pn "
           "INNER JOIN pubsub_node_collections as collection ON pn.name = collection.name AND "
           "collection.parent_name = ? WHERE p_key = ?">>),
+    mongoose_rdbms:prepare(pubsub_select_node_with_parents, pubsub_nodes,
+        [p_key, name],
+        <<"SELECT pn.nidx, pn.name, collection.parent_name from pubsub_nodes as pn "
+          "LEFT JOIN pubsub_node_collections as collection ON pn.name = collection.name "
+          "WHERE pn.p_key = ? AND pn.name = ?">>),
+    mongoose_rdbms:prepare(pubsub_select_node_with_children, pubsub_nodes,
+        [p_key, name],
+        <<"SELECT pn.nidx, pn.name, collection.name from pubsub_nodes as pn "
+          "LEFT JOIN pubsub_node_collections as collection ON pn.name = collection.parent_name "
+          "WHERE pn.p_key = ? AND pn.name = ?">>),
     mongoose_rdbms:prepare(pubsub_delete_node, pubsub_nodes, [p_key, name],
         <<"DELETE from pubsub_nodes WHERE p_key = ? AND name = ?">>),
     mongoose_rdbms:prepare(pubsub_del_parents, pubsub_node_collections, [name],
@@ -408,6 +430,16 @@ execute_delete_all_items(Nidx) ->
 execute_get_item(Nidx, ItemId) ->
     mongoose_rdbms:execute_successfully(global, pubsub_get_item, [Nidx, ItemId]).
 
+-spec execute_get_items(Nidx :: mod_pubsub:nodeIdx()) -> mongoose_rdbms:query_result().
+execute_get_items(Nidx) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_get_items, [Nidx]).
+
+-spec execute_get_items(Nidx :: mod_pubsub:nodeIdx(), Limit :: pos_integer()) ->
+          mongoose_rdbms:query_result().
+execute_get_items(Nidx, Limit) ->
+    Args = rdbms_queries:add_limit_arg(Limit, [Nidx]),
+    mongoose_rdbms:execute_successfully(global, pubsub_get_items_limit, Args).
+
 -spec execute_del_item(Nidx :: mod_pubsub:nodeIdx(),
                        ItemId :: mod_pubsub:itemId()) ->
                            mongoose_rdbms:query_result().
@@ -415,6 +447,17 @@ execute_del_item(Nidx, ItemId) ->
     mongoose_rdbms:execute_successfully(global, pubsub_del_item, [Nidx, ItemId]).
 
 % ------------------- Nodes --------------------------------
+-spec execute_insert_pubsub_node(binary(), binary(), binary(), iodata(), iodata()) ->
+          mongoose_rdbms:query_result().
+execute_insert_pubsub_node(Key, Name, Type, Owners, Options) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_insert_node,
+                                        [Key, Name, Type, Owners, Options]).
+
+-spec execute_insert_parent(binary(), binary()) -> mongoose_rdbms:query_result().
+execute_insert_parent(Name, ParentName) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_insert_parent,
+                                        [Name, ParentName]).
+
 -spec execute_update_pubsub_node(Type :: binary(),
                                  OwnersJid :: iodata(),
                                  Opts :: iodata(),
@@ -452,6 +495,16 @@ execute_select_subnodes(Key, <<>>) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_top_level_nodes, [Key]);
 execute_select_subnodes(Key, Node) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_subnodes, [Node, Key]).
+
+-spec execute_select_node_with_parents(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
+          mongoose_rdbms:query_result().
+execute_select_node_with_parents(Key, Name) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_select_node_with_parents, [Key, Name]).
+
+-spec execute_select_node_with_children(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
+          mongoose_rdbms:query_result().
+execute_select_node_with_children(Key, Name) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_select_node_with_children, [Key, Name]).
 
 -spec execute_delete_node(Key :: binary(), Node :: mod_pubsub:nodeId()) ->
     mongoose_rdbms:query_result().
@@ -567,11 +620,36 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], none}}.
 get_items(Nidx, Opts) ->
-    SQL = mod_pubsub_db_rdbms_sql:get_items(Nidx, Opts),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    MaxItems = maps:get(max_items, Opts, undefined),
+    ItemIds = maps:get(item_ids, Opts, undefined),
+    Rows = get_item_rows(Nidx, MaxItems, ItemIds),
     Result = [item_to_record(Row) || Row <- Rows],
     {ok, {Result, none}}.
 
+-spec get_item_rows(Nidx :: mod_pubsub:nodeIdx(),
+                    MaxItems :: undefined | non_neg_integer(),
+                    ItemIds :: undefined | mod_pubsub:itemId()) -> [tuple()].
+get_item_rows(Nidx, undefined, undefined) ->
+    {selected, Rows} = execute_get_items(Nidx),
+    Rows;
+get_item_rows(Nidx, MaxItems, undefined) ->
+    {selected, Rows} = execute_get_items(Nidx, MaxItems),
+    Rows;
+get_item_rows(Nidx, MaxItems, ItemIds) ->
+    %% Returned items have same order as ItemIds
+    get_item_rows_acc(Nidx, MaxItems, ItemIds, []).
+
+get_item_rows_acc(_Nidx, _MaxItems, [], AccRows) -> AccRows;
+get_item_rows_acc(Nidx, MaxItems, [ItemId | ItemIds], AccRows) ->
+    case execute_get_item(Nidx, ItemId) of
+        {selected, []} ->
+            get_item_rows_acc(Nidx, MaxItems, ItemIds, AccRows);
+        {selected, [Item]} when MaxItems =:= undefined;
+                                length(AccRows) < MaxItems ->
+            get_item_rows_acc(Nidx, MaxItems, ItemIds, [Item | AccRows]);
+        {selected, [_]} ->
+            AccRows
+    end.
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
@@ -626,7 +704,7 @@ create_node(Nidx, LJID) ->
     {ok, [mod_pubsub:pubsubState()]}.
 del_node(Nidx) ->
     {ok, States} = get_states(Nidx),
-    {updated, _} =execute_delete_all_subscriptions_id(Nidx),
+    {updated, _} = execute_delete_all_subscriptions_id(Nidx),
     {updated, _} = execute_delete_all_items(Nidx),
     {updated, _} = execute_delete_all_affiliations(Nidx),
     {ok, States}.
@@ -634,27 +712,27 @@ del_node(Nidx) ->
 -spec set_node(Node :: mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
 set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
-    OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    {ok, Nidx} = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
-                                                     jiffy:encode(OwnersJid),
-                                                     jiffy:encode({Opts})),
-    maybe_set_parents(Name, Parents),
+    ExtKey = encode_key(Key),
+    ExtOwners = jiffy:encode([jid:to_binary(Owner) || Owner <- Owners]),
+    ExtOpts = jiffy:encode({Opts}),
+    {updated, 1} = execute_insert_pubsub_node(ExtKey, Name, Type, ExtOwners, ExtOpts),
+    {selected, [Row]} = execute_select_node_by_key_and_name(ExtKey, Name),
+    #pubsub_node{id = Nidx} = decode_pubsub_node_row(Row),
+    set_parents(Name, Parents),
     {ok, Nidx};
 
 set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
     execute_update_pubsub_node(Type, jiffy:encode(OwnersJid), jiffy:encode({Opts}), Nidx),
-    maybe_set_parents(Name, Parents),
+    execute_del_parents(Name),
+    set_parents(Name, Parents),
     {ok, Nidx}.
 
-maybe_set_parents(_Name, []) ->
-    ok;
-maybe_set_parents(Name, Parents) ->
-    {updated, _} = execute_del_parents(Name),
-    SetParentsSQL = mod_pubsub_db_rdbms_sql:set_parents(Name, Parents),
-    {updated, _} = mongoose_rdbms:sql_query_t(SetParentsSQL).
-
+-spec set_parents(mod_pubsub:nodeId(), [mod_pubsub:nodeId()]) -> ok.
+set_parents(Name, Parents) ->
+    [execute_insert_parent(Name, ParentName) || ParentName <- Parents],
+    ok.
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
@@ -732,9 +810,11 @@ find_nodes_with_parents(_, _, 100, Acc) ->
     ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
-    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_parents(
-            encode_key(Key), Nodes),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    ExtKey = encode_key(Key),
+    Rows = lists:flatmap(fun(Name) ->
+                                 {selected, Rs} = execute_select_node_with_parents(ExtKey, Name),
+                                 Rs
+                         end, Nodes),
     Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Parents}, {ParentsAcc, NodesAcc}) ->
@@ -778,9 +858,11 @@ find_subnodes(_, _, 100, Acc) ->
     ?LOG_WARNING(#{what => pubsub_max_depth_reached, pubsub_nodes => Acc}),
     Acc;
 find_subnodes(Key, Nodes, Depth, Acc) ->
-    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_children(
-            encode_key(Key), Nodes),
-    {selected, Rows} = mongoose_rdbms:sql_query_t(SQL),
+    ExtKey = encode_key(Key),
+    Rows = lists:flatmap(fun(Name) ->
+                                 {selected, Rs} = execute_select_node_with_children(ExtKey, Name),
+                                 Rs
+                         end, Nodes),
     Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Subnodes}, {SubnodesAcc, NodesAcc}) ->
