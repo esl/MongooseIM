@@ -23,8 +23,8 @@ init(Host, _) ->
                                  InsertFields, UpdateFields, KeyFields),
     mongoose_rdbms:prepare(smart_markers_select, smart_markers,
         [to_jid, thread, timestamp],
-        <<"select from_jid, to_jid, thread, type, msg_id, timestamp from smart_markers "
-          "WHERE to_jid = ? AND thread = ? AND timestamp >= ? ;">>),
+        <<"SELECT from_jid, to_jid, thread, type, msg_id, timestamp FROM smart_markers "
+          "WHERE to_jid = ? AND thread = ? AND timestamp >= ?">>),
     ok.
 
 %%% @doc

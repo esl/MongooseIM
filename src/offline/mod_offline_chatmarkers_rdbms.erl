@@ -19,9 +19,9 @@
 -spec init(Host :: jid:lserver(), Opts :: list()) -> ok.
 init(Host, _Opts) ->
     mongoose_rdbms:prepare(offline_chatmarkers_select, offline_markers, [jid],
-        <<"SELECT thread, room, timestamp FROM offline_markers WHERE jid = ?;">>),
+        <<"SELECT thread, room, timestamp FROM offline_markers WHERE jid = ?">>),
     mongoose_rdbms:prepare(offline_chatmarkers_delete, offline_markers, [jid],
-        <<"DELETE FROM offline_markers WHERE jid = ?;">>),
+        <<"DELETE FROM offline_markers WHERE jid = ?">>),
     rdbms_queries:prepare_upsert(Host, offline_chatmarkers_upsert, offline_markers,
                                  [<<"jid">>, <<"thread">>, <<"room">>, <<"timestamp">>],
                                  [],
@@ -63,13 +63,13 @@ execute_maybe_store(Host, Jid, Thread, Room, Timestamp) ->
 -spec maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
                   Room :: undefined | jid:jid(), Timestamp :: integer()) -> ok.
 maybe_store(#jid{lserver = Host} = Jid, Thread, Room, Timestamp) ->
-    {updated, _} = execute_maybe_store(Host, encode_jid(Jid), encode_thread(Thread),
-                                       encode_jid(Room), Timestamp),
+    execute_maybe_store(Host, encode_jid(Jid), encode_thread(Thread),
+                        encode_jid(Room), Timestamp),
     ok.
 
 -spec remove_user(Jid :: jid:jid()) -> ok.
 remove_user(#jid{lserver = Host} = Jid) ->
-    {updated, _} = execute_delete_user(Host, encode_jid(Jid)),
+    execute_delete_user(Host, encode_jid(Jid)),
     ok.
 
 encode_jid(undefined) -> <<"">>;
