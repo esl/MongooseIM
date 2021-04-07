@@ -52,27 +52,27 @@
 salted_password(Sha, Password, Salt, IterationCount) ->
     fast_scram:salted_password(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
-enabled(Host) ->
-    case ejabberd_auth:get_opt(Host, password_format, scram) of
+enabled(HostType) ->
+    case ejabberd_auth:get_opt(HostType, password_format, scram) of
         plain -> false;
         {scram, _Sha} -> true;
         scram -> true
     end.
 
-enabled(Host, cyrsasl_scram_sha1)   -> is_password_format_allowed(Host, sha);
-enabled(Host, cyrsasl_scram_sha224) -> is_password_format_allowed(Host, sha224);
-enabled(Host, cyrsasl_scram_sha256) -> is_password_format_allowed(Host, sha256);
-enabled(Host, cyrsasl_scram_sha384) -> is_password_format_allowed(Host, sha384);
-enabled(Host, cyrsasl_scram_sha512) -> is_password_format_allowed(Host, sha512);
-enabled(Host, cyrsasl_scram_sha1_plus) -> is_password_format_allowed(Host, sha);
-enabled(Host, cyrsasl_scram_sha224_plus) -> is_password_format_allowed(Host, sha224);
-enabled(Host, cyrsasl_scram_sha256_plus) -> is_password_format_allowed(Host, sha256);
-enabled(Host, cyrsasl_scram_sha384_plus) -> is_password_format_allowed(Host, sha384);
-enabled(Host, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(Host, sha512);
-enabled(_Host, _Mechanism) -> false.
+enabled(HostType, cyrsasl_scram_sha1)   -> is_password_format_allowed(HostType, sha);
+enabled(HostType, cyrsasl_scram_sha224) -> is_password_format_allowed(HostType, sha224);
+enabled(HostType, cyrsasl_scram_sha256) -> is_password_format_allowed(HostType, sha256);
+enabled(HostType, cyrsasl_scram_sha384) -> is_password_format_allowed(HostType, sha384);
+enabled(HostType, cyrsasl_scram_sha512) -> is_password_format_allowed(HostType, sha512);
+enabled(HostType, cyrsasl_scram_sha1_plus) -> is_password_format_allowed(HostType, sha);
+enabled(HostType, cyrsasl_scram_sha224_plus) -> is_password_format_allowed(HostType, sha224);
+enabled(HostType, cyrsasl_scram_sha256_plus) -> is_password_format_allowed(HostType, sha256);
+enabled(HostType, cyrsasl_scram_sha384_plus) -> is_password_format_allowed(HostType, sha384);
+enabled(HostType, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(HostType, sha512);
+enabled(_HostType, _Mechanism) -> false.
 
-is_password_format_allowed(Host, Sha) ->
-    case ejabberd_auth:get_opt(Host, password_format, scram) of
+is_password_format_allowed(HostType, Sha) ->
+    case ejabberd_auth:get_opt(HostType, password_format, scram) of
         plain -> true;
         scram -> true;
         {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)
@@ -81,17 +81,17 @@ is_password_format_allowed(Host, Sha) ->
 %% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
-iterations(Host) ->
-    ejabberd_auth:get_opt(Host, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
+iterations(HostType) ->
+    ejabberd_auth:get_opt(HostType, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
-password_to_scram(Host, Password) ->
-    password_to_scram(Host, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
+password_to_scram(HostType, Password) ->
+    password_to_scram(HostType, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
 
 password_to_scram(_, #scram{} = Password, _) ->
     scram_record_to_map(Password);
-password_to_scram(Host, Password, IterationCount) ->
+password_to_scram(HostType, Password, IterationCount) ->
     ServerStoredKeys = [do_password_to_scram(Password, IterationCount, HashType)
-                            || {HashType, _Prefix} <- configured_sha_types(Host)],
+                            || {HashType, _Prefix} <- configured_sha_types(HostType)],
     ResultList = lists:merge([{iteration_count, IterationCount}], ServerStoredKeys),
     maps:from_list(ResultList).
 
@@ -219,8 +219,8 @@ supported_sha_types() ->
      {sha384,   <<?SCRAM_SHA384_PREFIX>>},
      {sha512,   <<?SCRAM_SHA512_PREFIX>>}].
 
-configured_sha_types(Host) ->
-    case catch ejabberd_auth:get_opt(Host, password_format) of
+configured_sha_types(HostType) ->
+    case catch ejabberd_auth:get_opt(HostType, password_format) of
         {scram, ScramSha} when length(ScramSha) > 0 ->
             lists:filter(fun({Sha, _Prefix}) ->
                             lists:member(Sha, ScramSha) end, supported_sha_types());

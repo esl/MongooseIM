@@ -24,12 +24,12 @@ setup() ->
     meck:expect(ejabberd_socket, get_socket, fun(_) -> ok end),
 
     meck:new(cyrsasl),
-    meck:expect(cyrsasl, server_new, fun(_, _, _, _, _) -> saslstate end),
+    meck:expect(cyrsasl, server_new, fun(_, _, _, _, _, _) -> saslstate end),
     meck:expect(cyrsasl, server_start, fun(_, _, _, _) -> {ok, dummy_creds} end),
     meck:expect(cyrsasl, listmech, fun(_) -> [] end),
 
     meck:new(mongoose_credentials),
-    meck:expect(mongoose_credentials, new, fun(_) -> ok end),
+    meck:expect(mongoose_credentials, new, fun(_, _) -> ok end),
     meck:expect(mongoose_credentials, get,
                 fun(dummy_creds, sasl_success_response, undefined) ->
                     undefined end),
@@ -55,7 +55,10 @@ setup() ->
     meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end),
 
     meck:new(gen_mod),
-    meck:expect(gen_mod, is_loaded, fun (_, _) -> true end).
+    meck:expect(gen_mod, is_loaded, fun (_, _) -> true end),
+
+    meck:new(mongoose_domain_api),
+    meck:expect(mongoose_domain_api, get_host_type, fun get_host_type/1).
 
 
 teardown() ->
@@ -79,3 +82,6 @@ hookfold(session_opening_allowed_for_user, _, _, _) -> allow;
 hookfold(c2s_stream_features, _, _, _) -> [];
 hookfold(xmpp_send_element, _, A, _) -> A;
 hookfold(privacy_check_packet, _, _, _) -> allow.
+
+get_host_type(<<"localhost">>) -> {ok, <<"localhost">>};
+get_host_type(_) -> {error, not_found}.

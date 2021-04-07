@@ -2,8 +2,18 @@
         [<<"this is host type">>,<<"some host type">>,<<"another host type">>,
          <<"yet another host type">>]}.
 {config,hosts,[<<"localhost">>]}.
-{local_config,{modules,<<"another host type">>},[{another_dummy_module,[]}]}.
-{local_config,{modules,<<"localhost">>},[{yet_another_dummy_module,[]}]}.
+{local_config,{auth_method,<<"another host type">>},[]}.
+{local_config,{auth_method,<<"localhost">>},[test3]}.
+{local_config,{auth_method,<<"some host type">>},[test2]}.
+{local_config,{auth_method,<<"this is host type">>},[test1]}.
+{local_config,{auth_method,<<"yet another host type">>},[test1,test2]}.
+{local_config,{auth_opts,<<"another host type">>},[]}.
+{local_config,{auth_opts,<<"localhost">>},[]}.
+{local_config,{auth_opts,<<"some host type">>},[]}.
+{local_config,{auth_opts,<<"this is host type">>},[]}.
+{local_config,{auth_opts,<<"yet another host type">>},[]}.
+{local_config,{modules,<<"another host type">>},[{test_mim_module2,[]}]}.
+{local_config,{modules,<<"localhost">>},[{test_mim_module3,[]}]}.
 {local_config,{modules,<<"some host type">>},[]}.
 {local_config,{modules,<<"this is host type">>},[]}.
-{local_config,{modules,<<"yet another host type">>},[{dummy_module,[]}]}.
+{local_config,{modules,<<"yet another host type">>},[{test_mim_module1,[]}]}.

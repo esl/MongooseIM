@@ -7,22 +7,25 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_gen_auth).
 
--callback start(Host :: jid:lserver()) -> ok.
+-callback start(HostType :: binary()) -> ok.
 
--callback stop(Host :: jid:lserver()) -> ok.
+-callback stop(HostType :: binary()) -> ok.
 
--callback supports_sasl_module(Host :: jid:lserver(),
+-callback supports_sasl_module(HostType :: binary(),
                                Module :: cyrsasl:sasl_module()) -> boolean().
 
--callback set_password(User :: jid:luser(),
+-callback set_password(HostType :: binary(),
+                       User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()
                       ) -> ok | {error, not_allowed | invalid_jid}.
 
+%% credentials already contain host type
 -callback authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                                | {error, any()}.
 
--callback try_register(User :: jid:luser(),
+-callback try_register(HostType :: binary(),
+                       User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()
                        ) -> ok | {error, exists | not_allowed | term()}.
@@ -51,6 +54,31 @@
 -callback remove_user(User :: jid:luser(),
                       Server :: jid:lserver()
                       ) -> ok | {error, not_allowed}.
+
+-callback remove_domain(Server :: jid:lserver()) -> ok | {error, term()}.
+
+-callback supported_features() -> [Feature::atom()].
+
+
+%% implementation of check_password callbacks is required for the
+%% corresponding check_password interfaces of ejabberd_auth module.
+%%
+%% with the help of ejabberd_auth:authorize_with_check_password/2
+%% function, these callbacks can be reused to simplify implementation
+%% of the M:authorize/1 interface.
+-callback check_password(HostType :: binary(),
+                         LUser :: jid:luser(),
+                         LServer :: jid:lserver(),
+                         Password :: binary()) -> boolean().
+
+-callback check_password(HostType :: binary(),
+                         LUser :: jid:luser(),
+                         LServer :: jid:lserver(),
+                         Password :: binary(),
+                         Digest :: binary(),
+                         DigestGen :: fun()) -> boolean().
+
+-optional_callbacks([remove_domain/1, supported_features/0]).
 
 -export_type([t/0]).
 

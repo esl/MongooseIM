@@ -30,9 +30,9 @@
 -behaviour(ejabberd_gen_auth).
 -export([start/1,
          stop/1,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         try_register/3,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -46,8 +46,8 @@
         ]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -include("mongoose.hrl").
 
@@ -55,19 +55,19 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: jid:server()) -> 'ok'.
-start(Host) ->
-    ExtauthProgram = ejabberd_auth:get_opt(Host, extauth_program),
-    extauth:start(Host, ExtauthProgram),
-    case check_cache_last_options(Host) of
+-spec start(HostType :: binary()) -> 'ok'.
+start(HostType) ->
+    ExtauthProgram = ejabberd_auth:get_opt(HostType, extauth_program),
+    extauth:start(HostType, ExtauthProgram),
+    case check_cache_last_options(HostType) of
         cache ->
-            ok = ejabberd_auth_internal:start(Host);
+            ok = ejabberd_auth_internal:start(HostType);
         no_cache ->
             ok
     end.
 
-stop(Host) ->
-    extauth:stop(Host).
+stop(HostType) ->
+    extauth:stop(HostType).
 
 
 -spec check_cache_last_options(Server :: jid:server()
@@ -88,7 +88,7 @@ check_cache_last_options(Server) ->
             end
     end.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
@@ -96,50 +96,54 @@ supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
+check_password(_HostType, LUser, LServer, Password) ->
     case get_cache_option(LServer) of
         false -> check_password_extauth(LUser, LServer, Password);
         {true, CacheTime} -> check_password_cache(LUser, LServer, Password, CacheTime)
     end.
 
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, _Digest, _DigestGen) ->
-    check_password(LUser, LServer, Password).
+check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
+    check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
-set_password(LUser, LServer, Password) ->
+set_password(HostType, LUser, LServer, Password) ->
     case extauth:set_password(LUser, LServer, Password) of
         true ->
             UseCache = get_cache_option(LServer),
-            maybe_set_password_internal(UseCache, LUser, LServer, Password);
+            maybe_set_password_internal(UseCache, HostType, LUser, LServer, Password);
         _ -> {error, unknown_problem}
     end.
 
-maybe_set_password_internal(false, _, _, _) ->
+maybe_set_password_internal(false, _, _, _, _) ->
     ok;
-maybe_set_password_internal({true, _}, LUser, LServer, Password) ->
-    set_password_internal(LUser, LServer, Password).
+maybe_set_password_internal({true, _}, HostType, LUser, LServer, Password) ->
+    set_password_internal(HostType, LUser, LServer, Password).
 
 
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
-try_register(LUser, LServer, Password) ->
+try_register(HostType, LUser, LServer, Password) ->
     case get_cache_option(LServer) of
         false -> try_register_extauth(LUser, LServer, Password);
-        {true, _CacheTime} -> try_register_external_cache(LUser, LServer, Password)
+        {true, _CacheTime} -> try_register_external_cache(HostType, LUser, LServer, Password)
     end.
 
 
@@ -309,20 +313,24 @@ get_password_cache(LUser, LServer, CacheTime) ->
 check_password_external_cache(LUser, LServer, Password) ->
     case check_password_extauth(LUser, LServer, Password) of
         true ->
-            set_password_internal(LUser, LServer, Password), true;
+            %% FIXME: here we must provide a host type as a first argument
+            %% for set_password_internal/4, current implementation will
+            %% not work with dynamic domains.
+            set_password_internal(LServer, LUser, LServer, Password), true;
         false ->
             false
     end.
 
 
 %% @doc Try to register using extauth; if success then cache it
--spec try_register_external_cache(LUser :: jid:luser(),
+-spec try_register_external_cache(HostType :: binary(),
+                                  LUser :: jid:luser(),
                                   LServer :: jid:lserver(),
                                   Password :: binary()) -> ok | {error, not_allowed}.
-try_register_external_cache(LUser, LServer, Password) ->
+try_register_external_cache(HostType, LUser, LServer, Password) ->
     case try_register_extauth(LUser, LServer, Password) of
         ok = R ->
-            set_password_internal(LUser, LServer, Password),
+            set_password_internal(HostType, LUser, LServer, Password),
             R;
         _ -> {error, not_allowed}
     end.
@@ -332,14 +340,18 @@ try_register_external_cache(LUser, LServer, Password) ->
                               LServer :: jid:lserver(),
                               Password :: binary()) -> boolean().
 check_password_internal(LUser, LServer, Password) ->
-    ejabberd_auth_internal:check_password(LUser, LServer, Password).
+    %% FIXME: here we must provide a host type as a first argument
+    %% for ejabberd_auth_internal:check_password/4, current implementation
+    %% will not work with dynamic domains.
+    ejabberd_auth_internal:check_password(LServer, LUser, LServer, Password).
 
 
--spec set_password_internal(LUser :: jid:luser(),
+-spec set_password_internal(HostType :: binary(),
+                            LUser :: jid:luser(),
                             LServer :: jid:lserver(),
                             Password :: binary()) -> ok | {error, invalid_jid}.
-set_password_internal(LUser, LServer, Password) ->
-    ejabberd_auth_internal:set_password(LUser, LServer, Password).
+set_password_internal(HostType, LUser, LServer, Password) ->
+    ejabberd_auth_internal:set_password(HostType, LUser, LServer, Password).
 
 
 -spec is_fresh_enough(TimeLast :: integer(),

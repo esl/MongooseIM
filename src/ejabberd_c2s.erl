@@ -287,12 +287,12 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Lang = get_xml_lang(Attrs),
     S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
-          lists:member(Server, ?MYHOSTS)} of
-        {?NS_STREAM, true} ->
+          mongoose_domain_api:get_host_type(Server)} of
+        {?NS_STREAM, {ok, HostType}} ->
             change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
-            stream_start_by_protocol_version(Version, S);
-        {?NS_STREAM, false} ->
+            stream_start_by_protocol_version(Version, S#state{host_type = HostType});
+        {?NS_STREAM, {error, not_found}} ->
             stream_start_error(mongoose_xmpp_errors:host_unknown(), S);
         {_InvalidNS, _} ->
             stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S)
@@ -336,9 +336,11 @@ stream_start_negotiate_features(#state{} = S) ->
             fsm_next_state(wait_for_session_or_sm, S)
     end.
 
-stream_start_features_before_auth(#state{server = Server} = S) ->
-    Creds = maybe_add_cert(mongoose_credentials:new(Server), S),
-    SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
+stream_start_features_before_auth(#state{server = Server,
+                                         host_type = HostType} = S) ->
+    Creds0 = mongoose_credentials:new(Server, HostType),
+    Creds = maybe_add_cert(Creds0, S),
+    SASLState = cyrsasl:server_new(<<"jabber">>, Server, HostType, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
     send_element_from_server_jid(S, stream_features(determine_features(SockMod, S))),
     fsm_next_state(wait_for_feature_before_auth,
@@ -395,8 +397,8 @@ maybe_compress_feature(SockMod, #state{zlib = {ZLib, _}}) ->
         _ -> []
     end.
 
-maybe_sasl_mechanisms(#state{server = Server} = S) ->
-    case cyrsasl:listmech(Server) of
+maybe_sasl_mechanisms(#state{host_type = HostType} = S) ->
+    case cyrsasl:listmech(HostType) of
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
@@ -507,8 +509,8 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
             Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
             SaslState = StateData#state.sasl_state,
-            Server = StateData#state.server,
-            AuthMech = [M || M <- cyrsasl:listmech(Server), filter_mechanism(M, StateData)],
+            HostType = StateData#state.host_type,
+            AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(M, StateData)],
             SocketData = #{socket => StateData#state.socket, auth_mech => AuthMech},
             StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),

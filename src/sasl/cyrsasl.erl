@@ -27,7 +27,7 @@
 -author('alexey@process-one.net').
 
 -export([listmech/1,
-         server_new/5,
+         server_new/6,
          server_start/4,
          server_step/2]).
 
@@ -38,6 +38,7 @@
 
 -record(sasl_state, {service    :: binary(),
                      myname     :: jid:server(),
+                     host_type  :: binary(),
                      realm      :: binary(),
                      mech_mod   :: sasl_module(),
                      mech_state :: any(),
@@ -76,18 +77,20 @@ check_credentials(_State, Creds) ->
             {ok, Creds}
     end.
 
--spec listmech(jid:server()) -> [mechanism()].
-listmech(Host) ->
-    [M:mechanism() || M <- get_modules(Host), is_module_supported(Host, M)].
+-spec listmech(binary()) -> [mechanism()].
+listmech(HostType) ->
+    [M:mechanism() || M <- get_modules(HostType), is_module_supported(HostType, M)].
 
 -spec server_new(Service :: binary(),
                  ServerFQDN :: jid:server(),
+                 HostType :: binary(),
                  UserRealm :: binary(),
                  _SecFlags :: [any()],
                  Creds :: mongoose_credentials:t()) -> sasl_state().
-server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
+server_new(Service, ServerFQDN, HostType, UserRealm, _SecFlags, Creds) ->
     #sasl_state{service = Service,
                 myname = ServerFQDN,
+                host_type = HostType,
                 realm = UserRealm,
                 creds = Creds}.
 
@@ -99,9 +102,10 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
       Result     :: {ok, mongoose_credentials:t()}
                   | {'continue', _, sasl_state()}
                   | error().
-server_start(State, Mech, ClientIn, SocketData) ->
-    Host = State#sasl_state.myname,
-    case [M || M <- get_modules(Host), M:mechanism() =:= Mech, is_module_supported(Host, M)] of
+server_start(#sasl_state{myname = Host, host_type = HostType} = State,
+             Mech, ClientIn, SocketData) ->
+    case [M || M <- get_modules(HostType), M:mechanism() =:= Mech,
+                                           is_module_supported(HostType, M)] of
         [Module] ->
             {ok, MechState} = Module:mech_new(Host, State#sasl_state.creds, SocketData),
             server_step(State#sasl_state{mech_mod = Module,
@@ -111,10 +115,10 @@ server_start(State, Mech, ClientIn, SocketData) ->
             {error, <<"no-mechanism">>}
     end.
 
-is_module_supported(Host, cyrsasl_oauth) ->
-    gen_mod:is_loaded(Host, mod_auth_token);
-is_module_supported(Host, Module) ->
-    mongoose_fips:supports_sasl_module(Module) andalso ejabberd_auth:supports_sasl_module(Host, Module).
+is_module_supported(HostType, cyrsasl_oauth) ->
+    gen_mod:is_loaded(HostType, mod_auth_token);
+is_module_supported(HostType, Module) ->
+    mongoose_fips:supports_sasl_module(Module) andalso ejabberd_auth:supports_sasl_module(HostType, Module).
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) -> Result when
       Result :: {ok, mongoose_credentials:t()}
@@ -135,9 +139,9 @@ server_step(State, ClientIn) ->
             {error, Error}
     end.
 
--spec get_modules(jid:server()) -> [sasl_module()].
-get_modules(Host) ->
-    case ejabberd_config:get_local_option({sasl_mechanisms, Host}) of
+-spec get_modules(binary()) -> [sasl_module()].
+get_modules(HostType) ->
+    case ejabberd_config:get_local_option({sasl_mechanisms, HostType}) of
         undefined -> ejabberd_config:get_local_option_or_default(sasl_mechanisms, default_modules());
         Modules -> Modules
     end.

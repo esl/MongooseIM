@@ -26,7 +26,7 @@ all() ->
      can_get_outdated_domains].
 
 init_per_testcase(_, Config) ->
-    mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_TYPES),
+    ok = mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_TYPES),
     Config.
 
 end_per_testcase(_, Config) ->
