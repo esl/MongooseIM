@@ -181,6 +181,8 @@ start() ->
     % ------------------- Nodes --------------------------------
     mongoose_rdbms:prepare(pubsub_insert_node, pubsub_nodes, [p_key, name, type, owners, options],
         <<"INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (?, ?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(pubsub_insert_parent, pubsub_node_collections, [name, parent_name],
+        <<"INSERT INTO pubsub_node_collections (name, parent_name) VALUES (?, ?)">>),
     mongoose_rdbms:prepare(pubsub_update_pubsub_node, pubsub_nodes, [type, owners, options, nidx],
         <<"UPDATE pubsub_nodes SET type = ?, owners = ?, options = ? WHERE nidx = ?">>),
     PubsubNodeFields = pubsub_node_fields(),
@@ -441,6 +443,11 @@ execute_insert_pubsub_node(Key, Name, Type, Owners, Options) ->
     mongoose_rdbms:execute_successfully(global, pubsub_insert_node,
                                         [Key, Name, Type, Owners, Options]).
 
+-spec execute_insert_parent(binary(), binary()) -> mongoose_rdbms:query_result().
+execute_insert_parent(Name, ParentName) ->
+    mongoose_rdbms:execute_successfully(global, pubsub_insert_parent,
+                                        [Name, ParentName]).
+
 -spec execute_update_pubsub_node(Type :: binary(),
                                  OwnersJid :: iodata(),
                                  Opts :: iodata(),
@@ -691,23 +698,21 @@ set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
     {updated, 1} = execute_insert_pubsub_node(ExtKey, Name, Type, ExtOwners, ExtOpts),
     {selected, [Row]} = execute_select_node_by_key_and_name(ExtKey, Name),
     #pubsub_node{id = Nidx} = decode_pubsub_node_row(Row),
-    maybe_set_parents(Name, Parents),
+    set_parents(Name, Parents),
     {ok, Nidx};
 
 set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
     execute_update_pubsub_node(Type, jiffy:encode(OwnersJid), jiffy:encode({Opts}), Nidx),
-    maybe_set_parents(Name, Parents),
+    execute_del_parents(Name),
+    set_parents(Name, Parents),
     {ok, Nidx}.
 
-maybe_set_parents(_Name, []) ->
-    ok;
-maybe_set_parents(Name, Parents) ->
-    {updated, _} = execute_del_parents(Name),
-    SetParentsSQL = mod_pubsub_db_rdbms_sql:set_parents(Name, Parents),
-    {updated, _} = mongoose_rdbms:sql_query_t(SetParentsSQL).
-
+-spec set_parents(mod_pubsub:nodeId(), [mod_pubsub:nodeId()]) -> ok.
+set_parents(Name, Parents) ->
+    [execute_insert_parent(Name, ParentName) || ParentName <- Parents],
+    ok.
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.

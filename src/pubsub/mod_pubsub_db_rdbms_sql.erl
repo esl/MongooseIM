@@ -11,8 +11,7 @@
 % Nodes
 
 -export([select_nodes_by_key_and_names_in_list_with_parents/2,
-         select_nodes_by_key_and_names_in_list_with_children/2,
-         set_parents/2]).
+         select_nodes_by_key_and_names_in_list_with_children/2]).
 
 
 %%====================================================================
@@ -20,15 +19,6 @@
 %%====================================================================
 
 % ------------------- Items --------------------------------
-
-set_parents(Node, Parents) ->
-    EscNode = esc_string(Node),
-    ParentRows = [parent_row(EscNode, Parent) || Parent <- Parents],
-    ["INSERT INTO pubsub_node_collections (name, parent_name) "
-     "VALUES ", rdbms_queries:join(ParentRows, ",")].
-
-parent_row(EscNode, Parent) ->
-    ["(", EscNode, ", ", esc_string(Parent),")"].
 
 -spec select_nodes_by_key_and_names_in_list_with_parents(Key :: binary(), Nodes :: [binary()]) -> iolist().
 select_nodes_by_key_and_names_in_list_with_parents(Key, Nodes) ->
