@@ -2,6 +2,7 @@
   loglevel = "warning"
   hosts = [{{{hosts}}}]
   host_types = [{{{host_types}}}]
+  default_server_domain = {{{default_server_domain}}}
   registration_timeout = "infinity"
   language = "en"
   all_metrics_are_global = {{{all_metrics_are_global}}}

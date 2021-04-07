@@ -49,6 +49,7 @@ groups() ->
      {general, [parallel], [loglevel,
                             hosts,
                             host_types,
+                            default_server_domain,
                             registration_timeout,
                             language,
                             all_metrics_are_global,
@@ -346,19 +347,22 @@ loglevel(_Config) ->
 hosts(_Config) ->
     ?eq([#config{key = hosts, value = [<<"host1">>]}],
         parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>]}})),
+    GenM = #{<<"default_server_domain">> => <<"some.host">>},
     compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
-                    #config{key = host_types, value = []}],
-                   parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>],
-                                              <<"host_types">> => []}})),
+                    #config{key = host_types, value = []},
+                    #config{key = default_server_domain, value = <<"some.host">>}],
+                   mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
+                       <<"hosts">> => [<<"host1">>, <<"host2">>],
+                       <<"host_types">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
     % either hosts or host_types must be provided
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => [],
-                                                                <<"host_types">> => []}})),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host">> => []}})),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{<<"host_types">> => []}})).
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => [],
+                                                                    <<"host_types">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host_types">> => []}})).
 
 host_types(_Config) ->
     ?eq([#config{key = host_types, value = [<<"type 1">>]}],
@@ -372,6 +376,19 @@ host_types(_Config) ->
     % either hosts and host_types cannot have the same values
     ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>],
                                     <<"hosts">> => [<<"type1">>]}})).
+
+default_server_domain(_Config) ->
+    ?eq([#config{key = default_server_domain, value = <<"host1">>}],
+        parse(#{<<"general">> => #{<<"default_server_domain">> => <<"host1">>}})),
+    GenM = #{<<"hosts">> => [<<"host1">>, <<"host2">>]},
+    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #config{key = default_server_domain, value = <<"some.host">>}],
+                   mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
+                       <<"default_server_domain">> => <<"some.host">>}})),
+    ?err(parse(#{<<"general">> => #{<<"default_server_domain">> => <<"what is this?">>}})),
+    ?err(parse(#{<<"general">> => #{<<"default_server_domain">> => <<>>}})),
+    % default_server_domain must be provided
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})).
 
 registration_timeout(_Config) ->
     ?eq([#local_config{key = registration_timeout, value = infinity}],
@@ -2979,19 +2996,34 @@ err_host_or_global(Config) ->
 parse_host_config(Config) ->
     parse(#{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}).
 
-%% plug in 'hosts' as this option is mandatory, then parse, then remove the extra 'hosts'
-parse(M)
-  when not is_map_key(<<"general">>, M) ->
-    parse(M#{<<"general">> => #{<<"hosts">> => [?HOST]}});
-parse(M = #{<<"general">> := GenM})
-  when not is_map_key(<<"hosts">>, GenM) ->
-    parse(M#{<<"general">> => GenM#{<<"hosts">> => [?HOST]}});
-parse(M) ->
+
+parse(M0) ->
+    %% 'hosts' (or 'host_types') and `default_server_domain` options are mandatory.
+    %% this function does the following things:
+    %%   1) plugs that mandatory options with dummy values (if required).
+    %%   2) executes parsing.
+    %%   3) removes extra 'hosts'/'default_server_domain' config keys (but only if
+    %%      they have dummy values).
+    %% DummyDomainName value must be unique to avoid accidental config keys removal.
+    DummyDomainName = <<"dummy.domain.name">>,
+    M = maybe_insert_dummy_domain(M0, DummyDomainName),
     Config = mongoose_config_parser_toml:parse(M),
-    %% remove hosts key only if value is equal to [?HOST]
-    lists:filter(fun(#config{key = hosts, value = [?HOST]}) -> false;
-                    (_) -> true
-                 end, Config).
+    maybe_filter_out_dummy_domain(Config, DummyDomainName).
+
+maybe_insert_dummy_domain(M, DomainName) ->
+    DummyGenM = #{<<"default_server_domain">> => DomainName,
+                  <<"hosts">> => [DomainName]},
+    OldGenM = maps:get(<<"general">> ,M, #{}),
+    NewGenM = maps:merge(DummyGenM,OldGenM),
+    M#{<<"general">> => NewGenM}.
+
+maybe_filter_out_dummy_domain(Config, DomainName) ->
+    lists:filter(
+        fun
+            (#config{key = default_server_domain, value = V}) when V =:= DomainName -> false;
+            (#config{key = hosts, value = [V]}) when V =:= DomainName -> false;
+            (_) -> true
+        end, Config).
 
 %% helpers for file tests
 

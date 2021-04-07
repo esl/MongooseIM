@@ -1,3 +1,4 @@
+{config,default_server_domain,<<"localhost">>}.
 {config,hosts,[<<"localhost">>,<<"anonymous.localhost">>]}.
 {local_config,cowboy_server_name,"Apache"}.
 {local_config,listen,

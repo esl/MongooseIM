@@ -1,5 +1,6 @@
 [general]
   hosts = ["localhost"]
+  default_server_domain = "localhost"
 
 [[listen.http]]
   port = 5280
