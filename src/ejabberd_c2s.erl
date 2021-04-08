@@ -271,7 +271,7 @@ wait_for_stream(closed, StateData) ->
     {stop, normal, StateData};
 wait_for_stream(_UnexpectedItem, #state{ server = Server,
                                          host_type = HostType } = StateData) ->
-    case ejabberd_config:get_local_option(hide_service_name, HostType) of
+    case ejabberd_config:get_local_option(hide_service_name) of
         true ->
             {stop, normal, StateData};
         _ ->

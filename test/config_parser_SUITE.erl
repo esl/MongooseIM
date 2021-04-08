@@ -490,9 +490,9 @@ replaced_wait_timeout(_Config) ->
     err_host_config(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}}).
 
 hide_service_name(_Config) ->
-    eq_host_config([#local_config{key = {hide_service_name, ?HOST}, value = false}],
-                  #{<<"general">> => #{<<"hide_service_name">> => false}}),
-    err_host_config(#{<<"general">> => #{<<"hide_service_name">> => []}}).
+    compare_config([#local_config{key = hide_service_name, value = false}],
+                   parse(#{<<"general">> => #{<<"hide_service_name">> => false}})),
+    ?err(parse(#{<<"general">> => #{<<"hide_service_name">> => []}})).
 
 %% tests: listen
 

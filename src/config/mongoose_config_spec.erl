@@ -233,7 +233,7 @@ general() ->
                                                         validate = positive,
                                                         format = host_local_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    format = host_local_config}
+                                                    format = local_config}
                 },
        format = none
       }.
