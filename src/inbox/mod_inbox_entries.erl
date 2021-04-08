@@ -61,19 +61,19 @@ get_properties_for_jid(Acc, IQ, From, EntryJID) ->
 -spec process_iq_conversation_set(mongoose_acc:t(), jlib:iq(), jid:jid(), exml:element()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_iq_conversation_set(
-  Acc, IQ, From, #xmlel{name = <<"query">>, children = Requests0} = Query) ->
+  Acc, IQ, From, #xmlel{name = <<"query">>, children = Requests} = Query) ->
     case mod_inbox_utils:extract_attr_jid(Query) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         EntryJID ->
-            extract_requests(Acc, IQ, From, EntryJID, Requests0)
+            extract_requests(Acc, IQ, From, EntryJID, Requests)
     end.
 
 -spec extract_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), [exml:element()]) ->
     {mongoose_acc:t(), jlib:iq()}.
-extract_requests(Acc, IQ, From, EntryJID, Requests0) ->
+extract_requests(Acc, IQ, From, EntryJID, Requests) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
-    case form_to_query(CurrentTS, Requests0, #{}) of
+    case form_to_query(CurrentTS, Requests, #{}) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Params ->
@@ -89,12 +89,12 @@ process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
-            forward_request(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
+            forward_result(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
     end.
 
--spec forward_request(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), entry_properties(), integer()) ->
+-spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), entry_properties(), integer()) ->
     {mongoose_acc:t(), jlib:iq()}.
-forward_request(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
+forward_result(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
     Properties = build_result(Result, CurrentTS),
     X = [#xmlel{name = <<"x">>,
                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},

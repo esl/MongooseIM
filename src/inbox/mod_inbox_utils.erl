@@ -43,8 +43,8 @@
                                Remote :: jid:jid(),
                                Packet :: exml:element()) -> ok.
 maybe_reset_unread_count(Server, User, Remote, Packet) ->
-    ResetMarkers = mod_inbox_utils:get_reset_markers(Server),
-    case mod_inbox_utils:if_chat_marker_get_id(Packet, ResetMarkers) of
+    ResetMarkers = get_reset_markers(Server),
+    case if_chat_marker_get_id(Packet, ResetMarkers) of
         undefined ->
             ok;
         Id ->
@@ -153,11 +153,11 @@ has_chat_marker(Packet, Markers) ->
       %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
       WriteF :: fun().
 maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) ->
-    case mod_inbox_utils:has_chat_marker(Packet) of
+    case has_chat_marker(Packet) of
         true ->
             ok;
         false ->
-            Packet2 = mod_inbox_utils:fill_from_attr(Packet, User),
+            Packet2 = fill_from_attr(Packet, User),
             WriteF(Host, User, Remote, Packet2, TS)
     end.
 

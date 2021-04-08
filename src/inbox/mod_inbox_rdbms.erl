@@ -31,13 +31,15 @@
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
 
-
+-type archived() :: binary().
+-type muted_until() :: binary().
+-type msg_content() :: binary().
 -type db_return() :: {username(),
-                      binary(),
+                      msg_content(),
                       count_bin(),
                       non_neg_integer() | binary(),
-                      binary(),
-                      binary()}.
+                      archived(),
+                      muted_until()}.
 
 %% ----------------------------------------------------------------------
 %% API
