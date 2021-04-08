@@ -9,6 +9,9 @@
 
 % Generic inbox
 -export([
+         skip_or_run_inbox_tests/1,
+         inbox_opts/0,
+         required_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
@@ -113,6 +116,26 @@ inbox_ns() ->
 -spec inbox_ns_conversation() -> binary().
 inbox_ns_conversation() ->
     ?NS_ESL_INBOX_CONVERSATION.
+
+inbox_opts() ->
+    [{aff_changes, true},
+     {remove_on_kicked, true},
+     {groupchat, [muclight]},
+     {markers, [displayed]}].
+
+skip_or_run_inbox_tests(TestCases) ->
+    case (not ct_helper:is_ct_running())
+            orelse mongoose_helper:is_rdbms_enabled(inbox_helper:domain()) of
+        true -> TestCases;
+        false -> {skip, require_rdbms}
+    end.
+
+required_modules() ->
+    [
+     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
+                      {backend, rdbms}]},
+     {mod_inbox, inbox_opts()}
+    ].
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
     [begin

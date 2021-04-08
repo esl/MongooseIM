@@ -75,7 +75,8 @@
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
                        muclight_domain/0,
-                       muclight_config_domain/0,
+                       required_modules/0,
+                       inbox_opts/0,
                        muc_domain/0,
                        parse_form_iq/1,
                        check_inbox/2, check_inbox/4,
@@ -99,12 +100,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    case (not ct_helper:is_ct_running()) orelse is_rdbms_enabled(inbox_helper:domain()) of
-        true ->
-            tests();
-        false ->
-            {skip, require_rdbms}
-    end.
+    inbox_helper:skip_or_run_inbox_tests(tests()).
 
 tests() ->
     [
@@ -199,22 +195,6 @@ init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
     Config2 = [{inbox_opts, InboxOptions} | Config1],
     escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
-
-is_rdbms_enabled(Host) ->
-    mongoose_helper:is_rdbms_enabled(Host).
-
-required_modules() ->
-    [
-     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
-                      {backend, rdbms}]},
-     {mod_inbox, inbox_opts()}
-    ].
-
-inbox_opts() ->
-    [{aff_changes, true},
-     {remove_on_kicked, true},
-     {groupchat, [muclight]},
-     {markers, [displayed]}].
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),

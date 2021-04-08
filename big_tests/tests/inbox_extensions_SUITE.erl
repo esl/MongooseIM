@@ -7,7 +7,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("inbox.hrl").
 
--define(INBOX_CT, inbox_SUITE).
 -define(ROOM_MARKERS_RESET, <<"room_markers_reset">>).
 -define(HOUR, 3600).
 -define(VALID_JID, <<"mike@localhost">>).
@@ -32,7 +31,7 @@
          returns_error_when_valid_jid_but_no_property/1,
          % Set-unread errors
          returns_error_when_read_invalid_value/1,
-         returns_error_when_read_valid_requestbut_not_in_inbox/1,
+         returns_error_when_read_valid_request_but_not_in_inbox/1,
          % Archiving errors
          returns_error_when_archive_invalid_value/1,
          returns_error_when_archive_valid_request_but_not_in_inbox/1,
@@ -75,21 +74,25 @@
          groupchat_setunread_stanza_sets_inbox/1 % muclight
         ]).
 
+
+-import(inbox_helper, [
+                       muclight_domain/0,
+                       required_modules/0,
+                       inbox_opts/0
+                      ]).
+
+
 all() ->
-    case ?INBOX_CT:?FUNCTION_NAME() of
-        {skip, require_rdbms} -> {skip, require_rdbms};
-        _ -> [{group, bkpr_extensions}]
-    end.
+    inbox_helper:skip_or_run_inbox_tests([{group, inbox_extensions}]).
 
 suite() ->
-    {module, inbox_helper} = code:ensure_loaded(inbox_helper),
-    ?INBOX_CT:?FUNCTION_NAME().
+    escalus:suite().
 
 groups() ->
-    G = [{bkpr_extensions, [], bkpr_tests()}],
+    G = [{inbox_extensions, [], inbox_extensions_tests()}],
     ct_helper:repeat_all_until_all_ok(G).
 
-bkpr_tests() ->
+inbox_extensions_tests() ->
     [
      {generic, [parallel], [
         % General errors
@@ -98,7 +101,7 @@ bkpr_tests() ->
         returns_error_when_valid_jid_but_no_property,
         % Set-unread errors
         returns_error_when_read_invalid_value,
-        returns_error_when_read_valid_requestbut_not_in_inbox,
+        returns_error_when_read_valid_request_but_not_in_inbox,
         % Archiving errors
         returns_error_when_archive_invalid_value,
         returns_error_when_archive_valid_request_but_not_in_inbox,
@@ -141,31 +144,46 @@ bkpr_tests() ->
     ].
 
 init_per_suite(Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(Config).
+    ok = dynamic_modules:ensure_modules(inbox_helper:domain(), required_modules()),
+    InboxOptions = inbox_opts(),
+    Config1 = escalus:init_per_suite(Config),
+    Config2 = [{inbox_opts, InboxOptions} | Config1],
+    escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(Config).
+    Host = ct:get_config({hosts, mim, domain}),
+    Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
+    dynamic_modules:stop(Host, mod_inbox),
+    dynamic_modules:stop(Host, mod_muc_light),
+    muc_light_helper:clear_db(),
+    escalus:end_per_suite(Config1).
 
-init_per_group(Groupname, Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(Groupname, Config).
+init_per_group(muclight, Config) ->
+    inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
+    Config;
+init_per_group(_GroupName, Config) ->
+    Config.
 
-end_per_group(Groupname, Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(Groupname, Config).
+end_per_group(muclight, Config) ->
+    muc_light_helper:clear_db(),
+    Config;
+end_per_group(_GroupName, Config) ->
+    Config.
 
 init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
     inbox_helper:clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS_RESET, inbox_helper:muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muclight_domain(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config);
 init_per_testcase(TestCase, Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(TestCase, Config).
+    escalus:init_per_testcase(TestCase, Config).
 
 end_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
     inbox_helper:clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(groupchat_setunread_stanza_sets_inbox, Config);
 end_per_testcase(TestCase, Config) ->
-    ?INBOX_CT:?FUNCTION_NAME(TestCase, Config).
+    escalus:end_per_testcase(TestCase, Config).
 
 
 %%--------------------------------------------------------------------
@@ -190,7 +208,7 @@ returns_error_when_read_invalid_value(Config) ->
     Stanza = make_inbox_iq_request(?VALID_JID, read, ?INVALID_VALUE),
     returns_error(Config, Stanza, <<"bad-request">>).
 
-returns_error_when_read_valid_requestbut_not_in_inbox(Config) ->
+returns_error_when_read_valid_request_but_not_in_inbox(Config) ->
     Stanza = make_inbox_iq_request(?VALID_JID, read, true),
     returns_error(Config, Stanza, <<"item-not-found">>).
 
@@ -200,7 +218,7 @@ returns_error_when_archive_invalid_value(Config) ->
     returns_error(Config, Stanza, <<"bad-request">>).
 
 returns_error_when_archive_valid_request_but_not_in_inbox(Config) ->
-    Stanza = make_inbox_iq_request(?VALID_JID, read, true),
+    Stanza = make_inbox_iq_request(?VALID_JID, archive, true),
     returns_error(Config, Stanza, <<"item-not-found">>).
 
 % Muting errors
@@ -240,7 +258,7 @@ read_unread_entry_set_to_read(Config) ->
         % Bob has one unread message
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it as read
-        set_inbox_property(Bob, Alice, [{read, true}]),
+        set_inbox_properties(Bob, Alice, [{read, true}]),
         % Bob's inbox has no unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
     end).
@@ -253,7 +271,7 @@ read_read_entry_set_to_unread(Config) ->
         % Bob has no unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it again as unread
-        set_inbox_property(Bob, Alice, [{read, false}]),
+        set_inbox_properties(Bob, Alice, [{read, false}]),
         % Bob's inbox has something unread
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}])
     end).
@@ -267,7 +285,7 @@ read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_t
         % Bob has some unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it again as unread
-        set_inbox_property(Bob, Alice, [{read, false}]),
+        set_inbox_properties(Bob, Alice, [{read, false}]),
         % And the count didn't really change, to prevent losing higher counts
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}])
     end).
@@ -280,7 +298,7 @@ archive_active_entry_gets_archived(Config) ->
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to archive it
-        set_inbox_property(Bob, Alice, [{archive, true}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then the conversation is in the archive and not in the active box
         check_box(active, Bob, []),
         check_box(archive, Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
@@ -291,9 +309,9 @@ archive_archived_entry_gets_active_on_request(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_property(Bob, Alice, [{archive, true}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then bob decides to recover the conversation
-        set_inbox_property(Bob, Alice, [{archive, false}]),
+        set_inbox_properties(Bob, Alice, [{archive, false}]),
         % Then the conversation is in the active and not in the archive box
         check_box(active, Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         check_box(archive, Bob, [])
@@ -304,7 +322,7 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_property(Bob, Alice, [{archive, true}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
@@ -317,7 +335,7 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % Alice sends a message to Bob and then she archives the conversation
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_property(Alice, Bob, [{archive, true}]),
+        set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
@@ -330,7 +348,7 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
         % Alice sends a message to Bob, but Bob archives it without reading it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_property(Bob, Alice, [{archive, true}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}]),
         check_box(active, Bob, []),
         % Then Bob queries his archive and the conversation is there still unread
         check_box(archive, Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}])
@@ -341,10 +359,10 @@ archive_full_archive_can_be_fetched(Config) ->
         % Several people write to Alice, and Alice reads and archives all of them
         check_box(archive, Alice, []),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
-        set_inbox_property(Alice, Bob, [{archive, true}]),
-        set_inbox_property(Alice, Kate, [{archive, true}]),
-        set_inbox_property(Alice, Mike, [{archive, true}]),
-        % Then Alice queries his archive and the conversations are there and not in the active box
+        set_inbox_properties(Alice, Bob, [{archive, true}]),
+        set_inbox_properties(Alice, Kate, [{archive, true}]),
+        set_inbox_properties(Alice, Mike, [{archive, true}]),
+        % Then Alice queries her archive and the conversations are there and not in the active box
         check_box(active, Alice, []),
         check_box(archive, Alice, AliceConvs)
     end).
@@ -356,7 +374,7 @@ mute_unmuted_entry_gets_muted(Config) ->
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         % Then Bob decides to mute the conversation
-        set_inbox_property(Bob, Alice, [{mute, 24*?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % Bob's inbox has an unread message, but it's marked as muted
@@ -370,11 +388,11 @@ mute_muted_entry_gets_unmuted(Config) ->
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         % Then Bob decides to mute the conversation
-        set_inbox_property(Bob, Alice, [{mute, 24*?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % And Bob unmutes it again because he's now interested
-        set_inbox_property(Bob, Alice, [{mute, 0}]),
+        set_inbox_properties(Bob, Alice, [{mute, 0}]),
         % Bob's inbox has an unread message immediately unmuted
         inbox_helper:check_inbox(
           Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body,
@@ -387,7 +405,7 @@ mute_after_timestamp_gets_unmuted(Config) ->
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         % Then Bob decides to mute the conversation (for a very short 1 second for testing purposes)
-        set_inbox_property(Bob, Alice, [{mute, 1}]),
+        set_inbox_properties(Bob, Alice, [{mute, 1}]),
         % Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % Inbox eventually returns unmuted
@@ -407,22 +425,20 @@ mute_muted_conv_restarts_timestamp(Config) ->
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         % Then Bob decides to mute the conversation
-        set_inbox_property(Bob, Alice, [{mute, ?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{mute, ?HOUR}]),
         % Alice keeps writing
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
         % Then Bob decides to mute the conversation for way longer
-        set_inbox_property(Bob, Alice, [{mute, 24*?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Muted timestamp is way longer than before
-        Fun = fun() -> inbox_helper:check_inbox(
-                         Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
-                                     verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer) end}])
-              end,
-        mongoose_helper:wait_until(Fun, ok, #{name => verify_its_unmuted, sleep_time => 250})
+        inbox_helper:check_inbox(
+          Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
+                      verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer) end}])
     end).
 
 % other
 returns_valid_properties_form(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         InboxConversationNS = inbox_helper:inbox_ns_conversation(),
         escalus:send(Alice, escalus_stanza:iq_get(InboxConversationNS, [])),
         ResIQ = escalus:wait_for_stanza(Alice),
@@ -447,7 +463,7 @@ properties_many_can_be_set(Config) ->
         % Alice sends a message to Bob, and Bob sets a bunch of properties about it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_property(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
         % Then Bob queries his boxes and everything is as expected
         check_box(active, Bob, []),
         check_box(archive, Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
@@ -462,7 +478,7 @@ max_queries_can_be_limited(Config) ->
             inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
         % Alice has some messages in her inbox
         inbox_helper:check_inbox(Alice, AliceConvs),
-        % Then Alice queries his inbox setting a limit to only one conversation,
+        % Then Alice queries her inbox setting a limit to only one conversation,
         % and she gets the newest one
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
         check_box(active, Alice, [ConvWithMike], #{limit => 1}),
@@ -495,7 +511,7 @@ timestamp_is_not_reset_with_setting_properties(Config) ->
         [Item1] = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp1 = inbox_helper:timestamp_from_item(Item1),
         % Bob sets a bunch of properties
-        set_inbox_property(Bob, Alice, [{read, true}, {mute, 24*?HOUR}]),
+        set_inbox_properties(Bob, Alice, [{read, true}, {mute, 24*?HOUR}]),
         % Bob gets the inbox again, and timestamp should be the same
         [Item2] = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp2 = inbox_helper:timestamp_from_item(Item2),
@@ -520,15 +536,15 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
         % verify that Bob has the message on inbox, reset it, and verify is still there but read
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
-        set_inbox_property(Bob, RoomJid, [{read, true}]),
+        set_inbox_properties(Bob, RoomJid, [{read, true}]),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
         % Bob sets the inbox as unread again and has so in his inbox
-        set_inbox_property(Bob, RoomJid, [{read, false}]),
+        set_inbox_properties(Bob, RoomJid, [{read, false}]),
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
         %% Alice has 0 unread messages because she was the sender
         inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = MsgBody}]),
         %% Kate still has unread messages, and setting the entry as unread keeps the count to two
-        set_inbox_property(Kate, RoomJid, [{read, false}]),
+        set_inbox_properties(Kate, RoomJid, [{read, false}]),
         inbox_helper:check_inbox(Kate, [#conv{unread = 2, from = AliceRoomJid, to = KateJid, content = MsgBody}]),
         %% And nobody received any other stanza
         inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
@@ -567,13 +583,12 @@ which_box(active) -> [{<<"archive">>, <<"boolean">>, <<"false">>}];
 which_box(archive) -> [{<<"archive">>, <<"boolean">>, <<"true">>}].
 
 extra(MapOpts) ->
-    Opts = maps:to_list(MapOpts),
-    lists:foldl(fun({start, V}, Acc) ->
-                        [ {<<"start">>, <<"text-single">>, V} | Acc];
-                   ({'end', V}, Acc) ->
-                        [ {<<"end">>, <<"text-single">>, V} | Acc];
-                   (_, Acc) -> Acc
-                end, [], Opts).
+    maps:fold(fun(start, V, Acc) ->
+                      [ {<<"start">>, <<"text-single">>, V} | Acc];
+                 ('end', V, Acc) ->
+                      [ {<<"end">>, <<"text-single">>, V} | Acc];
+                 (_, _, Acc) -> Acc
+              end, [], MapOpts).
 
 rsm_max(undefined) -> [];
 rsm_max(Value) ->
@@ -606,8 +621,8 @@ make_inbox_get_properties(To) ->
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), jid_attr(To), []),
     escalus_stanza:iq(<<"get">>, [Query]).
 
--spec set_inbox_property(escalus:client(), escalus:client(), proplists:proplist()) -> ok.
-set_inbox_property(From, To, Properties) ->
+-spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist()) -> ok.
+set_inbox_properties(From, To, Properties) ->
     Stanza = make_inbox_iq_request(To, Properties),
     escalus:send(From, Stanza),
     check_message_with_properties(From, Stanza, Properties),
