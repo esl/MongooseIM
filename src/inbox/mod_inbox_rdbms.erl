@@ -46,11 +46,19 @@
 %% ----------------------------------------------------------------------
 
 init(VHost, _Options) ->
+    UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
+    InsertFields =
+        UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
     rdbms_queries:prepare_upsert(VHost, inbox_upsert, inbox,
-                                 [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>,
-                                  <<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
-                                 [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>, <<"archive">>],
-                                 [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>]),
+                                 InsertFields,
+                                 [<<"content">>, <<"unread_count">>,
+                                  <<"msg_id">>, <<"timestamp">>, <<"archive">>],
+                                 UniqueKeyFields),
+    rdbms_queries:prepare_upsert(VHost, inbox_upsert_incr_unread, inbox,
+                                 InsertFields,
+                                 [<<"content">>, <<"unread_count = inbox.unread_count + 1">>,
+                                  <<"msg_id">>, <<"timestamp">>, <<"archive">>],
+                                 UniqueKeyFields),
     ok.
 
 -spec get_inbox(LUsername :: jid:luser(),
@@ -146,11 +154,11 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             Timestamp :: integer()) -> ok | {ok, integer()}.
 set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    BackendModule = rdbms_specific_backend(LServer),
-    Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
-                                              Content, MsgId, Timestamp),
-    %% psql will return {updated, {[UnreadCount]}}
-    %% mssql and mysql will return {selected, {[Val]}}
+    InsertParams = [LUsername, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
+    UpdateParams = [Content, MsgId, Timestamp, false],
+    UniqueKeyValues  = [LUsername, LServer, LToBareJid],
+    Res = rdbms_queries:execute_upsert(LServer, inbox_upsert_incr_unread,
+                                       InsertParams, UpdateParams, UniqueKeyValues),
     check_result(Res).
 
 -spec reset_unread(LUsername :: jid:luser(),
@@ -342,14 +350,6 @@ decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) 
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.
-
-rdbms_specific_backend(Host) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
-        {mysql, _} -> mod_inbox_rdbms_mysql;
-        {pgsql, _} -> mod_inbox_rdbms_pgsql;
-        {odbc, mssql} -> mod_inbox_rdbms_mssql;
-        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
-    end.
 
 check_result({updated, Val}, ValList) when is_list(ValList) ->
     case lists:member(Val, ValList) of
