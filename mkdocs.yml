@@ -86,6 +86,7 @@ nav:
       - 'Dummy': 'authentication-methods/dummy.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
+      - 'Inbox': 'open-extensions/inbox.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
   - 'REST API':
       - 'Client/frontend': 'rest-api/Client-frontend.md'

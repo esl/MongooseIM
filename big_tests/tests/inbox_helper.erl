@@ -9,6 +9,9 @@
 
 % Generic inbox
 -export([
+         skip_or_run_inbox_tests/1,
+         inbox_opts/0,
+         required_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
@@ -22,20 +25,25 @@
          make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
+         inbox_ns_conversation/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
          assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
          assert_invalid_reset_inbox/4,
-         assert_message_content/3
+         assert_message_content/3,
+         assert_invalid_form/4,
+         check_result/2,
+         check_inbox_result/4
         ]).
 % 1-1 helpers
 -export([
          given_conversations_between/2,
          send_msg/2,
          send_msg/3,
-         send_and_mark_msg/2
+         send_and_mark_msg/2,
+         send_and_mark_msg/3
         ]).
 % MUC + MUC Light helpers
 -export([
@@ -52,8 +60,13 @@
         ]).
 % Misc
 -export([
+         parse_form_iq/1,
+         muclight_domain/0,
+         muclight_config_domain/0,
+         muc_domain/0,
          domain/0,
-         to_bare_lower/1
+         to_bare_lower/1,
+         extract_user_specs/1
         ]).
 
 -import(muc_helper, [foreach_recipient/2]).
@@ -71,7 +84,8 @@
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
         start => binary() | undefined, % ISO timestamp
-        'end' => binary() | undefined % ISO timestamp
+        'end' => binary() | undefined, % ISO timestamp
+        archive => boolean()
        }.
 
 -type inbox_check_params() :: #{
@@ -98,6 +112,30 @@
 -spec inbox_ns() -> binary().
 inbox_ns() ->
     ?NS_ESL_INBOX.
+
+-spec inbox_ns_conversation() -> binary().
+inbox_ns_conversation() ->
+    ?NS_ESL_INBOX_CONVERSATION.
+
+inbox_opts() ->
+    [{aff_changes, true},
+     {remove_on_kicked, true},
+     {groupchat, [muclight]},
+     {markers, [displayed]}].
+
+skip_or_run_inbox_tests(TestCases) ->
+    case (not ct_helper:is_ct_running())
+            orelse mongoose_helper:is_rdbms_enabled(inbox_helper:domain()) of
+        true -> TestCases;
+        false -> {skip, require_rdbms}
+    end.
+
+required_modules() ->
+    [
+     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
+                      {backend, rdbms}]},
+     {mod_inbox, inbox_opts()}
+    ].
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
     [begin
@@ -151,7 +189,12 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
     InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
     Content = InnerContent,
-    Fun(Client, InnerMsg),
+    case Fun of
+        F when is_function(F, 2) ->
+            Fun(Client, InnerMsg);
+        F when is_function(F, 3) ->
+            Fun(Client, InnerMsg, Message)
+    end,
     ok.
 
 -spec get_inbox(Client :: escalus:client(),
@@ -200,8 +243,8 @@ clear_inbox_all() ->
     clear_inboxes([alice, bob, kate, mike], domain()).
 
 clear_inboxes(UserList, Host) ->
-    JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
-    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
+    Usernames = [escalus_users:get_username(escalus_users:get_users(UserList),U) || U <- UserList],
+    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [Username,Host]) || Username <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
     Host = domain(),
@@ -265,7 +308,7 @@ reset_inbox(From, To) ->
         Result = escalus:wait_for_stanza(From),
         ?assert(escalus_pred:is_iq_result(ResetStanza, Result)),
         ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
-                                                             ?NS_ESL_INBOX_CONVERSATION}])).
+                                                             inbox_ns_conversation()}])).
 
 -spec make_reset_inbox_stanza(undefined | escalus:client() | binary()) -> exml:element().
 make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
@@ -273,7 +316,7 @@ make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
       <<"set">>,
       [#xmlel{name = <<"reset">>,
               attrs = [
-                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"xmlns">>, inbox_ns_conversation()},
                        {<<"jid">>, InterlocutorJid}
                       ]}]);
 make_reset_inbox_stanza(undefined) ->
@@ -281,7 +324,7 @@ make_reset_inbox_stanza(undefined) ->
       <<"set">>,
       [#xmlel{name = <<"reset">>,
               attrs = [
-                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}
+                       {<<"xmlns">>, inbox_ns_conversation()}
                       ]}]);
 make_reset_inbox_stanza(InterlocutorJid) ->
     make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
@@ -328,10 +371,14 @@ make_inbox_form(GetParams, true) ->
                undefined -> [];
                End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
            end,
+    Archive = case maps:get(archive, GetParams, undefined) of
+               undefined -> [];
+               ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
+           end,
     FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
     HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                            bool_to_bin(maps:get(hidden_read, GetParams, false)))],
-    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
+    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
     escalus_stanza:x_data_form(<<"submit">>, Fields);
 
 make_inbox_form(GetParams, false) ->
@@ -553,6 +600,46 @@ verify_muc_light_aff_msg(Msg, AffUsersChanges) ->
 %% ---------------------------------------------------------
 %% Misc
 %% ---------------------------------------------------------
+parse_form_iq(IQ) ->
+    FieldsEls = exml_query:paths(IQ, [{element, <<"query">>},
+                                      {element, <<"x">>},
+                                      {element, <<"field">>}]),
+    lists:foldl(fun parse_form_field/2, #{ field_count => length(FieldsEls) }, FieldsEls).
+
+parse_form_field(FieldEl, Acc0) ->
+    Var = exml_query:attr(FieldEl, <<"var">>),
+    Type = exml_query:attr(FieldEl, <<"type">>),
+    Value = case exml_query:path(FieldEl, [{element, <<"value">>}, cdata]) of
+                undefined -> exml_query:attr(FieldEl, <<"value">>);
+                Val -> Val
+            end,
+    Info0 = #{ type => Type, value => Value },
+    Info1 =
+    case Type of
+        <<"list-single">> ->
+            Info0#{ options => exml_query:paths(FieldEl, [{element, <<"option">>},
+                                                          {element, <<"value">>},
+                                                          cdata]) };
+        _ ->
+            Info0
+    end,
+    Acc0#{ Var => Info1 }.
+
+
+-spec muclight_domain() -> binary().
+muclight_domain() ->
+    Domain = domain(),
+    <<"muclight.", Domain/binary>>.
+
+-spec muclight_config_domain() -> binary().
+muclight_config_domain() ->
+    Domain = <<"@HOST@">>,
+    <<"muclight.", Domain/binary>>.
+
+-spec muc_domain() -> binary().
+muc_domain() ->
+    Domain = inbox_helper:domain(),
+    <<"muc.", Domain/binary>>.
 
 -spec domain() -> binary().
 domain() ->
@@ -607,7 +694,10 @@ send_msg(From, To, Body) ->
 
 
 send_and_mark_msg(From, To) ->
-    Msg = send_msg(From, To),
+    send_and_mark_msg(From, To, "Test").
+
+send_and_mark_msg(From, To, Body) ->
+    Msg = send_msg(From, To, Body),
     MsgId = exml_query:attr(Msg, <<"id">>),
     ChatMarker = escalus_stanza:chat_marker(From, <<"displayed">>, MsgId),
     escalus:send(To, ChatMarker),
@@ -636,3 +726,8 @@ assert_invalid_form(User, Stanza, Field, Value) ->
 assert_message_content(Msg, Field, Value) ->
     ?assertNotEqual(nomatch, binary:match(Msg, Field)),
     ?assertNotEqual(nomatch, binary:match(Msg, Value)).
+
+%% TODO: properly extract the specs from Bob
+extract_user_specs(User) ->
+    {client,_,_,_,_,UserSpecs} = User,
+    {User, UserSpecs}.

@@ -29,6 +29,7 @@
 -export([get_db_type/0,
          begin_trans/0,
          get_db_specific_limits/0,
+         get_db_specific_limits/1,
          get_db_specific_limits_binaries/0,
          get_db_specific_limits_binaries/1,
          get_db_specific_offset/2,

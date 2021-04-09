@@ -35,6 +35,6 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
                            esc_string(MsgId), ", ", esc_int(Timestamp), ") on duplicate key "
                "update content=", esc_string(Content),
                ", unread_count=inbox.unread_count + 1"
+               ", archive=false"
                ", msg_id=", esc_string(MsgId),
                ", timestamp=", esc_int(Timestamp), ";"]).
-

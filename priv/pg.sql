@@ -347,6 +347,8 @@ CREATE TABLE inbox (
     unread_count int                 NOT NULL,
     msg_id varchar(250),
     timestamp BIGINT                 NOT NULL,
+    archive BOOLEAN                  DEFAULT false,
+    muted_until BIGINT               DEFAULT 0,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
 CREATE INDEX i_inbox
