@@ -83,12 +83,14 @@
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|`mod_http_upload`|
 |0384|[OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html) (MongooseIM supports PEP, which is required by this extension)||
 |0387|[XMPP Compliance Suites 2018 - all suites, Advanced Server level](https://xmpp.org/extensions/xep-0387.html)|
+|0424|[Message Retraction](https://xmpp.org/extensions/xep-0424.html)|`mod_mam`|
 
 ## Supported Open Extensions
 
 |Name|Module|
 | ------------- | ------------- |
 |[MUC Light](../open-extensions/muc_light.md)|`mod_muc_light`|
+|[Inbox](../open-extensions/inbox.md)|`mod_inbox`|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|`mod_auth_token`, `mod_keystore`|
 
 ## Integration with other platform components
