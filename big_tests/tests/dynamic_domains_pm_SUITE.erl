@@ -13,7 +13,8 @@ suite() ->
 
 all() ->
     [can_authenticate,
-     pm_messages].
+     pm_messages,
+     disconnected_on_domain_disabling].
 
 init_per_suite(Config0) ->
     Config = cluster_nodes(?CLUSTER_NODES, Config0),
@@ -46,6 +47,16 @@ pm_messages(Config) ->
             escalus:assert(is_chat_message, [<<"OH, HAI!">>], escalus:wait_for_stanza(Bob)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hello there!">>)),
             escalus:assert(is_chat_message, [<<"Hello there!">>], escalus:wait_for_stanza(Alice))
+        end,
+    escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).
+
+disconnected_on_domain_disabling(Config) ->
+    StoryFn =
+        fun(Alice, Bob) ->
+            remove_domains(?TEST_NODES, ?DOMAINS),
+            escalus_connection:wait_for_close(Alice, timer:seconds(5)),
+            escalus_connection:wait_for_close(Bob, timer:seconds(5)),
+            insert_domains(?TEST_NODES, ?DOMAINS)
         end,
     escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).
 

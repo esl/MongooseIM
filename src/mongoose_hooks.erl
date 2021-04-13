@@ -151,6 +151,9 @@
 
 -export([c2s_remote_hook/5]).
 
+-export([disable_domain/2,
+         remove_domain/2]).
+
 -spec c2s_remote_hook(LServer, Tag, Args, HandlerState, C2SState) -> Result when
     LServer :: jid:lserver(),
     Tag :: atom(),
@@ -196,6 +199,20 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
     Result :: ok.
 auth_failed(Server, Username) ->
     ejabberd_hooks:run_fold(auth_failed, Server, ok, [Username, Server]).
+
+-spec disable_domain(HostType, Domain) -> Result when
+    HostType :: binary(),
+    Domain :: jid:lserver(),
+    Result :: ok.
+disable_domain(HostType, Domain) ->
+    ejabberd_hooks:run(disable_domain, [HostType, Domain]).
+
+-spec remove_domain(HostType, Domain) -> Result when
+    HostType :: binary(),
+    Domain :: jid:lserver(),
+    Result :: ok.
+remove_domain(HostType, Domain) ->
+    ejabberd_hooks:run(remove_domain, [HostType, Domain]).
 
 -spec ejabberd_ctl_process(Acc, Args) -> Result when
     Acc :: any(),
