@@ -46,6 +46,14 @@
 %% ----------------------------------------------------------------------
 
 init(VHost, _Options) ->
+    mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"SELECT unread_count FROM inbox "
+                             "WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
+    mongoose_rdbms:prepare(inbox_select_properties, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"SELECT archive, unread_count, muted_until FROM inbox "
+                             "WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
     UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
         UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
@@ -91,13 +99,9 @@ get_inbox_rdbms(LUser, LServer, Params) ->
     mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
 
 -spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
-get_inbox_unread(LUSername, LServer, RemBareJIDBin) ->
-    Query = ["SELECT unread_count FROM inbox "
-             "WHERE luser=", esc_string(LUSername),
-                 "AND lserver=", esc_string(LServer),
-                 "AND remote_bare_jid=", esc_string(RemBareJIDBin),
-             ";"],
-    Res = sql_query(LServer, Query),
+get_inbox_unread(LUsername, LServer, RemBareJIDBin) ->
+    Res = mongoose_rdbms:execute_successfully(LServer, inbox_select_unread_count,
+                                              [LUsername, LServer, RemBareJIDBin]),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
     %% so we have to add +1
@@ -194,13 +198,8 @@ clear_inbox(LServer) ->
 
 -spec get_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
     entry_properties().
-get_entry_properties(LUser, LServer, BinEntryJID) ->
-    Query = ["SELECT archive, unread_count, muted_until ",
-             "FROM inbox "
-             "WHERE luser = ", esc_string(LUser), " AND "
-                   "lserver = ", esc_string(LServer), " AND "
-                   "remote_bare_jid = ", esc_string(BinEntryJID)],
-    case sql_query(LServer, Query) of
+get_entry_properties(LUser, LServer, RemBareJID) ->
+    case execute_select_properties(LUser, LServer, RemBareJID) of
         {selected, []} ->
             [];
         {selected, [Selected]} ->
@@ -288,6 +287,8 @@ esc_int(Integer) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 %% ----------------------------------------------------------------------
+
+%% Inbox lookup
 
 -spec lookup_query(mod_inbox:get_inbox_params()) -> iolist().
 lookup_query(#{order := Order} = Params) ->
@@ -384,6 +385,12 @@ encode_bool(true, mssql) -> "1";
 encode_bool(false, mssql) -> "0";
 encode_bool(true, _) -> "true";
 encode_bool(false, _) -> "false".
+
+-spec execute_select_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_properties(LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_select_properties,
+                                        [LUser, LServer, RemBareJID]).
 
 -spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> mongoose_rdbms:query_result().
 clear_inbox_rdbms(Username, Server) ->
