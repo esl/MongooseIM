@@ -133,16 +133,7 @@ if_chat_marker_get_id(Packet, Marker) ->
 
 -spec has_chat_marker(Packet :: exml:element()) -> boolean().
 has_chat_marker(Packet) ->
-    has_chat_marker(Packet, all_chat_markers()).
-
--spec has_chat_marker(Packet :: exml:element(), list(marker())) -> boolean().
-has_chat_marker(Packet, Markers) ->
-    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS, no_marker) of
-        no_marker ->
-            false;
-        #xmlel{name = Marker} ->
-            lists:member(Marker, Markers)
-    end.
+    mongoose_chat_markers:has_chat_markers(Packet).
 
 -spec maybe_write_to_inbox(Host, User, Remote, Packet, TS, WriteF) -> ok | {ok, integer()} when
       Host :: host(),
@@ -204,9 +195,6 @@ extract_attr_jid(ResetStanza) ->
                 JID -> JID
             end
     end.
-
-all_chat_markers() ->
-    [<<"received">>, <<"displayed">>, <<"acknowledged">>].
 
 -spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | {error, atom()}.
 maybe_binary_to_positive_integer(Bin) ->

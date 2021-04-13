@@ -72,14 +72,13 @@
 %%--------------------------------------------------------------------
 %% Type declarations
 %%--------------------------------------------------------------------
--type maybe_thread() :: undefined|binary().
--type chat_marker_type() :: received | displayed | acknowledged.
+-type maybe_thread() :: undefined | binary().
 -type chat_type() :: one2one | groupchat.
 
 -type chat_marker() :: #{from := jid:jid(),
                          to := jid:jid(),
                          thread := maybe_thread(), %%it is not optional!!!
-                         type := chat_marker_type(),
+                         type := mongoose_chat_markers:chat_marker_type(),
                          timestamp := integer(), %microsecond
                          id := binary()}.
 
@@ -166,34 +165,12 @@ update_chat_markers(Acc, Host, Markers) ->
                            Packet :: exml:element(),
                            TS :: integer()) -> [chat_marker()].
 extract_chat_markers(From, To, Packet, TS) ->
-    case get_chat_markers(Packet) of
+    case mongoose_chat_markers:list_chat_markers(Packet) of
         [] -> [];
         ChatMarkers ->
             CM = #{from => From, to => To, thread => get_thread(Packet), timestamp => TS},
             [CM#{type => Type, id => Id} || {Type, Id} <- ChatMarkers]
     end.
-
--spec get_chat_markers(exml:element()) -> [{chat_marker_type(), Id :: binary()}].
-get_chat_markers(#xmlel{children = Children}) ->
-    lists:filtermap(fun is_chat_marker_element/1, Children).
-
--spec is_chat_marker_element(exml:element()) ->
-    false | {true, {chat_marker_type(), Id :: binary}}.
-is_chat_marker_element(#xmlel{name = <<"received">>} = El) ->
-    check_chat_marker_attributes(received, El);
-is_chat_marker_element(#xmlel{name = <<"displayed">>} = El) ->
-    check_chat_marker_attributes(displayed, El);
-is_chat_marker_element(#xmlel{name = <<"acknowledged">>} = El) ->
-    check_chat_marker_attributes(acknowledged, El);
-is_chat_marker_element(_) ->
-    false.
-
--spec check_chat_marker_attributes(chat_marker_type(), exml:element()) ->
-    false | {true, {chat_marker_type(), Id :: binary()}}.
-check_chat_marker_attributes(Type, El) ->
-    NS = exml_query:attr(El, <<"xmlns">>),
-    Id = exml_query:attr(El, <<"id">>),
-    ?NS_CHAT_MARKERS =:= NS andalso Id =/= undefined andalso {true, {Type, Id}}.
 
 -spec get_thread(exml:element()) -> maybe_thread().
 get_thread(El) ->
