@@ -77,21 +77,18 @@ get_inbox(LUsername, LServer, Params) ->
                       LServer :: jid:lserver(),
                       Params :: mod_inbox:get_inbox_params()) ->
     mongoose_rdbms:query_result().
-get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
-    OrderSQL = order_to_sql(Order),
-    {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
-    BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
-    EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
-    HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
-    Archive = sql_and_where_archive(maps:get(archive, Params, undefined)),
-    Query = ["SELECT ", MSLimitSQL, " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
-             " FROM inbox "
-                 "WHERE luser=", esc_string(LUser),
-                 " AND lserver=", esc_string(LServer),
-                 BeginSQL, EndSQL, HiddenSQL, Archive,
-                 " ORDER BY timestamp ", OrderSQL, " ",
-                 LimitSQL, ";"],
-    sql_query(LServer, Query).
+get_inbox_rdbms(LUser, LServer, Params) ->
+    QueryName = lookup_query_name(Params),
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            SQL = lookup_query(Params),
+            Columns = lookup_query_columns(Params),
+            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
+        true ->
+            ok
+    end,
+    Args = lookup_query_args(LServer, LUser, Params),
+    mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
 
 -spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
 get_inbox_unread(LUSername, LServer, RemBareJIDBin) ->
@@ -292,31 +289,91 @@ esc_int(Integer) ->
 %% Internal functions
 %% ----------------------------------------------------------------------
 
+-spec lookup_query(mod_inbox:get_inbox_params()) -> iolist().
+lookup_query(#{order := Order} = Params) ->
+    OrderSQL = order_to_sql(Order),
+    {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
+    BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
+    EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
+    HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
+    Archive = sql_and_where_archive(maps:get(archive, Params, undefined)),
+    ["SELECT ", MSLimitSQL,
+     " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
+     " FROM inbox WHERE luser = ? AND lserver = ?", BeginSQL, EndSQL, HiddenSQL, Archive,
+     " ORDER BY timestamp ", OrderSQL, " ", LimitSQL].
+
+-spec lookup_query_args(jid:lserver(), jid:luser(), mod_inbox:get_inbox_params()) -> list().
+lookup_query_args(LServer, LUser, Params) ->
+    Args = [LUser, LServer | [maps:get(Key, Params) || Key <- lookup_arg_keys(Params)]],
+    case maps:get(limit, Params, undefined) of
+        undefined -> Args;
+        Limit -> rdbms_queries:add_limit_arg(Limit, Args)
+    end.
+
+-spec lookup_query_columns(mod_inbox:get_inbox_params()) -> [atom()].
+lookup_query_columns(Params) ->
+    Columns = [luser, lserver | lists:map(fun param_to_column/1, lookup_arg_keys(Params))],
+    case maps:get(limit, Params, undefined) of
+        undefined -> Columns;
+        _ -> rdbms_queries:add_limit_arg(limit, Columns)
+    end.
+
+-spec lookup_arg_keys(mod_inbox:get_inbox_params()) -> [atom()].
+lookup_arg_keys(Params) ->
+    lists:filter(fun(Key) -> maps:is_key(Key, Params) end, [start, 'end', archive]).
+
+-spec lookup_query_name(mod_inbox:get_inbox_params()) -> atom().
+lookup_query_name(Params) ->
+    IDString = lists:flatmap(fun(Param) ->
+                                     param_id(Param, maps:get(Param, Params, undefined))
+                             end, lookup_param_keys()),
+    list_to_atom("inbox_lookup" ++ IDString).
+
+-spec lookup_param_keys() -> [atom()].
+lookup_param_keys() ->
+    [order, limit, start, 'end', hidden_read, archive].
+
+-spec param_to_column(atom()) -> atom().
+param_to_column(start) -> timestamp;
+param_to_column('end') -> timestamp;
+param_to_column(archive) -> archive.
+
+-spec param_id(Key :: atom(), Value :: any()) -> string().
+param_id(_, undefined) -> "";
+param_id(order, desc) -> "_desc";
+param_id(order, asc) -> "_asc";
+param_id(limit, _) -> "_lim";
+param_id(start, _) -> "_start";
+param_id('end', _) -> "_end";
+param_id(hidden_read, true) -> "_hr";
+param_id(hidden_read, false) -> "";
+param_id(archive, _) -> "_arch".
+
 -spec order_to_sql(Order :: asc | desc) -> binary().
 order_to_sql(asc) -> <<"ASC">>;
 order_to_sql(desc) -> <<"DESC">>.
 
--spec sql_and_where_limit(boolean() | undefined) -> {iolist(), iolist()}.
+-spec sql_and_where_limit(non_neg_integer() | undefined) -> {iolist(), iolist()}.
 sql_and_where_limit(undefined) ->
     {"", ""};
-sql_and_where_limit(N) ->
-    rdbms_queries:get_db_specific_limits(N).
+sql_and_where_limit(_) ->
+    rdbms_queries:get_db_specific_limits().
 
 -spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
 sql_and_where_timestamp(_Operator, undefined) ->
     [];
-sql_and_where_timestamp(Operator, NumericTimestamp) ->
-    [" AND timestamp ", Operator, esc_int(NumericTimestamp)].
+sql_and_where_timestamp(Operator, _NumericTimestamp) ->
+    [" AND timestamp ", Operator, " ?"].
 
 -spec sql_and_where_unread_count(HiddenRead :: boolean()) -> iolist().
 sql_and_where_unread_count(true) ->
-    [" AND unread_count > 0 "];
+    [" AND unread_count > 0"];
 sql_and_where_unread_count(_) ->
     [].
 
 -spec sql_and_where_archive(ArchiveBox :: boolean() | undefined) -> iolist().
 sql_and_where_archive(Val) when is_boolean(Val) ->
-    [" AND archive = ", encode_bool(Val)];
+    [" AND archive = ?"];
 sql_and_where_archive(undefined) ->
     [].
 
