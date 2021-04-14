@@ -46,15 +46,30 @@
 %% ----------------------------------------------------------------------
 
 init(VHost, _Options) ->
+    RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
     mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
                            [luser, lserver, remote_bare_jid],
-                           <<"SELECT unread_count FROM inbox "
-                             "WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
+                           <<"SELECT unread_count FROM inbox ",
+                             RowCond/binary>>),
     mongoose_rdbms:prepare(inbox_select_properties, inbox,
                            [luser, lserver, remote_bare_jid],
-                           <<"SELECT archive, unread_count, muted_until FROM inbox "
-                             "WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
-    UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
+                           <<"SELECT archive, unread_count, muted_until FROM inbox ",
+                             RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_reset_unread, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"UPDATE inbox SET unread_count = 0 ", RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_reset_unread_msg, inbox,
+                           [luser, lserver, remote_bare_jid, msg_id],
+                           <<"UPDATE inbox SET unread_count = 0 ", RowCond/binary,
+                             " AND msg_id = ?">>),
+    mongoose_rdbms:prepare(inbox_delete_row, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"DELETE FROM inbox ", RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_delete, inbox,
+                           [luser, lserver],
+                           <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(inbox_delete_all, inbox, [], <<"DELETE FROM inbox">>),
+        UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
         UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
     rdbms_queries:prepare_upsert(VHost, inbox_upsert, inbox,
@@ -133,17 +148,8 @@ set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
                        ToBareJid :: jid:literal_jid()) -> ok.
 remove_inbox_row(LUsername, LServer, ToBareJid) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = remove_inbox_rdbms(LUsername, LServer, LToBareJid),
+    Res = execute_delete(LUsername, LServer, LToBareJid),
     check_result(Res).
-
--spec remove_inbox_rdbms(Username :: jid:luser(),
-                         Server :: jid:lserver(),
-                         ToBareJid :: jid:literal_jid()) -> mongoose_rdbms:query_result().
-remove_inbox_rdbms(Username, Server, ToBareJid) ->
-    sql_query(Server, ["delete from inbox where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server),
-        " and remote_bare_jid=",
-        esc_string(ToBareJid), ";"]).
 
 %% This function was not refatorected to use the generic upsert helper
 %% becase this helper doesn't support parametrized queries for incremental change
@@ -168,31 +174,17 @@ set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) 
                    MsgId :: binary() | undefined) -> ok.
 reset_unread(LUsername, LServer, ToBareJid, MsgId) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = reset_inbox_unread_rdbms(LUsername, LServer, LToBareJid, MsgId),
+    Res = execute_reset_unread(LUsername, LServer, LToBareJid, MsgId),
     check_result(Res).
-
--spec reset_inbox_unread_rdbms(Username :: jid:luser(),
-                               Server :: jid:lserver(),
-                               ToBareJid :: jid:literal_jid(),
-                               MsgId :: binary() | undefined) -> mongoose_rdbms:query_result().
-reset_inbox_unread_rdbms(Username, Server, ToBareJid, undefined) ->
-    sql_query(Server, ["update inbox set unread_count=0",
-        " where luser=", esc_string(Username),
-        " and lserver=", esc_string(Server),
-        " and remote_bare_jid=", esc_string(ToBareJid), ";"]);
-reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
-    sql_query(Server, ["update inbox set unread_count=0 where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
-        esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
 -spec clear_inbox(LUsername :: jid:luser(), LServer :: jid:lserver()) -> inbox_write_res().
 clear_inbox(LUsername, LServer) ->
-    Res = clear_inbox_rdbms(LUsername, LServer),
+    Res = execute_delete(LUsername, LServer),
     check_result(Res).
 
 -spec clear_inbox(LServer :: jid:lserver()) -> inbox_write_res().
 clear_inbox(LServer) ->
-    Res = clear_inbox_rdbms(LServer),
+    Res = execute_delete(LServer),
     check_result(Res).
 
 
@@ -390,10 +382,6 @@ execute_select_properties(LUser, LServer, RemBareJID) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_select_properties,
                                         [LUser, LServer, RemBareJID]).
 
--spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> mongoose_rdbms:query_result().
-clear_inbox_rdbms(Username, Server) ->
-    sql_query(Server, ["delete from inbox where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server), ";"]).
 -spec execute_reset_unread(jid:luser(), jid:lserver(), jid:literal_jid(), binary() | undefined) ->
           mongoose_rdbms:query_result().
 execute_reset_unread(LUser, LServer, RemBareJID, undefined) ->
@@ -415,6 +403,7 @@ set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) ->
             Other
     end.
 
+
 -spec execute_delete(jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
 execute_delete(LUser, LServer, RemBareJID) ->
@@ -424,9 +413,9 @@ execute_delete(LUser, LServer, RemBareJID) ->
 execute_delete(LUser, LServer) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_delete, [LUser, LServer]).
 
--spec clear_inbox_rdbms(Server :: jid:lserver()) -> mongoose_rdbms:query_result().
-clear_inbox_rdbms(Server) ->
-    sql_query(Server, ["delete from inbox;"]).
+-spec execute_delete(jid:lserver()) -> mongoose_rdbms:query_result().
+execute_delete(LServer) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
 
 -spec decode_row(host(), db_return()) -> inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
@@ -473,18 +462,3 @@ parse_result(null) ->
 parse_result(Value) ->
     {error, {unknown_result_value_type, Value}}.
 
-sql_query(Pool, Query) ->
-    Result = mongoose_rdbms:sql_query(Pool, Query),
-    log_result(Result, Query),
-    Result.
-
-log_result({selected, _}, _Query) ->
-    ok;
-log_result({updated, _}, _Query) ->
-    ok;
-log_result({updated, _, _}, _Query) ->
-    ok;
-log_result(Result, Query) ->
-    ?LOG_ERROR(#{what => inbox_rdbms_failed,
-                 sql_query => iolist_to_binary(Query),
-                 result => Result}).
