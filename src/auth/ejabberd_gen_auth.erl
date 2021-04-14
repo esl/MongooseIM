@@ -55,7 +55,8 @@
                       Server :: jid:lserver()
                       ) -> ok | {error, not_allowed}.
 
--callback remove_domain(Server :: jid:lserver()) -> ok | {error, term()}.
+-callback remove_domain(HostType :: binary(), Server :: jid:lserver()) ->
+    ok | {error, term()}.
 
 -callback supported_features() -> [Feature::atom()].
 
@@ -78,7 +79,7 @@
                          Digest :: binary(),
                          DigestGen :: fun()) -> boolean().
 
--optional_callbacks([remove_domain/1, supported_features/0]).
+-optional_callbacks([remove_domain/2, supported_features/0]).
 
 -export_type([t/0]).
 
