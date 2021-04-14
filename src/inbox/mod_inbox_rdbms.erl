@@ -294,13 +294,11 @@ esc_int(Integer) ->
 lookup_query(#{order := Order} = Params) ->
     OrderSQL = order_to_sql(Order),
     {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
-    BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
-    EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
-    HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
-    Archive = sql_and_where_archive(maps:get(archive, Params, undefined)),
+    Conditions = [lookup_sql_condition(Key, maps:get(Key, Params, undefined)) ||
+                     Key <- [start, 'end', hidden_read, archive]],
     ["SELECT ", MSLimitSQL,
      " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
-     " FROM inbox WHERE luser = ? AND lserver = ?", BeginSQL, EndSQL, HiddenSQL, Archive,
+     " FROM inbox WHERE luser = ? AND lserver = ?", Conditions,
      " ORDER BY timestamp ", OrderSQL, " ", LimitSQL].
 
 -spec lookup_query_args(jid:lserver(), jid:luser(), mod_inbox:get_inbox_params()) -> list().
@@ -360,23 +358,17 @@ sql_and_where_limit(undefined) ->
 sql_and_where_limit(_) ->
     rdbms_queries:get_db_specific_limits().
 
--spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
-sql_and_where_timestamp(_Operator, undefined) ->
-    [];
-sql_and_where_timestamp(Operator, _NumericTimestamp) ->
-    [" AND timestamp ", Operator, " ?"].
-
--spec sql_and_where_unread_count(HiddenRead :: boolean()) -> iolist().
-sql_and_where_unread_count(true) ->
-    [" AND unread_count > 0"];
-sql_and_where_unread_count(_) ->
-    [].
-
--spec sql_and_where_archive(ArchiveBox :: boolean() | undefined) -> iolist().
-sql_and_where_archive(Val) when is_boolean(Val) ->
-    [" AND archive = ?"];
-sql_and_where_archive(undefined) ->
-    [].
+-spec lookup_sql_condition(Key :: atom(), Value :: any()) -> string().
+lookup_sql_condition(start, Timestamp) when is_integer(Timestamp) ->
+    " AND timestamp >= ?";
+lookup_sql_condition('end', Timestamp) when is_integer(Timestamp) ->
+    " AND timestamp <= ?";
+lookup_sql_condition(hidden_read, true) ->
+    " AND unread_count > 0";
+lookup_sql_condition(archive, Val) when is_boolean(Val) ->
+    " AND archive = ?";
+lookup_sql_condition(_, _) ->
+    "".
 
 encode_bool(Val) ->
     encode_bool(Val, mongoose_rdbms_type:get()).
