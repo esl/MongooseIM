@@ -95,28 +95,9 @@ get_inbox(LUsername, LServer, Params) ->
             [decode_row(LServer, R) || R <- Res]
     end.
 
-
--spec get_inbox_rdbms(LUser :: jid:luser(),
-                      LServer :: jid:lserver(),
-                      Params :: mod_inbox:get_inbox_params()) ->
-    mongoose_rdbms:query_result().
-get_inbox_rdbms(LUser, LServer, Params) ->
-    QueryName = lookup_query_name(Params),
-    case mongoose_rdbms:prepared(QueryName) of
-        false ->
-            SQL = lookup_query(Params),
-            Columns = lookup_query_columns(Params),
-            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
-        true ->
-            ok
-    end,
-    Args = lookup_query_args(LServer, LUser, Params),
-    mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
-
 -spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
-get_inbox_unread(LUsername, LServer, RemBareJIDBin) ->
-    Res = mongoose_rdbms:execute_successfully(LServer, inbox_select_unread_count,
-                                              [LUsername, LServer, RemBareJIDBin]),
+get_inbox_unread(LUser, LServer, RemBareJID) ->
+    Res = execute_select_unread_count(LUser, LServer, RemBareJID),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
     %% so we have to add +1
@@ -201,22 +182,7 @@ get_entry_properties(LUser, LServer, RemBareJID) ->
 -spec set_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid(), entry_properties()) ->
     entry_properties() | {error, binary()}.
 set_entry_properties(LUser, LServer, RemBareJID, Properties) ->
-    QueryName = update_query_name(Properties),
-    case mongoose_rdbms:prepared(QueryName) of
-        false ->
-            SQL = update_properties_query(Properties),
-            Columns = update_query_columns(Properties),
-            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
-        true ->
-            ok
-    end,
-    {atomic, TransactionResult} =
-        mongoose_rdbms:sql_transaction(
-          LServer,
-          fun() ->
-                  set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties)
-          end),
-    case TransactionResult of
+    case set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) of
         {error, Msg} when is_list(Msg) ->
             {error, list_to_binary(Msg)};
         {error, Msg} ->
@@ -247,6 +213,49 @@ esc_int(Integer) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 %% ----------------------------------------------------------------------
+
+-spec get_inbox_rdbms(jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->
+    mongoose_rdbms:query_result().
+get_inbox_rdbms(LUser, LServer, Params) ->
+    QueryName = lookup_query_name(Params),
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            SQL = lookup_query(Params),
+            Columns = lookup_query_columns(Params),
+            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
+        true ->
+            ok
+    end,
+    Args = lookup_query_args(LServer, LUser, Params),
+    mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
+
+set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) ->
+    QueryName = update_query_name(Properties),
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            SQL = update_properties_query(Properties),
+            Columns = update_query_columns(Properties),
+            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
+        true ->
+            ok
+    end,
+    {atomic, TransactionResult} =
+        mongoose_rdbms:sql_transaction(
+          LServer,
+          fun() -> set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) end),
+    TransactionResult.
+
+-spec set_entry_properties_t(atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
+                             entry_properties()) ->
+          mongoose_rdbms:query_result().
+set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) ->
+    Args = update_query_args(LUser, LServer, RemBareJID, Properties),
+    case mongoose_rdbms:execute_successfully(LServer, QueryName, Args) of
+        {updated, 1} ->
+            execute_select_properties(LUser, LServer, RemBareJID);
+        Other ->
+            Other
+    end.
 
 %% Inbox lookup
 
@@ -374,7 +383,13 @@ update_sql_part(archive, Val) when is_boolean(Val) ->
 update_sql_part(muted_until, Val) when is_integer(Val) ->
     "muted_until = ?".
 
-%% Helpers
+%% Query execution
+
+-spec execute_select_unread_count(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_unread_count(LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_select_unread_count,
+                                        [LUser, LServer, RemBareJID]).
 
 -spec execute_select_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
@@ -391,19 +406,6 @@ execute_reset_unread(LUser, LServer, RemBareJID, MsgId) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_reset_unread_msg,
                                         [LUser, LServer, RemBareJID, MsgId]).
 
--spec set_entry_properties_t(atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
-                             entry_properties()) ->
-          mongoose_rdbms:query_result().
-set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) ->
-    Args = update_query_args(LUser, LServer, RemBareJID, Properties),
-    case mongoose_rdbms:execute_successfully(LServer, QueryName, Args) of
-        {updated, 1} ->
-            execute_select_properties(LUser, LServer, RemBareJID);
-        Other ->
-            Other
-    end.
-
-
 -spec execute_delete(jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
 execute_delete(LUser, LServer, RemBareJID) ->
@@ -416,6 +418,8 @@ execute_delete(LUser, LServer) ->
 -spec execute_delete(jid:lserver()) -> mongoose_rdbms:query_result().
 execute_delete(LServer) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
+
+%% Result processing
 
 -spec decode_row(host(), db_return()) -> inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
