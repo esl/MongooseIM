@@ -358,6 +358,7 @@ hosts(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
     % either hosts or host_types must be provided
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
     ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})),
     ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => [],
                                                                     <<"host_types">> => []}})),
@@ -3013,7 +3014,7 @@ parse(M0) ->
 maybe_insert_dummy_domain(M, DomainName) ->
     DummyGenM = #{<<"default_server_domain">> => DomainName,
                   <<"hosts">> => [DomainName]},
-    OldGenM = maps:get(<<"general">> ,M, #{}),
+    OldGenM = maps:get(<<"general">>, M, #{}),
     NewGenM = maps:merge(DummyGenM,OldGenM),
     M#{<<"general">> => NewGenM}.
 
