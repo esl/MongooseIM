@@ -269,8 +269,9 @@ wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData};
-wait_for_stream(_UnexpectedItem, #state{ server = Server } = StateData) ->
-    case ejabberd_config:get_local_option(hide_service_name, Server) of
+wait_for_stream(_UnexpectedItem, #state{ server = Server,
+                                         host_type = HostType } = StateData) ->
+    case ejabberd_config:get_local_option(hide_service_name) of
         true ->
             {stop, normal, StateData};
         _ ->
@@ -519,7 +520,7 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                        TLSEnabled == false,
                                        SockMod == gen_tcp ->
             TLSOpts = case ejabberd_config:get_local_option(
-                             {domain_certfile, StateData#state.server}) of
+                             {domain_certfile, StateData#state.host_type}) of
                           undefined ->
                               StateData#state.tls_options;
                           CertFile ->
@@ -773,7 +774,8 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{jid = JID, server = S} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{jid = JID, server = S,
+                                        host_type = HostType} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(S, Acc, JID),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
@@ -792,7 +794,7 @@ do_open_session_common(Acc, JID, #state{jid = JID, server = S} = NewStateData0) 
         [] ->
             ok;
         _ ->
-            Timeout = get_replaced_wait_timeout(S),
+            Timeout = get_replaced_wait_timeout(HostType),
             erlang:send_after(Timeout, self(), replaced_wait_timeout)
     end,
 
@@ -806,8 +808,8 @@ do_open_session_common(Acc, JID, #state{jid = JID, server = S} = NewStateData0) 
                         privacy_list = PrivList},
     {established, Acc1, NewStateData}.
 
-get_replaced_wait_timeout(S) ->
-    ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
+get_replaced_wait_timeout(HostType) ->
+    ejabberd_config:get_local_option_or_default({replaced_wait_timeout, HostType},
                                                 default_replaced_wait_timeout()).
 
 default_replaced_wait_timeout() ->

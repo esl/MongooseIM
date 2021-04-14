@@ -1,5 +1,7 @@
+{config,default_server_domain,<<"localhost">>}.
 {config,hosts,[<<"localhost">>,<<"anonymous.localhost">>]}.
 {local_config,cowboy_server_name,"Apache"}.
+{local_config,hide_service_name,true}.
 {local_config,listen,
     [{{5280,{0,0,0,0},tcp},
       ejabberd_cowboy,
@@ -58,8 +60,6 @@
                {bucket_type,<<"user_bucket">>}]}.
 {local_config,{extauth_instances,<<"anonymous.localhost">>},1}.
 {local_config,{extauth_instances,<<"localhost">>},1}.
-{local_config,{hide_service_name,<<"anonymous.localhost">>},true}.
-{local_config,{hide_service_name,<<"localhost">>},true}.
 {local_config,{pgsql_users_number_estimate,<<"anonymous.localhost">>},true}.
 {local_config,{pgsql_users_number_estimate,<<"localhost">>},true}.
 {local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.

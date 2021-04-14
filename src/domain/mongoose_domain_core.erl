@@ -164,13 +164,17 @@ insert_host_types(Tab, AllowedHostTypes) ->
     ok.
 
 handle_delete(Domain) ->
-    case is_static(Domain) of
-        true ->
+    case ets:lookup(?TABLE, Domain) of
+        [{Domain, _HostType, _Source = config}] ->
             %% Ignore any static domains
             ?LOG_ERROR(#{what => domain_static_but_was_in_db, domain => Domain}),
             {error, static};
-        false ->
+        [] ->
+            %% nothing to remove
+            ok;
+        [{Domain, HostType, _Source}] ->
             ets:delete(?TABLE, Domain),
+            mongoose_hooks:disable_domain(HostType, Domain),
             ok
     end.
 

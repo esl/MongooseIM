@@ -66,7 +66,7 @@ teardown() ->
 
 default_local_option(max_fsm_queue) -> 100.
 
-default_global_option(hosts) ->  [<<"localhost">>];
+default_global_option(default_server_domain) ->  <<"localhost">>;
 default_global_option({access, c2s_shaper, global}) ->  [];
 default_global_option(language) ->  <<"en">>.
 

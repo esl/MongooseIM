@@ -30,24 +30,22 @@ The following options are allowed:
 * [`pgsql_users_number_estimate`](general.md#generalpgsql_users_number_estimate)
 * [`route_subdomains`](general.md#generalroute_subdomains)
 * [`replaced_wait_timeout`](general.md#generalreplaced_wait_timeout)
-* [`hide_service_name`](general.md#generalhide_service_name)
 
 #### Example
 
-The `hide_service_name` option is set to `false` only for `domain2.com`.
+The `replaced_wait_timeout` option is set to `2000` only for `domain2.com`.
 
 ```toml
 [general]
   hosts = ["domain1.com", "domain2.com", "domain3.com"]
   loglevel = "info"
-  hide_service_name = true
   replaced_wait_timeout = 1000
 
 [[host_config]]
   host = "domain2.com"
 
   [host_config.general]
-    hide_service_name = false
+    replaced_wait_timeout = 2000
 ```
 
 ### `host_config.auth`

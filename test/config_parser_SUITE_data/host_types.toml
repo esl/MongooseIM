@@ -7,6 +7,7 @@
     ]
 
   hosts = ["localhost"]
+  default_server_domain = "localhost"
 
 [auth]
   methods = ["test1", "test2"]

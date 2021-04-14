@@ -118,7 +118,8 @@
 root() ->
     General = general(),
     #section{
-       items = #{<<"general">> => General#section{process = fun ?MODULE:process_general/1},
+       items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
+                                                  process = fun ?MODULE:process_general/1},
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
@@ -188,6 +189,10 @@ general() ->
                                                            validate = non_empty},
                                            validate = unique,
                                            format = config},
+                 <<"default_server_domain">> =># option{type = binary,
+                                                        validate = non_empty,
+                                                        process = fun ?MODULE:process_host/1,
+                                                        format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
@@ -228,7 +233,7 @@ general() ->
                                                         validate = positive,
                                                         format = host_local_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    format = host_local_config}
+                                                    format = local_config}
                 },
        format = none
       }.

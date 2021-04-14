@@ -1,2 +1,3 @@
 [general]
   hosts = ["localhost"]
+  default_server_domain = "localhost"

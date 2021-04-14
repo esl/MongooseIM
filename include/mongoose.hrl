@@ -25,7 +25,7 @@
 -define(MYHOSTS, ejabberd_config:get_global_option(hosts)).
 -define(ALL_HOST_TYPES, ejabberd_config:get_global_option_or_default(hosts, []) ++
                         ejabberd_config:get_global_option_or_default(host_types, [])).
--define(MYNAME,  hd(ejabberd_config:get_global_option(hosts))).
+-define(MYNAME,  ejabberd_config:get_global_option(default_server_domain)).
 -define(MYLANG,  ejabberd_config:get_global_option(language)).
 
 -define(CONFIG_PATH, "etc/mongooseim.toml").
