@@ -89,35 +89,37 @@ execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
 
 %% @doc
 %% This functions prepares query for inserting a row or updating it if already exists
+%% Updates can be either fields or literal expressions like "column = tab.column + 1"
 -spec prepare_upsert(Host :: mongoose_rdbms:server(),
                      QueryName :: atom(),
                      TableName :: atom(),
                      InsertFields :: [binary()],
-                     UpdateFields :: [binary()],
+                     Updates :: [binary()],
                      UniqueKeyFields :: [binary()]) ->
     {ok, QueryName :: atom()} | {error, already_exists}.
-prepare_upsert(Host, Name, Table, InsertFields, UpdateFields, UniqueKeyFields) ->
-    SQL = upsert_query(Host, Table, InsertFields, UpdateFields, UniqueKeyFields),
+prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
+    SQL = upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, query => Query}),
-    Fields = prepared_upsert_fields(InsertFields, UpdateFields, UniqueKeyFields),
+    Fields = prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
-prepared_upsert_fields(InsertFields, UpdateFields, UniqueKeyFields) ->
+prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
+    UpdateFields = lists:filter(fun is_field/1, Updates),
     case mongoose_rdbms_type:get() of
         mssql ->
             UniqueKeyFields ++ InsertFields ++ UpdateFields;
         _ -> InsertFields ++ UpdateFields
     end.
 
-upsert_query(Host, Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields) ->
     case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
         {mysql, _} ->
-            upsert_mysql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+            upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields);
         {pgsql, _} ->
-            upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+            upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields);
         {odbc, mssql} ->
-            upsert_mssql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+            upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
@@ -130,14 +132,14 @@ mysql_and_pgsql_insert(Table, Columns) ->
      join(Placeholders, ", "),
      ")"].
 
-upsert_mysql_query(Table, InsertFields, UpdateFields, [Key | _]) ->
+upsert_mysql_query(Table, InsertFields, Updates, [Key | _]) ->
     Insert = mysql_and_pgsql_insert(Table, InsertFields),
-    OnConflict = mysql_on_conflict(UpdateFields, Key),
+    OnConflict = mysql_on_conflict(Updates, Key),
     [Insert, OnConflict].
 
-upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields) ->
     Insert = mysql_and_pgsql_insert(Table, InsertFields),
-    OnConflict = pgsql_on_conflict(UpdateFields, UniqueKeyFields),
+    OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
     [Insert, OnConflict].
 
 mysql_on_conflict([], Key) ->
@@ -156,26 +158,36 @@ pgsql_on_conflict(UpdateFields, UniqueKeyFields) ->
      " DO UPDATE SET ",
      update_fields_on_conflict(UpdateFields)].
 
-update_fields_on_conflict(UpdateFields) ->
-    FieldsWithPlaceHolders = [[Field, " = ?"] || Field <- UpdateFields],
+update_fields_on_conflict(Updates) ->
+    FieldsWithPlaceHolders = [update_field_expression(Update) || Update <- Updates],
     join(FieldsWithPlaceHolders, ", ").
 
-upsert_mssql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields) ->
     UniqueKeysInSelect = [[" ? AS ", Key] || Key <- UniqueKeyFields],
-    UniqueConstraint = [["target.", Key, " = source.", Key] || Key <- UniqueKeyFields],
+    BinTab = atom_to_binary(Table, utf8),
+    UniqueConstraint = [[BinTab, ".", Key, " = source.", Key] || Key <- UniqueKeyFields],
     JoinedInsertFields = join(InsertFields, ", "),
     Placeholders = lists:duplicate(length(InsertFields), $?),
-    ["MERGE INTO ", atom_to_binary(Table, utf8), " WITH (SERIALIZABLE) as target"
+    ["MERGE INTO ", BinTab, " WITH (SERIALIZABLE)"
      " USING (SELECT ", join(UniqueKeysInSelect, ", "), ")"
             " AS source (", join(UniqueKeyFields, ", "), ")"
         " ON (", join(UniqueConstraint, " AND "), ")"
      " WHEN NOT MATCHED THEN INSERT"
        " (", JoinedInsertFields, ")"
-         " VALUES (", join(Placeholders, ", "), ")" | mssql_on_conflict(UpdateFields)].
+         " VALUES (", join(Placeholders, ", "), ")" | mssql_on_conflict(Updates)].
 
 mssql_on_conflict([]) -> ";";
-mssql_on_conflict(UpdateFields) ->
-     [" WHEN MATCHED THEN UPDATE SET ", update_fields_on_conflict(UpdateFields), ";"].
+mssql_on_conflict(Updates) ->
+     [" WHEN MATCHED THEN UPDATE SET ", update_fields_on_conflict(Updates), ";"].
+
+update_field_expression(Update) ->
+    case is_field(Update) of
+        true -> [Update, " = ?"];
+        false -> Update
+    end.
+
+is_field(FieldExpr) ->
+    binary:match(FieldExpr, <<"=">>) =:= nomatch.
 
 %% F can be either a fun or a list of queries
 %% TODO: We should probably move the list of queries transaction

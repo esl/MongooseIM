@@ -46,11 +46,42 @@
 %% ----------------------------------------------------------------------
 
 init(VHost, _Options) ->
+    RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
+    mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"SELECT unread_count FROM inbox ",
+                             RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_select_properties, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"SELECT archive, unread_count, muted_until FROM inbox ",
+                             RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_reset_unread, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"UPDATE inbox SET unread_count = 0 ", RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_reset_unread_msg, inbox,
+                           [luser, lserver, remote_bare_jid, msg_id],
+                           <<"UPDATE inbox SET unread_count = 0 ", RowCond/binary,
+                             " AND msg_id = ?">>),
+    mongoose_rdbms:prepare(inbox_delete_row, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"DELETE FROM inbox ", RowCond/binary>>),
+    mongoose_rdbms:prepare(inbox_delete, inbox,
+                           [luser, lserver],
+                           <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(inbox_delete_all, inbox, [], <<"DELETE FROM inbox">>),
+        UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
+    InsertFields =
+        UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
     rdbms_queries:prepare_upsert(VHost, inbox_upsert, inbox,
-                                 [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>,
-                                  <<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
-                                 [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>, <<"archive">>],
-                                 [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>]),
+                                 InsertFields,
+                                 [<<"content">>, <<"unread_count">>,
+                                  <<"msg_id">>, <<"timestamp">>, <<"archive">>],
+                                 UniqueKeyFields),
+    rdbms_queries:prepare_upsert(VHost, inbox_upsert_incr_unread, inbox,
+                                 InsertFields,
+                                 [<<"content">>, <<"unread_count = inbox.unread_count + 1">>,
+                                  <<"msg_id">>, <<"timestamp">>, <<"archive">>],
+                                 UniqueKeyFields),
     ok.
 
 -spec get_inbox(LUsername :: jid:luser(),
@@ -64,35 +95,9 @@ get_inbox(LUsername, LServer, Params) ->
             [decode_row(LServer, R) || R <- Res]
     end.
 
-
--spec get_inbox_rdbms(LUser :: jid:luser(),
-                      LServer :: jid:lserver(),
-                      Params :: mod_inbox:get_inbox_params()) ->
-    mongoose_rdbms:query_result().
-get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
-    OrderSQL = order_to_sql(Order),
-    {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
-    BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
-    EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
-    HiddenSQL = sql_and_where_unread_count(maps:get(hidden_read, Params, false)),
-    Archive = sql_and_where_archive(maps:get(archive, Params, undefined)),
-    Query = ["SELECT ", MSLimitSQL, " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
-             " FROM inbox "
-                 "WHERE luser=", esc_string(LUser),
-                 " AND lserver=", esc_string(LServer),
-                 BeginSQL, EndSQL, HiddenSQL, Archive,
-                 " ORDER BY timestamp ", OrderSQL, " ",
-                 LimitSQL, ";"],
-    sql_query(LServer, Query).
-
 -spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
-get_inbox_unread(LUSername, LServer, RemBareJIDBin) ->
-    Query = ["SELECT unread_count FROM inbox "
-             "WHERE luser=", esc_string(LUSername),
-                 "AND lserver=", esc_string(LServer),
-                 "AND remote_bare_jid=", esc_string(RemBareJIDBin),
-             ";"],
-    Res = sql_query(LServer, Query),
+get_inbox_unread(LUser, LServer, RemBareJID) ->
+    Res = execute_select_unread_count(LUser, LServer, RemBareJID),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
     %% so we have to add +1
@@ -124,17 +129,8 @@ set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
                        ToBareJid :: jid:literal_jid()) -> ok.
 remove_inbox_row(LUsername, LServer, ToBareJid) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = remove_inbox_rdbms(LUsername, LServer, LToBareJid),
+    Res = execute_delete(LUsername, LServer, LToBareJid),
     check_result(Res).
-
--spec remove_inbox_rdbms(Username :: jid:luser(),
-                         Server :: jid:lserver(),
-                         ToBareJid :: jid:literal_jid()) -> mongoose_rdbms:query_result().
-remove_inbox_rdbms(Username, Server, ToBareJid) ->
-    sql_query(Server, ["delete from inbox where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server),
-        " and remote_bare_jid=",
-        esc_string(ToBareJid), ";"]).
 
 %% This function was not refatorected to use the generic upsert helper
 %% becase this helper doesn't support parametrized queries for incremental change
@@ -146,11 +142,11 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             Timestamp :: integer()) -> ok | {ok, integer()}.
 set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    BackendModule = rdbms_specific_backend(LServer),
-    Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
-                                              Content, MsgId, Timestamp),
-    %% psql will return {updated, {[UnreadCount]}}
-    %% mssql and mysql will return {selected, {[Val]}}
+    InsertParams = [LUsername, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
+    UpdateParams = [Content, MsgId, Timestamp, false],
+    UniqueKeyValues  = [LUsername, LServer, LToBareJid],
+    Res = rdbms_queries:execute_upsert(LServer, inbox_upsert_incr_unread,
+                                       InsertParams, UpdateParams, UniqueKeyValues),
     check_result(Res).
 
 -spec reset_unread(LUsername :: jid:luser(),
@@ -159,43 +155,24 @@ set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) 
                    MsgId :: binary() | undefined) -> ok.
 reset_unread(LUsername, LServer, ToBareJid, MsgId) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = reset_inbox_unread_rdbms(LUsername, LServer, LToBareJid, MsgId),
+    Res = execute_reset_unread(LUsername, LServer, LToBareJid, MsgId),
     check_result(Res).
-
--spec reset_inbox_unread_rdbms(Username :: jid:luser(),
-                               Server :: jid:lserver(),
-                               ToBareJid :: jid:literal_jid(),
-                               MsgId :: binary() | undefined) -> mongoose_rdbms:query_result().
-reset_inbox_unread_rdbms(Username, Server, ToBareJid, undefined) ->
-    sql_query(Server, ["update inbox set unread_count=0",
-        " where luser=", esc_string(Username),
-        " and lserver=", esc_string(Server),
-        " and remote_bare_jid=", esc_string(ToBareJid), ";"]);
-reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
-    sql_query(Server, ["update inbox set unread_count=0 where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
-        esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
 -spec clear_inbox(LUsername :: jid:luser(), LServer :: jid:lserver()) -> inbox_write_res().
 clear_inbox(LUsername, LServer) ->
-    Res = clear_inbox_rdbms(LUsername, LServer),
+    Res = execute_delete(LUsername, LServer),
     check_result(Res).
 
 -spec clear_inbox(LServer :: jid:lserver()) -> inbox_write_res().
 clear_inbox(LServer) ->
-    Res = clear_inbox_rdbms(LServer),
+    Res = execute_delete(LServer),
     check_result(Res).
 
 
 -spec get_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
     entry_properties().
-get_entry_properties(LUser, LServer, BinEntryJID) ->
-    Query = ["SELECT archive, unread_count, muted_until ",
-             "FROM inbox "
-             "WHERE luser = ", esc_string(LUser), " AND "
-                   "lserver = ", esc_string(LServer), " AND "
-                   "remote_bare_jid = ", esc_string(BinEntryJID)],
-    case sql_query(LServer, Query) of
+get_entry_properties(LUser, LServer, RemBareJID) ->
+    case execute_select_properties(LUser, LServer, RemBareJID) of
         {selected, []} ->
             [];
         {selected, [Selected]} ->
@@ -204,29 +181,13 @@ get_entry_properties(LUser, LServer, BinEntryJID) ->
 
 -spec set_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid(), entry_properties()) ->
     entry_properties() | {error, binary()}.
-set_entry_properties(LUser, LServer, BinEntryJID, Params) ->
-    UnreadCount = sql_set_unread_count(maps:get(unread_count, Params, undefined)),
-    MutedUntil = sql_set_muted_until(maps:get(muted_until, Params, undefined)),
-    Archive = sql_set_archive(maps:get(archive, Params, undefined)),
-    {Output, Ending} = returning_properties(mongoose_rdbms:db_engine(LServer), LUser, LServer, BinEntryJID),
-    Query = ["UPDATE inbox ",
-             "SET ", lists:droplast(lists:append([UnreadCount, MutedUntil, Archive])),
-             Output,
-             " WHERE "
-                 "luser=", esc_string(LUser), " AND "
-                 "lserver=", esc_string(LServer), " AND "
-                 "remote_bare_jid=", esc_string(BinEntryJID),
-             Ending],
-    case sql_query(LServer, Query) of
+set_entry_properties(LUser, LServer, RemBareJID, Properties) ->
+    case set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) of
         {error, Msg} when is_list(Msg) ->
             {error, list_to_binary(Msg)};
         {error, Msg} ->
             {error, Msg};
-        {updated, 0, []} ->
-            {error, <<"item-not-found">>};
-        {updated, 1, [Result]} ->
-            decode_entries(Result);
-        {selected, []} ->
+        {updated, 0} ->
             {error, <<"item-not-found">>};
         {selected, [Result]} ->
             decode_entries(Result)
@@ -239,37 +200,6 @@ decode_entries({BArchive, BCount, BMutedUntil}) ->
     #{archive => Archive,
       unread_count => Count,
       muted_until => MutedUntil}.
-
-returning_properties(pgsql, _, _, _) ->
-    {"", [" RETURNING archive, unread_count, muted_until;"]};
-returning_properties(mysql, LUser, LServer, BinEntryJID) ->
-    {"", ["; SELECT archive, unread_count, muted_until"
-        " FROM inbox"
-        " WHERE "
-            "luser=", esc_string(LUser), " AND "
-            "lserver=", esc_string(LServer), " AND "
-            "remote_bare_jid=", esc_string(BinEntryJID), ";"]};
-returning_properties(odbc, _, _, _) ->
-    {" OUTPUT inserted.archive, inserted.unread_count, inserted.muted_until ", ""}.
-
-sql_set_archive(undefined) ->
-    [];
-sql_set_archive(Val) when is_boolean(Val) ->
-    ["archive=", encode_bool(Val), ","].
-
-sql_set_unread_count(undefined) ->
-    [];
-sql_set_unread_count(0) ->
-    ["unread_count=0", ","];
-sql_set_unread_count(1) ->
-    ["unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END", ","].
-
-sql_set_muted_until(undefined) ->
-    [];
-sql_set_muted_until(0) ->
-    ["muted_until=0", ","];
-sql_set_muted_until(Int) ->
-    ["muted_until=", esc_int(Int), ","].
 
 -spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
 esc_string(String) ->
@@ -284,50 +214,212 @@ esc_int(Integer) ->
 %% Internal functions
 %% ----------------------------------------------------------------------
 
+-spec get_inbox_rdbms(jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->
+    mongoose_rdbms:query_result().
+get_inbox_rdbms(LUser, LServer, Params) ->
+    QueryName = lookup_query_name(Params),
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            SQL = lookup_query(Params),
+            Columns = lookup_query_columns(Params),
+            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
+        true ->
+            ok
+    end,
+    Args = lookup_query_args(LServer, LUser, Params),
+    mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
+
+set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) ->
+    QueryName = update_query_name(Properties),
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            SQL = update_properties_query(Properties),
+            Columns = update_query_columns(Properties),
+            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
+        true ->
+            ok
+    end,
+    {atomic, TransactionResult} =
+        mongoose_rdbms:sql_transaction(
+          LServer,
+          fun() -> set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) end),
+    TransactionResult.
+
+-spec set_entry_properties_t(atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
+                             entry_properties()) ->
+          mongoose_rdbms:query_result().
+set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) ->
+    Args = update_query_args(LUser, LServer, RemBareJID, Properties),
+    case mongoose_rdbms:execute_successfully(LServer, QueryName, Args) of
+        {updated, 1} ->
+            execute_select_properties(LUser, LServer, RemBareJID);
+        Other ->
+            Other
+    end.
+
+%% Inbox lookup
+
+-spec lookup_query(mod_inbox:get_inbox_params()) -> iolist().
+lookup_query(#{order := Order} = Params) ->
+    OrderSQL = order_to_sql(Order),
+    {LimitSQL, MSLimitSQL}  = sql_and_where_limit(maps:get(limit, Params, undefined)),
+    Conditions = [lookup_sql_condition(Key, maps:get(Key, Params, undefined)) ||
+                     Key <- [start, 'end', hidden_read, archive]],
+    ["SELECT ", MSLimitSQL,
+     " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
+     " FROM inbox WHERE luser = ? AND lserver = ?", Conditions,
+     " ORDER BY timestamp ", OrderSQL, " ", LimitSQL].
+
+-spec lookup_query_args(jid:lserver(), jid:luser(), mod_inbox:get_inbox_params()) -> list().
+lookup_query_args(LServer, LUser, Params) ->
+    Args = [LUser, LServer | [maps:get(Key, Params) || Key <- lookup_arg_keys(Params)]],
+    case maps:get(limit, Params, undefined) of
+        undefined -> Args;
+        Limit -> rdbms_queries:add_limit_arg(Limit, Args)
+    end.
+
+-spec lookup_query_columns(mod_inbox:get_inbox_params()) -> [atom()].
+lookup_query_columns(Params) ->
+    Columns = [luser, lserver | lists:map(fun param_to_column/1, lookup_arg_keys(Params))],
+    case maps:get(limit, Params, undefined) of
+        undefined -> Columns;
+        _ -> rdbms_queries:add_limit_arg(limit, Columns)
+    end.
+
+-spec lookup_arg_keys(mod_inbox:get_inbox_params()) -> [atom()].
+lookup_arg_keys(Params) ->
+    lists:filter(fun(Key) -> maps:is_key(Key, Params) end, [start, 'end', archive]).
+
+-spec lookup_query_name(mod_inbox:get_inbox_params()) -> atom().
+lookup_query_name(Params) ->
+    IDString = lists:flatmap(fun(Param) ->
+                                     param_id(Param, maps:get(Param, Params, undefined))
+                             end, lookup_param_keys()),
+    list_to_atom("inbox_lookup" ++ IDString).
+
+-spec lookup_param_keys() -> [atom()].
+lookup_param_keys() ->
+    [order, limit, start, 'end', hidden_read, archive].
+
+-spec param_to_column(atom()) -> atom().
+param_to_column(start) -> timestamp;
+param_to_column('end') -> timestamp;
+param_to_column(archive) -> archive.
+
+-spec param_id(Key :: atom(), Value :: any()) -> string().
+param_id(_, undefined) -> "";
+param_id(order, desc) -> "_desc";
+param_id(order, asc) -> "_asc";
+param_id(limit, _) -> "_lim";
+param_id(start, _) -> "_start";
+param_id('end', _) -> "_end";
+param_id(hidden_read, true) -> "_hr";
+param_id(hidden_read, false) -> "";
+param_id(archive, _) -> "_arch".
+
 -spec order_to_sql(Order :: asc | desc) -> binary().
 order_to_sql(asc) -> <<"ASC">>;
 order_to_sql(desc) -> <<"DESC">>.
 
--spec sql_and_where_limit(boolean() | undefined) -> {iolist(), iolist()}.
+-spec sql_and_where_limit(non_neg_integer() | undefined) -> {iolist(), iolist()}.
 sql_and_where_limit(undefined) ->
     {"", ""};
-sql_and_where_limit(N) ->
-    rdbms_queries:get_db_specific_limits(N).
+sql_and_where_limit(_) ->
+    rdbms_queries:get_db_specific_limits().
 
--spec sql_and_where_timestamp(Operator :: string(), Timestamp :: integer()) -> iolist().
-sql_and_where_timestamp(_Operator, undefined) ->
-    [];
-sql_and_where_timestamp(Operator, NumericTimestamp) ->
-    [" AND timestamp ", Operator, esc_int(NumericTimestamp)].
+-spec lookup_sql_condition(Key :: atom(), Value :: any()) -> string().
+lookup_sql_condition(start, Timestamp) when is_integer(Timestamp) ->
+    " AND timestamp >= ?";
+lookup_sql_condition('end', Timestamp) when is_integer(Timestamp) ->
+    " AND timestamp <= ?";
+lookup_sql_condition(hidden_read, true) ->
+    " AND unread_count > 0";
+lookup_sql_condition(archive, Val) when is_boolean(Val) ->
+    " AND archive = ?";
+lookup_sql_condition(_, _) ->
+    "".
 
--spec sql_and_where_unread_count(HiddenRead :: boolean()) -> iolist().
-sql_and_where_unread_count(true) ->
-    [" AND unread_count > 0 "];
-sql_and_where_unread_count(_) ->
-    [].
+%% Property update
 
--spec sql_and_where_archive(ArchiveBox :: boolean() | undefined) -> iolist().
-sql_and_where_archive(Val) when is_boolean(Val) ->
-    [" AND archive = ", encode_bool(Val)];
-sql_and_where_archive(undefined) ->
-    [].
+update_properties_query(Properties) ->
+    KVs = [{Key, maps:get(Key, Properties, undefined)} || Key <- property_keys()],
+    Parts = [update_sql_part(Key, Value) || {Key, Value} <- KVs, Value =/= undefined],
+    ["UPDATE inbox SET ", string:join(Parts, ", "),
+     " WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?"].
 
-encode_bool(Val) ->
-    encode_bool(Val, mongoose_rdbms_type:get()).
+update_query_args(LUser, LServer, RemBareJID, Properties) ->
+    [maps:get(Key, Properties) || Key <- update_arg_keys(Properties)] ++
+        [LUser, LServer, RemBareJID].
 
-encode_bool(true, mssql) -> "1";
-encode_bool(false, mssql) -> "0";
-encode_bool(true, _) -> "true";
-encode_bool(false, _) -> "false".
+update_query_columns(Properties) ->
+    update_arg_keys(Properties) ++ [luser, lserver, remote_bare_jid].
 
--spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> mongoose_rdbms:query_result().
-clear_inbox_rdbms(Username, Server) ->
-    sql_query(Server, ["delete from inbox where luser=",
-        esc_string(Username), " and lserver=", esc_string(Server), ";"]).
+update_arg_keys(Properties) ->
+    lists:filter(fun(Key) -> maps:is_key(Key, Properties) end, [archive, muted_until]).
 
--spec clear_inbox_rdbms(Server :: jid:lserver()) -> mongoose_rdbms:query_result().
-clear_inbox_rdbms(Server) ->
-    sql_query(Server, ["delete from inbox;"]).
+update_query_name(Properties) ->
+    IDString = lists:flatmap(fun(Prop) ->
+                                     property_id(Prop, maps:get(Prop, Properties, undefined))
+                             end, property_keys()),
+    list_to_atom("inbox_update_properties" ++ IDString).
+
+property_keys() ->
+    [unread_count, archive, muted_until].
+
+-spec property_id(Key :: atom(), Value :: any()) -> string().
+property_id(_, undefined) -> "";
+property_id(unread_count, 0) -> "_read";
+property_id(unread_count, 1) -> "_unread";
+property_id(archive, _) -> "_arch";
+property_id(muted_until, _) -> "_muted".
+
+-spec update_sql_part(Key :: atom(), Value :: any()) -> string().
+update_sql_part(unread_count, 0) ->
+    "unread_count = 0";
+update_sql_part(unread_count, 1) ->
+    "unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END";
+update_sql_part(archive, Val) when is_boolean(Val) ->
+    "archive = ?";
+update_sql_part(muted_until, Val) when is_integer(Val) ->
+    "muted_until = ?".
+
+%% Query execution
+
+-spec execute_select_unread_count(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_unread_count(LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_select_unread_count,
+                                        [LUser, LServer, RemBareJID]).
+
+-spec execute_select_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_properties(LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_select_properties,
+                                        [LUser, LServer, RemBareJID]).
+
+-spec execute_reset_unread(jid:luser(), jid:lserver(), jid:literal_jid(), binary() | undefined) ->
+          mongoose_rdbms:query_result().
+execute_reset_unread(LUser, LServer, RemBareJID, undefined) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_reset_unread,
+                                        [LUser, LServer, RemBareJID]);
+execute_reset_unread(LUser, LServer, RemBareJID, MsgId) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_reset_unread_msg,
+                                        [LUser, LServer, RemBareJID, MsgId]).
+
+-spec execute_delete(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_delete(LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_delete_row, [LUser, LServer, RemBareJID]).
+
+-spec execute_delete(jid:luser(), jid:lserver()) -> mongoose_rdbms:query_result().
+execute_delete(LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_delete, [LUser, LServer]).
+
+-spec execute_delete(jid:lserver()) -> mongoose_rdbms:query_result().
+execute_delete(LServer) ->
+    mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
+
+%% Result processing
 
 -spec decode_row(host(), db_return()) -> inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
@@ -342,14 +434,6 @@ decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) 
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.
-
-rdbms_specific_backend(Host) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
-        {mysql, _} -> mod_inbox_rdbms_mysql;
-        {pgsql, _} -> mod_inbox_rdbms_pgsql;
-        {odbc, mssql} -> mod_inbox_rdbms_mssql;
-        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
-    end.
 
 check_result({updated, Val}, ValList) when is_list(ValList) ->
     case lists:member(Val, ValList) of
@@ -382,18 +466,3 @@ parse_result(null) ->
 parse_result(Value) ->
     {error, {unknown_result_value_type, Value}}.
 
-sql_query(Pool, Query) ->
-    Result = mongoose_rdbms:sql_query(Pool, Query),
-    log_result(Result, Query),
-    Result.
-
-log_result({selected, _}, _Query) ->
-    ok;
-log_result({updated, _}, _Query) ->
-    ok;
-log_result({updated, _, _}, _Query) ->
-    ok;
-log_result(Result, Query) ->
-    ?LOG_ERROR(#{what => inbox_rdbms_failed,
-                 sql_query => iolist_to_binary(Query),
-                 result => Result}).
