@@ -61,6 +61,7 @@ Check out our test results:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://esl.github.io/MongooseDocs/latest/](https://esl.github.io/MongooseDocs/latest/).
 
 Latest releases:
+* [4.2.0](https://esl.github.io/MongooseDocs/4.2.0/)
 * [4.1.0](https://esl.github.io/MongooseDocs/4.1.0/)
 * [4.0.1](https://esl.github.io/MongooseDocs/4.0.1/)
 * [3.7.1](https://esl.github.io/MongooseDocs/3.7.1/)
