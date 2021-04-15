@@ -171,6 +171,7 @@ run_test(Test, PresetsToRun, CoverOpts) ->
                            all ->
                                Presets;
                            _ ->
+                               assert_all_presets_present(PresetsToRun, Presets),
                                error_logger:info_msg("Skip presets ~p",
                                                      [ preset_names(Presets) -- PresetsToRun ]),
                                lists:filter(fun({Preset,_}) ->
@@ -370,7 +371,7 @@ analyze(Test, CoverOpts) ->
 
 analyze(_Test, _CoverOpts, []) ->
     ok;
-analyze(Test, CoverOpts, Nodes) ->
+analyze(_Test, CoverOpts, Nodes) ->
     deduplicate_cover_server_console_prints(),
     %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
@@ -683,4 +684,19 @@ try_load_module(Module) ->
     case code:is_loaded(Module) of
         true -> already_loaded;
         _ -> code:load_file(Module)
+    end.
+
+assert_all_presets_present(PresetsToCheck, PresetConfs) ->
+    lists:foreach(fun(Preset) ->
+                    assert_preset_present(Preset, PresetConfs)
+                  end, PresetsToCheck).
+
+assert_preset_present(small_tests, _PresetConfs) ->
+    ok;
+assert_preset_present(Preset, PresetConfs) ->
+    case lists:keymember(Preset, 1, PresetConfs) of
+        true -> ok;
+        false ->
+            error_logger:error_msg("Preset not found ~p~n", [Preset]),
+            error({preset_not_found, Preset})
     end.
