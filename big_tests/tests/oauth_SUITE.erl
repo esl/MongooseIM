@@ -422,8 +422,8 @@ extract_bound_jid(BindReply) ->
                                 cdata]).
 
 get_provision_key(Domain) ->
-    RPCArgs = [get_key, Domain, [], [{provision_pre_shared, Domain}]],
-    [{_, RawKey}] = rpc(mim(), ejabberd_hooks, run_fold, RPCArgs),
+    RPCArgs = [Domain, [], provision_pre_shared],
+    [{_, RawKey}] = rpc(mim(), mongoose_hooks, get_key, RPCArgs),
     RawKey.
 
 make_vcard(Config, User) ->

@@ -36,40 +36,38 @@
          privacy_list_push/5
         ]).
 
--type hook() :: [atom() | jid:server() | integer(), ...].
--type t() :: hook().
 -type metrics_notify_return() ::
                 map()
                 | {'error', _, 'nonexistent_metric' | 'unsupported_metric_type'}.
 
--export_type([t/0, metrics_notify_return/0]).
+-export_type([metrics_notify_return/0]).
 
 %%-------------------
 %% Implementation
 %%-------------------
 
 %% @doc Here will be declared which hooks should be registered
--spec get_hooks(_) -> [hook(), ...].
+-spec get_hooks(_) -> [ejabberd_hooks:hook(), ...].
 get_hooks(Host) ->
-    [[sm_register_connection_hook, Host, ?MODULE, sm_register_connection_hook, 50],
-     [sm_remove_connection_hook, Host, ?MODULE, sm_remove_connection_hook, 50],
-     [auth_failed, Host, ?MODULE, auth_failed, 50],
-     [user_send_packet, Host, ?MODULE, user_send_packet, 50],
-     [user_receive_packet, Host, ?MODULE, user_receive_packet, 50],
-     [xmpp_stanza_dropped, Host, ?MODULE, xmpp_stanza_dropped, 50],
-     [xmpp_bounce_message, Host, ?MODULE, xmpp_bounce_message, 50],
-     [xmpp_send_element, Host, ?MODULE, xmpp_send_element, 50],
-     [roster_get, Host, ?MODULE, roster_get, 55],
-     [roster_set, Host, ?MODULE, roster_set, 50],
-     [roster_push, Host, ?MODULE, roster_push, 50],
-     [roster_in_subscription, Host, ?MODULE, roster_in_subscription, 55],
-     [register_user, Host, ?MODULE, register_user, 50],
-     [remove_user, Host, ?MODULE, remove_user, 50],
-     [privacy_iq_get,         Host, ?MODULE, privacy_iq_get, 1],
-     [privacy_iq_set,         Host, ?MODULE, privacy_iq_set, 1],
-     [privacy_check_packet,   Host, ?MODULE, privacy_check_packet, 55],
-     [sm_broadcast,           Host, ?MODULE, privacy_list_push, 1]
-     | mongoose_metrics_mam_hooks:get_hooks(Host)].
+    [ {sm_register_connection_hook, Host, ?MODULE, sm_register_connection_hook, 50},
+      {sm_remove_connection_hook, Host, ?MODULE, sm_remove_connection_hook, 50},
+      {auth_failed, Host, ?MODULE, auth_failed, 50},
+      {user_send_packet, Host, ?MODULE, user_send_packet, 50},
+      {user_receive_packet, Host, ?MODULE, user_receive_packet, 50},
+      {xmpp_stanza_dropped, Host, ?MODULE, xmpp_stanza_dropped, 50},
+      {xmpp_bounce_message, Host, ?MODULE, xmpp_bounce_message, 50},
+      {xmpp_send_element, Host, ?MODULE, xmpp_send_element, 50},
+      {roster_get, Host, ?MODULE, roster_get, 55},
+      {roster_set, Host, ?MODULE, roster_set, 50},
+      {roster_push, Host, ?MODULE, roster_push, 50},
+      {roster_in_subscription, Host, ?MODULE, roster_in_subscription, 55},
+      {register_user, Host, ?MODULE, register_user, 50},
+      {remove_user, Host, ?MODULE, remove_user, 50},
+      {privacy_iq_get, Host, ?MODULE, privacy_iq_get, 1},
+      {privacy_iq_set, Host, ?MODULE, privacy_iq_set, 1},
+      {privacy_check_packet, Host, ?MODULE, privacy_check_packet, 55},
+      {sm_broadcast, Host, ?MODULE, privacy_list_push, 1}
+      | mongoose_metrics_mam_hooks:get_hooks(Host)].
 
 -spec sm_register_connection_hook(map(), tuple(), jid:jid(), term()
                                  ) -> metrics_notify_return().

@@ -182,7 +182,7 @@ mock_mongoose_metrics() ->
       KeyName :: mod_keystore:key_name(),
       Result :: mod_keystore:key_list().
 get_key(Domain, KeyName) ->
-    ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
+    mongoose_hooks:get_key(Domain,[],KeyName).
 
 %%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
 %%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},

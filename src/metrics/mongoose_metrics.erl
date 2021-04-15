@@ -394,10 +394,10 @@ do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
     end.
 
 -spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.
-metrics_hooks(Op, Host) ->
-    lists:foreach(fun(Hook) ->
-        apply(ejabberd_hooks, Op, Hook)
-    end, mongoose_metrics_hooks:get_hooks(Host)).
+metrics_hooks(add, Host) ->
+    ejabberd_hooks:add(mongoose_metrics_hooks:get_hooks(Host));
+metrics_hooks(delete, Host) ->
+    ejabberd_hooks:delete(mongoose_metrics_hooks:get_hooks(Host)).
 
 create_data_metrics() ->
     lists:foreach(fun(Metric) -> ensure_metric(global, Metric, histogram) end,

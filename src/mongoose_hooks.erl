@@ -6,7 +6,9 @@
 -module(mongoose_hooks).
 
 -export([adhoc_local_items/5,
+         adhoc_local_commands/4,
          adhoc_sm_items/5,
+         adhoc_sm_commands/4,
          anonymous_purge_hook/3,
          auth_failed/2,
          ejabberd_ctl_process/2,
@@ -152,7 +154,8 @@
 -export([c2s_remote_hook/5]).
 
 -export([disable_domain/2,
-         remove_domain/2]).
+         remove_domain/2,
+         node_cleanup/1]).
 
 -spec c2s_remote_hook(LServer, Tag, Args, HandlerState, C2SState) -> Result when
     LServer :: jid:lserver(),
@@ -174,6 +177,15 @@ c2s_remote_hook(LServer, Tag, Args, HandlerState, C2SState) ->
 adhoc_local_items(LServer, Acc, From, To, Lang) ->
     ejabberd_hooks:run_fold(adhoc_local_items, LServer, Acc, [From, To, Lang]).
 
+-spec adhoc_local_commands(LServer, From, To, AdhocRequest) -> Result when
+    LServer :: jid:lserver(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    AdhocRequest :: adhoc:request(),
+    Result :: mod_adhoc:command_hook_acc().
+adhoc_local_commands(LServer, From, To, AdhocRequest) ->
+    ejabberd_hooks:run_fold(adhoc_local_commands, LServer, empty, [From, To, AdhocRequest]).
+
 -spec adhoc_sm_items(LServer, Acc, From, To, Lang) -> Result when
     LServer :: jid:lserver(),
     Acc :: {result, [exml:element()]},
@@ -183,6 +195,15 @@ adhoc_local_items(LServer, Acc, From, To, Lang) ->
     Result :: {result, [exml:element()]}.
 adhoc_sm_items(LServer, Acc, From, To, Lang) ->
     ejabberd_hooks:run_fold(adhoc_sm_items, LServer, Acc, [From, To, Lang]).
+
+-spec adhoc_sm_commands(LServer, From, To, AdhocRequest) -> Result when
+    LServer :: jid:lserver(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    AdhocRequest :: adhoc:request(),
+    Result :: ignore | empty | {error, exml:element()} | exml:element().
+adhoc_sm_commands(LServer, From, To, AdhocRequest) ->
+    ejabberd_hooks:run_fold(adhoc_sm_commands, LServer, empty, [From, To, AdhocRequest]).
 
 %%% @doc The `anonymous_purge_hook' hook is called when anonymous user's data is removed.
 -spec anonymous_purge_hook(LServer, Acc, LUser) -> Result when
@@ -213,6 +234,10 @@ disable_domain(HostType, Domain) ->
     Result :: ok.
 remove_domain(HostType, Domain) ->
     ejabberd_hooks:run(remove_domain, [HostType, Domain]).
+
+-spec node_cleanup(Node :: node()) -> Acc :: map().
+node_cleanup(Node) ->
+    ejabberd_hooks:run_fold(node_cleanup, #{}, [Node]).
 
 -spec ejabberd_ctl_process(Acc, Args) -> Result when
     Acc :: any(),

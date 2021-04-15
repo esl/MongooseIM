@@ -134,7 +134,7 @@ process_rules(Packet, From, Event, Rules) ->
     PacketResult = take_action(Packet, From, RulesWithResults),
     return_result(PacketResult, Event, RulesWithResults).
 
-%% @doc ejabberd_hooks helpers
+%% @doc hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
     mongoose_hooks:amp_verify_support(Host, [], Rules).

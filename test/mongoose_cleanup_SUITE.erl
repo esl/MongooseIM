@@ -66,7 +66,7 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     meck:expect(ejabberd_hooks, error_running_hook, fun(_, _, _) -> ok end),
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     Self = self(),
-    NotifySelf = fun (Acc, Node) -> Self ! {got_nodedown, Node}, Acc end,
+    NotifySelf = fun(Acc, Node) -> Self ! {got_nodedown, Node}, Acc end,
     ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
 
     FakeNode = fakename@fakehost,
@@ -77,35 +77,36 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     after timer:seconds(1) ->
         ct:fail({timeout, got_nodedown})
     end,
-    ?assertEqual(false, meck:called(ejabberd_hooks, error_running_hook, ['_','_','_'])).
+    ?assertEqual(false, meck:called(ejabberd_hooks, error_running_hook,
+                                    ['_', {node_cleanup, global}, '_'])).
 
 auth_anonymous(_Config) ->
-    ejabberd_auth_anonymous:start(?HOST),
     {U, S, R, JID, SID} = get_fake_session(),
+    ejabberd_auth_anonymous:start(S),
     Info = [{auth_module, ejabberd_auth_anonymous}],
     ejabberd_auth_anonymous:register_connection(#{}, SID, JID, Info),
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
-    ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+    mongoose_hooks:session_cleanup(S, ok, U, R, SID),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
 
 last(_Config) ->
-    mod_last:start(?HOST, [{backend, mnesia}, {iqdisc, no_queue}]),
     {U, S, R, _JID, SID} = get_fake_session(),
+    mod_last:start(S, [{backend, mnesia}, {iqdisc, no_queue}]),
     not_found = mod_last:get_last_info(U, S),
     Status1 = <<"status1">>,
     #{} = mod_last:on_presence_update(#{}, U, S, R, Status1),
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
     async_helper:wait_until(
       fun() ->
-              ejabberd_hooks:run(session_cleanup, ?HOST, [U, S, R, SID]),
+              mongoose_hooks:session_cleanup(S, ok, U, R, SID),
               {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
               TS2 - TS1 > 0
       end,
       true).
 
 stream_management(_Config) ->
-    mod_stream_management:start(?HOST, []),
     {U, S, R, _JID, SID} = get_fake_session(),
+    mod_stream_management:start(S, []),
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(SMID),
@@ -113,7 +114,7 @@ stream_management(_Config) ->
             #{location => ?LOCATION,
               lserver => S,
               element => undefined}),
-    ejabberd_hooks:run_fold(session_cleanup, ?HOST, Acc, [U, S, R, SID]),
+    mongoose_hooks:session_cleanup(S, Acc, U, R, SID),
     {error, smid_not_found} = mod_stream_management:get_sid(SMID).
 
 local(_Config) ->
@@ -131,7 +132,7 @@ local(_Config) ->
 
     ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 2000),
     {ok, undefined, _F} = ejabberd_local:get_iq_callback(ID),
-    ejabberd_hooks:run(node_cleanup, [node()]),
+    mongoose_hooks:node_cleanup(node()),
     error = ejabberd_local:get_iq_callback(ID).
 
 s2s(_Config) ->
@@ -140,7 +141,7 @@ s2s(_Config) ->
     ejabberd_s2s:try_register(FromTo),
     Self = self(),
     [Self] = ejabberd_s2s:get_connections_pids(FromTo),
-    ejabberd_hooks:run(node_cleanup, [node()]),
+    mongoose_hooks:node_cleanup(node()),
     [] = ejabberd_s2s:get_connections_pids(FromTo).
 
 bosh(_Config) ->
@@ -150,7 +151,7 @@ bosh(_Config) ->
     {error, _} = mod_bosh:get_session_socket(SID),
     mod_bosh:store_session(SID, Self),
     {ok, Self} = mod_bosh:get_session_socket(SID),
-    ejabberd_hooks:run(node_cleanup, [node()]),
+    mongoose_hooks:node_cleanup(node()),
     {error, _} = mod_bosh:get_session_socket(SID),
     ok.
 

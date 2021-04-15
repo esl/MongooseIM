@@ -28,6 +28,9 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+-type command_hook_acc() :: {error, exml:element()} | exml:element() | ignore | empty.
+-export_type([command_hook_acc/0]).
+
 -export([start/2,
          stop/1,
          config_spec/0,
@@ -224,12 +227,10 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
 process_local_iq(From, To, Acc, IQ) ->
     {Acc, process_adhoc_request(From, To, IQ, adhoc_local_commands)}.
 
-
 -spec process_sm_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), ignore | jlib:iq()}.
 process_sm_iq(From, To, Acc, IQ) ->
     {Acc, process_adhoc_request(From, To, IQ, adhoc_sm_commands)}.
-
 
 -spec process_adhoc_request(jid:jid(), jid:jid(), jlib:iq(),
         Hook :: atom()) -> ignore | jlib:iq().
@@ -240,8 +241,7 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
             IQ#iq{type = error, sub_el = [SubEl, Error]};
         #adhoc_request{} = AdhocRequest ->
             Host = To#jid.lserver,
-            case ejabberd_hooks:run_fold(Hook, Host, empty,
-                                         [From, To, AdhocRequest]) of
+            case run_request_hook(Hook, Host, From, To, AdhocRequest) of
                 ignore ->
                     ignore;
                 empty ->
@@ -253,6 +253,10 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
             end
     end.
 
+run_request_hook(adhoc_local_commands, Host, From, To, AdhocRequest) ->
+    mongoose_hooks:adhoc_local_commands(Host, From, To, AdhocRequest);
+run_request_hook(adhoc_sm_commands, Host, From, To, AdhocRequest) ->
+    mongoose_hooks:adhoc_sm_commands(Host, From, To, AdhocRequest).
 
 -spec ping_item(Acc :: {result, [exml:element()]},
                 From :: jid:jid(),
@@ -272,11 +276,11 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
     {result, Items ++ Nodes}.
 
 
--spec ping_command(Acc :: _,
+-spec ping_command(Acc :: command_hook_acc(),
                    From :: jid:jid(),
                    To :: jid:jid(),
-                   adhoc:request()) -> {error, _} | adhoc:response().
-ping_command(_Acc, _From, _To,
+                   adhoc:request()) -> command_hook_acc().
+ping_command(empty, _From, _To,
              #adhoc_request{lang = Lang,
                             node = <<"ping">> = Node,
                             session_id = SessionID,
