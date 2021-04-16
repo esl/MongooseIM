@@ -40,16 +40,8 @@ INSERT INTO muc_light_config(room_id, opt, val) VALUES ('put id here', 'backgrou
 
 ## MSSQL connectivity via ODBC
 
-The ODBC driver currently used by MongooseIM is known to work only with Ubuntu Xenial x64 and FreeTDS 0.91-6.1build1.
-
-It does not currently work on Ubuntu Bionic, CentOS 7 and macOS Mojave with the latest FreeTDS version.
-
-The team is working on resolving this issue.
-Please watch for updates in MongooseIM release notes.
-
-### Proposed workaround
-
-Use Ubuntu Xenial x64 for MongooseIM deployment. This OS version is still maintained.
+We have observed some issues with he ODBC driver used by MongooseIM in the past.
+The problems should now be resolved, and MSSQL is verified to work on Ubuntu 20.04.2 LTS.
 
 ## GDPR retrieval for MAM MUC limitation
 

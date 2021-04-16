@@ -2,22 +2,17 @@
 
 The test runner script is used to compile MongooseIM and run tests.
 
-## IMPORTANT!
-
-* ODBC preset can only be tested [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
-* SELinux may prevent containers from accessing the disk. Please either disable it or add proper rules to the policy.
-
 ## Requirements
 
 ### Docker
 
 Docker must be installed on the local system and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
 
-### MSSQL connectivity
+### FreeTDS for MSSQL connectivity
 
 MongooseIM requires FreeTDS in order to connect to MSSQL container.
 
-First of all, please install the driver itself:
+Please install the driver:
 
 ```bash
 # Ubuntu
@@ -30,12 +25,10 @@ $ sudo yum install freetds
 $ brew install freetds
 ```
 
-Then, please modify `tools/travis-setup-db.sh` script to use the proper FreeTDS paths.
-Find a configuration block starting with `[mongoose-mssql]`.
-
-* In case of Ubuntu, you don't need to change anything.
-* For CentOS, change `Driver` and `Setup` to point `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
-* For macOS, remove the `Setup` line and set `Driver` to `Driver = /usr/local/Cellar/freetds/[current version]/lib/libtdsodbc.so`.
+In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation, 
+you may have to modify the `tools/travis-setup-db.sh` script to use the proper paths.
+Find a configuration block starting with `[mongoose-mssql]` and change the `Driver` and `Setup`.
+For example, for CentOS change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
 
 ## How to print the instructions
 
