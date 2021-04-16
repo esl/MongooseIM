@@ -87,7 +87,7 @@ For example, some test has failed in `mam_SUITE`. The command was used to
 execute tests:
 
 ```bash
-./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes
+./tools/test-runner.sh --skip-small-tests --db pgqsl --preset pgsql_mnesia --skip-stop-nodes
 ```
 
 `--skip-stop-nodes` is optional here, because if any big test fails, then nodes
@@ -132,10 +132,10 @@ Unit test running example using test runner:
 ./tools/test-runner.sh --skip-big-tests --verbose
 
 # Run sha_SUITE without cover
-./tools/test-runner.sh --skip-big-tests sha --skip-cover
+./tools/test-runner.sh --skip-big-tests --skip-cover -- sha
 
 # Run the 'general' group in config_parser_SUITE, show progress
-./tools/test-runner.sh --skip-big-tests config_parser:general --verbose
+./tools/test-runner.sh --skip-big-tests --verbose -- config_parser:general
 ```
 
 ## End-to-end tests (a.k.a. "big tests")
@@ -145,17 +145,13 @@ Unit test running example using test runner:
 Most important options are preset and database:
 
 ```bash
-# Runs privacy_SUITE and private_SUITE with MySQL
-./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia -- privacy private
-
-
-# Runs MAM tests for MUC light with MySQL and Postgres
-./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:rdbms_muc_light
+# Runs privacy_SUITE and private_SUITE with PostgreSQL
+./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia -- privacy private
 
 # Runs rdbms_SUITE with MSSQL
 # Inits a single MongooseIM node (works for some tests only)
 # Disables cover
-./tools/test-runner.sh --skip-small-tests --db mssql --preset rdbms_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
+./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 --skip-cover -- rdbms
 ```
 
 ### TL;DR
