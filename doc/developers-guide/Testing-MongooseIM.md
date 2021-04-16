@@ -6,7 +6,7 @@ The test runner script is used to compile MongooseIM and run tests.
 
 ### Docker
 
-Docker must be installed on the local system and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
+Docker must be installed on the local system, and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
 
 ### FreeTDS for MSSQL connectivity
 
@@ -117,7 +117,7 @@ The test suites are located in `test/` directory.
 To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct --suite test/my_selected_SUITE`.
 Rebar recompiles all the code automatically, there is no need for a separate compilation step.
 
-If all the tests pass, you wll get no output and summary log will be available in ct.log.
+If all the tests pass, you will get no output and summary log will be available in `ct.log`.
 If any of the tests fail the summary log is printed to stdout.
 
 Detailed test results in a nice HTML format are saved in
@@ -149,12 +149,14 @@ Most important options are preset and database:
 ./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia -- privacy private
 
 # Runs rdbms_SUITE with MSSQL
-# Inits a single MongooseIM node (works for some tests only)
+# Initialises a single MongooseIM node (works for some tests only)
 # Disables cover
 ./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 --skip-cover -- rdbms
 ```
 
 ### TL;DR
+
+You can also run the tests "by hand", instead of using the test runner.
 
 In shell #1:
 
@@ -284,7 +286,7 @@ It's worth running `default.spec` once in a while to check for regressions.
 
 Consult the `default.spec` file to see how to run only selected tests/groups/cases.
 
-If you're sure that none of the test dependencies have changed and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
+If you're sure that none of the test dependencies have changed, and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
 
 ```sh
 make quicktest PREPARE=
@@ -329,7 +331,7 @@ can be of some help.
 
 If you want to check how much of the code is covered by tests, run:
 
-```
+```sh
 make cover_quicktest
 ```
 

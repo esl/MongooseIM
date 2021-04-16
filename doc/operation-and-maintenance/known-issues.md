@@ -6,7 +6,7 @@ You may also find proposed workarounds if any are available.
 Before MongooseIM 3.5.x (incl.) new MUC Light rooms could be created with some config fields absent in the RDBMS table.
 These options couldn't be re-added later by changing the room config via requests from the clients.
 
-It happened when the default config was a subset of the schema and the client hasn't provided these values when a room was created.
+It happened when the default config was a subset of the schema, and the client hasn't provided these values when a room was created.
 
 Please note that this issue was resolved from MIM 3.6.0 onwards as the `default_config` option was deleted.
 
@@ -46,7 +46,7 @@ The problems should now be resolved, and MSSQL is verified to work on Ubuntu 20.
 ## GDPR retrieval for MAM MUC limitation
 
 When the personal data retrieval is executed for a user in a specific domain, Message Archive Management for groupchats must be running for this particular domain.
-This is the case for most configurations but the problem manifests when a MongooseIM operator configures `mod_mam_muc`/`mod_mam_meta` to start only for a subset of domains supported by the cluster (`host_config` option).
+This is the case for most configurations, but the problem manifests when a MongooseIM operator configures `mod_mam_muc`/`mod_mam_meta` to start only for a subset of domains supported by the cluster (`host_config` option).
 
 In such case, personal data stored by MAM MUC will not be retrieved for this user.
 
