@@ -341,25 +341,25 @@ Coverage statistics will be available in `big_tests/ct_report/cover.html` and `c
 ### Advanced topics
 
 There are many more options available.
-One of them is sequentially testing a number of preset configurations - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
+One of them is sequentially testing a number of preset configurations - we do it every day on CircleCI, testing MongooseIM with various OTP versions and database backends.
 Altogether, we have eight preset configuration.
 
-If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
+If you want to dig deeper, consult `.circleci/config.yml`, `.github/workflows/ci.yml` and `tools/travis-test.sh`, everything we do is there.
 
-#### Gathering test reports from Travis tests
+#### Gathering test reports from tests
 
-If you test your MongooseIM fork on Travis, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
+If you test your MongooseIM fork on Travis or other CI provider, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
 
 ##### Uploading reports to S3
 
 Our script uses AWS CLI to upload test results to an S3 bucket.
-Simply set [relevant environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html) in your repository settings on Travis (at least `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` have to be set), and enjoy test reports landing straight into your bucket (`AWS_BUCKET` variable should store the bucket's name).
+Simply set [relevant environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html) in your repository settings (at least `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` have to be set), and enjoy test reports landing straight into your bucket (`AWS_BUCKET` variable should store the bucket's name).
 
 ##### Uploading reports to Google Drive
 
 To store test results in Google Drive you need to [create a new project and obtain service account credentials](https://developers.google.com/identity/protocols/OAuth2ServiceAccount).
 You must also add Google Drive API to your project - to do this, navigate to *APIs & Services* in your project console and find & add *Google Drive API* in the *Library* tab.
-Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your Travis repository settings.
+Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your repository settings.
 
 ###### Saving reports on your personal account
 
@@ -370,7 +370,7 @@ You can see this [on the Service Accounts tab of the project console](https://co
 Now, create a directory on your Google Drive that will serve as the test root directory.
 Go into the directory's sharing options and paste in the project's user ID, granting it write access.
 Click to expand the *advanced* sharing options and note the ID of the shared directory that's displayed in the share link (e.g. if the link is `https://drive.google.com/drive/folders/1234567890abcdef?usp=sharing`, the directory's ID is `1234567890abcdef`).
-Finally, set `GDRIVE_PARENT_DIR` environment variable of your Travis build to the directory ID that you noted in the previous step.
+Finally, set `GDRIVE_PARENT_DIR` environment variable of your build to the directory ID that you noted in the previous step.
 
 ### Load testing
 
