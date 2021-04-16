@@ -10,7 +10,8 @@
 
 ### Added
 - Documentation for `mod_offline.store_groupchat_messages` option (#2992)
-- Inbox extensions (#3067)
+- Support of MS SQL and MySQL in `mod_auth_token` (#3059)
+- Inbox extensions to set entries as archived, muted or read (#3067)
 - `mod_domain_isolation` module to limit message passing between domains (#3070)
 
 ### Removed
@@ -20,19 +21,19 @@
 ### Changed
 - Usage of maps instead of lists in session management (#3018)
 - Improved timestamp logic (#3031)
-- Prepared queries for MS SQL, mySQL and pgSQL (#3039, #3050, #3055, #3059, #3060, #3066, #3074, #3078)
+- Prepared queries for MS SQL, MySQL and PostgreSQL (#3039, #3050, #3055, #3059, #3060, #3066, #3074, #3078)
 - Improved pipeline for `mod_smart_markers` (#3068)
 - Unified checks for chat markers (#3080)
-- Set `mod_mam_meta.pm.archive_groupchats` to `false` by default (#3082)
 
 ### Fixed
 - Creation of `modMucMamFlushed` metric (#3023)
 - Starting backend containers for Mac OS X (#3033)
 - Minor issues with GitHub Actions (#3045)
-- Crash during handover session (#3056)
+- Crash during session handover (#3056)
 - Type declaration in `mod_muc_light.hrl` (#3057)
 - Test summary is no longer printed when CT directory is not created (#3069)
 - Explicit `preset_not_found` error when running tests with nonexistent preset (#3072)
+- Set `mod_mam_meta.pm.archive_groupchats` to `false` by default (#3082)
 
 ### Other
 - Dependencies update (#3036, #3077)
@@ -47,6 +48,10 @@
 
 [List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222021-02-04..2021-04-20%22%20sort%3Acreated-asc%20)
 
+## Special thanks to our contributors:
+- Inbox extensions are sponsored by [Beekeeper](https://www.beekeeper.io/)
+- [@antivista](https://github.com/antivista) For the documentation supplement (#2992)
+- [@imcyee](https://github.com/imcyee) For fixing handover crash (#3056)
 
 # [MongooseIM 4.1.0](https://github.com/esl/MongooseIM/releases/tag/4.1.0) - 2021-02-02
 
