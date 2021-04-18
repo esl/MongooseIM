@@ -75,7 +75,8 @@ create_global_metrics() ->
 -spec init_predefined_host_metrics(jid:lserver()) -> ok.
 init_predefined_host_metrics(Host) ->
     create_metrics(Host),
-    metrics_hooks(add, Host),
+    Hooks = mongoose_metrics_hooks:get_hooks(Host),
+    ejabberd_hooks:add(Hooks),
     ok.
 
 init_subscriptions() ->
@@ -392,12 +393,6 @@ do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
         ok -> ok;
         {'EXIT', Error} -> {error, Error}
     end.
-
--spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.
-metrics_hooks(add, Host) ->
-    ejabberd_hooks:add(mongoose_metrics_hooks:get_hooks(Host));
-metrics_hooks(delete, Host) ->
-    ejabberd_hooks:delete(mongoose_metrics_hooks:get_hooks(Host)).
 
 create_data_metrics() ->
     lists:foreach(fun(Metric) -> ensure_metric(global, Metric, histogram) end,
