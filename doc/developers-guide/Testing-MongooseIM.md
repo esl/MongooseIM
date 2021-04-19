@@ -2,22 +2,17 @@
 
 The test runner script is used to compile MongooseIM and run tests.
 
-## IMPORTANT!
-
-* ODBC preset can only be tested [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
-* SELinux may prevent containers from accessing the disk. Please either disable it or add proper rules to the policy.
-
 ## Requirements
 
 ### Docker
 
-Docker must be installed on the local system and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
+Docker must be installed on the local system, and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
 
-### MSSQL connectivity
+### FreeTDS for MSSQL connectivity
 
 MongooseIM requires FreeTDS in order to connect to MSSQL container.
 
-First of all, please install the driver itself:
+Please install the driver:
 
 ```bash
 # Ubuntu
@@ -30,12 +25,10 @@ $ sudo yum install freetds
 $ brew install freetds
 ```
 
-Then, please modify `tools/travis-setup-db.sh` script to use the proper FreeTDS paths.
-Find a configuration block starting with `[mongoose-mssql]`.
-
-* In case of Ubuntu, you don't need to change anything.
-* For CentOS, change `Driver` and `Setup` to point `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
-* For macOS, remove the `Setup` line and set `Driver` to `Driver = /usr/local/Cellar/freetds/[current version]/lib/libtdsodbc.so`.
+In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation, 
+you may have to modify the `tools/travis-setup-db.sh` script to use the proper paths.
+Find a configuration block starting with `[mongoose-mssql]` and change the `Driver` and `Setup`.
+For example, for CentOS change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
 
 ## How to print the instructions
 
@@ -94,7 +87,7 @@ For example, some test has failed in `mam_SUITE`. The command was used to
 execute tests:
 
 ```bash
-./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes
+./tools/test-runner.sh --skip-small-tests --db pgqsl --preset pgsql_mnesia --skip-stop-nodes
 ```
 
 `--skip-stop-nodes` is optional here, because if any big test fails, then nodes
@@ -124,7 +117,7 @@ The test suites are located in `test/` directory.
 To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct --suite test/my_selected_SUITE`.
 Rebar recompiles all the code automatically, there is no need for a separate compilation step.
 
-If all the tests pass, you wll get no output and summary log will be available in ct.log.
+If all the tests pass, you will get no output and summary log will be available in `ct.log`.
 If any of the tests fail the summary log is printed to stdout.
 
 Detailed test results in a nice HTML format are saved in
@@ -139,10 +132,10 @@ Unit test running example using test runner:
 ./tools/test-runner.sh --skip-big-tests --verbose
 
 # Run sha_SUITE without cover
-./tools/test-runner.sh --skip-big-tests sha --skip-cover
+./tools/test-runner.sh --skip-big-tests --skip-cover -- sha
 
 # Run the 'general' group in config_parser_SUITE, show progress
-./tools/test-runner.sh --skip-big-tests config_parser:general --verbose
+./tools/test-runner.sh --skip-big-tests --verbose -- config_parser:general
 ```
 
 ## End-to-end tests (a.k.a. "big tests")
@@ -152,20 +145,18 @@ Unit test running example using test runner:
 Most important options are preset and database:
 
 ```bash
-# Runs privacy_SUITE and private_SUITE with MySQL
-./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia -- privacy private
-
-
-# Runs MAM tests for MUC light with MySQL and Postgres
-./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:rdbms_muc_light
+# Runs privacy_SUITE and private_SUITE with PostgreSQL
+./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia -- privacy private
 
 # Runs rdbms_SUITE with MSSQL
-# Inits a single MongooseIM node (works for some tests only)
+# Initialises a single MongooseIM node (works for some tests only)
 # Disables cover
-./tools/test-runner.sh --skip-small-tests --db mssql --preset rdbms_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
+./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 --skip-cover -- rdbms
 ```
 
 ### TL;DR
+
+You can also run the tests "by hand", instead of using the test runner.
 
 In shell #1:
 
@@ -295,7 +286,7 @@ It's worth running `default.spec` once in a while to check for regressions.
 
 Consult the `default.spec` file to see how to run only selected tests/groups/cases.
 
-If you're sure that none of the test dependencies have changed and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
+If you're sure that none of the test dependencies have changed, and you only edited the test suites and/or MongooseIM code, it's possible to speed up the tests by skipping the Rebar dependency and compilation checks by providing `PREPARE=` (i.e. an empty value):
 
 ```sh
 make quicktest PREPARE=
@@ -340,7 +331,7 @@ can be of some help.
 
 If you want to check how much of the code is covered by tests, run:
 
-```
+```sh
 make cover_quicktest
 ```
 
@@ -352,25 +343,25 @@ Coverage statistics will be available in `big_tests/ct_report/cover.html` and `c
 ### Advanced topics
 
 There are many more options available.
-One of them is sequentially testing a number of preset configurations - we do it every day on Travis, testing MongooseIM with various OTP versions and database backends.
+One of them is sequentially testing a number of preset configurations - we do it every day on CircleCI, testing MongooseIM with various OTP versions and database backends.
 Altogether, we have eight preset configuration.
 
-If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
+If you want to dig deeper, consult `.circleci/config.yml`, `.github/workflows/ci.yml` and `tools/travis-test.sh`, everything we do is there.
 
-#### Gathering test reports from Travis tests
+#### Gathering test reports from tests
 
-If you test your MongooseIM fork on Travis, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
+If you test your MongooseIM fork on Travis or other CI provider, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
 
 ##### Uploading reports to S3
 
 Our script uses AWS CLI to upload test results to an S3 bucket.
-Simply set [relevant environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html) in your repository settings on Travis (at least `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` have to be set), and enjoy test reports landing straight into your bucket (`AWS_BUCKET` variable should store the bucket's name).
+Simply set [relevant environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html) in your repository settings (at least `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` have to be set), and enjoy test reports landing straight into your bucket (`AWS_BUCKET` variable should store the bucket's name).
 
 ##### Uploading reports to Google Drive
 
 To store test results in Google Drive you need to [create a new project and obtain service account credentials](https://developers.google.com/identity/protocols/OAuth2ServiceAccount).
 You must also add Google Drive API to your project - to do this, navigate to *APIs & Services* in your project console and find & add *Google Drive API* in the *Library* tab.
-Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your Travis repository settings.
+Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your repository settings.
 
 ###### Saving reports on your personal account
 
@@ -381,7 +372,7 @@ You can see this [on the Service Accounts tab of the project console](https://co
 Now, create a directory on your Google Drive that will serve as the test root directory.
 Go into the directory's sharing options and paste in the project's user ID, granting it write access.
 Click to expand the *advanced* sharing options and note the ID of the shared directory that's displayed in the share link (e.g. if the link is `https://drive.google.com/drive/folders/1234567890abcdef?usp=sharing`, the directory's ID is `1234567890abcdef`).
-Finally, set `GDRIVE_PARENT_DIR` environment variable of your Travis build to the directory ID that you noted in the previous step.
+Finally, set `GDRIVE_PARENT_DIR` environment variable of your build to the directory ID that you noted in the previous step.
 
 ### Load testing
 
