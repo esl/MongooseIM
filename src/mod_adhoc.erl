@@ -106,7 +106,7 @@ get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
             {result, Items ++ Nodes}
     end;
 get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    mongoose_hooks:adhoc_local_items(LServer, {result, []}, From, To, Lang);
+    mongoose_hooks:adhoc_local_items(LServer, From, To, Lang);
 get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
     {result, []};
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
@@ -137,7 +137,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
     end;
 
 get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    mongoose_hooks:adhoc_sm_items(LServer, {result, []}, From, To, Lang);
+    mongoose_hooks:adhoc_sm_items(LServer, From, To, Lang);
 
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.

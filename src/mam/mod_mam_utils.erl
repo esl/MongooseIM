@@ -1087,7 +1087,7 @@ send_message(From, To, Mess) ->
 is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,
                       #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
-    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, {none, []}, ToJID, RemBareJID),
+    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, ToJID, RemBareJID),
     Subscription == from orelse Subscription == both.
 
 %% @doc Returns a UUIDv4 canonical form binary.

@@ -685,9 +685,7 @@ broadcast_privacy_list_packet(Name, UserList) ->
     {broadcast, {privacy_list, UserList, Name}}.
 
 roster_get_jid_info(Host, ToJID, LJID) ->
-    mongoose_hooks:roster_get_jid_info(Host,
-                                       {none, []},
-                                       ToJID, LJID).
+    mongoose_hooks:roster_get_jid_info(Host, ToJID, LJID).
 
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}

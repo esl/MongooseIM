@@ -182,7 +182,7 @@ handle_remote_call(send_ping, JID, Server, HandlerState) ->
     route_ping_iq(JID, Server),
     start_ping_timer(HandlerState, Server);
 handle_remote_call(timeout, JID, Server, HandlerState) ->
-    mongoose_hooks:user_ping_timeout(Server, ok, JID),
+    mongoose_hooks:user_ping_timeout(Server, JID),
     case gen_mod:get_module_opt(Server, ?MODULE, timeout_action, none) of
         kill -> ejabberd_c2s:stop(self());
         _ -> ok

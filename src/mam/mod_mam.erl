@@ -166,7 +166,7 @@
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
     Schema = ["id", "from", "message"],
-    Entries = mongoose_hooks:get_mam_pm_gdpr_data(LServer, [], JID),
+    Entries = mongoose_hooks:get_mam_pm_gdpr_data(LServer, JID),
     [{mam_pm, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
@@ -528,7 +528,7 @@ is_interesting(LocJID, RemJID) ->
     is_interesting(Host, LocJID, RemJID, ArcID).
 
 is_interesting(Host, LocJID, RemJID, ArcID) ->
-    case get_behaviour(Host, ArcID, LocJID, RemJID, always) of
+    case get_behaviour(Host, ArcID, LocJID, RemJID) of
         always -> true;
         never  -> false;
         roster -> is_jid_in_user_roster(LocJID, RemJID)
@@ -540,28 +540,26 @@ is_interesting(Host, LocJID, RemJID, ArcID) ->
 -spec archive_id_int(jid:server(), jid:jid()) ->
                             non_neg_integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
-    mongoose_hooks:mam_archive_id(Host, undefined, ArcJID).
+    mongoose_hooks:mam_archive_id(Host, ArcJID).
 
 
 -spec archive_size(jid:server(), archive_id(), jid:jid()) -> integer().
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
-    mongoose_hooks:mam_archive_size(Host, 0, ArcID, ArcJID).
+    mongoose_hooks:mam_archive_size(Host, ArcID, ArcJID).
 
 
 -spec get_behaviour(jid:server(), archive_id(), LocJID :: jid:jid(),
-                    RemJID :: jid:jid(), Default :: 'always') -> atom().
-get_behaviour(Host, ArcID,
-              LocJID=#jid{},
-              RemJID=#jid{}, DefaultBehaviour) ->
-  mongoose_hooks:mam_get_behaviour(Host, DefaultBehaviour, ArcID, LocJID, RemJID).
+                    RemJID :: jid:jid()) -> atom().
+get_behaviour(Host, ArcID,  LocJID=#jid{}, RemJID=#jid{}) ->
+  mongoose_hooks:mam_get_behaviour(Host, ArcID, LocJID, RemJID).
 
 
 -spec set_prefs(jid:server(), archive_id(), ArcJID :: jid:jid(),
                 DefaultMode :: atom(), AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    mongoose_hooks:mam_set_prefs(Host, {error, not_implemented},
-                                 ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs).
+    mongoose_hooks:mam_set_prefs(Host, ArcID, ArcJID, DefaultMode,
+                                 AlwaysJIDs, NeverJIDs).
 
 
 %% @doc Load settings from the database.
@@ -569,11 +567,11 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 ArcJID :: jid:jid(), GlobalDefaultMode :: archive_behaviour()
                ) -> preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    mongoose_hooks:mam_get_prefs(Host, {GlobalDefaultMode, [], []}, ArcID, ArcJID).
+    mongoose_hooks:mam_get_prefs(Host, GlobalDefaultMode, ArcID, ArcJID).
 
 -spec remove_archive_hook(jid:server(), archive_id(), jid:jid()) -> 'ok'.
 remove_archive_hook(Host, ArcID, ArcJID=#jid{}) ->
-    mongoose_hooks:mam_remove_archive(Host, ok, ArcID, ArcJID),
+    mongoose_hooks:mam_remove_archive(Host, ArcID, ArcJID),
     ok.
 
 -spec lookup_messages(Host :: jid:server(),
@@ -594,7 +592,7 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
             {error, 'not-supported'};
         false ->
             StartT = erlang:monotonic_time(microsecond),
-            R = mongoose_hooks:mam_lookup_messages(Host, {ok, {0, 0, []}}, Params),
+            R = mongoose_hooks:mam_lookup_messages(Host, Params),
             Diff = erlang:monotonic_time(microsecond) - StartT,
             mongoose_metrics:update(Host, [backends, ?MODULE, lookup], Diff),
             R
@@ -603,7 +601,7 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 -spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
 archive_message(Host, Params) ->
     StartT = erlang:monotonic_time(microsecond),
-    R = mongoose_hooks:mam_archive_message(Host, ok, Params),
+    R = mongoose_hooks:mam_archive_message(Host, Params),
     Diff = erlang:monotonic_time(microsecond) - StartT,
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.

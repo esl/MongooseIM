@@ -547,7 +547,7 @@ allow_host1(MyHost, S2SHost) ->
             case ejabberd_config:get_local_option({s2s_default_policy, MyHost}) of
                 deny -> false;
                 _ ->
-                    mongoose_hooks:s2s_allow_host(MyHost, allow, S2SHost) /= deny
+                    mongoose_hooks:s2s_allow_host(MyHost, S2SHost) /= deny
             end
     end.
 

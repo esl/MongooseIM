@@ -259,8 +259,7 @@ open_socket(init, StateData) ->
             ?LOG_WARNING(#{what => s2s_out_failed, reason => Reason,
                            text => <<"Outgoing s2s connection failed (remote server not found)">>,
                            myname => StateData#state.myname, server => StateData#state.server}),
-            case mongoose_hooks:find_s2s_bridge(undefined,
-                                                StateData#state.myname,
+            case mongoose_hooks:find_s2s_bridge(StateData#state.myname,
                                                 StateData#state.server) of
                 {Mod, Fun, Type} ->
                     ?LOG_INFO(#{what => s2s_out_bridge_found,
@@ -387,7 +386,6 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                                 tls_enabled => StateData#state.tls_enabled,
                                 myname => StateData#state.myname, server => StateData#state.server}),
                     mongoose_hooks:s2s_connect_hook(StateData#state.myname,
-                                                    ok,
                                                     StateData#state.server),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
@@ -1307,7 +1305,6 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
                 text => <<"New outgoing s2s connection established">>,
                 myname => StateData#state.myname, server => StateData#state.server}),
     mongoose_hooks:s2s_connect_hook(StateData#state.myname,
-                                    ok,
                                     StateData#state.server),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};

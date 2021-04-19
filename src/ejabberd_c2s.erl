@@ -360,7 +360,7 @@ stream_start_features_after_auth(#state{server = Server} = S) ->
     fsm_next_state(wait_for_feature_after_auth, S).
 
 maybe_roster_versioning_feature(Server) ->
-    mongoose_hooks:roster_get_versioning_feature(Server, []).
+    mongoose_hooks:roster_get_versioning_feature(Server).
 
 stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
@@ -408,7 +408,7 @@ maybe_sasl_mechanisms(#state{host_type = HostType} = S) ->
     end.
 
 hook_enabled_features(Server) ->
-    mongoose_hooks:c2s_stream_features(Server, []).
+    mongoose_hooks:c2s_stream_features(Server).
 
 starttls_stanza(TLSRequired)
   when TLSRequired =:= required;
@@ -782,7 +782,7 @@ do_open_session_common(Acc, JID, #state{jid = JID, server = S,
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
-    PrivList = mongoose_hooks:privacy_get_user_list(S, #userlist{}, JID),
+    PrivList = mongoose_hooks:privacy_get_user_list(S, JID),
     SID = ejabberd_sm:make_new_sid(),
     Conn = get_conn_type(NewStateData0),
     Info = #{ip => NewStateData0#state.ip, conn => Conn,
@@ -1158,7 +1158,7 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
                               to_jid => To,
                               lserver => To#jid.lserver,
                               element => Packet }),
-    Drop = mongoose_hooks:c2s_filter_packet(StateData#state.server, true, StateData,
+    Drop = mongoose_hooks:c2s_filter_packet(StateData#state.server, StateData,
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
@@ -1377,7 +1377,7 @@ handle_routed_broadcast(Acc, {item, IJID, ISubscription}, StateData) ->
     {Acc2, {new_state, NewState}};
 handle_routed_broadcast(Acc, {privacy_list, PrivList, PrivListName}, StateData) ->
     case mongoose_hooks:privacy_updated_list(StateData#state.server,
-                                 false, StateData#state.privacy_list, PrivList) of
+                                             StateData#state.privacy_list, PrivList) of
         false ->
             {Acc, {new_state, StateData}};
         NewPL ->
@@ -2430,7 +2430,6 @@ process_unauthenticated_stanza(StateData, El) ->
         #iq{} = IQ ->
             Res = mongoose_hooks:c2s_unauthenticated_iq(
                                           StateData#state.server,
-                                          empty,
                                           IQ, StateData#state.ip),
             case Res of
                 empty ->
@@ -2495,7 +2494,7 @@ fsm_reply(Reply, StateName, StateData) ->
 is_ip_blacklisted(undefined) ->
     false;
 is_ip_blacklisted({IP, _Port}) ->
-    mongoose_hooks:check_bl_c2s(false, IP).
+    mongoose_hooks:check_bl_c2s(IP).
 
 
 %% @doc Check from attributes.
@@ -3320,8 +3319,7 @@ user_allowed(JID, #state{server = Server, access = Access}) ->
     end.
 
 open_session_allowed_hook(Server, JID) ->
-    allow == mongoose_hooks:session_opening_allowed_for_user(Server,
-                                                             allow, JID).
+    allow == mongoose_hooks:session_opening_allowed_for_user(Server, JID).
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,

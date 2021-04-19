@@ -52,7 +52,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
 room_pid(RoomJID=#jid{}) ->
-    mongoose_hooks:muc_room_pid(RoomJID#jid.lserver, undefined, RoomJID).
+    mongoose_hooks:muc_room_pid(RoomJID#jid.lserver, RoomJID).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks

@@ -270,7 +270,7 @@ do_try_register_in_backend([], _, _, _, _) ->
 do_try_register_in_backend([M | Backends], HostType, LUser, LServer, Password) ->
     case M:try_register(HostType, LUser, LServer, Password) of
         ok ->
-            mongoose_hooks:register_user(LServer, ok, LUser);
+            mongoose_hooks:register_user(LServer, LUser);
         _ ->
             do_try_register_in_backend(Backends, HostType, LUser, LServer, Password)
     end.

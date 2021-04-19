@@ -229,7 +229,7 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
-    lists:foreach(fun({RoomU, RoomS}) -> mongoose_hooks:forget_room(RoomS, ok, RoomS, RoomU) end,
+    lists:foreach(fun({RoomU, RoomS}) -> mongoose_hooks:forget_room(RoomS, RoomS, RoomU) end,
                   mnesia:dirty_all_keys(muc_light_room)),
     lists:foreach(fun mnesia:clear_table/1,
                   [muc_light_room, muc_light_user_room, muc_light_blocking]).

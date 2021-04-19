@@ -172,16 +172,14 @@ process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
 process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     Server = To#jid.lserver,
     {Subscription, _Groups} =
-        mongoose_hooks:roster_get_jid_info(Server, {none, []}, To, From),
+        mongoose_hooks:roster_get_jid_info(Server, To, From),
     MutualSubscription = Subscription == both,
     RequesterSubscribedToTarget = Subscription == from,
     QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
                             (From#jid.lserver == To#jid.lserver),
     case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
         true ->
-            UserListRecord = mongoose_hooks:privacy_get_user_list(Server,
-                                                                  #userlist{},
-                                                                  To),
+            UserListRecord = mongoose_hooks:privacy_get_user_list(Server, To),
             ok,
             {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, To,
                                                              UserListRecord, To, From,

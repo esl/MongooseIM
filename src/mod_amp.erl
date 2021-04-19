@@ -137,21 +137,19 @@ process_rules(Packet, From, Event, Rules) ->
 %% @doc hooks helpers
 -spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
 verify_support(Host, Rules) ->
-    mongoose_hooks:amp_verify_support(Host, [], Rules).
+    mongoose_hooks:amp_verify_support(Host, Rules).
 
 -spec determine_strategy(exml:element(), jid:jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
-    mongoose_hooks:amp_determine_strategy(host(From),
-                                          amp_strategy:null_strategy(),
-                                          From, To, Packet, Event).
+    mongoose_hooks:amp_determine_strategy(host(From), From, To, Packet, Event).
 
 apply_rules(F, Rules) ->
     [Rule#amp_rule{result = F(Rule)} || Rule <- Rules].
 
 -spec resolve_condition(jid:jid(), amp_strategy(), amp_event(), amp_rule()) -> amp_match_result().
 resolve_condition(From, Strategy, Event, Rule) ->
-    Result = mongoose_hooks:amp_check_condition(host(From), no_match, Strategy, Rule),
+    Result = mongoose_hooks:amp_check_condition(host(From), Strategy, Rule),
     match_undecided_for_final_event(Rule, Event, Result).
 
 match_undecided_for_final_event(#amp_rule{condition = deliver}, Event, undecided)
@@ -176,7 +174,7 @@ return_result(pass, _Event, Rules) ->
 take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     Host = host(From),
     reply_to_sender(Rule, server_jid(From), From, Packet),
-    mongoose_hooks:amp_notify_action_triggered(Host, ok),
+    mongoose_hooks:amp_notify_action_triggered(Host),
     pass;
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule);
@@ -203,14 +201,14 @@ send_errors_and_drop(Packet, From, ErrorRules) ->
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
     ejabberd_router:route(server_jid(From), From, ErrorResponse),
-    mongoose_hooks:amp_error_action_triggered(Host, ok),
+    mongoose_hooks:amp_error_action_triggered(Host),
     update_metric_and_drop(Packet, From).
 
 -spec update_metric_and_drop(exml:element(), jid:jid()) -> drop.
 update_metric_and_drop(Packet, From) ->
-    mongoose_hooks:xmpp_stanza_dropped(host(From),
-                                       ok,
-                                       From, message_target(Packet), Packet),
+    mongoose_hooks:xmpp_stanza_dropped(host(From), From,
+                                       message_target(Packet),
+                                       Packet),
     drop.
 
 %% Internal

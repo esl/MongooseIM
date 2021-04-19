@@ -422,7 +422,7 @@ extract_bound_jid(BindReply) ->
                                 cdata]).
 
 get_provision_key(Domain) ->
-    RPCArgs = [Domain, [], provision_pre_shared],
+    RPCArgs = [Domain, provision_pre_shared],
     [{_, RawKey}] = rpc(mim(), mongoose_hooks, get_key, RPCArgs),
     RawKey.
 

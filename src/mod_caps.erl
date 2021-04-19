@@ -208,7 +208,6 @@ disco_features(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
             mongoose_hooks:disco_local_features(To#jid.lserver,
-                                                empty,
                                                 From, To, <<"">>, Lang);
         false ->
             Acc
@@ -217,8 +216,7 @@ disco_features(Acc, From, To, Node, Lang) ->
 disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_local_identity(To#jid.lserver, [],
-                                                From, To, <<"">>, Lang);
+            mongoose_hooks:disco_local_identity(To#jid.lserver, From, To, <<"">>, Lang);
         false ->
             Acc
     end.
@@ -226,7 +224,7 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_info(Host, [], Module, <<"">>, Lang);
+            mongoose_hooks:disco_info(Host, Module, <<"">>, Lang);
         false ->
             Acc
     end.
@@ -270,12 +268,10 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
         {value, Caps} -> Rs;
         none ->
             mongoose_hooks:caps_add(To#jid.lserver,
-                                    ok,
                                     From, To, self(), get_features(To#jid.lserver, Caps)),
             gb_trees:insert(LFrom, Caps, Rs);
         _ ->
             mongoose_hooks:caps_update(To#jid.lserver,
-                                       ok,
                                        From, To, self(), get_features(To#jid.lserver, Caps)),
             gb_trees:update(LFrom, Caps, Rs)
     end.
@@ -494,11 +490,9 @@ caps_delete_fun(Node) ->
 
 make_my_disco_hash(Host) ->
     JID = jid:make(<<"">>, Host, <<"">>),
-    case {mongoose_hooks:disco_local_features(Host, empty, JID, JID, <<"">>, <<"">>),
-          mongoose_hooks:disco_local_identity(Host, [],
-                                              JID, JID, <<"">>, <<"">>),
-          mongoose_hooks:disco_info(Host, [],
-                                    undefined, <<"">>, <<"">>)}
+    case {mongoose_hooks:disco_local_features(Host, JID, JID, <<"">>, <<"">>),
+          mongoose_hooks:disco_local_identity(Host, JID, JID, <<"">>, <<"">>),
+          mongoose_hooks:disco_info(Host, undefined, <<"">>, <<"">>)}
     of
         {{result, Features}, Identities, Info} ->
             Feats = lists:map(fun ({{Feat, _Host}}) ->
