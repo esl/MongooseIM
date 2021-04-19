@@ -24,6 +24,7 @@
          ref/1,
          timestamp/1,
          lserver/1,
+         host_type/1,
          element/1,
          to_jid/1,
          from_jid/1,
@@ -82,6 +83,7 @@
         origin_stanza := binary() | undefined,
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
+        host_type := binary() | undefined,
         non_strippable := [ns_key()],
         ns_key() => Value :: any()
        }.
@@ -91,7 +93,8 @@
 -type new_acc_params() :: #{
         location := location(),
         lserver := jid:lserver(),
-        element := exml:element() | undefined,
+        element => exml:element() | undefined,
+        host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional
         to_jid => jid:jid() | undefined % optional
        }.
@@ -99,6 +102,7 @@
 -type strip_params() :: #{
         lserver := jid:lserver(),
         element := exml:element(),
+        host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional
         to_jid => jid:jid() | undefined % optional
        }.
@@ -124,6 +128,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
         undefined -> {undefined, undefined};
         Element -> {exml:to_binary(Element), stanza_from_params(Params)}
     end,
+    HostType = get_host_type(Params),
     #{
       mongoose_acc => true,
       ref => make_ref(),
@@ -133,6 +138,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       origin_stanza => ElementBin,
       stanza => Stanza,
       lserver => LServer,
+      host_type => HostType,
       %% The non_strippable elements must be unique.
       %% This used to be represented with the sets module, but as the number of elements inserted
       %% was too small, sets were themselves an overhead, and also annoying when printing
@@ -150,6 +156,10 @@ timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
 -spec lserver(Acc :: t()) -> jid:lserver().
 lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
+
+-spec host_type(Acc :: t()) -> binary() | undefined.
+host_type(#{  mongoose_acc := true, host_type := HostType }) ->
+    HostType.
 
 -spec element(Acc :: t()) -> exml:element() | undefined.
 element(#{ mongoose_acc := true, stanza := #{ element := El } }) ->
@@ -288,13 +298,23 @@ strip(#{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
 -spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
 strip(#{ lserver := NewLServer } = Params, Acc) ->
     StrippedAcc = strip(Acc),
-    StrippedAcc#{ lserver := NewLServer, stanza := stanza_from_params(Params) }.
+    StrippedAcc#{ lserver := NewLServer, host_type := get_host_type(Params),
+                  stanza := stanza_from_params(Params) }.
 
 %% --------------------------------------------------------
 %% Internal functions
 %% --------------------------------------------------------
+-spec get_host_type(new_acc_params() | strip_params()) -> binary() | undefined.
+get_host_type(#{host_type := HostType}) ->
+    HostType;
+get_host_type(#{lserver := LServer}) ->
+    case mongoose_domain_api:get_host_type(LServer) of
+        {error, not_found} -> undefined;
+        {ok, HostType} -> HostType
+    end.
 
--spec stanza_from_params(Params :: stanza_params()) -> stanza_metadata() | undefined.
+-spec stanza_from_params(Params :: stanza_params() | strip_params()) ->
+    stanza_metadata().
 stanza_from_params(#{ element := El } = Params) ->
     #{
       element => El,
@@ -325,6 +345,7 @@ default_non_strippable() ->
      origin_stanza,
      stanza,
      lserver,
+     host_type,
      non_strippable
     ].
 
