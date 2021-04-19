@@ -87,7 +87,7 @@ hooks_run_launches_nullary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_nullary, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, []),
+    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, []),
 
     %% then
     H = meck:history(hook_mod),
@@ -99,7 +99,7 @@ hooks_run_launches_unary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_onearg, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, [oneval]),
+    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, [oneval]),
 
     %% then
     [{_,{hook_mod,fun_onearg,[ok, oneval]}, oneval}] = meck:history(hook_mod).
@@ -113,7 +113,7 @@ hooks_run_ignores_different_arity_funs(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_twoarg, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, [one, two]),
+    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, [one, two]),
 
     %% then
     [{_,{hook_mod, fun_twoarg, [ok, one, two]}, success2}] = meck:history(hook_mod).
@@ -127,7 +127,7 @@ hooks_run_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_run_hook, hook_mod, another_fun, 2),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, []),
+    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, []),
 
     %% then
     [{_,{hook_mod,a_fun,[ok]}, stop}] = meck:history(hook_mod).

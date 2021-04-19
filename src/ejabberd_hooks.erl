@@ -34,9 +34,7 @@
          add/5,
          delete/4,
          delete/5,
-         run_global/2,
          run_global/3,
-         run_for_host_type/3,
          run_for_host_type/4]).
 
 %% gen_server callbacks
@@ -133,31 +131,13 @@ delete(Hooks) when is_list(Hooks) ->
 delete_hook(Hook) ->
     gen_server:call(ejabberd_hooks, {delete, Hook}).
 
-%% @doc Run the calls of this hook in order, don't care about function results.
-%% If a call returns stop, no more calls are performed.
--spec run_global(HookName :: atom(),
-                   Args :: [any()]) -> ok.
-run_global(HookName, Args) ->
-    run_fold(HookName, global, ok, Args).
-
--spec run_for_host_type(HookName :: atom(),
-                        HostType :: binary(),
-                        Args :: [any()]) -> ok.
-run_for_host_type(HookName, HostType, Args) ->
-    %% We don't provide mongoose_acc here because we can't create a valid one.
-    run_fold(HookName, HostType, ok, Args).
-
-%% @spec (HookName::atom(), Acc, Args) -> Val | stopped | NewVal
-%% @doc Run the calls of this hook in order.
-%% The arguments passed to the function are: [Acc | Args].
-%% The result of a call is used as Acc for the next call.
-%% If a call returns 'stop', no more calls are performed and 'stopped' is returned.
-%% If a call returns {stop, NewAcc}, no more calls are performed and NewAcc is returned.
+%% @doc run global hook, for more details see run_fold/4 documentation.
 -spec run_global(HookName :: atom(), Acc :: term(), Args :: [term()]) ->
     NewAcc :: term() | stopped.
 run_global(HookName, Acc, Args) ->
     run_fold(HookName, global, Acc, Args).
 
+%% @doc run hook for the host type, for more details see run_fold/4 documentation.
 -spec run_for_host_type(HookName :: atom(),
                         HostType :: binary(),
                         Acc :: term(),
@@ -261,6 +241,18 @@ code_change(_OldVsn, State, _Extra) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+
+%% @doc Run the handlers of the hook in order.
+%% The arguments passed to the hook handler function are: [Acc | Args].
+%% The result of a call is used as Acc for the next call.
+%% If a call returns 'stop', no more calls are performed and 'stopped' is returned.
+%% If a call returns {stop, NewAcc}, no more calls are performed and NewAcc is returned.
+%% If hook doesn't need accumulator and doesn't care about the return value. The 'ok'
+%% atom can be used as initial Acc value.
+%%
+%% Note that every hook handler MUST return a valid Acc. if any hook handler is not
+%% interested in Acc parameter (or even if Acc is not used for a hook at all), it must
+%% return (pass through) an unchanged input accumulator value.
 -spec run_fold(HookName :: atom(),
                HostType :: global | binary(),
                Acc :: term(),

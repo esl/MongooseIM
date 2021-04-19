@@ -230,14 +230,14 @@ auth_failed(Server, Username) ->
     Domain :: jid:lserver(),
     Result :: ok.
 disable_domain(HostType, Domain) ->
-    ejabberd_hooks:run_global(disable_domain, [HostType, Domain]).
+    ejabberd_hooks:run_global(disable_domain, ok, [HostType, Domain]).
 
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
     Domain :: jid:lserver(),
     Result :: ok.
 remove_domain(HostType, Domain) ->
-    ejabberd_hooks:run_global(remove_domain, [HostType, Domain]).
+    ejabberd_hooks:run_global(remove_domain, ok, [HostType, Domain]).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
