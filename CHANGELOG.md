@@ -17,6 +17,7 @@
 ### Removed
 - Usage of deprecated `http_uri` in `ejabberd_auth_http` and `mod_muc_room` modules (#3026)
 - Config reload functionality with the flat config format (#3030)
+- Outdated and unsupported `azuresql.sql` file (#3086)
 
 ### Changed
 - Usage of maps instead of lists in session management (#3018)
@@ -37,7 +38,7 @@
 
 ### Other
 - Dependencies update (#3036, #3077)
-- Minor documentation improvements (#3043, #3046, #3079)
+- Minor documentation improvements (#3043, #3046, #3079, #3087)
 
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A4.2.0)
