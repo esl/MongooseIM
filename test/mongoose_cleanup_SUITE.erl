@@ -113,6 +113,7 @@ stream_management(_Config) ->
     Acc = mongoose_acc:new(
             #{location => ?LOCATION,
               lserver => S,
+              host_type => S,
               element => undefined}),
     mongoose_hooks:session_cleanup(S, Acc, U, R, SID),
     {error, smid_not_found} = mod_stream_management:get_sid(SMID).
