@@ -126,7 +126,6 @@
          disco_sm_items/5]).
 
 -export([amp_check_condition/3,
-         amp_check_packet/4,
          amp_determine_strategy/5,
          amp_error_action_triggered/1,
          amp_notify_action_triggered/1,
@@ -259,8 +258,8 @@ ejabberd_ctl_process(Acc, Args) ->
 failed_to_store_message(LServer, Acc) ->
     ejabberd_hooks:run_for_host_type(failed_to_store_message, LServer, Acc, []).
 
-%%% @doc The `filter_local_packet' hook is called to filter
-%%% out stanzas routed with `mongoose_local_delivery'.
+%%% @doc The `filter_local_packet' hook is called to filter out
+%%% stanzas routed with `mongoose_local_delivery'.
 -type filter_packet_acc() :: {From :: jid:jid(),
                               To :: jid:jid(),
                               Acc :: mongoose_acc:t(),
@@ -272,8 +271,8 @@ failed_to_store_message(LServer, Acc) ->
 filter_local_packet(Server, Acc) ->
     ejabberd_hooks:run_for_host_type(filter_local_packet, Server, Acc, []).
 
-%%% @doc The `filter_packet' hook is called to filter
-%%% out stanzas routed with `mongoose_router_global'.
+%%% @doc The `filter_packet' hook is called to filter out
+%%% stanzas routed with `mongoose_router_global'.
 -spec filter_packet(Acc) -> Result when
     Acc :: filter_packet_acc(),
     Result ::  drop | filter_packet_acc().
@@ -1066,7 +1065,7 @@ mam_muc_archive_id(HookServer, OwnerJID) ->
                                      [HookServer, OwnerJID]).
 
 %%% @doc The `mam_muc_archive_size' hook is called to determine
-%%% the archive's size for a given room.
+%%% the archive size for a given room.
 -spec mam_muc_archive_size(HookServer, ArchiveID, RoomJID) -> Result when
       HookServer :: jid:lserver(),
       ArchiveID :: undefined | mod_mam:archive_id(),
@@ -1108,8 +1107,8 @@ mam_muc_set_prefs(HookServer, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, Never
                                      [HookServer, ArchiveID, RoomJID, DefaultMode,
                                       AlwaysJIDs, NeverJIDs]).
 
-%%% @doc The `mam_muc_get_prefs' hook is called to read the
-%%% archive settings for a given room.
+%%% @doc The `mam_muc_get_prefs' hook is called to read
+%%% the archive settings for a given room.
 -spec mam_muc_get_prefs(HookServer, DefaultMode, ArchiveID, RoomJID) -> Result when
       HookServer :: jid:lserver(),
       DefaultMode :: mod_mam:archive_behaviour(),
@@ -1192,8 +1191,8 @@ get_personal_data(LServer, JID) ->
 
 %% S2S related hooks
 
-%%% @doc `find_s2s_bridge' hook is called to find a s2s bridge to a foreign
-%%% protocol when opening a socket to a different XMPP server fails.
+%%% @doc `find_s2s_bridge' hook is called to find a s2s bridge to a foreign protocol
+%%% when opening a socket to a different XMPP server fails.
 -spec find_s2s_bridge(Name, Server) -> Result when
     Name :: any(),
     Server :: jid:server(),
@@ -1201,8 +1200,8 @@ get_personal_data(LServer, JID) ->
 find_s2s_bridge(Name, Server) ->
     ejabberd_hooks:run_global(find_s2s_bridge, undefined, [Name, Server]).
 
-%%% @doc `s2s_allow_host' hook is called to check whether a server should
-%%% be allowed to be connected to.
+%%% @doc `s2s_allow_host' hook is called to check whether a server
+%%% should be allowed to be connected to.
 %%%
 %%% A handler can decide that a server should not be allowed and pass this
 %%% information to the caller.
@@ -1234,16 +1233,16 @@ s2s_send_packet(Server, Acc, From, To, Packet) ->
     ejabberd_hooks:run_for_host_type(s2s_send_packet, Server, Acc,
                                      [From, To, Packet]).
 
-%%% @doc `s2s_stream_features' hook is used to extract the stream
-%%% management features supported by the server.
+%%% @doc `s2s_stream_features' hook is used to extract
+%%% the stream management features supported by the server.
 -spec s2s_stream_features(Server) -> Result when
     Server :: jid:server(),
     Result :: [exml:element()].
 s2s_stream_features(Server) ->
     ejabberd_hooks:run_for_host_type(s2s_stream_features, Server, [], [Server]).
 
-%%% @doc `s2s_receive_packet' hook is called when an
-%%% incoming stanza is routed by the server.
+%%% @doc `s2s_receive_packet' hook is called when
+%%% an incoming stanza is routed by the server.
 -spec s2s_receive_packet(LServer, Acc) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
@@ -1264,8 +1263,8 @@ disco_info(Server, Module, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_info, Server, [],
                                      [Server, Module, Node, Lang]).
 
-%%% @doc `disco_local_features' hook is called to extract
-%%% features offered by the server.
+%%% @doc `disco_local_features' hook is called to extract features
+%%% offered by the server.
 -spec disco_local_features(Server, From, To, Node, Lang) -> Result when
     Server :: jid:server(),
     From :: jid:jid(),
@@ -1301,8 +1300,8 @@ disco_local_identity(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_identity, Server, [],
                                      [From, To, Node, Lang]).
 
-%%% @doc `disco_sm_features' hook is called to get the features of the
-%%% client when a discovery IQ gets to session management.
+%%% @doc `disco_sm_features' hook is called to get the features of the client
+%%% when a discovery IQ gets to session management.
 -spec disco_sm_features(Server, From, To, Node, Lang) -> Result when
     Server :: jid:server(),
     From :: jid:jid(),
@@ -1350,20 +1349,6 @@ amp_check_condition(Server, Strategy, Rule) ->
     InitialAcc = no_match, %% mod_amp:amp_match_result() type
     ejabberd_hooks:run_for_host_type(amp_check_condition, Server, InitialAcc,
                                      [Strategy, Rule]).
-
-%%% @doc The `amp_check_packet' hook is called when one wants
-%%% to check a message against amp rules.
-%%% Calling it may result in `mod_amp' taking actions according
-%%% to the rules and the event (i.e. notify the sender).
--spec amp_check_packet(Server, Acc, From, Event) -> Result when
-    Server :: jid:lserver(),
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    Event :: mod_amp:amp_event(),
-    Result :: mongoose_acc:t().
-amp_check_packet(Server, Acc, From, Event) ->
-    %%TODO: no-one is calling this hook, recheck why!
-    ejabberd_hooks:run_for_host_type(amp_check_packet, Server, Acc, [From, Event]).
 
 %%% @doc The `amp_determine_strategy' hook is called when checking to determine
 %%% which strategy will be chosen when executing AMP rules.

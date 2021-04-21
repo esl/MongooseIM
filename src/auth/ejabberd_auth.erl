@@ -507,10 +507,10 @@ get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
 
 remove_domain(Acc, HostType, Domain) ->
     Modules = auth_modules_for_host_type(HostType),
-    lists:foreach(fun(M) -> maybe_return_domain(M, HostType, Domain) end, Modules),
+    lists:foreach(fun(M) -> maybe_remove_domain(M, HostType, Domain) end, Modules),
     Acc.
 
-maybe_return_domain(Module, HostType, Domain) ->
+maybe_remove_domain(Module, HostType, Domain) ->
     %% removal of domain can be triggered only from the dynamic domains service,
     %% all the auth modules should be loaded and initialised by that time
     case erlang:function_exported(Module, remove_domain, 2) of

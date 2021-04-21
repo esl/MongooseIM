@@ -158,7 +158,7 @@ lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
 
 -spec host_type(Acc :: t()) -> binary() | undefined.
-host_type(#{  mongoose_acc := true, host_type := HostType }) ->
+host_type(#{ mongoose_acc := true, host_type := HostType }) ->
     HostType.
 
 -spec element(Acc :: t()) -> exml:element() | undefined.

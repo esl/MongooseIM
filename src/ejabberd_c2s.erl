@@ -892,7 +892,8 @@ process_outgoing_stanza(Acc, StateData) ->
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
-    #jid{ user = User, server = Server} = FromJID = mongoose_acc:from_jid(Acc),
+    #jid{user = User, server = Server} = FromJID = mongoose_acc:from_jid(Acc),
+    %% TODO: recheck that Acc has sender's host type here.
     HostType = mongoose_acc:host_type(Acc),
     Res = mongoose_hooks:c2s_update_presence(HostType, Acc),
     El = mongoose_acc:element(Res),
