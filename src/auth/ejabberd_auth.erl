@@ -81,6 +81,7 @@ start() ->
 -spec start(HostType :: binary()) -> 'ok'.
 start(HostType) ->
     ensure_metrics(HostType),
+    ejabberd_hooks:add(remove_domain, global, fun remove_domain/3, 50),
     lists:foreach(
       fun(M) ->
               M:start(HostType)
@@ -88,6 +89,7 @@ start(HostType) ->
 
 -spec stop(HostType :: binary()) -> 'ok'.
 stop(HostType) ->
+    ejabberd_hooks:delete(remove_domain, global, fun remove_domain/3, 50),
     lists:foreach(
       fun(M) ->
               M:stop(HostType)
@@ -502,6 +504,19 @@ auth_method_to_module(Method) ->
 get_auth_method_as_a_list(undefined) -> [];
 get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
 get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
+
+remove_domain(Acc, HostType, Domain) ->
+    Modules = auth_modules_for_host_type(HostType),
+    lists:foreach(fun(M) -> maybe_return_domain(M, HostType, Domain) end, Modules),
+    Acc.
+
+maybe_return_domain(Module, HostType, Domain) ->
+    %% removal of domain can be triggered only from the dynamic domains service,
+    %% all the auth modules should be loaded and initialised by that time
+    case erlang:function_exported(Module, remove_domain, 2) of
+        true -> erlang:apply(Module, remove_domain, [HostType, Domain]);
+        false -> ok
+    end.
 
 ensure_metrics(Host) ->
     Metrics = [authorize, check_password, try_register, does_user_exist],
