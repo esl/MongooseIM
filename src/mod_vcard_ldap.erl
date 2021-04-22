@@ -414,7 +414,7 @@ make_user_item_if_exists(Username, Attrs,
         true ->
             RFields = lists:map(fun ({_, VCardName}) ->
                                         {VCardName, map_vcard_attr(VCardName, Attrs, VCardMap,
-                                                                   {Username, ?MYNAME})}
+                                                                   {Username, LServer})}
                                 end,
                                 SearchReported),
             Result = [?FIELD(<<"jid">>, <<Username/binary, "@", LServer/binary>>)] ++
