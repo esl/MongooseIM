@@ -12,12 +12,12 @@
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11"}]).
 %% API
--export([get_inactivity/0,
-         set_inactivity/1,
-         get_max_wait/0,
-         set_max_wait/1,
-         get_server_acks/0,
-         set_server_acks/1]).
+-export([get_inactivity/1,
+         set_inactivity/2,
+         get_max_wait/1,
+         set_max_wait/2,
+         get_server_acks/1,
+         set_server_acks/2]).
 
 %% gen_mod callbacks
 -export([start/2,
@@ -96,40 +96,40 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec get_inactivity() -> pos_integer() | infinity.
-get_inactivity() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
+-spec get_inactivity(jid:lserver()) -> pos_integer() | infinity.
+get_inactivity(LServer) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
 
 
 %% @doc Return true if succeeded, false otherwise.
--spec set_inactivity(Seconds :: pos_integer() | infinity) -> boolean().
-set_inactivity(infinity) ->
-    gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, infinity);
-set_inactivity(Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, Seconds).
+-spec set_inactivity(jid:lserver(), Seconds :: pos_integer() | infinity) -> boolean().
+set_inactivity(LServer, infinity) ->
+    gen_mod:set_module_opt(LServer, ?MODULE, inactivity, infinity);
+set_inactivity(LServer, Seconds) when is_integer(Seconds), Seconds > 0 ->
+    gen_mod:set_module_opt(LServer, ?MODULE, inactivity, Seconds).
 
 
--spec get_max_wait() -> pos_integer() | infinity.
-get_max_wait() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
+-spec get_max_wait(jid:lserver()) -> pos_integer() | infinity.
+get_max_wait(LServer) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
 
 
 %% @doc Return true if succeeded, false otherwise.
--spec set_max_wait(Seconds :: pos_integer() | infinity) -> boolean().
-set_max_wait(infinity) ->
-    gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, infinity);
-set_max_wait(Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, Seconds).
+-spec set_max_wait(jid:lserver(), Seconds :: pos_integer() | infinity) -> boolean().
+set_max_wait(LServer, infinity) ->
+    gen_mod:set_module_opt(LServer, ?MODULE, max_wait, infinity);
+set_max_wait(LServer, Seconds) when is_integer(Seconds), Seconds > 0 ->
+    gen_mod:set_module_opt(LServer, ?MODULE, max_wait, Seconds).
 
 
--spec get_server_acks() -> boolean().
-get_server_acks() ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
+-spec get_server_acks(jid:lserver()) -> boolean().
+get_server_acks(LServer) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
 
 
--spec set_server_acks(EnableServerAcks :: boolean()) -> boolean().
-set_server_acks(EnableServerAcks) ->
-    gen_mod:set_module_opt(?MYNAME, ?MODULE, server_acks, EnableServerAcks).
+-spec set_server_acks(jid:lserver(), EnableServerAcks :: boolean()) -> boolean().
+set_server_acks(LServer, EnableServerAcks) ->
+    gen_mod:set_module_opt(LServer, ?MODULE, server_acks, EnableServerAcks).
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
@@ -361,15 +361,15 @@ maybe_start_session(Req, Body) ->
     Host = exml_query:attr(Body, <<"to">>),
     case is_known_host(Host) of
         true ->
-            maybe_start_session_on_known_host(Req, Body);
+            maybe_start_session_on_known_host(Host, Req, Body);
         false ->
             Req1 = terminal_condition(<<"host-unknown">>, Req),
             {false, Req1}
     end.
 
-maybe_start_session_on_known_host(Req, Body) ->
+maybe_start_session_on_known_host(Host, Req, Body) ->
     try
-        maybe_start_session_on_known_host_unsafe(Req, Body)
+        maybe_start_session_on_known_host_unsafe(Host, Req, Body)
     catch
         error:Reason ->
             %% It's here because something catch-y was here before
@@ -379,13 +379,13 @@ maybe_start_session_on_known_host(Req, Body) ->
             {false, Req1}
     end.
 
-maybe_start_session_on_known_host_unsafe(Req, Body) ->
+maybe_start_session_on_known_host_unsafe(Host, Req, Body) ->
     %% Version isn't checked as it would be meaningless when supporting
     %% only a subset of the specification.
     {ok, NewBody} = set_max_hold(Body),
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    start_session(Peer, PeerCert, NewBody),
+    start_session(Host, Peer, PeerCert, NewBody),
     {true, Req}.
 
 %% @doc Is the argument locally served host?
@@ -393,10 +393,11 @@ is_known_host(Host) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     lists:member(Host, Hosts).
 
--spec start_session(mongoose_transport:peer(), binary() | undefined, exml:element()) -> any().
-start_session(Peer, PeerCert, Body) ->
+-spec start_session(jid:lserver(), mongoose_transport:peer(),
+                    binary() | undefined, exml:element()) -> any().
+start_session(LServer, Peer, PeerCert, Body) ->
     Sid = make_sid(),
-    {ok, Socket} = mod_bosh_socket:start(Sid, Peer, PeerCert),
+    {ok, Socket} = mod_bosh_socket:start(LServer, Sid, Peer, PeerCert),
     store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?LOG_DEBUG(#{what => bosh_start_session, sid => Sid}).

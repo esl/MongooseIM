@@ -4,8 +4,8 @@
 -behaviour(mongoose_transport).
 
 %% API
--export([start/3,
-         start_link/3,
+-export([start/4,
+         start_link/4,
          start_supervisor/0,
          handle_request/2,
          pause/2]).
@@ -74,6 +74,7 @@
                 inactivity_tref :: reference() | 'undefined',
                 %% Max pause period in seconds.
                 maxpause        :: pos_integer() | 'undefined',
+                max_wait        :: pos_integer() | 'infinity',
                 %% Are acknowledgements used?
                 server_acks     :: boolean(),
                 last_processed  :: rid() | 'undefined',
@@ -89,18 +90,18 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+-spec start(jid:lserver(), mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(Sid, Peer, PeerCert) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert]).
+start(LServer, Sid, Peer, PeerCert) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [LServer, Sid, Peer, PeerCert]).
 
 
--spec start_link(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+-spec start_link(jid:lserver(), mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Sid, Peer, PeerCert) ->
-    gen_fsm_compat:start_link(?MODULE, [Sid, Peer, PeerCert], []).
+start_link(LServer, Sid, Peer, PeerCert) ->
+    gen_fsm_compat:start_link(?MODULE, [LServer, Sid, Peer, PeerCert], []).
 
-
+-spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
     ChildId = ?BOSH_SOCKET_SUP,
     ChildSpec =
@@ -177,22 +178,23 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Sid, Peer, PeerCert]) ->
+init([LServer, Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
     State = #state{sid = Sid,
                    c2s_pid = C2SPid,
-                   inactivity = mod_bosh:get_inactivity(),
-                   maxpause = get_maxpause(),
-                   server_acks = mod_bosh:get_server_acks()},
+                   inactivity = mod_bosh:get_inactivity(LServer),
+                   maxpause = get_maxpause(LServer),
+                   max_wait = mod_bosh:get_max_wait(LServer),
+                   server_acks = mod_bosh:get_server_acks(LServer)},
     ?LOG_DEBUG(ls(#{what => bosh_socket_init}, State)),
     {ok, accumulate, State}.
 
 
 %% TODO: maybe make maxpause runtime configurable like inactivity?
-get_maxpause() ->
-    case gen_mod:get_module_opt(?MYNAME, mod_bosh, maxpause, undefined) of
+get_maxpause(LServer) ->
+    case gen_mod:get_module_opt(LServer, mod_bosh, maxpause, undefined) of
         undefined -> ?DEFAULT_MAXPAUSE;
         MP -> MP
     end.
@@ -822,7 +824,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
    -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
-    Wait = min(get_attr(<<"wait">>, Body, S#state.wait), mod_bosh:get_max_wait()),
+    Wait = min(get_attr(<<"wait">>, Body, S#state.wait), S#state.max_wait),
     Hold = get_attr(<<"hold">>, Body, S#state.hold),
     ClientAcks = get_client_acks(StreamEvent, Body, S#state.client_acks, S),
     From = exml_query:attr(Body, <<"from">>),
