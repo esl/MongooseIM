@@ -70,6 +70,7 @@
          get_module_opt_by_subhost/4,
          set_module_opt_by_subhost/4,
 
+         loaded_modules/0,
          loaded_modules/1,
          loaded_modules_with_opts/1,
          opts_for_module/2,
@@ -403,6 +404,13 @@ get_opt_subhost(Host, OptName, Opts, Default) ->
 get_module_opt_subhost(Host, Module, Default) ->
     Spec = get_module_opt(Host, Module, host, Default),
     make_subhost(Spec, Host).
+
+-spec loaded_modules() -> [module()].
+loaded_modules() ->
+    ModSet = ets:foldl(fun(#ejabberd_module{module_host = {Mod, _}}, Set) ->
+                               gb_sets:add_element(Mod, Set)
+                       end, gb_sets:new(), ejabberd_modules),
+    gb_sets:to_list(ModSet).
 
 -spec loaded_modules(jid:server()) -> [module()].
 loaded_modules(Host) ->
