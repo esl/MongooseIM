@@ -349,7 +349,6 @@ filter_hook(mam_get_prefs) -> skip;
 filter_hook(mam_set_prefs) -> skip;
 filter_hook(mam_remove_archive) -> skip;
 filter_hook(mam_archive_message) -> skip;
-filter_hook(mam_flush_messages) -> skip;
 filter_hook(mam_muc_get_prefs) -> skip;
 filter_hook(mam_muc_set_prefs) -> skip;
 filter_hook(mam_muc_remove_archive) -> skip;
