@@ -84,7 +84,7 @@ make_cluster_id() ->
 %% Which backend is enabled
 -spec which_backend_available() -> mongoose_backend().
 which_backend_available() ->
-    case mongoose_rdbms:db_engine(<<>>) of
+    case mongoose_wpool:get_pool_settings(rdbms, global, default) of
         undefined -> mnesia;
         _ -> rdbms
     end.
@@ -99,7 +99,7 @@ set_new_cluster_id(ID, rdbms) ->
     SQLQuery = [<<"INSERT INTO mongoose_cluster_id(k,v) "
                   "VALUES ('cluster_id',">>,
                 mongoose_rdbms:use_escaped(mongoose_rdbms:escape_string(ID)), ");"],
-    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+    try mongoose_rdbms:sql_query(global, SQLQuery) of
         {updated, 1} -> {ok, ID};
         {error, _} = Err -> Err
     catch
@@ -123,7 +123,7 @@ set_new_cluster_id(ID, mnesia) ->
 -spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
 get_backend_cluster_id(rdbms) ->
     SQLQuery = [<<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>],
-    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+    try mongoose_rdbms:sql_query(global, SQLQuery) of
         {selected, [{Row}]} -> {ok, Row};
         {selected, []} -> {error, no_value_in_backend};
         {error, _} = Err -> Err
@@ -144,7 +144,7 @@ clean_table() ->
 -spec clean_table(mongoose_backend()) -> ok | {error, any()}.
 clean_table(rdbms) ->
     SQLQuery = [<<"TRUNCATE TABLE mongoose_cluster_id;">>],
-    try mongoose_rdbms:sql_query(?MYNAME, SQLQuery) of
+    try mongoose_rdbms:sql_query(global, SQLQuery) of
         {selected, _} -> ok;
         {updated, _} -> ok;
         {error, _} = Err -> Err
