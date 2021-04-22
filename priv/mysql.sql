@@ -265,6 +265,7 @@ CREATE TABLE mam_config(
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
+-- The server field is a MUC host for MUC rooms
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   server    varchar(250) CHARACTER SET binary NOT NULL,
