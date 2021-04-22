@@ -27,7 +27,6 @@ The following sections are accepted in `host_config`:
 The options defined here override the ones defined in the top-level [`general`](general.md) section.
 The following options are allowed:
 
-* [`pgsql_users_number_estimate`](general.md#generalpgsql_users_number_estimate)
 * [`route_subdomains`](general.md#generalroute_subdomains)
 * [`replaced_wait_timeout`](general.md#generalreplaced_wait_timeout)
 
@@ -58,6 +57,7 @@ It is recommended to repeat all top-level options in the domain-specific section
     - [`password.*`](auth.md#password-related-options)
     - [`scram_iterations`](auth.md#authscram_iterations)
     - [`external.program`](../../authentication-methods/external/#authexternalprogram)
+    - [`rdbms.*`](../../authentication-methods/rdbms)
     - [`ldap.*`](../../authentication-methods/ldap)
     - [`jwt.*`](../../authentication-methods/jwt)
     - [`riak.*`](../../authentication-methods/riak)

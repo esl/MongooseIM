@@ -49,7 +49,7 @@ We offer a set of server-side components:
     * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
     * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
     * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
-* REST API client libraries - we recommend following client libraries:
+* REST API client libraries - we recommend the following client libraries:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
@@ -68,17 +68,18 @@ For a quick start just download:
 Check out our test results:
 
 * CI testing:
-  * [GH Actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
-  * [CircleCI](https://app.circleci.com/pipelines/github/esl/MongooseIM)
+    * [GH Actions](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI)
+    * [CircleCI](https://app.circleci.com/pipelines/github/esl/MongooseIM)
 * Code coverage:
-  * [Codecov](https://codecov.io/gh/esl/MongooseIM) - reported by CircleCI.
-  * [Coveralls](https://coveralls.io/github/esl/MongooseIM) - reported by GH Actions.
+    * [Codecov](https://codecov.io/gh/esl/MongooseIM) - reported by CircleCI.
+    * [Coveralls](https://coveralls.io/github/esl/MongooseIM) - reported by GH Actions.
 
 ## Versions
 
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [4.2.0](https://esl.github.io/MongooseDocs/4.2.0/)
 * [4.1.0](https://esl.github.io/MongooseDocs/4.1.0/)
 * [4.0.1](https://esl.github.io/MongooseDocs/4.0.1/)
 * [3.7.1](https://esl.github.io/MongooseDocs/3.7.1/)

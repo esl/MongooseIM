@@ -36,7 +36,7 @@ Three token types are supported:
   Access tokens can't be revoked.
   An access token is valid only until its expiry date is reached.
 
-- _refresh tokens_: These are longer lived tokens which are tracked by the server and therefore require persistent storage (as of now only PostgreSQL is supported).
+- _refresh tokens_: These are longer lived tokens which are tracked by the server and therefore require persistent storage in a relational database.
   Refresh tokens can be used as a payload for the X-OAUTH authentication mechanism and to grant access to the system.
   Also they can result in a new set of tokens being returned upon successful authentication.
   They can be revoked - if a refresh token hasn't been revoked, it is valid until it has expired.

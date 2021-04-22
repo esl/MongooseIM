@@ -103,6 +103,7 @@
 
 %% LIKE escaping
 -export([escape_like/1,
+         escape_prepared_like/1,
          escape_like_prefix/1,
          use_escaped_like/1]).
 
@@ -155,7 +156,7 @@
 -type rdbms_msg() :: {sql_query, _}
                    | {sql_transaction, fun()}
                    | {sql_dirty, fun()}
-                   | {sql_execute, atom(), iodata()}.
+                   | {sql_execute, atom(), [binary() | boolean() | integer()]}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {updated, non_neg_integer(), [tuple()]} |
@@ -317,6 +318,12 @@ sql_query_t(Query, State) ->
             QRes
     end.
 
+%% Only for binaries, escapes only the content, '%' has to be added afterwards
+%% The escape character is '$' as '\' causes issues in PostgreSQL
+%% Returned value is NOT safe to use outside of a prepared statement
+-spec escape_prepared_like(binary()) -> binary().
+escape_prepared_like(S) ->
+    << (escape_prepared_like_character(C)) || <<C>> <= S >>.
 
 %% @doc Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
@@ -428,6 +435,12 @@ use_escaped(X) ->
     ?LOG_ERROR(#{what => rdbms_use_escaped_failure, value => X,
         stacktrace => erlang:process_info(self(), current_stacktrace)}),
     erlang:error({use_escaped, X}).
+
+-spec escape_prepared_like_character(char()) -> binary().
+escape_prepared_like_character($%) -> <<"$%">>;
+escape_prepared_like_character($_) -> <<"$_">>;
+escape_prepared_like_character($$) -> <<"$$">>;
+escape_prepared_like_character(C) -> <<C>>.
 
 -spec escape_like_internal(binary() | string()) -> binary() | string().
 escape_like_internal(S) when is_binary(S) ->

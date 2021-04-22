@@ -18,7 +18,10 @@
 %%--------------------------------------------------------------------
 
 -export([init/2]).
--export([enable/4, disable/3, get_publish_services/1]).
+-export([enable/4,
+         disable/1,
+         disable/3,
+         get_publish_services/1]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -56,25 +59,25 @@ enable(User, PubSub, Node, Forms) ->
     write(make_record(User, PubSub, Node, Forms)).
 
 
+-spec disable(UserJID :: jid:jid()) -> ok | {error, Reason :: term()}.
+disable(User) ->
+    delete(key(User)).
+
 -spec disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
-              Node :: mod_event_pusher_push:pubsub_node()) -> ok | {error, Reason :: term()}.
-disable(User, undefined, undefined) ->
-    delete(key(User));
+              Node :: mod_event_pusher_push:pubsub_node() | undefined) ->
+          ok | {error, Reason :: term()}.
 disable(User, PubsubJID, Node) ->
     Result =
     exec(
           fun() ->
-                  PubsubFiltered =
+                  Filtered =
                       [Record ||
-                          #push_subscription{pubsub_jid = RecPubsubJID} = Record <- read(key(User)),
-                          PubsubJID == undefined orelse RecPubsubJID == PubsubJID],
-
-                  NodeFiltered =
-                      [Record ||
-                          #push_subscription{pubsub_node = RecNode} = Record <- PubsubFiltered,
+                          #push_subscription{pubsub_jid = RecPubsubJID,
+                                             pubsub_node = RecNode} = Record <- read(key(User)),
+                          RecPubsubJID == PubsubJID,
                           Node == undefined orelse RecNode == Node],
 
-                  [mnesia:delete_object(Record) || Record <- NodeFiltered]
+                  [mnesia:delete_object(Record) || Record <- Filtered]
           end),
 
     case Result of

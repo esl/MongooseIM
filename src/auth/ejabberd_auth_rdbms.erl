@@ -51,6 +51,8 @@
 
 -export([scram_passwords/2, scram_passwords/4]).
 
+-import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
+
 -include("mongoose.hrl").
 -include("scram.hrl").
 
@@ -62,21 +64,16 @@
 %%% Types
 %%%----------------------------------------------------------------------
 
-%% Used to construct queries
--type escaped_password() :: mongoose_rdbms:escaped_string().
--type escaped_password_details() :: mongoose_rdbms:escaped_string().
-
--type prepared_scrammed_password() ::
-        #{password => escaped_password(),
-          details => escaped_password_details()}.
-%% Both non-scram and scram versions
--type prepared_password() :: escaped_password() | prepared_scrammed_password().
+-type prepared_password() ::
+        #{password := binary(),
+          details => binary()}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
-start(_HostType) ->
+start(HostType) ->
+    prepare_queries(HostType),
     ok.
 
 stop(_HostType) ->
@@ -97,52 +94,7 @@ authorize(Creds) ->
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(_HostType, LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    true == check_password_wo_escape(LUser, Username, LServer, Password).
-
-
--spec check_password(HostType :: binary(),
-                     LUser :: jid:luser(),
-                     LServer :: jid:lserver(),
-                     Password :: binary(),
-                     Digest :: binary(),
-                     DigestGen :: fun()) -> boolean().
-check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_password(LServer, Username) of
-        %% Account exists, check if password is valid
-        {selected, [{Passwd, null}]} ->
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        {selected, [{_Passwd, PassDetails}]} ->
-            case mongoose_scram:deserialize(PassDetails) of
-                {ok, Scram} ->
-                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
-                {error, Reason} ->
-                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
-                    false
-            end;
-        {selected, []} ->
-            false; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         reason => Error}),
-            false %% Typical error is that table doesn't exist
-    catch
-        Class:Reason:StackTrace ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            false %% Typical error is database not accessible
-    end.
-
--spec check_password_wo_escape(LUser :: jid:luser(),
-                               Username::mongoose_rdbms:escaped_string(),
-                               LServer::jid:lserver(),
-                               Password::binary()) -> boolean() | not_exists.
-check_password_wo_escape(LUser, Username, LServer, Password) ->
-    try rdbms_queries:get_password(LServer, Username) of
+    try execute_get_password(LServer, LUser) of
         {selected, [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
         {selected, [{_Password2, null}]} ->
@@ -153,24 +105,48 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
                     mongoose_scram:check_password(Password, Scram);
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
+                                   user => LUser, server => LServer}),
                     false %% Password is not correct
             end;
         {selected, []} ->
-            not_exists; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => check_password_failed,
-                         user => LUser, server => LServer,
-                         reason => Error}),
-            false %% Typical error is that table doesn't exist
+            false %% Account does not exist
     catch
-        Class:Reason:StackTrace ->
+        error:Reason:StackTrace ->
             ?LOG_ERROR(#{what => check_password_failed,
                          user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            false %% Typical error is database not accessible
+                         class => error, reason => Reason, stacktrace => StackTrace}),
+            false %% Database error
     end.
 
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
+                     Password :: binary(),
+                     Digest :: binary(),
+                     DigestGen :: fun()) -> boolean().
+
+check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
+    try execute_get_password(LServer, LUser) of
+        {selected, [{Passwd, null}]} ->
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        {selected, [{_Passwd, PassDetails}]} ->
+            case mongoose_scram:deserialize(PassDetails) of
+                {ok, Scram} ->
+                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
+                {error, Reason} ->
+                    ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
+                                   user => LUser, server => LServer}),
+                    false
+            end;
+        {selected, []} ->
+            false %% Account does not exist
+    catch
+        error:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => check_password_failed,
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace}),
+            false %% Database error
+    end.
 
 -spec set_password(HostType :: binary(),
                    LUser :: jid:luser(),
@@ -178,15 +154,15 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
 set_password(HostType, LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape_string(LUser),
     PreparedPass = prepare_password(HostType, Password),
-    case catch rdbms_queries:set_password_t(LServer, Username, PreparedPass) of
-        {atomic, ok} ->
-            ok;
-        Error ->
-            ?LOG_WARNING(#{what => set_password_failed,
-                           text => <<"Failed SQL request for set_password">>,
-                           user => LUser, server => LServer, reason => Error}),
+    try
+        execute_set_password(LServer, LUser, PreparedPass),
+        ok
+    catch
+        error:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => set_password_failed,
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace}),
             {error, not_allowed}
     end.
 
@@ -196,17 +172,17 @@ set_password(HostType, LUser, LServer, Password) ->
                    Password :: binary()
                    ) -> ok | {error, exists}.
 try_register(HostType, LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape_string(LUser),
     PreparedPass = prepare_password(HostType, Password),
-    case catch rdbms_queries:add_user(LServer, Username, PreparedPass) of
+    try execute_add_user(LServer, LUser, PreparedPass) of
         {updated, 1} ->
             ok;
         {updated, 0} ->
-            {error, exists};
-        Other ->
+            {error, exists}
+    catch
+        error:Reason:StackTrace ->
             ?LOG_ERROR(#{what => registration_failed,
-                         text => <<"Failed SQL request for try_register">>,
-                         user => LUser, server => LServer, reason => Other}),
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace}),
             {error, exists} %% XXX wrong error type - fix type in a separate PR
     end.
 
@@ -221,89 +197,57 @@ dirty_get_registered_users() ->
 
 -spec get_vh_registered_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
-    try rdbms_queries:list_users(LServer) of
-        {selected, Res} ->
-            [{U, LServer} || {U} <- Res];
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
-                         server => LServer, reason => Other}),
-            []
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        []
-    end.
-
+    get_vh_registered_users(LServer, []).
 
 -spec get_vh_registered_users(LServer :: jid:lserver(), Opts :: list()
                              ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
-    try rdbms_queries:list_users(LServer, Opts) of
-        {selected, Res} ->
-            [{U, LServer} || {U} <- Res];
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_failed,
-                         server => LServer, opts => Opts, reason => Other}),
-            []
-    catch Class:Reason:StackTrace ->
+    try
+        {selected, Res} = execute_list_users(LServer, maps:from_list(Opts)),
+        [{U, LServer} || {U} <- Res]
+    catch error:Reason:StackTrace ->
         ?LOG_ERROR(#{what => get_vh_registered_users_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
+                     class => error, reason => Reason, stacktrace => StackTrace}),
         []
     end.
-
 
 -spec get_vh_registered_users_number(LServer :: jid:lserver()
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
-    try rdbms_queries:users_number(LServer) of
-        {selected, [{Res}]} when is_integer(Res) ->
-            Res;
-        {selected, [{Res}]} ->
-            mongoose_rdbms:result_to_integer(Res);
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
-                         server => LServer, reason => Other}),
-            0
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        0
-    end.
-
+    get_vh_registered_users_number(LServer, []).
 
 -spec get_vh_registered_users_number(LServer :: jid:lserver(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(LServer, Opts) ->
-    case catch rdbms_queries:users_number(LServer, Opts) of
-        {selected, [{Res}]} ->
-            list_to_integer(Res);
-        Other ->
-            ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed,
-                         server => LServer, opts => Opts, reason => Other}),
-            0
+    try
+        mongoose_rdbms:selected_to_integer(execute_count_users(LServer, maps:from_list(Opts)))
+    catch error:Reason:StackTrace ->
+        ?LOG_ERROR(#{what => get_vh_registered_users_numbers_failed, server => LServer,
+                     class => error, reason => Reason, stacktrace => StackTrace}),
+        0
     end.
-
 
 -spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case catch rdbms_queries:get_password(LServer, Username) of
+    try execute_get_password(LServer, LUser) of
         {selected, [{Password, null}]} ->
-            Password; %%Plain password
+            Password; %% Plain password
         {selected, [{_Password, PassDetails}]} ->
             case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
                     Scram;
                 {error, Reason} ->
                     ?LOG_WARNING(#{what => scram_serialisation_incorrect, reason => Reason,
-                                   user => Username, server => LServer}),
+                                   user => LUser, server => LServer}),
                     false
             end;
         {selected, []} ->
-            false;
-        Other ->
+            false
+    catch
+        error:Reason:StackTrace ->
             ?LOG_ERROR(#{what => get_password_failed,
-                         user => LUser, server => LServer, reason => Other}),
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace}),
             false
     end.
 
@@ -311,15 +255,16 @@ get_password(LUser, LServer) ->
 -spec get_password_s(LUser :: jid:user(),
                      LServer :: jid:server()) -> binary().
 get_password_s(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case catch rdbms_queries:get_password(LServer, Username) of
+    try execute_get_password(LServer, LUser) of
         {selected, [{Password, _}]} ->
             Password;
         {selected, []} ->
-            <<>>;
-        Other ->
+            <<>>
+    catch
+        error:Reason:StackTrace ->
             ?LOG_ERROR(#{what => get_password_s_failed,
-                         user => LUser, server => LServer, reason => Other}),
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace}),
             <<>>
     end.
 
@@ -328,22 +273,18 @@ get_password_s(LUser, LServer) ->
                      LServer :: jid:lserver()
                     ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:get_password(LServer, Username) of
+    try execute_get_password(LServer, LUser) of
         {selected, [{_Password, _}]} ->
             true; %% Account exists
         {selected, []} ->
-            false; %% Account does not exist
-        {error, Error} ->
-            ?LOG_ERROR(#{what => does_user_exist_failed,
-                         user => LUser, server => LServer, reason => Error}),
-            {error, Error} %% Typical error is that table doesn't exist
+            false %% Account does not exist
     catch
-        Class:Reason:StackTrace ->
+        error:Reason:StackTrace ->
             ?LOG_ERROR(#{what => does_user_exist_failed,
                          user => LUser, server => LServer,
-                         class => Class, reason => Reason, stacktrace => StackTrace}),
-            {error, Reason} %% Typical error is database not accessible
+                         class => error, reason => Reason, stacktrace => StackTrace}),
+            {error, Reason} %% Database error
+
     end.
 
 
@@ -353,41 +294,36 @@ does_user_exist(LUser, LServer) ->
                   LServer :: jid:lserver()
                   ) -> ok.
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    try rdbms_queries:del_user(LServer, Username)
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => remove_user_failed,
-                     user => LUser, server => LServer,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        ok
+    try
+        execute_delete_user(LServer, LUser)
+    catch
+        error:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => remove_user_failed,
+                         user => LUser, server => LServer,
+                         class => error, reason => Reason, stacktrace => StackTrace})
     end,
     ok.
 
 %%%------------------------------------------------------------------
-%%% SCRAM
+%%% Scram
 %%%------------------------------------------------------------------
 
--spec prepare_scrammed_password(Server, Iterations, Password) ->
-    prepared_scrammed_password() when
+-spec prepare_scrammed_password(Server, Iterations, Password) -> prepared_password() when
         Server :: jid:lserver(),
         Iterations :: pos_integer(),
         Password :: binary().
 prepare_scrammed_password(Server, Iterations, Password) when is_integer(Iterations) ->
     Scram = mongoose_scram:password_to_scram(Server, Password, Iterations),
-    PassDetails = mongoose_scram:serialize(Scram),
-    PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
-    EmptyPassword = mongoose_rdbms:escape_string(<<>>),
-    #{password => EmptyPassword,
-      details => PassDetailsEscaped}.
+    #{password => <<>>,
+      details => mongoose_scram:serialize(Scram)}.
 
--spec prepare_password(HostType :: binary(), Password :: binary()) ->
-    PreparedPassword :: prepared_password().
+-spec prepare_password(Server :: jid:server(), Password :: binary()) -> prepared_password().
 prepare_password(HostType, Password) ->
     case mongoose_scram:enabled(HostType) of
         true ->
             prepare_scrammed_password(HostType, mongoose_scram:iterations(HostType), Password);
-        _ ->
-            mongoose_rdbms:escape_string(Password)
+        false ->
+            #{password => Password}
     end.
 
 -spec scram_passwords(Server, ScramIterationCount) -> ok | {error, atom()} when
@@ -407,10 +343,7 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 text => <<"Converting the stored passwords into SCRAM bits">>}),
-    ToConvertCount = case catch rdbms_queries:get_users_without_scram_count(LServer) of
-        {selected, [{Res}]} -> Res;
-        _ -> 0
-    end,
+    ToConvertCount = mongoose_rdbms:selected_to_integer(execute_count_users_without_scram(LServer)),
 
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 convert_count => ToConvertCount,
@@ -424,7 +357,7 @@ scram_passwords(Server, Count, Interval, ScramIterationCount) ->
         Interval :: pos_integer(),
         ScramIterationCount :: pos_integer().
 scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
-    case rdbms_queries:get_users_without_scram(LServer, Count) of
+    case execute_list_users_without_scram(LServer, Count) of
         {selected, []} ->
             ?LOG_INFO(#{what => scram_passwords_completed,
                         text => <<"All users scrammed">>}),
@@ -438,33 +371,144 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
                 ScrammedPassword = prepare_scrammed_password(LServer,
                                                              ScramIterationCount,
                                                              Password),
-                write_scrammed_password_to_rdbms(LServer, Username, ScrammedPassword)
+                execute_set_password(LServer, Username, ScrammedPassword)
               end, Results),
             ?LOG_INFO(#{what => scram_passwords_progress,
                         user_count => length(Results), interval => Interval,
                         text => io_lib:format("Scrammed. Waiting for ~pms", [Interval])}),
             timer:sleep(Interval),
-            scram_passwords1(LServer, Count, Interval, ScramIterationCount);
-        Other ->
-            ?LOG_ERROR(#{what => scram_passwords_failed,
-                         text => <<"Interrupted scramming">>,
-                         server => LServer, reason => Other}),
-            {error, interrupted}
+            scram_passwords1(LServer, Count, Interval, ScramIterationCount)
     end.
 
--spec write_scrammed_password_to_rdbms(LServer, LUser, ScrammedPassword) ->
-    ok | {error, not_allowed} when
-        LServer :: jid:lserver(),
-        LUser :: LUser :: jid:luser(),
-        ScrammedPassword :: prepared_scrammed_password().
-write_scrammed_password_to_rdbms(LServer, LUser, ScrammedPassword) ->
-    Username = mongoose_rdbms:escape_string(LUser),
-    case catch rdbms_queries:set_password_t(LServer, Username,
-                                            ScrammedPassword) of
-        {atomic, ok} -> ok;
-        Other ->
-            ?LOG_ERROR(#{what => scrammify_user_failed,
-                         text => <<"Could not scrammify user">>,
-                         user => Username, server => LServer, reason => Other}),
-            {error, not_allowed}
+%%%------------------------------------------------------------------
+%%% DB Queries
+%%%------------------------------------------------------------------
+
+-spec prepare_queries(binary()) -> any().
+prepare_queries(HostType) ->
+    prepare(auth_get_password, users,
+            [username],
+            <<"SELECT password, pass_details FROM users WHERE username = ?">>),
+    prepare(auth_set_password_scram, users,
+            [password, pass_details, username],
+            <<"UPDATE users SET password = ?, pass_details = ? WHERE username = ?">>),
+    prepare(auth_set_password, users,
+            [password, username],
+            <<"UPDATE users SET password = ? WHERE username = ?">>),
+    prepare(auth_add_user_scram, users,
+            [username, password, pass_details],
+            <<"INSERT INTO users(username, password, pass_details) VALUES (?, ?, ?)">>),
+    prepare(auth_add_user, users,
+            [username, password],
+            <<"INSERT INTO users(username, password) VALUES (?, ?)">>),
+    prepare(auth_delete_user, users,
+            [username],
+            <<"DELETE FROM users WHERE username = ?">>),
+    prepare(auth_list_users, users, [],
+            <<"SELECT username FROM users">>),
+    LimitOffset = rdbms_queries:limit_offset_sql(),
+    prepare(auth_list_users_range, users,
+            [limit, offset],
+            <<"SELECT username FROM users ORDER BY username ", LimitOffset/binary>>),
+    prepare(auth_list_users_prefix, users,
+            [username],
+            <<"SELECT username FROM users WHERE username LIKE ? ESCAPE '$' ORDER BY username">>),
+    prepare(auth_list_users_prefix_range, users,
+            [username, limit, offset],
+            <<"SELECT username FROM users WHERE username LIKE ? ESCAPE '$' ORDER BY username ",
+              LimitOffset/binary>>),
+    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
+    prepare(auth_list_users_without_scram, users,
+            [limit],
+            <<"SELECT ", LimitMSSQL/binary, " username, password FROM users "
+              "WHERE pass_details is NULL ", LimitSQL/binary>>),
+    prepare(auth_count_users_prefix, users,
+            [username],
+            <<"SELECT COUNT(*) FROM users WHERE username LIKE ? ESCAPE '$'">>),
+    prepare_count_users(HostType),
+    prepare(auth_count_users_without_scram, users, [],
+            <<"SELECT COUNT(*) FROM users WHERE pass_details is NULL">>).
+
+prepare_count_users(HostType) ->
+    case {ejabberd_auth:get_opt(HostType, rdbms_users_number_estimate),
+          mongoose_rdbms:db_engine(HostType)} of
+        {true, mysql} ->
+            prepare(auth_count_users_estimate, 'information_schema.tables', [],
+                    <<"SELECT table_rows FROM information_schema.tables "
+                      "WHERE table_name = 'users'">>);
+        {true, pgsql} ->
+            prepare(auth_count_users_estimate, pg_class, [],
+                    <<"SELECT reltuples::numeric FROM pg_class "
+                      "WHERE oid = 'users'::regclass::oid">>);
+        _ ->
+            prepare_count_users()
     end.
+
+prepare_count_users() ->
+    prepare(auth_count_users, users, [], <<"SELECT COUNT(*) FROM users">>).
+
+-spec execute_get_password(jid:lserver(), jid:luser()) ->
+          mongoose_rdbms:query_result().
+execute_get_password(LServer, LUser) ->
+    execute_successfully(LServer, auth_get_password, [LUser]).
+
+-spec execute_set_password(jid:lserver(), jid:luser(), prepared_password()) ->
+          mongoose_rdbms:query_result().
+execute_set_password(LServer, LUser, #{password := Pass, details := PassDetails}) ->
+    execute_successfully(LServer, auth_set_password_scram, [Pass, PassDetails, LUser]);
+execute_set_password(LServer, LUser, #{password := Pass}) ->
+    execute_successfully(LServer, auth_set_password, [Pass, LUser]).
+
+-spec execute_add_user(jid:lserver(), jid:luser(), prepared_password()) ->
+          mongoose_rdbms:query_result().
+execute_add_user(LServer, LUser, #{password := Pass, details := PassDetails}) ->
+    execute_successfully(LServer, auth_add_user_scram, [LUser, Pass, PassDetails]);
+execute_add_user(LServer, LUser, #{password := Pass}) ->
+    execute_successfully(LServer, auth_add_user, [LUser, Pass]).
+
+-spec execute_delete_user(jid:lserver(), jid:luser()) -> mongoose_rdbms:query_result().
+execute_delete_user(LServer, LUser) ->
+    execute_successfully(LServer, auth_delete_user, [LUser]).
+
+-spec execute_list_users(jid:lserver(), map()) -> mongoose_rdbms:query_result().
+execute_list_users(LServer, #{from := Start, to := End} = OptMap) ->
+    Map = maps:without([from, to], OptMap),
+    execute_list_users(LServer, Map#{limit => End - Start + 1, offset => Start - 1});
+execute_list_users(LServer, #{prefix := Prefix, limit := Limit, offset := Offset}) ->
+    Args = [prefix_to_like(Prefix)] ++ rdbms_queries:limit_offset_args(Limit, Offset),
+    execute_successfully(LServer, auth_list_users_prefix_range, Args);
+execute_list_users(LServer, #{prefix := Prefix}) ->
+    Args = [prefix_to_like(Prefix)],
+    execute_successfully(LServer, auth_list_users_prefix, Args);
+execute_list_users(LServer, #{limit := Limit, offset := Offset}) ->
+    Args = rdbms_queries:limit_offset_args(Limit, Offset),
+    execute_successfully(LServer, auth_list_users_range, Args);
+execute_list_users(LServer, #{}) ->
+    execute_successfully(LServer, auth_list_users, []).
+
+-spec execute_list_users_without_scram(jid:lserver(), non_neg_integer()) ->
+          mongoose_rdbms:query_result().
+execute_list_users_without_scram(LServer, Limit) ->
+    execute_successfully(LServer, auth_list_users_without_scram, [Limit]).
+
+-spec execute_count_users(jid:lserver(), map()) -> mongoose_rdbms:query_result().
+execute_count_users(LServer, #{prefix := Prefix}) ->
+    Args = [prefix_to_like(Prefix)],
+    execute_successfully(LServer, auth_count_users_prefix, Args);
+execute_count_users(LServer, #{}) ->
+    Query = case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
+                  mongoose_rdbms:db_engine(LServer)} of
+                {true, DB} when DB =:= pgsql;
+                                DB =:= mysql -> auth_count_users_estimate;
+                _ -> auth_count_users
+            end,
+    execute_successfully(LServer, Query, []).
+
+-spec execute_count_users_without_scram(jid:lserver()) -> mongoose_rdbms:query_result().
+execute_count_users_without_scram(LServer) ->
+    execute_successfully(LServer, auth_count_users_without_scram, []).
+
+-spec prefix_to_like(binary()) -> binary().
+prefix_to_like(Prefix) ->
+    EscapedPrefix = mongoose_rdbms:escape_prepared_like(Prefix),
+    <<EscapedPrefix/binary, $%>>.

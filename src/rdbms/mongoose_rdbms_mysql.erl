@@ -65,7 +65,8 @@ prepare(Connection, Name, _Table, _Fields, Statement) ->
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, _Timeout) ->
-    mysql_to_rdbms(mysql:execute(Connection, StatementRef, Params), Connection).
+    Params2 = booleans_as_integers(Params),
+    mysql_to_rdbms(mysql:execute(Connection, StatementRef, Params2), Connection).
 
 %% Helpers
 
@@ -108,3 +109,13 @@ mysql_to_rdbms({error, {1062, _SQLState, _Message}}, _Conn) ->
     {error, duplicate_key};
 mysql_to_rdbms({error, {_Code, _SQLState, Message}}, _Conn) ->
     {error, unicode:characters_to_list(Message)}.
+
+booleans_as_integers([H|T]) when is_boolean(H) ->
+    [boolean_to_integer(H)|booleans_as_integers(T)];
+booleans_as_integers([H|T]) ->
+    [H|booleans_as_integers(T)];
+booleans_as_integers([]) ->
+    [].
+
+boolean_to_integer(true) -> 1;
+boolean_to_integer(false) -> 0.

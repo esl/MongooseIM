@@ -6,6 +6,7 @@
 # - COVER_ENABLED
 # - STOP_NODES (default false)
 set -o pipefail
+shopt -s nullglob
 IFS=$'\n\t'
 
 DEFAULT_PRESET=internal_mnesia
@@ -124,6 +125,14 @@ maybe_run_eunit_tests() {
   fi
 }
 
+function is_member
+{
+  local e match="$1"
+  shift
+  for e; do [[ "$e" == "$match" ]] && return 0; done
+  return 1
+}
+
 run_test_preset() {
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
@@ -182,13 +191,29 @@ run_tests() {
 
   maybe_pause_before_test
 
+  # Requires shopt -s nullglob
+  SUMMARIES_DIRS_BEFORE=()
+  for DIR in ${BASE}/big_tests/ct_report/ct_run*; do
+    SUMMARIES_DIRS_BEFORE+=( "$DIR" )
+  done
+
   run_test_preset
   BIG_STATUS=$?
 
-  SUMMARIES_DIRS=${BASE}/big_tests/ct_report/ct_run*
-  SUMMARIES_DIR=$(choose_newest_directory ${SUMMARIES_DIRS})
-  echo "SUMMARIES_DIR=$SUMMARIES_DIR"
-  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
+  SUMMARIES_DIRS_AFTER=()
+  for DIR in ${BASE}/big_tests/ct_report/ct_run*; do
+    SUMMARIES_DIRS_AFTER+=( "$DIR" )
+  done
+
+  for DIR in ${SUMMARIES_DIRS_AFTER[@]}; do
+    if ! is_member "$DIR" ${SUMMARIES_DIRS_BEFORE[@]}; then
+        # when SUMMARIES_DIRS_BEFORE doesn't contain value DIR
+        SUMMARIES_DIRS+=( "$DIR" )
+    fi
+  done
+
+  echo "SUMMARIES_DIRS=$SUMMARIES_DIRS"
+  ${TOOLS}/summarise-ct-results ${SUMMARIES_DIRS}
   BIG_STATUS_BY_SUMMARY=$?
 
   echo

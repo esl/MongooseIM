@@ -17,9 +17,9 @@
 
 -export([init/2]).
 -export([enable/4,
+         disable/1,
          disable/3,
          get_publish_services/1]).
-
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
@@ -27,7 +27,7 @@
 
 -spec init(Host :: jid:server(), Opts :: list()) -> ok.
 init(_Host, _Opts) ->
-    ok.
+    prepare_queries().
 
 -spec enable(User, PubSub, Node, Form) -> Result when
       User :: jid:jid(),
@@ -36,57 +36,43 @@ init(_Host, _Opts) ->
       Form :: mod_event_pusher_push:form(),
       Result :: ok | {error, term()}.
 enable(#jid{lserver = LServer} = User, PubSub, Node, Forms) ->
-    UserEscaped = mongoose_rdbms:escape_string(jid:to_binary(jid:to_lus(User))),
-    PubSubEscaped = mongoose_rdbms:escape_string(jid:to_binary(PubSub)),
-    FormsJSONEscaped = mongoose_rdbms:escape_string(encode_form(Forms)),
-    NodeEscaped = mongoose_rdbms:escape_string(Node),
-
-    DeleteQuery = delete_query(UserEscaped, PubSubEscaped, NodeEscaped),
-    mongoose_rdbms:sql_query(LServer, DeleteQuery),
-
-    CreatedAtEscaped = mongoose_rdbms:escape_integer(os:system_time(microsecond)),
-    InsertQuery = insert_query(UserEscaped, PubSubEscaped, NodeEscaped,
-                               FormsJSONEscaped, CreatedAtEscaped),
-    case mongoose_rdbms:sql_query(LServer, InsertQuery) of
+    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtPubSub = jid:to_binary(PubSub),
+    ExtForms = encode_form(Forms),
+    execute_delete(LServer, ExtUser, Node, ExtPubSub),
+    CreatedAt = os:system_time(microsecond),
+    case execute_insert(LServer, ExtUser, Node, ExtPubSub, ExtForms, CreatedAt) of
         {updated, 1} -> ok;
         Other -> Other
     end.
 
--spec disable(User :: jid:jid(), PubSub :: jid:jid() | undefined,
-              Node :: mod_event_pusher_push:pubsub_node() | undefined) ->
-    ok | {error, Reason :: term()}.
+-spec disable(User :: jid:jid()) -> ok.
+disable(#jid{lserver = LServer} = User) ->
+    ExtUser = jid:to_binary(jid:to_lus(User)),
+    execute_delete(LServer, ExtUser),
+    ok.
+
+-spec disable(User :: jid:jid(), PubSub :: jid:jid(),
+              Node :: mod_event_pusher_push:pubsub_node() | undefined) -> ok.
+disable(#jid{lserver = LServer} = User, PubSub, undefined) ->
+    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtPubSub = jid:to_binary(PubSub),
+    execute_delete(LServer, ExtUser, ExtPubSub),
+    ok;
 disable(#jid{lserver = LServer} = User, PubSub, Node) ->
-    UserEscaped = mongoose_rdbms:escape_string(jid:to_binary(jid:to_lus(User))),
-    PubSubBin = maybe_to_binary(PubSub),
-    PubSubEscaped = escape_if_defined(PubSubBin),
-    NodeEscaped = escape_if_defined(Node),
-    DeleteQuery = delete_query(UserEscaped, PubSubEscaped, NodeEscaped),
-    case mongoose_rdbms:sql_query(LServer, DeleteQuery) of
-        {updated, _} -> ok;
-        Other -> Other
-    end.
-
-maybe_to_binary(undefined) -> undefined;
-maybe_to_binary(#jid{} = JID) -> jid:to_binary(JID).
-
-escape_if_defined(undefined) -> undefined;
-escape_if_defined(Value) -> mongoose_rdbms:escape_string(Value).
+    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtPubSub = jid:to_binary(PubSub),
+    execute_delete(LServer, ExtUser, Node, ExtPubSub),
+    ok.
 
 -spec get_publish_services(User :: jid:jid()) ->
     {ok, [{PubSub :: jid:jid(),
            Node :: mod_event_pusher_push:pubsub_node(),
-           Form :: mod_event_pusher_push:form()}]} |
-    {error, Reason :: term()}.
+           Form :: mod_event_pusher_push:form()}]}.
 get_publish_services(#jid{lserver = LServer} = User) ->
-    UserEscaped = mongoose_rdbms:escape_string(jid:to_binary(jid:to_lus(User))),
-    SelectQuery = select_query(UserEscaped),
-    Result = mongoose_rdbms:sql_query(LServer, SelectQuery),
-    case Result of
-        {selected, Rows} ->
-            {ok, decode_rows(Rows)};
-        Other ->
-            Other
-    end.
+    ExtUser = jid:to_binary(jid:to_lus(User)),
+    {selected, Rows} = execute_select(LServer, ExtUser),
+    {ok, decode_rows(Rows)}.
 
 decode_rows(Rows) ->
     [decode_row(Row) || Row <- Rows].
@@ -96,29 +82,6 @@ decode_row({NodeID, PubSubBin, FormJSON}) ->
      NodeID,
      decode_form(FormJSON)}.
 
-insert_query(User, PubSub, Node, FormJSON, CreatedAt) ->
-    [<<"INSERT INTO ">>, table_name(), <<" (owner_jid, node, pubsub_jid, form, created_at) VALUES (">>,
-        mongoose_rdbms:use_escaped_string(User), "," ,
-        mongoose_rdbms:use_escaped_string(Node), ",",
-        mongoose_rdbms:use_escaped_string(PubSub), "," ,
-        mongoose_rdbms:use_escaped_string(FormJSON), "," ,
-        mongoose_rdbms:use_escaped_integer(CreatedAt),
-     ")"].
-
-delete_query(User, PubSub, Node) ->
-    [<<"DELETE FROM ">>, table_name(),
-     <<" WHERE owner_jid = ">>, mongoose_rdbms:use_escaped_string(User),
-     maybe_add_col_filter("node", Node),
-     maybe_add_col_filter("pubsub_jid", PubSub)].
-
-maybe_add_col_filter(_, undefined) -> [];
-maybe_add_col_filter(ColName, Value) ->
-    [" AND ", ColName, " = ", mongoose_rdbms:use_escaped_string(Value)].
-
-select_query(User) ->
-    [<<"SELECT node, pubsub_jid, form FROM ">>, table_name(),
-     <<" WHERE owner_jid = ">>, mongoose_rdbms:use_escaped_string(User)].
-
 encode_form(Forms) ->
     jiffy:encode({Forms}).
 
@@ -126,5 +89,55 @@ decode_form(FormJSON) ->
     {Items} = jiffy:decode(FormJSON),
     Items.
 
-table_name() ->
-    <<"event_pusher_push_subscription">>.
+%% Prepared queries
+
+-spec prepare_queries() -> ok.
+prepare_queries() ->
+    mongoose_rdbms:prepare(event_pusher_push_insert, event_pusher_push_subscription,
+                           [owner_jid, node, pubsub_jid, form, created_at],
+                           <<"INSERT INTO event_pusher_push_subscription VALUES (?, ?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(event_pusher_push_select, event_pusher_push_subscription,
+                           [owner_jid],
+                           <<"SELECT node, pubsub_jid, form FROM event_pusher_push_subscription "
+                             "WHERE owner_jid = ?">>),
+    mongoose_rdbms:prepare(event_pusher_push_delete, event_pusher_push_subscription,
+                           [owner_jid],
+                           <<"DELETE FROM event_pusher_push_subscription "
+                             "WHERE owner_jid = ?">>),
+    mongoose_rdbms:prepare(event_pusher_push_delete_pubsub_jid, event_pusher_push_subscription,
+                           [owner_jid, pubsub_jid],
+                           <<"DELETE FROM event_pusher_push_subscription "
+                             "WHERE owner_jid = ? AND pubsub_jid = ?">>),
+    mongoose_rdbms:prepare(event_pusher_push_delete_node, event_pusher_push_subscription,
+                           [owner_jid, node, pubsub_jid],
+                           <<"DELETE FROM event_pusher_push_subscription "
+                             "WHERE owner_jid = ? AND node = ? AND pubsub_jid = ?">>),
+    ok.
+
+-spec execute_insert(jid:lserver(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
+                     jid:literal_jid(), iodata(), non_neg_integer()) ->
+          mongoose_rdbms:query_result().
+execute_insert(LServer, OwnerJid, Node, PubSubJid, Form, CreatedAt) ->
+    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_insert,
+                                        [OwnerJid, Node, PubSubJid, Form, CreatedAt]).
+
+-spec execute_select(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
+execute_select(LServer, OwnerJid) ->
+    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_select, [OwnerJid]).
+
+-spec execute_delete(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
+execute_delete(LServer, OwnerJid) ->
+    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete, [OwnerJid]).
+
+-spec execute_delete(jid:lserver(), jid:literal_jid(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_delete(LServer, OwnerJid, PubSubJid) ->
+    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete_pubsub_jid,
+                                        [OwnerJid, PubSubJid]).
+
+-spec execute_delete(jid:lserver(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
+                     jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_delete(LServer, OwnerJid, Node, PubSubJid) ->
+    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete_node,
+                                        [OwnerJid, Node, PubSubJid]).

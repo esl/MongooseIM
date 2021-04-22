@@ -119,6 +119,7 @@
                                   | {set, #create{}, UniqueRequested :: boolean()}
                                   | {set, #destroy{}, AffUsers :: aff_users()}
                                   | {set, #config{}, AffUsers :: aff_users()}
+                                  | {#msg{}, AffUsers :: aff_users()}
                                   | {error, bad_request}.
 
 -type msg() :: #msg{}.

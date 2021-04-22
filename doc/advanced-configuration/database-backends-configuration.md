@@ -200,11 +200,11 @@ ALTER DATABASE $name_of_your_db SET READ_COMMITTED_SNAPSHOT ON
 
 The command above may take some time.
 
-Then you need to import the SQL schema from either ``mssql2012.sql`` or ``azuresql.sql`` file depending on which database you are using.
+Then you need to import the SQL schema from  ``mssql2012.sql``.
 You can use a Microsoft's GUI tool (the provided .sql files should work with it) or isql, but after a slight modification of the dump file:
 
 ```bash
-cat azuresql.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
+cat mssql2012.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
 isql mongoose-mssql username password -b
 ```
 
@@ -220,8 +220,8 @@ Configure the `outgoing_pools.rdbms` section as follows:
 
 ```toml
 [outgoing_pools.rdbms.default]
-  workers = 5  
-  
+  workers = 5
+
   [outgoing_pools.rdbms.default.connection]
     driver = "odbc"
     settings = "DSN=mongoose-mssql;UID=username;PWD=password"

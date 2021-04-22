@@ -347,12 +347,7 @@ has_any(Elements) ->
     lists:any(fun(El) -> El =/= false end, Elements).
 
 has_chat_marker(Packet) ->
-    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
-        #xmlel{name = <<"received">>}     -> true;
-        #xmlel{name = <<"displayed">>}    -> true;
-        #xmlel{name = <<"acknowledged">>} -> true;
-        _                                 -> false
-    end.
+    mongoose_chat_markers:has_chat_markers(Packet).
 
 get_retract_id(true = _Enabled, Packet) ->
     get_retract_id(Packet);

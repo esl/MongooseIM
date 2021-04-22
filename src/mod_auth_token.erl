@@ -60,6 +60,9 @@
                            | {ok, module(), jid:user(), binary()}
                            | error().
 
+-callback start(LServer) -> ok when
+      LServer :: jid:lserver().
+
 -callback revoke(Owner) -> ok | not_found when
       Owner :: jid:jid().
 
@@ -81,6 +84,7 @@
 -spec start(jid:server(), list()) -> ok.
 start(Domain, Opts) ->
     gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
+    mod_auth_token_backend:start(Domain),
     mod_disco:register_feature(Domain, ?NS_ESL_TOKEN_AUTH),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)

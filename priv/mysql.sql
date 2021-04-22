@@ -306,6 +306,12 @@ CREATE TABLE offline_message(
   ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
 
+CREATE TABLE auth_token(
+    owner varchar(250)      NOT NULL PRIMARY KEY,
+    seq_no BIGINT UNSIGNED NOT NULL
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
 CREATE TABLE muc_light_rooms(
     id BIGINT UNSIGNED      NOT NULL AUTO_INCREMENT,
     luser VARCHAR(250)      NOT NULL,
@@ -383,6 +389,8 @@ CREATE TABLE inbox (
     unread_count int                 NOT NULL,
     msg_id varchar(250),
     timestamp BIGINT UNSIGNED        NOT NULL,
+    archive BOOLEAN                  DEFAULT false,
+    muted_until BIGINT               DEFAULT 0,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
 CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
