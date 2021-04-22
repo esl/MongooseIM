@@ -198,13 +198,15 @@ init_per_group_generic(Config0) ->
                   OldMods = save_modules(NodeName, VirtHosts),
 
                   rpc(NodeName, gen_mod_deps, start_modules,
-                      [<<"localhost">>, [{mod_global_distrib, Opts}]]),
+                      [domain(), [{mod_global_distrib, Opts}]]),
 
                   [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod])
                    || Mod <- ModulesToStop, VirtHost <- VirtHosts],
 
-                  ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
-                  true = rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
+                  ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout,
+                                      [domain(), 1]),
+                  true = rpc(NodeName, mod_stream_management, set_resume_timeout,
+                             [domain(), 1]),
 
                   OldMods ++
                   [
@@ -243,7 +245,7 @@ end_per_group_generic(Config) ->
               [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts],
 
               rpc(NodeName, mod_stream_management, set_resume_timeout,
-                  [?config({resume_timeout, NodeName}, Config)])
+                  [domain(), ?config({resume_timeout, NodeName}, Config)])
       end,
       get_hosts()).
 
@@ -342,7 +344,13 @@ generic_end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 virtual_hosts() ->
-    [ct:get_config({hosts, mim, domain}), ct:get_config({hosts, mim, secondary_domain})].
+    [domain(), secondary_domain()].
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+secondary_domain() ->
+    ct:get_config({hosts, mim, secondary_domain}).
 
 %% Refresher is not started at all or stopped for some test cases
 -spec pause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.

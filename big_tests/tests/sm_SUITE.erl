@@ -141,11 +141,11 @@ end_per_suite(Config) ->
 
 init_per_group(G, Config) when G =:= unacknowledged_message_hook;
                                G =:= manual_ack_freq_long_session_timeout ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), 1]),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(parallel_manual_ack_freq_1, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), 1]),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [domain(), ?SHORT_RESUME_TIMEOUT]),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stale_h, Config) ->
     escalus_users:update_userspec(Config, alice, manual_ack, true);
@@ -161,11 +161,11 @@ end_per_group(stream_mgmt_disabled, Config) ->
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(G, Config) when G =:= unacknowledged_message_hook;
                               G =:= manual_ack_freq_long_session_timeout ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), never]),
     Config;
 end_per_group(parallel_manual_ack_freq_1, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [600]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), never]),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [domain(), 600]),
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
@@ -179,7 +179,7 @@ set_gc_parameters(RepeatAfter, Geriatric, Config) ->
 
 register_smid(IntSmidId) ->
     S = {SMID = make_smid(), IntSmidId},
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID, IntSmidId]),
+    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [domain(), SMID, IntSmidId]),
     S.
 
 register_some_smid_h(Config) ->
@@ -188,8 +188,8 @@ register_some_smid_h(Config) ->
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
     Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [domain(), ?SHORT_RESUME_TIMEOUT]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), 1]),
     escalus:init_per_testcase(CN, Config2);
 init_per_testcase(gc_repeat_after_never_means_no_cleaning = CN, Config) ->
     Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
@@ -200,7 +200,7 @@ init_per_testcase(gc_repeat_after_timeout_does_clean = CN, Config) ->
     Config3 = register_some_smid_h(Config2),
     escalus:init_per_testcase(CN, Config3);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [2]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), 2]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     register_handler(<<"localhost">>),
@@ -217,7 +217,7 @@ end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), never]),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     unregister_handler(<<"localhost">>),
@@ -676,15 +676,15 @@ resume_expired_session_returns_correct_h(Config) ->
     escalus_connection:stop(NewAlice).
 
 gc_repeat_after_never_means_no_cleaning(Config) ->
-    true = rpc(mim(), ?MOD_SM, set_stale_h_repeat_after, [?BIG_BIG_BIG_TIMEOUT]),
+    true = rpc(mim(), ?MOD_SM, set_stale_h_repeat_after, [domain(), ?BIG_BIG_BIG_TIMEOUT]),
     [{SMID1, _}, {SMID2, _}, {SMID3, _}] = ?config(smid_test, Config),
-    {stale_h, 1} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID1]),
-    {stale_h, 2} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID2]),
-    {stale_h, 3} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID3]).
+    {stale_h, 1} = rpc(mim(), ?MOD_SM, get_session_from_smid, [domain(), SMID1]),
+    {stale_h, 2} = rpc(mim(), ?MOD_SM, get_session_from_smid, [domain(), SMID2]),
+    {stale_h, 3} = rpc(mim(), ?MOD_SM, get_session_from_smid, [domain(), SMID3]).
 gc_repeat_after_timeout_does_clean(Config) ->
     [{SMID1, _} | _ ] = ?config(smid_test, Config),
     mongoose_helper:wait_until(fun() ->
-                                       rpc(mim(), ?MOD_SM, get_stale_h, [SMID1])
+                                       rpc(mim(), ?MOD_SM, get_stale_h, [domain(), SMID1])
                                end,
                                {error, smid_not_found},
                                #{name => smid_garbage_collected}).
@@ -1373,26 +1373,26 @@ discard_offline_messages(Config, User, H) ->
 buffer_max(BufferMax) ->
     {buffer_max,
      fun () ->
-             rpc(mim(), ?MOD_SM, get_buffer_max, [unset])
+             rpc(mim(), ?MOD_SM, get_buffer_max, [domain(), unset])
      end,
      fun (unset) ->
              ct:pal("buffer_max was not set - setting to 'undefined'"),
-             rpc(mim(), ?MOD_SM, set_buffer_max, [undefined]);
+             rpc(mim(), ?MOD_SM, set_buffer_max, [domain(), undefined]);
          (V) ->
-             rpc(mim(), ?MOD_SM, set_buffer_max, [V])
+             rpc(mim(), ?MOD_SM, set_buffer_max, [domain(), V])
      end,
      BufferMax}.
 
 ack_freq(AckFreq) ->
     {ack_freq,
      fun () ->
-             rpc(mim(), ?MOD_SM, get_ack_freq, [unset])
+             rpc(mim(), ?MOD_SM, get_ack_freq, [domain(), unset])
      end,
      fun (unset) ->
              ct:pal("ack_freq was not set - setting to 'undefined'"),
-             rpc(mim(), ?MOD_SM, set_ack_freq, [undefined]);
+             rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), undefined]);
          (V) ->
-             rpc(mim(), ?MOD_SM, set_ack_freq, [V])
+             rpc(mim(), ?MOD_SM, set_ack_freq, [domain(), V])
      end,
      AckFreq}.
 
