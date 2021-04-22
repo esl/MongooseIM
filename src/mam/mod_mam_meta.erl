@@ -56,6 +56,8 @@ config_items() ->
       <<"no_stanzaid_element">> => #option{type = boolean},
       <<"is_archivable_message">> => #option{type = atom,
                                              validate = module},
+      <<"send_message">> => #option{type = atom,
+                                    validate = module},
       <<"archive_chat_markers">> => #option{type = boolean},
       <<"message_retraction">> => #option{type = boolean},
 
@@ -202,6 +204,7 @@ valid_core_mod_opts(mod_mam_muc) ->
 
 common_opts() ->
     [is_archivable_message,
+     send_message,
      archive_chat_markers,
      extra_lookup_params,
      full_text_search,

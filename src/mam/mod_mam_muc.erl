@@ -90,11 +90,6 @@
         [mess_id_to_external_binary/1,
          is_complete_result_page/4]).
 
-%% ejabberd
--import(mod_mam_utils,
-        [send_message/3]).
-
-
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -422,10 +417,16 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
                         message_row_to_ext_id(lists:last(MessageRows)),
                         is_user_identity_hidden(From, ArcJID)}
         end,
-    [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
-                                                   QueryID))
+    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
+    SendModule = mod_mam_params:send_message_mod(?MODULE, Host),
+    [send_message(SendModule, Row, ArcJID, From,
+                  message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
+                                     QueryID))
      || Row <- MessageRows],
     {FirstMessID, LastMessID}.
+
+send_message(SendModule, Row, ArcJID, From, Packet) ->
+    SendModule:send_message(Row, ArcJID, From, Packet).
 
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().

@@ -85,7 +85,7 @@
          check_for_item_not_found/3]).
 
 %% Ejabberd
--export([send_message/3,
+-export([send_message/4,
          maybe_set_client_xmlns/2,
          is_jid_in_user_roster/2]).
 
@@ -1061,22 +1061,9 @@ wait_shaper(Host, Action, From) ->
 %% -----------------------------------------------------------------------
 %% Ejabberd
 
--spec send_message(jid:jid(), jid:jid(), exml:element()
-                  ) -> mongoose_acc:t().
-
--ifdef(MAM_COMPACT_FORWARDED).
-
-send_message(_From, To, Mess) ->
-    From = jid:from_binary(exml_query:attr(Mess, <<"from">>)),
+-spec send_message(mod_mam:message_row(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+send_message(_Row, From, To, Mess) ->
     ejabberd_sm:route(From, To, Mess).
-
--else.
-
-send_message(From, To, Mess) ->
-    ejabberd_sm:route(From, To, Mess).
-
--endif.
-
 
 -spec is_jid_in_user_roster(jid:jid(), jid:jid()) -> boolean().
 is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,

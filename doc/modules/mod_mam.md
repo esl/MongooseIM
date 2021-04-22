@@ -66,6 +66,14 @@ Do not add a `<stanza-id/>` element from MAM v0.6.
 
 Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
 
+### `modules.mod_mam_meta.send_message`
+* **Syntax:** non-empty string
+* **Default:** `"mod_mam_utils"`
+* **Example:** `send_message = "mod_mam_utils"`
+
+Name of a module implementing `send_message/4` callback that routes a message during lookup operation.
+Consult with `mod_mam_utils:send_message/4` code for more information.
+
 ### `modules.mod_mam_meta.archive_chat_markers`
 * **Syntax:** boolean
 * **Default:** `false`

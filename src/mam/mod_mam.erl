@@ -95,8 +95,7 @@
 
 %% ejabberd
 -import(mod_mam_utils,
-        [send_message/3,
-         is_jid_in_user_roster/2]).
+        [is_jid_in_user_roster/2]).
 
 
 -include("mongoose.hrl").
@@ -450,11 +449,15 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
         [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                   message_row_to_ext_id(lists:last(MessageRows))}
     end,
-
-    [send_message(ArcJID, From,
-                  message_row_to_xml(MamNs, M, QueryID, SetClientNs))
-     || M <- MessageRows],
+    Host = ArcJID#jid.lserver,
+    SendModule = mod_mam_params:send_message_mod(?MODULE, Host),
+    [send_message(SendModule, Row, ArcJID, From,
+                  message_row_to_xml(MamNs, Row, QueryID, SetClientNs))
+     || Row <- MessageRows],
     {FirstMessID, LastMessID}.
+
+send_message(SendModule, Row, ArcJID, From, Packet) ->
+    SendModule:send_message(Row, ArcJID, From, Packet).
 
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
