@@ -66,8 +66,7 @@ get_hooks(Host) ->
       {privacy_iq_get, Host, ?MODULE, privacy_iq_get, 1},
       {privacy_iq_set, Host, ?MODULE, privacy_iq_set, 1},
       {privacy_check_packet, Host, ?MODULE, privacy_check_packet, 55},
-      {sm_broadcast, Host, ?MODULE, privacy_list_push, 1}
-      | mongoose_metrics_mam_hooks:get_hooks(Host)].
+      {sm_broadcast, Host, ?MODULE, privacy_list_push, 1}].
 
 -spec sm_register_connection_hook(map(), tuple(), jid:jid(), term()
                                  ) -> metrics_notify_return().

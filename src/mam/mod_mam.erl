@@ -218,9 +218,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
     ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
-    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
+    ensure_metrics(Host),
     ok.
 
 
@@ -684,5 +682,30 @@ is_archivable_message(Host, Dir, Packet) ->
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
+    lists:foreach(fun(Name) ->
+                      mongoose_metrics:ensure_metric(Host, Name, spiral)
+                  end,
+                  spirals()),
+    Hooks = mongoose_metrics_mam_hooks:get_hooks(Host),
+    ejabberd_hooks:add(Hooks).
+
+spirals() ->
+    [modMamPrefsSets,
+    modMamPrefsGets,
+    modMamArchiveRemoved,
+    modMamLookups,
+    modMamForwarded,
+    modMamArchived,
+    modMamFlushed,
+    modMamDropped,
+    modMamDropped2,
+    modMamDroppedIQ,
+    modMamSinglePurges,
+    modMamMultiplePurges].
