@@ -20,6 +20,11 @@ start(Host) ->
                     <<"created_lserver">>, <<"created_at">>, <<"payload">>],
     UpdateFields = [<<"itemid">>, <<"created_luser">>, <<"created_lserver">>,
                     <<"created_at">>, <<"payload">>],
+    mongoose_rdbms:prepare(pubsub_get_last_item, pubsub_last_item, [nidx],
+        <<"SELECT nidx, itemid, created_luser, created_at, created_lserver, payload "
+          "FROM pubsub_last_item WHERE nidx = ?">>),
+    mongoose_rdbms:prepare(pubsub_delete_last_item, pubsub_last_item, [nidx],
+        <<"DELETE FROM pubsub_last_item WHERE nidx = ?">>),
     rdbms_queries:prepare_upsert(Host, pubsub_last_item_upsert, pubsub_last_item,
                                  InsertFields,
                                  UpdateFields,
@@ -49,27 +54,15 @@ upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
 -spec delete_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 delete_last_item(ServerHost, Nidx) ->
-    DeleteQuerySQL = delete_pubsub_last_item(Nidx),
-    Res = mongoose_rdbms:sql_query(ServerHost, DeleteQuerySQL),
+    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_delete_last_item, [Nidx]),
     convert_rdbms_response(Res).
 
 -spec get_last_item(ServerHost :: binary(),
                     Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 get_last_item(ServerHost, Nidx) ->
-    ReadQuerySQL = get_pubsub_last_item(Nidx),
-    Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
+    Res = mongoose_rdbms:execute_successfully(ServerHost, pubsub_get_last_item, [Nidx]),
     convert_rdbms_response(Res).
-
--spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
-get_pubsub_last_item(Nidx) ->
-    ["SELECT nidx, itemid, created_luser, created_at, created_lserver, payload FROM pubsub_last_item"
-     " WHERE nidx = ", esc_int(Nidx), ";"].
-
--spec delete_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
-delete_pubsub_last_item(Nidx) ->
-    ["DELETE FROM pubsub_last_item"
-    " WHERE nidx = ", esc_int(Nidx), ";"].
 
 %%====================================================================
 %% Helpers
@@ -85,9 +78,6 @@ convert_rdbms_response({updated, _}) ->
 convert_rdbms_response(Response) ->
     ?LOG_ERROR(#{what => pubsub_rdbms_cache_failed, reason => Response}),
     {error, pubsub_rdbms_cache_failed}.
-
-esc_int(Int) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
 prepare_upsert_params(Publisher, Payload) ->
     PayloadXML = #xmlel{name = <<"item">>, children = Payload},

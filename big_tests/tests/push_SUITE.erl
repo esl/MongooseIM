@@ -61,7 +61,8 @@ groups() ->
                                              pm_no_msg_notifications_if_user_online,
                                              pm_msg_notify_if_user_offline,
                                              pm_msg_notify_if_user_offline_with_publish_options,
-                                             pm_msg_notify_stops_after_disabling
+                                             pm_msg_notify_stops_after_disabling,
+                                             pm_msg_notify_stops_after_removal
                                             ]},
          {muclight_msg_notifications, [parallel], [
                                                    muclight_no_msg_notifications_if_not_enabled,
@@ -580,6 +581,31 @@ pm_msg_notify_stops_after_disabling(Config) ->
             ok
         end).
 
+pm_msg_notify_stops_after_removal(Config) ->
+    PubsubJID = pubsub_jid(Config),
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Bob) ->
+            %% Enable
+            escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>, [])),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+            %% Remove account - this should disable the notifications
+            Pid = mongoose_helper:get_session_pid(Bob, distributed_helper:mim()),
+            escalus_connection:send(Bob, escalus_stanza:remove_account()),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+            mongoose_helper:wait_for_pid_to_die(Pid)
+        end),
+    BobUser = lists:keyfind(bob, 1, escalus_config:get_config(escalus_users, Config)),
+    escalus_users:create_user(Config, BobUser),
+    escalus:story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            become_unavailable(Bob),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+            ?assert(not truly(received_push(Config)))
+        end).
+
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
@@ -823,12 +849,3 @@ pubsub_jid(Config) ->
 room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
     <<"room_", (atom_to_binary(CaseName, utf8))/binary>>.
-
-is_offline(LUser, LServer) ->
-    case catch lists:max(rpc(ejabberd_sm, get_user_present_pids, [LUser, LServer])) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            false;
-        _ ->
-            true
-    end.
-

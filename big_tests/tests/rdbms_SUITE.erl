@@ -63,7 +63,9 @@ rdbms_queries_cases() ->
      read_prep_boolean_case,
 
      select_like_case,
-     select_like_prep_case].
+     select_like_prep_case,
+
+     arguments_from_two_tables].
 
 suite() ->
     escalus:suite().
@@ -179,14 +181,22 @@ ascii_char_values() ->
 enum_char_values() ->
     [<<"A">>, <<"B">>, <<"C">>].
 
-like_texts() ->
+simple_like_texts() ->
     [#{text => <<"hello user!">>,
        not_matching => [<<"hi">>, <<"help">>],
        matching => [<<"hello">>, <<"user">>, <<"hell">>]},
      #{text => <<60,79,67,32,59,48,63,58,48>>,
        not_matching => [<<62,66,64,48,65,66,53,66>>],
-       matching => [<<60,79,67>>]}
-    ].
+       matching => [<<60,79,67>>]}].
+
+like_texts() ->
+    simple_like_texts() ++
+        [#{text => <<"abc%">>,
+           not_matching => [<<"ab%">>, <<"%bc%">>],
+           matching => [<<"abc%">>, <<"abc">>]},
+         #{text => <<"żółć_"/utf8>>,
+           not_matching => [<<"_ółć_"/utf8>>],
+           matching => [<<"żół"/utf8>>, <<"ółć_"/utf8>>]}].
 
 %%--------------------------------------------------------------------
 %% Test cases
@@ -298,12 +308,28 @@ safe_binary(Len, Bin) when byte_size(Bin) > Len ->
 safe_binary(_Len, Bin) ->
     Bin.
 
+arguments_from_two_tables(Config) ->
+    erase_users(Config),
+    sql_prepare(Config, select_multi_args, users, [password, 'last.seconds'],
+                <<"SELECT users.username from users "
+                  " LEFT JOIN last ON (last.username = users.username) "
+                  " WHERE users.password = ? AND last.seconds > ?">>),
+    sql_query(Config, "INSERT INTO users (username, password) VALUES ('alice', 'secret')"),
+    sql_query(Config, "INSERT INTO users (username, password) VALUES ('bob', 'billy')"),
+    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('alice', 1615368268, 'ok')"),
+    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('bob', 1610000000, 'cool')"),
+    SelectResult = sql_execute(Config, select_multi_args, [<<"secret">>, 1611000000]),
+    ?assert_equal({selected, [{<<"alice">>}]}, SelectResult),
+    erase_users(Config),
+    ok.
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
 
 select_like_case(Config) ->
-    [check_like(Config, TextMap) || TextMap <- like_texts()].
+    %% Non-prepared queries don't support proper LIKE escaping
+    [check_like(Config, TextMap) || TextMap <- simple_like_texts()].
 
 select_like_prep_case(Config) ->
     [check_like_prep(Config, TextMap) || TextMap <- like_texts()].
@@ -339,6 +365,9 @@ escape_boolean(_Config, Value) ->
 escape_like(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_like, [Value]).
 
+escape_prepared_like(_Config, Value) ->
+    escalus_ejabberd:rpc(mongoose_rdbms, escape_prepared_like, [Value]).
+
 unescape_binary(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, unescape_binary, [host(), Value]).
 
@@ -363,6 +392,10 @@ decode_boolean(_Config, Value) ->
 
 erase_table(Config) ->
     sql_query(Config, <<"TRUNCATE TABLE test_types">>).
+
+erase_users(Config) ->
+    sql_query(Config, <<"TRUNCATE TABLE users">>),
+    sql_query(Config, <<"TRUNCATE TABLE last">>).
 
 check_int32(Config, Value) ->
     check_generic_integer(Config, Value, <<"int32">>).
@@ -807,7 +840,7 @@ check_like_prep(Config, TextMap = #{text := TextValue,
     Table = test_types,
     Fields = [<<"unicode">>],
     InsertQuery = <<"INSERT INTO test_types (unicode) VALUES (?)">>,
-    SelectQuery = <<"SELECT unicode FROM test_types WHERE unicode LIKE ?">>,
+    SelectQuery = <<"SELECT unicode FROM test_types WHERE unicode LIKE ? ESCAPE '$'">>,
     PrepareResult = sql_prepare(Config, Name, Table, Fields, InsertQuery),
     PrepareSelResult = sql_prepare(Config, SelName, Table, Fields, SelectQuery),
     Parameters = [TextValue],
@@ -824,7 +857,8 @@ check_like_prep(Config, TextMap = #{text := TextValue,
      || NotMatching <- NotMatchingList].
 
 check_like_matching_prep(SelName, Config, TextValue, Matching, Info) ->
-    Parameters = [<<"%", Matching/binary, "%">>],
+    SMatching = escape_prepared_like(Config, Matching),
+    Parameters = [<<"%", SMatching/binary, "%">>],
     SelectResult = sql_execute(Config, SelName, Parameters),
     %% Compare as binaries
     ?assert_equal_extra({selected, [{TextValue}]},
@@ -832,8 +866,9 @@ check_like_matching_prep(SelName, Config, TextValue, Matching, Info) ->
                         Info#{pattern => Matching,
                               select_result => SelectResult}).
 
-check_like_not_matching_prep(SelName, Config, TextValue, NotMatching, Info) ->
-    Parameters = [<<"%", NotMatching/binary, "%">>],
+check_like_not_matching_prep(SelName, Config, _TextValue, NotMatching, Info) ->
+    SNotMatching = escape_prepared_like(Config, NotMatching),
+    Parameters = [<<"%", SNotMatching/binary, "%">>],
     SelectResult = sql_execute(Config, SelName, Parameters),
     %% Compare as binaries
     ?assert_equal_extra({selected, []},

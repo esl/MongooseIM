@@ -935,7 +935,7 @@ process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
     StateData.
 
 %%-------------------------------------------------------------------------
-%% session may be terminated for exmaple by mod_ping there is still valid
+%% session may be terminated for example by mod_ping there is still valid
 %% connection and resource want to send stanza.
 resume_session({xmlstreamelement, _}, StateData) ->
     Err = mongoose_xmpp_errors:policy_violation(StateData#state.lang,
@@ -1497,7 +1497,7 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
                }.
 
 %%----------------------------------------------------------------------
-%% Func: terminate/3
+%% Func: terminate/4
 %% Purpose: Shutdown the fsm
 %% Returns: any
 %%----------------------------------------------------------------------

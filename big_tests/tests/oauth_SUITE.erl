@@ -76,7 +76,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config0) ->
-    case is_pgsql_available(Config0) of
+    case mongoose_helper:is_rdbms_enabled(domain()) of
         true ->
             Config = dynamic_modules:stop_running(mod_last, Config0),
             Host = ct:get_config({hosts, mim, domain}),
@@ -95,7 +95,7 @@ init_per_suite(Config0) ->
             dynamic_modules:start(Host, mod_auth_token, AuthOpts),
             escalus:init_per_suite([{auth_opts, AuthOpts} | Config]);
         false ->
-            {skip, "PostgreSQL not available - check env configuration"}
+            {skip, "RDBMS not available"}
     end.
 
 end_per_suite(Config) ->
@@ -311,8 +311,8 @@ token_removed_on_user_removal(Config) ->
                 escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Bob))
         end,
     escalus:story(Config, [{bob, 1}], S),
-    %% then token database doesn't contain user's tokens
-    {selected, []} = get_users_token(Config, bob).
+    %% then token database doesn't contain user's tokens (cleanup is done after IQ result)
+    mongoose_helper:wait_until(fun() -> get_users_token(Config, bob) end, {selected, []}).
 
 provision_token_login(Config) ->
     %% given
@@ -463,17 +463,6 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
-
-is_pgsql_available(_) ->
-    Q = [<<"SELECT version();">>],
-    %% TODO: hardcoded RDBMSHost
-    RDBMSHost = domain(),
-    case rpc(mim(), mongoose_rdbms, sql_query, [RDBMSHost, Q]) of
-        {selected, [{<<"PostgreSQL", _/binary>>}]} ->
-            true;
-        _ ->
-            false
-    end.
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

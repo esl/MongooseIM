@@ -218,8 +218,6 @@ general() ->
                                                          format = override},
                                          validate = unique_non_empty,
                                          format = none},
-                 <<"pgsql_users_number_estimate">> => #option{type = boolean,
-                                                              format = host_local_config},
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    format = host_local_config},
@@ -491,7 +489,8 @@ auth() ->
                  <<"http">> => auth_http(),
                  <<"jwt">> => auth_jwt(),
                  <<"ldap">> => auth_ldap(),
-                 <<"riak">> => auth_riak()},
+                 <<"riak">> => auth_riak(),
+                 <<"rdbms">> => auth_rdbms()},
        process = fun ?MODULE:process_auth/1,
        format = {foreach, host_local_config}
       }.
@@ -635,6 +634,15 @@ auth_riak() ->
     #section{
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
+       format = none
+      }.
+
+%% path: (host_config[].)auth.rdbms
+auth_rdbms() ->
+    #section{
+       items = #{<<"users_number_estimate">> => #option{type = boolean,
+                                                        format = {kv, rdbms_users_number_estimate}}
+                },
        format = none
       }.
 
@@ -901,7 +909,8 @@ configurable_modules() ->
      mod_stream_management,
      mod_time,
      mod_vcard,
-     mod_version].
+     mod_version,
+     mod_domain_isolation].
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

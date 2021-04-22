@@ -28,7 +28,8 @@ all() ->
      {group, bad_cancelation},
      {group, registration_timeout},
      {group, change_account_details},
-     {group, change_account_details_store_plain}
+     {group, change_account_details_store_plain},
+     {group, utilities}
     ].
 
 groups() ->
@@ -43,7 +44,14 @@ groups() ->
          {registration_timeout, [sequence], [registration_timeout,
                                              registration_failure_timeout]},
          {change_account_details, [parallel], change_password_tests()},
-         {change_account_details_store_plain, [parallel], change_password_tests()}
+         {change_account_details_store_plain, [parallel], change_password_tests()},
+         {utilities, [{group, user_info},
+                      {group, users_number_estimate}]},
+         {user_info, [parallel], [list_users,
+                                  list_selected_users,
+                                  count_users,
+                                  count_selected_users]},
+         {users_number_estimate, [], [count_users_estimate]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -87,6 +95,14 @@ init_per_group(change_account_details_store_plain, Config) ->
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config1];
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
+init_per_group(utilities, Config) ->
+    escalus:create_users(Config, escalus:get_users([alice, bob]));
+init_per_group(users_number_estimate, Config) ->
+    AuthOpts = get_auth_opts(),
+    Key = rdbms_users_number_estimate,
+    NewAuthOpts = lists:keystore(Key, 1, AuthOpts, {Key, true}),
+    set_auth_opts(NewAuthOpts),
+    [{auth_opts, AuthOpts} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -101,8 +117,21 @@ end_per_group(bad_cancelation, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(registration_timeout, Config) ->
     restore_registration_timeout(Config);
+end_per_group(utilities, Config) ->
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
+end_per_group(users_number_estimate, Config) ->
+    StoredAuthOpts = ?config(auth_opts, Config),
+    set_auth_opts(StoredAuthOpts);
 end_per_group(_GroupName, Config) ->
     Config.
+
+get_auth_opts() ->
+    rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, domain()}]).
+
+set_auth_opts(AuthOpts) ->
+    rpc(mim(), ejabberd_auth, stop, [domain()]),
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, domain()}, AuthOpts]),
+    rpc(mim(), ejabberd_auth, start, [domain()]).
 
 init_per_testcase(admin_notify, Config) ->
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
@@ -117,6 +146,15 @@ init_per_testcase(not_allowed_registration_cancelation, Config) ->
 init_per_testcase(registration_failure_timeout, Config) ->
     ok = deny_everyone_registration(),
     escalus:init_per_testcase(registration_failure_timeout, Config);
+init_per_testcase(CaseName, Config) when CaseName =:= list_selected_users;
+                                         CaseName =:= count_selected_users ->
+    case mongoose_helper:auth_modules() of
+        [Mod | _] when Mod =:= ejabberd_auth_rdbms;
+                       Mod =:= ejabberd_auth_internal ->
+            escalus:init_per_testcase(CaseName, Config);
+        Modules ->
+            {skip, {"Queries for selected users not supported", Modules}}
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -318,6 +356,37 @@ change_password_to_null(Config) ->
         escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], R)
 
     end).
+
+%% Tests for utility functions currently accessible only from the Erlang shell
+
+list_users(_Config) ->
+    Users = [{<<"alice">>, domain()}, {<<"bob">>, domain()}],
+    ?assertEqual(Users, lists:sort(rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()]))).
+
+list_selected_users(_Config) ->
+    Alice = {<<"alice">>, domain()},
+    Bob = {<<"bob">>, domain()},
+    ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
+                              [domain(), [{from, 1}, {to, 1}]])),
+    ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
+                            [domain(), [{from, 2}, {to, 10}]])),
+    ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
+                              [domain(), [{prefix, <<"a">>}]])),
+    ?assertEqual([Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users,
+                              [domain(), [{prefix, <<"a">>}, {from, 1}, {to, 10}]])),
+    ?assertEqual([Bob], rpc(mim(), ejabberd_auth, get_vh_registered_users,
+                            [domain(), [{prefix, <<>>}, {from, 2}, {to, 10}]])).
+
+count_users(_Config) ->
+    ?assertEqual(2, rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [domain()])).
+
+count_users_estimate(_Config) ->
+    Count = rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [domain()]),
+    ?assert(is_integer(Count) andalso Count >= 0).
+
+count_selected_users(_Config) ->
+    ?assertEqual(1, rpc(mim(), ejabberd_auth, get_vh_registered_users_number,
+                        [domain(), [{prefix, <<"a">>}]])).
 
 %%--------------------------------------------------------------------
 %% Helpers

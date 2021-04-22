@@ -1,3 +1,59 @@
+# [MongooseIM 4.2.0](https://github.com/esl/MongooseIM/releases/tag/4.2.0) - 2021-04-20
+
+## Highlights
+
+- Prepared queries introduced
+- Inbox extensions
+- Miscellaneous enhancements & improvements
+
+## All changes
+
+### Added
+- Documentation for `mod_offline.store_groupchat_messages` option (#2992)
+- Support of MS SQL and MySQL in `mod_auth_token` (#3059)
+- Inbox extensions to set entries as archived, muted or read (#3067)
+- `mod_domain_isolation` module to limit message passing between domains (#3070)
+
+### Removed
+- Usage of deprecated `http_uri` in `ejabberd_auth_http` and `mod_muc_room` modules (#3026)
+- Config reload functionality with the flat config format (#3030)
+- Outdated and unsupported `azuresql.sql` file (#3086)
+
+### Changed
+- Usage of maps instead of lists in session management (#3018)
+- Improved timestamp logic (#3031)
+- Prepared queries for MS SQL, MySQL and PostgreSQL (#3039, #3050, #3055, #3059, #3060, #3066, #3074, #3078)
+- Improved pipeline for `mod_smart_markers` (#3068)
+- Unified checks for chat markers (#3080)
+
+### Fixed
+- Creation of `modMucMamFlushed` metric (#3023)
+- Starting backend containers for Mac OS X (#3033)
+- Minor issues with GitHub Actions (#3045)
+- Crash during session handover (#3056)
+- Type declaration in `mod_muc_light.hrl` (#3057)
+- Test summary is no longer printed when CT directory is not created (#3069)
+- Explicit `preset_not_found` error when running tests with nonexistent preset (#3072)
+- Set `mod_mam_meta.pm.archive_groupchats` to `false` by default (#3082)
+
+### Other
+- Dependencies update (#3036, #3077)
+- Minor documentation improvements (#3043, #3046, #3079, #3087)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A4.2.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2021-02-04..2021-04-20+)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2021-02-04&to=2021-04-20&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222021-02-04..2021-04-20%22%20sort%3Acreated-asc%20)
+
+## Special thanks to our contributors:
+- Inbox extensions are sponsored by [Beekeeper](https://www.beekeeper.io/)
+- [@antivista](https://github.com/antivista) For the documentation supplement (#2992)
+- [@imcyee](https://github.com/imcyee) For fixing handover crash (#3056)
+
 # [MongooseIM 4.1.0](https://github.com/esl/MongooseIM/releases/tag/4.1.0) - 2021-02-02
 
 ## Highlights
