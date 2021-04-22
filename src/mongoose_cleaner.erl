@@ -85,7 +85,7 @@ cleanup_modules(Node) ->
     end.
 
 run_node_cleanup(Node) ->
-    {Elapsed, RetVal} = timer:tc(ejabberd_hooks, run_fold, [node_cleanup, #{}, [Node]]),
+    {Elapsed, RetVal} = timer:tc(mongoose_hooks, node_cleanup, [Node]),
     ?LOG_NOTICE(#{what => cleaner_done,
                   text => <<"Finished cleaning after dead node">>,
                   duration => erlang:round(Elapsed / 1000),

@@ -21,6 +21,10 @@
                              {muc_messages_topic, "user_messagegroup_sent-dev-1"}
                             ]).
 
+-define(ACC_PARAMS, #{location => ?LOCATION,
+                      host_type => undefined,
+                      lserver => <<"localhost">>,
+                      element => undefined}).
 all() ->
     [
      handles_unicode_messages,
@@ -147,25 +151,19 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = #jid{lserver = Host} = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(#{ location => ?LOCATION,
-                                                        lserver => Host,
-                                                        element => undefined }), Host,
+    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS), Host,
                                     #chat_event{type = chat, direction = in,
                                                 from = Sender, to = Recipient,
                                                 packet = Packet}).
 
 user_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(#{ location => ?LOCATION,
-                                                        lserver => Host,
-                                                        element => undefined }), Host,
+    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS), Host,
                                     #user_status_event{jid = Jid, status = online}).
 
 user_not_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(#{ location => ?LOCATION,
-                                                        lserver => Host,
-                                                        element => undefined }), Host,
+    mod_event_pusher_sns:push_event(mongoose_acc:new(?ACC_PARAMS), Host,
                                     #user_status_event{jid = Jid, status = offline}).
 
 %% Helpers

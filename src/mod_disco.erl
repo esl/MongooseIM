@@ -193,7 +193,7 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Host = To#jid.lserver,
 
-    case mongoose_hooks:disco_local_items(Host, empty, From, To, Node, Lang) of
+    case mongoose_hooks:disco_local_items(Host, From, To, Node, Lang) of
         {result, Items} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
@@ -211,15 +211,9 @@ process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Identity = mongoose_hooks:disco_local_identity(Host,
-                                                   [],
-                                                   From, To, Node, Lang),
-    Info = mongoose_hooks:disco_info(Host,
-                                     [],
-                                     ?MODULE, Node, Lang),
-    case mongoose_hooks:disco_local_features(Host,
-                                             empty,
-                                             From, To, Node, Lang) of
+    Identity = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
+    Info = mongoose_hooks:disco_info(Host, ?MODULE, Node, Lang),
+    case mongoose_hooks:disco_local_features(Host, From, To, Node, Lang) of
         {result, Features} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
@@ -361,9 +355,7 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
         true ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            case mongoose_hooks:disco_sm_items(Host,
-                                               empty,
-                                               From, To, Node, Lang) of
+            case mongoose_hooks:disco_sm_items(Host, From, To, Node, Lang) of
                 {result, Items} ->
                     ANode = make_node_attr(Node),
                     {Acc, IQ#iq{type = result,
@@ -435,12 +427,8 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
         true ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = mongoose_hooks:disco_sm_identity(Host,
-                                                        [],
-                                                        From, To, Node, Lang),
-            case mongoose_hooks:disco_sm_features(Host,
-                                                  empty,
-                                                  From, To, Node, Lang) of
+            Identity = mongoose_hooks:disco_sm_identity(Host, From, To, Node, Lang),
+            case mongoose_hooks:disco_sm_features(Host, From, To, Node, Lang) of
                 {result, Features} ->
                     ANode = make_node_attr(Node),
                     {Acc, IQ#iq{type = result,

@@ -36,10 +36,8 @@ setup() ->
     meck:expect(mongoose_credentials, get, fun mcred_get/2),
 
     meck:new(ejabberd_hooks),
-    meck:expect(ejabberd_hooks, run, fun(_, _) -> ok end),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
-    meck:expect(ejabberd_hooks, run_fold, fun hookfold/3),
-    meck:expect(ejabberd_hooks, run_fold, fun hookfold/4),
+    meck:expect(ejabberd_hooks, run_global, fun hookfold/3),
+    meck:expect(ejabberd_hooks, run_for_host_type, fun hookfold/4),
 
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,

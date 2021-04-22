@@ -101,7 +101,7 @@ setup(Module) ->
     meck:new(ejabberd_auth, []),
     %% you have to meck some stuff to get it working....
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
-    meck:expect(ejabberd_hooks, run_fold, fun(_, _, _, _) -> ok end),
+    meck:expect(ejabberd_hooks, run_global, fun(_, _, _) -> ok end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,

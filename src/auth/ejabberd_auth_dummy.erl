@@ -6,7 +6,7 @@
          check_password/4,
          check_password/6,
          authorize/1,
-         remove_domain/1,
+         remove_domain/2,
          supported_features/0]).
 
 %% ejabberd_auth compatibility layer - not supported features
@@ -92,7 +92,7 @@ does_user_exist(_User, _Server) ->
 remove_user(_User, _Server) ->
     ok.
 
-remove_domain(_Server) -> ok.
+remove_domain(_HostType, _Server) -> ok.
 
 supported_features() -> [dynamic_domains].
 

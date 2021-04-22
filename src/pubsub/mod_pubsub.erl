@@ -843,9 +843,9 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
 
 handle_remote_hook(HandlerState, pep_message, {Feature, From, Packet}, C2SState) ->
     Host = ejabberd_c2s_state:server(C2SState),
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(Host,
-                                                         [],
-                                                         C2SState, {pep_message, Feature}, From, Packet),
+    Recipients = mongoose_hooks:c2s_broadcast_recipients(Host, C2SState,
+                                                         {pep_message, Feature},
+                                                         From, Packet),
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
                   lists:usort(Recipients)),
     HandlerState;
@@ -1049,7 +1049,6 @@ do_route(ServerHost, Access, Plugins, Host, From,
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
             Info = mongoose_hooks:disco_info(ServerHost,
-                                             [],
                                              ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(Host, Node, From, Lang) of
                       {result, IQRes} ->
@@ -2035,12 +2034,10 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
                     mongoose_hooks:pubsub_create_node(ServerHost,
-                                                      ok,
                                                       Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 {result, {Nidx, _SubsByDepth, Result}} ->
                     mongoose_hooks:pubsub_create_node(ServerHost,
-                                                      ok,
                                                       Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
                 Error ->
@@ -2146,7 +2143,6 @@ delete_node(Host, Node, Owner) ->
                                   broadcast_removed_node(RH, RN, RNidx,
                                                          RType, ROptions, SubsByDepth),
                                   mongoose_hooks:pubsub_delete_node(ServerHost,
-                                                                    ok,
                                                                     RH, RN, RNidx)
                           end,
                           Removed),
@@ -2159,7 +2155,6 @@ delete_node(Host, Node, Owner) ->
                                   {RH, RN} = RNode#pubsub_node.nodeid,
                                   RNidx = RNode#pubsub_node.id,
                                   mongoose_hooks:pubsub_delete_node(ServerHost,
-                                                                    ok,
                                                                     RH, RN, RNidx)
                           end,
                           Removed),
@@ -2170,7 +2165,6 @@ delete_node(Host, Node, Owner) ->
         {result, {TNode, {_, Result}}} ->
             Nidx = TNode#pubsub_node.id,
             mongoose_hooks:pubsub_delete_node(ServerHost,
-                                              ok,
                                               Host, Node, Nidx),
             case Result of
                 default -> {result, []};
@@ -2456,7 +2450,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
                         end,
-            mongoose_hooks:pubsub_publish_item(ServerHost, ok,
+            mongoose_hooks:pubsub_publish_item(ServerHost,
                                Node, Publisher, service_jid(Host), ItemId, BrPayload),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
             case get_option(Options, deliver_notifications) of
@@ -3322,7 +3316,6 @@ get_roster_info(OwnerUser, OwnerServer, {SubscriberUser, SubscriberServer, _}, A
     LJID = {SubscriberUser, SubscriberServer, <<>>},
     {Subscription, Groups} = mongoose_hooks:roster_get_jid_info(
                                OwnerServer,
-                               {none, []},
                                jid:make(OwnerUser, OwnerServer, <<>>), LJID),
     PresenceSubscription = Subscription == both orelse
         Subscription == from orelse
@@ -3831,7 +3824,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
                           #pubsub_node{options = Options, type = Type, id = Nidx}) ->
     case node_call(Host, Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
-            Groups = mongoose_hooks:roster_groups(ServerHost, []),
+            Groups = mongoose_hooks:roster_groups(ServerHost),
             XEl = #xmlel{name = <<"x">>,
                          attrs = [{<<"xmlns">>, ?NS_XDATA},
                                   {<<"type">>, <<"form">>}],

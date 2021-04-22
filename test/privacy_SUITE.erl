@@ -19,6 +19,11 @@
 -define(ALICE, jid:from_binary(<<"alice@localhost">>)).
 -define(BOB, jid:from_binary(<<"bob@localhost">>)).
 -define(JEFF, jid:from_binary(<<"jeff@localhost">>)).
+-define(ACC_PARAMS, #{location => ?LOCATION,
+                      lserver => (?ALICE)#jid.lserver,
+                      host_type => (?ALICE)#jid.lserver,
+                      from_jid => ?ALICE,
+                      to_jid => ?BOB}).
 
 all() ->
       [ check_with_allowed,
@@ -47,11 +52,7 @@ end_per_suite(_C) ->
     ok.
 
 check_with_allowed(_C) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => message() }),
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),
     Acc1 = make_check(Acc, userlist(none), ?BOB, out, allow),
     Acc2 = make_check(Acc1, userlist(none), ?BOB, in, allow),
     Acc3 = make_check(Acc2, userlist(none), ?JEFF, out, allow),
@@ -60,21 +61,13 @@ check_with_allowed(_C) ->
 
 check_with_denied(_C) ->
     % message
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => message() }),
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),
     Acc1 = make_check(Acc, userlist(deny_all_message), ?BOB, out, allow),
     Acc2 = make_check(Acc1, userlist(deny_all_message), ?BOB, in, deny),
     Acc3 = make_check(Acc2, userlist(deny_all_message), ?JEFF, out, allow),
     _Acc4 = make_check(Acc3, userlist(deny_all_message), ?JEFF, in, deny),
     % presence
-    NAcc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => presence() }),
+    NAcc = mongoose_acc:new(?ACC_PARAMS#{element => presence()}),
     NAcc1 = make_check(NAcc, userlist(deny_all_message), ?BOB, out, allow),
     NAcc2 = make_check(NAcc1, userlist(deny_all_message), ?BOB, in, allow),
     NAcc3 = make_check(NAcc2, userlist(deny_all_message), ?JEFF, out, allow),
@@ -82,11 +75,7 @@ check_with_denied(_C) ->
     ok.
 
 check_with_denied_bob(_C) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => message() }),
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),
     Acc1 = make_check(Acc, userlist(deny_all_message), ?BOB, out, allow),
     Acc2 = make_check(Acc1, userlist(deny_all_message), ?BOB, in, deny),
     Acc3 = make_check(Acc2, userlist(none), ?JEFF, out, allow),
@@ -94,21 +83,13 @@ check_with_denied_bob(_C) ->
     ok.
 
 check_with_bob_blocked(_C) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => message() }),
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),
     Acc1 = make_check(Acc, userlist(block_bob), ?BOB, out, block),
     Acc2 = make_check(Acc1, userlist(block_bob), ?BOB, in, allow),
     Acc3 = make_check(Acc2, userlist(none), ?JEFF, out, allow),
     _Acc4 = make_check(Acc3, userlist(none), ?JEFF, in, allow),
     % presence
-    NAcc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => presence() }),
+    NAcc = mongoose_acc:new(?ACC_PARAMS#{element => presence()}),
     NAcc1 = make_check(NAcc, userlist(block_bob), ?BOB, out, block),
     NAcc2 = make_check(NAcc1, userlist(block_bob), ?BOB, in, allow),
     NAcc3 = make_check(NAcc2, userlist(block_bob), ?JEFF, out, allow),
@@ -120,11 +101,7 @@ check_with_changing_stanza(_C) ->
     M = message(),
     P = presence(),
     Ul = userlist(deny_all_message),
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => (?ALICE)#jid.lserver,
-                              from_jid => ?ALICE,
-                              to_jid => ?BOB,
-                              element => M }),
+    Acc = mongoose_acc:new(?ACC_PARAMS#{element => M}),
     Acc1 = make_check({Acc, M}, Ul, ?BOB, out, allow),
     Acc2 = make_check({Acc1, M}, Ul, ?BOB, in, deny),
     Acc3 = make_check({Acc2, M}, Ul, ?JEFF, out, allow),

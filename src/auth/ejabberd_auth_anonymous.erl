@@ -159,7 +159,7 @@ remove_connection(SID, LUser, LServer) ->
 register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
-            mongoose_hooks:register_user(LServer, ok, LUser),
+            mongoose_hooks:register_user(LServer, LUser),
             US = {LUser, LServer},
             mnesia:sync_dirty(
               fun() -> mnesia:write(#anonymous{us = US, sid=SID})

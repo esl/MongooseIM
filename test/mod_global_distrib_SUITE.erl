@@ -121,6 +121,7 @@ fake_acc_to_component(From) ->
                },
     {mongoose_acc:new(#{ location => ?LOCATION,
                          lserver => From#jid.lserver,
+                         host_type => From#jid.lserver,
                          element => Packet }), To}.
 
 %%--------------------------------------------------------------------

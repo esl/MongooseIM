@@ -7,6 +7,7 @@
 -define(TEST_NODES, [mim() | ?CLUSTER_NODES]).
 -define(CLUSTER_NODES, [mim2()]).
 -define(DOMAINS, [<<"example.com">>, <<"example.org">>]).
+-define(HOST_TYPE, <<"test type">>). %% preconfigured in the toml file
 
 suite() ->
     require_rpc_nodes([mim, mim2]).
@@ -14,7 +15,8 @@ suite() ->
 all() ->
     [can_authenticate,
      pm_messages,
-     disconnected_on_domain_disabling].
+     disconnected_on_domain_disabling,
+     auth_domain_removal_is_triggered_on_hook].
 
 init_per_suite(Config0) ->
     Config = cluster_nodes(?CLUSTER_NODES, Config0),
@@ -60,11 +62,17 @@ disconnected_on_domain_disabling(Config) ->
         end,
     escalus:story(Config, [{alice3, 1}, {bob3, 1}], StoryFn).
 
+auth_domain_removal_is_triggered_on_hook(_Config) ->
+    ok = rpc(mim(), meck, new, [ejabberd_auth_dummy, [passthrough, no_link]]),
+    Params = [?HOST_TYPE, <<"dummy.domain.name">>],
+    rpc(mim(), mongoose_hooks, remove_domain, Params),
+    1 = rpc(mim(), meck, num_calls, [ejabberd_auth_dummy, remove_domain, Params]),
+    rpc(mim(), meck, unload, [ejabberd_auth_dummy]).
+
 %% helper functions
 insert_domains(Nodes, Domains) ->
     Source = dummy_source, %% can be anything, we don't care about it
-    HostType = <<"test type">>, %% preconfigured in the toml file
-    [ok = rpc(Node, mongoose_domain_core, insert, [Domain, HostType, Source]) ||
+    [ok = rpc(Node, mongoose_domain_core, insert, [Domain, ?HOST_TYPE, Source]) ||
         Node <- Nodes, Domain <- Domains].
 
 remove_domains(Nodes, Domains) ->

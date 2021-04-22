@@ -21,6 +21,9 @@
 -define(am(E, I), ?assertMatch(E, I)).
 -define(ne(E, I), ?assert(E =/= I)).
 
+-define(ACC_PARAMS, #{location => ?LOCATION,
+                      lserver => <<"localhost">>,
+                      element => undefined}).
 
 all() -> [
     roster_old,
@@ -47,6 +50,8 @@ init_per_testcase(_TC, C) ->
     meck:new(gen_iq_handler),
     meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
     meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
+    meck:new(mongoose_domain_api),
+    meck:expect(mongoose_domain_api, get_host_type, fun(H) -> {ok, H} end),
     gen_mod:start(),
     gen_mod:start_module(host(), mod_roster, []),
     C.
@@ -56,6 +61,7 @@ end_per_testcase(_TC, C) ->
     gen_mod:stop_module(host(), mod_roster),
     delete_ets(),
     meck:unload(gen_iq_handler),
+    meck:unload(mongoose_domain_api),
     C.
 
 
@@ -136,16 +142,12 @@ get_roster_old() ->
     get_roster_old(a()).
 
 get_roster_old(User) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => <<"localhost">>,
-                              element => undefined }),
+    Acc = mongoose_acc:new(?ACC_PARAMS),
     Acc1 = mod_roster:get_user_roster(Acc, jid:make(User, host(), <<>>)),
     mongoose_acc:get(roster, items, Acc1).
 
 get_full_roster() ->
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => <<"localhost">>,
-                              element => undefined }),
+    Acc0 = mongoose_acc:new(?ACC_PARAMS),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
     Acc2 = mod_roster:get_user_roster(Acc1, alice_jid()),
     mongoose_acc:get(roster, items, Acc2).

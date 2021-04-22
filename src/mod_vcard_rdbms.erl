@@ -119,7 +119,7 @@ assert_binaries(Bins) ->
     end.
 
 log_upsert_result(LServer, LUser, VCard, _XML, ok) ->
-    mongoose_hooks:vcard_set(LServer, ok, LUser, VCard);
+    mongoose_hooks:vcard_set(LServer, LUser, VCard);
 log_upsert_result(LServer, LUser, _VCard, XML, {error, Reason}) ->
     ?LOG_WARNING(#{what => vcard_update_failed, reason => Reason,
                    user => LUser, host => LServer, vcard_xml => XML}).
