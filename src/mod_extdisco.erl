@@ -67,19 +67,19 @@ service_config_spec() ->
 
 -spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_iq(_From, _To = #jid{lserver = LServer}, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     {ResponseType, Response} = case request_type(SubEl) of
         all_services ->
-            RequestedServices = get_external_services(),
+            RequestedServices = get_external_services(LServer),
             {result, create_iq_response(RequestedServices)};
         {credentials, {Type, Host}} ->
-            Services = get_external_services(Type),
+            Services = get_external_services(LServer, Type),
             RequestedServices = lists:filter(fun(Opts) ->
                 gen_mod:get_opt(host, Opts, undefined) == binary_to_list(Host)
                 end, Services),
             {result, create_iq_response_credentials(RequestedServices)};
         {selected_services, Type} ->
-            RequestedServices = get_external_services(Type),
+            RequestedServices = get_external_services(LServer, Type),
             {result, create_iq_response_services(RequestedServices, Type)};
         _ ->
             {error, [mongoose_xmpp_errors:bad_request()]}
@@ -123,14 +123,14 @@ create_iq_response_credentials(Services) ->
         attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
         children = prepare_services_element(Services)}.
 
-get_external_services() ->
-    case gen_mod:get_module_opts(?MYNAME, ?MODULE) of
+get_external_services(LServer) ->
+    case gen_mod:get_module_opts(LServer, ?MODULE) of
         [] -> [];
         ServicesWithOpts -> ServicesWithOpts
     end.
 
-get_external_services(Type) ->
-    [Opts || Opts <- get_external_services(), gen_mod:get_opt(type, Opts) == Type].
+get_external_services(LServer, Type) ->
+    [Opts || Opts <- get_external_services(LServer), gen_mod:get_opt(type, Opts) == Type].
 
 prepare_services_element(Services) ->
     lists:reverse(
