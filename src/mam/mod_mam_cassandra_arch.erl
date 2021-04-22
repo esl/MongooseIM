@@ -430,7 +430,7 @@ rows_to_uniform_format(MessageRows) ->
 row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
     SrcJID = jid:from_binary(FromJID),
     Packet = stored_binary_to_packet(Msg),
-    {MsgID, SrcJID, Packet}.
+    #{id => MsgID, jid => SrcJID, packet => Packet}.
 
 row_to_message_id(#{id := MsgID}) ->
     MsgID.

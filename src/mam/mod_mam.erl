@@ -119,7 +119,7 @@
 
 -type borders()             :: #mam_borders{}.
 
--type message_row() :: {message_id(), jid:jid(), exml:element()}.
+-type message_row() :: #{id => message_id(), jid => jid:jid(), packet => exml:element()}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
                           MessageRows :: [message_row()]}.
@@ -609,20 +609,17 @@ archive_message(Host, Params) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--type messid_jid_packet() :: {MessId :: integer(),
-                              SrcJID :: jid:jid(),
-                              Packet :: exml:element()}.
--spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) ->
+-spec message_row_to_xml(binary(), message_row(), QueryId :: binary(), boolean()) ->
     exml:element().
-message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs)  ->
+message_row_to_xml(MamNs, #{id := MessID, jid := SrcJID, packet := Packet}, QueryID, SetClientNs)  ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     TS = calendar:system_time_to_rfc3339(erlang:convert_time_unit(Microseconds, microsecond, second), [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
     wrap_message(MamNs, Packet1, QueryID, BExtMessID, TS, SrcJID).
 
--spec message_row_to_ext_id(messid_jid_packet()) -> binary().
-message_row_to_ext_id({MessID, _, _}) ->
+-spec message_row_to_ext_id(message_row()) -> binary().
+message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
 handle_error_iq(Host, Acc, _To, _Action, {error, _Reason, IQ}) ->

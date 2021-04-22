@@ -17,14 +17,14 @@ decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
     SrcJID = decode_jid(ExtSrcJID, Env),
     Packet = decode_packet(ExtData, Env),
-    {MessID, SrcJID, Packet}.
+    #{id => MessID, jid => SrcJID, packet => Packet}.
 
 -spec decode_muc_row(db_muc_row(), env_vars()) -> mod_mam:message_row().
 decode_muc_row({ExtMessID, Nick, ExtData}, Env = #{archive_jid := RoomJID}) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
     SrcJID = jid:replace_resource(RoomJID, Nick),
     Packet = decode_packet(ExtData, Env),
-    {MessID, SrcJID, Packet}.
+    #{id => MessID, jid => SrcJID, packet => Packet}.
 
 -spec decode_muc_gdpr_row(db_muc_gdpr_row(), env_vars()) -> decoded_muc_gdpr_row().
 decode_muc_gdpr_row({ExtMessID, ExtData}, Env) ->

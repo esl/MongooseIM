@@ -370,7 +370,7 @@ get_message2(Host, MsgId, Bucket, Key) ->
             SourceJID = riakc_map:fetch({<<"source_jid">>, register}, RiakMap),
             PacketBin = riakc_map:fetch({<<"packet">>, register}, RiakMap),
             Packet = stored_binary_to_packet(Host, PacketBin),
-            {MsgId, jid:from_binary(SourceJID), Packet};
+            #{id => MsgId, jid => jid:from_binary(SourceJID), packet => Packet};
         _ ->
             []
     end.
@@ -378,13 +378,13 @@ get_message2(Host, MsgId, Bucket, Key) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, OwnerJid) ->
     Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
-    [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages] ++ Acc.
+    [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || #{id := Id, jid := Jid, packet := Packet} <- Messages] ++ Acc.
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(Acc, JID) ->
     Messages = get_mam_gdpr_data(JID, <<"muc">>),
-    [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages] ++ Acc.
+    [{MsgId, exml:to_binary(Packet)} || #{id := MsgId, packet := Packet} <- Messages] ++ Acc.
 
 get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
     BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),

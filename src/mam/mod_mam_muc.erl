@@ -108,7 +108,7 @@
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
--type row() :: {mod_mam:message_id(), jid:jid(), exml:element()}.
+-type row() :: mod_mam:message_row().
 
 -export_type([row/0, row_batch/0]).
 
@@ -505,8 +505,8 @@ archive_message(Host, Params) ->
 
 -spec message_row_to_xml(binary(), jid:jid(), boolean(), boolean(), row(), binary() | undefined) ->
                                 exml:element().
-message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
-
+message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs,
+                   #{id := MessID, jid := SrcJID, packet := Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     TS = calendar:system_time_to_rfc3339(erlang:convert_time_unit(Microseconds, microsecond, second), [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
@@ -536,7 +536,7 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
     Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().
-message_row_to_ext_id({MessID, _, _}) ->
+message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
 -spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),

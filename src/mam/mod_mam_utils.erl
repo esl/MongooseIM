@@ -1129,7 +1129,7 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
                          PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
-        {ok, {ID, _, _}} = _IntervalEndpoint ->
+        {ok, #{id := ID}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
             {ok, {TotalCount, Offset, Page}};
         undefined ->
@@ -1138,7 +1138,7 @@ check_for_item_not_found(#rsm_in{direction = before, id = ID},
 check_for_item_not_found(#rsm_in{direction = aft, id = ID},
                          _PageSize, {TotalCount, Offset, MessageRows0}) ->
     case MessageRows0 of
-        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
+        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
             {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}

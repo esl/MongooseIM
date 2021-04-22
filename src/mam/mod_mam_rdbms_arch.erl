@@ -86,7 +86,8 @@ get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
             [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
     end.
 
-uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
+-spec uniform_to_gdpr(mod_mam:message_row()) -> tuple().
+uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
     {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
 
 %% ----------------------------------------------------------------------

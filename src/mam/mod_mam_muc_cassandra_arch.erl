@@ -433,7 +433,7 @@ rows_to_uniform_format(MessageRows, RoomJID) ->
 row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID}, RoomJID) ->
     SrcJID = jid:replace_resource(RoomJID, BNick),
     Packet = stored_binary_to_packet(Data),
-    {MessID, SrcJID, Packet}.
+    #{id => MessID, jid => SrcJID, packet => Packet}.
 
 row_to_message_id(#{id := MsgID}) ->
     MsgID.

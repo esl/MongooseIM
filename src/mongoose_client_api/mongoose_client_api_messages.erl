@@ -75,7 +75,7 @@ maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
                                   max_result_limit => 50,
                                   is_simple => true}),
     {ok, {_, _, Msgs}} = R,
-    Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
+    Resp = [make_json_msg(Msg, MAMId) || #{id := MAMId, packet := Msg} <- Msgs],
     {jiffy:encode(Resp), Req, State}.
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->

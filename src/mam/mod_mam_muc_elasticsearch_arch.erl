@@ -276,14 +276,13 @@ search_result_to_mam_lookup_result(Result, Params) ->
             {CorrectedTotalCount, Offset, Messages}
     end.
 
--spec hit_to_mam_message(map()) -> {mod_mam:message_id(), jid:jid(), exml:element()}.
+-spec hit_to_mam_message(map()) -> mod_mam:message_row().
 hit_to_mam_message(#{<<"_source">> := JSON}) ->
     MessageId = maps:get(<<"mam_id">>, JSON),
     Packet = maps:get(<<"message">>, JSON),
     SourceJid = maps:get(<<"source_jid">>, JSON),
-
     {ok, Stanza} = exml:parse(Packet),
-    {MessageId, jid:from_binary(SourceJid), Stanza}.
+    #{id => MessageId, jid => jid:from_binary(SourceJid), packet => Stanza}.
 
 hit_to_gdpr_mam_message(#{<<"_source">> := JSON}) ->
     MessageId = maps:get(<<"mam_id">>, JSON),
