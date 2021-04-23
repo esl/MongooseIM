@@ -10,7 +10,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([get_hooks/1]).
+-export([get_mam_hooks/1,
+         get_mam_muc_hooks/1]).
 
 %%-------------------
 %% Internal exports
@@ -33,15 +34,21 @@
 %% Implementation
 %%-------------------
 
-%% @doc Here will be declared which hooks should be registered
--spec get_hooks(_) -> [ejabberd_hooks:hook(), ...].
-get_hooks(Host) ->
+%% @doc Here will be declared which hooks should be registered when mod_mam is enabled.
+-spec get_mam_hooks(_) -> [ejabberd_hooks:hook(), ...].
+get_mam_hooks(Host) ->
     [
         {mam_set_prefs, Host, ?MODULE, mam_set_prefs, 50},
         {mam_get_prefs, Host, ?MODULE, mam_get_prefs, 50},
         {mam_archive_message, Host, ?MODULE, mam_archive_message, 50},
         {mam_remove_archive, Host, ?MODULE, mam_remove_archive, 50},
-        {mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100},
+        {mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100}
+    ].
+
+%% @doc Here will be declared which hooks should be registered when mod_mam_muc is enabled.
+-spec get_mam_muc_hooks(_) -> [ejabberd_hooks:hook(), ...].
+get_mam_muc_hooks(Host) ->
+    [
         {mam_muc_set_prefs, Host, ?MODULE, mam_muc_set_prefs, 50},
         {mam_muc_get_prefs, Host, ?MODULE, mam_muc_get_prefs, 50},
         {mam_muc_archive_message, Host, ?MODULE, mam_muc_archive_message, 50},
