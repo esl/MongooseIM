@@ -21,9 +21,7 @@
          clear_table/1
         ]).
 
--export([maybe_start/1,
-         stop/0
-        ]).
+-export([maybe_start/1]).
 
 %% Internal exports
 -export([start_link/1]).
@@ -87,9 +85,6 @@ start_cleaner(Opts) ->
                  {?MODULE, start_link, [Opts]},
                  permanent, 5000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
-
-stop() ->
-    ok.
 
 start_link(Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Opts], []).

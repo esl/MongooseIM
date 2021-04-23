@@ -530,7 +530,7 @@ init(Opts) ->
 handle_call({sql_cmd, Command, Timestamp}, From, State) ->
     run_sql_cmd(Command, From, State, Timestamp);
 handle_call(get_db_info, _, #state{db_ref = DbRef} = State) ->
-    {reply, {ok, db_engine(?MYNAME), DbRef}, State};
+    {reply, {ok, db_engine(global), DbRef}, State};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, {error, badarg}, State}.

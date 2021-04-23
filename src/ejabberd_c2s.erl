@@ -2777,7 +2777,7 @@ bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
-maybe_enable_stream_mgmt(NextState, El, StateData) ->
+maybe_enable_stream_mgmt(NextState, El, StateData = #state{server = LServer}) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           StateData#state.stream_mgmt,
           xml:get_tag_attr_s(<<"resume">>, El)}
@@ -2791,9 +2791,9 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                          enable_stream_resumption(StateData)
                                  end,
             send_element_from_server_jid(NewSD, EnabledEl),
-            BufferMax = get_buffer_max(),
-            AckFreq = get_ack_freq(),
-            ResumeTimeout = get_resume_timeout(),
+            BufferMax = get_buffer_max(LServer),
+            AckFreq = get_ack_freq(LServer),
+            ResumeTimeout = get_resume_timeout(LServer),
             fsm_next_state(NextState,
                            NewSD#state{stream_mgmt = true,
                                        stream_mgmt_buffer_max = BufferMax,
@@ -2978,17 +2978,17 @@ drop_last(N, List) ->
                                   end, {N, []}, List),
     {N - ToDrop, List2}.
 
--spec get_buffer_max() -> pos_integer() | infinity.
-get_buffer_max() ->
-    mod_stream_management:get_buffer_max(?STREAM_MGMT_CACHE_MAX).
+-spec get_buffer_max(jid:lserver()) -> pos_integer() | infinity.
+get_buffer_max(LServer) ->
+    mod_stream_management:get_buffer_max(LServer, ?STREAM_MGMT_CACHE_MAX).
 
--spec get_ack_freq() -> pos_integer().
-get_ack_freq() ->
-    mod_stream_management:get_ack_freq(?STREAM_MGMT_ACK_FREQ).
+-spec get_ack_freq(jid:lserver()) -> pos_integer().
+get_ack_freq(LServer) ->
+    mod_stream_management:get_ack_freq(LServer, ?STREAM_MGMT_ACK_FREQ).
 
--spec get_resume_timeout() -> pos_integer().
-get_resume_timeout() ->
-    mod_stream_management:get_resume_timeout(?STREAM_MGMT_RESUME_TIMEOUT).
+-spec get_resume_timeout(jid:lserver()) -> pos_integer().
+get_resume_timeout(LServer) ->
+    mod_stream_management:get_resume_timeout(LServer, ?STREAM_MGMT_RESUME_TIMEOUT).
 
 maybe_send_ack_request(Acc, #state{stream_mgmt = StreamMgmt})
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
@@ -3063,11 +3063,11 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
           end,
     {next_state, resume_session, NSD, hibernate()}.
 
-maybe_resume_session(NextState, El, StateData) ->
+maybe_resume_session(NextState, El, StateData = #state{server = LServer}) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           xml:get_tag_attr_s(<<"previd">>, El)} of
         {?NS_STREAM_MGNT_3, SMID} ->
-            FromSMID = mod_stream_management:get_session_from_smid(SMID),
+            FromSMID = mod_stream_management:get_session_from_smid(LServer, SMID),
             do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
             ?LOG_INFO(#{what => c2s_ignores_resume,

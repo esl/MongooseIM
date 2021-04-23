@@ -15,27 +15,27 @@
          session_cleanup/5]).
 
 %% `mongooseim.toml' options (don't use outside of tests)
--export([get_buffer_max/1,
-         set_buffer_max/1,
-         get_ack_freq/1,
-         set_ack_freq/1,
-         get_resume_timeout/1,
-         set_resume_timeout/1,
-         get_stale_h_repeat_after/1,
-         set_stale_h_repeat_after/1,
-         get_stale_h_geriatric/1,
-         set_stale_h_geriatric/1
+-export([get_buffer_max/2,
+         set_buffer_max/2,
+         get_ack_freq/2,
+         set_ack_freq/2,
+         get_resume_timeout/2,
+         set_resume_timeout/2,
+         get_stale_h_repeat_after/2,
+         set_stale_h_repeat_after/2,
+         get_stale_h_geriatric/2,
+         set_stale_h_geriatric/2
         ]).
 
 %% API for `ejabberd_c2s'
 -export([
          make_smid/0,
-         get_session_from_smid/1,
+         get_session_from_smid/2,
          get_sid/1,
-         get_stale_h/1,
+         get_stale_h/2,
          register_smid/2,
-         register_stale_smid_h/2,
-         remove_stale_smid_h/1
+         register_stale_smid_h/3,
+         remove_stale_smid_h/2
         ]).
 
 -type smid() :: base64:ascii_binary().
@@ -70,11 +70,7 @@ stop(Host) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
     ejabberd_hooks:delete(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
-    StaleOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, StaleOpts, false) of
-        false -> ok;
-        true -> stream_management_stale_h:stop()
-    end.
+    ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -137,19 +133,16 @@ sm() ->
       Info :: undefined | [any()],
       Reason :: undefined | ejabberd_sm:close_reason(),
       Acc1 :: mongoose_acc:t().
-remove_smid(Acc, SID, _JID, _Info, _Reason) ->
-    do_remove_smid(Acc, SID).
+remove_smid(Acc, SID, #jid{lserver = LServer}, _Info, _Reason) ->
+    do_remove_smid(Acc, LServer, SID).
 
 -spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
-    do_remove_smid(Acc, SID).
+session_cleanup(Acc, _LUser, LServer, _LResource, SID) ->
+    do_remove_smid(Acc, LServer, SID).
 
--spec do_remove_smid(Acc, SID) -> Acc1 when
-      Acc :: mongoose_acc:t(),
-      SID :: ejabberd_sm:sid(),
-      Acc1 :: mongoose_acc:t().
-do_remove_smid(Acc, SID) ->
+-spec do_remove_smid(mongoose_acc:t(), jid:lserver(), ejabberd_sm:sid()) -> mongoose_acc:t().
+do_remove_smid(Acc, LServer, SID) ->
     H = mongoose_acc:get(stream_mgmt, h, undefined, Acc),
     MaybeSMID = case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
         [] -> {error, smid_not_found};
@@ -157,7 +150,7 @@ do_remove_smid(Acc, SID) ->
             mnesia:dirty_delete(sm_session, SMID),
             case H of
                 undefined -> ok;
-                _ -> register_stale_smid_h(SMID, H)
+                _ -> register_stale_smid_h(LServer, SMID, H)
             end,
             {ok, SMID}
     end,
@@ -167,75 +160,75 @@ do_remove_smid(Acc, SID) ->
 %% `mongooseim.toml' options (don't use outside of tests)
 %%
 
--spec get_buffer_max(pos_integer() | infinity | no_buffer)
+-spec get_buffer_max(jid:lserver(), pos_integer() | infinity | no_buffer)
     -> pos_integer() | infinity | no_buffer.
-get_buffer_max(Default) ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, buffer_max, Default).
+get_buffer_max(LServer, Default) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, buffer_max, Default).
 
 %% Return true if succeeded, false otherwise.
--spec set_buffer_max(pos_integer() | infinity | no_buffer | undefined)
+-spec set_buffer_max(jid:lserver(), pos_integer() | infinity | no_buffer | undefined)
     -> boolean().
-set_buffer_max(undefined) ->
-    del_module_opt(?MYNAME, ?MODULE, buffer_max);
-set_buffer_max(infinity) ->
-    set_module_opt(?MYNAME, ?MODULE, buffer_max, infinity);
-set_buffer_max(no_buffer) ->
-    set_module_opt(?MYNAME, ?MODULE, buffer_max, no_buffer);
-set_buffer_max(Seconds) when is_integer(Seconds), Seconds > 0 ->
-    set_module_opt(?MYNAME, ?MODULE, buffer_max, Seconds).
+set_buffer_max(LServer, undefined) ->
+    del_module_opt(LServer, ?MODULE, buffer_max);
+set_buffer_max(LServer, infinity) ->
+    set_module_opt(LServer, ?MODULE, buffer_max, infinity);
+set_buffer_max(LServer, no_buffer) ->
+    set_module_opt(LServer, ?MODULE, buffer_max, no_buffer);
+set_buffer_max(LServer, Seconds) when is_integer(Seconds), Seconds > 0 ->
+    set_module_opt(LServer, ?MODULE, buffer_max, Seconds).
 
--spec get_ack_freq(pos_integer() | never) -> pos_integer() | never.
-get_ack_freq(Default) ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, ack_freq, Default).
+-spec get_ack_freq(jid:lserver(), pos_integer() | never) -> pos_integer() | never.
+get_ack_freq(LServer, Default) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, ack_freq, Default).
 
 %% Return true if succeeded, false otherwise.
--spec set_ack_freq(pos_integer() | never | undefined) -> boolean().
-set_ack_freq(undefined) ->
-    del_module_opt(?MYNAME, ?MODULE, ack_freq);
-set_ack_freq(never) ->
-    set_module_opt(?MYNAME, ?MODULE, ack_freq, never);
-set_ack_freq(Freq) when is_integer(Freq), Freq > 0 ->
-    set_module_opt(?MYNAME, ?MODULE, ack_freq, Freq).
+-spec set_ack_freq(jid:lserver(), pos_integer() | never | undefined) -> boolean().
+set_ack_freq(LServer, undefined) ->
+    del_module_opt(LServer, ?MODULE, ack_freq);
+set_ack_freq(LServer, never) ->
+    set_module_opt(LServer, ?MODULE, ack_freq, never);
+set_ack_freq(LServer, Freq) when is_integer(Freq), Freq > 0 ->
+    set_module_opt(LServer, ?MODULE, ack_freq, Freq).
 
--spec get_resume_timeout(pos_integer()) -> pos_integer().
-get_resume_timeout(Default) ->
-    gen_mod:get_module_opt(?MYNAME, ?MODULE, resume_timeout, Default).
+-spec get_resume_timeout(jid:lserver(), pos_integer()) -> pos_integer().
+get_resume_timeout(LServer, Default) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, resume_timeout, Default).
 
--spec set_resume_timeout(pos_integer()) -> boolean().
-set_resume_timeout(ResumeTimeout) ->
-    set_module_opt(?MYNAME, ?MODULE, resume_timeout, ResumeTimeout).
+-spec set_resume_timeout(jid:lserver(), pos_integer()) -> boolean().
+set_resume_timeout(LServer, ResumeTimeout) ->
+    set_module_opt(LServer, ?MODULE, resume_timeout, ResumeTimeout).
 
 
--spec get_stale_h_opt(Opt :: atom(), Def :: pos_integer()) -> pos_integer().
-get_stale_h_opt(Option, Default) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+-spec get_stale_h_opt(LServer :: jid:lserver(), Opt :: atom(), Def :: pos_integer()) -> pos_integer().
+get_stale_h_opt(LServer, Option, Default) ->
+    MaybeModOpts = gen_mod:get_module_opt(LServer, ?MODULE, stale_h, []),
     proplists:get_value(Option, MaybeModOpts, Default).
 
--spec get_stale_h_repeat_after(pos_integer()) -> pos_integer().
-get_stale_h_repeat_after(Default) ->
-    get_stale_h_opt(stale_h_repeat_after, Default).
+-spec get_stale_h_repeat_after(jid:lserver(), pos_integer()) -> pos_integer().
+get_stale_h_repeat_after(LServer, Default) ->
+    get_stale_h_opt(LServer, stale_h_repeat_after, Default).
 
--spec get_stale_h_geriatric(pos_integer()) -> pos_integer().
-get_stale_h_geriatric(Default) ->
-    get_stale_h_opt(stale_h_geriatric, Default).
+-spec get_stale_h_geriatric(jid:lserver(), pos_integer()) -> pos_integer().
+get_stale_h_geriatric(LServer, Default) ->
+    get_stale_h_opt(LServer, stale_h_geriatric, Default).
 
--spec set_stale_h_opt(Option :: atom(), Value :: pos_integer()) -> boolean().
-set_stale_h_opt(Option, Value) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+-spec set_stale_h_opt(LServer :: jid:lserver(), Option :: atom(), Value :: pos_integer()) -> boolean().
+set_stale_h_opt(LServer, Option, Value) ->
+    MaybeModOpts = gen_mod:get_module_opt(LServer, ?MODULE, stale_h, []),
     case MaybeModOpts of
         [] -> false;
         GCOpts ->
             NewGCOpts = lists:keystore(Option, 1, GCOpts, {Option, Value}),
-            set_module_opt(?MYNAME, ?MODULE, stale_h, NewGCOpts)
+            set_module_opt(LServer, ?MODULE, stale_h, NewGCOpts)
     end.
 
--spec set_stale_h_repeat_after(pos_integer()) -> boolean().
-set_stale_h_repeat_after(ResumeTimeout) ->
-    set_stale_h_opt(stale_h_repeat_after, ResumeTimeout).
+-spec set_stale_h_repeat_after(jid:lserver(), pos_integer()) -> boolean().
+set_stale_h_repeat_after(LServer, ResumeTimeout) ->
+    set_stale_h_opt(LServer, stale_h_repeat_after, ResumeTimeout).
 
--spec set_stale_h_geriatric(pos_integer()) -> boolean().
-set_stale_h_geriatric(GeriatricAge) ->
-    set_stale_h_opt(stale_h_geriatric, GeriatricAge).
+-spec set_stale_h_geriatric(jid:lserver(), pos_integer()) -> boolean().
+set_stale_h_geriatric(LServer, GeriatricAge) ->
+    set_stale_h_opt(LServer, stale_h_geriatric, GeriatricAge).
 
 %%
 %% API for `ejabberd_c2s'
@@ -246,15 +239,15 @@ make_smid() ->
     base64:encode(crypto:strong_rand_bytes(21)).
 
 %% Getters
--spec get_session_from_smid(SMID :: smid()) ->
+-spec get_session_from_smid(jid:lserver(), smid()) ->
     {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found}.
-get_session_from_smid(SMID) ->
+get_session_from_smid(LServer, SMID) ->
     case get_sid(SMID) of
         {sid, SID} -> {sid, SID};
-        {error, smid_not_found} -> get_stale_h(SMID)
+        {error, smid_not_found} -> get_stale_h(LServer, SMID)
     end.
 
--spec get_sid(SMID :: smid()) ->
+-spec get_sid(smid()) ->
     {sid, ejabberd_sm:sid()} | {error, smid_not_found}.
 get_sid(SMID) ->
     case mnesia:dirty_read(sm_session, SMID) of
@@ -262,10 +255,10 @@ get_sid(SMID) ->
         [] -> {error, smid_not_found}
     end.
 
--spec get_stale_h(SMID :: smid()) ->
+-spec get_stale_h(LServer :: jid:lserver(), SMID :: smid()) ->
     {stale_h, non_neg_integer()} | {error, smid_not_found}.
-get_stale_h(SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+get_stale_h(LServer, SMID) ->
+    MaybeModOpts = gen_mod:get_module_opt(LServer, ?MODULE, stale_h, []),
     case proplists:get_value(enabled, MaybeModOpts, false) of
         false -> {error, smid_not_found};
         true -> stream_management_stale_h:read_stale_h(SMID)
@@ -281,15 +274,15 @@ register_smid(SMID, SID) ->
               {error, Reason}
     end.
 
-register_stale_smid_h(SMID, H) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+register_stale_smid_h(LServer, SMID, H) ->
+    MaybeModOpts = gen_mod:get_module_opt(LServer, ?MODULE, stale_h, []),
     case proplists:get_value(enabled, MaybeModOpts, false) of
         false -> ok;
         true -> stream_management_stale_h:write_stale_h(SMID, H)
     end.
 
-remove_stale_smid_h(SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+remove_stale_smid_h(LServer, SMID) ->
+    MaybeModOpts = gen_mod:get_module_opt(LServer, ?MODULE, stale_h, []),
     case proplists:get_value(enabled, MaybeModOpts, false) of
         false -> ok;
         true -> stream_management_stale_h:delete_stale_h(SMID)

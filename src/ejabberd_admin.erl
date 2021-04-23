@@ -37,7 +37,7 @@
          registered_users/1,
          import_users/1,
          %% Purge DB
-         delete_expired_messages/0, delete_old_messages/1,
+         delete_expired_messages/1, delete_old_messages/2,
          %% Mnesia
          set_master/1,
          backup_mnesia/1, restore_mnesia/1,
@@ -88,7 +88,7 @@ commands() ->
                         module = ?MODULE, function = register,
                         args = [{host, binary}, {password, binary}],
                         result = {res, restuple}},
-    #ejabberd_commands{name = register_identified, tags = [accounts],
+     #ejabberd_commands{name = register_identified, tags = [accounts],
                         desc = "Register a user with a specific jid",
                         module = ?MODULE, function = register,
                         args = [{user, binary}, {host, binary}, {password, binary}],
@@ -113,11 +113,11 @@ commands() ->
      #ejabberd_commands{name = delete_expired_messages, tags = [purge],
                         desc = "Delete expired offline messages from database",
                         module = ?MODULE, function = delete_expired_messages,
-                        args = [], result = {res, restuple}},
+                        args = [{host, binary}], result = {res, restuple}},
      #ejabberd_commands{name = delete_old_messages, tags = [purge],
                         desc = "Delete offline messages older than DAYS",
                         module = ?MODULE, function = delete_old_messages,
-                        args = [{days, integer}], result = {res, restuple}},
+                        args = [{host, binary}, {days, integer}], result = {res, restuple}},
      #ejabberd_commands{name = set_master, tags = [mnesia],
                         desc = "Set master node of the clustered Mnesia tables",
                         longdesc = "If you provide as nodename \"self\", this "
@@ -442,18 +442,18 @@ get_loglevel() ->
 %%% Purge DB
 %%%
 
--spec delete_expired_messages() -> {ok, iolist()} | {error, iolist()}.
-delete_expired_messages() ->
-    case mod_offline:remove_expired_messages(?MYNAME) of
+-spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
+delete_expired_messages(LServer) ->
+    case mod_offline:remove_expired_messages(LServer) of
         {ok, C} ->
             {ok, io_lib:format("Removed ~p messages", [C])};
         {error, Reason} ->
             {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
     end.
 
--spec delete_old_messages(Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
-delete_old_messages(Days) ->
-    case mod_offline:remove_old_messages(?MYNAME, Days) of
+-spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
+delete_old_messages(LServer, Days) ->
+    case mod_offline:remove_old_messages(LServer, Days) of
         {ok, C} ->
             {ok, io_lib:format("Removed ~p messages", [C])};
         {error, Reason} ->
@@ -533,7 +533,7 @@ keep_tables() ->
 -spec keep_modules_tables() -> [[atom()]]. % list of lists
 keep_modules_tables() ->
     lists:map(fun(Module) -> module_tables(Module) end,
-              gen_mod:loaded_modules(?MYNAME)).
+              gen_mod:loaded_modules()).
 
 %% TODO: This mapping should probably be moved to a callback function in each module.
 %% @doc Mapping between modules and their tables

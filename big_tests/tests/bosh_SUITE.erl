@@ -848,8 +848,8 @@ inactivity() ->
 
 inactivity(Value) ->
     {inactivity,
-     fun() -> rpc(mim(), mod_bosh, get_inactivity, []) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_inactivity, [domain()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [domain(), V]) end,
      Value}.
 
 max_wait() ->
@@ -857,14 +857,14 @@ max_wait() ->
 
 max_wait(Value) ->
     {max_wait,
-     fun() -> rpc(mim(), mod_bosh, get_max_wait, []) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_max_wait, [domain()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [domain(), V]) end,
      Value}.
 
 server_acks_opt() ->
     {server_acks,
-     fun() -> rpc(mim(), mod_bosh, get_server_acks, []) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_server_acks, [domain()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [domain(), V]) end,
      true}.
 
 is_session_alive(Sid) ->
