@@ -222,7 +222,7 @@ close_session(Acc, SID, JID, Reason) ->
                    []
            end,
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
-    mongoose_hooks:sm_remove_connection_hook(JID#jid.lserver, Acc, SID, JID, Info, Reason).
+    mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.

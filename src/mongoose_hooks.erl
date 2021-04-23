@@ -67,7 +67,7 @@
          sm_broadcast/6,
          sm_filter_offline_message/4,
          sm_register_connection_hook/4,
-         sm_remove_connection_hook/6,
+         sm_remove_connection_hook/5,
          unset_presence_hook/5,
          xmpp_bounce_message/2]).
 
@@ -745,16 +745,16 @@ sm_register_connection_hook(HostType, SID, JID, Info) ->
     ejabberd_hooks:run_for_host_type(sm_register_connection_hook, HostType, ok,
                                      [SID, JID, Info]).
 
--spec sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Reason :: ejabberd_sm:close_reason(),
     Result :: mongoose_acc:t().
-sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) ->
-    ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, LServer, Acc,
+sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, HostType, Acc,
                                      [SID, JID, Info, Reason]).
 
 -spec unset_presence_hook(LServer, Acc, LUser, LResource, Status) -> Result when
