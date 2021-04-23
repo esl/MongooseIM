@@ -32,14 +32,7 @@
     modPrivacyGets,
     modPrivacyStanzaDenied,
     modPrivacyStanzaBlocked,
-    modPrivacyStanzaAll,
-    modMucMamPrefsSets,
-    modMucMamPrefsGets,
-    modMucMamArchiveRemoved,
-    modMucMamLookups,
-    modMucMamForwarded,
-    modMucMamArchived,
-    modMucMamFlushed
+    modPrivacyStanzaAll
 ]).
 
 -define(TOTAL_COUNTERS, [

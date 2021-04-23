@@ -161,10 +161,8 @@ start(Host, Opts) ->
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
                                   ?MODULE, room_process_mam_iq, IQDisc),
-    ejabberd_hooks:add(filter_room_packet, MUCHost, ?MODULE,
-                       filter_room_packet, 90),
-    ejabberd_hooks:add(forget_room, MUCHost, ?MODULE, forget_room, 90),
-    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:add(hooks(Host, MUCHost)),
+    ensure_metrics(Host),
     ok.
 
 -spec stop(Host :: jid:server()) -> any().
@@ -172,9 +170,7 @@ start(Host, Opts) ->
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
-    ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
-    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:delete(hooks(Host, MUCHost)),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
     [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, Host)],
@@ -605,3 +601,25 @@ is_archivable_message(MUCHost, Dir, Packet) ->
     {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
+
+-spec hooks(jid:lserver(), jid:lserver()) -> [ejabberd_hooks:hook()].
+hooks(Host, MUCHost) ->
+    [{filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90},
+     {forget_room, MUCHost, ?MODULE, forget_room, 90},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(Host)].
+
+ensure_metrics(Host) ->
+    lists:foreach(fun(Name) ->
+                      mongoose_metrics:ensure_metric(Host, Name, spiral)
+                  end,
+                  spirals()).
+
+spirals() ->
+    [modMucMamPrefsSets,
+     modMucMamPrefsGets,
+     modMucMamArchiveRemoved,
+     modMucMamLookups,
+     modMucMamForwarded,
+     modMucMamArchived,
+     modMucMamFlushed].
