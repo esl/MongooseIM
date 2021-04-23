@@ -33,7 +33,8 @@
          get_subtag/2,
          append_subtags/2,
          get_path_s/2,
-         replace_tag_attr/3]).
+         replace_tag_attr/3,
+         replace_subelement/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -144,6 +145,13 @@ replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
     Attrs2 = [{Attr, Value} | Attrs1],
     XE#xmlel{attrs = Attrs2}.
 
+%% @doc Given an element and a new subelement,
+%% replace the instance of the subelement in element with the new subelement.
+-spec replace_subelement(exml:element(), exml:element()) -> exml:element().
+replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
+    {_, NameNewSubEl, _, _} = NewSubEl,
+    SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
+    XE#xmlel{children = SubEls2}.
 
 -spec context_default(binary() | string()) -> <<>> | [].
 context_default(Attr) when is_list(Attr) ->

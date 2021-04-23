@@ -74,6 +74,9 @@ Name of a module implementing [`is_archivable_message/3` callback](#is_archivabl
 Name of a module implementing `send_message/4` callback that routes a message during lookup operation.
 Consult with `mod_mam_utils:send_message/4` code for more information.
 
+Check `big_tests/tests/mam_send_message_SUITE_data/mam_send_message_example.erl` file
+in the MongooseIM repository for the usage example.
+
 ### `modules.mod_mam_meta.archive_chat_markers`
 * **Syntax:** boolean
 * **Default:** `false`

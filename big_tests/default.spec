@@ -85,6 +85,7 @@
 {suites, "tests", service_domain_db_SUITE}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
+{suites, "tests", mam_send_message_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
