@@ -111,6 +111,4 @@ mam_muc_removal(Config0) ->
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
 
 run_remove_domain() ->
-    Acc = #{},
-    rpc(mim(), ejabberd_hooks, run_fold,
-        [remove_domain, domain(), Acc, [domain(), domain()]]).
+    rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).

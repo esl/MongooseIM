@@ -238,7 +238,7 @@ disable_domain(HostType, Domain) ->
     Domain :: jid:lserver(),
     Result :: ok.
 remove_domain(HostType, Domain) ->
-    ejabberd_hooks:run_global(remove_domain, ok, [HostType, Domain]).
+    ejabberd_hooks:run_for_host_type(remove_domain, HostType, #{}, [HostType, Domain]).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
