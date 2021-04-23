@@ -140,7 +140,7 @@ start_link() ->
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => From#jid.lserver,
+                              lserver => To#jid.lserver,
                               element => Packet,
                               from_jid => From,
                               to_jid => To }),
