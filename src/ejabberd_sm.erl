@@ -296,7 +296,7 @@ check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
       To :: jid:jid(),
       Packet :: exml:element().
 bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
-    Acc1 = mongoose_hooks:xmpp_bounce_message(Server, Acc),
+    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
     {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
     Acc3 = ejabberd_router:route(To, From, Acc2, Err),
     {stop, Acc3}.

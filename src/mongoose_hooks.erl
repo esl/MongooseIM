@@ -69,7 +69,7 @@
          sm_register_connection_hook/4,
          sm_remove_connection_hook/5,
          unset_presence_hook/5,
-         xmpp_bounce_message/2]).
+         xmpp_bounce_message/1]).
 
 -export([roster_get/3,
          roster_get_jid_info/3,
@@ -768,12 +768,12 @@ unset_presence_hook(LServer, Acc, LUser, LResource, Status) ->
     ejabberd_hooks:run_for_host_type(unset_presence_hook, LServer, Acc,
                                      [LUser, LServer, LResource, Status]).
 
--spec xmpp_bounce_message(Server, Acc) -> Result when
-    Server :: jid:server(),
+-spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-xmpp_bounce_message(Server, Acc) ->
-    ejabberd_hooks:run_for_host_type(xmpp_bounce_message, Server, Acc, []).
+xmpp_bounce_message(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(xmpp_bounce_message, HostType, Acc, []).
 
 %% Roster related hooks
 
