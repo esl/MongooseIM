@@ -32,7 +32,8 @@ all() ->
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
-     {group, services}].
+     {group, services},
+     {group, host_types_group}].
 
 groups() ->
     [{file, [parallel], [sample_pgsql,
@@ -40,8 +41,15 @@ groups() ->
                          s2s,
                          modules,
                          outgoing_pools]},
+     {host_types_group, [], [host_types_file,
+                             host_types_missing_auth_methods_and_modules,
+                             host_types_unsupported_modules,
+                             host_types_unsupported_auth_methods,
+                             host_types_unsupported_auth_methods_and_modules]},
      {general, [parallel], [loglevel,
                             hosts,
+                            host_types,
+                            default_server_domain,
                             registration_timeout,
                             language,
                             all_metrics_are_global,
@@ -236,6 +244,27 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
+init_per_group(host_types_group, Config) ->
+    Modules = [test_mim_module1, test_mim_module2, test_mim_module3],
+    AuthModules = [ejabberd_auth_test1, ejabberd_auth_test2, ejabberd_auth_test3],
+    [{mocked_modules, Modules ++ AuthModules} | Config];
+init_per_group(_, Config) ->
+    Config.
+
+end_per_group(_, Config) ->
+    Config.
+
+init_per_testcase(_, Config) ->
+    case proplists:get_value(mocked_modules, Config, no_mocks) of
+        no_mocks -> ok;
+        Modules -> [meck:new(M, [non_strict, no_link]) || M <- Modules]
+    end,
+    Config.
+
+end_per_testcase(_, Config) ->
+    meck:unload(),
+    Config.
+
 sample_pgsql(Config) ->
     test_config_file(Config,  "mongooseim-pgsql").
 
@@ -251,6 +280,62 @@ modules(Config) ->
 outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
 
+host_types_file(Config) ->
+    Modules = [test_mim_module1, test_mim_module2,
+               ejabberd_auth_test1, ejabberd_auth_test2],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    test_config_file(Config, "host_types").
+
+host_types_missing_auth_methods_and_modules(Config) ->
+    Modules = [ejabberd_auth_test1, test_mim_module1, test_mim_module2],
+    [meck:unload(M) || M <- Modules],
+    {'EXIT', {{config_error, "Could not read the TOML configuration file", ErrorList}, _}}
+        = (catch test_config_file(Config, "host_types")),
+    MissingModules = [M || #{reason := module_not_found, module := M} <- ErrorList],
+    ?assertEqual(lists:sort(Modules), lists:usort(MissingModules)).
+
+host_types_unsupported_modules(Config) ->
+    Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
+                  [#{reason := not_supported_module, module := test_mim_module1,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_module, module := test_mim_module2,
+                     host_type := <<"another host type">>}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_auth_methods(Config) ->
+    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_test1],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
+                  [#{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"some host type">>}]},
+                 test_config_file(Config, "host_types")).
+
+host_types_unsupported_auth_methods_and_modules(Config) ->
+    Modules = [test_mim_module1, ejabberd_auth_test1],
+    FN = fun() -> [dynamic_domains] end,
+    [meck:expect(M, supported_features, FN) || M <- Modules],
+    ?assertError({config_error, "Invalid host type configuration",
+                  %% please note that the sequence of these errors is not
+                  %% guarantied and may change in the future
+                  [#{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"yet another host type">>},
+                   #{reason := not_supported_module, module := test_mim_module2,
+                     host_type := <<"another host type">>},
+                   #{reason := not_supported_auth_method, auth_method := test2,
+                     host_type := <<"some host type">>}]},
+                 test_config_file(Config, "host_types")).
+
 %% tests: general
 loglevel(_Config) ->
     ?eq([#local_config{key = loglevel, value = debug}],
@@ -260,13 +345,51 @@ loglevel(_Config) ->
     ?err(parse_host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
-    ?eq([#config{key = hosts, value = [<<"host1">>, <<"host2">>]}],
-        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>]}})),
+    ?eq([#config{key = hosts, value = [<<"host1">>]}],
+        parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>]}})),
+    GenM = #{<<"default_server_domain">> => <<"some.host">>},
+    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #config{key = host_types, value = []},
+                    #config{key = default_server_domain, value = <<"some.host">>}],
+                   mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
+                       <<"hosts">> => [<<"host1">>, <<"host2">>],
+                       <<"host_types">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<>>]}})),
-    ?err(parse(#{<<"general">> => #{<<"hosts">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}})),
-    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})). % hosts are mandatory
+    % either hosts or host_types must be provided
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => [],
+                                                                    <<"host_types">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => []}})),
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host_types">> => []}})).
+
+host_types(_Config) ->
+    ?eq([#config{key = host_types, value = [<<"type 1">>]}],
+        parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}})),
+    compare_config([#config{key = host_types, value = [<<"type 1">>, <<"type 2">>]},
+                    #config{key = hosts, value = []}],
+                   parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>, <<"type 2">>],
+                                              <<"hosts">> => []}})),
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<>>]}})),
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type1">>]}})),
+    % either hosts and host_types cannot have the same values
+    ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<"type1">>],
+                                    <<"hosts">> => [<<"type1">>]}})).
+
+default_server_domain(_Config) ->
+    ?eq([#config{key = default_server_domain, value = <<"host1">>}],
+        parse(#{<<"general">> => #{<<"default_server_domain">> => <<"host1">>}})),
+    GenM = #{<<"hosts">> => [<<"host1">>, <<"host2">>]},
+    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #config{key = default_server_domain, value = <<"some.host">>}],
+                   mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
+                       <<"default_server_domain">> => <<"some.host">>}})),
+    ?err(parse(#{<<"general">> => #{<<"default_server_domain">> => <<"what is this?">>}})),
+    ?err(parse(#{<<"general">> => #{<<"default_server_domain">> => <<>>}})),
+    % default_server_domain must be provided
+    ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})).
 
 registration_timeout(_Config) ->
     ?eq([#local_config{key = registration_timeout, value = infinity}],
@@ -363,9 +486,9 @@ replaced_wait_timeout(_Config) ->
     err_host_config(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}}).
 
 hide_service_name(_Config) ->
-    eq_host_config([#local_config{key = {hide_service_name, ?HOST}, value = false}],
-                  #{<<"general">> => #{<<"hide_service_name">> => false}}),
-    err_host_config(#{<<"general">> => #{<<"hide_service_name">> => []}}).
+    compare_config([#local_config{key = hide_service_name, value = false}],
+                   parse(#{<<"general">> => #{<<"hide_service_name">> => false}})),
+    ?err(parse(#{<<"general">> => #{<<"hide_service_name">> => []}})).
 
 %% tests: listen
 
@@ -2873,20 +2996,36 @@ err_host_or_global(Config) ->
     ?err(parse_host_config(Config)).
 
 parse_host_config(Config) ->
-    parse(#{<<"host_config">> => [Config#{<<"host">> => ?HOST}]}).
+    parse(#{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}).
 
-%% plug in 'hosts' as this option is mandatory, then parse, then remove the extra 'hosts'
-parse(M)
-  when not is_map_key(<<"general">>, M) ->
-    parse(M#{<<"general">> => #{<<"hosts">> => [?HOST]}});
-parse(M = #{<<"general">> := GenM})
-  when not is_map_key(<<"hosts">>, GenM) ->
-    parse(M#{<<"general">> => GenM#{<<"hosts">> => [?HOST]}});
-parse(M) ->
+
+parse(M0) ->
+    %% 'hosts' (or 'host_types') and `default_server_domain` options are mandatory.
+    %% this function does the following things:
+    %%   1) plugs that mandatory options with dummy values (if required).
+    %%   2) executes parsing.
+    %%   3) removes extra 'hosts'/'default_server_domain' config keys (but only if
+    %%      they have dummy values).
+    %% DummyDomainName value must be unique to avoid accidental config keys removal.
+    DummyDomainName = <<"dummy.domain.name">>,
+    M = maybe_insert_dummy_domain(M0, DummyDomainName),
     Config = mongoose_config_parser_toml:parse(M),
-    lists:filter(fun(#config{key = hosts, value = [?HOST]}) -> false;
-                    (_) -> true
-                 end, Config).
+    maybe_filter_out_dummy_domain(Config, DummyDomainName).
+
+maybe_insert_dummy_domain(M, DomainName) ->
+    DummyGenM = #{<<"default_server_domain">> => DomainName,
+                  <<"hosts">> => [DomainName]},
+    OldGenM = maps:get(<<"general">>, M, #{}),
+    NewGenM = maps:merge(DummyGenM,OldGenM),
+    M#{<<"general">> => NewGenM}.
+
+maybe_filter_out_dummy_domain(Config, DomainName) ->
+    lists:filter(
+        fun
+            (#config{key = default_server_domain, value = V}) when V =:= DomainName -> false;
+            (#config{key = hosts, value = [V]}) when V =:= DomainName -> false;
+            (_) -> true
+        end, Config).
 
 %% helpers for file tests
 
@@ -2895,7 +3034,7 @@ test_config_file(Config, File) ->
     {ok, ExpectedOpts} = file:consult(OptionsPath),
 
     TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
-    State = mongoose_config_parser_toml:parse_file(TOMLPath),
+    State = mongoose_config_parser:parse_file(TOMLPath),
     TOMLOpts = mongoose_config_parser:state_to_opts(State),
 
     %% Save the parsed TOML options

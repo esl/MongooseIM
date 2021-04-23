@@ -23,6 +23,11 @@
 %%%
 %%%----------------------------------------------------------------------
 
+%%%----------------------------------------------------------------------
+%%% FIXME: the code in this module uses Host term to identify domain
+%%% name, not a host type.
+%%%----------------------------------------------------------------------
+
 -module(ejabberd_local).
 -author('alexey@process-one.net').
 
@@ -261,6 +266,9 @@ node_cleanup(Acc, Node) ->
     Res = mnesia:async_dirty(F),
     maps:put(?MODULE, Res, Acc).
 
+disable_domain(_Acc, _HostType, Domain) ->
+    unregister_host(Domain).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -280,6 +288,7 @@ init([]) ->
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
+    ejabberd_hooks:add(disable_domain, global, fun disable_domain/3,50),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
@@ -293,8 +302,10 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({unregister_host, Host}, _From, State) ->
+    Node = node(),
     [ejabberd_c2s:stop(Pid)
-     || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host)],
+     || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host),
+        node(Pid) =:= Node],
     do_unregister_host(Host),
     mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
@@ -370,6 +381,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
+    ejabberd_hooks:delete(disable_domain, global, fun disable_domain/3, 50),
     ok.
 
 %%--------------------------------------------------------------------

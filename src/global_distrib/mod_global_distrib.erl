@@ -210,7 +210,7 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
     case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
             %% Continue routing with initialized metadata
-            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost, ok,
+            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost,
                                                               From, To, LocalHost),
             ?LOG_DEBUG(#{what => gd_route_local,
                          text => <<"Routing global message to local datacenter">>,
@@ -220,7 +220,7 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
-            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost, ok,
+            mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost,
                                                               From, To, TargetHost),
             case find_metadata(Acc, ttl) of
                 {ok, 0} ->

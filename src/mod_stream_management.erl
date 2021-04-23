@@ -9,7 +9,7 @@
          config_spec/0,
          process_buffer_and_ack/1]).
 
-%% `ejabberd_hooks' handlers
+%% hooks handlers
 -export([add_sm_feature/2,
          remove_smid/5,
          session_cleanup/5]).
@@ -116,7 +116,7 @@ stale_h_config_spec() ->
     }.
 
 %%
-%% `ejabberd_hooks' handlers
+%% hooks handlers
 %%
 
 add_sm_feature(Acc, _Server) ->

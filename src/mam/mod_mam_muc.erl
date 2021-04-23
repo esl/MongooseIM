@@ -118,7 +118,7 @@
 -spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
     Schema = ["id", "message"],
-    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, [], JID),
+    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, JID),
     [{mam_muc, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
@@ -212,7 +212,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
     %% Occupant JID <room@service/nick>
     SrcJID = jid:replace_resource(RoomJID, FromNick),
     IsInteresting =
-        case get_behaviour(Host, ArcID, RoomJID, SrcJID, always) of
+        case get_behaviour(Host, ArcID, RoomJID, SrcJID) of
             always -> true;
             never -> false;
             roster -> true
@@ -307,19 +307,19 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_room_owner(User, Room) ->
-    mongoose_hooks:is_muc_room_owner(Room#jid.lserver, false, Room, User).
+    mongoose_hooks:is_muc_room_owner(Room#jid.lserver, Room, User).
 
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_user_identity_hidden(User, Room) ->
-    case mongoose_hooks:can_access_identity(Room#jid.lserver, false, Room, User) of
+    case mongoose_hooks:can_access_identity(Room#jid.lserver, Room, User) of
         CanAccess when is_boolean(CanAccess) -> not CanAccess
     end.
 
 -spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
-    mongoose_hooks:can_access_room(Room#jid.lserver, false, Room, User).
+    mongoose_hooks:can_access_room(Room#jid.lserver, Room, User).
 
 -spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(), jlib:iq()) ->
                            jlib:iq() | {error, any(), jlib:iq()} | ignore.
@@ -437,21 +437,20 @@ handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq
 
 -spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
 archive_id_int(Host, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_id(Host, undefined, ArcJID).
+    mongoose_hooks:mam_muc_archive_id(Host, ArcJID).
 
 
 -spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
                   -> integer().
 archive_size(Host, ArcID, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_size(Host, 0, ArcID, ArcJID).
+    mongoose_hooks:mam_muc_archive_size(Host, ArcID, ArcJID).
 
 -spec get_behaviour(jid:server(), mod_mam:archive_id(),
-                    LocJID :: jid:jid(), RemJID :: jid:jid(),
-                    DefaultBehaviour :: 'always') -> any().
+                    LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(Host, ArcID,
               LocJID = #jid{},
-              RemJID = #jid{}, DefaultBehaviour) ->
-    mongoose_hooks:mam_muc_get_behaviour(Host, DefaultBehaviour, ArcID, LocJID, RemJID).
+              RemJID = #jid{}) ->
+    mongoose_hooks:mam_muc_get_behaviour(Host, ArcID, LocJID, RemJID).
 
 
 -spec set_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
@@ -459,8 +458,8 @@ get_behaviour(Host, ArcID,
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    mongoose_hooks:mam_muc_set_prefs(Host, {error, not_implemented},
-                                     ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs).
+    mongoose_hooks:mam_muc_set_prefs(Host, ArcID, ArcJID, DefaultMode,
+                                     AlwaysJIDs, NeverJIDs).
 
 
 %% @doc Load settings from the database.
@@ -468,12 +467,12 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    mongoose_hooks:mam_muc_get_prefs(Host, {GlobalDefaultMode, [], []}, ArcID, ArcJID).
+    mongoose_hooks:mam_muc_get_prefs(Host, GlobalDefaultMode, ArcID, ArcJID).
 
 -spec remove_archive(jid:server(), mod_mam:archive_id() | undefined,
                      jid:jid()) -> 'ok'.
 remove_archive(Host, ArcID, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_remove_archive(Host, ok, ArcID, ArcJID),
+    mongoose_hooks:mam_muc_remove_archive(Host, ArcID, ArcJID),
     ok.
 
 
@@ -494,12 +493,12 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            mongoose_hooks:mam_muc_lookup_messages(Host, {ok, {0, 0, []}}, Params)
+            mongoose_hooks:mam_muc_lookup_messages(Host, Params)
     end.
 
 -spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
 archive_message(Host, Params) ->
-    mongoose_hooks:mam_muc_archive_message(Host, ok, Params).
+    mongoose_hooks:mam_muc_archive_message(Host, Params).
 
 %% ----------------------------------------------------------------------
 %% Helpers

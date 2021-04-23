@@ -31,8 +31,8 @@
 -export([start/1,
          stop/1,
          authorize/1,
-         set_password/3,
-         try_register/3,
+         set_password/4,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -46,8 +46,8 @@
         ]).
 
 %% Internal
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
 -export([scram_passwords/2, scram_passwords/4]).
 
@@ -72,27 +72,28 @@
 %%% API
 %%%----------------------------------------------------------------------
 
-start(Host) ->
-    prepare_queries(Host),
+start(HostType) ->
+    prepare_queries(HostType),
     ok.
 
-stop(_Host) ->
+stop(_HostType) ->
     ok.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
-supports_sasl_module(_Host, cyrsasl_plain) -> true;
-supports_sasl_module(Host, cyrsasl_digest) -> not mongoose_scram:enabled(Host);
-supports_sasl_module(Host, Mechanism) -> mongoose_scram:enabled(Host, Mechanism).
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+supports_sasl_module(_HostType, cyrsasl_plain) -> true;
+supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
+supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
+check_password(_HostType, LUser, LServer, Password) ->
     try execute_get_password(LServer, LUser) of
         {selected, [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
@@ -117,12 +118,14 @@ check_password(LUser, LServer, Password) ->
             false %% Database error
     end.
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, Digest, DigestGen) ->
+
+check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
     try execute_get_password(LServer, LUser) of
         {selected, [{Passwd, null}]} ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
@@ -145,12 +148,13 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             false %% Database error
     end.
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
-set_password(LUser, LServer, Password) ->
-    PreparedPass = prepare_password(LServer, Password),
+set_password(HostType, LUser, LServer, Password) ->
+    PreparedPass = prepare_password(HostType, Password),
     try
         execute_set_password(LServer, LUser, PreparedPass),
         ok
@@ -162,12 +166,13 @@ set_password(LUser, LServer, Password) ->
             {error, not_allowed}
     end.
 
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists}.
-try_register(LUser, LServer, Password) ->
-    PreparedPass = prepare_password(LServer, Password),
+try_register(HostType, LUser, LServer, Password) ->
+    PreparedPass = prepare_password(HostType, Password),
     try execute_add_user(LServer, LUser, PreparedPass) of
         {updated, 1} ->
             ok;
@@ -313,10 +318,10 @@ prepare_scrammed_password(Server, Iterations, Password) when is_integer(Iteratio
       details => mongoose_scram:serialize(Scram)}.
 
 -spec prepare_password(Server :: jid:server(), Password :: binary()) -> prepared_password().
-prepare_password(Server, Password) ->
-    case mongoose_scram:enabled(Server) of
+prepare_password(HostType, Password) ->
+    case mongoose_scram:enabled(HostType) of
         true ->
-            prepare_scrammed_password(Server, mongoose_scram:iterations(Server), Password);
+            prepare_scrammed_password(HostType, mongoose_scram:iterations(HostType), Password);
         false ->
             #{password => Password}
     end.
@@ -379,8 +384,8 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
 %%% DB Queries
 %%%------------------------------------------------------------------
 
--spec prepare_queries(jid:lserver()) -> any().
-prepare_queries(LServer) ->
+-spec prepare_queries(binary()) -> any().
+prepare_queries(HostType) ->
     prepare(auth_get_password, users,
             [username],
             <<"SELECT password, pass_details FROM users WHERE username = ?">>),
@@ -420,13 +425,13 @@ prepare_queries(LServer) ->
     prepare(auth_count_users_prefix, users,
             [username],
             <<"SELECT COUNT(*) FROM users WHERE username LIKE ? ESCAPE '$'">>),
-    prepare_count_users(LServer),
+    prepare_count_users(HostType),
     prepare(auth_count_users_without_scram, users, [],
             <<"SELECT COUNT(*) FROM users WHERE pass_details is NULL">>).
 
-prepare_count_users(LServer) ->
-    case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
-          mongoose_rdbms:db_engine(LServer)} of
+prepare_count_users(HostType) ->
+    case {ejabberd_auth:get_opt(HostType, rdbms_users_number_estimate),
+          mongoose_rdbms:db_engine(HostType)} of
         {true, mysql} ->
             prepare(auth_count_users_estimate, 'information_schema.tables', [],
                     <<"SELECT table_rows FROM information_schema.tables "

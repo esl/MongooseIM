@@ -41,19 +41,19 @@ end_per_group(G, Config) ->
 
 try_register_ok(_C) ->
     {U, P} = given_user_registered(),
-    true = ?AUTH_MOD:check_password(U, domain(), P).
+    true = ?AUTH_MOD:check_password(host_type(), U, domain(), P).
 
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
     ok = ?AUTH_MOD:remove_user(U, domain()),
-    false = ?AUTH_MOD:check_password(U, domain(), P).
+    false = ?AUTH_MOD:check_password(host_type(), U, domain(), P).
 
 set_password_ok(_C) ->
     {U, P} = given_user_registered(),
     NewP = random_binary(7),
-    ok = ?AUTH_MOD:set_password(U, domain(), NewP),
-    false = ?AUTH_MOD:check_password(U, domain(), P),
-    true = ?AUTH_MOD:check_password(U, domain(), NewP).
+    ok = ?AUTH_MOD:set_password(host_type(), U, domain(), NewP),
+    false = ?AUTH_MOD:check_password(host_type(), U, domain(), P),
+    true = ?AUTH_MOD:check_password(host_type(), U, domain(), NewP).
 
 does_user_exist(_C) ->
     {U, _P} = given_user_registered(),
@@ -74,13 +74,14 @@ supported_sasl_mechanisms(_C) ->
 
 given_user_registered() ->
     {U, P} = UP = gen_user(),
-    ok = ?AUTH_MOD:try_register(U, domain(), P),
+    ok = ?AUTH_MOD:try_register(host_type(), U, domain(), P),
     UP.
 
 
 domain() ->
     <<"mim1.esl.com">>.
 
+host_type() -> domain().
 
 setup_meck(_G, Config) ->
     DataDir = ?config(data_dir, Config),

@@ -209,7 +209,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                                  #xmlel{name = <<"stream:features">>,
                                         children = SASL ++
                                                    StartTLS ++
-                                                   mongoose_hooks:s2s_stream_features(Server, [])}),
+                                                   mongoose_hooks:s2s_stream_features(Server)}),
                     {next_state, wait_for_feature_request, StateData#state{server = Server}}
             end;
         {<<"jabber:server">>, _, Server, true} when
@@ -217,7 +217,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
             send_element(StateData,
                          #xmlel{name = <<"stream:features">>,
-                                children = mongoose_hooks:s2s_stream_features(Server, [])}),
+                                children = mongoose_hooks:s2s_stream_features(Server)}),
             {next_state, stream_established, StateData};
         {<<"jabber:server">>, <<"jabber:server:dialback">>, _Server, _} ->
             send_text(StateData, ?STREAM_HEADER(<<"">>)),

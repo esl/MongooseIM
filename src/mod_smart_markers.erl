@@ -230,7 +230,7 @@ get_host(one2one, Host, _, _) ->
 
 -spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
-    mongoose_hooks:can_access_room(Room#jid.lserver, false, Room, User).
+    mongoose_hooks:can_access_room(Room#jid.lserver, Room, User).
 
 add_default_backend(Opts) ->
     case lists:keyfind(backend, 2, Opts) of

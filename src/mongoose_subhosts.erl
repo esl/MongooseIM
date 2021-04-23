@@ -48,7 +48,7 @@ stop() ->
     ok | {error, exists}.
 register(Host, SubHost) ->
     % Hidden subhosts are not supported yet
-    mongoose_hooks:register_subhost(ok, SubHost, false),
+    mongoose_hooks:register_subhost(SubHost, false),
     case ets:insert_new(?TAB, #subhost_mapping{ subhost = SubHost, host = Host }) of
         true -> ok;
         false -> {error, exists}
@@ -57,7 +57,7 @@ register(Host, SubHost) ->
 -spec 'unregister'(SubHost :: jid:server()) -> true.
 unregister(SubHost) ->
     case get_host(SubHost) of
-        {ok, _Host} -> mongoose_hooks:unregister_subhost(ok, SubHost);
+        {ok, _Host} -> mongoose_hooks:unregister_subhost(SubHost);
         _ -> ok
     end,
     ets:delete(?TAB, SubHost).

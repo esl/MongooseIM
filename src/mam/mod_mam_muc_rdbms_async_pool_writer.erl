@@ -265,7 +265,7 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     [mod_mam_muc_rdbms_arch:retract_message(Host, Params) || Params <- Acc],
 
     spawn_link(fun() ->
-                       mongoose_hooks:mam_muc_flush_messages(Host, ok, MessageCount)
+                       mongoose_hooks:mam_muc_flush_messages(Host, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.

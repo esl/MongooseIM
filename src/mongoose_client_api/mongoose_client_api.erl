@@ -117,12 +117,16 @@ check_password(error, _) ->
     false;
 check_password(JID, Password) ->
     {LUser, LServer} = jid:to_lus(JID),
-    Creds0 = mongoose_credentials:new(LServer),
-    Creds1 = mongoose_credentials:set(Creds0, username, LUser),
-    Creds2 = mongoose_credentials:set(Creds1, password, Password),
-    case ejabberd_auth:authorize(Creds2) of
-        {ok, _} -> true;
-        _ -> false
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            Creds0 = mongoose_credentials:new(LServer, HostType),
+            Creds1 = mongoose_credentials:set(Creds0, username, LUser),
+            Creds2 = mongoose_credentials:set(Creds1, password, Password),
+            case ejabberd_auth:authorize(Creds2) of
+                {ok, _} -> true;
+                _ -> false
+            end;
+        {error, not_found} -> false
     end.
 
 % Constraints

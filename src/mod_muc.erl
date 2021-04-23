@@ -322,7 +322,7 @@ forget_room(ServerHost, Host, Name) ->
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            mongoose_hooks:forget_room(ServerHost, ok, Host, Name);
+            mongoose_hooks:forget_room(ServerHost, Host, Name);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -726,7 +726,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = mongoose_hooks:disco_info(ServerHost, [], ?MODULE, <<"">>, Lang),
+            Info = mongoose_hooks:disco_info(ServerHost, ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],

@@ -763,8 +763,7 @@ do_route_no_resource(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
-    Drop = mongoose_hooks:sm_filter_offline_message(To#jid.lserver,
-                                                    false, From, To, Packet),
+    Drop = mongoose_hooks:sm_filter_offline_message(To#jid.lserver, From, To, Packet),
     case Drop of
         false ->
             route_message(From, To, Acc, Packet);
@@ -795,7 +794,7 @@ do_route_offline(_, _, _, _, Acc, _) ->
       Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
     Server = To#jid.server,
-    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, #userlist{}, To),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, To),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 

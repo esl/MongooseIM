@@ -51,6 +51,7 @@
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
+         does_module_support/2,
          config_spec/1,
          % Get/set opts by host or from a list
          get_opt/2,
@@ -87,6 +88,8 @@
           opts % list()
          }).
 
+-type module_feature() :: atom().
+
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
 %%     [{start, 2},
@@ -95,8 +98,9 @@
 %%     undefined.
 -callback start(Host :: jid:server(), Opts :: list()) -> any().
 -callback stop(Host :: jid:server()) -> any().
+-callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
--optional_callbacks([config_spec/0]).
+-optional_callbacks([config_spec/0, supported_features/0]).
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -253,6 +257,18 @@ stop_module_keep_config(Host, Module) ->
 reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
+
+-spec does_module_support(module(), module_feature()) -> boolean().
+does_module_support(Module, Feature) ->
+    lists:member(Feature, get_supported_features(Module)).
+
+-spec get_supported_features(module()) -> [module_feature()].
+get_supported_features(Module) ->
+    %% if module is not loaded, erlang:function_exported/3 returns false
+    case erlang:function_exported(Module, supported_features, 0) of
+        true -> apply(Module, supported_features, []);
+        false -> []
+    end.
 
 -spec config_spec(module()) -> mongoose_config_spec:config_section().
 config_spec(Module) ->

@@ -334,7 +334,7 @@ register_commands(Commands) ->
         fun(Command) ->
             check_registration(Command), %% may throw
             ets:insert_new(mongoose_commands, Command),
-            mongoose_hooks:register_command(global, Command),
+            mongoose_hooks:register_command(Command),
             ok
         end,
         Commands).
@@ -344,7 +344,7 @@ unregister_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
             ets:delete_object(mongoose_commands, Command),
-            mongoose_hooks:unregister_command(global, Command)
+            mongoose_hooks:unregister_command(Command)
         end,
         Commands).
 

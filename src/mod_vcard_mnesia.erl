@@ -54,7 +54,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
                 mnesia:write(VCardSearch2)
         end,
     {atomic, _} = mnesia:transaction(F),
-    mongoose_hooks:vcard_set(VHost, ok, LUser, VCard),
+    mongoose_hooks:vcard_set(VHost, LUser, VCard),
     ok.
 
 search(VHost, Data) ->

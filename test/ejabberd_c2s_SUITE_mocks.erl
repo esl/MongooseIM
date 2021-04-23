@@ -24,22 +24,20 @@ setup() ->
     meck:expect(ejabberd_socket, get_socket, fun(_) -> ok end),
 
     meck:new(cyrsasl),
-    meck:expect(cyrsasl, server_new, fun(_, _, _, _, _) -> saslstate end),
+    meck:expect(cyrsasl, server_new, fun(_, _, _, _, _, _) -> saslstate end),
     meck:expect(cyrsasl, server_start, fun(_, _, _, _) -> {ok, dummy_creds} end),
     meck:expect(cyrsasl, listmech, fun(_) -> [] end),
 
     meck:new(mongoose_credentials),
-    meck:expect(mongoose_credentials, new, fun(_) -> ok end),
+    meck:expect(mongoose_credentials, new, fun(_, _) -> ok end),
     meck:expect(mongoose_credentials, get,
                 fun(dummy_creds, sasl_success_response, undefined) ->
                     undefined end),
     meck:expect(mongoose_credentials, get, fun mcred_get/2),
 
     meck:new(ejabberd_hooks),
-    meck:expect(ejabberd_hooks, run, fun(_, _) -> ok end),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
-    meck:expect(ejabberd_hooks, run_fold, fun hookfold/3),
-    meck:expect(ejabberd_hooks, run_fold, fun hookfold/4),
+    meck:expect(ejabberd_hooks, run_global, fun hookfold/3),
+    meck:expect(ejabberd_hooks, run_for_host_type, fun hookfold/4),
 
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
@@ -55,7 +53,10 @@ setup() ->
     meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end),
 
     meck:new(gen_mod),
-    meck:expect(gen_mod, is_loaded, fun (_, _) -> true end).
+    meck:expect(gen_mod, is_loaded, fun (_, _) -> true end),
+
+    meck:new(mongoose_domain_api),
+    meck:expect(mongoose_domain_api, get_host_type, fun get_host_type/1).
 
 
 teardown() ->
@@ -63,7 +64,7 @@ teardown() ->
 
 default_local_option(max_fsm_queue) -> 100.
 
-default_global_option(hosts) ->  [<<"localhost">>];
+default_global_option(default_server_domain) ->  <<"localhost">>;
 default_global_option({access, c2s_shaper, global}) ->  [];
 default_global_option(language) ->  <<"en">>.
 
@@ -79,3 +80,6 @@ hookfold(session_opening_allowed_for_user, _, _, _) -> allow;
 hookfold(c2s_stream_features, _, _, _) -> [];
 hookfold(xmpp_send_element, _, A, _) -> A;
 hookfold(privacy_check_packet, _, _, _) -> allow.
+
+get_host_type(<<"localhost">>) -> {ok, <<"localhost">>};
+get_host_type(_) -> {error, not_found}.

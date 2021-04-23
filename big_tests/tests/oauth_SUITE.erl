@@ -372,7 +372,7 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
     JID = mongoose_helper:make_jid(Username, Server),
-    SPassword = rpc(mim(), ejabberd_auth, get_password, [JID]),
+    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->
@@ -422,8 +422,8 @@ extract_bound_jid(BindReply) ->
                                 cdata]).
 
 get_provision_key(Domain) ->
-    RPCArgs = [get_key, Domain, [], [{provision_pre_shared, Domain}]],
-    [{_, RawKey}] = rpc(mim(), ejabberd_hooks, run_fold, RPCArgs),
+    RPCArgs = [Domain, provision_pre_shared],
+    [{_, RawKey}] = rpc(mim(), mongoose_hooks, get_key, RPCArgs),
     RawKey.
 
 make_vcard(Config, User) ->

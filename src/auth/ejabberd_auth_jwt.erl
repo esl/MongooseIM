@@ -30,11 +30,11 @@
 -behaviour(ejabberd_gen_auth).
 -export([start/1,
          stop/1,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         check_password/3,
-         check_password/5,
-         try_register/3,
+         check_password/4,
+         check_password/6,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -54,23 +54,23 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: jid:server()) -> ok.
-start(Host) ->
-    UsernameKey = ejabberd_auth:get_opt(Host, jwt_username_key),
+-spec start(HostType :: binary()) -> ok.
+start(HostType) ->
+    UsernameKey = ejabberd_auth:get_opt(HostType, jwt_username_key),
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
 
-    JWTSecret = get_jwt_secret(Host),
-    JWTAlgorithm = ejabberd_auth:get_opt(Host, jwt_algorithm),
-    ejabberd_auth:set_opts(Host,
+    JWTSecret = get_jwt_secret(HostType),
+    JWTAlgorithm = ejabberd_auth:get_opt(HostType, jwt_algorithm),
+    ejabberd_auth:set_opts(HostType,
                            [{jwt_secret, JWTSecret},
                            {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
--spec stop(Host :: jid:server()) -> ok.
-stop(_Host) ->
+-spec stop(HostType :: binary()) -> ok.
+stop(_HostType) ->
     ok.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
@@ -78,19 +78,20 @@ supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
-check_password(LUser, LServer, Password) ->
-    Key = case ejabberd_auth:get_opt(LServer, jwt_secret) of
+check_password(HostType, LUser, LServer, Password) ->
+    Key = case ejabberd_auth:get_opt(HostType, jwt_secret) of
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    BinAlg = ejabberd_auth:get_opt(LServer, jwt_algorithm),
+    BinAlg = ejabberd_auth:get_opt(HostType, jwt_algorithm),
     Alg = binary_to_atom(jid:str_tolower(BinAlg), utf8),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
-            UserKey = ejabberd_auth:get_opt(LServer, jwt_username_key),
+            UserKey = ejabberd_auth:get_opt(HostType, jwt_username_key),
             case maps:find(UserKey, TokenData) of
                 {ok, LUser} ->
                     %% Login username matches $token_user_key in TokenData
@@ -121,27 +122,30 @@ check_password(LUser, LServer, Password) ->
     end.
 
 
--spec check_password(LUser :: jid:luser(),
+-spec check_password(HostType :: binary(),
+                     LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(LUser, LServer, Password, _Digest, _DigestGen) ->
-    check_password(LUser, LServer, Password).
+check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
+    check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(LUser :: jid:luser(),
+-spec set_password(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
-set_password(_LUser, _LServer, _Password) ->
+set_password(_HostType, _LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 
--spec try_register(LUser :: jid:luser(),
+-spec try_register(HostType :: binary(),
+                   LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists | not_allowed}.
-try_register(_LUser, _LServer, _Password) ->
+try_register(_HostType, _LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 
@@ -210,9 +214,9 @@ remove_user(_LUser, _LServer) ->
 
 % A direct path to a file is read only once during startup,
 % a path in environment variable is read on every auth request.
-get_jwt_secret(Host) ->
-   JWTSource = ejabberd_auth:get_opt(Host, jwt_secret_source),
-   JWTSecret = ejabberd_auth:get_opt(Host, jwt_secret),
+get_jwt_secret(HostType) ->
+   JWTSource = ejabberd_auth:get_opt(HostType, jwt_secret_source),
+   JWTSecret = ejabberd_auth:get_opt(HostType, jwt_secret),
 
    case {JWTSource, JWTSecret} of
        {undefined, JWTSecret0} when is_list(JWTSecret0) ->

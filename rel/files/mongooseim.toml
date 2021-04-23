@@ -1,6 +1,8 @@
 [general]
   loglevel = "warning"
   hosts = [{{{hosts}}}]
+  host_types = [{{{host_types}}}]
+  default_server_domain = {{{default_server_domain}}}
   registration_timeout = "infinity"
   language = "en"
   all_metrics_are_global = {{{all_metrics_are_global}}}
@@ -55,6 +57,9 @@
   transport.max_connections = 1024
 
   [[listen.http.handlers.mongoose_api_admin]]
+    host = "localhost"
+    path = "/api"
+  [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
 
@@ -199,7 +204,7 @@
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats"]
+             "roster", "last", "private", "stanza", "stats", "domain"]
 
 [services.service_mongoose_system_metrics]
   initial_report = 300_000

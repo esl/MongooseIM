@@ -256,8 +256,7 @@ do_authenticate(SerializedToken) ->
     end.
 
 set_vcard(Domain, #jid{} = User, #xmlel{} = VCard) ->
-    Acc0 = {error, no_handler_defined},
-    mongoose_hooks:set_vcard(Domain, Acc0, User, VCard).
+    mongoose_hooks:set_vcard(Domain, User, VCard).
 
 validate_token(Token) ->
     Criteria = [{mac_valid, is_mac_valid(Token)},
@@ -429,7 +428,7 @@ decode_token_type(<<"provision">>) ->
 get_key_for_user(TokenType, User) ->
     UsersHost = User#jid.lserver,
     KeyName = key_name(TokenType),
-    [{{KeyName, UsersHost}, RawKey}] = mongoose_hooks:get_key(UsersHost, [], KeyName),
+    [{{KeyName, UsersHost}, RawKey}] = mongoose_hooks:get_key(UsersHost, KeyName),
     RawKey.
 
 -spec key_name(token_type()) -> token_secret | provision_pre_shared.

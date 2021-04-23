@@ -65,6 +65,7 @@ error_reply_check(_) ->
     BaseIQReply = jlib:make_result_iq_reply(base_iq()),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
+                              host_type => <<"localhost">>,
                               element => BaseIQReply,
                               from_jid => jid:make_noprep(<<"a">>, <<"localhost">>, <<>>),
                               to_jid => jid:make_noprep(<<>>, <<"localhost">>, <<>>) }),

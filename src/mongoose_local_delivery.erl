@@ -27,7 +27,7 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, LDstDomain, Handler) ->
             Acc1 = mongoose_acc:update_stanza(#{from_jid => From, to_jid => To, element => Packet}, Acc),
             mongoose_packet_handler:process(Handler, Acc1, From, To, Packet);
         drop ->
-            mongoose_hooks:xmpp_stanza_dropped(OrigFrom#jid.lserver, ok,
-                                               OrigFrom, OrigTo, OrigPacket),
+            mongoose_hooks:xmpp_stanza_dropped(OrigFrom#jid.lserver, OrigFrom,
+                                               OrigTo, OrigPacket),
             ok
     end.

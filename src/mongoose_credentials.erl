@@ -1,7 +1,8 @@
 -module(mongoose_credentials).
 
--export([new/1,
+-export([new/2,
          lserver/1,
+         host_type/1,
          get/2, get/3,
          set/3,
          extend/2,
@@ -9,22 +10,26 @@
 
 -export_type([t/0]).
 
--record(mongoose_credentials, {lserver, registry = [], extra = []}).
+-record(mongoose_credentials, {lserver, host_type, registry = [], extra = []}).
 
 -type auth_event() :: any().
 
 -opaque t() ::
     #mongoose_credentials{ %% These values are always present.
                            lserver :: jid:lserver(),
+                           host_type :: binary(),
                            %% Authorization success / failure registry.
                            registry :: [{ejabberd_gen_auth:t(), auth_event()}],
                            %% These values are dependent on the ejabberd_auth backend in use.
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()] }.
 
--spec new(jid:lserver()) -> mongoose_credentials:t().
-new(LServer) when is_binary(LServer) ->
-    #mongoose_credentials{lserver = LServer}.
+-spec new(jid:lserver(), binary()) -> mongoose_credentials:t().
+new(LServer, HostType) when is_binary(LServer), is_binary(HostType) ->
+    #mongoose_credentials{lserver = LServer, host_type = HostType}.
+
+-spec host_type(t()) -> binary().
+host_type(#mongoose_credentials{host_type = HostType}) -> HostType.
 
 -spec lserver(t()) -> jid:lserver().
 lserver(#mongoose_credentials{lserver = S}) -> S.

@@ -29,6 +29,7 @@
                 tls_options = [],
                 tls_verify            :: verify_none | verify_peer,
                 authenticated = false :: authenticated_state(),
+                host_type             :: binary() | undefined,
                 jid                   :: jid:jid() | undefined,
                 user = <<>>           :: jid:user(),
                 server = <<>>         :: jid:server(),

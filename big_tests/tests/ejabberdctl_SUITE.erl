@@ -246,7 +246,7 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
                           [#{ location => {?MODULE, ?FUNCTION_NAME, ?LINE},
                               lserver => SB,
                               element => undefined }]),
-                rpc(mim(), ejabberd_hooks, run_fold, [remove_user, SB, Acc, [UB, SB]]);
+                rpc(mim(), mongoose_hooks, remove_user, [SB, Acc, UB]);
             _ ->
                ok
         end

@@ -185,7 +185,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
-    OptName = {hide_service_name, <<"localhost">>},
+    OptName = hide_service_name,
     mongoose_helper:successful_rpc(ejabberd_config, add_local_option, [OptName, true]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
@@ -197,7 +197,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
-    OptName = {hide_service_name, <<"localhost">>},
+    OptName = hide_service_name,
     mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [OptName]),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(replaced_session_cannot_terminate = CN, Config) ->

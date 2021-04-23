@@ -3,6 +3,7 @@
     "localhost",
     "dummy_host"
   ]
+  default_server_domain = "localhost"
 
 [modules.mod_adhoc]
   iqdisc.type = "one_queue"

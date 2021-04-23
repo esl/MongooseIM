@@ -86,8 +86,7 @@ maybe_add_auth_id(Creds, User) ->
     mongoose_credentials:set(Creds, auth_id, User).
 
 do_mech_step(Creds) ->
-    Server = mongoose_credentials:lserver(Creds),
-    VerificationList = get_verification_list(Server),
+    VerificationList = get_verification_list(Creds),
     case verification_loop(VerificationList, Creds) of
         {error, Error} ->
             {error, Error};
@@ -102,8 +101,9 @@ authorize(Creds) ->
         {error, not_authorized} -> {error, <<"not-authorized">>}
     end.
 
-get_verification_list(Server) ->
-    case ejabberd_auth:get_opt(Server, cyrsasl_external, [standard]) of
+get_verification_list(Creds) ->
+    HostType = mongoose_credentials:host_type(Creds),
+    case ejabberd_auth:get_opt(HostType, cyrsasl_external, [standard]) of
         [] -> [standard];
         List when is_list(List) -> List;
         standard -> [standard];

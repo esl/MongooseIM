@@ -60,16 +60,18 @@ parse_file(FileName) ->
 -spec process(toml_section()) -> mongoose_config_parser:state().
 process(Content) ->
     Config = parse(Content),
-    Hosts = get_hosts(Config),
+    Hosts = get_key(Config, hosts),
+    HostTypes = get_key(Config, host_types),
     {FOpts, Config1} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
     {Overrides, Opts} = lists:partition(fun({override, _}) -> true;
                                            (_) -> false
                                         end, Config1),
-    HOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
-    AllOpts = Opts ++ HOpts,
+    HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
+    HostTypesOpts = lists:flatmap(fun(F) -> lists:flatmap(F, HostTypes) end, FOpts),
+    AllOpts = Opts ++ HostsOpts ++ HostTypesOpts,
     case extract_errors(AllOpts) of
         [] ->
-            build_state(Hosts, AllOpts, Overrides);
+            build_state(Hosts, HostTypes, AllOpts, Overrides);
         Errors ->
             error(config_error(Errors))
     end.
@@ -292,26 +294,30 @@ node_to_string({host, _}) -> [];
 node_to_string(Node) -> [binary_to_list(Node)].
 
 -spec item_key(path(), toml_value()) -> {host, jid:server()} | item.
+item_key([<<"host_config">>], #{<<"host_type">> := Host}) -> {host, Host};
 item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
 
 %% Processing of the parsed options
 
--spec get_hosts(config_list()) -> [jid:server()].
-get_hosts(Config) ->
-    case lists:filter(fun(#config{key = hosts}) -> true;
-                         (_) -> false
-                      end, Config) of
+-spec get_key(config_list(), mongoose_config_parser:key()) ->
+    [mongoose_config_parser:value()].
+get_key(Config, Key) ->
+    FilterFn = fun(#config{key = K}) when K =:= Key -> true;
+                  (_) -> false
+               end,
+    case lists:filter(FilterFn, Config) of
         [] -> [];
-        [#config{value = Hosts}] -> Hosts
+        [#config{value = Value}] -> Value
     end.
 
--spec build_state([jid:server()], [top_level_config()], [override()]) ->
+-spec build_state([jid:server()], [jid:server()], [top_level_config()], [override()]) ->
           mongoose_config_parser:state().
-build_state(Hosts, Opts, Overrides) ->
+build_state(Hosts, HostTypes, Opts, Overrides) ->
     lists:foldl(fun(F, StateIn) -> F(StateIn) end,
                 mongoose_config_parser:new_state(),
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
+                 fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
                  fun mongoose_config_parser:dedup_state_opts/1,
                  fun mongoose_config_parser:add_dep_modules/1,

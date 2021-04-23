@@ -516,7 +516,7 @@ item_to_xml(Item) ->
 -spec process_iq_set(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
 process_iq_set(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     #xmlel{children = Els} = SubEl,
-    mongoose_hooks:roster_set(LServer, ok, From, To, SubEl),
+    mongoose_hooks:roster_set(LServer, From, To, SubEl),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
 
@@ -629,7 +629,7 @@ push_item(#jid{lserver = LServer} = JID, From, Item) ->
     end.
 
 push_item_without_version(#jid{lserver = Server} = JID, Resource, From, Item) ->
-    mongoose_hooks:roster_push(Server, ok, From, Item),
+    mongoose_hooks:roster_push(Server, From, Item),
     push_item_final(jid:replace_resource(JID, Resource), From, Item, not_found).
 
 push_item_version(JID, From, Item, RosterVersion) ->

@@ -10,6 +10,7 @@
 
 %% callbacks for the 'process' step
 -export([process_host/1,
+         process_general/1,
          process_sm_backend/1,
          process_ctl_access_rule/1,
          process_ip_version/1,
@@ -43,6 +44,7 @@
          process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
+-include("ejabberd_config.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.
@@ -116,7 +118,8 @@
 root() ->
     General = general(),
     #section{
-       items = #{<<"general">> => General#section{required = [<<"hosts">>]},
+       items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
+                                                  process = fun ?MODULE:process_general/1},
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
@@ -137,10 +140,21 @@ root() ->
 host_config() ->
     #section{
        items = #{%% Host is only validated here - it is stored in the path,
-                 %%   see mongoose_config_parser_toml:item_key/1
+                 %% see mongoose_config_parser_toml:item_key/1
+                 %%
+                 %% for every configured host the host_type of the same name
+                 %% is declared automatically. As host_config section is now
+                 %% used for changing configuration of the host_type, we don't
+                 %% need host option any more. but to stay compatible with an
+                 %% old config format we keep host option as well. now it is
+                 %% just a synonym to host_type.
                  <<"host">> => #option{type = binary,
                                        validate = non_empty,
                                        format = skip},
+
+                 <<"host_type">> => #option{type = binary,
+                                            validate = non_empty,
+                                            format = skip},
 
                  %% Sections below are allowed in host_config,
                  %% but only options with these formats are accepted:
@@ -169,8 +183,16 @@ general() ->
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
-                                      validate = unique_non_empty,
+                                      validate = unique,
                                       format = config},
+                 <<"host_types">> => #list{items = #option{type = binary,
+                                                           validate = non_empty},
+                                           validate = unique,
+                                           format = config},
+                 <<"default_server_domain">> =># option{type = binary,
+                                                        validate = non_empty,
+                                                        process = fun ?MODULE:process_host/1,
+                                                        format = config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
@@ -209,7 +231,7 @@ general() ->
                                                         validate = positive,
                                                         format = host_local_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    format = host_local_config}
+                                                    format = local_config}
                 },
        format = none
       }.
@@ -840,7 +862,8 @@ services() ->
 
 configurable_services() ->
     [service_admin_extra,
-     service_mongoose_system_metrics].
+     service_mongoose_system_metrics,
+     service_domain_db].
 
 %% path: (host_config[].)modules
 modules() ->
@@ -1087,6 +1110,25 @@ process_host(Host) ->
     true = Node =/= error,
     Node.
 
+process_general(General) ->
+    hosts_and_host_types_are_unique_and_non_empty(General),
+    General.
+
+hosts_and_host_types_are_unique_and_non_empty(General) ->
+    AllHostTypes = get_all_hosts_and_host_types(General),
+    true = lists:sort(AllHostTypes) =:= lists:usort(AllHostTypes),
+    true = [] =/= AllHostTypes.
+
+get_all_hosts_and_host_types(General) ->
+    FoldFN = fun
+                 (#config{key = K} = C, Acc) when K =:= hosts;
+                                                  K =:= host_types ->
+                     Acc ++ C#config.value;
+                 (_, Acc) ->
+                     Acc
+             end,
+    lists:foldl(FoldFN, [], General).
+
 process_sni(false) ->
     disable.
 
@@ -1181,7 +1223,11 @@ process_auth(Opts) ->
     %% some options need to be wrapped in 'auth_opts' - this needs simplifying in the future
     OuterKeys = [auth_method, allow_multiple_connections, anonymous_protocol, sasl_mechanisms,
                  extauth_instances],
-    {OuterOpts, InnerOpts} = lists:partition(fun({K, _}) -> lists:member(K, OuterKeys) end, Opts),
+    PartitionFn = fun
+                      ({K, _}) -> lists:member(K, OuterKeys);
+                      (_) -> false %% e.g. error maps
+                  end,
+    {OuterOpts, InnerOpts} = lists:partition(PartitionFn, Opts),
     [{auth_opts, InnerOpts} | OuterOpts].
 
 process_sasl_external(V) when V =:= standard;

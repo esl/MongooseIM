@@ -24,9 +24,9 @@
 -export([start/1,
          stop/1,
          supports_sasl_module/2,
-         set_password/3,
+         set_password/4,
          authorize/1,
-         try_register/3,
+         try_register/4,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
          get_vh_registered_users/2,
@@ -38,33 +38,39 @@
          remove_user/2
         ]).
 
--export([check_password/3,
-         check_password/5]).
+-export([check_password/4,
+         check_password/6]).
 
--spec start(Host :: jid:lserver()) -> ok.
+-spec start(HostType :: binary()) -> ok.
 start(_) -> ok.
 
--spec stop(Host :: jid:lserver()) -> ok.
+-spec stop(HostType :: binary()) -> ok.
 stop(_) -> ok.
 
--spec supports_sasl_module(jid:lserver(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_external.
 
--spec set_password( User :: jid:luser(),
+-spec set_password( HostType :: binary(),
+                    User :: jid:luser(),
                     Server :: jid:lserver(),
                     Password :: binary()
                   ) -> ok | {error, not_allowed | invalid_jid}.
-set_password(_, _, _) -> {error, not_allowed}.
+set_password(_, _, _, _) -> {error, not_allowed}.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
 authorize(Creds) ->
-            {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])}.
+    {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])}.
 
--spec try_register( User :: jid:luser(),
+check_password(_, _, _, _) -> false.
+
+check_password(_, _, _, _, _, _) -> false.
+
+-spec try_register( HostType :: binary(),
+                    User :: jid:luser(),
                     Server :: jid:lserver(),
                     Password :: binary()
                   ) -> ok | {error, exists | not_allowed | term()}.
-try_register(_, _, _) -> {error, not_allowed}.
+try_register(_, _, _, _) -> {error, not_allowed}.
 
 -spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() -> [].
@@ -104,12 +110,3 @@ does_user_exist(_, _) -> true.
                    Server :: jid:lserver()
                  ) -> ok | {error, not_allowed}.
 remove_user(_, _) -> {error, not_allowed}.
-
-check_password(_, _, _) -> false.
-
-check_password(_, _, _, _, _) -> false.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% internal functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

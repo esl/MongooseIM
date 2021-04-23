@@ -431,7 +431,7 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
     JID = mongoose_helper:make_jid(Username, Server),
-    SPassword = rpc(mim(), ejabberd_auth, get_password, [JID]),
+    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 
