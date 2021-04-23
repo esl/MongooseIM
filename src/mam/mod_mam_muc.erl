@@ -622,4 +622,5 @@ spirals() ->
      modMucMamLookups,
      modMucMamForwarded,
      modMucMamArchived,
-     modMucMamFlushed].
+     modMucMamFlushed,
+     modMucMamDroppedIQ].
