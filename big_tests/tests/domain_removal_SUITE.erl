@@ -13,16 +13,7 @@
 -export([mam_pm_removal/1,
          mam_muc_removal/1]).
 
--import(mam_helper,
-        [stanza_archive_request/2,
-         wait_archive_respond/1,
-         assert_respond_size/2,
-         respond_messages/1,
-         parse_forwarded_message/1]).
-
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
+-import(distributed_helper, [mim/0, rpc/4]).
 
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -93,7 +84,6 @@ end_per_testcase(TestCase, Config) ->
 %%%===================================================================
 
 mam_pm_removal(Config) ->
-    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         escalus:wait_for_stanza(Bob),
@@ -116,8 +106,7 @@ mam_muc_removal(Config0) ->
         escalus:wait_for_stanza(Alice),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
         run_remove_domain(),
-        mam_helper:wait_for_room_archive_size(MucHost, Room, 0),
-        ok
+        mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
 
